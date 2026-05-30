@@ -16,6 +16,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.weatherwidget.widget.WidgetStateManager
 import javax.inject.Inject
 
 private const val TAG = "WeatherApi"

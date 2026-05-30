@@ -139,4 +139,6 @@
     <string name="main_location_disclosure_desc">Weather Widget collects location data to provide local weather forecasts even when the app is closed or not in use. This data is only used locally on your device to fetch accurate weather for your current position.</string>
     <string name="grant_location_permission">Grant Location Permission</string>
     <string name="open_settings">Open Settings</string>
+    <string name="privacy_policy_title">Privacy Policy</string>
+    <string name="privacy_policy_body">Weather Widget collects location data to provide local weather forecasts. Your location is only used to fetch weather data for your area and is never stored or shared with third parties except weather API providers (NWS, Open-Meteo, etc.) to retrieve forecasts.\n\nWe use Firebase Crashlytics to monitor app stability. This data is anonymized.\n\nYou can revoke location permissions at any time in Android Settings.\n\nFor questions, visit: https://github.com/dcar/weather-widget/issues</string>
 </resources>

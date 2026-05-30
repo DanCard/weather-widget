@@ -35,7 +35,7 @@ import org.junit.experimental.categories.Category
  * correctly synchronizes the choice back to the widget and triggers a UI update.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class HistoryActivitySyncRoboTest {
 

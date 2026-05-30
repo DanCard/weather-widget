@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.widget.WidgetStateManager
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -8,6 +9,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -88,7 +90,7 @@ class SilurianApiTest {
             }
         }
 
-        val silurianApi = SilurianApi(httpClient, json)
+        val silurianApi = SilurianApi(httpClient, json, mockk(relaxed = true))
         silurianApi.setApiKeyForTesting("test-api-key")
         val result = silurianApi.getForecast(37.7749, -122.4194)
 
@@ -153,7 +155,7 @@ class SilurianApiTest {
             }
         }
 
-        val silurianApi = SilurianApi(httpClient, json)
+        val silurianApi = SilurianApi(httpClient, json, mockk(relaxed = true))
         silurianApi.setApiKeyForTesting("test-api-key")
         val reading = silurianApi.getCurrent(37.7749, -122.4194)
 

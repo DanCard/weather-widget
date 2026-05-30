@@ -19,7 +19,7 @@ import org.junit.experimental.categories.Category
 
 @Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 class WidgetIntentRouterCrashSafetyRoboTest {
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager

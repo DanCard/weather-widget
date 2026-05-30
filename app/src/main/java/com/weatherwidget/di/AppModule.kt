@@ -235,26 +235,30 @@ object AppModule {
     fun provideOpenWeatherMapApi(
         httpClient: HttpClient,
         json: Json,
-    ): OpenWeatherMapApi = OpenWeatherMapApi(httpClient, json)
+        widgetStateManager: WidgetStateManager,
+    ): OpenWeatherMapApi = OpenWeatherMapApi(httpClient, json, widgetStateManager)
 
     @Provides
     @Singleton
     fun provideWeatherApi(
         httpClient: HttpClient,
         json: Json,
-    ): WeatherApi = WeatherApi(httpClient, json)
+        widgetStateManager: WidgetStateManager,
+    ): WeatherApi = WeatherApi(httpClient, json, widgetStateManager)
 
     @Provides
     @Singleton
     fun provideSilurianApi(
         httpClient: HttpClient,
         json: Json,
-    ): SilurianApi = SilurianApi(httpClient, json)
+        widgetStateManager: WidgetStateManager,
+    ): SilurianApi = SilurianApi(httpClient, json, widgetStateManager)
 
     @Provides
     @Singleton
     fun provideTomorrowIoApi(
         httpClient: HttpClient,
         json: Json,
-    ): TomorrowIoApi = TomorrowIoApi(httpClient, json)
+        widgetStateManager: WidgetStateManager,
+    ): TomorrowIoApi = TomorrowIoApi(httpClient, json, widgetStateManager)
 }

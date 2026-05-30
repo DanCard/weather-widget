@@ -37,7 +37,7 @@ import org.junit.experimental.categories.Category
  *  - repository≠null  → actuals from DB     → isActual=true for matching hours (correct)
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class DailyTapActualsRegressionTest {
 

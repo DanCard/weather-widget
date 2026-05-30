@@ -19,7 +19,7 @@ import org.junit.experimental.categories.Category
  * passed through from the header resolver, not a reconstructed graph-derived value.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class TruthCurveLinearRenderingTest {
 

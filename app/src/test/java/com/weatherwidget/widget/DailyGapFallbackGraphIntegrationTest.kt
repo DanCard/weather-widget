@@ -24,7 +24,7 @@ import org.junit.experimental.categories.Category
 
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class DailyGapFallbackGraphIntegrationTest {
 
@@ -243,6 +243,84 @@ class DailyGapFallbackGraphIntegrationTest {
         } finally {
             Locale.setDefault(previousLocale)
         }
+    }
+
+    @Test
+    fun `prepareGraphDays does not use GENERIC_GAP filler for a past day`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val fmt = DateTimeFormatter.ISO_LOCAL_DATE
+        val yesterday = today.minusDays(1)
+
+        val weatherByDate = mapOf(
+            today to forecast(today.format(fmt), 70f, 55f, WeatherSource.NWS),
+            today.plusDays(1) to forecast(today.plusDays(1).format(fmt), 72f, 56f, WeatherSource.NWS),
+        )
+        // Yesterday's only snapshot is a GENERIC_GAP climate-normal row. History must never fall back
+        // to it — the day should resolve to no weather rather than climate-normal filler.
+        val forecastSnapshots = mapOf(
+            yesterday to listOf(
+                forecast(yesterday.format(fmt), 99f, 88f, WeatherSource.GENERIC_GAP, isClimateNormal = true),
+            ),
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+        )
+
+        val yesterdayDay = days.single { it.date == yesterday }
+        assertFalse(
+            "Past day must not fall back to GENERIC_GAP climate-normal filler",
+            yesterdayDay.isSourceGapFallback,
+        )
+    }
+
+    @Test
+    fun `prepareGraphDays still uses GENERIC_GAP filler for a long-term future day beyond today+2`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val fmt = DateTimeFormatter.ISO_LOCAL_DATE
+        val longTerm = today.plusDays(3)
+
+        // numColumns=6 with skipHistory=false yields offsets -1..4, so today+3 is visible.
+        val weatherByDate = mapOf(
+            today to forecast(today.format(fmt), 70f, 55f, WeatherSource.NWS),
+        )
+        // The long-term future day's only snapshot is a GENERIC_GAP climate-normal row. Unlike history,
+        // the snapshot fallback IS allowed to use it for days beyond today+2.
+        val forecastSnapshots = mapOf(
+            longTerm to listOf(
+                forecast(longTerm.format(fmt), 74f, 57f, WeatherSource.GENERIC_GAP, isClimateNormal = true),
+            ),
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            numColumns = 6,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+        )
+
+        val longTermDay = days.single { it.date == longTerm }
+        assertTrue(
+            "Long-term future day (> today+2) may still use GENERIC_GAP climate-normal filler",
+            longTermDay.isSourceGapFallback,
+        )
     }
 
     private fun forecast(

@@ -29,7 +29,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowPowerManager
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class UIUpdateReceiverTest {
 

@@ -15,7 +15,7 @@ import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class WidgetStateManagerTest {
     private lateinit var stateManager: WidgetStateManager

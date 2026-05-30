@@ -14,7 +14,7 @@ import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class CloudCoverGraphLabelPlacementRobolectricTest {
 

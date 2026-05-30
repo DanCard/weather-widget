@@ -320,8 +320,12 @@ object DailyViewLogic {
             val date = centerDate.plusDays(offset)
             val isToday = date == today
 
-            // Try preferred source first, then any available source for the given date.
-            var weather = weatherByDate[date] ?: forecastSnapshots[date]?.firstOrNull()
+            // Try preferred source first, then any available snapshot for the given date.
+            // GENERIC_GAP filler is only allowed for long-term future days (> today+2); for history
+            // and today/+1/+2 a snapshot fallback must not introduce a GENERIC_GAP weather row.
+            val allowGapFallback = date.isAfter(today.plusDays(2))
+            var weather = weatherByDate[date]
+                ?: forecastSnapshots[date]?.firstOrNull { allowGapFallback || it.source != WeatherSource.GENERIC_GAP.id }
             if (isToday && weather != null && (weather.highTemp == null || weather.lowTemp == null)) {
                 // Latest batch for Today is incomplete (likely NWS evening drop).
                 // Search snapshots for the most recent complete forecast from the same source.

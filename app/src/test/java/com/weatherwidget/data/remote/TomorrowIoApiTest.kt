@@ -1,11 +1,15 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.widget.WidgetStateManager
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -20,6 +24,10 @@ class TomorrowIoApiTest {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
+    }
+
+    private val widgetStateManager = mockk<WidgetStateManager>(relaxed = true).apply {
+        every { getApiKey(WeatherSource.TOMORROW_IO) } returns "test-key"
     }
 
     private fun createMockClient(hourlyJson: String, dailyJson: String): HttpClient {
@@ -89,7 +97,7 @@ class TomorrowIoApiTest {
         """.trimIndent()
 
         val mockClient = createMockClient(hourlyResponse, dailyResponse)
-        val api = TomorrowIoApi(mockClient, json)
+        val api = TomorrowIoApi(mockClient, json, widgetStateManager)
 
         val result = api.getForecast(37.4220, -122.0841)
 
@@ -124,7 +132,7 @@ class TomorrowIoApiTest {
                 json(json)
             }
         }
-        val api = TomorrowIoApi(mockClient, json)
+        val api = TomorrowIoApi(mockClient, json, widgetStateManager)
 
         try {
             api.getForecast(37.4220, -122.0841)
@@ -152,7 +160,7 @@ class TomorrowIoApiTest {
         val mockClient = HttpClient(engine) {
             install(ContentNegotiation) { json(json) }
         }
-        val api = TomorrowIoApi(mockClient, json)
+        val api = TomorrowIoApi(mockClient, json, widgetStateManager)
 
         api.getForecast(37.4220, -122.0841)
 
@@ -166,7 +174,7 @@ class TomorrowIoApiTest {
 
     @Test
     fun `weatherCodeToCondition maps codes correctly`() {
-        val api = TomorrowIoApi(HttpClient(MockEngine { respond("") }), json)
+        val api = TomorrowIoApi(HttpClient(MockEngine { respond("") }), json, widgetStateManager)
         
         assertEquals("Clear", api.weatherCodeToCondition(1000))
         assertEquals("Mostly Clear", api.weatherCodeToCondition(1100))

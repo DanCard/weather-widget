@@ -14,6 +14,7 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.*
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
+import com.weatherwidget.widget.WidgetStateManager
 import javax.inject.Inject
 import kotlin.math.roundToInt
 

@@ -26,7 +26,7 @@ import java.time.LocalDate
 
 @Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 class DailyForecastGraphRendererRoboTest {
     private lateinit var context: Context
 

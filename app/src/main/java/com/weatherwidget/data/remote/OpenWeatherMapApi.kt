@@ -17,6 +17,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.time.Instant
 import java.time.ZoneOffset
+import com.weatherwidget.widget.WidgetStateManager
 import javax.inject.Inject
 
 private const val TAG = "OpenWeatherMapApi"

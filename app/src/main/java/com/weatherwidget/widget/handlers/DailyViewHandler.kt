@@ -223,24 +223,35 @@ object DailyViewHandler : WidgetViewHandler {
             return
         }
 
-        // Build weather map: prefer the selected display source, fallback to generic gap
+        // Build weather map: prefer the selected display source. GENERIC_GAP (climate-normal) filler
+        // is only valid for long-term future days the API does not cover (date > today+2); it must never
+        // stand in for history, today, +1, or +2 — those show real display-source data or render missing.
         val weatherByDate =
             weatherList
                 .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
                 .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
-                .mapValues { (date, items) ->
+                .mapNotNull { (date, items) ->
                     val preferred = items.find { it.source == displaySource.id }
-                    val isToday = date == today
+                    val allowGapFallback = date.isAfter(today.plusDays(2))
 
-                    // For Today, we MUST preserve the preferred source even if incomplete (e.g. NWS evening drop),
-                    // because DailyViewLogic / DailyActualsEstimator have specialized recovery for Today.
-                    // For other days, we can fall back to climate normals if the preferred source is missing temps.
-                    if (preferred != null && !isToday && (preferred.highTemp == null || preferred.lowTemp == null)) {
-                        items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null } ?: preferred
+                    val chosen = if (allowGapFallback) {
+                        // Long-term future: fall back to climate normals when the preferred source is
+                        // absent or has missing temps. For Today we'd preserve the preferred source even
+                        // if incomplete, but Today is never long-term so it's handled by the else branch.
+                        if (preferred != null && (preferred.highTemp == null || preferred.lowTemp == null)) {
+                            items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null }
+                                ?: preferred
+                        } else {
+                            preferred ?: items.first()
+                        }
                     } else {
-                        preferred ?: items.first()
+                        // History / today / +1 / +2: real display-source only, never GENERIC_GAP filler.
+                        // (Today's incomplete-source recovery lives in DailyViewLogic / DailyActualsEstimator.)
+                        preferred
                     }
+                    chosen?.let { date to it }
                 }
+                .toMap()
 
         val headerResolution = resolveAndBindHeader(
             context = context,
@@ -474,14 +485,52 @@ object DailyViewHandler : WidgetViewHandler {
         skipYesterday: Boolean,
         centerDate: LocalDate,
         visibleDates: List<LocalDate>,
+        cloudDays: List<DailyForecastGraphRenderer.DayData>? = null,
+        hourlyForecasts: List<HourlyForecastEntity>? = null,
     ) {
         val mode = if (useGraph) "GRAPH" else "TEXT"
         val datesSummary = visibleDates.joinToString(",").ifEmpty { "<none>" }
         val tag = if (visibleDates.isEmpty()) "DAILY_RENDER_EMPTY" else "DAILY_RENDER"
+        val cloudSummary = if (cloudDays != null) {
+            " " + buildCloudCoverDiagnostic(cloudDays, hourlyForecasts, displaySource)
+        } else ""
         appLogDao.log(
             tag,
-            "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows skipYesterday=$skipYesterday center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary"
+            "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows skipYesterday=$skipYesterday center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary$cloudSummary"
         )
+    }
+
+    /**
+     * Persists why cloud-cover shading does/doesn't appear on the daily vertical bars while
+     * navigating history. The shading is derived per displayed day from near-noon hourly
+     * cloud cover (DailyViewLogic.resolveNoonCloudCoverRatio), so a bar can render without
+     * shading if the in-memory hourly window does not reach that date — even though the data
+     * exists in the DB. This logs, for each render: how many visible days resolved a cloud
+     * ratio, which dates missed it (with daysFromToday), and the actual hourly window span for
+     * the display source so a window/coverage gap is visible from app_logs alone.
+     */
+    private fun buildCloudCoverDiagnostic(
+        cloudDays: List<DailyForecastGraphRenderer.DayData>,
+        hourlyForecasts: List<HourlyForecastEntity>?,
+        displaySource: WeatherSource,
+    ): String {
+        val resolved = cloudDays.count { it.cloudCoverRatioOverride != null }
+        val missing = cloudDays.filter { it.cloudCoverRatioOverride == null }
+            .map { "${it.date}(d${it.daysFromToday})" }
+        val missingStr = if (missing.isEmpty()) "-" else missing.joinToString(",")
+
+        val zone = ZoneId.systemDefault()
+        val sourceRows = hourlyForecasts
+            ?.filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
+            ?: emptyList()
+        val withCloud = sourceRows.count { it.cloudCover != null }
+        val dates = sourceRows.asSequence()
+            .map { Instant.ofEpochMilli(it.dateTime).atZone(zone).toLocalDate() }
+            .toList()
+        val window = if (dates.isEmpty()) "none" else "${dates.min()}..${dates.max()}"
+
+        return "cloud=$resolved/${cloudDays.size} cloudMissing=$missingStr " +
+            "hourlyRows=${sourceRows.size} hourlyWithCloud=$withCloud hourlyWindow=$window"
     }
 
     @VisibleForTesting
@@ -1011,6 +1060,8 @@ object DailyViewHandler : WidgetViewHandler {
             skipYesterday = ctx.skipYesterday,
             centerDate = ctx.centerDate,
             visibleDates = displayDays.map { it.date },
+            cloudDays = displayDays,
+            hourlyForecasts = ctx.hourlyForecasts,
         )
         logGraphDayIconDetails(ctx.context, ctx.appWidgetId, displayDays)
 

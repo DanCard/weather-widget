@@ -15,7 +15,7 @@ import org.junit.experimental.categories.Category
  * produce visible dashes even on flat (past) segments.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class TemperatureGraphDashContinuityTest {
 

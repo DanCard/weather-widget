@@ -79,7 +79,6 @@ app/src/main/java/com/weatherwidget/
 │   ├── ConfigActivity.kt
 │   ├── SettingsActivity.kt
 │   ├── StatisticsActivity.kt
-│   ├── FeatureTourActivity.kt
 │   ├── ForecastHistoryActivity.kt
 │   └── DailyAccuracyAdapter.kt
 ├── util/

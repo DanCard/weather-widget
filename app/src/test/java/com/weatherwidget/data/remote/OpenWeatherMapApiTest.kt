@@ -1,5 +1,7 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.widget.WidgetStateManager
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -8,6 +10,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -21,6 +25,7 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class OpenWeatherMapApiTest {
     private lateinit var json: Json
+    private lateinit var widgetStateManager: WidgetStateManager
 
     @Before
     fun setup() {
@@ -29,6 +34,8 @@ class OpenWeatherMapApiTest {
                 ignoreUnknownKeys = true
                 isLenient = true
             }
+        widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
+        every { widgetStateManager.getApiKey(WeatherSource.OPEN_WEATHER_MAP) } returns "test-key"
     }
 
     private fun createMockClient(responseJson: String): HttpClient {
@@ -107,7 +114,7 @@ class OpenWeatherMapApiTest {
                 }
                 """.trimIndent()
 
-            val api = OpenWeatherMapApi(createMockClient(responseJson), json, apiKey = "test-key")
+            val api = OpenWeatherMapApi(createMockClient(responseJson), json, widgetStateManager)
             val forecast = api.getForecast(37.42, -122.08)
 
             assertEquals(67.4f, forecast.currentTemp!!, 0.001f)
@@ -158,7 +165,7 @@ class OpenWeatherMapApiTest {
                 }
                 """.trimIndent()
 
-            val api = OpenWeatherMapApi(createMockClient(responseJson), json, apiKey = "test-key")
+            val api = OpenWeatherMapApi(createMockClient(responseJson), json, widgetStateManager)
             val forecast = api.getForecast(37.42, -122.08)
 
             assertNull(forecast.currentTemp)
@@ -187,7 +194,7 @@ class OpenWeatherMapApiTest {
                 }
                 """.trimIndent()
 
-            val api = OpenWeatherMapApi(createMockClient(responseJson), json, apiKey = "test-key")
+            val api = OpenWeatherMapApi(createMockClient(responseJson), json, widgetStateManager)
             val current = api.getCurrent(37.42, -122.08)
 
             assertNotNull(current)
@@ -207,7 +214,7 @@ class OpenWeatherMapApiTest {
                 }
                 """.trimIndent()
 
-            val api = OpenWeatherMapApi(createMockClient(responseJson), json, apiKey = "test-key")
+            val api = OpenWeatherMapApi(createMockClient(responseJson), json, widgetStateManager)
 
             val exception =
                 try {
