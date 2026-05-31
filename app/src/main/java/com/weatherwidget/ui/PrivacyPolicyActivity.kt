@@ -17,6 +17,7 @@ class PrivacyPolicyActivity : AppCompatActivity() {
 
         val scrollView = ScrollView(this).apply {
             setBackgroundColor(getColor(R.color.background))
+            fitsSystemWindows = true
         }
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
