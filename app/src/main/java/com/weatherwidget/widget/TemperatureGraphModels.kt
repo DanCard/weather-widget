@@ -66,6 +66,7 @@ data class LabelPlacementDebug(
     val placedAbove: Boolean,
     val series: String = "",
     val colorFamily: String = "",
+    val hexColor: String = "",
     val reason: String = "",
     val displacementSteps: Int = 0,
 )

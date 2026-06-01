@@ -184,10 +184,15 @@ class NwsForecastMapper @Inject constructor(
         val batchSummary = buildBatchSummary(forecastPeriods, forecastEntities, preservedTerminalLowOnlyDay)
         persistNwsBatchSummary(grid.forecastUrl, batchSummary)
 
+        val nowMs = System.currentTimeMillis()
         val hourlyEntities = hourlyPeriods.map { period ->
+            val periodAgeMs = nowMs - period.startTime
+            if (periodAgeMs > 0 && period.startTime % (3600 * 1000L) == 0L) {
+                appLogDao.log("NWS_HOURLY_STALE", "time=${Instant.ofEpochMilli(period.startTime).atZone(ZoneId.systemDefault()).toLocalDateTime()} temp=${period.temperature} ageMin=${periodAgeMs / 60000}")
+            }
             HourlyForecastEntity(
                 period.startTime, latitude, longitude, period.temperature,
-                period.shortForecast, WeatherSource.NWS.id, period.precipProbability, period.cloudCover, period.precipAmountMm, System.currentTimeMillis()
+                period.shortForecast, WeatherSource.NWS.id, period.precipProbability, period.cloudCover, period.precipAmountMm, nowMs
             )
         }
 

@@ -75,6 +75,10 @@ object TemperatureGraphStyle {
         }
     }
 
+    fun formatColorHex(color: Int): String {
+        return String.format("#%06X", (0xFFFFFF and color))
+    }
+
     fun formatAgeLabel(ageMinutes: Long, hoursSpanHours: Long): String? {
         if (ageMinutes < 0) {
             Log.w(TAG, "formatAgeLabel: negative ageMinutes=$ageMinutes, possible clock skew")

@@ -133,6 +133,7 @@ class ForecastRepository
             targetSourceId: String? = null,
             fetchContext: ForecastFetchContext? = null,
         ): Result<List<ForecastEntity>> {
+            val fetchStartTime = System.currentTimeMillis()
             try {
                 // Initial check without locking
                 var cachedForecasts = getCachedData(latitude, longitude)
@@ -204,7 +205,10 @@ class ForecastRepository
                     }
 
                     cleanOldData()
+                    val totalFetchTime = System.currentTimeMillis() - fetchStartTime
                     lastFetchTime = System.currentTimeMillis()
+                    
+                    appLogDao.log("NET_FETCH_COMPLETE", "durationMs=$totalFetchTime sources=${sourcesToFetch.joinToString(",") { it.id }}")
                     
                     return Result.success(getCachedData(latitude, longitude))
                 }

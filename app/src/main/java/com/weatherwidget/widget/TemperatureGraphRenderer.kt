@@ -559,7 +559,7 @@ object TemperatureGraphRenderer {
                             ctx.canvas.drawText(placement.label, cascadeResult.x, cascadeResult.baselineY, placement.labelPaint)
                             drawnLabelMetas.add(PlacedLabelMeta(cascadeResult.bounds, isValleyBelow = true, role = candidate.role, temperature = temps[idx]))
                             val seriesLabel = if (placement.isFuture) "forecast" else "actual"
-                            val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, cascadeResult.x, cascadeResult.baselineY, false, seriesLabel, seriesLabel, cascadeResult.reason, 0)
+                            val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, cascadeResult.x, cascadeResult.baselineY, false, seriesLabel, seriesLabel, TemperatureGraphStyle.formatColorHex(placement.labelPaint.color), cascadeResult.reason, 0)
                             if (shouldLogPlacement(candidate.role)) {
                                 Log.d(TAG, "LabelPlacementDebug: $debug")
                             }
@@ -608,7 +608,7 @@ object TemperatureGraphRenderer {
                     val seriesLabel = if (placement.isFuture) "forecast" else "actual"
                     val reasonBase = if (!placeAbove) "below" else "above"
                     val reason = if (step > 0) "$reasonBase+$step" else reasonBase
-                    val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, baselineY, placeAbove, seriesLabel, seriesLabel, reason, step)
+                    val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, baselineY, placeAbove, seriesLabel, seriesLabel, TemperatureGraphStyle.formatColorHex(placement.labelPaint.color), reason, step)
                     if (shouldLogPlacement(candidate.role)) {
                         Log.d(TAG, "LabelPlacementDebug: $debug")
                     }
@@ -626,7 +626,7 @@ object TemperatureGraphRenderer {
             ctx.canvas.drawText(placement.label, forceX, forceBaselineY, placement.labelPaint)
             drawnLabelMetas.add(PlacedLabelMeta(forceBounds, isValleyBelow = forceDrawBelow, role = candidate.role, temperature = temps[idx]))
             val seriesLabel = if (placement.isFuture) "forecast" else "actual"
-            val debugForced = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, forceX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, "FORCED", forceStep)
+            val debugForced = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, forceX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, TemperatureGraphStyle.formatColorHex(placement.labelPaint.color), "FORCED", forceStep)
             if (shouldLogPlacement(candidate.role)) {
                 Log.d(TAG, "LabelPlacementDebug: $debugForced")
             }
@@ -793,7 +793,7 @@ object TemperatureGraphRenderer {
                 val seriesLabel = if (placement.isFuture) "forecast" else "actual"
                 val reasonBase = if (placeAbove) "above" else "below"
                 val reason = "$reasonBase+curveFit(${String.format("%.1f", extra)}px)"
-                val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, newV.baselineY, placeAbove, seriesLabel, seriesLabel, reason, 1)
+                val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, newV.baselineY, placeAbove, seriesLabel, seriesLabel, TemperatureGraphStyle.formatColorHex(placement.labelPaint.color), reason, 1)
                 Log.d(TAG, "LabelPlacementDebug: $debug")
                 ctx.onLabelPlaced?.invoke(debug)
                 return ExactFitOutcome.PLACED
