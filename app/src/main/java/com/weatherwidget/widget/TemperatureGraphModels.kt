@@ -74,6 +74,7 @@ data class PlacedLabelMeta(
     val bounds: RectF,
     val isValleyBelow: Boolean,
     val role: TemperatureRole,
+    val temperature: Float,
 )
 
 data class FetchDotDebug(

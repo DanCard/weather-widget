@@ -115,6 +115,64 @@ class TemperatureLabelCollisionOrderTest {
         )
     }
 
+    @Test
+    fun `warmer forecast low flips above a heavily overlapping colder actual low`() {
+        val placements = mutableListOf<LabelPlacementDebug>()
+
+        // Reproduces the Samsung Fold case: a forecast daily LOW (54) and a colder ACTUAL_LOW
+        // (53.2) that land at the same spot, so the below-cascade can't separate them and would
+        // otherwise stack them with a heavy vertical overlap.
+        //
+        // Two test-only geometry notes:
+        //  - Robolectric stubs text measurement, so label boxes are only a few px wide. A flat
+        //    forecast-low run (idx 24-26) puts the LOW label's centerOfRun on idx 25 — the exact
+        //    X of the ACTUAL_LOW point — so the thin boxes still overlap horizontally.
+        //  - High of 81 widens the range (~28°) so the 0.8° gap maps to a small Y offset, landing
+        //    the vertical overlap in the cascade's heavy-overlap band (~0.7) rather than ≤0.65.
+        val forecast = MutableList(48) { 70f }
+        forecast[12] = 81f
+        forecast[24] = 54f
+        forecast[25] = 54f
+        forecast[26] = 54f
+        val actual = MutableList<Float?>(48) { null }
+        actual[25] = 53.2f
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = buildHours(forecast, actual),
+            widthPx = 900,
+            heightPx = 400,
+            currentTime = LocalDateTime.of(2026, 4, 9, 12, 0),
+            observedAt = LocalDateTime.of(2026, 4, 9, 2, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val forecastLow = placements.find { it.temperature == 54f }
+        val actualLow = placements.find { it.temperature == 53.2f }
+
+        if (forecastLow == null || actualLow == null) {
+            println("Placements: ${placements.map { "${it.role}=${it.temperature} above=${it.placedAbove} y=${"%.1f".format(it.y)} reason=${it.reason}" }}")
+        }
+
+        assertNotNull("Forecast LOW (54) should be placed", forecastLow)
+        assertNotNull("ACTUAL_LOW (53) should be placed", actualLow)
+
+        // Warmer label (54) lifted above the line; colder label (53) stays below.
+        assertTrue(
+            "Expected warmer 54° to be placed above. forecastLow=$forecastLow",
+            forecastLow!!.placedAbove
+        )
+        assertTrue(
+            "Expected colder 53° to stay below. actualLow=$actualLow",
+            !actualLow!!.placedAbove
+        )
+        // Above-the-line label must have a smaller Y (higher on screen) than the below-the-line one.
+        assertTrue(
+            "Expected 54° above 53°. 54_y=${forecastLow.y}, 53_y=${actualLow.y}",
+            forecastLow.y < actualLow.y
+        )
+    }
+
     private fun assertNotNull(message: String, value: Any?) {
         if (value == null) throw AssertionError(message)
     }

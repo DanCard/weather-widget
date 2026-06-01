@@ -483,6 +483,10 @@ object TemperatureGraphRenderer {
         var forceX = placement.clampedX
         var forceDrawBelow = false
         var forceStep = 0
+        // Set once the below-cascade decides this (warmer) valley label should be lifted above a
+        // colder one instead of stacking on it. Stops the cascade from re-firing and steers the
+        // remaining loop iterations toward the above-placement path.
+        var flipDecided = false
 
         if (candidate.role in CURVE_AVOIDANCE_ROLES) {
             placed = tryExactFitCurveAvoidance(
@@ -539,8 +543,8 @@ object TemperatureGraphRenderer {
 
                 val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve
 
-                if (hasCollision && !placeAbove && placement.isValley && step == 0) {
-                    val cascadeResult = tryValleyBelowCascade(
+                if (hasCollision && !placeAbove && placement.isValley && step == 0 && !flipDecided) {
+                    val outcome = tryValleyBelowCascade(
                         ctx = ctx,
                         candidate = candidate,
                         placement = placement,
@@ -549,17 +553,27 @@ object TemperatureGraphRenderer {
                         drawnIconBounds = drawnIconBounds,
                         labelHeight = labelHeight,
                     )
-                    if (cascadeResult != null) {
-                        ctx.canvas.drawText(placement.label, cascadeResult.x, cascadeResult.baselineY, placement.labelPaint)
-                        drawnLabelMetas.add(PlacedLabelMeta(cascadeResult.bounds, isValleyBelow = true, role = candidate.role))
-                        val seriesLabel = if (placement.isFuture) "forecast" else "actual"
-                        val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, cascadeResult.x, cascadeResult.baselineY, false, seriesLabel, seriesLabel, cascadeResult.reason, 0)
-                        if (shouldLogPlacement(candidate.role)) {
-                            Log.d(TAG, "LabelPlacementDebug: $debug")
+                    when (outcome) {
+                        is ValleyCascadeOutcome.Below -> {
+                            val cascadeResult = outcome.result
+                            ctx.canvas.drawText(placement.label, cascadeResult.x, cascadeResult.baselineY, placement.labelPaint)
+                            drawnLabelMetas.add(PlacedLabelMeta(cascadeResult.bounds, isValleyBelow = true, role = candidate.role, temperature = temps[idx]))
+                            val seriesLabel = if (placement.isFuture) "forecast" else "actual"
+                            val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, cascadeResult.x, cascadeResult.baselineY, false, seriesLabel, seriesLabel, cascadeResult.reason, 0)
+                            if (shouldLogPlacement(candidate.role)) {
+                                Log.d(TAG, "LabelPlacementDebug: $debug")
+                            }
+                            ctx.onLabelPlaced?.invoke(debug)
+                            placed = true
+                            break@outer
                         }
-                        ctx.onLabelPlaced?.invoke(debug)
-                        placed = true
-                        break@outer
+                        ValleyCascadeOutcome.FlipAbove -> {
+                            // Don't place (or record a forced-below fallback) here; steer to the
+                            // above iteration so this warmer label stacks on top of the colder one.
+                            flipDecided = true
+                            continue
+                        }
+                        ValleyCascadeOutcome.None -> Unit // fall through to normal rejection handling
                     }
                 }
 
@@ -590,7 +604,7 @@ object TemperatureGraphRenderer {
                         ctx.canvas.drawLine(placement.clampedX, placement.sy, placement.clampedX, lineEndY, placement.leaderLinePaint)
                     }
                     ctx.canvas.drawText(placement.label, placement.clampedX, baselineY, placement.labelPaint)
-                    drawnLabelMetas.add(PlacedLabelMeta(bounds, isValleyBelow = !placeAbove && placement.isValley, role = candidate.role))
+                    drawnLabelMetas.add(PlacedLabelMeta(bounds, isValleyBelow = !placeAbove && placement.isValley, role = candidate.role, temperature = temps[idx]))
                     val seriesLabel = if (placement.isFuture) "forecast" else "actual"
                     val reasonBase = if (!placeAbove) "below" else "above"
                     val reason = if (step > 0) "$reasonBase+$step" else reasonBase
@@ -610,7 +624,7 @@ object TemperatureGraphRenderer {
                 ctx.canvas.drawLine(forceX, placement.sy, forceX, lineEndY, placement.leaderLinePaint)
             }
             ctx.canvas.drawText(placement.label, forceX, forceBaselineY, placement.labelPaint)
-            drawnLabelMetas.add(PlacedLabelMeta(forceBounds, isValleyBelow = forceDrawBelow, role = candidate.role))
+            drawnLabelMetas.add(PlacedLabelMeta(forceBounds, isValleyBelow = forceDrawBelow, role = candidate.role, temperature = temps[idx]))
             val seriesLabel = if (placement.isFuture) "forecast" else "actual"
             val debugForced = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, forceX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, "FORCED", forceStep)
             if (shouldLogPlacement(candidate.role)) {
@@ -774,7 +788,7 @@ object TemperatureGraphRenderer {
                 val lineEndY = if (placeAbove) newBounds.bottom else newBounds.top
                 ctx.canvas.drawLine(placement.clampedX, placement.sy, placement.clampedX, lineEndY, placement.leaderLinePaint)
                 ctx.canvas.drawText(placement.label, placement.clampedX, newV.baselineY, placement.labelPaint)
-                drawnLabelMetas.add(PlacedLabelMeta(newBounds, isValleyBelow = !placeAbove && placement.isValley, role = candidate.role))
+                drawnLabelMetas.add(PlacedLabelMeta(newBounds, isValleyBelow = !placeAbove && placement.isValley, role = candidate.role, temperature = temps[idx]))
 
                 val seriesLabel = if (placement.isFuture) "forecast" else "actual"
                 val reasonBase = if (placeAbove) "above" else "below"
@@ -794,6 +808,20 @@ object TemperatureGraphRenderer {
         val reason: String,
     )
 
+    /**
+     * Outcome of attempting to place a colliding valley label below the line.
+     *  - [Below]     → place at the returned position (horizontal shift or accepted minor overlap).
+     *  - [FlipAbove] → the only below resolution left is a heavy overlap on a *colder* low, and
+     *                  this label is strictly warmer; lift it above so warmer-on-top matches the
+     *                  points' vertical order. Caller re-routes it to the above-placement path.
+     *  - [None]      → no below resolution found (equivalent to the old `null`).
+     */
+    private sealed class ValleyCascadeOutcome {
+        data class Below(val result: CascadeResult) : ValleyCascadeOutcome()
+        object FlipAbove : ValleyCascadeOutcome()
+        object None : ValleyCascadeOutcome()
+    }
+
     private fun tryValleyBelowCascade(
         ctx: RenderContext,
         candidate: TempLabelCandidate,
@@ -802,7 +830,7 @@ object TemperatureGraphRenderer {
         drawnLabelMetas: List<PlacedLabelMeta>,
         drawnIconBounds: List<RectF>,
         labelHeight: Float,
-    ): CascadeResult? {
+    ): ValleyCascadeOutcome {
         val centerX = placement.clampedX
         val halfWidth = placement.textWidth / 2f
 
@@ -810,7 +838,7 @@ object TemperatureGraphRenderer {
         val drawnBoundsList = drawnLabelMetas.map { it.bounds }
 
         val collidingMeta = drawnLabelMetas.firstOrNull { RectF.intersects(it.bounds, centeredBounds) }
-        if (collidingMeta == null) return null
+        if (collidingMeta == null) return ValleyCascadeOutcome.None
 
         val horizontalOverlap = maxOf(0f, minOf(centeredBounds.right, collidingMeta.bounds.right) - maxOf(centeredBounds.left, collidingMeta.bounds.left))
         val verticalOverlap = maxOf(0f, minOf(centeredBounds.bottom, collidingMeta.bounds.bottom) - maxOf(centeredBounds.top, collidingMeta.bounds.top))
@@ -826,11 +854,13 @@ object TemperatureGraphRenderer {
             val overlapsLabel = drawnBoundsList.any { RectF.intersects(it, shiftedBounds) }
             val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, shiftedBounds) }
             if (!overlapsLabel && !overlapsIcon) {
-                return CascadeResult(
-                    x = shiftedX,
-                    baselineY = verticalPlacement.baselineY,
-                    bounds = shiftedBounds,
-                    reason = "below-shifted",
+                return ValleyCascadeOutcome.Below(
+                    CascadeResult(
+                        x = shiftedX,
+                        baselineY = verticalPlacement.baselineY,
+                        bounds = shiftedBounds,
+                        reason = "below-shifted",
+                    )
                 )
             }
         }
@@ -840,23 +870,39 @@ object TemperatureGraphRenderer {
             if (shouldLogPlacement(candidate.role)) {
                 Log.d(TAG, "LabelCascade: role=${candidate.role} option2-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO}")
             }
-            return CascadeResult(
-                x = centerX,
-                baselineY = verticalPlacement.baselineY,
-                bounds = centeredBounds,
-                reason = "below-relaxed",
+            return ValleyCascadeOutcome.Below(
+                CascadeResult(
+                    x = centerX,
+                    baselineY = verticalPlacement.baselineY,
+                    bounds = centeredBounds,
+                    reason = "below-relaxed",
+                )
             )
         }
 
         if (collidingMeta.isValleyBelow && overlapRatio <= GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO) {
+            // Last resort: a heavy (>option2) overlap stacked on another below valley. Rather than
+            // accept it, lift this label above the line when it is strictly warmer than the one it
+            // collides with — warmer-on-top matches the points' vertical order. Equal rounded values
+            // (and colder labels) keep the existing below-overlap behavior.
+            val currentVal = candidate.labelTemps[candidate.index].roundToInt()
+            val collidingVal = collidingMeta.temperature.roundToInt()
+            if (currentVal > collidingVal) {
+                if (shouldLogPlacement(candidate.role)) {
+                    Log.d(TAG, "LabelCascade: role=${candidate.role} flip-above-warmer current=$currentVal colliding=$collidingVal collidingRole=${collidingMeta.role} ratio=${String.format("%.2f", overlapRatio)}")
+                }
+                return ValleyCascadeOutcome.FlipAbove
+            }
             if (shouldLogPlacement(candidate.role)) {
                 Log.d(TAG, "LabelCascade: role=${candidate.role} option1-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO} collidingRole=${collidingMeta.role}")
             }
-            return CascadeResult(
-                x = centerX,
-                baselineY = verticalPlacement.baselineY,
-                bounds = centeredBounds,
-                reason = "below-valley-overlap",
+            return ValleyCascadeOutcome.Below(
+                CascadeResult(
+                    x = centerX,
+                    baselineY = verticalPlacement.baselineY,
+                    bounds = centeredBounds,
+                    reason = "below-valley-overlap",
+                )
             )
         }
 
@@ -864,7 +910,7 @@ object TemperatureGraphRenderer {
             Log.d(TAG, "LabelCascade: role=${candidate.role} all-options-exhausted ratio=${String.format("%.2f", overlapRatio)} collidingIsValleyBelow=${collidingMeta.isValleyBelow}")
         }
 
-        return null
+        return ValleyCascadeOutcome.None
     }
 
     private fun placeDayLabels(
