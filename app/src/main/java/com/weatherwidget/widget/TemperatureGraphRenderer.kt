@@ -132,6 +132,22 @@ object TemperatureGraphRenderer {
         return CurveIntrusion.merge(a, f)
     }
 
+    private fun isCurveGrazeWithinAllowedDip(
+        bounds: RectF,
+        intrusion: CurveIntrusion,
+        placeAbove: Boolean,
+        allowedDipPx: Float,
+    ): Boolean {
+        if (intrusion.isEmpty) return true
+        val intrusionDepth =
+            if (placeAbove) {
+                bounds.bottom - intrusion.minY
+            } else {
+                intrusion.maxY - bounds.top
+            }
+        return intrusionDepth <= allowedDipPx
+    }
+
     private const val STALENESS_MINOR_OVERLAP_RATIO = 0.40f
     private const val MAX_STALENESS_DISPLACEMENT_STEPS = 15
     private const val STALENESS_LEADER_LINE_MIN_STEPS = 2
@@ -507,9 +523,12 @@ object TemperatureGraphRenderer {
 
         val gapAbovePx = dpToPx(ctx.context, gapDp.aboveDp)
         val gapBelowPx = dpToPx(ctx.context, gapDp.belowDp)
+        val allowedCurveDipPx = dpToPx(ctx.context, CURVE_AVOIDANCE_ALLOWED_DIP_DP)
 
         outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
             for (placeAbove in directions) {
+                if (flipDecided && !placeAbove) continue
+
                 val currentGapPx = if (placeAbove) gapAbovePx else gapBelowPx
                 val displacement = step * labelHeight
                 
@@ -539,7 +558,13 @@ object TemperatureGraphRenderer {
                 val allowMinorIconOverlap = overlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlap <= labelHeight * currentIconRatio
 
                 val curveAvoidanceEligible = candidate.role in CURVE_AVOIDANCE_ROLES
-                val overlapsCurve = curveAvoidanceEligible && !combinedCurveIntrusion(ctx, bounds).isEmpty
+                val curveIntrusion = if (curveAvoidanceEligible) combinedCurveIntrusion(ctx, bounds) else CurveIntrusion.NONE
+                val allowFlippedAboveCurveGraze =
+                    flipDecided &&
+                        placeAbove &&
+                        curveAvoidanceEligible &&
+                        isCurveGrazeWithinAllowedDip(bounds, curveIntrusion, placeAbove = true, allowedDipPx = allowedCurveDipPx)
+                val overlapsCurve = curveAvoidanceEligible && !curveIntrusion.isEmpty && !allowFlippedAboveCurveGraze
 
                 val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve
 
