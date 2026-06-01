@@ -3,6 +3,7 @@ package com.weatherwidget.data.repository
 import android.content.Context
 import android.location.Location
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ObservationDao
@@ -30,6 +31,33 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TAG = "ObservationRepository"
+
+// Local hour by which a finished (past) day must have at least one NWS observation for its
+// cached daily high to be trustworthy — the daily high typically lands in the early afternoon.
+private const val DAYTIME_COVERAGE_HOUR = 14
+
+/**
+ * Returns true when [date] is a *past* day whose NWS observations never reach the afternoon
+ * ([daytimeHour]+), meaning the warm part of the day went unrecorded (e.g. the device was off)
+ * and the cached daily high/low is likely wrong, so the day should be re-fetched. Days with no
+ * observations at all are excluded here — those are caught by the daily_extremes row-presence
+ * check — as are today and future days, whose coverage is legitimately still incomplete.
+ */
+@VisibleForTesting
+internal fun pastDayLacksAfternoonCoverage(
+    obsTimestampsMs: List<Long>,
+    date: LocalDate,
+    zone: ZoneId,
+    today: LocalDate,
+    daytimeHour: Int = DAYTIME_COVERAGE_HOUR,
+): Boolean {
+    if (!date.isBefore(today)) return false
+    if (obsTimestampsMs.isEmpty()) return false
+    val coversAfternoon = obsTimestampsMs.any { ms ->
+        java.time.Instant.ofEpochMilli(ms).atZone(zone).hour >= daytimeHour
+    }
+    return !coversAfternoon
+}
 
 @Singleton
 class ObservationRepository @Inject constructor(
@@ -189,15 +217,20 @@ class ObservationRepository @Inject constructor(
                 .map { it.date }
                 .toSet()
         val missingDates = requiredDates - existingDates
+        // A daily_extremes row can exist yet be wrong when that day's observations don't reach the
+        // afternoon (device off, partial coverage). Treat those present-but-incomplete past days as
+        // needing a re-fetch too — the row-presence check above cannot see this.
+        val incompleteDates = incompletelyCoveredPastDates(existingDates, latitude, longitude, localZone, today)
+        val datesToBackfill = missingDates + incompleteDates
 
-        Log.d(TAG, "History check: requiredDates=${requiredDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} existingDates=${existingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} missingDates=${missingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} hour=$currentHour")
+        Log.d(TAG, "History check: requiredDates=${requiredDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} existingDates=${existingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} missingDates=${missingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} incompleteDates=${incompleteDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} hour=$currentHour")
 
-        if (missingDates.isEmpty()) {
-            Log.d(TAG, "Skipping backfill: required NWS daily_extremes rows already exist")
+        if (datesToBackfill.isEmpty()) {
+            Log.d(TAG, "Skipping backfill: required NWS daily_extremes rows exist with adequate coverage")
             return
         }
 
-        Log.i(TAG, "Missing NWS daily_extremes for ${missingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }}, backfilling last ${WeatherConfig.NWS_BACKFILL_DAYS * 24} hours")
+        Log.i(TAG, "Backfilling NWS daily_extremes for ${datesToBackfill.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} (missing or incomplete), fetching last ${WeatherConfig.NWS_BACKFILL_DAYS * 24} hours")
         val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
         if (gridPoint == null) {
             Log.e(TAG, "Failed to get grid point for ($latitude, $longitude)")
@@ -210,7 +243,7 @@ class ObservationRepository @Inject constructor(
 
         val startTimeStr = DateTimeFormatter.ISO_INSTANT.format(now.minusDays(WeatherConfig.NWS_BACKFILL_DAYS.toLong()).toInstant())
         val endTimeStr = DateTimeFormatter.ISO_INSTANT.format(now.toInstant())
-        val remainingDates = missingDates.toMutableSet()
+        val remainingDates = datesToBackfill.toMutableSet()
 
         for (stationInfo in stations.take(MAX_RETRIES)) {
             Log.d(TAG, "Attempting backfill from station ${stationInfo.id}")
@@ -229,12 +262,15 @@ class ObservationRepository @Inject constructor(
                     for (day in distinctDays) {
                         recomputeDailyExtremesForDay(latitude, longitude, day, emptyList())
                     }
-                    val refreshedDates =
+                    // A date is satisfied only once it has a row AND (for past days) the refetched
+                    // observations now cover the afternoon — otherwise keep trying other stations.
+                    val rowDates =
                         dailyExtremeDao.getExtremesInRange(dayMinus2Epoch, todayEpoch, latitude, longitude)
                             .filter { it.source == WeatherSource.NWS.id }
                             .map { it.date }
                             .toSet()
-                    remainingDates.removeAll(refreshedDates)
+                    val stillIncomplete = incompletelyCoveredPastDates(rowDates, latitude, longitude, localZone, today)
+                    remainingDates.removeAll(rowDates - stillIncomplete)
                     if (remainingDates.isEmpty()) {
                         break
                     }
@@ -247,9 +283,33 @@ class ObservationRepository @Inject constructor(
         }
 
         if (remainingDates.isNotEmpty()) {
-            Log.w(TAG, "Backfill completed but official NWS daily_extremes still missing for $remainingDates")
+            Log.w(TAG, "Backfill completed but official NWS daily_extremes still missing/incomplete for $remainingDates")
         }
     }
+
+    /**
+     * From a set of day keys (epoch-millis at local midnight), returns those *past* days whose
+     * stored NWS observations don't reach the afternoon — i.e. their cached daily high/low is
+     * likely truncated and the day should be re-fetched. See [pastDayLacksAfternoonCoverage].
+     */
+    private suspend fun incompletelyCoveredPastDates(
+        dayKeyEpochs: Set<Long>,
+        latitude: Double,
+        longitude: Double,
+        zone: ZoneId,
+        today: LocalDate,
+    ): Set<Long> =
+        dayKeyEpochs.filterTo(mutableSetOf()) { dayKeyEpoch ->
+            val date = LocalDate.ofEpochDay(dayKeyEpoch / WidgetConstants.MS_IN_A_DAY)
+            if (!date.isBefore(today)) return@filterTo false
+            val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val timestamps =
+                observationDao.getObservationsInRange(dayStart, dayEnd, latitude, longitude)
+                    .filter { it.api == WeatherSource.NWS.id && it.stationId != "NWS_BLEND" }
+                    .map { it.timestamp }
+            pastDayLacksAfternoonCoverage(timestamps, date, zone, today)
+        }
 
     internal suspend fun backfillRecentNwsObservations(
         latitude: Double,

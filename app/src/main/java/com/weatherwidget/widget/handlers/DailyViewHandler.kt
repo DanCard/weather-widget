@@ -73,6 +73,9 @@ object DailyViewHandler : WidgetViewHandler {
     private const val TEXT_MODE_CONTENT_RIGHT_PADDING_DP = 18
     private const val HEADER_ICON_TINT = 0xAAFFFFFF.toInt()
     private const val NAV_BUTTON_PADDING_DP = 10
+    // Only probe for incomplete-history backfill when the visible window is recent enough that
+    // NWS observation history can still serve it. Older days are beyond the fetch horizon.
+    private const val HISTORY_BACKFILL_VISIBLE_DAYS = 3L
     // Locale captured at class-load time is safe: Android restarts the process on locale change,
     // which re-initializes this singleton with the new default locale.
     private val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
@@ -187,10 +190,27 @@ object DailyViewHandler : WidgetViewHandler {
 
         val yesterday = today.minusDays(1)
         val yesterdayActual = dailyActuals[yesterday]
-        appLogDao.log("WIDGET_ACTUAL", 
+        appLogDao.log("WIDGET_ACTUAL",
             "date=$yesterday src=${displaySource.id} low=${yesterdayActual?.lowTemp} " +
-            "allDates=${dailyActuals.keys} allSources=${dailyActualsBySource.keys}", 
+            "allDates=${dailyActuals.keys} allSources=${dailyActualsBySource.keys}",
             "DEBUG"
+        )
+
+        // Past-day actuals are read from the daily_extremes cache, which can be wrong when a
+        // day's observation coverage is incomplete (e.g. device powered off during the day).
+        // Reuse the gap-aware hourly backfill — the same path the temperature graph uses — so
+        // the daily view also fetches the missing NWS observations and recomputes the cache.
+        maybeBackfillIncompleteHistory(
+            context = context,
+            repository = repository,
+            stateManager = stateManager,
+            appWidgetId = appWidgetId,
+            displaySource = displaySource,
+            lat = lat,
+            lon = lon,
+            centerDate = centerDate,
+            today = today,
+            now = now,
         )
 
         if (
@@ -443,6 +463,60 @@ object DailyViewHandler : WidgetViewHandler {
                     "hasRainForecast=${day.rainData.hasRainForecast}",
             )
         }
+    }
+
+    /**
+     * Whether the daily view should probe recent NWS observation coverage for a backfill. Only
+     * NWS history is gap-fetchable, and only the recent window ([HISTORY_BACKFILL_VISIBLE_DAYS])
+     * is still served by NWS — probing older navigation targets just wastes a DB query.
+     */
+    @VisibleForTesting
+    internal fun shouldProbeHistoryBackfill(
+        displaySource: WeatherSource,
+        centerDate: LocalDate,
+        today: LocalDate,
+        visibleDays: Long = HISTORY_BACKFILL_VISIBLE_DAYS,
+    ): Boolean =
+        displaySource == WeatherSource.NWS && !centerDate.isBefore(today.minusDays(visibleDays))
+
+    /**
+     * Probe recent NWS observation coverage and enqueue the gap-aware observation backfill when
+     * it is incomplete. This mirrors what the temperature graph does in [loadGraphHours]; without
+     * it, a past day whose daily_extremes row exists but was computed from a partial day of
+     * observations (e.g. the device was off during the afternoon) never gets repaired from the
+     * daily view, because the presence-only [computeMissingDataRefreshes] check treats it as
+     * already populated. The shared backfill cooldown key prevents double-fetching with the graph.
+     */
+    private suspend fun maybeBackfillIncompleteHistory(
+        context: Context,
+        repository: WeatherRepository?,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        lat: Double,
+        lon: Double,
+        centerDate: LocalDate,
+        today: LocalDate,
+        now: LocalDateTime,
+    ) {
+        if (repository == null) return
+        if (!shouldProbeHistoryBackfill(displaySource, centerDate, today)) return
+
+        val graphStart = now.minusHours(WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS)
+        val minEpoch = graphStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val maxEpoch = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val observations = repository.getObservationsInRange(minEpoch, maxEpoch, lat, lon)
+        maybeEnqueueHourlyObservationBackfill(
+            context = context,
+            database = WeatherDatabase.getDatabase(context),
+            stateManager = stateManager,
+            appWidgetId = appWidgetId,
+            displaySource = displaySource,
+            graphStart = graphStart,
+            graphEnd = now,
+            observations = observations,
+            repositoryPresent = true,
+        )
     }
 
     private suspend fun requestMissingDataRefresh(
