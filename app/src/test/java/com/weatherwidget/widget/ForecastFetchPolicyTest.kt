@@ -60,12 +60,25 @@ class ForecastFetchPolicyTest {
     }
 
     @Test
-    fun `off-charger above 70 percent delegates to BatteryFetchStrategy 240 minutes`() {
+    fun `off-charger above 80 percent is treated as charging equivalent`() {
         val interval = ForecastFetchPolicy.intervalMinutes(
             isCharging = false,
             isScreenInteractive = true,
             isActiveSource = true,
             batteryLevel = 80,
+        )
+        // Should use charging matrix (60 min) rather than BatteryFetchStrategy tiers (240 min)
+        assertEquals(ForecastFetchPolicy.CHARGING_SCREEN_ON_ACTIVE_MINUTES, interval)
+        assertEquals(60L, interval)
+    }
+
+    @Test
+    fun `off-charger 70 to 79 percent delegates to BatteryFetchStrategy 240 minutes`() {
+        val interval = ForecastFetchPolicy.intervalMinutes(
+            isCharging = false,
+            isScreenInteractive = true,
+            isActiveSource = true,
+            batteryLevel = 75,
         )
         assertEquals(240L, interval)
     }
@@ -93,9 +106,9 @@ class ForecastFetchPolicyTest {
     }
 
     @Test
-    fun `off-charger ignores screen and active distinctions`() {
-        val a = ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = true, batteryLevel = 80)
-        val b = ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = false, isActiveSource = false, batteryLevel = 80)
+    fun `off-charger ignores screen and active distinctions when battery is below 80 percent`() {
+        val a = ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = true, batteryLevel = 75)
+        val b = ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = false, isActiveSource = false, batteryLevel = 75)
         assertEquals(a, b)
     }
 
@@ -106,8 +119,14 @@ class ForecastFetchPolicyTest {
     }
 
     @Test
-    fun `periodicTickMinutes off-charger matches BatteryFetchStrategy tiers`() {
-        assertEquals(240L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 80))
+    fun `periodicTickMinutes is 60 when battery is at or above 80 percent even off-charger`() {
+        assertEquals(60L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 80))
+        assertEquals(60L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 100))
+    }
+
+    @Test
+    fun `periodicTickMinutes off-charger below 80 percent matches BatteryFetchStrategy tiers`() {
+        assertEquals(240L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 75))
         assertEquals(480L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 60))
     }
 

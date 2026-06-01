@@ -34,7 +34,9 @@ object ForecastFetchPolicy {
         isActiveSource: Boolean,
         batteryLevel: Int,
     ): Long? {
-        if (!isCharging) {
+        val treatAsCharging = isCharging || batteryLevel >= 80
+
+        if (!treatAsCharging) {
             return BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
         }
         return when {
@@ -46,7 +48,8 @@ object ForecastFetchPolicy {
     }
 
     fun periodicTickMinutes(isCharging: Boolean, batteryLevel: Int): Long {
-        if (isCharging) return CHARGING_SCREEN_ON_ACTIVE_MINUTES
+        val treatAsCharging = isCharging || batteryLevel >= 80
+        if (treatAsCharging) return CHARGING_SCREEN_ON_ACTIVE_MINUTES
         return BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
             ?: OFF_CHARGER_LOW_BATTERY_TICK_MINUTES
     }
