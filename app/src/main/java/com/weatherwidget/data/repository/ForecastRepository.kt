@@ -15,6 +15,7 @@ import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.logException
      import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
@@ -216,7 +217,7 @@ class ForecastRepository
                 throw e
             } catch (exception: Exception) {
                 lastFetchTime = 0L // Allow immediate retry on error
-                appLogDao.log("NET_FETCH_ERROR", "${exception.message}", "ERROR")
+                appLogDao.logException("NET_FETCH_ERROR", "Network fetch failed", exception)
                 val fallbackData = getCachedData(latitude, longitude)
                 return if (fallbackData.isNotEmpty()) Result.success(fallbackData) else Result.failure(exception)
             }

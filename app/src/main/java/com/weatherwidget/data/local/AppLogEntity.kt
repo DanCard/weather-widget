@@ -6,6 +6,7 @@ import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.time.ZoneId
@@ -74,12 +75,41 @@ interface AppLogDao {
     suspend fun clearAllLogs()
 }
 
-/** Log to both the app_logs DB table and logcat in one call. */
+/** Log to the app_logs DB table, logcat, and Firebase Crashlytics in one call. */
 suspend fun AppLogDao.log(tag: String, message: String, level: String = "DEBUG") {
     try {
         insert(AppLogEntity(tag = tag, message = message, level = level))
     } catch (e: Exception) {
         Log.e("AppLog", "Failed to log to DB: $e")
+    }
+
+    // Mirror to Firebase Crashlytics for better context in crash reports.
+    // Crashlytics automatically captures ERROR and WARN as custom logs.
+    // We only send significant levels to avoid overwhelming the log buffer.
+    if (level == "ERROR" || level == "WARN" || level == "INFO") {
+        FirebaseCrashlytics.getInstance().log("[$tag] $message")
+    }
+
+    when (level) {
+        "ERROR" -> Log.e(tag, message)
+        "WARN" -> Log.w(tag, message)
+        "INFO" -> Log.i(tag, message)
+        "DEBUG" -> Log.d(tag, message)
+        "VERBOSE" -> Log.v(tag, message)
+        else -> Log.d(tag, message)
+    }
+}
+
+/** Log a non-fatal exception to both DB logs and Firebase Crashlytics. */
+suspend fun AppLogDao.logException(tag: String, message: String, throwable: Throwable) {
+    log(tag, "$message: ${throwable.message}", "ERROR")
+    FirebaseCrashlytics.getInstance().recordException(throwable)
+}
+
+/** Global log function for standard Log calls to also hit Crashlytics if needed. */
+fun log(tag: String, message: String, level: String = "DEBUG") {
+    if (level == "ERROR" || level == "WARN" || level == "INFO") {
+        FirebaseCrashlytics.getInstance().log("[$tag] $message")
     }
     when (level) {
         "ERROR" -> Log.e(tag, message)
@@ -89,4 +119,9 @@ suspend fun AppLogDao.log(tag: String, message: String, level: String = "DEBUG")
         "VERBOSE" -> Log.v(tag, message)
         else -> Log.d(tag, message)
     }
+}
+
+/** Global exception function. */
+fun logException(throwable: Throwable) {
+    FirebaseCrashlytics.getInstance().recordException(throwable)
 }

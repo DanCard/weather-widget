@@ -12,6 +12,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
@@ -209,7 +210,7 @@ class WeatherWidgetWorker
                 appLogDao.log("SYNC_CANCELLED", reasonMsg, "INFO")
                 throw e
             } catch (e: Exception) {
-                appLogDao.log("SYNC_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
+                appLogDao.logException("SYNC_EXCEPTION", "Synchronization failed", e)
                 Result.retry()
             }
         }
@@ -388,7 +389,7 @@ class WeatherWidgetWorker
                 throw e
             } catch (e: Exception) {
                 val durationMs = SystemClock.elapsedRealtime() - startMs
-                appLogDao.log("CURR_FETCH_EXCEPTION", "reason=$reason durationMs=$durationMs ${e.javaClass.simpleName}: ${e.message}", "ERROR")
+                appLogDao.logException("CURR_FETCH_EXCEPTION", "CurrentTemp fetch failed (reason=$reason, duration=${durationMs}ms)", e)
                 manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive, ignoreRunningWorkId = id)
                 Result.retry()
             }
@@ -419,12 +420,8 @@ class WeatherWidgetWorker
                 appLogDao.log("OBS_BACKFILL_CANCELLED", reasonMsg, "INFO")
                 throw e
             } catch (e: Exception) {
-                appLogDao.log(
-                    "OBS_HOURLY_BACKFILL_EXCEPTION",
-                    "reason=$reason ${e.javaClass.simpleName}: ${e.message}",
-                    "ERROR",
-                )
-                Result.retry()
+                appLogDao.logException("OBS_HOURLY_BACKFILL_EXCEPTION", "Observation backfill failed (reason=$reason)", e)
+                Result.failure()
             }
         }
 

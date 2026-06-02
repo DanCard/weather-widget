@@ -10,6 +10,7 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -195,10 +196,10 @@ class CurrentTempRepository
                     appLogDao.log("CURR_FETCH_COMPLETE", "reason=$reason successCount=$successfulSourceCount totalMs=$totalDurationMs targets=$targetIds attempted=${targetSources.size}")
                     Result.success(targetSources.size)
                 }
-            } catch (exception: Exception) { 
+            } catch (exception: Exception) {
                 val totalDurationMs = System.currentTimeMillis() - startMs
-                appLogDao.log("CURR_FETCH_ERROR", "reason=$reason error=${exception.message} totalMs=$totalDurationMs", "ERROR")
-                Result.failure(exception) 
+                appLogDao.logException("CURR_FETCH_ERROR", "Current temp fetch orchestrator failed (reason=$reason, totalMs=$totalDurationMs)", exception)
+                Result.failure(exception)
             }
         }
 
