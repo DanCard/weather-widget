@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- The Moon (from ic_weather_night) -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9c0.83,0 1.63,-0.11 2.39,-0.32c-2.58,-1.02 -4.39,-3.56 -4.39,-6.5s1.81,-5.48 4.39,-6.5C13.63,3.11 12.83,3 12,3z"/>
+
+    <!-- Layer 1: Back/Top - Faint -->
+    <path
+        android:fillColor="#B0BEC5"
+        android:fillAlpha="0.20"
+        android:pathData="M0,15 Q3,13 6,15 T12,15 T18,15 T24,15 V24 H0 Z"/>
+
+    <!-- Layer 2: Front/Bottom - Slightly denser -->
+    <path
+        android:fillColor="#B0BEC5"
+        android:fillAlpha="0.40"
+        android:pathData="M0,20 Q5,18 10,20 T20,20 T24,20 V24 H0 Z"/>
+</vector>

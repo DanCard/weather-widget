@@ -3,8 +3,8 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
-import com.weatherwidget.data.remote.NwsApi
-import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.*
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
@@ -15,20 +15,20 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
 
 /**
- * Thin desktop-side orchestration over the shared API clients. Supports both Open-Meteo (Global)
- * and NWS (US-only), mirroring the Android widget's primary data sources.
+ * Thin desktop-side orchestration over the shared API clients. Supports all major sources
+ * used by the Android widget.
  */
 class DesktopWeatherService(
     private val latitude: Double,
     private val longitude: Double,
-    private val weatherSource: String = "NWS"
+    private val weatherSource: String = "NWS",
+    private val apiKeys: Map<String, String> = emptyMap()
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
     }
 
-    // CIO engine = the desktop counterpart to the Android engine used in :app's AppModule.
     private val httpClient = HttpClient(CIO) {
         install(ContentNegotiation) { json(json) }
         install(HttpTimeout) {
@@ -40,23 +40,36 @@ class DesktopWeatherService(
 
     private val openMeteo = OpenMeteoApi(httpClient, json)
     private val nwsApi = NwsApi(httpClient, json)
+    private val tomorrowIo = TomorrowIoApi(httpClient, json) { apiKeys[WeatherSource.TOMORROW_IO.id] }
+    private val weatherApi = WeatherApi(httpClient, json) { apiKeys[WeatherSource.WEATHER_API.id] }
+    private val visualCrossing = VisualCrossingApi(httpClient, json) { apiKeys[WeatherSource.VISUAL_CROSSING.id] }
+    private val silurian = SilurianApi(httpClient, json) { apiKeys[WeatherSource.SILURIAN.id] }
+    private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { apiKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
 
     constructor(config: DesktopConfig?) : this(
         latitude = config?.lat ?: FALLBACK_LATITUDE,
         longitude = config?.lon ?: FALLBACK_LONGITUDE,
-        weatherSource = config?.weatherSource ?: "NWS"
+        weatherSource = config?.weatherSource ?: "NWS",
+        apiKeys = config?.apiKeys ?: emptyMap()
     )
 
-    suspend fun fetchForecast(): ForecastResult = when (weatherSource) {
-        "NWS" -> {
-            try {
-                fetchNwsForecast()
-            } catch (e: Exception) {
-                // If NWS fails (e.g. out of US), fall back to Open-Meteo rather than crashing.
-                openMeteo.getForecast(latitude, longitude)
-            }
+    suspend fun fetchForecast(): ForecastResult = runCatching {
+        when (weatherSource) {
+            "NWS" -> fetchNwsForecast()
+            WeatherSource.TOMORROW_IO.id -> tomorrowIo.getForecast(latitude, longitude)
+            WeatherSource.WEATHER_API.id -> weatherApi.getForecast(latitude, longitude)
+            WeatherSource.VISUAL_CROSSING.id -> visualCrossing.getForecast(latitude, longitude)
+            WeatherSource.SILURIAN.id -> silurian.getForecast(latitude, longitude)
+            WeatherSource.OPEN_WEATHER_MAP.id -> openWeatherMap.getForecast(latitude, longitude)
+            else -> openMeteo.getForecast(latitude, longitude)
         }
-        else -> openMeteo.getForecast(latitude, longitude)
+    }.getOrElse { e ->
+        // If NWS fails (e.g. out of US) or any source fails, fall back to Open-Meteo.
+        if (weatherSource != WeatherSource.OPEN_METEO.id) {
+            openMeteo.getForecast(latitude, longitude)
+        } else {
+            throw e
+        }
     }
 
     private suspend fun fetchNwsForecast(): ForecastResult = coroutineScope {
@@ -64,8 +77,6 @@ class DesktopWeatherService(
         val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
         val dailyDeferred = async { nwsApi.getForecast(grid) }
         
-        // Fetch current observation from the nearest station for the "real-time" temperature,
-        // falling back to the hourly forecast if the station is down or data is missing.
         val currentObsDeferred = async {
             try {
                 grid.observationStationsUrl?.let { url ->
@@ -100,14 +111,10 @@ class DesktopWeatherService(
         cloudCover = cloudCover
     )
 
-    /**
-     * Maps NWS multi-period forecast (e.g. "Today", "Tonight", "Wednesday") into a 
-     * daily high/low structure compatible with [ForecastResult].
-     */
     private fun mapNwsToDaily(periods: List<NwsApi.ForecastPeriod>): List<DailyForecast> {
         val dailyMap = mutableMapOf<String, MutableList<NwsApi.ForecastPeriod>>()
         for (period in periods) {
-            val date = period.startTime.take(10) // ISO date part
+            val date = period.startTime.take(10)
             dailyMap.getOrPut(date) { mutableListOf() }.add(period)
         }
 

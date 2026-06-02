@@ -229,7 +229,9 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
         widgetStateManager: WidgetStateManager,
-    ): VisualCrossingApi = VisualCrossingApi(httpClient, json, widgetStateManager)
+    ): VisualCrossingApi = VisualCrossingApi(httpClient, json) { 
+        widgetStateManager.getApiKey(WeatherSource.VISUAL_CROSSING) ?: com.weatherwidget.BuildConfig.VISUAL_CROSSING_API_KEY 
+    }
 
     @Provides
     @Singleton
@@ -237,7 +239,9 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
         widgetStateManager: WidgetStateManager,
-    ): OpenWeatherMapApi = OpenWeatherMapApi(httpClient, json, widgetStateManager)
+    ): OpenWeatherMapApi = OpenWeatherMapApi(httpClient, json) { 
+        widgetStateManager.getApiKey(WeatherSource.OPEN_WEATHER_MAP) ?: com.weatherwidget.BuildConfig.OPEN_WEATHER_MAP_API_KEY 
+    }
 
     @Provides
     @Singleton
@@ -245,7 +249,9 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
         widgetStateManager: WidgetStateManager,
-    ): WeatherApi = WeatherApi(httpClient, json, widgetStateManager)
+    ): WeatherApi = WeatherApi(httpClient, json) { 
+        widgetStateManager.getApiKey(WeatherSource.WEATHER_API) ?: com.weatherwidget.BuildConfig.WEATHER_API_KEY 
+    }
 
     @Provides
     @Singleton
@@ -253,7 +259,9 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
         widgetStateManager: WidgetStateManager,
-    ): SilurianApi = SilurianApi(httpClient, json, widgetStateManager)
+    ): SilurianApi = SilurianApi(httpClient, json) { 
+        widgetStateManager.getApiKey(WeatherSource.SILURIAN) ?: com.weatherwidget.BuildConfig.SILURIAN_API_KEY 
+    }
 
     @Provides
     @Singleton
@@ -261,5 +269,7 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
         widgetStateManager: WidgetStateManager,
-    ): TomorrowIoApi = TomorrowIoApi(httpClient, json, widgetStateManager)
+    ): TomorrowIoApi = TomorrowIoApi(httpClient, json) { 
+        widgetStateManager.getApiKey(WeatherSource.TOMORROW_IO) ?: com.weatherwidget.BuildConfig.TOMORROW_IO_API_KEY 
+    }
 }

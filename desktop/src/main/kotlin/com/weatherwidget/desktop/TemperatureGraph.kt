@@ -2,15 +2,27 @@ package com.weatherwidget.desktop
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Smooth hourly temperature curve for the desktop popup.
@@ -19,9 +31,6 @@ import com.weatherwidget.data.model.HourlyForecast
  * `TemperatureGraphStyle` (cold #5AC8FA ≤50°F, mild #E8A24E @70°F, hot #FF6B35 ≥90°F, blended in
  * between), but draws through Compose's Skia-backed DrawScope rather than android.graphics. The
  * curve smoothing is the same Catmull-Rom approach used by the widget's GraphRenderUtils.
- *
- * Scope: MVP curve only. The widget's multi-day labels, forecast/accuracy overlays, and "now"
- * marker are intentionally not ported here yet.
  */
 private val COLOR_COLD = Color(0xFF5AC8FA)
 private val COLOR_MILD = Color(0xFFE8A24E)
@@ -44,40 +53,116 @@ fun TemperatureGraph(
     modifier: Modifier = Modifier,
     hoursAhead: Int = 48,
 ) {
-    // Window to the upcoming hours, sorted by time.
+    val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
     val cutoff = now + hoursAhead * 3_600_000L
-    val points = hourly
-        .filter { it.dateTime in (now - 3_600_000L)..cutoff }
-        .sortedBy { it.dateTime }
-        .ifEmpty { hourly.sortedBy { it.dateTime }.take(hoursAhead) }
+    
+    // Filter and sort points for the display window.
+    val points = remember(hourly, hoursAhead) {
+        hourly.filter { it.dateTime in (now - 3_600_000L)..cutoff }
+            .sortedBy { it.dateTime }
+            .ifEmpty { hourly.sortedBy { it.dateTime }.take(hoursAhead) }
+    }
+
+    // Pre-load painters in a way that works with Compose's rules.
+    val iconSpacing = if (points.size > 24) 4 else if (points.size > 12) 3 else 2
+    val painters = mutableListOf<Painter?>()
+    for (i in points.indices) {
+        val p = points[i]
+        if (i % iconSpacing == 0) {
+            painters.add(painterResource(WeatherIcon.getIconResource(p.condition)))
+        } else {
+            painters.add(null)
+        }
+    }
+
+    if (points.size < 2) return
 
     Canvas(modifier = modifier) {
-        if (points.size < 2) return@Canvas
-        drawTemperatureCurve(points)
+        val temps = points.map { it.temperature }
+        val rawMin = temps.min()
+        val rawMax = temps.max()
+        // Pad the range for labels and breathing room.
+        val pad = ((rawMax - rawMin) * 0.25f).coerceAtLeast(2f)
+        val minTemp = rawMin - pad
+        val maxTemp = rawMax + pad
+        val range = (maxTemp - minTemp).coerceAtLeast(1f)
+
+        val w = size.width
+        val h = size.height
+        val n = points.size
+
+        fun xAt(i: Int): Float = if (n == 1) 0f else w * i / (n - 1)
+        fun yAt(t: Float): Float = h * (1f - (t - minTemp) / range)
+
+        val coords = points.mapIndexed { i, p -> Offset(xAt(i), yAt(p.temperature)) }
+
+        // 1. Draw the Curve and Gradient Fill
+        drawCurve(coords, minTemp, maxTemp, range)
+
+        // 2. Identify and Draw Peak Labels (High/Low/Now)
+        val highIdx = temps.indexOf(rawMax)
+        val lowIdx = temps.indexOf(rawMin)
+        val nowIdx = points.indexOfByClosestTime(now)
+
+        val labels = mutableListOf<Triple<Int, String, Color>>()
+        labels.add(Triple(highIdx, "${rawMax.roundToInt()}°", Color.White))
+        labels.add(Triple(lowIdx, "${rawMin.roundToInt()}°", Color.White))
+        if (nowIdx != highIdx && nowIdx != lowIdx) {
+            labels.add(Triple(nowIdx, "${points[nowIdx].temperature.roundToInt()}°", Color.White.copy(alpha = 0.8f)))
+        }
+
+        // Simple collision avoidance for labels
+        val drawnLabels = mutableListOf<Rect>()
+        labels.sortByDescending { it.first == highIdx || it.first == lowIdx } // Prioritize High/Low
+        
+        for ((idx, text, color) in labels) {
+            val point = coords[idx]
+            val textLayout = textMeasurer.measure(text, TextStyle(fontSize = 11.sp, color = color))
+            val isHigh = idx == highIdx
+            
+            // Position above if it's a peak, below if it's a valley
+            val topOffset = if (isHigh) -18f else 4f
+            val labelRect = Rect(
+                offset = Offset(point.x - textLayout.size.width / 2f, point.y + topOffset),
+                size = androidx.compose.ui.geometry.Size(textLayout.size.width.toFloat(), textLayout.size.height.toFloat())
+            )
+
+            // Avoid overlap
+            if (drawnLabels.none { it.overlaps(labelRect.inflate(4f)) }) {
+                drawText(textLayout, topLeft = labelRect.topLeft)
+                drawnLabels.add(labelRect)
+            }
+        }
+
+        // 3. Draw Bottom Icons and Time Labels (Selective to avoid clutter)
+        for (i in 0 until n step iconSpacing) {
+            val p = points[i]
+            val x = xAt(i)
+            
+            // Icon
+            painters[i]?.let { painter ->
+                val iconSize = 18.dp.toPx()
+                translate(x - iconSize / 2f, h - 38f) {
+                    with(painter) {
+                        draw(size = androidx.compose.ui.geometry.Size(iconSize, iconSize))
+                    }
+                }
+            }
+            
+            // Time (HH:mm)
+            val time = java.time.Instant.ofEpochMilli(p.dateTime)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalTime()
+            val timeStr = "%02d:00".format(time.hour)
+            val timeLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = 9.sp, color = Color.Gray))
+            drawText(timeLayout, topLeft = Offset(x - timeLayout.size.width / 2f, h - 14f))
+        }
     }
 }
 
-private fun DrawScope.drawTemperatureCurve(points: List<HourlyForecast>) {
-    val temps = points.map { it.temperature }
-    val rawMin = temps.min()
-    val rawMax = temps.max()
-    // Pad the range slightly so the curve isn't flush against the edges.
-    val pad = ((rawMax - rawMin) * 0.15f).coerceAtLeast(1f)
-    val minTemp = rawMin - pad
-    val maxTemp = rawMax + pad
-    val range = (maxTemp - minTemp).coerceAtLeast(1f)
-
-    val w = size.width
+private fun DrawScope.drawCurve(coords: List<Offset>, minTemp: Float, maxTemp: Float, range: Float) {
     val h = size.height
-    val n = points.size
-
-    fun xAt(i: Int): Float = if (n == 1) 0f else w * i / (n - 1)
-    fun yAt(t: Float): Float = h * (1f - (t - minTemp) / range) // mirrors TemperatureGraphStyle.tempToY
-
-    val coords = points.mapIndexed { i, p -> Offset(xAt(i), yAt(p.temperature)) }
-
-    // Catmull-Rom -> cubic bezier for a smooth line (same technique as the widget renderer).
     val line = Path().apply {
         moveTo(coords[0].x, coords[0].y)
         for (i in 0 until coords.size - 1) {
@@ -91,7 +176,6 @@ private fun DrawScope.drawTemperatureCurve(points: List<HourlyForecast>) {
         }
     }
 
-    // Closed path for the gradient fill beneath the curve.
     val fill = Path().apply {
         addPath(line)
         lineTo(coords.last().x, h)
@@ -99,8 +183,6 @@ private fun DrawScope.drawTemperatureCurve(points: List<HourlyForecast>) {
         close()
     }
 
-    // Vertical gradient keyed to temperature: top = hottest color, bottom = coldest, with
-    // threshold stops — same construction as TemperatureGraphStyle.buildTempGradient.
     fun posOf(t: Float): Float = ((maxTemp - t) / range).coerceIn(0f, 1f)
     val stops = buildList {
         add(0f to tempToColor(maxTemp))
@@ -108,7 +190,7 @@ private fun DrawScope.drawTemperatureCurve(points: List<HourlyForecast>) {
         for (t in listOf(HOT_THRESHOLD, MILD_TEMP, COLD_THRESHOLD)) {
             if (t > minTemp && t < maxTemp) add(posOf(t) to tempToColor(t))
         }
-    }.sortedBy { it.first }.distinctBy { "%.4f".format(it.first) }
+    }.sortedBy { it.first }.distinctBy { (it.first * 1000).toInt() }
 
     val strokeStops = stops.map { it.first to it.second }.toTypedArray()
     val fillStops = stops.map { (pos, color) -> pos to color.copy(alpha = 0.40f * (1f - pos)) }.toTypedArray()
@@ -119,4 +201,17 @@ private fun DrawScope.drawTemperatureCurve(points: List<HourlyForecast>) {
         brush = Brush.verticalGradient(colorStops = strokeStops, startY = 0f, endY = h),
         style = Stroke(width = 3f),
     )
+}
+
+private fun List<HourlyForecast>.indexOfByClosestTime(targetTime: Long): Int {
+    var minDiff = Long.MAX_VALUE
+    var closestIdx = 0
+    forEachIndexed { index, forecast ->
+        val diff = abs(forecast.dateTime - targetTime)
+        if (diff < minDiff) {
+            minDiff = diff
+            closestIdx = index
+        }
+    }
+    return closestIdx
 }
