@@ -84,4 +84,32 @@ class CurrentTempFetchPolicyTest {
     fun `charging interval is 16 minutes when screen is off`() {
         assertEquals(16L, CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive = false))
     }
+
+    @Test
+    fun `post-run loop schedules next heartbeat while charging`() {
+        assertEquals(
+            CurrentTempFetchPolicy.PostRunLoopAction.SCHEDULE_NEXT,
+            CurrentTempFetchPolicy.postRunLoopAction(isCharging = true, isScreenInteractive = true),
+        )
+        assertEquals(
+            CurrentTempFetchPolicy.PostRunLoopAction.SCHEDULE_NEXT,
+            CurrentTempFetchPolicy.postRunLoopAction(isCharging = true, isScreenInteractive = false),
+        )
+    }
+
+    @Test
+    fun `post-run loop does not reschedule on battery (never cancels concurrent fetch)`() {
+        // Regression guard: on battery the worker must NOT cancel WORK_NAME_CURRENT_TEMP, since an
+        // opportunistic fetch can be running under that same unique name. The loop instead dies by
+        // not rescheduling. PostRunLoopAction has no CANCEL value precisely to make this impossible
+        // to reintroduce through this path.
+        assertEquals(
+            CurrentTempFetchPolicy.PostRunLoopAction.NO_RESCHEDULE,
+            CurrentTempFetchPolicy.postRunLoopAction(isCharging = false, isScreenInteractive = true),
+        )
+        assertEquals(
+            CurrentTempFetchPolicy.PostRunLoopAction.NO_RESCHEDULE,
+            CurrentTempFetchPolicy.postRunLoopAction(isCharging = false, isScreenInteractive = false),
+        )
+    }
 }

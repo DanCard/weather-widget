@@ -469,21 +469,28 @@ class WeatherWidgetWorker
             isScreenInteractive: Boolean,
             ignoreRunningWorkId: java.util.UUID? = null,
         ) {
-            if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isPlugged, isScreenInteractive)) {
-                CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
-                    context = context,
-                    workManager = WorkManager.getInstance(context),
-                    nowMs = System.currentTimeMillis(),
-                    ignoreRunningWorkId = ignoreRunningWorkId,
-                    isScreenInteractive = isScreenInteractive,
-                )
-            } else {
-                appLogDao.log(
-                    "CURR_FETCH_LOOP_STOP",
-                    "reason=policy_blocked plugged=$isPlugged interactive=$isScreenInteractive",
-                    "INFO",
-                )
-                CurrentTempUpdateScheduler.cancel(context)
+            when (CurrentTempFetchPolicy.postRunLoopAction(isPlugged, isScreenInteractive)) {
+                CurrentTempFetchPolicy.PostRunLoopAction.SCHEDULE_NEXT ->
+                    CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                        context = context,
+                        workManager = WorkManager.getInstance(context),
+                        nowMs = System.currentTimeMillis(),
+                        ignoreRunningWorkId = ignoreRunningWorkId,
+                        isScreenInteractive = isScreenInteractive,
+                    )
+                // On battery we must NOT cancel here: cancel() targets the unique work name
+                // WORK_NAME_CURRENT_TEMP, and an opportunistic current-temp fetch can be running
+                // concurrently under that same name (OpportunisticUpdateJobService enqueues a
+                // UI-only worker and a fetch worker together). Cancelling by name truncated that
+                // fetch mid-flight — the root cause of current temp being slow to refresh on
+                // battery. The loop instead dies by not rescheduling; ScreenOnReceiver handles
+                // prompt teardown on unplug. See CurrentTempFetchPolicy.PostRunLoopAction.
+                CurrentTempFetchPolicy.PostRunLoopAction.NO_RESCHEDULE ->
+                    appLogDao.log(
+                        "CURR_FETCH_LOOP_STOP",
+                        "reason=policy_blocked plugged=$isPlugged interactive=$isScreenInteractive action=no_reschedule",
+                        "INFO",
+                    )
             }
         }
 
