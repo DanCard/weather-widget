@@ -2,11 +2,14 @@ package com.weatherwidget.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -47,6 +50,9 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupViews() {
         // API Sources ordered checkable list
         setupApiSourcesList()
+
+        // API Keys section
+        setupApiKeysList()
 
         // Icon Gallery
         setupIconGallery()
@@ -187,6 +193,40 @@ class SettingsActivity : AppCompatActivity() {
             WeatherSource.WEATHER_API,
             WeatherSource.VISUAL_CROSSING,
         )
+
+    private val sourcesRequiringKeys =
+        listOf(
+            WeatherSource.TOMORROW_IO,
+            WeatherSource.SILURIAN,
+            WeatherSource.WEATHER_API,
+            WeatherSource.VISUAL_CROSSING,
+            WeatherSource.OPEN_WEATHER_MAP,
+        )
+
+    private fun setupApiKeysList() {
+        val container = findViewById<LinearLayout>(R.id.api_keys_container)
+        container.removeAllViews()
+
+        for (source in sourcesRequiringKeys) {
+            val row = LayoutInflater.from(this).inflate(R.layout.item_api_key, container, false)
+            val nameView = row.findViewById<TextView>(R.id.source_name)
+            val inputView = row.findViewById<EditText>(R.id.api_key_input)
+
+            nameView.text = source.displayName
+            inputView.setText(widgetStateManager.getApiKey(source))
+
+            inputView.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    val key = s?.toString()?.trim()
+                    widgetStateManager.setApiKey(source, if (key.isNullOrBlank()) null else key)
+                }
+            })
+
+            container.addView(row)
+        }
+    }
 
     private fun sourceDescription(source: WeatherSource): String = when (source) {
         WeatherSource.SILURIAN -> getString(R.string.api_source_silurian_desc)

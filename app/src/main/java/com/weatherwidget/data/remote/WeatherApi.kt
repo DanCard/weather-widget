@@ -32,12 +32,16 @@ class WeatherApi
             private const val BASE_URL = "https://api.weatherapi.com/v1"
         }
 
+        private fun getApiKey(): String {
+            return widgetStateManager.getApiKey(WeatherSource.WEATHER_API) ?: BuildConfig.WEATHER_API_KEY
+        }
+
         suspend fun getForecast(
             lat: Double,
             lon: Double,
             days: Int = 14,
         ): ForecastResult {
-            val apiKey = widgetStateManager.getApiKey(WeatherSource.WEATHER_API) ?: BuildConfig.WEATHER_API_KEY
+            val apiKey = getApiKey()
             if (apiKey.isBlank()) {
                 throw IllegalStateException("WEATHER_API_KEY is missing. Add it to local.properties or WEATHER_API_KEY env var.")
             }
@@ -137,7 +141,7 @@ class WeatherApi
             lon: Double,
             date: String,
         ): List<HourlyForecast> {
-            val apiKey = BuildConfig.WEATHER_API_KEY
+            val apiKey = getApiKey()
             if (apiKey.isBlank()) return emptyList()
 
             val httpResponse =
@@ -192,7 +196,7 @@ class WeatherApi
             lat: Double,
             lon: Double,
         ): CurrentReading? {
-            val apiKey = BuildConfig.WEATHER_API_KEY
+            val apiKey = getApiKey()
             if (apiKey.isBlank()) {
                 throw IllegalStateException("WEATHER_API_KEY is missing. Add it to local.properties or WEATHER_API_KEY env var.")
             }

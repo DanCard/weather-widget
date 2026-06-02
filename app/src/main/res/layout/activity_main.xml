@@ -80,22 +80,30 @@
                 android:layout_height="wrap_content"
                 android:text="@string/main_location_disclosure_desc"
                 android:textColor="#CCCCCC"
-                android:textSize="16sp"
+                android:textSize="14sp"
                 android:lineSpacingExtra="4dp"
                 android:layout_marginBottom="16dp" />
 
             <Button
                 android:id="@+id/grant_permission_button"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/grant_location_permission"
-                android:layout_gravity="end" />
+                android:layout_marginBottom="8dp" />
         </LinearLayout>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/view_privacy_policy_button"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/privacy_policy_title"
+            android:textColor="#81D4FA" />
 
         <Button
             android:id="@+id/open_settings_button"

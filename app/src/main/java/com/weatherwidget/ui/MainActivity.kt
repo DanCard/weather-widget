@@ -13,6 +13,8 @@ import androidx.core.content.ContextCompat
 import com.weatherwidget.R
 import dagger.hilt.android.AndroidEntryPoint
 
+import androidx.appcompat.app.AlertDialog
+
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
@@ -26,7 +28,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupViews() {
         findViewById<Button>(R.id.grant_permission_button).setOnClickListener {
-            requestLocationPermissions()
+            startPermissionFlow()
+        }
+
+        findViewById<Button>(R.id.view_privacy_policy_button).setOnClickListener {
+            showPrivacyPolicyDialog()
         }
 
         findViewById<Button>(R.id.open_settings_button).setOnClickListener {
@@ -51,16 +57,59 @@ class MainActivity : AppCompatActivity() {
             if (fineLocationGranted && backgroundLocationGranted) View.GONE else View.VISIBLE
     }
 
-    private fun requestLocationPermissions() {
-        val permissions = mutableListOf(
+    private fun startPermissionFlow() {
+        val fineLocationGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!fineLocationGranted) {
+            requestForegroundLocation()
+        } else {
+            checkAndRequestBackgroundLocation()
+        }
+    }
+
+    private fun requestForegroundLocation() {
+        val permissions = arrayOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
+        ActivityCompat.requestPermissions(this, permissions, 1001)
+    }
 
-        // Note: For Android 11+ (API 30+), background location must be requested separately 
-        // after foreground location is granted. For simplicity in this onboarding, 
-        // we'll request foreground first.
-        ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 1001)
+    private fun checkAndRequestBackgroundLocation() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val backgroundLocationGranted = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!backgroundLocationGranted) {
+                showBackgroundLocationDisclosureDialog()
+            }
+        }
+    }
+
+    private fun showBackgroundLocationDisclosureDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.background_location_disclosure_title)
+            .setMessage(R.string.background_location_disclosure_desc)
+            .setPositiveButton(R.string.allow) { _, _ ->
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                    1002
+                )
+            }
+            .setNegativeButton(R.string.no_thanks, null)
+            .show()
+    }
+
+    private fun showPrivacyPolicyDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.privacy_policy_title)
+            .setMessage(R.string.privacy_policy_body)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     override fun onRequestPermissionsResult(
@@ -69,22 +118,20 @@ class MainActivity : AppCompatActivity() {
         getResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, getResults)
-        if (requestCode == 1001) {
-            val fineLocationGranted = getResults.getOrNull(
-                permissions.indexOf(Manifest.permission.ACCESS_FINE_LOCATION)
-            ) == PackageManager.PERMISSION_GRANTED
+        when (requestCode) {
+            1001 -> {
+                val fineLocationGranted = getResults.getOrNull(
+                    permissions.indexOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                ) == PackageManager.PERMISSION_GRANTED
 
-            if (fineLocationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Request background location after foreground is granted
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
-                    1002
-                )
+                if (fineLocationGranted) {
+                    checkAndRequestBackgroundLocation()
+                }
+                updatePermissionVisibility()
             }
-            updatePermissionVisibility()
-        } else if (requestCode == 1002) {
-            updatePermissionVisibility()
+            1002 -> {
+                updatePermissionVisibility()
+            }
         }
     }
 

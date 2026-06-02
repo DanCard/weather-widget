@@ -40,6 +40,10 @@ class SilurianApi @Inject constructor(
         apiKeyOverride = apiKey
     }
 
+    private fun getApiKey(): String {
+        return apiKeyOverride ?: widgetStateManager.getApiKey(WeatherSource.SILURIAN) ?: BuildConfig.SILURIAN_API_KEY
+    }
+
     companion object {
         private const val BASE_URL = "https://earth.weather.silurian.ai/api/v1"
     }
@@ -49,7 +53,7 @@ suspend fun getForecast(
         lon: Double,
         days: Int = 14,
     ): ForecastResult = coroutineScope {
-        val apiKey = apiKeyOverride ?: widgetStateManager.getApiKey(WeatherSource.SILURIAN) ?: BuildConfig.SILURIAN_API_KEY
+        val apiKey = getApiKey()
         if (apiKey.isBlank()) {
             throw IllegalStateException("SILURIAN_API_KEY is missing. Add it to local.properties or SILURIAN_API_KEY env var.")
         }
@@ -180,7 +184,7 @@ ForecastResult(
      * loop so Silurian "now" observations land reliably instead of timing out on ~20 HTTP calls.
      */
     suspend fun getCurrent(lat: Double, lon: Double): CurrentReading? {
-        val apiKey = apiKeyOverride ?: BuildConfig.SILURIAN_API_KEY
+        val apiKey = getApiKey()
         if (apiKey.isBlank()) {
             throw IllegalStateException("SILURIAN_API_KEY is missing. Add it to local.properties or SILURIAN_API_KEY env var.")
         }

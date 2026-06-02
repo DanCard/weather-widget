@@ -3,6 +3,7 @@
     <string name="app_name">Weather Widget</string>
     <string name="widget_description">A resizable weather widget showing current conditions and forecast</string>
     <string name="configure_widget">Configure Widget</string>
+    <string name="select_data_source">Select Weather Data Source</string>
     <string name="use_current_location">Use Current Location</string>
     <string name="or_enter_zip">Or enter a ZIP code:</string>
     <string name="zip_code_hint">ZIP Code</string>
@@ -137,8 +138,15 @@
     <string name="main_how_to_add_desc">1. Long-press an empty spot on your home screen.\n2. Tap \"Widgets\".\n3. Find \"Weather Widget\" and drag it to your screen.</string>
     <string name="main_location_disclosure_title">Location Disclosure</string>
     <string name="main_location_disclosure_desc">Weather Widget collects location data to provide local weather forecasts even when the app is closed or not in use. This data is only used locally on your device to fetch accurate weather for your current position.</string>
+    <string name="background_location_disclosure_title">Background Location Access</string>
+    <string name="background_location_disclosure_desc">To provide automatic weather updates in your widget, this app needs access to your location even when it is in the background.\n\nOn the next screen, please select \"Allow all the time\" to enable background updates.</string>
     <string name="grant_location_permission">Grant Location Permission</string>
     <string name="open_settings">Open Settings</string>
+    <string name="api_keys_title">API Keys</string>
+    <string name="api_keys_description">Enter your own API keys for restricted services. Free services (NWS, Open-Meteo) do not require keys.</string>
+    <string name="api_key_hint">Enter API Key</string>
     <string name="privacy_policy_title">Privacy Policy</string>
+    <string name="allow">Allow</string>
+    <string name="no_thanks">No thanks</string>
     <string name="privacy_policy_body">Weather Widget collects location data to provide local weather forecasts. Your location is only used to fetch weather data for your area and is never stored or shared with third parties except weather API providers (NWS, Open-Meteo, etc.) to retrieve forecasts.\n\nWe use Firebase Crashlytics to monitor app stability. This data is anonymized.\n\nYou can revoke location permissions at any time in Android Settings.\n\nFor questions, visit: https://github.com/dcar/weather-widget/issues</string>
 </resources>

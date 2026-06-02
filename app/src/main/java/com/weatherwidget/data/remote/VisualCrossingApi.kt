@@ -27,8 +27,11 @@ class VisualCrossingApi
     constructor(
         private val httpClient: HttpClient,
         private val json: Json,
-        private val apiKey: String = BuildConfig.VISUAL_CROSSING_API_KEY,
+        private val widgetStateManager: com.weatherwidget.widget.WidgetStateManager,
     ) {
+        private val apiKey: String
+            get() = widgetStateManager.getApiKey(WeatherSource.VISUAL_CROSSING) ?: BuildConfig.VISUAL_CROSSING_API_KEY
+
         companion object {
             private const val BASE_URL =
                 "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline"

@@ -1,14 +1,15 @@
 # GEMINI.md - Weather Widget Project Context
 
 ## Project Overview
-**Weather Widget** is a home screen widget (no launcher activity). It provides high-accuracy weather forecasts by aggregating data from multiple sources: the **National Weather Service (NWS)**, **Open-Meteo**, **Tomorrow.io**, **WeatherAPI**, **OpenWeatherMap**, **Visual Crossing**, and **Silurian**.
+**Weather Widget** is a home screen widget (includes a launcher activity for configuration/onboarding). It provides high-accuracy weather forecasts by aggregating data from multiple sources: the **National Weather Service (NWS)**, **Open-Meteo**, **Tomorrow.io**, **WeatherAPI**, **OpenWeatherMap**, **Visual Crossing**, and **Silurian**.
 
 ### Key Features
 - **Multiple API Support**: Comparison and toggling between NWS (US-only), Open-Meteo (Global), Tomorrow.io, WeatherAPI, OpenWeatherMap, Visual Crossing, and Silurian.
 - **Adaptive, State-Aware Update System**: Dynamically reschedules lightweight UI updates and forecast fetches based on battery levels, charging state, and screen interactivity (screen-on vs. screen-off). Includes work-stall recovery to bypass background worker freezes on OEM devices like Samsung.
 - **Dynamic Rendering**: Custom-drawn graphs for Daily (forecast bars) and Hourly (Bezier temperature curves) views.
 - **Accuracy Tracking**: Compares historical forecasts against actual observations to provide reliability scores.
-- **Widget-Only UI**: All interactions (navigation, API switching, refresh) occur directly on the home screen.
+- **Widget-Centric UI**: Core interactions occur directly on the home screen, while a launcher activity provides onboarding and configuration.
+- **Google Play Compliance**: Includes prominent background location disclosure and an in-app privacy policy viewer to meet store requirements.
 
 ---
 

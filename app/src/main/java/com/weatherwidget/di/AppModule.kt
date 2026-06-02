@@ -228,7 +228,8 @@ object AppModule {
     fun provideVisualCrossingApi(
         httpClient: HttpClient,
         json: Json,
-    ): VisualCrossingApi = VisualCrossingApi(httpClient, json)
+        widgetStateManager: WidgetStateManager,
+    ): VisualCrossingApi = VisualCrossingApi(httpClient, json, widgetStateManager)
 
     @Provides
     @Singleton

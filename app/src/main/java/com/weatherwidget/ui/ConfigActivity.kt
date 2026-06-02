@@ -5,23 +5,42 @@ import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Geocoder
+import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.Spinner
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.android.gms.location.LocationServices
 import com.weatherwidget.R
+import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.log
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import java.util.Locale
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class ConfigActivity : AppCompatActivity() {
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+
+    @Inject
+    lateinit var widgetStateManager: WidgetStateManager
+
+    @Inject
+    lateinit var appLogDao: AppLogDao
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,14 +65,22 @@ class ConfigActivity : AppCompatActivity() {
         val zipCodeInput = findViewById<EditText>(R.id.zip_code_input)
         val useGpsButton = findViewById<Button>(R.id.use_gps_button)
         val useZipButton = findViewById<Button>(R.id.use_zip_button)
+        val sourceSpinner = findViewById<Spinner>(R.id.source_spinner)
+
+        // Setup Source Spinner
+        val sources = WeatherSource.entries.filter { it != WeatherSource.GENERIC_GAP && it != WeatherSource.OPEN_WEATHER_MAP }
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, sources.map { it.displayName })
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        sourceSpinner.adapter = adapter
 
         useGpsButton.setOnClickListener {
-            requestLocationPermission()
+            checkAndRequestLocationPermissions()
         }
 
         useZipButton.setOnClickListener {
             val zipCode = zipCodeInput.text.toString()
             if (zipCode.length == 5) {
+                saveSelectedSource()
                 saveZipCodeLocation(zipCode)
             } else {
                 Toast.makeText(this, "Please enter a valid 5-digit ZIP code", Toast.LENGTH_SHORT).show()
@@ -61,20 +88,60 @@ class ConfigActivity : AppCompatActivity() {
         }
     }
 
-    private fun requestLocationPermission() {
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
+    private fun saveSelectedSource() {
+        val sourceSpinner = findViewById<Spinner>(R.id.source_spinner)
+        val sources = WeatherSource.entries.filter { it != WeatherSource.GENERIC_GAP && it != WeatherSource.OPEN_WEATHER_MAP }
+        val selectedSource = sources[sourceSpinner.selectedItemPosition]
+        widgetStateManager.setCurrentDisplaySource(appWidgetId, selectedSource)
+    }
+
+    private fun checkAndRequestLocationPermissions() {
+        val fineLocationGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!fineLocationGranted) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                LOCATION_PERMISSION_REQUEST,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                LOCATION_PERMISSION_REQUEST
             )
+        } else {
+            checkAndRequestBackgroundLocation()
+        }
+    }
+
+    private fun checkAndRequestBackgroundLocation() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val backgroundLocationGranted = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!backgroundLocationGranted) {
+                showBackgroundLocationDisclosureDialog()
+            } else {
+                getCurrentLocation()
+            }
         } else {
             getCurrentLocation()
         }
+    }
+
+    private fun showBackgroundLocationDisclosureDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.background_location_disclosure_title)
+            .setMessage(R.string.background_location_disclosure_desc)
+            .setPositiveButton(R.string.allow) { _, _ ->
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                    BACKGROUND_LOCATION_PERMISSION_REQUEST
+                )
+            }
+            .setNegativeButton(R.string.no_thanks) { _, _ ->
+                getCurrentLocation() // Proceed with foreground only
+            }
+            .show()
     }
 
     override fun onRequestPermissionsResult(
@@ -83,11 +150,16 @@ class ConfigActivity : AppCompatActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == LOCATION_PERMISSION_REQUEST) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                getCurrentLocation()
-            } else {
-                Toast.makeText(this, "Location permission required", Toast.LENGTH_SHORT).show()
+        when (requestCode) {
+            LOCATION_PERMISSION_REQUEST -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    checkAndRequestBackgroundLocation()
+                } else {
+                    Toast.makeText(this, "Location permission required for GPS", Toast.LENGTH_SHORT).show()
+                }
+            }
+            BACKGROUND_LOCATION_PERMISSION_REQUEST -> {
+                getCurrentLocation() // Proceed regardless, system handles denied state
             }
         }
     }
@@ -101,14 +173,17 @@ class ConfigActivity : AppCompatActivity() {
             return
         }
 
+        saveSelectedSource()
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
             if (location != null) {
                 saveLocation(location.latitude, location.longitude)
             } else {
-                Toast.makeText(this, "Could not get location. Using default.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Could not get current location. Using default.", Toast.LENGTH_SHORT).show()
                 saveLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON)
             }
+        }.addOnFailureListener {
+            Toast.makeText(this, "Error getting location", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -139,6 +214,10 @@ class ConfigActivity : AppCompatActivity() {
             .putFloat("${KEY_LON_PREFIX}$appWidgetId", lon.toFloat())
             .apply()
 
+        lifecycleScope.launch {
+            appLogDao.log("CONFIG", "Widget $appWidgetId configured with lat=$lat, lon=$lon")
+        }
+
         triggerWidgetUpdate()
         finishWithSuccess()
     }
@@ -156,6 +235,7 @@ class ConfigActivity : AppCompatActivity() {
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST = 1001
+        private const val BACKGROUND_LOCATION_PERMISSION_REQUEST = 1002
         const val PREFS_NAME = "weather_widget_prefs"
         const val KEY_LAT_PREFIX = "widget_lat_"
         const val KEY_LON_PREFIX = "widget_lon_"
