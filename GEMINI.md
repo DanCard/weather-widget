@@ -1,7 +1,7 @@
 # GEMINI.md - Weather Widget Project Context
 
 ## Project Overview
-**Weather Widget** is a home screen widget (includes a launcher activity for configuration/onboarding). It provides high-accuracy weather forecasts by aggregating data from multiple sources: the **National Weather Service (NWS)**, **Open-Meteo**, **Tomorrow.io**, **WeatherAPI**, **OpenWeatherMap**, **Visual Crossing**, and **Silurian**.
+**Weather Widget** is a multi-platform weather solution. It includes a home screen widget (with a launcher activity for configuration/onboarding) and a Linux desktop companion app. It provides high-accuracy weather forecasts by aggregating data from multiple sources: the **National Weather Service (NWS)**, **Open-Meteo**, **Tomorrow.io**, **WeatherAPI**, **OpenWeatherMap**, **Visual Crossing**, and **Silurian**.
 
 ### Key Features
 - **Multiple API Support**: Comparison and toggling between NWS (US-only), Open-Meteo (Global), Tomorrow.io, WeatherAPI, OpenWeatherMap, Visual Crossing, and Silurian.
@@ -9,6 +9,7 @@
 - **Dynamic Rendering**: Custom-drawn graphs for Daily (forecast bars) and Hourly (Bezier temperature curves) views.
 - **Accuracy Tracking**: Compares historical forecasts against actual observations to provide reliability scores.
 - **Widget-Centric UI**: Core interactions occur directly on the home screen, while a launcher activity provides onboarding and configuration.
+- **Desktop Companion**: A Linux-native system-tray application (Compose Desktop) that provides quick weather lookups via a frameless popup, mirroring the widget's aesthetic.
 - **Google Play Compliance**: Includes prominent background location disclosure and an in-app privacy policy viewer to meet store requirements.
 
 ---
@@ -16,9 +17,10 @@
 ## Technology Stack
 - **Language**: Kotlin 2.0.21 (Coroutines, Flow, Serialization)
 - **Build System**: Gradle 8.13 with Kotlin DSL
-- **Dependency Injection**: Hilt 2.51.1
+- **UI Frameworks**: Android RemoteViews (Widget), Compose Multiplatform (Desktop)
+- **Dependency Injection**: Hilt 2.51.1 (Android)
 - **Database**: Room 2.6.1 (SQLite)
-- **Networking**: Ktor 2.3.7
+- **Networking**: Ktor 2.3.7 (Shared engine)
 - **Background Work**: WorkManager 2.9.0
 - **Testing**: JUnit 4, MockK, Coroutines Test
 - **Minimum/Target SDK**: 26 / 34
@@ -29,6 +31,7 @@
 ## Building and Running
 The project requires Java 21. Ensure your environment is configured correctly before running Gradle commands.
 
+### Android
 ```bash
 # Build and install to connected device/emulator
 ./gradlew installDebug
@@ -38,6 +41,16 @@ The project requires Java 21. Ensure your environment is configured correctly be
 
 # Run instrumented tests
 ./scripts/emulator-tests.sh
+```
+
+### Desktop (Linux)
+```bash
+# Run the desktop app
+./gradlew :desktop:run
+
+# Package the desktop app
+./gradlew :desktop:packageDeb
+./gradlew :desktop:packageAppImage
 ```
 
 ---
@@ -52,6 +65,7 @@ When investigating bugs or data mismatches, follow this strict sequence:
 ---
 
 ## Development Conventions
+- **Shared Logic**: Business logic, models, and API clients are centralized in the `:shared` module to ensure consistency between Android and Desktop clients.
 - **Widget Lifecycle**: Always use `goAsync()` within `BroadcastReceiver` to handle async operations without blocking.
 - **Update Logic**:
     - **UI / Current Temp Update**: Highly responsive. While charging, schedules dynamically based on screen state: every 10 min when screen is interactive (screen-on), and every 16 min when screen is off. Bypasses stalls via state-aware scheduling that inspects and replaces overdue or far-future WorkManager jobs.

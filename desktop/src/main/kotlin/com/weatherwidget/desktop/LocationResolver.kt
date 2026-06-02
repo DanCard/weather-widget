@@ -1,0 +1,132 @@
+package com.weatherwidget.desktop
+
+import com.weatherwidget.data.remote.GeocodeResult
+import com.weatherwidget.data.remote.IpGeolocationApi
+import com.weatherwidget.data.remote.NominatimApi
+import kotlin.math.roundToInt
+
+class LocationResolver(
+    private val phoneLocator: PhoneLocator,
+    private val timezoneLocator: TimezoneLocator,
+    private val ipGeolocationApi: IpGeolocationApi,
+    private val nominatimApi: NominatimApi,
+) {
+    suspend fun acquire(log: (String) -> Unit = {}): ResolvedLocation? {
+        log("Trying connected phone location first.")
+        val phone = fromPhone(log) ?: return null
+        if (!phone.isFresh) {
+            log("Phone location is stale; falling back to location picker.")
+        }
+        return phone.takeIf { it.isFresh }
+    }
+
+    suspend fun suggestPrefill(log: (String) -> Unit = {}): ResolvedLocation? {
+        log("Starting IP location lookup...")
+        val ip = runCatching { ipGeolocationApi.locate() }.getOrNull()
+        if (ip != null) {
+            val label = listOfNotNull(ip.city, ip.region, ip.country).filter { it.isNotBlank() }.joinToString(", ")
+            log("IP lookup found ${label.ifBlank { "${ip.lat}, ${ip.lon}" }}.")
+            return ResolvedLocation(
+                lat = ip.lat,
+                lon = ip.lon,
+                label = label.ifBlank { "${ip.lat}, ${ip.lon}" },
+                source = "IP lookup",
+            )
+        }
+
+        log("IP lookup unavailable; trying timezone fallback...")
+        val timezone = timezoneLocator.locate() ?: return null
+        log("Timezone fallback found ${timezone.zoneId}.")
+        return ResolvedLocation(
+            lat = timezone.lat,
+            lon = timezone.lon,
+            label = timezone.zoneId,
+            source = "Timezone",
+        )
+    }
+
+    suspend fun searchText(query: String): List<ResolvedLocation> =
+        runCatching {
+            nominatimApi.search(query).map { it.toResolved(source = "Nominatim") }
+        }.getOrElse { emptyList() }
+
+    suspend fun fromCoordinates(
+        lat: Double,
+        lon: Double,
+    ): ResolvedLocation {
+        val reverse = runCatching { nominatimApi.reverse(lat, lon) }.getOrNull()
+        return ResolvedLocation(
+            lat = lat,
+            lon = lon,
+            label = reverse?.displayName ?: "${lat.formatCoord()}, ${lon.formatCoord()}",
+            source = "Manual coordinates",
+        )
+    }
+
+    fun phoneAvailable(): Boolean = phoneLocator.isAvailable()
+
+    suspend fun fromPhone(log: (String) -> Unit = {}): ResolvedLocation? {
+        val phone = phoneLocator.locate(log) ?: return null
+        return phone.toResolved()
+    }
+
+    companion object {
+        private const val FRESH_FIX_AGE_MILLIS = 24L * 60L * 60L * 1000L
+    }
+
+    private fun PhoneLocation.toResolved(): ResolvedLocation {
+        val age = fixAgeMillis
+        val accuracy = accuracyMeters
+        val details = buildList {
+            serial?.let { add(it) }
+            add(provider)
+            if (accuracy != null) add("${accuracy.roundToInt()}m")
+            if (age != null) add(formatAge(age))
+        }.joinToString(", ")
+        return ResolvedLocation(
+            lat = lat,
+            lon = lon,
+            label = "Phone GPS (${lat.formatCoord()}, ${lon.formatCoord()})",
+            source = "Phone GPS",
+            detail = details,
+            isFresh = age != null && age < FRESH_FIX_AGE_MILLIS,
+        )
+    }
+
+    private fun GeocodeResult.toResolved(source: String): ResolvedLocation =
+        ResolvedLocation(
+            lat = lat,
+            lon = lon,
+            label = displayName,
+            source = source,
+        )
+}
+
+data class ResolvedLocation(
+    val lat: Double,
+    val lon: Double,
+    val label: String,
+    val source: String,
+    val detail: String? = null,
+    val isFresh: Boolean = true,
+) {
+    fun toConfig(): DesktopConfig =
+        DesktopConfig(
+            lat = lat,
+            lon = lon,
+            label = label,
+            source = source,
+        )
+}
+
+private fun Double.formatCoord(): String = "%.4f".format(this)
+
+private fun formatAge(ageMillis: Long): String {
+    val minutes = ageMillis / 60_000
+    val hours = minutes / 60
+    return when {
+        hours >= 24 -> "${hours / 24}d ${hours % 24}h old"
+        hours > 0 -> "${hours}h ${minutes % 60}m old"
+        else -> "${minutes}m old"
+    }
+}

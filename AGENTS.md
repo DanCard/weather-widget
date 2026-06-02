@@ -252,6 +252,32 @@ override fun onAppWidgetOptionsChanged(...) {
 - Hourly view: Navigate by 6-hour chunks (±24h window)
 - All navigation uses direct database reads for instant UI feedback
 
+## Desktop App Development
+
+### Desktop Architecture
+- `:desktop` is a JetBrains Compose for Desktop tray/window app that reuses `:shared` weather models and API clients.
+- `:shared` owns clean JVM weather/API code; do not pull Android `Context`, Room repositories, RemoteViews, or widget preferences into `:desktop`.
+- The desktop app uses its own thin orchestration (`DesktopWeatherService`) and desktop-only config/location classes.
+
+### Desktop Location Handling
+- Saved desktop location lives at `${XDG_CONFIG_HOME:-$HOME/.config}/weather-widget/config.json`.
+- First launch with no config opens the location picker immediately.
+- Phone GPS via ADB and IP lookup run in parallel while manual picker controls remain usable.
+- IP lookup is only a prefill/fallback suggestion; it should not auto-save or close the picker.
+- A fresh phone GPS/fused fix may auto-save and close the picker. If phone lookup fails or is stale, leave the picker open and keep the diagnostic log visible.
+- The picker log belongs at the bottom of the picker window and should grow when the window is resized taller.
+
+### Desktop ADB Location Notes
+- Plain `adb` may not be on `PATH`; desktop code should fall back to `/home/dcar/.Android/Sdk/platform-tools/adb` and Android SDK env vars.
+- When multiple devices are connected, skip emulators and target real phones with `adb -s <serial> ...`.
+- In Android `dumpsys location`, `Location[...] et=...` is an elapsed-realtime timestamp, not a fix age. Compute age as `phone /proc/uptime - location et`.
+- `dumpsys location` output can be large. When running it through `ProcessBuilder`, drain stdout while the process is running; waiting for process exit before reading can deadlock and cause false timeouts.
+
+### Desktop Window Behavior
+- The weather window uses a standard system title bar so it can be resized/minimized/closed by the window manager.
+- Closing the weather window hides it to the tray; it does not exit the app.
+- Tray `Quit` should close long-lived resources such as the desktop `HttpClient` before calling `exitApplication()`.
+
 ## Data Model
 
 ### WeatherEntity

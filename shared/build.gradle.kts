@@ -19,4 +19,7 @@ dependencies {
     // @Inject annotations on the API client constructors are inert here (Hilt's AppModule
     // provides them via @Provides); this just keeps the annotation resolvable at compile time.
     implementation(libs.javax.inject)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.ktor.client.mock)
 }

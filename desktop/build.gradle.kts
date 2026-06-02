@@ -25,6 +25,8 @@ dependencies {
 
     // Swing dispatcher so Compose UI coroutines have a Main dispatcher on the JVM.
     implementation(libs.coroutines.swing)
+
+    testImplementation(libs.junit)
 }
 
 compose.desktop {

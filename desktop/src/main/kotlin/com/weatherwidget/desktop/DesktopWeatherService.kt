@@ -17,8 +17,8 @@ import kotlinx.serialization.json.Json
  * For the MVP this fetches live on demand. SQLDelight persistence + NWS support are layered on later.
  */
 class DesktopWeatherService(
-    private val latitude: Double = DEFAULT_LATITUDE,
-    private val longitude: Double = DEFAULT_LONGITUDE,
+    private val latitude: Double,
+    private val longitude: Double,
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -38,13 +38,18 @@ class DesktopWeatherService(
 
     private val openMeteo = OpenMeteoApi(httpClient, json)
 
+    constructor(config: DesktopConfig?) : this(
+        latitude = config?.lat ?: FALLBACK_LATITUDE,
+        longitude = config?.lon ?: FALLBACK_LONGITUDE,
+    )
+
     suspend fun fetchForecast(): ForecastResult = openMeteo.getForecast(latitude, longitude)
 
     fun close() = httpClient.close()
 
     companion object {
-        // Default location matches the Android app (Google HQ) until config/zip entry is added.
-        const val DEFAULT_LATITUDE = 37.4220
-        const val DEFAULT_LONGITUDE = -122.0841
+        // Absolute fallback only. Normal desktop launches should use DesktopConfig.
+        const val FALLBACK_LATITUDE = 37.4220
+        const val FALLBACK_LONGITUDE = -122.0841
     }
 }
