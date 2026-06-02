@@ -97,7 +97,7 @@ class TomorrowIoApiTest {
         """.trimIndent()
 
         val mockClient = createMockClient(hourlyResponse, dailyResponse)
-        val api = TomorrowIoApi(mockClient, json, widgetStateManager)
+        val api = TomorrowIoApi(mockClient, json) { "test-key" }
 
         val result = api.getForecast(37.4220, -122.0841)
 
@@ -132,7 +132,7 @@ class TomorrowIoApiTest {
                 json(json)
             }
         }
-        val api = TomorrowIoApi(mockClient, json, widgetStateManager)
+        val api = TomorrowIoApi(mockClient, json) { "test-key" }
 
         try {
             api.getForecast(37.4220, -122.0841)
@@ -160,7 +160,7 @@ class TomorrowIoApiTest {
         val mockClient = HttpClient(engine) {
             install(ContentNegotiation) { json(json) }
         }
-        val api = TomorrowIoApi(mockClient, json, widgetStateManager)
+        val api = TomorrowIoApi(mockClient, json) { "test-key" }
 
         api.getForecast(37.4220, -122.0841)
 
@@ -174,7 +174,7 @@ class TomorrowIoApiTest {
 
     @Test
     fun `weatherCodeToCondition maps codes correctly`() {
-        val api = TomorrowIoApi(HttpClient(MockEngine { respond("") }), json, widgetStateManager)
+        val api = TomorrowIoApi(HttpClient(MockEngine { respond("") }), json) { "test-key" }
         
         assertEquals("Clear", api.weatherCodeToCondition(1000))
         assertEquals("Mostly Clear", api.weatherCodeToCondition(1100))

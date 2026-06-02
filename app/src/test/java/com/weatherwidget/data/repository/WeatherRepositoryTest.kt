@@ -111,7 +111,7 @@ class WeatherRepositoryTest {
         repository =
             WeatherRepository(context, forecastRepository, currentTempRepository, forecastDao, appLogDao, mockk(relaxed = true))
 
-        coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
+        coEvery { weatherApi.getForecast(any(), any()) } throws Exception("WeatherAPI unavailable")
         every { widgetStateManager.isSourceVisible(any()) } returns true
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(
             WeatherSource.NWS,
@@ -234,7 +234,7 @@ class WeatherRepositoryTest {
 
             assertTrue(result.isSuccess)
             assertTrue(result.getOrNull().isNullOrEmpty())
-            coVerify(exactly = 0) { openMeteoApi.getForecast(any(), any(), any()) }
+            coVerify(exactly = 0) { openMeteoApi.getForecast(any(), any()) }
             coVerify(exactly = 0) { forecastDao.insertAll(any<List<ForecastEntity>>()) }
         }
 

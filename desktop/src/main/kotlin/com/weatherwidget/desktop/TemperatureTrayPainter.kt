@@ -11,6 +11,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -24,33 +25,15 @@ class TemperatureTrayPainter(
     override val intrinsicSize: Size = Size(64f, 64f)
 
     override fun DrawScope.onDraw() {
-        val tempValue = temperature?.roundToInt()
-        val tempText = tempValue?.toString() ?: "—"
+        val tempText = temperature?.let { formatTrayTemperature(it) } ?: "--"
         
-        // Background color based on temperature range
-        val bgColor = tempToColor(temperature ?: 70f)
-        
-        // Draw a slightly rounded square background for maximum surface area
-        drawRect(
-            color = bgColor,
-            size = size
-        )
+        val textColor = tempToColor(temperature ?: 70f)
 
-        // Draw a small indicator dot if we have real data
-        if (temperature != null) {
-            drawCircle(
-                color = Color.White.copy(alpha = 0.3f),
-                radius = size.minDimension * 0.05f,
-                center = Offset(size.width * 0.85f, size.height * 0.15f)
-            )
-        }
-
-        // Maximize text size for legibility in small tray areas
-        val fontSize = if (tempText.length > 2) 34.sp else 40.sp
+        val fontSize = resolveFontSize(tempText, textColor)
         val textLayout = textMeasurer.measure(
             text = tempText,
             style = TextStyle(
-                color = Color.White,
+                color = textColor,
                 fontSize = fontSize,
                 fontWeight = FontWeight.Black // Extra bold for tray visibility
             )
@@ -63,6 +46,26 @@ class TemperatureTrayPainter(
                 y = center.y - textLayout.size.height / 2f
             )
         )
+    }
+
+    private fun DrawScope.resolveFontSize(text: String, color: Color): androidx.compose.ui.unit.TextUnit {
+        val maxWidth = size.width * 0.95f
+        val maxHeight = size.height * 0.95f
+        val candidates = listOf(42, 38, 34, 30, 26, 22, 18, 15, 12)
+        for (candidate in candidates) {
+            val layout = textMeasurer.measure(
+                text = text,
+                style = TextStyle(
+                    color = color,
+                    fontSize = candidate.sp,
+                    fontWeight = FontWeight.Black
+                )
+            )
+            if (layout.size.width <= maxWidth && layout.size.height <= maxHeight) {
+                return candidate.sp
+            }
+        }
+        return candidates.last().sp
     }
 
     private fun tempToColor(temp: Float): Color {
@@ -78,3 +81,6 @@ class TemperatureTrayPainter(
         }
     }
 }
+
+internal fun formatTrayTemperature(temperature: Float): String =
+    temperature.roundToInt().toString()

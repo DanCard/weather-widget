@@ -8,28 +8,18 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
-import com.weatherwidget.widget.WidgetStateManager
 import org.junit.experimental.categories.Category
 
 @Category(ShortDuration::class)
 class VisualCrossingApiTest {
     private lateinit var json: Json
-
-    // VisualCrossingApi derives its API key from WidgetStateManager (not a constructor arg),
-    // matching the pattern in OpenWeatherMapApiTest / TomorrowIoApiTest.
-    private val widgetStateManager = mockk<WidgetStateManager>(relaxed = true).apply {
-        every { getApiKey(WeatherSource.VISUAL_CROSSING) } returns "test-key"
-    }
 
     @Before
     fun setup() {
@@ -40,13 +30,13 @@ class VisualCrossingApiTest {
             }
     }
 
-    private fun createMockClient(responseJson: String): HttpClient =
+    private fun createMockClient(responseJson: String, status: HttpStatusCode = HttpStatusCode.OK): HttpClient =
         HttpClient(MockEngine) {
             engine {
                 addHandler {
                     respond(
                         content = responseJson,
-                        status = HttpStatusCode.OK,
+                        status = status,
                         headers = headersOf(HttpHeaders.ContentType, "application/json"),
                     )
                 }
@@ -107,7 +97,7 @@ class VisualCrossingApiTest {
             }
             """.trimIndent()
 
-        val api = VisualCrossingApi(createMockClient(responseJson), json, widgetStateManager)
+        val api = VisualCrossingApi(createMockClient(responseJson), json) { "test-key" }
         val forecast = api.getForecast(37.42, -122.08)
 
         assertEquals(62.4f, forecast.currentTemp!!, 0.001f)
@@ -127,7 +117,7 @@ class VisualCrossingApiTest {
     }
 
     @Test
-    fun `getCurrent parses current response`() = runTest {
+    fun `getForecast parses current response`() = runTest {
         val responseJson =
             """
             {
@@ -139,13 +129,13 @@ class VisualCrossingApiTest {
             }
             """.trimIndent()
 
-        val api = VisualCrossingApi(createMockClient(responseJson), json, widgetStateManager)
-        val current = api.getCurrent(37.42, -122.08)
+        val api = VisualCrossingApi(createMockClient(responseJson), json) { "test-key" }
+        val forecast = api.getForecast(37.42, -122.08)
 
-        assertNotNull(current)
-        assertEquals(62.4f, current!!.temperature, 0.001f)
-        assertEquals("Rain, Partially cloudy", current.condition)
-        assertEquals(1774940400000L, current.observedAt)
+        assertNotNull(forecast.currentTemp)
+        assertEquals(62.4f, forecast.currentTemp!!, 0.001f)
+        assertEquals("Rain, Partially cloudy", forecast.currentCondition)
+        assertEquals(1774940400000L, forecast.currentObservedAt)
     }
 
     @Test
@@ -158,18 +148,18 @@ class VisualCrossingApiTest {
             }
             """.trimIndent()
 
-        val api = VisualCrossingApi(createMockClient(responseJson), json, widgetStateManager)
+        val api = VisualCrossingApi(createMockClient(responseJson, HttpStatusCode.Unauthorized), json) { "test-key" }
 
         val exception =
             try {
                 api.getForecast(37.42, -122.08)
-                throw AssertionError("Expected VisualCrossingAccessException")
-            } catch (e: VisualCrossingApi.VisualCrossingAccessException) {
+                throw AssertionError("Expected ApiAccessException")
+            } catch (e: ApiAccessException) {
                 e
             }
 
         assertEquals(401, exception.statusCode)
-        assertEquals("Invalid API key", exception.detail)
-        assertEquals("Visual Crossing 401 error. API key invalid or unauthorized.", exception.message)
+        assertEquals(responseJson, exception.detail)
+        assertEquals("Visual Crossing fetch failed: status 401. Detail: $responseJson", exception.message)
     }
 }

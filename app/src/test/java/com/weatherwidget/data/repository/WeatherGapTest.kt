@@ -104,7 +104,7 @@ class WeatherGapTest {
         repository =
             WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, mockk(relaxed = true))
 
-        coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
+        coEvery { weatherApi.getForecast(any(), any()) } throws Exception("WeatherAPI unavailable")
     }
 
     @Test

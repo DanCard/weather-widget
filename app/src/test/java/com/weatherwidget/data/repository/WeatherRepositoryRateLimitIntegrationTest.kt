@@ -33,8 +33,8 @@ class WeatherRepositoryRateLimitIntegrationTest {
 
     private fun buildRepo(
         nwsApi: NwsApi = mockk<NwsApi>().also { coEvery { it.getGridPoint(any(), any()) } throws Exception("unavailable") },
-        openMeteoApi: OpenMeteoApi = mockk<OpenMeteoApi>().also { coEvery { it.getForecast(any(), any(), any()) } throws Exception("unavailable") },
-        weatherApi: WeatherApi = mockk<WeatherApi>().also { coEvery { it.getForecast(any(), any(), any()) } throws Exception("unavailable") },
+        openMeteoApi: OpenMeteoApi = mockk<OpenMeteoApi>().also { coEvery { it.getForecast(any(), any()) } throws Exception("unavailable") },
+        weatherApi: WeatherApi = mockk<WeatherApi>().also { coEvery { it.getForecast(any(), any()) } throws Exception("unavailable") },
     ): WeatherRepository {
         val widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
         every { widgetStateManager.isSourceVisible(any()) } returns true

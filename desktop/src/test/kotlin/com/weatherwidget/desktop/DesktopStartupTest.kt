@@ -4,8 +4,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import org.junit.Rule
 import org.junit.Test
-import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.TimeUnit
+import kotlin.io.path.Path
 
 class DesktopStartupTest {
     @get:Rule
@@ -27,6 +28,29 @@ class DesktopStartupTest {
         // This should not throw any exceptions
         val service = DesktopWeatherService(config)
         service.close()
+    }
+
+    @Test
+    fun testDesktopMainStartsWithoutCompositionLocalCrash() {
+        val javaExecutable = Path(System.getProperty("java.home"), "bin", "java").toString()
+        val process = ProcessBuilder(
+            javaExecutable,
+            "-Dweatherwidget.desktop.startupSmoke=true",
+            "-cp",
+            System.getProperty("java.class.path"),
+            "com.weatherwidget.desktop.MainKt",
+        )
+            .redirectErrorStream(true)
+            .start()
+
+        val finished = process.waitFor(15, TimeUnit.SECONDS)
+        val output = process.inputStream.bufferedReader().readText()
+        if (!finished) {
+            process.destroyForcibly()
+        }
+
+        org.junit.Assert.assertTrue("Desktop main did not exit during startup smoke test. Output:\n$output", finished)
+        org.junit.Assert.assertEquals("Desktop main failed during startup smoke test. Output:\n$output", 0, process.exitValue())
     }
 
     /**

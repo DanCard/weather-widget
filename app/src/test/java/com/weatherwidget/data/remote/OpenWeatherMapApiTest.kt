@@ -1,7 +1,5 @@
 package com.weatherwidget.data.remote
 
-import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.WidgetStateManager
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -10,8 +8,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -25,7 +21,6 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class OpenWeatherMapApiTest {
     private lateinit var json: Json
-    private lateinit var widgetStateManager: WidgetStateManager
 
     @Before
     fun setup() {
@@ -34,17 +29,15 @@ class OpenWeatherMapApiTest {
                 ignoreUnknownKeys = true
                 isLenient = true
             }
-        widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
-        every { widgetStateManager.getApiKey(WeatherSource.OPEN_WEATHER_MAP) } returns "test-key"
     }
 
-    private fun createMockClient(responseJson: String): HttpClient {
+    private fun createMockClient(responseJson: String, status: HttpStatusCode = HttpStatusCode.OK): HttpClient {
         return HttpClient(MockEngine) {
             engine {
                 addHandler {
                     respond(
                         content = responseJson,
-                        status = HttpStatusCode.OK,
+                        status = status,
                         headers = headersOf(HttpHeaders.ContentType, "application/json"),
                     )
                 }
@@ -66,7 +59,7 @@ class OpenWeatherMapApiTest {
                     "dt": 1771894800,
                     "temp": 67.4,
                     "weather": [
-                      { "description": "broken clouds" }
+                      { "main": "Clouds" }
                     ]
                   },
                   "hourly": [
@@ -75,9 +68,9 @@ class OpenWeatherMapApiTest {
                       "temp": 67.4,
                       "pop": 0.25,
                       "clouds": 64,
-                      "rain": 0.38,
+                      "rain": { "1h": 0.38 },
                       "weather": [
-                        { "description": "light rain" }
+                        { "main": "Rain" }
                       ]
                     },
                     {
@@ -86,7 +79,7 @@ class OpenWeatherMapApiTest {
                       "pop": 0.0,
                       "clouds": 20,
                       "weather": [
-                        { "description": "clear sky" }
+                        { "main": "Clear" }
                       ]
                     }
                   ],
@@ -97,7 +90,7 @@ class OpenWeatherMapApiTest {
                       "pop": 0.4,
                       "rain": 1.5,
                       "weather": [
-                        { "description": "moderate rain" }
+                        { "main": "Rain" }
                       ]
                     },
                     {
@@ -107,31 +100,31 @@ class OpenWeatherMapApiTest {
                       "snow": 0.7,
                       "clouds": 78,
                       "weather": [
-                        { "description": "overcast clouds" }
+                        { "main": "Clouds" }
                       ]
                     }
                   ]
                 }
                 """.trimIndent()
 
-            val api = OpenWeatherMapApi(createMockClient(responseJson), json, widgetStateManager)
+            val api = OpenWeatherMapApi(createMockClient(responseJson), json) { "test-key" }
             val forecast = api.getForecast(37.42, -122.08)
 
             assertEquals(67.4f, forecast.currentTemp!!, 0.001f)
-            assertEquals("Broken Clouds", forecast.currentCondition)
+            assertEquals("Clouds", forecast.currentCondition)
             assertEquals(2, forecast.daily.size)
             assertEquals(2, forecast.hourly.size)
 
             assertEquals("2026-02-23", forecast.daily[0].date)
             assertEquals(70.8f, forecast.daily[0].highTemp, 0.001f)
             assertEquals(51.2f, forecast.daily[0].lowTemp, 0.001f)
-            assertEquals("Moderate Rain", forecast.daily[0].condition)
+            assertEquals("Rain", forecast.daily[0].condition)
             assertEquals(40, forecast.daily[0].precipProbability)
             assertEquals(1.5f, forecast.daily[0].precipAmountMm!!, 0.001f)
 
             assertEquals(1771894800000L, forecast.hourly[0].dateTime)
             assertEquals(67.4f, forecast.hourly[0].temperature, 0.001f)
-            assertEquals("Light Rain", forecast.hourly[0].condition)
+            assertEquals("Rain", forecast.hourly[0].condition)
             assertEquals(25, forecast.hourly[0].precipProbability)
             assertEquals(64, forecast.hourly[0].cloudCover)
             assertEquals(0.38f, forecast.hourly[0].precipAmountMm!!, 0.001f)
@@ -149,7 +142,7 @@ class OpenWeatherMapApiTest {
                       "dt": 1771902000,
                       "temp": { "min": 45.0, "max": 68.0 },
                       "weather": [
-                        { "description": "clear sky" }
+                        { "main": "Clear" }
                       ]
                     }
                   ],
@@ -158,28 +151,28 @@ class OpenWeatherMapApiTest {
                       "dt": 1771894800,
                       "temp": 60.0,
                       "weather": [
-                        { "description": "few clouds" }
+                        { "main": "Clouds" }
                       ]
                     }
                   ]
                 }
                 """.trimIndent()
 
-            val api = OpenWeatherMapApi(createMockClient(responseJson), json, widgetStateManager)
+            val api = OpenWeatherMapApi(createMockClient(responseJson), json) { "test-key" }
             val forecast = api.getForecast(37.42, -122.08)
 
             assertNull(forecast.currentTemp)
             assertEquals(1, forecast.daily.size)
             assertEquals(1, forecast.hourly.size)
             assertNull(forecast.daily[0].precipProbability)
-            assertNull(forecast.daily[0].precipAmountMm)
+            assertEquals(0f, forecast.daily[0].precipAmountMm!!, 0.001f)
             assertNull(forecast.hourly[0].precipProbability)
-            assertNull(forecast.hourly[0].precipAmountMm)
+            assertEquals(0f, forecast.hourly[0].precipAmountMm!!, 0.001f)
             assertNull(forecast.hourly[0].cloudCover)
         }
 
     @Test
-    fun `getCurrent parses current response`() =
+    fun `getForecast parses current response`() =
         runTest {
             val responseJson =
                 """
@@ -188,19 +181,19 @@ class OpenWeatherMapApiTest {
                     "dt": 1771894800,
                     "temp": 58.2,
                     "weather": [
-                      { "description": "scattered clouds" }
+                      { "main": "Clouds" }
                     ]
                   }
                 }
                 """.trimIndent()
 
-            val api = OpenWeatherMapApi(createMockClient(responseJson), json, widgetStateManager)
-            val current = api.getCurrent(37.42, -122.08)
+            val api = OpenWeatherMapApi(createMockClient(responseJson), json) { "test-key" }
+            val forecast = api.getForecast(37.42, -122.08)
 
-            assertNotNull(current)
-            assertEquals(58.2f, current!!.temperature, 0.001f)
-            assertEquals("Scattered Clouds", current.condition)
-            assertEquals(1771894800000L, current.observedAt)
+            assertNotNull(forecast.currentTemp)
+            assertEquals(58.2f, forecast.currentTemp!!, 0.001f)
+            assertEquals("Clouds", forecast.currentCondition)
+            assertEquals(1771894800000L, forecast.currentObservedAt)
         }
 
     @Test
@@ -214,22 +207,21 @@ class OpenWeatherMapApiTest {
                 }
                 """.trimIndent()
 
-            val api = OpenWeatherMapApi(createMockClient(responseJson), json, widgetStateManager)
+            val api = OpenWeatherMapApi(createMockClient(responseJson, HttpStatusCode.Unauthorized), json) { "test-key" }
 
             val exception =
                 try {
                     api.getForecast(37.42, -122.08)
-                    throw AssertionError("Expected OpenWeatherMapAccessException")
-                } catch (e: OpenWeatherMapApi.OpenWeatherMapAccessException) {
+                    throw AssertionError("Expected ApiAccessException")
+                } catch (e: ApiAccessException) {
                     e
                 }
 
-            assertEquals(OpenWeatherMapApi.FailureReason.SUBSCRIPTION_REQUIRED, exception.reason)
             assertEquals(401, exception.statusCode)
+            assertEquals(responseJson, exception.detail)
             assertEquals(
-                "Please note that using One Call 3.0 requires a separate subscription to the One Call by Call plan.",
-                exception.detail,
+                "OpenWeatherMap fetch failed: status 401. Detail: $responseJson",
+                exception.message,
             )
-            assertEquals("OpenWeatherMap 401 error. One Call 3.0 subscription required.", exception.message)
         }
 }

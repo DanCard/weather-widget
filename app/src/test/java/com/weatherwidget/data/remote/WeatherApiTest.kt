@@ -80,7 +80,7 @@ class WeatherApiTest {
                         },
                         "hour": [
                           {
-                            "time": "2026-02-24 00:00",
+                            "time_epoch": 1771891200,
                             "temp_f": 52.2,
                             "chance_of_rain": 10,
                             "cloud": 67,
@@ -89,7 +89,7 @@ class WeatherApiTest {
                             }
                           },
                           {
-                            "time": "2026-02-24 13:00",
+                            "time_epoch": 1771938000,
                             "temp_f": 66.8,
                             "chance_of_rain": 45,
                             "condition": {
@@ -115,8 +115,8 @@ class WeatherApiTest {
                 }
                 """.trimIndent()
 
-            val api = WeatherApi(createMockClient(responseJson), json, widgetStateManager)
-            val forecast = api.getForecast(37.42, -122.08, days = 2)
+            val api = WeatherApi(createMockClient(responseJson), json) { "test-key" }
+            val forecast = api.getForecast(37.42, -122.08)
 
             assertEquals(67.6f, forecast.currentTemp!!, 0.001f)
             assertEquals(2, forecast.daily.size)
@@ -134,13 +134,13 @@ class WeatherApiTest {
             assertEquals("Sunny", forecast.daily[1].condition)
             assertEquals(5, forecast.daily[1].precipProbability)
 
-            assertEquals(com.weatherwidget.testutil.TestData.toEpoch("2026-02-24T00:00"), forecast.hourly[0].dateTime)
+            assertEquals(1771891200000L, forecast.hourly[0].dateTime)
             assertEquals(52.2f, forecast.hourly[0].temperature)
             assertEquals("Clear", forecast.hourly[0].condition)
             assertEquals(10, forecast.hourly[0].precipProbability)
             assertEquals(67, forecast.hourly[0].cloudCover)
 
-            assertEquals(com.weatherwidget.testutil.TestData.toEpoch("2026-02-24T13:00"), forecast.hourly[1].dateTime)
+            assertEquals(1771938000000L, forecast.hourly[1].dateTime)
             assertEquals(66.8f, forecast.hourly[1].temperature)
             assertEquals("Light rain", forecast.hourly[1].condition)
             assertEquals(45, forecast.hourly[1].precipProbability)
@@ -165,7 +165,7 @@ class WeatherApiTest {
                         },
                         "hour": [
                           {
-                            "time": "2026-02-24 10:00",
+                            "time_epoch": 1771927200,
                             "temp_f": 60.0,
                             "condition": {
                               "text": "Cloudy"
@@ -178,8 +178,8 @@ class WeatherApiTest {
                 }
                 """.trimIndent()
 
-            val api = WeatherApi(createMockClient(responseJson), json, widgetStateManager)
-            val forecast = api.getForecast(37.42, -122.08, days = 1)
+            val api = WeatherApi(createMockClient(responseJson), json) { "test-key" }
+            val forecast = api.getForecast(37.42, -122.08)
 
             assertNull(forecast.currentTemp)
             assertEquals(1, forecast.daily.size)
@@ -190,7 +190,7 @@ class WeatherApiTest {
         }
 
     @Test
-    fun `getCurrent parses lightweight current response`() =
+    fun `getForecast parses lightweight current response`() =
         runTest {
             val responseJson =
                 """
@@ -204,12 +204,12 @@ class WeatherApiTest {
                 }
                 """.trimIndent()
 
-            val api = WeatherApi(createMockClient(responseJson), json, widgetStateManager)
-            val current = api.getCurrent(37.42, -122.08)
+            val api = WeatherApi(createMockClient(responseJson), json) { "test-key" }
+            val forecast = api.getForecast(37.42, -122.08)
 
-            assertNotNull(current)
-            assertEquals(58.2f, current!!.temperature, 0.001f)
-            assertEquals("Cloudy", current?.condition)
+            assertNotNull(forecast.currentTemp)
+            assertEquals(58.2f, forecast.currentTemp!!, 0.001f)
+            assertEquals("Cloudy", forecast.currentCondition)
         }
 
     @Test
@@ -228,9 +228,9 @@ class WeatherApiTest {
                 json(json)
             }
         }
-        val api = WeatherApi(client, json, widgetStateManager)
+        val api = WeatherApi(client, json) { "test-key" }
         try {
-            api.getForecast(37.42, -122.08, days = 1)
+            api.getForecast(37.42, -122.08)
             org.junit.Assert.fail("Expected ApiAccessException to be thrown")
         } catch (e: ApiAccessException) {
             assertEquals(HttpStatusCode.Unauthorized.value, e.statusCode)

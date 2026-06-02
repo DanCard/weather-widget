@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
+import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -217,120 +218,89 @@ class CurrentTempRepository
 
         private suspend fun fetchOpenWeatherMapCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
             val api = openWeatherMapApi ?: return@coroutineScope null
+            fetchForecastCurrent(
+                source = WeatherSource.OPEN_WEATHER_MAP,
+                stationPrefix = "OPEN_WEATHER_MAP",
+                stationLabelPrefix = "OWM",
+                latitude = latitude,
+                longitude = longitude,
+            ) { lat, lon -> api.getForecast(lat, lon) }
+        }
+
+        private suspend fun fetchForecastCurrent(
+            source: WeatherSource,
+            stationPrefix: String,
+            stationLabelPrefix: String,
+            latitude: Double,
+            longitude: Double,
+            fetch: suspend (Double, Double) -> ForecastResult,
+        ): CurrentReadingPayload? = coroutineScope {
             val pointsOfInterest = getPointsOfInterest(latitude, longitude)
-            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
+            val deferredResults = pointsOfInterest.mapIndexed { index, point ->
                 async {
-                    val reading = try {
-                        api.getCurrent(point.first, point.second)
+                    val result = try {
+                        fetch(point.first, point.second)
                     } catch (e: ApiAccessException) {
                         throw e
+                    } catch (e: ClientRequestException) {
+                        checkAndRethrowFailure(source, e)
+                        null
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         null
                     }
-                    if (reading != null) {
-                        val stationId = if (point.third == "Current") "OPEN_WEATHER_MAP_MAIN" else "OPEN_WEATHER_MAP_$index"
+                    val currentTemp = result?.currentTemp
+                    if (result != null && currentTemp != null) {
+                        val stationId = if (point.third == "Current") "${stationPrefix}_MAIN" else "${stationPrefix}_$index"
+                        val condition = result.currentCondition ?: "Unknown"
                         val obsEntity = ObservationEntity(
                             stationId,
-                            "OWM: ${point.third}",
-                            reading.observedAt ?: System.currentTimeMillis(),
-                            reading.temperature,
-                            reading.condition ?: "Unknown",
+                            "$stationLabelPrefix: ${point.third}",
+                            result.currentObservedAt ?: System.currentTimeMillis(),
+                            currentTemp,
+                            condition,
                             latitude,
                             longitude,
                             calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
                             "OFFICIAL",
-                            api = WeatherSource.OPEN_WEATHER_MAP.id,
+                            api = source.id,
                         )
                         insertCurrentObservation(obsEntity)
                     }
-                    reading
+                    result
                 }
             }.map { it.await() }
 
-            deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
-                CurrentReadingPayload(WeatherSource.OPEN_WEATHER_MAP, reading.temperature, reading.condition, reading.observedAt)
+            deferredResults.firstNotNullOfOrNull { result ->
+                val forecastResult = result ?: return@firstNotNullOfOrNull null
+                val currentTemp = forecastResult.currentTemp
+                if (currentTemp != null) {
+                    CurrentReadingPayload(source, currentTemp, forecastResult.currentCondition, forecastResult.currentObservedAt)
+                } else {
+                    null
+                }
             }
         }
 
         private suspend fun fetchVisualCrossingCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
-            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
-                async {
-                    val reading = try {
-                        visualCrossingApi.getCurrent(point.first, point.second)
-                    } catch (e: ApiAccessException) {
-                        throw e
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        null
-                    }
-                    if (reading != null) {
-                        val stationId = if (point.third == "Current") "VISUAL_CROSSING_MAIN" else "VISUAL_CROSSING_$index"
-                        val obsEntity = ObservationEntity(
-                            stationId,
-                            "VisCr: ${point.third}",
-                            reading.observedAt ?: System.currentTimeMillis(),
-                            reading.temperature,
-                            reading.condition ?: "Unknown",
-                            latitude,
-                            longitude,
-                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            "OFFICIAL",
-                            api = WeatherSource.VISUAL_CROSSING.id,
-                        )
-                        insertCurrentObservation(obsEntity)
-                    }
-                    reading
-                }
-            }.map { it.await() }
-
-            deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
-                CurrentReadingPayload(WeatherSource.VISUAL_CROSSING, reading.temperature, reading.condition, reading.observedAt)
-            }
+            fetchForecastCurrent(
+                source = WeatherSource.VISUAL_CROSSING,
+                stationPrefix = "VISUAL_CROSSING",
+                stationLabelPrefix = "VisCr",
+                latitude = latitude,
+                longitude = longitude,
+            ) { lat, lon -> visualCrossingApi.getForecast(lat, lon) }
         }
 
         private suspend fun fetchSilurianCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
-            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
-                async {
-                    val reading = try {
-                        silurianApi.getCurrent(point.first, point.second)
-                    } catch (e: ApiAccessException) {
-                        throw e
-                    } catch (e: ClientRequestException) {
-                        checkAndRethrowFailure(WeatherSource.SILURIAN, e)
-                        null
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        null
-                    }
-                    if (reading != null) {
-                        val stationId = if (point.third == "Current") "SILURIAN_MAIN" else "SILURIAN_$index"
-                        val obsEntity = ObservationEntity(
-                            stationId = stationId,
-                            stationName = "Silurian: ${point.third}",
-                            timestamp = reading.observedAt ?: System.currentTimeMillis(),
-                            temperature = reading.temperature,
-                            condition = reading.condition ?: "Unknown",
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            distanceKm = calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            stationType = "OFFICIAL",
-                            api = WeatherSource.SILURIAN.id,
-                        )
-                        insertCurrentObservation(obsEntity)
-                    }
-                    reading
-                }
-            }.map { it.await() }
-
-            deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
-                CurrentReadingPayload(WeatherSource.SILURIAN, reading.temperature, reading.condition, reading.observedAt)
-            }
+            fetchForecastCurrent(
+                source = WeatherSource.SILURIAN,
+                stationPrefix = "SILURIAN",
+                stationLabelPrefix = "Silurian",
+                latitude = latitude,
+                longitude = longitude,
+            ) { lat, lon -> silurianApi.getForecast(lat, lon) }
         }
         private suspend fun fetchOpenMeteoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
             val pointsOfInterest = getPointsOfInterest(latitude, longitude)
@@ -375,44 +345,13 @@ class CurrentTempRepository
         }
 
         private suspend fun fetchWeatherApiCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
-            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
-                async {
-                    val reading = try {
-                        weatherApi.getCurrent(point.first, point.second)
-                    } catch (e: ApiAccessException) {
-                        throw e
-                    } catch (e: ClientRequestException) {
-                        checkAndRethrowFailure(WeatherSource.WEATHER_API, e)
-                        null
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        null
-                    }
-                    if (reading != null) {
-                        val stationId = if (point.third == "Current") "WEATHER_API_MAIN" else "WEATHER_API_$index"
-                        val obsEntity = ObservationEntity(
-                            stationId,
-                            "WAPI: ${point.third}",
-                            reading.observedAt ?: System.currentTimeMillis(),
-                            reading.temperature,
-                            reading.condition ?: "Unknown",
-                            latitude,
-                            longitude,
-                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            "OFFICIAL",
-                            api = WeatherSource.WEATHER_API.id,
-                        )
-                        insertCurrentObservation(obsEntity)
-                    }
-                    reading
-                }
-            }.map { it.await() }
-
-            deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
-                CurrentReadingPayload(WeatherSource.WEATHER_API, reading.temperature, reading.condition, reading.observedAt) 
-            }
+            fetchForecastCurrent(
+                source = WeatherSource.WEATHER_API,
+                stationPrefix = "WEATHER_API",
+                stationLabelPrefix = "WAPI",
+                latitude = latitude,
+                longitude = longitude,
+            ) { lat, lon -> weatherApi.getForecast(lat, lon) }
         }
 
         private suspend fun fetchTomorrowIoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {

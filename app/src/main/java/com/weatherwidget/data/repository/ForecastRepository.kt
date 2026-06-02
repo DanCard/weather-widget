@@ -306,7 +306,7 @@ class ForecastRepository
 
             val visualCrossingDeferred = if (WeatherSource.VISUAL_CROSSING in sourcesToFetch) async {
                 safeFetch("FETCH_VISUAL_CROSSING_FAIL", WeatherSource.VISUAL_CROSSING) {
-                    val result = visualCrossingApi.getForecast(latitude, longitude, 14)
+                    val result = visualCrossingApi.getForecast(latitude, longitude)
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.VISUAL_CROSSING.id)
                     }
@@ -335,7 +335,7 @@ class ForecastRepository
             
             val wapiDeferred = if (WeatherSource.WEATHER_API in sourcesToFetch) async {
                 safeFetch("FETCH_WAPI_FAIL", WeatherSource.WEATHER_API) {
-                    val result = weatherApi.getForecast(latitude, longitude, 14)
+                    val result = weatherApi.getForecast(latitude, longitude)
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.WEATHER_API.id)
                     }
@@ -347,7 +347,7 @@ class ForecastRepository
 
             val silurianDeferred = if (WeatherSource.SILURIAN in sourcesToFetch) async {
                 safeFetch("FETCH_SILURIAN_FAIL", WeatherSource.SILURIAN) {
-                    val result = silurianApi.getForecast(latitude, longitude, 14)
+                    val result = silurianApi.getForecast(latitude, longitude)
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.SILURIAN.id)
                     }

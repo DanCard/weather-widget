@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -119,7 +120,7 @@ class DesktopUiTest {
         composeTestRule.setContent {
             val textMeasurer = rememberTextMeasurer()
             val painter = androidx.compose.runtime.remember {
-                TemperatureTrayPainter(72f, textMeasurer)
+                TemperatureTrayPainter(72.6f, textMeasurer)
             }
             androidx.compose.foundation.Canvas(modifier = Modifier.size(64.dp)) {
                 with(painter) {
@@ -130,5 +131,29 @@ class DesktopUiTest {
         
         // This is a smoke test to ensure no crash during rendering.
         composeTestRule.onNodeWithTag("dummy").assertDoesNotExist()
+    }
+
+    @Test
+    fun testTemperatureTrayPainterRendersPlaceholder() {
+        composeTestRule.setContent {
+            val textMeasurer = rememberTextMeasurer()
+            val painter = androidx.compose.runtime.remember {
+                TemperatureTrayPainter(null, textMeasurer)
+            }
+            androidx.compose.foundation.Canvas(modifier = Modifier.size(64.dp)) {
+                with(painter) {
+                    draw(size)
+                }
+            }
+        }
+
+        // This is a smoke test to ensure no crash during loading-state rendering.
+        composeTestRule.onNodeWithTag("dummy").assertDoesNotExist()
+    }
+
+    @Test
+    fun testFormatTrayTemperatureUsesOneDecimal() {
+        assertEquals("72.6", formatTrayTemperature(72.6f))
+        assertEquals("72.0", formatTrayTemperature(72f))
     }
 }

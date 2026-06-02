@@ -14,6 +14,7 @@ import com.weatherwidget.data.repository.CurrentTempRepository
 import com.weatherwidget.data.repository.ForecastRepository
 import com.weatherwidget.data.repository.NwsForecastMapper
 import com.weatherwidget.data.repository.ObservationRepository
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.OpenWeatherMapApi

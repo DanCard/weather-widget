@@ -7,8 +7,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
-import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.font.createFontFamilyResolver
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Tray
@@ -38,6 +40,7 @@ import java.util.Locale
  */
 fun main() = application {
     MaterialTheme(colorScheme = darkColorScheme()) {
+        val startupSmoke = remember { System.getProperty("weatherwidget.desktop.startupSmoke") == "true" }
         val configStore = remember { DesktopConfigStore() }
         var config by remember { mutableStateOf(configStore.load()) }
         var popupVisible by remember { mutableStateOf(config != null) }
@@ -78,20 +81,20 @@ fun main() = application {
         }
 
         // Dynamic icon showing the current temperature.
-        val textMeasurer = remember {
-            androidx.compose.ui.text.TextMeasurer(
-                defaultFontFamilyResolver = androidx.compose.ui.text.font.createFontFamilyResolver(),
-                defaultLayoutDirection = androidx.compose.ui.unit.LayoutDirection.Ltr,
-                defaultDensity = androidx.compose.ui.unit.Density(1f)
-            )
-        }
+        val textMeasurer = remember { createTrayTextMeasurer() }
         val appIcon = remember(forecast?.currentTemp) {
             TemperatureTrayPainter(forecast?.currentTemp, textMeasurer)
         }
 
+        LaunchedEffect(startupSmoke) {
+            if (startupSmoke) {
+                exitApplication()
+            }
+        }
+
         Tray(
             icon = appIcon,
-            tooltip = forecast?.currentTemp?.let { "Weather Widget: ${it.toInt()}°" } ?: "Weather Widget",
+            tooltip = forecast?.currentTemp?.let { "Weather Widget: ${formatTrayTemperature(it)}°" } ?: "Weather Widget",
             onAction = { popupVisible = true },
             menu = {
                 Item("Show", onClick = { popupVisible = true })
@@ -205,6 +208,13 @@ fun main() = application {
     }
 }
 
+internal fun createTrayTextMeasurer(): TextMeasurer =
+    TextMeasurer(
+        defaultFontFamilyResolver = createFontFamilyResolver(),
+        defaultLayoutDirection = LayoutDirection.Ltr,
+        defaultDensity = Density(1f),
+    )
+
 @Composable
 internal fun WidgetPopup(
     config: DesktopConfig,
@@ -309,7 +319,7 @@ private fun WidgetHeader(
                 )
                 Column {
                     Text(
-                        text = forecast.currentTemp?.let { "${it.toInt()}°" } ?: "—",
+                        text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
                         style = MaterialTheme.typography.displaySmall,
                     )
                     Text(

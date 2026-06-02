@@ -1,6 +1,5 @@
 package com.weatherwidget.data.remote
 
-import com.weatherwidget.widget.WidgetStateManager
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -9,17 +8,13 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
-import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
-
-
 
 @Category(ShortDuration::class)
 class SilurianApiTest {
@@ -35,53 +30,41 @@ class SilurianApiTest {
 
     @Test
     fun `getForecast parses silurian daily and hourly responses correctly`() = runTest {
-        val dailyMockResponse = """
+        val response = """
             {
+              "current": {
+                "time": "2026-03-02T14:00:00Z",
+                "temp": 74.0,
+                "condition": "rain"
+              },
               "daily": [
                 {
-                  "timestamp": "2026-03-02",
-                  "max_temperature": 75.0,
-                  "min_temperature": 50.0,
-                  "weather_code": "rain",
-                  "precipitation_probability": 45,
-                  "precipitation_accumulation": 0.25
+                  "date": "2026-03-02",
+                  "temp_max": 75.0,
+                  "temp_min": 50.0,
+                  "condition": "rain",
+                  "precip_prob": 45,
+                  "precip_amount": 6.35
                 }
-              ]
-            }
-        """.trimIndent()
-
-        val hourlyMockResponse = """
-            {
+              ],
               "hourly": [
                 {
-                  "timestamp": "2026-03-02T14:00:00",
-                  "temperature": 74.0,
-                  "weather_code": "rain",
-                  "precipitation_probability": 60,
-                  "precipitation_accumulation": 0.05
+                  "time": "2026-03-02T14:00:00Z",
+                  "temp": 74.0,
+                  "condition": "rain",
+                  "precip_prob": 60,
+                  "precip_amount": 1.27
                 }
               ]
             }
         """.trimIndent()
 
         val mockEngine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/forecast/daily") -> {
-                    respond(
-                        content = dailyMockResponse,
-                        status = HttpStatusCode.OK,
-                        headers = headersOf(HttpHeaders.ContentType, "application/json")
-                    )
-                }
-                request.url.encodedPath.endsWith("/forecast/hourly") -> {
-                    respond(
-                        content = hourlyMockResponse,
-                        status = HttpStatusCode.OK,
-                        headers = headersOf(HttpHeaders.ContentType, "application/json")
-                    )
-                }
-                else -> respond("", HttpStatusCode.NotFound)
-            }
+            respond(
+                content = response,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
         }
 
         val httpClient = HttpClient(mockEngine) {
@@ -90,11 +73,9 @@ class SilurianApiTest {
             }
         }
 
-        val silurianApi = SilurianApi(httpClient, json, mockk(relaxed = true))
-        silurianApi.setApiKeyForTesting("test-api-key")
+        val silurianApi = SilurianApi(httpClient, json) { "test-api-key" }
         val result = silurianApi.getForecast(37.7749, -122.4194)
 
-        assertNotNull(result)
         assertEquals(74.0f, result.currentTemp) 
         assertEquals("rain", result.currentCondition)
 
@@ -107,7 +88,7 @@ class SilurianApiTest {
         assertEquals(6.35f, result.daily[0].precipAmountMm!!, 0.001f)
 
         assertEquals(1, result.hourly.size)
-        assertEquals(com.weatherwidget.testutil.TestData.toEpoch("2026-03-02T14:00"), result.hourly[0].dateTime)
+        assertEquals(1772460000000L, result.hourly[0].dateTime)
         assertEquals(74.0f, result.hourly[0].temperature)
         assertEquals("rain", result.hourly[0].condition)
         assertEquals(60, result.hourly[0].precipProbability)
@@ -115,38 +96,25 @@ class SilurianApiTest {
     }
 
     @Test
-    fun `getCurrent makes a single hourly request and returns the nearest-to-now reading`() = runTest {
-        val fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
-        val nowHour = java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        // Series spans before/at/after now; the entry at the current hour must win.
-        val hourlyMockResponse = """
+    fun `getForecast exposes current reading`() = runTest {
+        val response = """
             {
-              "hourly": [
-                { "timestamp": "${nowHour.minusHours(3).format(fmt)}", "temperature": 50.0, "weather_code": "clear" },
-                { "timestamp": "${nowHour.format(fmt)}", "temperature": 68.0, "weather_code": "cloudy" },
-                { "timestamp": "${nowHour.plusHours(3).format(fmt)}", "temperature": 72.0, "weather_code": "clear" }
-              ]
+              "current": {
+                "time": "2026-03-02T14:00:00Z",
+                "temp": 68.0,
+                "condition": "cloudy"
+              },
+              "hourly": [],
+              "daily": []
             }
         """.trimIndent()
 
-        var hourlyCalls = 0
-        var historyCalls = 0
         val mockEngine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/forecast/hourly") -> {
-                    hourlyCalls += 1
-                    respond(
-                        content = hourlyMockResponse,
-                        status = HttpStatusCode.OK,
-                        headers = headersOf(HttpHeaders.ContentType, "application/json"),
-                    )
-                }
-                request.url.encodedPath.endsWith("/history/hourly") -> {
-                    historyCalls += 1
-                    respond("", HttpStatusCode.OK)
-                }
-                else -> respond("", HttpStatusCode.NotFound)
-            }
+            respond(
+                content = response,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
         }
 
         val httpClient = HttpClient(mockEngine) {
@@ -155,16 +123,11 @@ class SilurianApiTest {
             }
         }
 
-        val silurianApi = SilurianApi(httpClient, json, mockk(relaxed = true))
-        silurianApi.setApiKeyForTesting("test-api-key")
-        val reading = silurianApi.getCurrent(37.7749, -122.4194)
+        val silurianApi = SilurianApi(httpClient, json) { "test-api-key" }
+        val result = silurianApi.getForecast(37.7749, -122.4194)
 
-        assertNotNull(reading)
-        assertEquals(68.0f, reading!!.temperature)
-        assertEquals("cloudy", reading.condition)
-        assertNotNull(reading.observedAt)
-        // Lightweight: exactly one hourly request, and no 3-day history loop.
-        assertEquals(1, hourlyCalls)
-        assertEquals(0, historyCalls)
+        assertEquals(68.0f, result.currentTemp)
+        assertEquals("cloudy", result.currentCondition)
+        assertEquals(1772460000000L, result.currentObservedAt)
     }
 }
