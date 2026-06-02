@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "WeatherWidget"
 include(":app")
+include(":shared")
+include(":desktop")

@@ -1,6 +1,6 @@
 package com.weatherwidget.data.remote
 
-import android.util.Log
+import com.weatherwidget.shared.util.Log
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*

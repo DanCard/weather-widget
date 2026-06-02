@@ -432,14 +432,17 @@ class CurrentTempRepository
                     } catch (e: Exception) {
                         null
                     }
-                    if (result?.currentTemp != null) {
+                    // currentTemp captured locally: it's a property from the :shared module, which
+                    // Kotlin cannot smart-cast across the module boundary.
+                    val currentTemp = result?.currentTemp
+                    if (result != null && currentTemp != null) {
                         val stationId = if (point.third == "Current") "TOMORROW_IO_MAIN" else "TOMORROW_IO_$index"
                         val condition = result.currentCondition ?: "Unknown"
                         val obsEntity = ObservationEntity(
                             stationId,
                             "Tmrw: ${point.third}",
                             result.currentObservedAt ?: System.currentTimeMillis(),
-                            result.currentTemp,
+                            currentTemp,
                             condition,
                             latitude,
                             longitude,
@@ -454,11 +457,13 @@ class CurrentTempRepository
             }.map { it.await() }
 
             deferredReadings.firstNotNullOfOrNull { it }?.let { result ->
-                if (result.currentTemp != null) {
+                // Local capture: currentTemp is a :shared-module property (no cross-module smart-cast).
+                val currentTemp = result.currentTemp
+                if (currentTemp != null) {
                     CurrentReadingPayload(
-                        WeatherSource.TOMORROW_IO, 
-                        result.currentTemp, 
-                        result.currentCondition, 
+                        WeatherSource.TOMORROW_IO,
+                        currentTemp,
+                        result.currentCondition,
                         result.currentObservedAt
                     )
                 } else null

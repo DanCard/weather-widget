@@ -303,6 +303,9 @@ afterEvaluate {
 }
 
 dependencies {
+    // Shared pure-JVM module: weather models + NWS/Open-Meteo API clients (also used by :desktop).
+    implementation(project(":shared"))
+
     // AndroidX
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

@@ -1,6 +1,6 @@
 package com.weatherwidget.data.remote
 
-import android.util.Log
+import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
