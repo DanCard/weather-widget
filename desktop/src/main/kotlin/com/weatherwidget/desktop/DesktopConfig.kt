@@ -14,6 +14,7 @@ data class DesktopConfig(
     val lon: Double,
     val label: String,
     val source: String,
+    val weatherSource: String = "NWS",
 )
 
 class DesktopConfigStore(

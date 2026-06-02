@@ -26,6 +26,9 @@ dependencies {
     // Swing dispatcher so Compose UI coroutines have a Main dispatcher on the JVM.
     implementation(libs.coroutines.swing)
 
+    // Logging implementation for SLF4J (used by Ktor).
+    implementation(libs.logback.classic)
+
     testImplementation(libs.junit)
 }
 

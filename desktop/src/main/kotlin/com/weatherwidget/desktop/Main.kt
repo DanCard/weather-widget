@@ -2,13 +2,15 @@ package com.weatherwidget.desktop
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,8 +45,8 @@ import kotlinx.serialization.json.Json
 
 /**
  * Desktop entry point. System-tray icon + a small frameless popup — the Linux-desktop analogue of
- * the Android home-screen widget. This is the MVP scaffold: it wires the tray/popup lifecycle.
- * Data fetch (Open-Meteo via :shared) and the Skia temperature graph land in later steps.
+ * the Android home-screen widget. This MVP wires the tray/popup lifecycle and supports both
+ * Open-Meteo and NWS data sources.
  */
 fun main() = application {
     val configStore = remember { DesktopConfigStore() }
@@ -77,6 +79,7 @@ fun main() = application {
                 popupVisible = false
                 pickerVisible = true
             })
+            Separator()
             Item("Quit", onClick = ::quit)
         },
     )
@@ -102,11 +105,12 @@ fun main() = application {
         }
     }
 
-    if (popupVisible && config != null) {
+    val currentConfig = config
+    if (popupVisible && currentConfig != null) {
         val windowState = rememberWindowState(
             position = WindowPosition(Alignment.TopEnd),
-            width = 360.dp,
-            height = 280.dp,
+            width = 380.dp,
+            height = 320.dp,
         )
         Window(
             onCloseRequest = { popupVisible = false },
@@ -114,11 +118,15 @@ fun main() = application {
             title = "Weather Widget",
         ) {
             WidgetPopup(
-                config = config,
+                config = currentConfig,
                 onUpdateLocation = {
                     popupVisible = false
                     pickerVisible = true
                 },
+                onUpdateConfig = { newConfig ->
+                    configStore.save(newConfig)
+                    config = newConfig
+                }
             )
         }
     }
@@ -126,16 +134,19 @@ fun main() = application {
 
 @Composable
 private fun WidgetPopup(
-    config: DesktopConfig?,
+    config: DesktopConfig,
     onUpdateLocation: () -> Unit,
+    onUpdateConfig: (DesktopConfig) -> Unit,
 ) {
     var forecast by remember { mutableStateOf<ForecastResult?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    val weatherService = remember(config) { DesktopWeatherService(config) }
+    val weatherService = remember(config.lat, config.lon, config.weatherSource) { 
+        DesktopWeatherService(config) 
+    }
 
-    // Fetch once when the popup first composes. withContext(IO) keeps the blocking HTTP off the
+    // Fetch when config changes. withContext(IO) keeps the blocking HTTP off the
     // Compose UI dispatcher.
-    LaunchedEffect(config) {
+    LaunchedEffect(config.lat, config.lon, config.weatherSource) {
         forecast = null
         error = null
         try {
@@ -152,7 +163,7 @@ private fun WidgetPopup(
                 error != null -> CenteredMessage("Error: $error")
                 snapshot == null -> CenteredMessage("Loading…")
                 else -> Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                    // Header: current temp (top-left, large) + condition — mirrors the widget layout.
+                    // Header: location label + source toggles — mirrors the widget's source-aware UI.
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -160,20 +171,29 @@ private fun WidgetPopup(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = config?.label ?: "Unknown location",
+                                text = config.label,
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,
                             )
-                            Text(
-                                text = config?.source ?: "",
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                            )
+                            Row(
+                                modifier = Modifier.padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                SourceToggle("Meteo", config.weatherSource == "OPEN_METEO") {
+                                    onUpdateConfig(config.copy(weatherSource = "OPEN_METEO"))
+                                }
+                                SourceToggle("NWS", config.weatherSource == "NWS") {
+                                    onUpdateConfig(config.copy(weatherSource = "NWS"))
+                                }
+                            }
                         }
                         Button(onClick = onUpdateLocation) {
-                            Text("Update")
+                            Text("Location")
                         }
                     }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
                     Text(
                         text = snapshot.currentTemp?.let { "${it.toInt()}°" } ?: "—",
                         style = MaterialTheme.typography.displaySmall,
@@ -190,6 +210,25 @@ private fun WidgetPopup(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SourceToggle(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.height(24.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall)
     }
 }
 

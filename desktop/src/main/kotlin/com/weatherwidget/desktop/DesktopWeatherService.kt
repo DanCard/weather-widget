@@ -1,24 +1,27 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.serialization.kotlinx.json.json
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
 
 /**
- * Thin desktop-side orchestration over the shared API clients. Deliberately does NOT reuse the
- * Android repositories (they are bound to Room + Context); it just fetches via the shared
- * [OpenMeteoApi] and returns the plain model [ForecastResult].
- *
- * For the MVP this fetches live on demand. SQLDelight persistence + NWS support are layered on later.
+ * Thin desktop-side orchestration over the shared API clients. Supports both Open-Meteo (Global)
+ * and NWS (US-only), mirroring the Android widget's primary data sources.
  */
 class DesktopWeatherService(
     private val latitude: Double,
     private val longitude: Double,
+    private val weatherSource: String = "NWS"
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -26,7 +29,6 @@ class DesktopWeatherService(
     }
 
     // CIO engine = the desktop counterpart to the Android engine used in :app's AppModule.
-    // Timeout config mirrors AppModule.provideHttpClient.
     private val httpClient = HttpClient(CIO) {
         install(ContentNegotiation) { json(json) }
         install(HttpTimeout) {
@@ -37,18 +39,99 @@ class DesktopWeatherService(
     }
 
     private val openMeteo = OpenMeteoApi(httpClient, json)
+    private val nwsApi = NwsApi(httpClient, json)
 
     constructor(config: DesktopConfig?) : this(
         latitude = config?.lat ?: FALLBACK_LATITUDE,
         longitude = config?.lon ?: FALLBACK_LONGITUDE,
+        weatherSource = config?.weatherSource ?: "NWS"
     )
 
-    suspend fun fetchForecast(): ForecastResult = openMeteo.getForecast(latitude, longitude)
+    suspend fun fetchForecast(): ForecastResult = when (weatherSource) {
+        "NWS" -> {
+            try {
+                fetchNwsForecast()
+            } catch (e: Exception) {
+                // If NWS fails (e.g. out of US), fall back to Open-Meteo rather than crashing.
+                openMeteo.getForecast(latitude, longitude)
+            }
+        }
+        else -> openMeteo.getForecast(latitude, longitude)
+    }
+
+    private suspend fun fetchNwsForecast(): ForecastResult = coroutineScope {
+        val grid = nwsApi.getGridPoint(latitude, longitude)
+        val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
+        val dailyDeferred = async { nwsApi.getForecast(grid) }
+        
+        // Fetch current observation from the nearest station for the "real-time" temperature,
+        // falling back to the hourly forecast if the station is down or data is missing.
+        val currentObsDeferred = async {
+            try {
+                grid.observationStationsUrl?.let { url ->
+                    val stations = nwsApi.getObservationStations(url)
+                    stations.firstOrNull()?.let { nwsApi.getLatestObservationDetailed(it.id) }
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        val hourlyRaw = hourlyDeferred.await()
+        val dailyRaw = dailyDeferred.await()
+        val currentObs = currentObsDeferred.await()
+
+        ForecastResult(
+            currentTemp = currentObs?.temperatureCelsius?.let { (it * 1.8f) + 32f } 
+                ?: hourlyRaw.firstOrNull()?.temperature,
+            currentCondition = currentObs?.textDescription 
+                ?: hourlyRaw.firstOrNull()?.shortForecast,
+            hourly = hourlyRaw.map { it.toHourlyForecast() },
+            daily = mapNwsToDaily(dailyRaw)
+        )
+    }
+
+    private fun NwsApi.HourlyForecastPeriod.toHourlyForecast() = HourlyForecast(
+        dateTime = startTime,
+        temperature = temperature,
+        condition = shortForecast,
+        precipProbability = precipProbability,
+        precipAmountMm = precipAmountMm,
+        cloudCover = cloudCover
+    )
+
+    /**
+     * Maps NWS multi-period forecast (e.g. "Today", "Tonight", "Wednesday") into a 
+     * daily high/low structure compatible with [ForecastResult].
+     */
+    private fun mapNwsToDaily(periods: List<NwsApi.ForecastPeriod>): List<DailyForecast> {
+        val dailyMap = mutableMapOf<String, MutableList<NwsApi.ForecastPeriod>>()
+        for (period in periods) {
+            val date = period.startTime.take(10) // ISO date part
+            dailyMap.getOrPut(date) { mutableListOf() }.add(period)
+        }
+
+        return dailyMap.map { (date, dayPeriods) ->
+            val high = dayPeriods.filter { it.isDaytime }.maxOfOrNull { it.temperature.toFloat() }
+                ?: dayPeriods.maxOfOrNull { it.temperature.toFloat() } ?: 0f
+            val low = dayPeriods.filter { !it.isDaytime }.minOfOrNull { it.temperature.toFloat() }
+                ?: dayPeriods.minOfOrNull { it.temperature.toFloat() } ?: 0f
+            val condition = dayPeriods.firstOrNull { it.isDaytime }?.shortForecast 
+                ?: dayPeriods.firstOrNull()?.shortForecast ?: ""
+            
+            DailyForecast(
+                date = date,
+                highTemp = high,
+                lowTemp = low,
+                condition = condition,
+                precipProbability = dayPeriods.mapNotNull { it.precipProbability }.maxOrNull()
+            )
+        }.sortedBy { it.date }
+    }
 
     fun close() = httpClient.close()
 
     companion object {
-        // Absolute fallback only. Normal desktop launches should use DesktopConfig.
         const val FALLBACK_LATITUDE = 37.4220
         const val FALLBACK_LONGITUDE = -122.0841
     }

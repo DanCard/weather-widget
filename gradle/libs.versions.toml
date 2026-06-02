@@ -62,6 +62,7 @@ javax-inject = { group = "javax.inject", name = "javax.inject", version = "1" }
 # Desktop (Compose for Desktop / :desktop module)
 ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
 coroutines-swing = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-swing", version.ref = "coroutines" }
+logback-classic = { group = "ch.qos.logback", name = "logback-classic", version = "1.4.14" }
 
 # Google Play Services
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
