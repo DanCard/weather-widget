@@ -75,6 +75,21 @@ interface AppLogDao {
     suspend fun clearAllLogs()
 }
 
+/**
+ * Crashlytics is auto-initialized by a Firebase ContentProvider only when google-services.json is
+ * present. In unit tests — and in any build without that file — there is no default FirebaseApp, so
+ * FirebaseCrashlytics.getInstance() throws IllegalStateException ("Default FirebaseApp is not
+ * initialized"). Logging must be best-effort and must never throw into its callers, so every
+ * Crashlytics access goes through this guard, which no-ops when Firebase is unavailable.
+ */
+private inline fun crashlytics(block: (FirebaseCrashlytics) -> Unit) {
+    try {
+        block(FirebaseCrashlytics.getInstance())
+    } catch (e: Exception) {
+        // No initialized FirebaseApp (tests / no google-services.json). DB + logcat still captured.
+    }
+}
+
 /** Log to the app_logs DB table, logcat, and Firebase Crashlytics in one call. */
 suspend fun AppLogDao.log(tag: String, message: String, level: String = "DEBUG") {
     try {
@@ -87,7 +102,7 @@ suspend fun AppLogDao.log(tag: String, message: String, level: String = "DEBUG")
     // Crashlytics automatically captures ERROR and WARN as custom logs.
     // We only send significant levels to avoid overwhelming the log buffer.
     if (level == "ERROR" || level == "WARN" || level == "INFO") {
-        FirebaseCrashlytics.getInstance().log("[$tag] $message")
+        crashlytics { it.log("[$tag] $message") }
     }
 
     when (level) {
@@ -103,13 +118,13 @@ suspend fun AppLogDao.log(tag: String, message: String, level: String = "DEBUG")
 /** Log a non-fatal exception to both DB logs and Firebase Crashlytics. */
 suspend fun AppLogDao.logException(tag: String, message: String, throwable: Throwable) {
     log(tag, "$message: ${throwable.message}", "ERROR")
-    FirebaseCrashlytics.getInstance().recordException(throwable)
+    crashlytics { it.recordException(throwable) }
 }
 
 /** Global log function for standard Log calls to also hit Crashlytics if needed. */
 fun log(tag: String, message: String, level: String = "DEBUG") {
     if (level == "ERROR" || level == "WARN" || level == "INFO") {
-        FirebaseCrashlytics.getInstance().log("[$tag] $message")
+        crashlytics { it.log("[$tag] $message") }
     }
     when (level) {
         "ERROR" -> Log.e(tag, message)
@@ -123,5 +138,5 @@ fun log(tag: String, message: String, level: String = "DEBUG") {
 
 /** Global exception function. */
 fun logException(throwable: Throwable) {
-    FirebaseCrashlytics.getInstance().recordException(throwable)
+    crashlytics { it.recordException(throwable) }
 }
