@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
@@ -22,12 +23,15 @@ class TemperatureTrayPainter(
     private val temperature: Float?,
     private val textMeasurer: TextMeasurer,
 ) : Painter() {
-    override val intrinsicSize: Size = Size(64f, 64f)
+    override val intrinsicSize: Size = Size(24f, 24f)
 
     override fun DrawScope.onDraw() {
+        drawRect(color = Color.Transparent, size = size, blendMode = BlendMode.Clear)
+
         val tempText = temperature?.let { formatTrayTemperature(it) } ?: "--"
-        
+
         val textColor = tempToColor(temperature ?: 70f)
+        val textWeight = FontWeight.Bold
 
         val fontSize = resolveFontSize(tempText, textColor)
         val textLayout = textMeasurer.measure(
@@ -35,7 +39,7 @@ class TemperatureTrayPainter(
             style = TextStyle(
                 color = textColor,
                 fontSize = fontSize,
-                fontWeight = FontWeight.Black // Extra bold for tray visibility
+                fontWeight = textWeight,
             )
         )
 
@@ -49,16 +53,16 @@ class TemperatureTrayPainter(
     }
 
     private fun DrawScope.resolveFontSize(text: String, color: Color): androidx.compose.ui.unit.TextUnit {
-        val maxWidth = size.width * 0.95f
-        val maxHeight = size.height * 0.95f
-        val candidates = listOf(42, 38, 34, 30, 26, 22, 18, 15, 12)
+        val maxWidth = size.width * 0.9f
+        val maxHeight = size.height * 0.9f
+        val candidates = listOf(22, 20, 18, 16, 14, 12, 10, 8)
         for (candidate in candidates) {
             val layout = textMeasurer.measure(
                 text = text,
                 style = TextStyle(
                     color = color,
                     fontSize = candidate.sp,
-                    fontWeight = FontWeight.Black
+                    fontWeight = FontWeight.Bold,
                 )
             )
             if (layout.size.width <= maxWidth && layout.size.height <= maxHeight) {
@@ -83,4 +87,4 @@ class TemperatureTrayPainter(
 }
 
 internal fun formatTrayTemperature(temperature: Float): String =
-    temperature.roundToInt().toString()
+    String.format(Locale.US, "%.1f", temperature)

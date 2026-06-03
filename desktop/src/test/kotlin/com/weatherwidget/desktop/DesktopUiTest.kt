@@ -53,7 +53,7 @@ class DesktopUiTest {
 
         // Verify location and temperature are displayed
         composeTestRule.onNodeWithText("Mountain View").assertExists()
-        composeTestRule.onNodeWithText("72°").assertExists()
+        composeTestRule.onNodeWithText("72.0°").assertExists()
         composeTestRule.onNodeWithText("Sunny").assertExists()
     }
 

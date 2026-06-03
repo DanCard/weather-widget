@@ -13,7 +13,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
@@ -30,9 +29,17 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.awt.Font
+import java.awt.Graphics2D
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
+import java.awt.Color as AwtColor
+import dorkbox.systemTray.SystemTray
+import dorkbox.systemTray.MenuItem as TrayMenuItem
 
 /**
  * Desktop entry point. System-tray icon + a small frameless popup — the Linux-desktop analogue of
@@ -92,20 +99,15 @@ fun main() = application {
             }
         }
 
-        Tray(
-            icon = appIcon,
-            tooltip = forecast?.currentTemp?.let { "Weather Widget: ${formatTrayTemperature(it)}°" } ?: "Weather Widget",
-            onAction = { popupVisible = true },
-            menu = {
-                Item("Show", onClick = { popupVisible = true })
-                Item("Settings", onClick = { settingsVisible = true })
-                Item("Update location...", onClick = {
-                    popupVisible = false
-                    pickerVisible = true
-                })
-                Separator()
-                Item("Quit", onClick = ::quit)
+        TemperatureSystemTray(
+            temperature = forecast?.currentTemp,
+            onShow = { popupVisible = true },
+            onSettings = { settingsVisible = true },
+            onUpdateLocation = {
+                popupVisible = false
+                pickerVisible = true
             },
+            onQuit = ::quit,
         )
 
         if (pickerVisible) {
@@ -214,6 +216,89 @@ internal fun createTrayTextMeasurer(): TextMeasurer =
         defaultLayoutDirection = LayoutDirection.Ltr,
         defaultDensity = Density(1f),
     )
+
+@Composable
+private fun TemperatureSystemTray(
+    temperature: Float?,
+    onShow: () -> Unit,
+    onSettings: () -> Unit,
+    onUpdateLocation: () -> Unit,
+    onQuit: () -> Unit,
+) {
+    val tray = remember { SystemTray.get() }
+    if (tray == null) {
+        println("SystemTray is NOT supported on this system.")
+        return
+    }
+
+    DisposableEffect(Unit) {
+        tray.setImage(createTemperatureTrayImage(temperature))
+        tray.setStatus(temperature?.let { formatTrayTemperature(it) + "°" } ?: "Weather Widget")
+        
+        tray.menu.apply {
+            add(TrayMenuItem("Show") { onShow() })
+            add(TrayMenuItem("Settings") { onSettings() })
+            add(TrayMenuItem("Update location...") { onUpdateLocation() })
+            add(TrayMenuItem("Quit") { onQuit() })
+        }
+
+        onDispose {
+            tray.shutdown()
+            println("TrayIcon removed from SystemTray.")
+        }
+    }
+
+    LaunchedEffect(temperature) {
+        tray.setImage(createTemperatureTrayImage(temperature))
+        tray.setStatus(temperature?.let { formatTrayTemperature(it) + "°" } ?: "Weather Widget")
+        tray.setTooltip(temperature?.let { "Weather Widget: ${formatTrayTemperature(it)}°" } ?: "Weather Widget")
+    }
+}
+
+private fun createTemperatureTrayImage(temperature: Float?): BufferedImage {
+    val size = 64
+    // TYPE_INT_RGB (opaque) so the background is guaranteed not to be white-on-white on tray
+    // hosts that drop the alpha channel (some Linux AppIndicator implementations, older
+    // Windows shells). A solid black background with yellow text stays legible everywhere.
+    val image = BufferedImage(size, size, BufferedImage.TYPE_INT_RGB)
+    val graphics = image.createGraphics()
+    try {
+        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON)
+
+        graphics.color = AwtColor.BLACK
+        graphics.fillRect(0, 0, size, size)
+
+        val text = temperature?.let { formatTrayTemperature(it) } ?: "--"
+        graphics.color = AwtColor.YELLOW // High contrast yellow
+
+        // We use a large base font size and then scale it to fit the square perfectly.
+        // This makes the text "fat" or "squashed" to use every available pixel.
+        val baseFontSize = 64
+        graphics.font = Font(Font.SANS_SERIF, Font.BOLD, baseFontSize)
+        val metrics = graphics.fontMetrics
+        val textWidth = metrics.stringWidth(text)
+        val textHeight = metrics.ascent + metrics.descent
+
+        graphics.translate(size / 2.0, size / 2.0)
+        graphics.rotate(Math.toRadians(90.0))
+
+        // Scale the text so it fills the 64x64 square exactly.
+        // sideways width (size) / textWidth
+        // sideways height (size) / textHeight
+        val scaleX = size.toDouble() / textWidth
+        val scaleY = size.toDouble() / textHeight
+        
+        // Apply scaling (limiting to a reasonable max to avoid extreme distortion if text is very short)
+        graphics.scale(scaleX.coerceAtMost(2.0), scaleY.coerceAtMost(2.0))
+
+        graphics.drawString(text, -textWidth / 2, (metrics.ascent - metrics.descent) / 2)
+    } finally {
+        graphics.dispose()
+    }
+    return image
+}
 
 @Composable
 internal fun WidgetPopup(

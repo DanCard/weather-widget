@@ -27,6 +27,9 @@ dependencies {
     // Swing dispatcher so Compose UI coroutines have a Main dispatcher on the JVM.
     implementation(libs.coroutines.swing)
 
+    // Dorkbox SystemTray for native AppIndicator support on Linux.
+    implementation("com.dorkbox:SystemTray:4.4")
+
     // Logging implementation for SLF4J (used by Ktor).
     implementation(libs.logback.classic)
 
