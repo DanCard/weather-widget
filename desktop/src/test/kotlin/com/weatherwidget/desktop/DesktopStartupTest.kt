@@ -89,6 +89,7 @@ class DesktopStartupTest {
             WidgetPopup(
                 config = stubConfig,
                 forecast = null, // Simulated initial state
+                dataStatus = com.weatherwidget.data.model.DataStatus.Loading,
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {}

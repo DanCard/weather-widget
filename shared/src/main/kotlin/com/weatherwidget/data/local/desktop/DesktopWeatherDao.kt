@@ -301,6 +301,21 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
+    fun getLastSuccessfulFetch(): Long? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT MAX(timestamp) FROM app_logs WHERE tag = 'REFRESH' AND level = 'INFO'"
+            ).use { stmt ->
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    val ts = rs.getLong(1)
+                    return if (ts > 0L) ts else null
+                }
+            }
+        }
+        return null
+    }
+
     fun getRecentLogs(limit: Int = 200): List<DesktopLogEntity> {
         val result = mutableListOf<DesktopLogEntity>()
         db.getConnection().use { conn ->

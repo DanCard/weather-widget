@@ -45,6 +45,7 @@ class DesktopUiTest {
             WidgetPopup(
                 config = stubConfig,
                 forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {}
@@ -64,6 +65,7 @@ class DesktopUiTest {
             WidgetPopup(
                 config = stubConfig,
                 forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
                 onUpdateConfig = { updatedConfig = it },
                 onOpenSettings = {}

@@ -55,3 +55,47 @@ data class ForecastResult(
     val dailyActuals: Map<String, DailyActual> = emptyMap(),
     val rawObservations: List<ObservationReading> = emptyList(),
 )
+
+sealed class DataStatus {
+    data object Loading : DataStatus()
+    data class Live(val updatedAt: Long) : DataStatus()
+    data class Stale(val updatedAt: Long, val reason: StaleReason) : DataStatus()
+    data object NoData : DataStatus()
+}
+
+enum class StaleReason { OFFLINE, SOURCE_ERROR }
+
+fun isOfflineException(e: Throwable): Boolean {
+    val name = e::class.qualifiedName ?: ""
+    if (name.contains("ConnectException") ||
+        name.contains("UnknownHostException") ||
+        name.contains("SocketTimeoutException") ||
+        name.contains("NoRouteToHostException") ||
+        name.contains("NetworkUnreachableException")
+    ) return true
+    val msg = e.message?.lowercase() ?: return false
+    return msg.contains("connection refused") ||
+        msg.contains("connection timed out") ||
+        msg.contains("no route to host") ||
+        msg.contains("network is unreachable") ||
+        msg.contains("failed to connect") ||
+        msg.contains("resolve")
+}
+
+fun deriveDataStatus(
+    cachePresent: Boolean,
+    lastFetchMs: Long?,
+    refreshFailed: Boolean,
+    failureIsOffline: Boolean,
+    now: Long = System.currentTimeMillis(),
+): DataStatus {
+    if (!cachePresent && !refreshFailed) return DataStatus.Loading
+    if (!cachePresent && refreshFailed) return DataStatus.NoData
+    val updatedAt = lastFetchMs ?: now
+    return if (refreshFailed) {
+        val reason = if (failureIsOffline) StaleReason.OFFLINE else StaleReason.SOURCE_ERROR
+        DataStatus.Stale(updatedAt, reason)
+    } else {
+        DataStatus.Live(updatedAt)
+    }
+}

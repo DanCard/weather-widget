@@ -19,6 +19,10 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.DataStatus
+import com.weatherwidget.data.model.deriveDataStatus
+import com.weatherwidget.data.model.isOfflineException
+import com.weatherwidget.shared.util.DesktopTemperatureInterpolator
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
@@ -73,6 +77,7 @@ fun main() = application {
         }
 
         var forecast by remember { mutableStateOf<ForecastResult?>(null) }
+        var dataStatus by remember { mutableStateOf<DataStatus>(DataStatus.Loading) }
         val currentConfig = config
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.apiKeys) {
             currentConfig?.let {
@@ -88,21 +93,62 @@ fun main() = application {
         // Background fetch logic with persistence
         LaunchedEffect(repository) {
             val repo = repository ?: return@LaunchedEffect
-            
+
             // 1. Instant load from cache
             val cached = repo.loadCached()
             if (cached != null) {
                 forecast = cached
+                val lastFetch = weatherDao.getLastSuccessfulFetch()
+                dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
             }
-            
-            // 2. Refresh loop
-            while (true) {
+
+            // 2. Staleness-gated launch fetch: skip if cache is fresh (< 30 min)
+            val lastFetch = weatherDao.getLastSuccessfulFetch()
+            val cacheIsFresh = lastFetch != null &&
+                (System.currentTimeMillis() - lastFetch) < FRESHNESS_THRESHOLD_MS
+
+            if (!cacheIsFresh) {
                 try {
                     forecast = repo.refresh()
+                    val now = System.currentTimeMillis()
+                    dataStatus = DataStatus.Live(now)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    // Ignore background errors for now
+                    val isOffline = isOfflineException(e)
+                    val reason = if (isOffline) "offline" else "source_error"
+                    weatherDao.log("REFRESH_FAIL", "launch fetch: $reason ${e.message}", "WARN")
+                    val lastSuccess = weatherDao.getLastSuccessfulFetch()
+                    dataStatus = deriveDataStatus(
+                        cachePresent = forecast != null,
+                        lastFetchMs = lastSuccess,
+                        refreshFailed = true,
+                        failureIsOffline = isOffline,
+                    )
                 }
-                kotlinx.coroutines.delay(15 * 60 * 1000) // 15 min refresh
+            }
+
+            // 3. Adaptive refresh loop
+            while (true) {
+                val delayMs = computeRefreshDelayMs(forecast?.hourly)
+                kotlinx.coroutines.delay(delayMs)
+                try {
+                    forecast = repo.refresh()
+                    dataStatus = DataStatus.Live(System.currentTimeMillis())
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    val isOffline = isOfflineException(e)
+                    val reason = if (isOffline) "offline" else "source_error"
+                    weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
+                    val lastSuccess = weatherDao.getLastSuccessfulFetch()
+                    dataStatus = deriveDataStatus(
+                        cachePresent = forecast != null,
+                        lastFetchMs = lastSuccess,
+                        refreshFailed = true,
+                        failureIsOffline = isOffline,
+                    )
+                }
             }
         }
 
@@ -125,6 +171,7 @@ fun main() = application {
 
         TemperatureSystemTray(
             temperature = forecast?.currentTemp,
+            dataStatus = dataStatus,
             onShow = { popupVisible = true },
             onSettings = { settingsVisible = true },
             onStatistics = { statsVisible = true },
@@ -226,6 +273,7 @@ fun main() = application {
                 WidgetPopup(
                     config = currentConfig,
                     forecast = forecast,
+                    dataStatus = dataStatus,
                     onUpdateLocation = {
                         popupVisible = false
                         pickerVisible = true
@@ -253,6 +301,7 @@ internal fun createTrayTextMeasurer(): TextMeasurer =
 @Composable
 private fun TemperatureSystemTray(
     temperature: Float?,
+    dataStatus: DataStatus,
     onShow: () -> Unit,
     onSettings: () -> Unit,
     onStatistics: () -> Unit,
@@ -283,10 +332,11 @@ private fun TemperatureSystemTray(
         }
     }
 
-    LaunchedEffect(temperature) {
+    LaunchedEffect(temperature, dataStatus) {
         tray.setImage(createTemperatureTrayImage(temperature))
         tray.setStatus(temperature?.let { formatTrayTemperature(it) + "°" } ?: "Weather Widget")
-        tray.setTooltip(temperature?.let { "Weather Widget: ${formatTrayTemperature(it)}°" } ?: "Weather Widget")
+        val suffix = if (dataStatus is DataStatus.Stale) " (offline)" else ""
+        tray.setTooltip(temperature?.let { "Weather Widget: ${formatTrayTemperature(it)}°$suffix" } ?: "Weather Widget")
     }
 }
 
@@ -339,40 +389,85 @@ private fun createTemperatureTrayImage(temperature: Float?): BufferedImage {
 internal fun WidgetPopup(
     config: DesktopConfig,
     forecast: ForecastResult?,
+    dataStatus: DataStatus,
     onUpdateLocation: () -> Unit,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxSize()) {
-        val snapshot = forecast
-        when {
-            snapshot == null -> CenteredMessage("Loading…")
-            else -> Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                WidgetHeader(
-                    config = config,
-                    forecast = snapshot,
-                    onUpdateConfig = onUpdateConfig,
-                    onOpenSettings = onOpenSettings,
-                    onUpdateLocation = onUpdateLocation
-                )
-                
-                Spacer(Modifier.height(8.dp))
-                
-                if (config.viewMode == "HOURLY") {
-                    TemperatureGraph(
-                        hourly = snapshot.hourly,
-                        currentTemp = snapshot.currentTemp,
-                        modifier = Modifier.fillMaxWidth().weight(1f),
+        when (dataStatus) {
+            is DataStatus.Loading -> CenteredMessage("Loading…")
+            is DataStatus.NoData -> CenteredMessage("Tap to configure")
+            is DataStatus.Live, is DataStatus.Stale -> {
+                val snapshot = forecast ?: return@Surface
+                Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                    StatusBar(dataStatus)
+                    Spacer(Modifier.height(4.dp))
+                    WidgetHeader(
+                        config = config,
+                        forecast = snapshot,
+                        onUpdateConfig = onUpdateConfig,
+                        onOpenSettings = onOpenSettings,
+                        onUpdateLocation = onUpdateLocation
                     )
-                } else {
-                    DailyForecastGraph(
-                        daily = snapshot.daily,
-                        actuals = snapshot.dailyActuals,
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    if (config.viewMode == "HOURLY") {
+                        TemperatureGraph(
+                            hourly = snapshot.hourly,
+                            currentTemp = snapshot.currentTemp,
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        )
+                    } else {
+                        DailyForecastGraph(
+                            daily = snapshot.daily,
+                            actuals = snapshot.dailyActuals,
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StatusBar(dataStatus: DataStatus) {
+    val relativeTime = when (dataStatus) {
+        is DataStatus.Live -> formatRelativeTime(dataStatus.updatedAt)
+        is DataStatus.Stale -> formatRelativeTime(dataStatus.updatedAt)
+        else -> return
+    }
+    val text = when (dataStatus) {
+        is DataStatus.Live -> "Updated $relativeTime"
+        is DataStatus.Stale -> when (dataStatus.reason) {
+            com.weatherwidget.data.model.StaleReason.OFFLINE -> "Offline — last updated $relativeTime"
+            com.weatherwidget.data.model.StaleReason.SOURCE_ERROR -> "Source error — last updated $relativeTime"
+        }
+        else -> return
+    }
+    val color = if (dataStatus is DataStatus.Stale) {
+        Color(0xFFFFA726) // muted orange/amber
+    } else {
+        Color.White.copy(alpha = 0.5f)
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = color,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+private fun formatRelativeTime(epochMs: Long): String {
+    val elapsed = System.currentTimeMillis() - epochMs
+    val minutes = elapsed / 60_000
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "${minutes}m ago"
+        minutes < 1440 -> "${minutes / 60}h ago"
+        else -> "${minutes / 1440}d ago"
     }
 }
 
@@ -526,4 +621,15 @@ private fun CenteredMessage(text: String) {
     ) {
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+private const val FRESHNESS_THRESHOLD_MS = 30 * 60 * 1000L
+private const val MIN_REFRESH_DELAY_MS = 10 * 60 * 1000L
+private const val DEFAULT_REFRESH_DELAY_MS = 15 * 60 * 1000L
+
+internal fun computeRefreshDelayMs(hourly: List<com.weatherwidget.data.model.HourlyForecast>?): Long {
+    if (hourly.isNullOrEmpty()) return DEFAULT_REFRESH_DELAY_MS
+    val updatesPerHour = DesktopTemperatureInterpolator.getUpdatesPerHour(hourly)
+    val intervalMs = (3600_000L / updatesPerHour).coerceAtLeast(MIN_REFRESH_DELAY_MS)
+    return intervalMs
 }

@@ -147,6 +147,27 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `test getLastSuccessfulFetch returns null when no logs`() {
+        assertNull(dao.getLastSuccessfulFetch())
+    }
+
+    @Test
+    fun `test getLastSuccessfulFetch returns latest REFRESH INFO timestamp`() {
+        dao.log("REFRESH", "first", "INFO")
+        Thread.sleep(10)
+        dao.log("REFRESH_FAIL", "failure", "WARN")
+        Thread.sleep(10)
+        dao.log("REFRESH", "second", "INFO")
+
+        val result = dao.getLastSuccessfulFetch()
+        assertNotNull(result)
+        // Should be the timestamp of the second REFRESH INFO, not the WARN REFRESH_FAIL
+        val logs = dao.getRecentLogs(10)
+        val secondRefresh = logs.reversed().first { it.tag == "REFRESH" && it.level == "INFO" && it.message == "second" }
+        assertEquals(secondRefresh.timestamp, result)
+    }
+
+    @Test
     fun `test cleanup`() {
         val lat = 40.0
         val lon = -75.0
