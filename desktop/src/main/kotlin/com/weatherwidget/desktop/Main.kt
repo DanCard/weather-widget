@@ -50,6 +50,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import javax.swing.SwingUtilities
 import kotlin.math.roundToInt
 import java.awt.Color as AwtColor
 import dorkbox.systemTray.SystemTray
@@ -115,6 +116,10 @@ private fun extractGenmonScript() {
 }
 
 fun main() {
+    // On Linux, jpackage names the main JVM thread "MainThread" by default. Override to something
+    // descriptive for system monitors like 'top'.
+    Thread.currentThread().name = "WeatherWidget"
+
     if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
         return
     }
@@ -126,6 +131,11 @@ fun main() {
 }
 
 private fun runApp(lockAcquired: Boolean) = application {
+    // Rename the AWT Event Dispatch Thread (which handles Compose UI) to be equally descriptive.
+    SwingUtilities.invokeLater {
+        Thread.currentThread().name = "WeatherUI"
+    }
+
     MaterialTheme(colorScheme = darkColorScheme()) {
         if (!lockAcquired) {
             Window(
