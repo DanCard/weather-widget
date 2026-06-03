@@ -68,10 +68,13 @@ fun TemperatureGraph(
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
-    val start = now + startOffsetHours * 3_600_000L
+    
+    // Default to 8h lookback if offset is 0, matching Android's WIDE zoom.
+    val effectiveOffset = if (startOffsetHours == 0) -8 else startOffsetHours
+    val start = now + effectiveOffset * 3_600_000L
     val cutoff = start + hoursAhead * 3_600_000L
 
-    val points = remember(hourly, hoursAhead, startOffsetHours) {
+    val points = remember(hourly, hoursAhead, effectiveOffset) {
         hourly.filter { it.dateTime in (start - 3_600_000L)..cutoff }
             .sortedBy { it.dateTime }
             .ifEmpty { hourly.sortedBy { it.dateTime }.take(hoursAhead) }
@@ -86,16 +89,20 @@ fun TemperatureGraph(
     if (points.size < 2) return
 
     Canvas(modifier = modifier) {
+        val windowStart = points.first().dateTime
+        val windowEnd = points.last().dateTime
+        val windowSpan = (windowEnd - windowStart).coerceAtLeast(1L).toFloat()
+
         val obsInWindow = observations
-            .filter { it.timestamp in (now - 3_600_000L)..now }
+            .filter { it.timestamp in (windowStart - 3600_000L)..now }
             .sortedBy { it.timestamp }
 
         val forecastTemps = points.map { it.temperature }
         val allTemps = forecastTemps + obsInWindow.map { it.temperature }
-        val rawMin = allTemps.min()
-        val rawMax = allTemps.max()
-        val fMin = forecastTemps.min()
-        val fMax = forecastTemps.max()
+        val rawMin = allTemps.minOrNull() ?: 0f
+        val rawMax = allTemps.maxOrNull() ?: 100f
+        val fMin = forecastTemps.minOrNull() ?: 0f
+        val fMax = forecastTemps.maxOrNull() ?: 100f
         val pad = ((rawMax - rawMin) * 0.25f).coerceAtLeast(2f)
         val minTemp = rawMin - pad
         val maxTemp = rawMax + pad
@@ -104,9 +111,6 @@ fun TemperatureGraph(
         val w = size.width
         val h = size.height
         val n = points.size
-        val windowStart = points.first().dateTime
-        val windowEnd = points.last().dateTime
-        val windowSpan = (windowEnd - windowStart).coerceAtLeast(1L).toFloat()
 
         fun xAt(i: Int): Float = if (n == 1) 0f else w * i / (n - 1)
         fun xAtTime(t: Long): Float = ((t - windowStart).toFloat() / windowSpan * w).coerceIn(0f, w)
@@ -119,24 +123,30 @@ fun TemperatureGraph(
         // Gradient fill always spans the full window
         drawFill(coords, minTemp, maxTemp, range)
 
-        // Lines: solid actual (pink) for past observations + dashed gradient for forecast ahead;
-        // fall back to a single solid line when no observations are available.
-        val nowIdx = points.indexOfByClosestTime(now)
+        // Lines:
+        // 1. Actual (Solid Pink) for observations
         if (obsInWindow.size >= 2) {
             val obsCoords = obsInWindow.map { obs -> Offset(xAtTime(obs.timestamp), yAt(obs.temperature)) }
             drawActualLine(obsCoords)
+        }
 
-            val futureCoords = coords.drop(nowIdx)
-            if (futureCoords.size >= 2) {
-                drawCurveLine(futureCoords, minTemp, maxTemp, range, dashed = true)
-            }
-        } else {
-            drawCurveLine(coords, minTemp, maxTemp, range, dashed = false)
+        // 2. Forecast Line:
+        // - Dashed (Ghost) for past
+        // - Solid for future
+        val nowIdx = points.indexOfByClosestTime(now)
+        val pastCoords = coords.take(nowIdx + 1)
+        val futureCoords = coords.drop(nowIdx)
+
+        if (pastCoords.size >= 2) {
+            drawCurveLine(pastCoords, minTemp, maxTemp, range, dashed = true, alpha = 0.5f)
+        }
+        if (futureCoords.size >= 2) {
+            drawCurveLine(futureCoords, minTemp, maxTemp, range, dashed = false)
         }
 
         // "Now" marker: vertical guide + target circle
         val markerTemp = currentTemp ?: points[nowIdx].temperature
-        val markerX = xAt(nowIdx)
+        val markerX = xAtTime(now)
         val markerY = yAt(markerTemp.coerceIn(minTemp, maxTemp))
         drawLine(
             color = Color.White.copy(alpha = 0.36f),
@@ -271,13 +281,16 @@ private fun DrawScope.drawCurveLine(
     maxTemp: Float,
     range: Float,
     dashed: Boolean,
+    alpha: Float = 1f,
 ) {
     val h = size.height
     val pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(16f, 8f)) else null
     drawPath(
         buildCurve(coords),
         brush = Brush.verticalGradient(
-            colorStops = buildColorStops(minTemp, maxTemp, range),
+            colorStops = buildColorStops(minTemp, maxTemp, range).map { (pos, color) -> 
+                pos to color.copy(alpha = alpha) 
+            }.toTypedArray(),
             startY = 0f,
             endY = h,
         ),

@@ -23,7 +23,14 @@ class DesktopWeatherRepository(
         val hourly = weatherDao.getLatestHourly(latitude, longitude, weatherSource, maxAgeMs)
         val daily = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
         val now = System.currentTimeMillis()
-        val latestObs = weatherDao.getLatestObservation(latitude, longitude, FRESH_OBSERVATION_MS)
+        
+        // Fetch observations for the past 48 hours to populate the actual line
+        val obsStart = now - (48 * 3600 * 1000L)
+        val obsEnd = now + (2 * 3600 * 1000L) // Include some cushion
+        val observations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
+            .map { it.toReading() }
+
+        val latestObs = observations.maxByOrNull { it.timestamp }?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
         val interpolatedTemp = DesktopTemperatureInterpolator.getInterpolatedTemperature(hourly, now)
         val actuals = loadDailyActuals(daily)
 
@@ -38,8 +45,25 @@ class DesktopWeatherRepository(
             daily = daily,
             hourly = hourly,
             dailyActuals = actuals,
+            rawObservations = observations,
         )
     }
+
+    private fun DesktopObservationEntity.toReading() = ObservationReading(
+        stationId = stationId,
+        stationName = stationName,
+        timestamp = timestamp,
+        temperature = temperature,
+        condition = condition,
+        locationLat = locationLat,
+        locationLon = locationLon,
+        distanceKm = distanceKm,
+        stationType = stationType,
+        maxTempLast24h = maxTempLast24h,
+        minTempLast24h = minTempLast24h,
+        api = api,
+        precipAmountMm = precipAmountMm,
+    )
 
     suspend fun refresh(): ForecastResult = withContext(Dispatchers.IO) {
         val result = weatherService.fetchForecast()
@@ -79,6 +103,7 @@ class DesktopWeatherRepository(
             currentTemp = result.currentTemp
                 ?: DesktopTemperatureInterpolator.getInterpolatedTemperature(result.hourly, now),
             dailyActuals = actuals,
+            rawObservations = result.rawObservations,
         )
     }
 
