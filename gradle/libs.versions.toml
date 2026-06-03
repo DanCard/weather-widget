@@ -9,6 +9,7 @@ room = "2.7.0"
 workmanager = "2.9.0"
 coroutines = "1.7.3"
 serialization = "1.7.3"
+sqliteJdbc = "3.53.1.0"
 ktlint = "12.1.0"
 coreKtx = "1.12.0"
 appcompat = "1.6.1"
@@ -55,6 +56,7 @@ coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutin
 
 # Serialization
 serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+sqlite-jdbc = { group = "org.xerial", name = "sqlite-jdbc", version.ref = "sqliteJdbc" }
 
 # javax.inject (so @Inject annotations resolve in the pure-JVM :shared module)
 javax-inject = { group = "javax.inject", name = "javax.inject", version = "1" }

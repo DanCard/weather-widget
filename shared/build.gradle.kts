@@ -15,6 +15,7 @@ dependencies {
     api(libs.ktor.serialization.json)
     api(libs.serialization.json)
     api(libs.coroutines.core)
+    api(libs.sqlite.jdbc)
 
     // @Inject annotations on the API client constructors are inert here (Hilt's AppModule
     // provides them via @Provides); this just keeps the annotation resolvable at compile time.
