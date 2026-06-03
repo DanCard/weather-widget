@@ -171,6 +171,13 @@ private fun runApp(lockAcquired: Boolean) = application {
         var forecast by remember { mutableStateOf<ForecastResult?>(null) }
         var dataStatus by remember { mutableStateOf<DataStatus>(DataStatus.Loading) }
         val currentConfig = config
+
+        // IPC server for the XFCE panel plugin (genmon)
+        val ipcServer = remember { PanelIpcServer(appDataDir()).apply { start() } }
+        LaunchedEffect(forecast, dataStatus, currentConfig) {
+            currentConfig?.let { ipcServer.update(forecast, dataStatus, it) }
+        }
+
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.apiKeys) {
             currentConfig?.let {
                 DesktopWeatherService(it.lat, it.lon, it.weatherSource, it.apiKeys, weatherDao)

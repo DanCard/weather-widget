@@ -163,7 +163,19 @@ def run_backup():
         return False
 
 
+def set_proc_name(name: str):
+    """Sets the process name as seen by top/ps (Linux only)."""
+    try:
+        import ctypes
+        libc = ctypes.CDLL("libc.so.6")
+        # PR_SET_NAME = 15
+        libc.prctl(15, name.encode("utf-8")[:15], 0, 0, 0)
+    except Exception:
+        pass
+
+
 def main():
+    set_proc_name("weather-analyze")
     backup_dir = "/home/dcar/projects/weather-widget/backups"
 
     # Check if we need to run backup

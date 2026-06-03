@@ -9,14 +9,14 @@
 - **Dynamic Rendering**: Custom-drawn graphs for Daily (forecast bars) and Hourly (Bezier temperature curves) views.
 - **Accuracy Tracking**: Compares historical forecasts against actual observations to provide reliability scores.
 - **Widget-Centric UI**: Core interactions occur directly on the home screen, while a launcher activity provides onboarding and configuration.
-- **Desktop Companion**: A Linux-native system-tray application (Compose Desktop) that provides quick weather lookups via a frameless popup, mirroring the widget's aesthetic.
+- **Desktop Companion**: A Linux-native system-tray application (Compose Desktop) that provides quick weather lookups via a frameless popup, mirroring the widget's aesthetic. Includes a **PanelIpcServer** (Unix Domain Socket) to serve high-performance weather data to the XFCE panel.
 - **Google Play Compliance**: Includes prominent background location disclosure and an in-app privacy policy viewer to meet store requirements.
 
 ---
 
 ## Technology Stack
-- **Language**: Kotlin 2.0.21 (Coroutines, Flow, Serialization)
-- **Build System**: Gradle 8.13 with Kotlin DSL
+- **Language**: Kotlin 2.0.21 (Coroutines, Flow, Serialization), **C** (Lightweight IPC client)
+- **Build System**: Gradle 8.13 with Kotlin DSL, **GCC** (for genmon client)
 - **UI Frameworks**: Android RemoteViews (Widget), Compose Multiplatform (Desktop)
 - **Dependency Injection**: Hilt 2.51.1 (Android)
 - **Database**: Room 2.6.1 (SQLite)
@@ -81,6 +81,7 @@ When investigating bugs or data mismatches, follow this strict sequence:
 ## Architecture Summary
 The project follows a **Repository Pattern** coordinated with **WorkManager** and **AlarmManager**.
 - **`WeatherRepository`**: The central orchestrator for network fetches and local persistence.
+- **`PanelIpcServer`**: Lightweight Unix Domain Socket server (`weather.sock`) that provides Pango-formatted markup to the desktop environment.
 - **`WeatherWidgetProvider`**: Manages the `RemoteViews` and interaction intents.
 - **`WidgetStateManager`**: Persists UI-specific state (offset, view mode, API source) per widget ID.
 - **`GraphRenderUtils`**: Contains specialized logic for smooth Bezier curves and label de-cluttering (collision detection).

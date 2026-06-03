@@ -175,7 +175,19 @@ def emit(body, color, tooltip):
     print(f"<txtclick>{click_command()}</txtclick>")
 
 
+def set_proc_name(name: str):
+    """Sets the process name as seen by top/ps (Linux only)."""
+    try:
+        import ctypes
+        libc = ctypes.CDLL("libc.so.6")
+        # PR_SET_NAME = 15
+        libc.prctl(15, name.encode("utf-8")[:15], 0, 0, 0)
+    except Exception:
+        pass
+
+
 def main():
+    set_proc_name("genmon-weather")
     # --show: clicked in the panel — signal the running app to open its popup, then exit.
     if "--show" in sys.argv[1:]:
         touch_show_trigger()

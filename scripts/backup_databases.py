@@ -320,7 +320,19 @@ def backup_device(serial):
         return False
 
 
+def set_proc_name(name: str):
+    """Sets the process name as seen by top/ps (Linux only)."""
+    try:
+        import ctypes
+        libc = ctypes.CDLL("libc.so.6")
+        # PR_SET_NAME = 15
+        libc.prctl(15, name.encode("utf-8")[:15], 0, 0, 0)
+    except Exception:
+        pass
+
+
 def main():
+    set_proc_name("weather-backup")
     print(f"=== Weather Widget Backup Tool ({TIMESTAMP}) ===")
     print(f"[*] Using adb: {ADB_BIN}")
     devices = get_unique_devices()

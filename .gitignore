@@ -85,3 +85,4 @@ __pycache__/
 
 # Claude session files
 .claude/
+genmon/genmon-weather-bin
