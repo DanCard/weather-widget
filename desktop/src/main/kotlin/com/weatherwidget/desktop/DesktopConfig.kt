@@ -24,6 +24,7 @@ data class DesktopConfig(
     val visibleSources: List<String> = listOf("NWS", "OPEN_METEO", "SILURIAN"),
     val dateOffset: Int = 0,
     val hourlyOffset: Int = 0,
+    val zoomLevel: String = "WIDE",
 )
 
 class DesktopConfigStore(

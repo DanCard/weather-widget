@@ -548,6 +548,7 @@ internal fun WidgetPopup(
                                 observations = snapshot.rawObservations,
                                 modifier = Modifier.fillMaxSize(),
                                 centerOffsetHours = config.hourlyOffset,
+                                zoomLevel = config.zoomLevel,
                             )
                             NavArrow(
                                 alignment = Alignment.CenterStart,
@@ -704,6 +705,19 @@ private fun WidgetHeader(
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
     val targetHour = remember(headerTime) { headerTime.truncatedTo(ChronoUnit.HOURS) }
 
+    val nowEpoch = System.currentTimeMillis()
+    val interpolatedForecastTemp = com.weatherwidget.shared.util.DesktopTemperatureInterpolator.getInterpolatedTemperature(forecast.hourly, nowEpoch)
+    val currentForecastTemp = forecast.currentTemp
+    val deltaTemp = if (currentForecastTemp != null && interpolatedForecastTemp != null) {
+        val diff = currentForecastTemp - interpolatedForecastTemp
+        if (kotlin.math.abs(diff) >= 0.5f) diff else null
+    } else null
+    
+    val currentHourData = forecast.hourly.find { 
+        it.dateTime >= nowEpoch - 3_600_000L && it.dateTime <= nowEpoch + 3_600_000L 
+    }
+    val precipProb = currentHourData?.precipProbability?.takeIf { it > 0 }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         if (showWeatherSummary) {
             // Top row: dominant current temp (left) + API source / date (right)
@@ -722,6 +736,24 @@ private fun WidgetHeader(
                         text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
                         style = MaterialTheme.typography.displaySmall,
                     )
+                    if (deltaTemp != null) {
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = String.format(Locale.US, "%+.1f", deltaTemp),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color(0xFFFF6B35),
+                            modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
+                        )
+                    }
+                    if (precipProb != null) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "$precipProb%",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color(0xFF4FC3F7),
+                            modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
+                        )
+                    }
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = forecast.currentCondition ?: "",
@@ -785,6 +817,13 @@ private fun WidgetHeader(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (config.viewMode == "HOURLY") {
+                    ViewModeChip(config.zoomLevel.take(1), true) {
+                        val nextZoom = if (config.zoomLevel == "WIDE") "NARROW" else "WIDE"
+                        onUpdateConfig(config.copy(zoomLevel = nextZoom))
+                    }
+                    Spacer(Modifier.width(4.dp))
+                }
                 ViewModeChip("H", config.viewMode == "HOURLY") {
                     onUpdateConfig(config.copy(viewMode = "HOURLY"))
                 }

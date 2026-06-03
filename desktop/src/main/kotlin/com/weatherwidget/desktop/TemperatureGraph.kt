@@ -74,17 +74,22 @@ fun TemperatureGraph(
     observations: List<ObservationReading> = emptyList(),
     modifier: Modifier = Modifier,
     centerOffsetHours: Int = 0,
+    zoomLevel: String = "WIDE",
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
     val center = now + centerOffsetHours * 3_600_000L
-    val start = center - WIDE_BACK_HOURS * 3_600_000L
-    val cutoff = center + WIDE_FORWARD_HOURS * 3_600_000L
+    
+    val backHours = if (zoomLevel == "NARROW") 2 else WIDE_BACK_HOURS
+    val forwardHours = if (zoomLevel == "NARROW") 2 else WIDE_FORWARD_HOURS
+    
+    val start = center - backHours * 3_600_000L
+    val cutoff = center + forwardHours * 3_600_000L
 
-    val points = remember(hourly, centerOffsetHours) {
+    val points = remember(hourly, centerOffsetHours, zoomLevel) {
         hourly.filter { it.dateTime in (start - 3_600_000L)..cutoff }
             .sortedBy { it.dateTime }
-            .ifEmpty { hourly.sortedBy { it.dateTime }.take(WIDE_BACK_HOURS + WIDE_FORWARD_HOURS + 1) }
+            .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
     }
 
     val iconSpacing = if (points.size > 24) 4 else if (points.size > 12) 3 else 2
@@ -92,6 +97,8 @@ fun TemperatureGraph(
     for (i in points.indices) {
         painters.add(if (i % iconSpacing == 0) painterResource(WeatherIcon.getIconResource(points[i].condition)) else null)
     }
+
+    val smoothIterations = if (zoomLevel == "NARROW") 1 else 3
 
     if (points.size < 2) return
 
@@ -104,7 +111,8 @@ fun TemperatureGraph(
             .filter { it.timestamp in (windowStart - 3600_000L)..minOf(now, windowEnd) }
             .sortedBy { it.timestamp }
 
-        val forecastTemps = points.map { it.temperature }
+        val rawForecastTemps = points.map { it.temperature }
+        val forecastTemps = com.weatherwidget.shared.util.DesktopTemperatureInterpolator.smoothValuesPreservingAllExtrema(rawForecastTemps, smoothIterations)
         val allTemps = forecastTemps + obsInWindow.map { it.temperature }
         val rawMin = allTemps.minOrNull() ?: 0f
         val rawMax = allTemps.maxOrNull() ?: 100f
@@ -123,7 +131,7 @@ fun TemperatureGraph(
         fun xAt(i: Int): Float = xAtTime(points[i].dateTime)
         fun yAt(t: Float): Float = h * (1f - (t - minTemp) / range)
 
-        val coords = points.mapIndexed { i, p -> Offset(xAt(i), yAt(p.temperature)) }
+        val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(forecastTemps[i])) }
 
         drawCloudAndPrecipOverlays(points, ::xAt)
 
@@ -153,7 +161,7 @@ fun TemperatureGraph(
         }
 
         // "Now" marker: vertical guide + target circle
-        val markerTemp = currentTemp ?: points[nowIdx].temperature
+        val markerTemp = currentTemp ?: forecastTemps[nowIdx]
         val markerX = xAtTime(now)
         val markerY = yAt(markerTemp.coerceIn(minTemp, maxTemp))
         if (now in windowStart..windowEnd) {
@@ -174,7 +182,7 @@ fun TemperatureGraph(
         labels.add(Triple(highIdx, "${fMax.roundToInt()}°", Color.White))
         labels.add(Triple(lowIdx, "${fMin.roundToInt()}°", Color.White))
         if (now in windowStart..windowEnd && nowIdx != highIdx && nowIdx != lowIdx) {
-            labels.add(Triple(nowIdx, "${points[nowIdx].temperature.roundToInt()}°", Color.White.copy(alpha = 0.8f)))
+            labels.add(Triple(nowIdx, "${forecastTemps[nowIdx].roundToInt()}°", Color.White.copy(alpha = 0.8f)))
         }
 
         val drawnLabels = mutableListOf<Rect>()
@@ -203,7 +211,11 @@ fun TemperatureGraph(
         )
 
         // Bottom strip: weather icons + hour labels
-        val labelInterval = if (w <= NARROW_WIDTH_PX) NARROW_WIDE_LABEL_INTERVAL else WIDE_LABEL_INTERVAL
+        val labelInterval = if (zoomLevel == "NARROW") {
+            1
+        } else {
+            if (w <= NARROW_WIDTH_PX) NARROW_WIDE_LABEL_INTERVAL else WIDE_LABEL_INTERVAL
+        }
         for (i in points.indices) {
             val hourFromStart = ((points[i].dateTime - windowStart) / 3_600_000L).toInt()
             if (hourFromStart % labelInterval != 0) continue
@@ -309,16 +321,54 @@ private fun buildColorStops(minTemp: Float, maxTemp: Float, range: Float): Array
     }.sortedBy { it.first }.distinctBy { (it.first * 1000).toInt() }.toTypedArray()
 }
 
+private fun computeTangents(coords: List<Offset>): List<Offset> {
+    if (coords.size < 2) return coords.map { Offset.Zero }
+    return coords.indices.map { i ->
+        when (i) {
+            0 -> Offset(
+                (coords[1].x - coords[0].x) * 0.5f,
+                (coords[1].y - coords[0].y) * 0.5f
+            )
+            coords.size - 1 -> Offset(
+                (coords[i].x - coords[i - 1].x) * 0.5f,
+                (coords[i].y - coords[i - 1].y) * 0.5f
+            )
+            else -> {
+                val dxPrev = coords[i].x - coords[i - 1].x
+                val dxNext = coords[i + 1].x - coords[i].x
+                val dx = (dxPrev + dxNext) * 0.5f
+                var dy = (coords[i + 1].y - coords[i - 1].y) * 0.5f
+
+                val delta1 = coords[i].y - coords[i - 1].y
+                val delta2 = coords[i + 1].y - coords[i].y
+                if (delta1 == 0f || delta2 == 0f || (delta1 > 0 && delta2 < 0) || (delta1 < 0 && delta2 > 0)) {
+                    dy = 0f
+                }
+                
+                val maxSafeDx = dxPrev.coerceAtMost(dxNext) * 1.5f
+                if (dx > maxSafeDx && maxSafeDx > 0) {
+                    val scale = maxSafeDx / dx
+                    Offset(maxSafeDx, dy * scale)
+                } else {
+                    Offset(dx, dy)
+                }
+            }
+        }
+    }
+}
+
 private fun buildCurve(coords: List<Offset>): Path = Path().apply {
+    if (coords.isEmpty()) return@apply
     moveTo(coords[0].x, coords[0].y)
-    for (i in 0 until coords.size - 1) {
-        val p0 = coords[if (i == 0) 0 else i - 1]
-        val p1 = coords[i]
-        val p2 = coords[i + 1]
-        val p3 = coords[if (i + 2 <= coords.size - 1) i + 2 else coords.size - 1]
-        val c1 = Offset(p1.x + (p2.x - p0.x) / 6f, p1.y + (p2.y - p0.y) / 6f)
-        val c2 = Offset(p2.x - (p3.x - p1.x) / 6f, p2.y - (p3.y - p1.y) / 6f)
-        cubicTo(c1.x, c1.y, c2.x, c2.y, p2.x, p2.y)
+    if (coords.size > 1) {
+        val tangents = computeTangents(coords)
+        for (i in 0 until coords.size - 1) {
+            val cp1x = coords[i].x + tangents[i].x / 3f
+            val cp1y = coords[i].y + tangents[i].y / 3f
+            val cp2x = coords[i + 1].x - tangents[i + 1].x / 3f
+            val cp2y = coords[i + 1].y - tangents[i + 1].y / 3f
+            cubicTo(cp1x, cp1y, cp2x, cp2y, coords[i + 1].x, coords[i + 1].y)
+        }
     }
 }
 
