@@ -88,11 +88,10 @@ private fun acquireSingleInstanceLock(): Boolean = try {
     true
 }
 
-/** Packaged-only first-run setup: extract the genmon script + register login autostart. */
+/** Packaged-only first-run setup: extract the genmon script. */
 private fun maybePackagedSetup() {
     if (!isPackaged()) return
     runCatching { extractGenmonScript() }.onFailure { System.err.println("genmon extract failed: $it") }
-    runCatching { installAutostartEntry() }.onFailure { System.err.println("autostart install failed: $it") }
 }
 
 /** Copies the bundled genmon script to a stable XDG path so the panel command survives repo removal. */
@@ -103,29 +102,6 @@ private fun extractGenmonScript() {
     java.nio.file.Files.createDirectories(target.parent)
     stream.use { java.nio.file.Files.copy(it, target) }
     target.toFile().setExecutable(true)
-}
-
-/** Writes a login-autostart entry pointing at the installed launcher (idempotent; never overwrites). */
-private fun installAutostartEntry() {
-    val appPath = System.getProperty("jpackage.app-path") ?: return
-    val configHome = System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
-        ?: "${System.getProperty("user.home")}/.config"
-    val autostartDir = java.nio.file.Path.of(configHome, "autostart")
-    val entry = autostartDir.resolve("$APP_PACKAGE.desktop")
-    if (java.nio.file.Files.exists(entry)) return
-    java.nio.file.Files.createDirectories(autostartDir)
-    java.nio.file.Files.writeString(
-        entry,
-        """
-        [Desktop Entry]
-        Type=Application
-        Name=Weather Widget
-        Comment=Tray temperature + forecast accuracy
-        Exec=$appPath
-        Icon=$APP_PACKAGE
-        X-GNOME-Autostart-enabled=true
-        """.trimIndent() + "\n",
-    )
 }
 
 fun main() {

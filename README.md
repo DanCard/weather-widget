@@ -48,17 +48,24 @@ Studio's bundled JBR does **not** — set `JPACKAGE_HOME` or `-Djpackage.home` t
 one at `/usr/lib/jvm/java-21-openjdk-amd64`).
 
 ```bash
-# Build a .deb installer
-./gradlew :desktop:packageDeb
-sudo dpkg -i desktop/build/compose/binaries/main/deb/weather-widget-desktop_1.0.0_amd64.deb
+# Build the repo-local app distribution used by autostart
+./gradlew :desktop:createDistributable
 
-# (Development only) run without packaging:
+# Build, stop the running app, and start the new repo-local distributable
+scripts/restart-desktop-distributable.sh
+
+# Development only: run without the distributable wrapper
 ./gradlew :desktop:run
+
+# Optional installer build, if a system package is wanted
+./gradlew :desktop:packageDeb
 ```
 
-The installed app lives at `/opt/weather-widget-desktop/`, adds an application-menu entry, and on
-first launch registers itself to **start automatically on login** (running in the background with no
-terminal). A single-instance lock prevents duplicate tray icons.
+Daily autostart uses `scripts/weather-widget-desktop-autostart.sh`, which launches the repo-local
+distributable at `desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop`.
+If the distributable is missing, the script rebuilds it once with `:desktop:createDistributable`.
+Use `scripts/restart-desktop-distributable.sh` to test a newly built daily app immediately.
+A single-instance lock prevents duplicate tray icons.
 
 ### Tray icon
 
@@ -80,12 +87,11 @@ script (it reads the same database — no extra network calls):
 
 1. Install **`xfce4-genmon-plugin`** if needed (`sudo apt install xfce4-genmon-plugin`).
 2. Right-click the panel → **Panel → Add New Items → Generic Monitor**.
-3. Open its properties and set **Command** to the script (the installed app extracts it on first run):
+3. Open its properties and set **Command** to the repo script:
    ```
-   python3 ~/.local/share/weather-widget/genmon-weather.py
+   python3 /home/dcar/projects/weather-widget/scripts/genmon-weather.py
    ```
-   (or point at `scripts/genmon-weather.py` in the repo for development). Set **Period** to ~120s and
-   clear the label.
+   Set **Period** to ~120s and clear the label.
 4. Drag it next to your clock. **Clicking it opens the popup.** Tune the `FONT` constant at the top of
    the script if you want bigger/smaller glyphs.
 
