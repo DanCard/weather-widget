@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -73,8 +74,46 @@ class DesktopUiTest {
 
         // Initially in DAILY mode (default)
         composeTestRule.onNodeWithText("H").performClick()
-        
+
         assert(updatedConfig?.viewMode == "HOURLY")
+    }
+
+    @Test
+    fun testHourlyNavigationStepsBySixHours() {
+        var updatedConfig: DesktopConfig? = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = "HOURLY"),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { updatedConfig = it },
+                onOpenSettings = {}
+            )
+        }
+
+        composeTestRule.onNodeWithTag("hourly_nav_right").performClick()
+        assertEquals(6, updatedConfig?.hourlyOffset)
+
+        updatedConfig = null
+        composeTestRule.onNodeWithTag("hourly_nav_left").performClick()
+        assertEquals(-6, updatedConfig?.hourlyOffset)
+    }
+
+    @Test
+    fun testHourlyNavigationDisablesAtBounds() {
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = "HOURLY", hourlyOffset = -720),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {}
+            )
+        }
+
+        composeTestRule.onNodeWithTag("hourly_nav_left").assertIsNotEnabled()
     }
 
     @Test

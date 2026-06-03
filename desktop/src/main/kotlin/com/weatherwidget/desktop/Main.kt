@@ -2,6 +2,9 @@ package com.weatherwidget.desktop
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,6 +48,7 @@ import java.awt.image.BufferedImage
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.roundToInt
 import java.awt.Color as AwtColor
@@ -56,6 +60,9 @@ import dorkbox.systemTray.MenuItem as TrayMenuItem
  * the Android home-screen widget.
  */
 private const val APP_PACKAGE = "weather-widget-desktop"
+private const val HOURLY_NAV_JUMP = 6
+private const val MIN_HOURLY_OFFSET = -720
+private const val MAX_HOURLY_OFFSET = 720
 
 /** Held for the process lifetime to enforce a single running instance; never released. */
 private var instanceLockChannel: java.nio.channels.FileChannel? = null
@@ -528,18 +535,35 @@ internal fun WidgetPopup(
                         onOpenSettings = onOpenSettings,
                         onUpdateLocation = onUpdateLocation,
                         showWeatherSummary = config.viewMode == "HOURLY",
+                        headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
                     )
 
                     Spacer(Modifier.height(8.dp))
 
                     if (config.viewMode == "HOURLY") {
-                        TemperatureGraph(
-                            hourly = snapshot.hourly,
-                            currentTemp = snapshot.currentTemp,
-                            observations = snapshot.rawObservations,
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            startOffsetHours = config.hourlyOffset,
-                        )
+                        Box(modifier = Modifier.fillMaxWidth().weight(1f).testTag("hourly_temperature_surface")) {
+                            TemperatureGraph(
+                                hourly = snapshot.hourly,
+                                currentTemp = snapshot.currentTemp,
+                                observations = snapshot.rawObservations,
+                                modifier = Modifier.fillMaxSize(),
+                                centerOffsetHours = config.hourlyOffset,
+                            )
+                            NavArrow(
+                                alignment = Alignment.CenterStart,
+                                enabled = config.hourlyOffset > MIN_HOURLY_OFFSET,
+                                testTag = "hourly_nav_left",
+                            ) {
+                                onUpdateConfig(config.copy(hourlyOffset = (config.hourlyOffset - HOURLY_NAV_JUMP).coerceAtLeast(MIN_HOURLY_OFFSET)))
+                            }
+                            NavArrow(
+                                alignment = Alignment.CenterEnd,
+                                enabled = config.hourlyOffset < MAX_HOURLY_OFFSET,
+                                testTag = "hourly_nav_right",
+                            ) {
+                                onUpdateConfig(config.copy(hourlyOffset = (config.hourlyOffset + HOURLY_NAV_JUMP).coerceAtMost(MAX_HOURLY_OFFSET)))
+                            }
+                        }
                     } else {
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).testTag("daily_forecast_surface")) {
                             val dimensions = DesktopDailyForecastModel.dimensions(
@@ -580,10 +604,18 @@ internal fun WidgetPopup(
                                 )
                             }
 
-                            NavArrow(Alignment.CenterStart, "<", dailyState.canNavigateLeft) {
+                            NavArrow(
+                                alignment = Alignment.CenterStart,
+                                enabled = dailyState.canNavigateLeft,
+                                testTag = "daily_nav_left",
+                            ) {
                                 onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset - 1))
                             }
-                            NavArrow(Alignment.CenterEnd, ">", dailyState.canNavigateRight) {
+                            NavArrow(
+                                alignment = Alignment.CenterEnd,
+                                enabled = dailyState.canNavigateRight,
+                                testTag = "daily_nav_right",
+                            ) {
                                 onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset + 1))
                             }
                         }
@@ -595,17 +627,26 @@ internal fun WidgetPopup(
 }
 
 @Composable
-private fun NavArrow(alignment: Alignment, label: String, enabled: Boolean, onClick: () -> Unit) {
+private fun NavArrow(
+    alignment: Alignment,
+    enabled: Boolean,
+    testTag: String,
+    onClick: () -> Unit,
+) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = alignment) {
         IconButton(
             onClick = onClick,
             enabled = enabled,
-            modifier = Modifier.width(28.dp).fillMaxHeight(),
+            modifier = Modifier.width(28.dp).fillMaxHeight().testTag(testTag),
         ) {
-            Text(
-                text = label,
-                color = Color.White.copy(alpha = if (enabled) 0.75f else 0.18f),
-                style = MaterialTheme.typography.labelLarge
+            Icon(
+                imageVector = if (alignment == Alignment.CenterStart) {
+                    Icons.AutoMirrored.Filled.KeyboardArrowLeft
+                } else {
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight
+                },
+                contentDescription = null,
+                tint = Color.White.copy(alpha = if (enabled) 0.75f else 0.18f),
             )
         }
     }
@@ -658,8 +699,10 @@ private fun WidgetHeader(
     onOpenSettings: () -> Unit,
     onUpdateLocation: () -> Unit,
     showWeatherSummary: Boolean = true,
+    headerTime: LocalDateTime = LocalDateTime.now(),
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
+    val targetHour = remember(headerTime) { headerTime.truncatedTo(ChronoUnit.HOURS) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         if (showWeatherSummary) {
@@ -708,7 +751,7 @@ private fun WidgetHeader(
                         )
                     }
                     Text(
-                        text = LocalDateTime.now().format(dateFormatter),
+                        text = targetHour.format(dateFormatter),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.7f)
                     )

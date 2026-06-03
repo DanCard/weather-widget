@@ -26,8 +26,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.time.format.TextStyle as JavaTextStyle
 
 /**
  * Smooth hourly temperature curve for the desktop popup.
@@ -49,6 +54,11 @@ private val COLOR_ACTUAL = Color(0xFFFF3366) // matches Android TemperatureGraph
 private const val COLD_THRESHOLD = 50f
 private const val MILD_TEMP = 70f
 private const val HOT_THRESHOLD = 90f
+private const val WIDE_BACK_HOURS = 12
+private const val WIDE_FORWARD_HOURS = 12
+private const val WIDE_LABEL_INTERVAL = 4
+private const val NARROW_WIDE_LABEL_INTERVAL = 6
+private const val NARROW_WIDTH_PX = 420f
 
 private fun tempToColor(temp: Float): Color = when {
     temp <= COLD_THRESHOLD -> COLOR_COLD
@@ -63,21 +73,18 @@ fun TemperatureGraph(
     currentTemp: Float? = null,
     observations: List<ObservationReading> = emptyList(),
     modifier: Modifier = Modifier,
-    hoursAhead: Int = 48,
-    startOffsetHours: Int = 0,
+    centerOffsetHours: Int = 0,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
-    
-    // Default to 8h lookback if offset is 0, matching Android's WIDE zoom.
-    val effectiveOffset = if (startOffsetHours == 0) -8 else startOffsetHours
-    val start = now + effectiveOffset * 3_600_000L
-    val cutoff = start + hoursAhead * 3_600_000L
+    val center = now + centerOffsetHours * 3_600_000L
+    val start = center - WIDE_BACK_HOURS * 3_600_000L
+    val cutoff = center + WIDE_FORWARD_HOURS * 3_600_000L
 
-    val points = remember(hourly, hoursAhead, effectiveOffset) {
+    val points = remember(hourly, centerOffsetHours) {
         hourly.filter { it.dateTime in (start - 3_600_000L)..cutoff }
             .sortedBy { it.dateTime }
-            .ifEmpty { hourly.sortedBy { it.dateTime }.take(hoursAhead) }
+            .ifEmpty { hourly.sortedBy { it.dateTime }.take(WIDE_BACK_HOURS + WIDE_FORWARD_HOURS + 1) }
     }
 
     val iconSpacing = if (points.size > 24) 4 else if (points.size > 12) 3 else 2
@@ -89,12 +96,12 @@ fun TemperatureGraph(
     if (points.size < 2) return
 
     Canvas(modifier = modifier) {
-        val windowStart = points.first().dateTime
-        val windowEnd = points.last().dateTime
+        val windowStart = start
+        val windowEnd = cutoff
         val windowSpan = (windowEnd - windowStart).coerceAtLeast(1L).toFloat()
 
         val obsInWindow = observations
-            .filter { it.timestamp in (windowStart - 3600_000L)..now }
+            .filter { it.timestamp in (windowStart - 3600_000L)..minOf(now, windowEnd) }
             .sortedBy { it.timestamp }
 
         val forecastTemps = points.map { it.temperature }
@@ -112,8 +119,8 @@ fun TemperatureGraph(
         val h = size.height
         val n = points.size
 
-        fun xAt(i: Int): Float = if (n == 1) 0f else w * i / (n - 1)
         fun xAtTime(t: Long): Float = ((t - windowStart).toFloat() / windowSpan * w).coerceIn(0f, w)
+        fun xAt(i: Int): Float = xAtTime(points[i].dateTime)
         fun yAt(t: Float): Float = h * (1f - (t - minTemp) / range)
 
         val coords = points.mapIndexed { i, p -> Offset(xAt(i), yAt(p.temperature)) }
@@ -134,8 +141,9 @@ fun TemperatureGraph(
         // - Dashed (Ghost) for past
         // - Solid for future
         val nowIdx = points.indexOfByClosestTime(now)
-        val pastCoords = coords.take(nowIdx + 1)
-        val futureCoords = coords.drop(nowIdx)
+        val splitIdx = points.indexOfFirst { it.dateTime >= now }.let { if (it == -1) points.lastIndex else it }
+        val pastCoords = coords.take(splitIdx + 1)
+        val futureCoords = coords.drop(splitIdx)
 
         if (pastCoords.size >= 2) {
             drawCurveLine(pastCoords, minTemp, maxTemp, range, dashed = true, alpha = 0.5f)
@@ -148,14 +156,16 @@ fun TemperatureGraph(
         val markerTemp = currentTemp ?: points[nowIdx].temperature
         val markerX = xAtTime(now)
         val markerY = yAt(markerTemp.coerceIn(minTemp, maxTemp))
-        drawLine(
-            color = Color.White.copy(alpha = 0.36f),
-            start = Offset(markerX, 0f),
-            end = Offset(markerX, h - 44f),
-            strokeWidth = 1.5f,
-        )
-        drawCircle(color = Color.White, radius = 4.5f, center = Offset(markerX, markerY))
-        drawCircle(color = tempToColor(markerTemp), radius = 2.5f, center = Offset(markerX, markerY))
+        if (now in windowStart..windowEnd) {
+            drawLine(
+                color = Color.White.copy(alpha = 0.36f),
+                start = Offset(markerX, 0f),
+                end = Offset(markerX, h - 44f),
+                strokeWidth = 1.5f,
+            )
+            drawCircle(color = Color.White, radius = 4.5f, center = Offset(markerX, markerY))
+            drawCircle(color = tempToColor(markerTemp), radius = 2.5f, center = Offset(markerX, markerY))
+        }
 
         // Peak labels (Hi / Lo / Now) anchored to forecast extremes
         val highIdx = forecastTemps.indexOf(fMax)
@@ -163,7 +173,7 @@ fun TemperatureGraph(
         val labels = mutableListOf<Triple<Int, String, Color>>()
         labels.add(Triple(highIdx, "${fMax.roundToInt()}°", Color.White))
         labels.add(Triple(lowIdx, "${fMin.roundToInt()}°", Color.White))
-        if (nowIdx != highIdx && nowIdx != lowIdx) {
+        if (now in windowStart..windowEnd && nowIdx != highIdx && nowIdx != lowIdx) {
             labels.add(Triple(nowIdx, "${points[nowIdx].temperature.roundToInt()}°", Color.White.copy(alpha = 0.8f)))
         }
 
@@ -185,8 +195,18 @@ fun TemperatureGraph(
             }
         }
 
+        drawDayLabels(
+            leftDate = Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault()).toLocalDate(),
+            rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
+            textMeasurer = textMeasurer,
+            occupied = drawnLabels,
+        )
+
         // Bottom strip: weather icons + hour labels
-        for (i in 0 until n step iconSpacing) {
+        val labelInterval = if (w <= NARROW_WIDTH_PX) NARROW_WIDE_LABEL_INTERVAL else WIDE_LABEL_INTERVAL
+        for (i in points.indices) {
+            val hourFromStart = ((points[i].dateTime - windowStart) / 3_600_000L).toInt()
+            if (hourFromStart % labelInterval != 0) continue
             val p = points[i]
             val x = xAt(i)
             painters[i]?.let { painter ->
@@ -195,14 +215,54 @@ fun TemperatureGraph(
                     with(painter) { draw(size = Size(iconSize, iconSize)) }
                 }
             }
-            val time = java.time.Instant.ofEpochMilli(p.dateTime)
-                .atZone(java.time.ZoneId.systemDefault())
+            val time = Instant.ofEpochMilli(p.dateTime)
+                .atZone(ZoneId.systemDefault())
                 .toLocalTime()
-            val timeStr = "%02d:00".format(time.hour)
+            val timeStr = formatHourLabel(time.hour)
             val timeLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = 9.sp, color = Color.Gray))
             drawText(timeLayout, topLeft = Offset(x - timeLayout.size.width / 2f, h - 14f))
         }
     }
+}
+
+private fun DrawScope.drawDayLabels(
+    leftDate: LocalDate,
+    rightDate: LocalDate,
+    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    occupied: MutableList<Rect>,
+) {
+    val today = LocalDate.now()
+    val dates = listOf(0f to leftDate, size.width to rightDate)
+    dates.forEach { (edgeX, date) ->
+        val isToday = date == today
+        val color = if (isToday) Color.Yellow.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.45f)
+        val text = date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
+        val layout = textMeasurer.measure(text, TextStyle(fontSize = 10.sp, color = color))
+        val x = edgeX.coerceIn(layout.size.width / 2f, size.width - layout.size.width / 2f)
+        val candidates = listOf(8f, size.height * 0.48f, size.height - 48f)
+        val y = candidates.firstOrNull { top ->
+            val rect = Rect(
+                offset = Offset(x - layout.size.width / 2f, top),
+                size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
+            )
+            occupied.none { it.overlaps(rect.inflate(4f)) }
+        } ?: candidates.last()
+        val rect = Rect(
+            offset = Offset(x - layout.size.width / 2f, y),
+            size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
+        )
+        drawText(layout, topLeft = rect.topLeft)
+        occupied.add(rect)
+    }
+}
+
+private fun formatHourLabel(hour: Int): String {
+    val hour12 = when (val h = hour % 12) {
+        0 -> 12
+        else -> h
+    }
+    val suffix = if (hour < 12) "a" else "p"
+    return "$hour12$suffix"
 }
 
 private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, xAt: (Int) -> Float) {
