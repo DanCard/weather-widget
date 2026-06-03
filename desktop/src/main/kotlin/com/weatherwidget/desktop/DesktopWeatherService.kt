@@ -92,13 +92,33 @@ class DesktopWeatherService(
         val dailyRaw = dailyDeferred.await()
         val currentObs = currentObsDeferred.await()
 
+        val observations = currentObs?.let { obs ->
+            listOf(
+                com.weatherwidget.data.local.ObservationEntity(
+                    stationId = grid.observationStationsUrl?.substringAfterLast("/") ?: "NWS",
+                    stationName = obs.stationName,
+                    timestamp = try { java.time.ZonedDateTime.parse(obs.timestamp).toInstant().toEpochMilli() } catch (e: Exception) { System.currentTimeMillis() },
+                    temperature = (obs.temperatureCelsius * 1.8f) + 32f,
+                    condition = obs.textDescription,
+                    locationLat = latitude,
+                    locationLon = longitude,
+                    api = "NWS",
+                    precipAmountMm = obs.precipLastHourMm,
+                    maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+                    minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f }
+                )
+            )
+        } ?: emptyList()
+
         ForecastResult(
             currentTemp = currentObs?.temperatureCelsius?.let { (it * 1.8f) + 32f } 
                 ?: hourlyRaw.firstOrNull()?.temperature,
             currentCondition = currentObs?.textDescription 
                 ?: hourlyRaw.firstOrNull()?.shortForecast,
+            currentObservedAt = observations.firstOrNull()?.timestamp,
             hourly = hourlyRaw.map { it.toHourlyForecast() },
-            daily = mapNwsToDaily(dailyRaw)
+            daily = mapNwsToDaily(dailyRaw),
+            rawObservations = observations
         )
     }
 

@@ -19,6 +19,9 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.WeatherDao
+import com.weatherwidget.data.local.DesktopDbPaths
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.remote.NominatimApi
 import io.ktor.client.HttpClient
@@ -50,6 +53,11 @@ fun main() = application {
         val startupSmoke = remember { System.getProperty("weatherwidget.desktop.startupSmoke") == "true" }
         val configStore = remember { DesktopConfigStore() }
         var config by remember { mutableStateOf(configStore.load()) }
+
+        // Persistence layer
+        val weatherDb = remember { WeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
+        val weatherDao = remember { WeatherDao(weatherDb) }
+
         var popupVisible by remember { mutableStateOf(config != null) }
         var pickerVisible by remember { mutableStateOf(config == null) }
         var settingsVisible by remember { mutableStateOf(false) }
@@ -68,13 +76,26 @@ fun main() = application {
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.apiKeys) {
             DesktopWeatherService(currentConfig)
         }
+        val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource) {
+            currentConfig?.let {
+                DesktopWeatherRepository(weatherService, weatherDao, it.lat, it.lon, it.weatherSource)
+            }
+        }
 
-        // Background fetch logic lifted to application scope so Tray can see it.
-        LaunchedEffect(currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.apiKeys) {
-            if (currentConfig == null) return@LaunchedEffect
+        // Background fetch logic with persistence
+        LaunchedEffect(repository) {
+            val repo = repository ?: return@LaunchedEffect
+            
+            // 1. Instant load from cache
+            val cached = repo.loadCached()
+            if (cached != null) {
+                forecast = cached
+            }
+            
+            // 2. Refresh loop
             while (true) {
                 try {
-                    forecast = withContext(Dispatchers.IO) { weatherService.fetchForecast() }
+                    forecast = repo.refresh()
                 } catch (e: Exception) {
                     // Ignore background errors for now
                 }

@@ -25,4 +25,5 @@ data class ForecastResult(
     val currentObservedAt: Long? = null,
     val daily: List<DailyForecast> = emptyList(),
     val hourly: List<HourlyForecast> = emptyList(),
+    val rawObservations: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
 )
