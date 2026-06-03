@@ -1,7 +1,9 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.util.Log
 import java.sql.Connection
 import java.sql.PreparedStatement
@@ -238,6 +240,40 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.execute("DELETE FROM observations WHERE fetchedAt < $beforeEpochMs")
                 stmt.execute("DELETE FROM daily_extremes WHERE updatedAt < $beforeEpochMs")
                 stmt.execute("DELETE FROM app_logs WHERE timestamp < $beforeEpochMs")
+                stmt.execute("DELETE FROM station_cache WHERE updatedAt < $beforeEpochMs")
+            }
+        }
+    }
+
+    fun getCachedStations(cacheKey: String, maxAgeMs: Long): List<NwsApi.StationInfo>? {
+        val minUpdatedAt = System.currentTimeMillis() - maxAgeMs
+        db.getConnection().use { conn ->
+            conn.prepareStatement("SELECT stations FROM station_cache WHERE cacheKey = ? AND updatedAt >= ?").use { stmt ->
+                stmt.setString(1, cacheKey)
+                stmt.setLong(2, minUpdatedAt)
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    return rs.getString("stations")
+                        .split("|")
+                        .mapNotNull(NwsApi.Companion::decodeStationInfo)
+                }
+            }
+        }
+        return null
+    }
+
+    fun upsertStationCache(cacheKey: String, stations: List<NwsApi.StationInfo>) {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                INSERT OR REPLACE INTO station_cache (cacheKey, stations, updatedAt)
+                VALUES (?, ?, ?)
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.setString(1, cacheKey)
+                stmt.setString(2, stations.joinToString("|", transform = NwsApi.Companion::encodeStationInfo))
+                stmt.setLong(3, System.currentTimeMillis())
+                stmt.executeUpdate()
             }
         }
     }
@@ -428,6 +464,20 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
         return result
+    }
+
+    fun getDailyActuals(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): Map<String, DailyActual> {
+        return getExtremesInRange(startEpoch, endEpoch, locationLat, locationLon)
+            .filter { it.source == source }
+            .associate { extreme ->
+                val date = LocalDate.ofEpochDay(extreme.date / DailyExtremesComputer.MS_IN_A_DAY).toString()
+                date to DailyActual(
+                    date = date,
+                    highTemp = extreme.highTemp,
+                    lowTemp = extreme.lowTemp,
+                    condition = extreme.condition,
+                )
+            }
     }
 
     fun getForecastsInRangeBySource(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): List<DesktopForecastRow> {

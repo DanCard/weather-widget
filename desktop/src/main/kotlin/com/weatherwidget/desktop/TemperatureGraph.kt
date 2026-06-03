@@ -6,9 +6,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
@@ -50,6 +52,7 @@ private fun tempToColor(temp: Float): Color = when {
 @Composable
 fun TemperatureGraph(
     hourly: List<HourlyForecast>,
+    currentTemp: Float? = null,
     modifier: Modifier = Modifier,
     hoursAhead: Int = 48,
 ) {
@@ -97,6 +100,8 @@ fun TemperatureGraph(
 
         val coords = points.mapIndexed { i, p -> Offset(xAt(i), yAt(p.temperature)) }
 
+        drawCloudAndPrecipOverlays(points, ::xAt)
+
         // 1. Draw the Curve and Gradient Fill
         drawCurve(coords, minTemp, maxTemp, range)
 
@@ -111,6 +116,26 @@ fun TemperatureGraph(
         if (nowIdx != highIdx && nowIdx != lowIdx) {
             labels.add(Triple(nowIdx, "${points[nowIdx].temperature.roundToInt()}°", Color.White.copy(alpha = 0.8f)))
         }
+
+        val markerTemp = currentTemp ?: points[nowIdx].temperature
+        val markerX = xAt(nowIdx)
+        val markerY = yAt(markerTemp.coerceIn(minTemp, maxTemp))
+        drawLine(
+            color = Color.White.copy(alpha = 0.36f),
+            start = Offset(markerX, 0f),
+            end = Offset(markerX, h - 44f),
+            strokeWidth = 1.5f,
+        )
+        drawCircle(
+            color = Color.White,
+            radius = 4.5f,
+            center = Offset(markerX, markerY),
+        )
+        drawCircle(
+            color = tempToColor(markerTemp),
+            radius = 2.5f,
+            center = Offset(markerX, markerY),
+        )
 
         // Simple collision avoidance for labels
         val drawnLabels = mutableListOf<Rect>()
@@ -157,6 +182,39 @@ fun TemperatureGraph(
             val timeStr = "%02d:00".format(time.hour)
             val timeLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = 9.sp, color = Color.Gray))
             drawText(timeLayout, topLeft = Offset(x - timeLayout.size.width / 2f, h - 14f))
+        }
+    }
+}
+
+private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, xAt: (Int) -> Float) {
+    if (points.isEmpty()) return
+    val bandBottom = size.height - 44f
+    val cloudHeight = bandBottom.coerceAtLeast(0f)
+    val stepWidth = if (points.size > 1) size.width / (points.size - 1) else size.width
+    points.forEachIndexed { i, p ->
+        val left = (xAt(i) - stepWidth / 2f).coerceAtLeast(0f)
+        val right = (xAt(i) + stepWidth / 2f).coerceAtMost(size.width)
+        p.cloudCover?.let { cover ->
+            val alpha = (cover.coerceIn(0, 100) / 100f) * 0.22f
+            drawRect(
+                color = Color(0xFFB8C7D9).copy(alpha = alpha),
+                topLeft = Offset(left, 0f),
+                size = Size((right - left).coerceAtLeast(1f), cloudHeight),
+            )
+        }
+        val precipSignal = maxOf(
+            p.precipProbability?.toFloat()?.div(100f) ?: 0f,
+            p.precipAmountMm?.let { (it / 6f).coerceIn(0f, 1f) } ?: 0f,
+        )
+        if (precipSignal > 0f) {
+            val barHeight = (precipSignal * 18f).coerceAtLeast(2f)
+            drawLine(
+                color = Color(0xFF4FC3F7).copy(alpha = 0.35f + 0.45f * precipSignal),
+                start = Offset(xAt(i), bandBottom - barHeight),
+                end = Offset(xAt(i), bandBottom),
+                strokeWidth = 2.5f,
+                cap = StrokeCap.Round,
+            )
         }
     }
 }

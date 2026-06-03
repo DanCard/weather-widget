@@ -5,8 +5,11 @@ import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.shared.util.DesktopTemperatureInterpolator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 class DesktopWeatherRepository(
     private val weatherService: DesktopWeatherService,
@@ -19,18 +22,22 @@ class DesktopWeatherRepository(
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
         val hourly = weatherDao.getLatestHourly(latitude, longitude, weatherSource, maxAgeMs)
         val daily = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
-        val latestObs = weatherDao.getLatestObservation(latitude, longitude, maxAgeMs)
+        val now = System.currentTimeMillis()
+        val latestObs = weatherDao.getLatestObservation(latitude, longitude, FRESH_OBSERVATION_MS)
+        val interpolatedTemp = DesktopTemperatureInterpolator.getInterpolatedTemperature(hourly, now)
+        val actuals = loadDailyActuals(daily)
 
         if (hourly.isEmpty() && daily.isEmpty()) {
             return@withContext null
         }
 
         ForecastResult(
-            currentTemp = latestObs?.temperature ?: hourly.firstOrNull()?.temperature,
+            currentTemp = latestObs?.temperature ?: interpolatedTemp ?: hourly.firstOrNull()?.temperature,
             currentCondition = latestObs?.condition ?: hourly.firstOrNull()?.condition,
             currentObservedAt = latestObs?.timestamp ?: hourly.firstOrNull()?.dateTime,
             daily = daily,
-            hourly = hourly
+            hourly = hourly,
+            dailyActuals = actuals,
         )
     }
 
@@ -49,6 +56,7 @@ class DesktopWeatherRepository(
         // Derive actual daily highs/lows from the stored observation window — the actuals that
         // forecast-accuracy comparisons are measured against.
         val extremesCount = recomputeDailyExtremes(now)
+        val actuals = loadDailyActuals(result.daily)
 
         // Snapshot for history (Tier 1 simplification: 4h buckets)
         val snapshotBucket = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
@@ -67,7 +75,11 @@ class DesktopWeatherRepository(
                 "obs=${result.rawObservations.size} extremes=$extremesCount",
         )
 
-        result
+        result.copy(
+            currentTemp = result.currentTemp
+                ?: DesktopTemperatureInterpolator.getInterpolatedTemperature(result.hourly, now),
+            dailyActuals = actuals,
+        )
     }
 
     /** Reads the stored observation window, (re)computes daily_extremes, and returns the row count. */
@@ -80,6 +92,14 @@ class DesktopWeatherRepository(
             weatherDao.upsertDailyExtremes(extremes)
         }
         return extremes.size
+    }
+
+    private fun loadDailyActuals(daily: List<com.weatherwidget.data.model.DailyForecast>): Map<String, com.weatherwidget.data.model.DailyActual> {
+        if (daily.isEmpty()) return emptyMap()
+        val dates = daily.map { LocalDate.parse(it.date) }
+        val start = dates.min().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val end = dates.max().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        return weatherDao.getDailyActuals(start, end, latitude, longitude, weatherSource)
     }
 
     private fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
@@ -101,5 +121,6 @@ class DesktopWeatherRepository(
 
     companion object {
         private const val HISTORY_WINDOW_DAYS = 7L
+        private const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L
     }
 }

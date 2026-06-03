@@ -2,6 +2,7 @@ package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.remote.NwsApi
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -103,6 +104,46 @@ class DesktopWeatherDaoTest {
         // app_logs is pruned by cleanup like the other tables.
         dao.cleanup(System.currentTimeMillis() + 10_000)
         assertEquals(0, dao.getRecentLogs(10).size)
+    }
+
+    @Test
+    fun `test station cache round-trip`() {
+        val stations = listOf(
+            NwsApi.StationInfo("KNUQ", "Moffett", 37.4, -122.0, NwsApi.StationType.OFFICIAL),
+            NwsApi.StationInfo("AW020", "Personal", 37.3, -122.1, NwsApi.StationType.PERSONAL),
+        )
+
+        dao.upsertStationCache("stations_test", stations)
+
+        val cached = dao.getCachedStations("stations_test", 10_000)
+        assertEquals(listOf("KNUQ", "AW020"), cached?.map { it.id })
+        assertEquals(NwsApi.StationType.OFFICIAL, cached?.first()?.type)
+    }
+
+    @Test
+    fun `test daily actuals read from extremes`() {
+        val lat = 40.0
+        val lon = -75.0
+        val date = java.time.LocalDate.parse("2026-06-02")
+            .toEpochDay() * DailyExtremesComputer.MS_IN_A_DAY
+        dao.upsertDailyExtremes(
+            listOf(
+                DesktopDailyExtremeEntity(
+                    date = date,
+                    source = "NWS",
+                    locationLat = lat,
+                    locationLon = lon,
+                    highTemp = 81f,
+                    lowTemp = 59f,
+                    condition = "Fair",
+                    updatedAt = System.currentTimeMillis(),
+                )
+            )
+        )
+
+        val actuals = dao.getDailyActuals(date, date, lat, lon, "NWS")
+        assertEquals(81f, actuals["2026-06-02"]?.highTemp)
+        assertEquals(59f, actuals["2026-06-02"]?.lowTemp)
     }
 
     @Test

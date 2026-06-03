@@ -5,8 +5,10 @@ import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.DesktopTemperatureInterpolator
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
@@ -19,6 +21,7 @@ import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
+import kotlin.math.*
 
 /**
  * Thin desktop-side orchestration over the shared API clients. Supports all major sources
@@ -28,7 +31,8 @@ class DesktopWeatherService(
     private val latitude: Double,
     private val longitude: Double,
     private val weatherSource: String = "NWS",
-    private val apiKeys: Map<String, String> = emptyMap()
+    private val apiKeys: Map<String, String> = emptyMap(),
+    private val weatherDao: DesktopWeatherDao? = null,
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -83,53 +87,37 @@ class DesktopWeatherService(
         val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
         val dailyDeferred = async { nwsApi.getForecast(grid) }
 
-        // Resolve the nearest observation station once, then reuse its id for both the latest
-        // reading (current temp) and the historical window (actuals / daily_extremes). These three
-        // observation fetches are best-effort: if any fails the forecast still renders from the
-        // hourly/daily feeds, so we degrade to null/empty (and log) rather than fail the whole fetch.
-        val stationDeferred = async {
+        // Resolve candidate observation stations once, then try official stations first for the
+        // historical window that drives actuals. Observation fetches are best-effort: if they fail
+        // the forecast still renders from hourly/daily feeds.
+        val stationsDeferred = async {
             bestEffort("observation stations") {
-                grid.observationStationsUrl?.let { url -> nwsApi.getObservationStations(url).firstOrNull() }
-            }
-        }
-        val station = stationDeferred.await()
-
-        val currentObsDeferred = async {
-            station?.let { st -> bestEffort("latest observation") { nwsApi.getLatestObservationDetailed(st.id) } }
-        }
-        val historicalObsDeferred = async {
-            station?.let { st ->
-                bestEffort("historical observations") {
-                    // NWS returns ZERO observations when start/end carry fractional seconds (HTTP 200,
-                    // empty body — not an error), so truncate to whole seconds before formatting.
-                    val end = Instant.now().truncatedTo(ChronoUnit.SECONDS)
-                    val start = end.minus(HISTORY_DAYS, ChronoUnit.DAYS)
-                    nwsApi.getObservations(st.id, start.toString(), end.toString()).also { obs ->
-                        // Empty-but-no-exception is the failure mode to watch (see fractional-seconds
-                        // note); log the count so a silently-empty actuals pipeline is visible.
-                        Log.i(TAG, "historical observations: station=${st.id} count=${obs.size}")
-                    }
-                }
+                grid.observationStationsUrl?.let { url -> getCachedOrFetchStations(url) }
             } ?: emptyList()
         }
 
         val hourlyRaw = hourlyDeferred.await()
         val dailyRaw = dailyDeferred.await()
-        val currentObs = currentObsDeferred.await()
-        val historicalObs = historicalObsDeferred.await()
-
-        val stationId = station?.id ?: "NWS"
-        val stationName = station?.name ?: currentObs?.stationName ?: stationId
+        val observationBundle = selectObservationBundle(stationsDeferred.await())
+        val station = observationBundle?.station
+        val currentObs = observationBundle?.latest
+        val historicalObs = observationBundle?.historical ?: emptyList()
 
         // Latest detailed reading + the historical window, mapped to the pure model type. The DB
         // dedups by (stationId, timestamp), so an overlapping latest reading is harmless.
         val observations = buildList {
-            currentObs?.let { add(it.toReading(stationId, stationName)) }
-            historicalObs.forEach { add(it.toReading(stationId, stationName)) }
+            station?.let { st ->
+                currentObs?.let { add(it.toReading(st)) }
+                historicalObs.forEach { add(it.toReading(st)) }
+            }
         }
 
         ForecastResult(
-            currentTemp = currentObs?.temperatureCelsius?.let { (it * 1.8f) + 32f }
+            currentTemp = currentObs
+                ?.takeIf { it.isFreshObservation() }
+                ?.temperatureCelsius
+                ?.let { (it * 1.8f) + 32f }
+                ?: DesktopTemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
                 ?: hourlyRaw.firstOrNull()?.temperature,
             currentCondition = currentObs?.textDescription
                 ?: hourlyRaw.firstOrNull()?.shortForecast,
@@ -156,14 +144,55 @@ class DesktopWeatherService(
             null
         }
 
-    private fun NwsApi.Observation.toReading(stationId: String, stationName: String) = ObservationReading(
-        stationId = stationId,
-        stationName = this.stationName.ifBlank { stationName },
+    private suspend fun getCachedOrFetchStations(stationsUrl: String): List<NwsApi.StationInfo> {
+        val cacheKey = "nws_stations_${stationsUrl.hashCode()}"
+        weatherDao?.getCachedStations(cacheKey, STATION_CACHE_MS)?.let { cached ->
+            if (cached.isNotEmpty()) return orderStations(cached)
+        }
+
+        val fetched = nwsApi.getObservationStations(stationsUrl)
+        if (fetched.isNotEmpty()) {
+            weatherDao?.upsertStationCache(cacheKey, fetched)
+        }
+        return orderStations(fetched)
+    }
+
+    private suspend fun selectObservationBundle(stations: List<NwsApi.StationInfo>): ObservationBundle? {
+        val end = Instant.now().truncatedTo(ChronoUnit.SECONDS)
+        val start = end.minus(HISTORY_DAYS, ChronoUnit.DAYS)
+        for (station in orderStations(stations).take(MAX_OBSERVATION_STATIONS)) {
+            val historical = bestEffort("historical observations ${station.id}") {
+                nwsApi.getObservations(station.id, start.toString(), end.toString()).also { obs ->
+                    Log.i(TAG, "historical observations: station=${station.id} type=${station.type} count=${obs.size}")
+                }
+            }.orEmpty()
+            if (historical.isEmpty()) continue
+
+            val latest = bestEffort("latest observation ${station.id}") {
+                nwsApi.getLatestObservationDetailed(station.id)
+            }
+            Log.i(TAG, "selected observation station=${station.id} type=${station.type} historical=${historical.size} latest=${latest != null}")
+            return ObservationBundle(station, latest, historical)
+        }
+        return null
+    }
+
+    private data class ObservationBundle(
+        val station: NwsApi.StationInfo,
+        val latest: NwsApi.Observation?,
+        val historical: List<NwsApi.Observation>,
+    )
+
+    private fun NwsApi.Observation.toReading(station: NwsApi.StationInfo) = ObservationReading(
+        stationId = station.id,
+        stationName = this.stationName.ifBlank { station.name },
         timestamp = try { ZonedDateTime.parse(timestamp).toInstant().toEpochMilli() } catch (e: Exception) { System.currentTimeMillis() },
         temperature = (temperatureCelsius * 1.8f) + 32f,
         condition = textDescription,
         locationLat = latitude,
         locationLon = longitude,
+        distanceKm = distanceKm(latitude, longitude, station.lat, station.lon).toFloat(),
+        stationType = station.type.name,
         api = "NWS",
         precipAmountMm = precipLastHourMm,
         maxTempLast24h = maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
@@ -214,5 +243,32 @@ class DesktopWeatherService(
         const val HISTORY_DAYS = 7L
 
         private const val TAG = "DesktopWeatherService"
+        private const val MAX_OBSERVATION_STATIONS = 5
+        private const val STATION_CACHE_MS = 24 * 60 * 60 * 1000L
+        internal const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L
     }
+}
+
+internal fun orderStations(stations: List<NwsApi.StationInfo>): List<NwsApi.StationInfo> =
+    stations.withIndex()
+        .sortedWith(
+            compareBy<IndexedValue<NwsApi.StationInfo>> {
+                if (it.value.type == NwsApi.StationType.OFFICIAL) 0 else 1
+            }.thenBy { it.index }
+        )
+        .map { it.value }
+
+private fun NwsApi.Observation.isFreshObservation(nowMs: Long = System.currentTimeMillis()): Boolean {
+    val observedAt = runCatching { ZonedDateTime.parse(timestamp).toInstant().toEpochMilli() }.getOrNull()
+        ?: return false
+    return nowMs - observedAt <= DesktopWeatherService.FRESH_OBSERVATION_MS
+}
+
+private fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val earthRadiusKm = 6371.0
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val a = sin(dLat / 2).pow(2.0) +
+        cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2.0)
+    return earthRadiusKm * 2 * atan2(sqrt(a), sqrt(1 - a))
 }

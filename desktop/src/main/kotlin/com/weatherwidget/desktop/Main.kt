@@ -75,7 +75,9 @@ fun main() = application {
         var forecast by remember { mutableStateOf<ForecastResult?>(null) }
         val currentConfig = config
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.apiKeys) {
-            DesktopWeatherService(currentConfig)
+            currentConfig?.let {
+                DesktopWeatherService(it.lat, it.lon, it.weatherSource, it.apiKeys, weatherDao)
+            } ?: DesktopWeatherService(currentConfig)
         }
         val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource) {
             currentConfig?.let {
@@ -359,11 +361,13 @@ internal fun WidgetPopup(
                 if (config.viewMode == "HOURLY") {
                     TemperatureGraph(
                         hourly = snapshot.hourly,
+                        currentTemp = snapshot.currentTemp,
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 } else {
                     DailyForecastGraph(
                         daily = snapshot.daily,
+                        actuals = snapshot.dailyActuals,
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 }

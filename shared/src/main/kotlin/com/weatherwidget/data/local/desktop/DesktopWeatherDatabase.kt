@@ -148,19 +148,31 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 """.trimIndent())
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_app_logs_time ON app_logs(timestamp)")
 
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS station_cache (
+                        cacheKey TEXT PRIMARY KEY,
+                        stations TEXT NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
                 // Migration / Versioning
                 val rs = stmt.executeQuery("PRAGMA user_version")
                 val currentVersion = if (rs.next()) rs.getInt(1) else 0
                 if (currentVersion == 0) {
-                    stmt.execute("PRAGMA user_version = 1")
+                    stmt.execute("PRAGMA user_version = 2")
                 } else {
-                    migrate(conn, currentVersion, 1)
+                    migrate(conn, currentVersion, 2)
                 }
             }
         }
     }
 
     private fun migrate(conn: Connection, from: Int, to: Int) {
-        // Implementation for future migrations
+        if (from < to) {
+            conn.createStatement().use { stmt ->
+                stmt.execute("PRAGMA user_version = $to")
+            }
+        }
     }
 }

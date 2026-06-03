@@ -51,3 +51,9 @@ data class DesktopForecastRow(
     val lowTemp: Float?,
     val fetchedAt: Long,
 )
+
+data class DesktopStationCacheEntity(
+    val cacheKey: String,
+    val stations: String,
+    val updatedAt: Long,
+)

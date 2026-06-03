@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -14,6 +15,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
 import java.time.LocalDate
 import java.time.format.TextStyle as JavaTextStyle
@@ -31,6 +33,7 @@ private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
 @Composable
 fun DailyForecastGraph(
     daily: List<DailyForecast>,
+    actuals: Map<String, DailyActual> = emptyMap(),
     modifier: Modifier = Modifier,
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -45,8 +48,9 @@ fun DailyForecastGraph(
     if (displayDays.isEmpty()) return
 
     Canvas(modifier = modifier) {
-        val highTemps = displayDays.map { it.highTemp }
-        val lowTemps = displayDays.map { it.lowTemp }
+        val displayActuals = displayDays.mapNotNull { actuals[it.date] }
+        val highTemps = displayDays.map { it.highTemp } + displayActuals.map { it.highTemp }
+        val lowTemps = displayDays.map { it.lowTemp } + displayActuals.map { it.lowTemp }
         val rawMin = lowTemps.min()
         val rawMax = highTemps.max()
         
@@ -76,6 +80,28 @@ fun DailyForecastGraph(
             // 1. Draw the Forecast Bar
             val condColor = conditionToColor(day.condition)
             drawBar(centerX, highY, lowY, barWidth, condColor)
+
+            actuals[day.date]?.let { actual ->
+                val actualHighY = yAt(actual.highTemp)
+                val actualLowY = yAt(actual.lowTemp)
+                drawLine(
+                    color = Color.White.copy(alpha = 0.82f),
+                    start = Offset(centerX + barWidth * 0.95f, actualHighY),
+                    end = Offset(centerX + barWidth * 0.95f, actualLowY),
+                    strokeWidth = 2.5f,
+                    cap = StrokeCap.Round,
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = 3f,
+                    center = Offset(centerX + barWidth * 0.95f, actualHighY),
+                )
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.85f),
+                    radius = 2.5f,
+                    center = Offset(centerX + barWidth * 0.95f, actualLowY),
+                )
+            }
             
             // 2. High Temperature Label
             val highLabel = "${day.highTemp.roundToInt()}°"

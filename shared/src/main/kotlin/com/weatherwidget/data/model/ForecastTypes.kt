@@ -19,6 +19,13 @@ data class DailyForecast(
     val precipAmountMm: Float? = null,
 )
 
+data class DailyActual(
+    val date: String,
+    val highTemp: Float,
+    val lowTemp: Float,
+    val condition: String,
+)
+
 /**
  * A single weather observation, in the pure model layer so [ForecastResult] doesn't depend on the
  * desktop persistence package. The persistence layer maps this to its own entity for storage.
@@ -45,5 +52,6 @@ data class ForecastResult(
     val currentObservedAt: Long? = null,
     val daily: List<DailyForecast> = emptyList(),
     val hourly: List<HourlyForecast> = emptyList(),
+    val dailyActuals: Map<String, DailyActual> = emptyMap(),
     val rawObservations: List<ObservationReading> = emptyList(),
 )
