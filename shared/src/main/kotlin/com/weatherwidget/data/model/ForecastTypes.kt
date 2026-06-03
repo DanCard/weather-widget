@@ -61,6 +61,7 @@ sealed class DataStatus {
     data class Live(val updatedAt: Long) : DataStatus()
     data class Stale(val updatedAt: Long, val reason: StaleReason) : DataStatus()
     data object NoData : DataStatus()
+    data class Error(val message: String) : DataStatus()
 }
 
 enum class StaleReason { OFFLINE, SOURCE_ERROR }

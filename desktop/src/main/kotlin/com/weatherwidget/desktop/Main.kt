@@ -129,23 +129,31 @@ private fun installAutostartEntry() {
 }
 
 fun main() {
-    if (!acquireSingleInstanceLock()) {
-        System.err.println("Weather Widget is already running; exiting.")
-        return
+    val lockAcquired = acquireSingleInstanceLock()
+    if (lockAcquired) {
+        maybePackagedSetup()
     }
-    maybePackagedSetup()
-    runApp()
+    runApp(lockAcquired)
 }
 
-private fun runApp() = application {
+private fun runApp(lockAcquired: Boolean) = application {
     MaterialTheme(colorScheme = darkColorScheme()) {
-        val startupSmoke = remember { System.getProperty("weatherwidget.desktop.startupSmoke") == "true" }
-        val configStore = remember { DesktopConfigStore() }
-        var config by remember { mutableStateOf(configStore.load()) }
+        if (!lockAcquired) {
+            Window(
+                onCloseRequest = ::exitApplication,
+                title = "Weather Widget",
+                state = rememberWindowState(width = 300.dp, height = 200.dp, position = WindowPosition(Alignment.Center))
+            ) {
+                CenteredMessage("Weather Widget is already running.\nCheck your system tray.")
+            }
+        } else {
+            val startupSmoke = remember { System.getProperty("weatherwidget.desktop.startupSmoke") == "true" }
+            val configStore = remember { DesktopConfigStore() }
+            var config by remember { mutableStateOf(configStore.load()) }
 
-        // Persistence layer
-        val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
-        val weatherDao = remember { DesktopWeatherDao(weatherDb) }
+            // Persistence layer
+            val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
+            val weatherDao = remember { DesktopWeatherDao(weatherDb) }
 
         var popupVisible by remember { mutableStateOf(config != null) }
         var pickerVisible by remember { mutableStateOf(config == null) }
@@ -177,52 +185,77 @@ private fun runApp() = application {
 
         // Background fetch logic with persistence
         LaunchedEffect(repository) {
+            println("LaunchedEffect(repository) started. Repository null? ${repository == null}")
             val repo = repository ?: return@LaunchedEffect
 
-            // 1. Instant load from cache
-            val cached = repo.loadCached()
-            if (cached != null) {
-                forecast = cached
-                val lastFetch = weatherDao.getLastSuccessfulFetch()
-                dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
-            }
-
-            // 2. Staleness-gated launch fetch: skip if cache is fresh (< 30 min)
-            val lastFetch = weatherDao.getLastSuccessfulFetch()
-            val cacheIsFresh = lastFetch != null &&
-                (System.currentTimeMillis() - lastFetch) < FRESHNESS_THRESHOLD_MS
-
-            if (!cacheIsFresh) {
-                try {
-                    forecast = repo.refresh()
-                    val now = System.currentTimeMillis()
-                    dataStatus = DataStatus.Live(now)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    val isOffline = isOfflineException(e)
-                    val reason = if (isOffline) "offline" else "source_error"
-                    weatherDao.log("REFRESH_FAIL", "launch fetch: $reason ${e.message}", "WARN")
-                    val lastSuccess = weatherDao.getLastSuccessfulFetch()
-                    dataStatus = deriveDataStatus(
-                        cachePresent = forecast != null,
-                        lastFetchMs = lastSuccess,
-                        refreshFailed = true,
-                        failureIsOffline = isOffline,
-                    )
+            try {
+                // 1. Instant load from cache
+                println("Loading cached data...")
+                val cached = repo.loadCached()
+                println("Cached data loaded. Null? ${cached == null}")
+                if (cached != null) {
+                    forecast = cached
+                    val lastFetch = weatherDao.getLastSuccessfulFetch()
+                    dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
+                    println("DataStatus updated to Live (cached). lastFetch: $lastFetch")
                 }
+
+                // 2. Staleness-gated launch fetch: skip if cache is fresh (< 30 min)
+                val lastFetch = weatherDao.getLastSuccessfulFetch()
+                val cacheIsFresh = lastFetch != null &&
+                    (System.currentTimeMillis() - lastFetch) < FRESHNESS_THRESHOLD_MS
+
+                println("Cache fresh? $cacheIsFresh. lastFetch: $lastFetch")
+
+                if (!cacheIsFresh) {
+                    try {
+                        println("Refreshing from network...")
+                        forecast = repo.refresh()
+                        val now = System.currentTimeMillis()
+                        dataStatus = DataStatus.Live(now)
+                        println("Refresh successful. DataStatus updated to Live.")
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        println("Refresh cancelled.")
+                        throw e
+                    } catch (e: Exception) {
+                        println("Refresh failed: ${e.message}")
+                        e.printStackTrace()
+                        val isOffline = isOfflineException(e)
+                        val reason = if (isOffline) "offline" else "source_error"
+                        weatherDao.log("REFRESH_FAIL", "launch fetch: $reason ${e.message}", "WARN")
+                        val lastSuccess = weatherDao.getLastSuccessfulFetch()
+                        dataStatus = deriveDataStatus(
+                            cachePresent = forecast != null,
+                            lastFetchMs = lastSuccess,
+                            refreshFailed = true,
+                            failureIsOffline = isOffline,
+                        )
+                        println("DataStatus updated to: $dataStatus")
+                    }
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                println("Initialization failure: ${e.message}")
+                e.printStackTrace()
+                dataStatus = DataStatus.Error("Initialization failed: ${e.message}")
+                return@LaunchedEffect
             }
 
             // 3. Adaptive refresh loop
             while (true) {
                 val delayMs = computeRefreshDelayMs(forecast?.hourly)
+                println("Next refresh in ${delayMs / 1000}s")
                 kotlinx.coroutines.delay(delayMs)
                 try {
+                    println("Loop refresh starting...")
                     forecast = repo.refresh()
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
+                    println("Loop refresh successful.")
                 } catch (e: kotlinx.coroutines.CancellationException) {
+                    println("Loop refresh cancelled.")
                     throw e
                 } catch (e: Exception) {
+                    println("Loop refresh failed: ${e.message}")
                     val isOffline = isOfflineException(e)
                     val reason = if (isOffline) "offline" else "source_error"
                     weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
@@ -391,6 +424,7 @@ private fun runApp() = application {
         }
     }
 }
+}
 
 internal fun createTrayTextMeasurer(): TextMeasurer =
     TextMeasurer(
@@ -497,6 +531,7 @@ internal fun WidgetPopup(
 ) {
     Surface(modifier = Modifier.fillMaxSize()) {
         when (dataStatus) {
+            is DataStatus.Error -> CenteredMessage(dataStatus.message)
             is DataStatus.Loading -> CenteredMessage("Loading…")
             is DataStatus.NoData -> CenteredMessage("Tap to configure")
             is DataStatus.Live, is DataStatus.Stale -> {
@@ -518,6 +553,7 @@ internal fun WidgetPopup(
                         TemperatureGraph(
                             hourly = snapshot.hourly,
                             currentTemp = snapshot.currentTemp,
+                            observations = snapshot.rawObservations,
                             modifier = Modifier.fillMaxWidth().weight(1f),
                         )
                     } else {
@@ -581,93 +617,91 @@ private fun WidgetHeader(
     onUpdateLocation: () -> Unit
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
-    val now = remember { LocalDateTime.now() }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Top row: Location + Settings Gear + Source + Date
+        // Top row: dominant current temp (left) + API source / date (right)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                androidx.compose.foundation.Image(
+                    painter = WeatherIcon.painter(forecast.currentCondition),
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp).padding(end = 6.dp)
+                )
                 Text(
-                    text = config.label,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    modifier = Modifier.clickable { onUpdateLocation() }
+                    text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
+                    style = MaterialTheme.typography.displaySmall,
                 )
                 Spacer(Modifier.width(8.dp))
-                Icon(
-                    painter = androidx.compose.ui.res.painterResource("drawable/ic_settings_gear.xml"),
-                    contentDescription = "Settings",
-                    modifier = Modifier.size(16.dp).clickable { onOpenSettings() },
-                    tint = Color.White.copy(alpha = 0.7f)
+                Text(
+                    text = forecast.currentCondition ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.6f),
+                    maxLines = 1,
                 )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(horizontalAlignment = Alignment.End) {
+                val visibleSources = config.visibleSources
+                if (visibleSources.size > 1) {
+                    Text(
+                        text = config.weatherSource,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.clickable {
+                            val nextIdx = (visibleSources.indexOf(config.weatherSource) + 1) % visibleSources.size
+                            onUpdateConfig(config.copy(weatherSource = visibleSources[nextIdx]))
+                        }
+                    )
+                } else {
+                    Text(
+                        text = config.weatherSource,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.5f),
+                    )
+                }
                 Text(
-                    text = config.weatherSource,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.5f)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = now.format(dateFormatter),
+                    text = LocalDateTime.now().format(dateFormatter),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.7f)
                 )
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
 
-        // Bottom row: Icon + Temp + Toggles
+        // Bottom row: location + gear (left) | H / D mode chips (right)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.foundation.Image(
-                    painter = WeatherIcon.painter(forecast.currentCondition),
-                    contentDescription = null,
-                    modifier = Modifier.size(42.dp).padding(end = 8.dp)
+                Text(
+                    text = config.label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    modifier = Modifier.clickable { onUpdateLocation() }
                 )
-                Column {
-                    Text(
-                        text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
-                        style = MaterialTheme.typography.displaySmall,
-                    )
-                    Text(
-                        text = forecast.currentCondition ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.7f)
-                    )
-                }
+                Spacer(Modifier.width(6.dp))
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource("drawable/ic_settings_gear.xml"),
+                    contentDescription = "Settings",
+                    modifier = Modifier.size(13.dp).clickable { onOpenSettings() },
+                    tint = Color.White.copy(alpha = 0.5f)
+                )
             }
 
-            // View Mode and Source Toggles
-            Column(horizontalAlignment = Alignment.End) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val visibleSources = config.visibleSources
-                    val currentIdx = visibleSources.indexOf(config.weatherSource)
-                    if (visibleSources.size > 1) {
-                        SourceToggle("Cycle API", false) {
-                            val nextIdx = (currentIdx + 1) % visibleSources.size
-                            onUpdateConfig(config.copy(weatherSource = visibleSources[nextIdx]))
-                        }
-                    }
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                ViewModeChip("H", config.viewMode == "HOURLY") {
+                    onUpdateConfig(config.copy(viewMode = "HOURLY"))
                 }
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SourceToggle("Hourly", config.viewMode == "HOURLY") {
-                        onUpdateConfig(config.copy(viewMode = "HOURLY"))
-                    }
-                    SourceToggle("Daily", config.viewMode == "DAILY") {
-                        onUpdateConfig(config.copy(viewMode = "DAILY"))
-                    }
+                ViewModeChip("D", config.viewMode == "DAILY") {
+                    onUpdateConfig(config.copy(viewMode = "DAILY"))
                 }
             }
         }
@@ -675,22 +709,15 @@ private fun WidgetHeader(
 }
 
 @Composable
-private fun SourceToggle(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.height(24.dp),
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    ) {
-        Text(label, style = MaterialTheme.typography.labelSmall)
-    }
+private fun ViewModeChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (selected) Color.White else Color.White.copy(alpha = 0.35f),
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+    )
 }
 
 private class DesktopClients {
