@@ -249,8 +249,13 @@ private fun runApp(lockAcquired: Boolean) = application {
 
             // 3. Adaptive refresh loop
             while (true) {
-                val delayMs = computeRefreshDelayMs(forecast?.hourly)
-                println("Next refresh in ${delayMs / 1000}s")
+                val delayMs = if (popupVisible) {
+                    computeRefreshDelayMs(forecast?.hourly)
+                } else {
+                    // When not being displayed, wake up every two minutes as requested.
+                    2 * 60 * 1000L
+                }
+                println("Next refresh in ${delayMs / 1000}s (popupVisible=$popupVisible)")
                 kotlinx.coroutines.delay(delayMs)
                 try {
                     println("Loop refresh starting...")
@@ -277,17 +282,31 @@ private fun runApp(lockAcquired: Boolean) = application {
         }
 
         // External show request: the genmon panel click (and any other caller) touches the .show
-        // trigger file; poll its mtime and open the popup. Initialized to the current mtime so a
-        // stale trigger from a previous session doesn't pop the window on launch.
+        // trigger file. We use WatchService (inotify on Linux) to avoid polling every second,
+        // allowing the CPU to stay in a lower power state until a click actually happens.
         LaunchedEffect(Unit) {
-            val triggerFile = appDataDir().resolve(".show").toFile()
-            var lastSeen = triggerFile.lastModified()
-            while (true) {
-                kotlinx.coroutines.delay(1000)
-                val modified = triggerFile.lastModified()
-                if (modified != 0L && modified != lastSeen) {
-                    lastSeen = modified
-                    popupVisible = true
+            withContext(Dispatchers.IO) {
+                val dir = appDataDir()
+                val watchService = java.nio.file.FileSystems.getDefault().newWatchService()
+                dir.register(
+                    watchService,
+                    java.nio.file.StandardWatchEventKinds.ENTRY_CREATE,
+                    java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
+                )
+
+                try {
+                    while (true) {
+                        val key = watchService.take() // Blocks until an event occurs
+                        for (event in key.pollEvents()) {
+                            val context = event.context() as? java.nio.file.Path
+                            if (context?.toString() == ".show") {
+                                popupVisible = true
+                            }
+                        }
+                        if (!key.reset()) break
+                    }
+                } finally {
+                    watchService.close()
                 }
             }
         }
