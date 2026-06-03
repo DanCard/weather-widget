@@ -3,7 +3,6 @@ package com.weatherwidget.data.local.desktop
 import java.nio.file.Path
 import java.sql.Connection
 import java.sql.DriverManager
-import java.util.Properties
 import kotlin.io.path.createDirectories
 
 class DesktopWeatherDatabase(private val dbPath: Path) {
@@ -14,9 +13,14 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
 
     fun getConnection(): Connection {
         val url = "jdbc:sqlite:${dbPath.toAbsolutePath()}"
-        val props = Properties()
-        props.setProperty("foreign_keys", "true")
-        return DriverManager.getConnection(url, props)
+        val conn = DriverManager.getConnection(url)
+        // WAL lets the genmon reader and the app writer access the file concurrently without
+        // "database is locked"; busy_timeout gives a writer up to 5s to wait out a competing lock.
+        conn.createStatement().use { stmt ->
+            stmt.execute("PRAGMA busy_timeout = 5000")
+            stmt.execute("PRAGMA journal_mode = WAL")
+        }
+        return conn
     }
 
     fun initialize() {
@@ -129,6 +133,20 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     )
                 """.trimIndent())
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_extremes_lookup ON daily_extremes(date, locationLat, locationLon)")
+
+                // App log — persistent, queryable record of pipeline health (mirrors the Android
+                // app_logs table). timestamp is epoch ms so `datetime(timestamp/1000,'unixepoch',
+                // 'localtime')` works the same as on Android.
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS app_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp INTEGER NOT NULL,
+                        level TEXT NOT NULL,
+                        tag TEXT NOT NULL,
+                        message TEXT NOT NULL
+                    )
+                """.trimIndent())
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_app_logs_time ON app_logs(timestamp)")
 
                 // Migration / Versioning
                 val rs = stmt.executeQuery("PRAGMA user_version")

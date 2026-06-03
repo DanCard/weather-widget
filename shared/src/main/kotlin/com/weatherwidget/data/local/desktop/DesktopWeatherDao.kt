@@ -2,6 +2,7 @@ package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.util.Log
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.Types
@@ -236,8 +237,51 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.execute("DELETE FROM hourly_forecast_history WHERE fetchedAt < $beforeEpochMs")
                 stmt.execute("DELETE FROM observations WHERE fetchedAt < $beforeEpochMs")
                 stmt.execute("DELETE FROM daily_extremes WHERE updatedAt < $beforeEpochMs")
+                stmt.execute("DELETE FROM app_logs WHERE timestamp < $beforeEpochMs")
             }
         }
+    }
+
+    /**
+     * Appends an app-log row. Best-effort: a logging failure must never break a fetch, so any error
+     * is reported to the console logger and swallowed (this is the persistence backstop, not the
+     * primary log path).
+     */
+    fun log(tag: String, message: String, level: String = "INFO") {
+        try {
+            db.getConnection().use { conn ->
+                conn.prepareStatement(
+                    "INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, ?, ?, ?)"
+                ).use { stmt ->
+                    stmt.setLong(1, System.currentTimeMillis())
+                    stmt.setString(2, level)
+                    stmt.setString(3, tag)
+                    stmt.setString(4, message)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("DesktopWeatherDao", "app_logs write failed: $e")
+        }
+    }
+
+    fun getRecentLogs(limit: Int = 200): List<DesktopLogEntity> {
+        val result = mutableListOf<DesktopLogEntity>()
+        db.getConnection().use { conn ->
+            conn.prepareStatement("SELECT timestamp, level, tag, message FROM app_logs ORDER BY timestamp DESC LIMIT ?").use { stmt ->
+                stmt.setInt(1, limit)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(DesktopLogEntity(
+                        timestamp = rs.getLong("timestamp"),
+                        level = rs.getString("level"),
+                        tag = rs.getString("tag"),
+                        message = rs.getString("message"),
+                    ))
+                }
+            }
+        }
+        return result
     }
 
     fun getLatestHourly(locationLat: Double, locationLon: Double, source: String, maxAgeMs: Long): List<HourlyForecast> {
@@ -308,6 +352,106 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         iconToken = rs.getString("nativeDailyIconToken"),
                         precipProbability = rs.getNullableInt("precipProbability"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm")
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
+    fun getObservationsInRange(startTs: Long, endTs: Long, locationLat: Double, locationLon: Double): List<DesktopObservationEntity> {
+        val result = mutableListOf<DesktopObservationEntity>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT * FROM observations
+                WHERE locationLat = ? AND locationLon = ? AND timestamp >= ? AND timestamp < ?
+                ORDER BY timestamp ASC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setLong(3, startTs)
+                stmt.setLong(4, endTs)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(DesktopObservationEntity(
+                        stationId = rs.getString("stationId"),
+                        stationName = rs.getString("stationName"),
+                        timestamp = rs.getLong("timestamp"),
+                        temperature = rs.getFloat("temperature"),
+                        condition = rs.getString("condition"),
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
+                        distanceKm = rs.getFloat("distanceKm"),
+                        stationType = rs.getString("stationType"),
+                        fetchedAt = rs.getLong("fetchedAt"),
+                        maxTempLast24h = rs.getNullableFloat("maxTempLast24h"),
+                        minTempLast24h = rs.getNullableFloat("minTempLast24h"),
+                        api = rs.getString("api"),
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
+    fun getExtremesInRange(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double): List<DesktopDailyExtremeEntity> {
+        val result = mutableListOf<DesktopDailyExtremeEntity>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT * FROM daily_extremes
+                WHERE locationLat = ? AND locationLon = ? AND date >= ? AND date <= ?
+                ORDER BY date ASC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setLong(3, startEpoch)
+                stmt.setLong(4, endEpoch)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(DesktopDailyExtremeEntity(
+                        date = rs.getLong("date"),
+                        source = rs.getString("source"),
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
+                        highTemp = rs.getFloat("highTemp"),
+                        lowTemp = rs.getFloat("lowTemp"),
+                        condition = rs.getString("condition"),
+                        updatedAt = rs.getLong("updatedAt"),
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        precipDayMm = rs.getNullableFloat("precipDayMm"),
+                        precipNightMm = rs.getNullableFloat("precipNightMm"),
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
+    fun getForecastsInRangeBySource(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): List<DesktopForecastRow> {
+        val result = mutableListOf<DesktopForecastRow>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT targetDate, forecastDate, source, highTemp, lowTemp, fetchedAt FROM forecasts
+                WHERE locationLat = ? AND locationLon = ? AND source = ? AND targetDate >= ? AND targetDate <= ?
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                stmt.setLong(4, startEpoch)
+                stmt.setLong(5, endEpoch)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(DesktopForecastRow(
+                        targetDate = rs.getLong("targetDate"),
+                        forecastDate = rs.getLong("forecastDate"),
+                        source = rs.getString("source"),
+                        highTemp = rs.getNullableFloat("highTemp"),
+                        lowTemp = rs.getNullableFloat("lowTemp"),
+                        fetchedAt = rs.getLong("fetchedAt"),
                     ))
                 }
             }

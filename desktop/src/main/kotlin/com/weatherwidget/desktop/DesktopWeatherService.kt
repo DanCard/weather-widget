@@ -1,19 +1,24 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.*
+import com.weatherwidget.shared.util.Log
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
+import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 
 /**
  * Thin desktop-side orchestration over the shared API clients. Supports all major sources
@@ -77,44 +82,56 @@ class DesktopWeatherService(
         val grid = nwsApi.getGridPoint(latitude, longitude)
         val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
         val dailyDeferred = async { nwsApi.getForecast(grid) }
-        
-        val currentObsDeferred = async {
-            try {
-                grid.observationStationsUrl?.let { url ->
-                    val stations = nwsApi.getObservationStations(url)
-                    stations.firstOrNull()?.let { nwsApi.getLatestObservationDetailed(it.id) }
-                }
-            } catch (e: Exception) {
-                null
+
+        // Resolve the nearest observation station once, then reuse its id for both the latest
+        // reading (current temp) and the historical window (actuals / daily_extremes). These three
+        // observation fetches are best-effort: if any fails the forecast still renders from the
+        // hourly/daily feeds, so we degrade to null/empty (and log) rather than fail the whole fetch.
+        val stationDeferred = async {
+            bestEffort("observation stations") {
+                grid.observationStationsUrl?.let { url -> nwsApi.getObservationStations(url).firstOrNull() }
             }
+        }
+        val station = stationDeferred.await()
+
+        val currentObsDeferred = async {
+            station?.let { st -> bestEffort("latest observation") { nwsApi.getLatestObservationDetailed(st.id) } }
+        }
+        val historicalObsDeferred = async {
+            station?.let { st ->
+                bestEffort("historical observations") {
+                    // NWS returns ZERO observations when start/end carry fractional seconds (HTTP 200,
+                    // empty body — not an error), so truncate to whole seconds before formatting.
+                    val end = Instant.now().truncatedTo(ChronoUnit.SECONDS)
+                    val start = end.minus(HISTORY_DAYS, ChronoUnit.DAYS)
+                    nwsApi.getObservations(st.id, start.toString(), end.toString()).also { obs ->
+                        // Empty-but-no-exception is the failure mode to watch (see fractional-seconds
+                        // note); log the count so a silently-empty actuals pipeline is visible.
+                        Log.i(TAG, "historical observations: station=${st.id} count=${obs.size}")
+                    }
+                }
+            } ?: emptyList()
         }
 
         val hourlyRaw = hourlyDeferred.await()
         val dailyRaw = dailyDeferred.await()
         val currentObs = currentObsDeferred.await()
+        val historicalObs = historicalObsDeferred.await()
 
-        val observations = currentObs?.let { obs ->
-            listOf(
-                DesktopObservationEntity(
-                    stationId = grid.observationStationsUrl?.substringAfterLast("/") ?: "NWS",
-                    stationName = obs.stationName,
-                    timestamp = try { java.time.ZonedDateTime.parse(obs.timestamp).toInstant().toEpochMilli() } catch (e: Exception) { System.currentTimeMillis() },
-                    temperature = (obs.temperatureCelsius * 1.8f) + 32f,
-                    condition = obs.textDescription,
-                    locationLat = latitude,
-                    locationLon = longitude,
-                    api = "NWS",
-                    precipAmountMm = obs.precipLastHourMm,
-                    maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-                    minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f }
-                )
-            )
-        } ?: emptyList()
+        val stationId = station?.id ?: "NWS"
+        val stationName = station?.name ?: currentObs?.stationName ?: stationId
+
+        // Latest detailed reading + the historical window, mapped to the pure model type. The DB
+        // dedups by (stationId, timestamp), so an overlapping latest reading is harmless.
+        val observations = buildList {
+            currentObs?.let { add(it.toReading(stationId, stationName)) }
+            historicalObs.forEach { add(it.toReading(stationId, stationName)) }
+        }
 
         ForecastResult(
-            currentTemp = currentObs?.temperatureCelsius?.let { (it * 1.8f) + 32f } 
+            currentTemp = currentObs?.temperatureCelsius?.let { (it * 1.8f) + 32f }
                 ?: hourlyRaw.firstOrNull()?.temperature,
-            currentCondition = currentObs?.textDescription 
+            currentCondition = currentObs?.textDescription
                 ?: hourlyRaw.firstOrNull()?.shortForecast,
             currentObservedAt = observations.firstOrNull()?.timestamp,
             hourly = hourlyRaw.map { it.toHourlyForecast() },
@@ -122,6 +139,36 @@ class DesktopWeatherService(
             rawObservations = observations
         )
     }
+
+    /**
+     * Runs a best-effort supplementary fetch. Failures degrade to null (callers fall back to the
+     * hourly/daily feeds) and are logged, but [CancellationException] is rethrown so coroutine
+     * cancellation and structured concurrency keep working — a bare `catch (Exception)` would
+     * swallow it and break cancellation.
+     */
+    private inline fun <T> bestEffort(what: String, block: () -> T): T? =
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "$what fetch failed: $e")
+            null
+        }
+
+    private fun NwsApi.Observation.toReading(stationId: String, stationName: String) = ObservationReading(
+        stationId = stationId,
+        stationName = this.stationName.ifBlank { stationName },
+        timestamp = try { ZonedDateTime.parse(timestamp).toInstant().toEpochMilli() } catch (e: Exception) { System.currentTimeMillis() },
+        temperature = (temperatureCelsius * 1.8f) + 32f,
+        condition = textDescription,
+        locationLat = latitude,
+        locationLon = longitude,
+        api = "NWS",
+        precipAmountMm = precipLastHourMm,
+        maxTempLast24h = maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+        minTempLast24h = minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+    )
 
     private fun NwsApi.HourlyForecastPeriod.toHourlyForecast() = HourlyForecast(
         dateTime = startTime,
@@ -162,5 +209,10 @@ class DesktopWeatherService(
     companion object {
         const val FALLBACK_LATITUDE = 37.4220
         const val FALLBACK_LONGITUDE = -122.0841
+
+        // How far back to pull observations for the actuals / accuracy pipeline.
+        const val HISTORY_DAYS = 7L
+
+        private const val TAG = "DesktopWeatherService"
     }
 }

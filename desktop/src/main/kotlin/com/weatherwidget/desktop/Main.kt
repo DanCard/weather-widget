@@ -61,6 +61,7 @@ fun main() = application {
         var popupVisible by remember { mutableStateOf(config != null) }
         var pickerVisible by remember { mutableStateOf(config == null) }
         var settingsVisible by remember { mutableStateOf(false) }
+        var statsVisible by remember { mutableStateOf(false) }
         val desktopClients = remember { DesktopClients() }
         val locationResolver = remember {
             LocationResolver(
@@ -124,12 +125,21 @@ fun main() = application {
             temperature = forecast?.currentTemp,
             onShow = { popupVisible = true },
             onSettings = { settingsVisible = true },
+            onStatistics = { statsVisible = true },
             onUpdateLocation = {
                 popupVisible = false
                 pickerVisible = true
             },
             onQuit = ::quit,
         )
+
+        if (statsVisible && currentConfig != null) {
+            StatisticsWindow(
+                weatherDao = weatherDao,
+                config = currentConfig,
+                onClose = { statsVisible = false },
+            )
+        }
 
         if (pickerVisible) {
             val pickerState = rememberWindowState(
@@ -243,6 +253,7 @@ private fun TemperatureSystemTray(
     temperature: Float?,
     onShow: () -> Unit,
     onSettings: () -> Unit,
+    onStatistics: () -> Unit,
     onUpdateLocation: () -> Unit,
     onQuit: () -> Unit,
 ) {
@@ -258,6 +269,7 @@ private fun TemperatureSystemTray(
         
         tray.menu.apply {
             add(TrayMenuItem("Show") { onShow() })
+            add(TrayMenuItem("Forecast Accuracy") { onStatistics() })
             add(TrayMenuItem("Settings") { onSettings() })
             add(TrayMenuItem("Update location...") { onUpdateLocation() })
             add(TrayMenuItem("Quit") { onQuit() })

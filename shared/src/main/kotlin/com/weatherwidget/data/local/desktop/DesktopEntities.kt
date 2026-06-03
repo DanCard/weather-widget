@@ -30,3 +30,24 @@ data class DesktopDailyExtremeEntity(
     val precipDayMm: Float? = null,
     val precipNightMm: Float? = null,
 )
+
+/** A persistent app-log row (desktop analogue of the Android app_logs table). */
+data class DesktopLogEntity(
+    val timestamp: Long, // epoch ms
+    val level: String,
+    val tag: String,
+    val message: String,
+)
+
+/**
+ * Slim projection of a `forecasts` row — just the columns the accuracy calculator needs to match a
+ * forecast to its actual and compute the error.
+ */
+data class DesktopForecastRow(
+    val targetDate: Long,
+    val forecastDate: Long,
+    val source: String,
+    val highTemp: Float?,
+    val lowTemp: Float?,
+    val fetchedAt: Long,
+)

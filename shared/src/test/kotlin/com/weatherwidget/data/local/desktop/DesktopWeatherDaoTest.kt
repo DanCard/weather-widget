@@ -89,6 +89,23 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `test app log round-trip and cleanup`() {
+        dao.log("REFRESH", "obs=500 extremes=5")
+        dao.log("REFRESH", "obs=0 extremes=0", level = "WARN")
+
+        val recent = dao.getRecentLogs(10)
+        assertEquals(2, recent.size)
+        // Most recent first.
+        assertEquals("obs=0 extremes=0", recent[0].message)
+        assertEquals("WARN", recent[0].level)
+        assertEquals("REFRESH", recent[1].tag)
+
+        // app_logs is pruned by cleanup like the other tables.
+        dao.cleanup(System.currentTimeMillis() + 10_000)
+        assertEquals(0, dao.getRecentLogs(10).size)
+    }
+
+    @Test
     fun `test cleanup`() {
         val lat = 40.0
         val lon = -75.0

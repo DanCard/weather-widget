@@ -1,7 +1,5 @@
 package com.weatherwidget.data.model
 
-import com.weatherwidget.data.local.desktop.DesktopObservationEntity
-
 data class HourlyForecast(
     val dateTime: Long,
     val temperature: Float,
@@ -21,11 +19,31 @@ data class DailyForecast(
     val precipAmountMm: Float? = null,
 )
 
+/**
+ * A single weather observation, in the pure model layer so [ForecastResult] doesn't depend on the
+ * desktop persistence package. The persistence layer maps this to its own entity for storage.
+ */
+data class ObservationReading(
+    val stationId: String,
+    val stationName: String,
+    val timestamp: Long, // epoch ms
+    val temperature: Float, // Fahrenheit
+    val condition: String,
+    val locationLat: Double,
+    val locationLon: Double,
+    val distanceKm: Float = 0f,
+    val stationType: String = "UNKNOWN",
+    val maxTempLast24h: Float? = null, // Fahrenheit
+    val minTempLast24h: Float? = null, // Fahrenheit
+    val api: String,
+    val precipAmountMm: Float? = null,
+)
+
 data class ForecastResult(
     val currentTemp: Float? = null,
     val currentCondition: String? = null,
     val currentObservedAt: Long? = null,
     val daily: List<DailyForecast> = emptyList(),
     val hourly: List<HourlyForecast> = emptyList(),
-    val rawObservations: List<DesktopObservationEntity> = emptyList(),
+    val rawObservations: List<ObservationReading> = emptyList(),
 )
