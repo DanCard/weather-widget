@@ -284,6 +284,17 @@ if [ -z "$gradle_log" ]; then
   is_temp_log=true
 fi
 
+# Run :shared and :desktop tests in parallel with the :app buckets below.
+# These are pure-JVM tests (no Robolectric, no ASM cache) so a separate Gradle
+# invocation is safe and avoids competing for the :app build cache.
+shared_desktop_log=$(mktemp)
+shared_desktop_status=0
+(
+  cd "$ROOT_DIR"
+  JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" :shared:test :desktop:test --console=plain
+) >"$shared_desktop_log" 2>&1 &
+SHARED_DESKTOP_PID=$!
+
 overall_status=0
 start_single_invocation_summary_monitor "$gradle_log"
 if [ "$STREAM_OUTPUT" = true ]; then
@@ -317,9 +328,44 @@ if [ -n "$SINGLE_INVOCATION_REPORT_POLLER_PID" ] && kill -0 "$SINGLE_INVOCATION_
   SINGLE_INVOCATION_REPORT_POLLER_PID=""
 fi
 
-# Report per-bucket results from JUnit XML
+# Report results from both :app buckets and :shared/:desktop tests.
 total_tests=0
 total_failures=0
+
+# Wait for the parallel :shared/:desktop tests to finish and report results.
+if [ -n "$SHARED_DESKTOP_PID" ] && kill -0 "$SHARED_DESKTOP_PID" 2>/dev/null; then
+  log_and_echo "Waiting for :shared and :desktop tests to finish..."
+  wait "$SHARED_DESKTOP_PID" || shared_desktop_status=$?
+fi
+for module in shared desktop; do
+  results_dir="$ROOT_DIR/$module/build/test-results/test"
+  if [ -d "$results_dir" ] && compgen -G "$results_dir/TEST-*.xml" >/dev/null 2>&1; then
+    IFS='|' read -r test_count failures errors skipped module_duration <<<"$(bucket_result_summary "$results_dir")"
+    total_tests=$((total_tests + test_count))
+    module_failures=$((failures + errors))
+    total_failures=$((total_failures + module_failures))
+    if [ "$module_failures" -gt 0 ]; then
+      log_and_echo "${test_count} ${module} tests: ${RED}${module_failures} failed.${NC}"
+      list_failed_tests "$results_dir" | while IFS= read -r line; do
+        log_and_echo "${RED}${line}${NC}"
+      done
+    elif [ "$skipped" -gt 0 ]; then
+      log_and_echo "${test_count} ${module} tests passed (${skipped} skipped) in $(format_seconds "${module_duration:-0}")."
+    else
+      log_and_echo "${test_count} ${module} tests passed in $(format_seconds "${module_duration:-0}")."
+    fi
+  elif [ "$shared_desktop_status" -ne 0 ]; then
+    log_and_echo "${RED}:${module} tests failed (exit $shared_desktop_status)${NC}"
+    total_failures=$((total_failures + 1))
+  fi
+done
+if [ "$shared_desktop_status" -ne 0 ]; then
+  log_and_echo "${RED}Shared/desktop test log:${NC}"
+  cat "$shared_desktop_log"
+fi
+rm -f "$shared_desktop_log"
+
+# Report per-bucket results from JUnit XML
 for bucket in "${BUCKETS[@]}"; do
   results_dir="$ROOT_DIR/app/build/test-results/test${bucket}DebugUnitTest${RUN_MODE}"
   if [ -d "$results_dir" ]; then
@@ -357,10 +403,13 @@ if [ "$INSTALL_MODE" = true ]; then
 fi
 
 overall_elapsed=$(( $(date +%s) - OVERALL_START ))
-if [ "$overall_status" -eq 0 ] && [ "$total_failures" -eq 0 ]; then
+if [ "$overall_status" -eq 0 ] && [ "$shared_desktop_status" -eq 0 ] && [ "$total_failures" -eq 0 ]; then
   log_and_echo "${total_tests} tests passed in $(format_seconds "$overall_elapsed")."
 else
   if [ "$total_failures" -gt 0 ] && [ "$overall_status" -eq 0 ]; then
+    overall_status=1
+  fi
+  if [ "$shared_desktop_status" -ne 0 ] && [ "$overall_status" -eq 0 ]; then
     overall_status=1
   fi
   log_and_echo "${total_tests} tests, ${RED}${total_failures} failed${NC} in $(format_seconds "$overall_elapsed")."
