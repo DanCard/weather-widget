@@ -52,10 +52,9 @@ class DesktopUiTest {
             )
         }
 
-        // Verify location and temperature are displayed
+        // Verify location chrome is displayed and daily forecast renders through the canvas surface.
         composeTestRule.onNodeWithText("Mountain View").assertExists()
-        composeTestRule.onNodeWithText("72.0°").assertExists()
-        composeTestRule.onNodeWithText("Sunny").assertExists()
+        composeTestRule.onNodeWithTag("daily_forecast_surface").assertExists()
     }
 
     @Test
@@ -73,7 +72,7 @@ class DesktopUiTest {
         }
 
         // Initially in DAILY mode (default)
-        composeTestRule.onNodeWithText("Hourly").performClick()
+        composeTestRule.onNodeWithText("H").performClick()
         
         assert(updatedConfig?.viewMode == "HOURLY")
     }

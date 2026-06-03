@@ -2,6 +2,7 @@ package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.util.Log
@@ -404,6 +405,64 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         precipProbability = rs.getNullableInt("precipProbability"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm")
                     ))
+                }
+            }
+        }
+        return result
+    }
+
+    fun getDailyForecastSnapshots(
+        startEpoch: Long,
+        endEpoch: Long,
+        locationLat: Double,
+        locationLon: Double,
+        source: String,
+    ): Map<String, List<DailyForecastSnapshot>> {
+        val result = linkedMapOf<String, MutableList<DailyForecastSnapshot>>()
+        db.getConnection().use { conn ->
+            val latestBatchSql = """
+                SELECT MAX(batchFetchedAt) FROM forecasts
+                WHERE locationLat = ? AND locationLon = ? AND source = ?
+            """.trimIndent()
+            val latestBatch = conn.prepareStatement(latestBatchSql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                val rs = stmt.executeQuery()
+                if (rs.next()) rs.getLong(1) else 0L
+            }
+
+            val sql = """
+                SELECT targetDate, highTemp, lowTemp, condition, nativeDailyIconToken,
+                    precipProbability, precipAmountMm, fetchedAt, batchFetchedAt
+                FROM forecasts
+                WHERE locationLat = ? AND locationLon = ? AND source = ?
+                    AND targetDate >= ? AND targetDate <= ?
+                ORDER BY targetDate ASC, fetchedAt DESC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                stmt.setLong(4, startEpoch)
+                stmt.setLong(5, endEpoch)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    if (latestBatch != 0L && rs.getLong("batchFetchedAt") == latestBatch) continue
+                    val targetDate = rs.getLong("targetDate")
+                    val dateStr = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(targetDate), ZoneOffset.UTC).toString()
+                    result.getOrPut(dateStr) { mutableListOf() }.add(
+                        DailyForecastSnapshot(
+                            date = dateStr,
+                            highTemp = rs.getNullableFloat("highTemp"),
+                            lowTemp = rs.getNullableFloat("lowTemp"),
+                            condition = rs.getString("condition"),
+                            iconToken = rs.getString("nativeDailyIconToken"),
+                            precipProbability = rs.getNullableInt("precipProbability"),
+                            precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                            fetchedAt = rs.getLong("fetchedAt"),
+                        )
+                    )
                 }
             }
         }

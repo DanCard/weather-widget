@@ -19,6 +19,17 @@ data class DailyForecast(
     val precipAmountMm: Float? = null,
 )
 
+data class DailyForecastSnapshot(
+    val date: String,
+    val highTemp: Float?,
+    val lowTemp: Float?,
+    val condition: String,
+    val iconToken: String? = null,
+    val precipProbability: Int? = null,
+    val precipAmountMm: Float? = null,
+    val fetchedAt: Long,
+)
+
 data class DailyActual(
     val date: String,
     val highTemp: Float,
@@ -53,6 +64,7 @@ data class ForecastResult(
     val daily: List<DailyForecast> = emptyList(),
     val hourly: List<HourlyForecast> = emptyList(),
     val dailyActuals: Map<String, DailyActual> = emptyMap(),
+    val dailySnapshots: Map<String, List<DailyForecastSnapshot>> = emptyMap(),
     val rawObservations: List<ObservationReading> = emptyList(),
 )
 

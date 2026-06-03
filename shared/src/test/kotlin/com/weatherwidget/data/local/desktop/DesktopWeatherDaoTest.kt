@@ -66,6 +66,26 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `test daily forecast snapshots exclude latest batch`() {
+        val lat = 40.0
+        val lon = -75.0
+        val source = "NWS"
+        val date = java.time.LocalDate.parse("2026-06-02")
+        val epoch = date.toEpochDay() * DailyExtremesComputer.MS_IN_A_DAY
+
+        dao.upsertForecasts(lat, lon, source, listOf(DailyForecast("2026-06-02", 78f, 59f, "Cloudy")))
+        Thread.sleep(5)
+        dao.upsertForecasts(lat, lon, source, listOf(DailyForecast("2026-06-02", 81f, 61f, "Sunny")))
+
+        val latest = dao.getDailyForecasts(lat, lon, source)
+        val snapshots = dao.getDailyForecastSnapshots(epoch, epoch, lat, lon, source)
+
+        assertEquals(81f, latest.single().highTemp)
+        assertEquals(1, snapshots["2026-06-02"]?.size)
+        assertEquals(78f, snapshots["2026-06-02"]?.single()?.highTemp)
+    }
+
+    @Test
     fun `test observation round-trip`() {
         val lat = 40.0
         val lon = -75.0

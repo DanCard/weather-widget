@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.createFontFamilyResolver
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -107,6 +108,9 @@ private fun extractGenmonScript() {
 }
 
 fun main() {
+    if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
+        return
+    }
     val lockAcquired = acquireSingleInstanceLock()
     if (lockAcquired) {
         maybePackagedSetup()
@@ -522,7 +526,8 @@ internal fun WidgetPopup(
                         forecast = snapshot,
                         onUpdateConfig = onUpdateConfig,
                         onOpenSettings = onOpenSettings,
-                        onUpdateLocation = onUpdateLocation
+                        onUpdateLocation = onUpdateLocation,
+                        showWeatherSummary = config.viewMode == "HOURLY",
                     )
 
                     Spacer(Modifier.height(8.dp))
@@ -536,59 +541,50 @@ internal fun WidgetPopup(
                             startOffsetHours = config.hourlyOffset,
                         )
                     } else {
-                        val today = remember { LocalDateTime.now().toLocalDate() }
-                        val skipYesterday = remember { NavigationUtils.shouldSkipYesterday() }
-                        val numColumns = 7 // Desktop fixed to 7 for now
-                        val displayDates = NavigationUtils.getVisibleDateRange(
-                            today = today,
-                            dateOffset = config.dateOffset,
-                            numColumns = numColumns,
-                            skipYesterday = skipYesterday
-                        )
-                        val filteredDaily = snapshot.daily.filter {
-                            val d = LocalDate.parse(it.date)
-                            !d.isBefore(displayDates.first) && !d.isAfter(displayDates.second)
-                        }
-
-                        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                            DailyForecastGraph(
-                                daily = filteredDaily,
-                                actuals = snapshot.dailyActuals,
-                                modifier = Modifier.fillMaxSize(),
-                                onDayClick = { clickedDate ->
-                                    val now = LocalDateTime.now()
-                                    // Calculate offset for hourly view: hours from now to clicked date midnight
-                                    val hours = java.time.Duration.between(now, clickedDate.atStartOfDay()).toHours().toInt()
-                                    onUpdateConfig(config.copy(
-                                        viewMode = "HOURLY",
-                                        hourlyOffset = hours
-                                    ))
-                                }
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).testTag("daily_forecast_surface")) {
+                            val dimensions = DesktopDailyForecastModel.dimensions(
+                                widthDp = maxWidth.value.roundToInt(),
+                                heightDp = maxHeight.value.roundToInt(),
+                            )
+                            val dailyState = DesktopDailyForecastModel.build(
+                                config = config,
+                                forecast = snapshot,
+                                dimensions = dimensions,
                             )
 
-                            // Navigation Arrows
-                            val availableDates = remember(snapshot.daily) {
-                                snapshot.daily.map { LocalDate.parse(it.date) }.toSet()
-                            }
-                            val sortedDates = availableDates.sorted()
-                            val minDate = sortedDates.firstOrNull()
-                            val maxDate = sortedDates.lastOrNull()
-
-                            val (leftmostNext, _) = NavigationUtils.getVisibleDateRange(today, config.dateOffset - 1, numColumns, skipYesterday)
-                            val (_, rightmostNext) = NavigationUtils.getVisibleDateRange(today, config.dateOffset + 1, numColumns, skipYesterday)
-
-                            val canLeft = minDate != null && !minDate.isAfter(leftmostNext)
-                            val canRight = maxDate != null && !maxDate.isBefore(rightmostNext)
-
-                            if (canLeft) {
-                                NavArrow(Alignment.CenterStart, "<") {
-                                    onUpdateConfig(config.copy(dateOffset = config.dateOffset - 1))
+                            LaunchedEffect(dailyState.clampedDateOffset) {
+                                if (dailyState.clampedDateOffset != config.dateOffset) {
+                                    onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset))
                                 }
                             }
-                            if (canRight) {
-                                NavArrow(Alignment.CenterEnd, ">") {
-                                    onUpdateConfig(config.copy(dateOffset = config.dateOffset + 1))
-                                }
+
+                            if (dailyState.dimensions.useGraph) {
+                                DailyForecastGraph(
+                                    state = dailyState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    onDayClick = { clickedDate ->
+                                        val now = LocalDateTime.now()
+                                        val hours = java.time.Duration.between(now, clickedDate.atStartOfDay()).toHours().toInt()
+                                        onUpdateConfig(config.copy(viewMode = "HOURLY", hourlyOffset = hours))
+                                    }
+                                )
+                            } else {
+                                DailyForecastTextMode(
+                                    state = dailyState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    onDayClick = { clickedDate ->
+                                        val now = LocalDateTime.now()
+                                        val hours = java.time.Duration.between(now, clickedDate.atStartOfDay()).toHours().toInt()
+                                        onUpdateConfig(config.copy(viewMode = "HOURLY", hourlyOffset = hours))
+                                    }
+                                )
+                            }
+
+                            NavArrow(Alignment.CenterStart, "<", dailyState.canNavigateLeft) {
+                                onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset - 1))
+                            }
+                            NavArrow(Alignment.CenterEnd, ">", dailyState.canNavigateRight) {
+                                onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset + 1))
                             }
                         }
                     }
@@ -599,17 +595,16 @@ internal fun WidgetPopup(
 }
 
 @Composable
-private fun NavArrow(alignment: Alignment, label: String, onClick: () -> Unit) {
-    Box(modifier = Modifier.fillMaxHeight().width(24.dp), contentAlignment = alignment) {
-        Surface(
+private fun NavArrow(alignment: Alignment, label: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = alignment) {
+        IconButton(
             onClick = onClick,
-            color = Color.Black.copy(alpha = 0.3f),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+            enabled = enabled,
+            modifier = Modifier.width(28.dp).fillMaxHeight(),
         ) {
             Text(
                 text = label,
-                color = Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                color = Color.White.copy(alpha = if (enabled) 0.75f else 0.18f),
                 style = MaterialTheme.typography.labelLarge
             )
         }
@@ -661,64 +656,67 @@ private fun WidgetHeader(
     forecast: ForecastResult,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
-    onUpdateLocation: () -> Unit
+    onUpdateLocation: () -> Unit,
+    showWeatherSummary: Boolean = true,
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Top row: dominant current temp (left) + API source / date (right)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                androidx.compose.foundation.Image(
-                    painter = WeatherIcon.painter(forecast.currentCondition),
-                    contentDescription = null,
-                    modifier = Modifier.size(32.dp).padding(end = 6.dp)
-                )
-                Text(
-                    text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
-                    style = MaterialTheme.typography.displaySmall,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = forecast.currentCondition ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.6f),
-                    maxLines = 1,
-                )
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                val visibleSources = config.visibleSources
-                if (visibleSources.size > 1) {
-                    Text(
-                        text = config.weatherSource,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.clickable {
-                            val nextIdx = (visibleSources.indexOf(config.weatherSource) + 1) % visibleSources.size
-                            onUpdateConfig(config.copy(weatherSource = visibleSources[nextIdx]))
-                        }
+        if (showWeatherSummary) {
+            // Top row: dominant current temp (left) + API source / date (right)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    androidx.compose.foundation.Image(
+                        painter = WeatherIcon.painter(forecast.currentCondition),
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp).padding(end = 6.dp)
                     )
-                } else {
                     Text(
-                        text = config.weatherSource,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.5f),
+                        text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
+                        style = MaterialTheme.typography.displaySmall,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = forecast.currentCondition ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.6f),
+                        maxLines = 1,
                     )
                 }
-                Text(
-                    text = LocalDateTime.now().format(dateFormatter),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.7f)
-                )
-            }
-        }
 
-        Spacer(Modifier.height(6.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    val visibleSources = config.visibleSources
+                    if (visibleSources.size > 1) {
+                        Text(
+                            text = config.weatherSource,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.clickable {
+                                val nextIdx = (visibleSources.indexOf(config.weatherSource) + 1) % visibleSources.size
+                                onUpdateConfig(config.copy(weatherSource = visibleSources[nextIdx]))
+                            }
+                        )
+                    } else {
+                        Text(
+                            text = config.weatherSource,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.5f),
+                        )
+                    }
+                    Text(
+                        text = LocalDateTime.now().format(dateFormatter),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+        }
 
         // Bottom row: location + gear (left) | H / D mode chips (right)
         Row(
@@ -749,6 +747,50 @@ private fun WidgetHeader(
                 }
                 ViewModeChip("D", config.viewMode == "DAILY") {
                     onUpdateConfig(config.copy(viewMode = "DAILY"))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DailyForecastTextMode(
+    state: DesktopDailyViewState,
+    modifier: Modifier = Modifier,
+    onDayClick: (LocalDate) -> Unit = {},
+) {
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        state.days.forEach { day ->
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable { onDayClick(day.date) }
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = day.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (day.isToday) Color.Yellow else Color.White.copy(alpha = 0.62f),
+                    maxLines = 1,
+                )
+                val high = listOfNotNull(day.solidHigh, day.forecastHigh, day.snapshotHigh).maxOrNull()
+                val low = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
+                Text(
+                    text = high?.roundToInt()?.let { "$it°" } ?: "--",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    maxLines = 1,
+                )
+                if (state.dimensions.cols >= 2) {
+                    Text(
+                        text = low?.roundToInt()?.let { "$it°" } ?: "--",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.62f),
+                        maxLines = 1,
+                    )
                 }
             }
         }

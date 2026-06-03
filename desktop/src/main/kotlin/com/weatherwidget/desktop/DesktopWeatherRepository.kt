@@ -33,6 +33,7 @@ class DesktopWeatherRepository(
         val latestObs = observations.maxByOrNull { it.timestamp }?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
         val interpolatedTemp = DesktopTemperatureInterpolator.getInterpolatedTemperature(hourly, now)
         val actuals = loadDailyActuals(daily)
+        val snapshots = loadDailySnapshots(daily)
 
         if (hourly.isEmpty() && daily.isEmpty()) {
             return@withContext null
@@ -45,6 +46,7 @@ class DesktopWeatherRepository(
             daily = daily,
             hourly = hourly,
             dailyActuals = actuals,
+            dailySnapshots = snapshots,
             rawObservations = observations,
         )
     }
@@ -81,6 +83,7 @@ class DesktopWeatherRepository(
         // forecast-accuracy comparisons are measured against.
         val extremesCount = recomputeDailyExtremes(now)
         val actuals = loadDailyActuals(result.daily)
+        val snapshots = loadDailySnapshots(result.daily)
 
         // Snapshot for history (Tier 1 simplification: 4h buckets)
         val snapshotBucket = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
@@ -103,6 +106,7 @@ class DesktopWeatherRepository(
             currentTemp = result.currentTemp
                 ?: DesktopTemperatureInterpolator.getInterpolatedTemperature(result.hourly, now),
             dailyActuals = actuals,
+            dailySnapshots = snapshots,
             rawObservations = result.rawObservations,
         )
     }
@@ -125,6 +129,14 @@ class DesktopWeatherRepository(
         val start = dates.min().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         val end = dates.max().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         return weatherDao.getDailyActuals(start, end, latitude, longitude, weatherSource)
+    }
+
+    private fun loadDailySnapshots(daily: List<com.weatherwidget.data.model.DailyForecast>): Map<String, List<com.weatherwidget.data.model.DailyForecastSnapshot>> {
+        if (daily.isEmpty()) return emptyMap()
+        val dates = daily.map { LocalDate.parse(it.date) }
+        val start = dates.min().minusDays(14).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val end = dates.max().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        return weatherDao.getDailyForecastSnapshots(start, end, latitude, longitude, weatherSource)
     }
 
     private fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
