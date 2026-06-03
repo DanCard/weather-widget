@@ -64,13 +64,15 @@ fun TemperatureGraph(
     observations: List<ObservationReading> = emptyList(),
     modifier: Modifier = Modifier,
     hoursAhead: Int = 48,
+    startOffsetHours: Int = 0,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
-    val cutoff = now + hoursAhead * 3_600_000L
+    val start = now + startOffsetHours * 3_600_000L
+    val cutoff = start + hoursAhead * 3_600_000L
 
-    val points = remember(hourly, hoursAhead) {
-        hourly.filter { it.dateTime in (now - 3_600_000L)..cutoff }
+    val points = remember(hourly, hoursAhead, startOffsetHours) {
+        hourly.filter { it.dateTime in (start - 3_600_000L)..cutoff }
             .sortedBy { it.dateTime }
             .ifEmpty { hourly.sortedBy { it.dateTime }.take(hoursAhead) }
     }

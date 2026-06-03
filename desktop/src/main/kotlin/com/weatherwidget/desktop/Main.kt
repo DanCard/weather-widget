@@ -28,6 +28,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.remote.NominatimApi
+import com.weatherwidget.util.NavigationUtils
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
@@ -40,6 +41,7 @@ import java.awt.Font
 import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -531,16 +533,85 @@ internal fun WidgetPopup(
                             currentTemp = snapshot.currentTemp,
                             observations = snapshot.rawObservations,
                             modifier = Modifier.fillMaxWidth().weight(1f),
+                            startOffsetHours = config.hourlyOffset,
                         )
                     } else {
-                        DailyForecastGraph(
-                            daily = snapshot.daily,
-                            actuals = snapshot.dailyActuals,
-                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        val today = remember { LocalDateTime.now().toLocalDate() }
+                        val skipYesterday = remember { NavigationUtils.shouldSkipYesterday() }
+                        val numColumns = 7 // Desktop fixed to 7 for now
+                        val displayDates = NavigationUtils.getVisibleDateRange(
+                            today = today,
+                            dateOffset = config.dateOffset,
+                            numColumns = numColumns,
+                            skipYesterday = skipYesterday
                         )
+                        val filteredDaily = snapshot.daily.filter {
+                            val d = LocalDate.parse(it.date)
+                            !d.isBefore(displayDates.first) && !d.isAfter(displayDates.second)
+                        }
+
+                        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            DailyForecastGraph(
+                                daily = filteredDaily,
+                                actuals = snapshot.dailyActuals,
+                                modifier = Modifier.fillMaxSize(),
+                                onDayClick = { clickedDate ->
+                                    val now = LocalDateTime.now()
+                                    // Calculate offset for hourly view: hours from now to clicked date midnight
+                                    val hours = java.time.Duration.between(now, clickedDate.atStartOfDay()).toHours().toInt()
+                                    onUpdateConfig(config.copy(
+                                        viewMode = "HOURLY",
+                                        hourlyOffset = hours
+                                    ))
+                                }
+                            )
+
+                            // Navigation Arrows
+                            val availableDates = remember(snapshot.daily) {
+                                snapshot.daily.map { LocalDate.parse(it.date) }.toSet()
+                            }
+                            val sortedDates = availableDates.sorted()
+                            val minDate = sortedDates.firstOrNull()
+                            val maxDate = sortedDates.lastOrNull()
+
+                            val (leftmostNext, _) = NavigationUtils.getVisibleDateRange(today, config.dateOffset - 1, numColumns, skipYesterday)
+                            val (_, rightmostNext) = NavigationUtils.getVisibleDateRange(today, config.dateOffset + 1, numColumns, skipYesterday)
+
+                            val canLeft = minDate != null && !minDate.isAfter(leftmostNext)
+                            val canRight = maxDate != null && !maxDate.isBefore(rightmostNext)
+
+                            if (canLeft) {
+                                NavArrow(Alignment.CenterStart, "<") {
+                                    onUpdateConfig(config.copy(dateOffset = config.dateOffset - 1))
+                                }
+                            }
+                            if (canRight) {
+                                NavArrow(Alignment.CenterEnd, ">") {
+                                    onUpdateConfig(config.copy(dateOffset = config.dateOffset + 1))
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun NavArrow(alignment: Alignment, label: String, onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxHeight().width(24.dp), contentAlignment = alignment) {
+        Surface(
+            onClick = onClick,
+            color = Color.Black.copy(alpha = 0.3f),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+        ) {
+            Text(
+                text = label,
+                color = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }

@@ -22,6 +22,8 @@ data class DesktopConfig(
     val windowHeight: Float? = null,
     val apiKeys: Map<String, String> = emptyMap(),
     val visibleSources: List<String> = listOf("NWS", "OPEN_METEO", "SILURIAN"),
+    val dateOffset: Int = 0,
+    val hourlyOffset: Int = 0,
 )
 
 class DesktopConfigStore(

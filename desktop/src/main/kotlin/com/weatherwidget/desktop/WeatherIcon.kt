@@ -32,4 +32,34 @@ object WeatherIcon {
     fun painter(condition: String?): Painter {
         return painterResource(getIconResource(condition))
     }
+
+    data class ConditionFlags(
+        val isSunny: Boolean,
+        val isRainy: Boolean,
+        val isMixed: Boolean,
+        val isNight: Boolean = false,
+        val isTwilight: Boolean = false,
+    )
+
+    fun getConditionFlags(condition: String?, isNight: Boolean = false): ConditionFlags {
+        if (condition == null) return ConditionFlags(false, false, false, isNight)
+        val lower = condition.lowercase()
+        val isRainy = lower.contains("rain") || lower.contains("storm") || lower.contains("drizzle") || lower.contains("shower")
+        val isSunny = lower.contains("sunny") || lower.contains("clear") || lower.contains("mostly clear")
+        val isMixed = lower.contains("mostly") || lower.contains("partly") || lower.contains("patchy") || lower.contains("light")
+        return ConditionFlags(isSunny, isRainy, isMixed, isNight)
+    }
+
+    fun getCloudRatio(condition: String?): Float? {
+        if (condition == null) return null
+        val lower = condition.lowercase()
+        return when {
+            lower.contains("mostly clear") || lower.contains("mostly sunny") -> 0.18f
+            lower.contains("partly") -> 0.35f
+            lower.contains("mostly cloudy") || lower.contains("broken") -> 0.70f
+            lower.contains("cloudy") || lower.contains("overcast") -> 0.95f
+            lower.contains("fog") -> 0.50f
+            else -> null
+        }
+    }
 }
