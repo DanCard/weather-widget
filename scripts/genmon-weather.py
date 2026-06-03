@@ -25,6 +25,12 @@ import time
 
 # Tunable: panel font for the temperature. Bump the number for larger glyphs on HiDPI panels.
 FONT = "Sans Bold 20"
+# Tunable: Pango `line_height` factor (<1.0 shrinks the reserved line box). The temperature has no
+# descenders, so the font's reserved descent renders as ~18px of empty padding below the digits; in a
+# short vertical panel the oversized box gets centered and clips the digit tops. Shrinking the box to
+# below the panel's row height lets genmon center the glyphs without clipping. 0.6 → ~22px box, fits a
+# 26px row. (Requires Pango ≥1.50; this system has 1.57.)
+LINE_HEIGHT = 0.6
 LIVE_COLOR = "#FFD500"   # high-contrast yellow, matches the tray icon
 STALE_COLOR = "#888888"  # grayed when the app appears to have stopped updating
 
@@ -155,16 +161,18 @@ def fmt_age(age_ms):
 
 
 def click_command() -> str:
-    # genmon runs <click> in a shell when the widget is clicked. Re-invoke this script in --show
-    # mode (same interpreter) to signal the running app to open its popup.
+    # genmon runs the click command in a shell when the panel item is clicked. Re-invoke this script
+    # in --show mode (same interpreter) to signal the running app to open its popup.
     return f"{shlex.quote(sys.executable)} {shlex.quote(os.path.abspath(__file__))} --show"
 
 
 def emit(body, color, tooltip):
-    # genmon reads <txt>/<tool>/<click> from stdout each tick; <txt> supports Pango markup.
-    print(f"<txt><span font='{FONT}' foreground='{color}'>{body}</span></txt>")
+    # genmon reads <txt>/<tool>/<txtclick> from stdout each tick; <txt> supports Pango markup.
+    # NOTE: the click handler MUST be <txtclick> (fires on clicking the *text*), not <click>
+    # (which only fires on clicking an <img>, which we don't emit). See genmon README.
+    print(f"<txt><span font='{FONT}' foreground='{color}' line_height='{LINE_HEIGHT}'>{body}</span></txt>")
     print(f"<tool>{tooltip}</tool>")
-    print(f"<click>{click_command()}</click>")
+    print(f"<txtclick>{click_command()}</txtclick>")
 
 
 def main():
