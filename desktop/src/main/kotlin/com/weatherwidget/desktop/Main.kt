@@ -52,7 +52,92 @@ import dorkbox.systemTray.MenuItem as TrayMenuItem
  * Desktop entry point. System-tray icon + a small frameless popup — the Linux-desktop analogue of
  * the Android home-screen widget.
  */
-fun main() = application {
+private const val APP_PACKAGE = "weather-widget-desktop"
+
+/** Held for the process lifetime to enforce a single running instance; never released. */
+private var instanceLockChannel: java.nio.channels.FileChannel? = null
+
+private fun appDataDir(): java.nio.file.Path = DesktopDbPaths.defaultDbPath().parent
+
+private fun isPackaged(): Boolean = System.getProperty("jpackage.app-path") != null
+
+/**
+ * Prevents duplicate trays (Dorkbox SystemTray is a process-level singleton) when login-autostart
+ * and a manual launch race. Returns false when another instance already holds the lock.
+ */
+private fun acquireSingleInstanceLock(): Boolean = try {
+    val dir = appDataDir()
+    java.nio.file.Files.createDirectories(dir)
+    val channel = java.nio.channels.FileChannel.open(
+        dir.resolve(".lock"),
+        java.nio.file.StandardOpenOption.CREATE,
+        java.nio.file.StandardOpenOption.WRITE,
+    )
+    val lock = channel.tryLock()
+    if (lock == null) {
+        channel.close()
+        false
+    } else {
+        instanceLockChannel = channel
+        true
+    }
+} catch (e: java.nio.channels.OverlappingFileLockException) {
+    true // already locked by this same JVM (e.g. repeated in-process launches) — allow.
+} catch (e: Exception) {
+    System.err.println("single-instance lock failed, continuing: $e")
+    true
+}
+
+/** Packaged-only first-run setup: extract the genmon script + register login autostart. */
+private fun maybePackagedSetup() {
+    if (!isPackaged()) return
+    runCatching { extractGenmonScript() }.onFailure { System.err.println("genmon extract failed: $it") }
+    runCatching { installAutostartEntry() }.onFailure { System.err.println("autostart install failed: $it") }
+}
+
+/** Copies the bundled genmon script to a stable XDG path so the panel command survives repo removal. */
+private fun extractGenmonScript() {
+    val target = appDataDir().resolve("genmon-weather.py")
+    if (java.nio.file.Files.exists(target)) return
+    val stream = object {}.javaClass.getResourceAsStream("/scripts/genmon-weather.py") ?: return
+    java.nio.file.Files.createDirectories(target.parent)
+    stream.use { java.nio.file.Files.copy(it, target) }
+    target.toFile().setExecutable(true)
+}
+
+/** Writes a login-autostart entry pointing at the installed launcher (idempotent; never overwrites). */
+private fun installAutostartEntry() {
+    val appPath = System.getProperty("jpackage.app-path") ?: return
+    val configHome = System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
+        ?: "${System.getProperty("user.home")}/.config"
+    val autostartDir = java.nio.file.Path.of(configHome, "autostart")
+    val entry = autostartDir.resolve("$APP_PACKAGE.desktop")
+    if (java.nio.file.Files.exists(entry)) return
+    java.nio.file.Files.createDirectories(autostartDir)
+    java.nio.file.Files.writeString(
+        entry,
+        """
+        [Desktop Entry]
+        Type=Application
+        Name=Weather Widget
+        Comment=Tray temperature + forecast accuracy
+        Exec=$appPath
+        Icon=$APP_PACKAGE
+        X-GNOME-Autostart-enabled=true
+        """.trimIndent() + "\n",
+    )
+}
+
+fun main() {
+    if (!acquireSingleInstanceLock()) {
+        System.err.println("Weather Widget is already running; exiting.")
+        return
+    }
+    maybePackagedSetup()
+    runApp()
+}
+
+private fun runApp() = application {
     MaterialTheme(colorScheme = darkColorScheme()) {
         val startupSmoke = remember { System.getProperty("weatherwidget.desktop.startupSmoke") == "true" }
         val configStore = remember { DesktopConfigStore() }
@@ -148,6 +233,22 @@ fun main() = application {
                         refreshFailed = true,
                         failureIsOffline = isOffline,
                     )
+                }
+            }
+        }
+
+        // External show request: the genmon panel click (and any other caller) touches the .show
+        // trigger file; poll its mtime and open the popup. Initialized to the current mtime so a
+        // stale trigger from a previous session doesn't pop the window on launch.
+        LaunchedEffect(Unit) {
+            val triggerFile = appDataDir().resolve(".show").toFile()
+            var lastSeen = triggerFile.lastModified()
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                val modified = triggerFile.lastModified()
+                if (modified != 0L && modified != lastSeen) {
+                    lastSeen = modified
+                    popupVisible = true
                 }
             }
         }

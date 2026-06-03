@@ -168,6 +168,30 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for complete update system design.
 - Build with: `./gradlew installDebug`
 - Available emulators: `Generic_Foldable_API36`, `Medium_Phone_API_36`
 
+## Desktop App (Linux port)
+
+The `:desktop` module is a Compose-for-Desktop tray app sharing `:shared` with Android.
+
+- **For daily use: install the packaged app** — `./gradlew :desktop:packageDeb` →
+  `sudo dpkg -i desktop/build/compose/binaries/main/deb/weather-widget-desktop_1.0.0_amd64.deb`.
+  It installs to `/opt/weather-widget-desktop/`, adds an app-menu entry, and on first launch
+  self-registers login autostart. This is the real run method — it runs in the background, survives
+  logout/reboot, and needs no terminal.
+- **For development only: `./gradlew :desktop:run`** (fast iteration, no packaging step). Not for
+  daily use.
+- A **single-instance file lock** (`~/.local/share/weather-widget/.lock`) enforces the split: once the
+  installed app is running, a stray `:desktop:run` or second launch exits immediately (avoids
+  duplicate Dorkbox trays).
+- **Packaging needs a full JDK with `jpackage`** (Android Studio's JBR lacks it). Build config points
+  at `/usr/lib/jvm/java-21-openjdk-amd64` if present, overridable via `JPACKAGE_HOME` /
+  `-Djpackage.home`. The jlink'd runtime must include `java.sql` (sqlite-jdbc), the crypto modules
+  (NWS TLS), and `jdk.unsupported` (JNA) — declared in `nativeDistributions { modules(...) }`.
+- **`:desktop:test` cannot run while the app is running** (Dorkbox `SystemTray.get()` singleton) —
+  stop the app first or the forked test worker crashes with a `NoSuchFileException` results-binary error.
+- **genmon panel temperature**: `scripts/genmon-weather.py` reads `weather.db` for clock-sized panel
+  text; clicking it opens the popup. The packaged app extracts it to
+  `~/.local/share/weather-widget/genmon-weather.py` — point the genmon command there.
+
 ## Testing the Widget
 
 This is a widget-only app (no launcher activity). To test:

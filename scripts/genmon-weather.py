@@ -18,6 +18,7 @@ When the newest data is stale (app not running) the text is grayed rather than s
 
 import json
 import os
+import shlex
 import sqlite3
 import sys
 import time
@@ -41,6 +42,18 @@ def config_home() -> str:
 
 def db_path() -> str:
     return os.path.join(data_home(), "weather-widget", "weather.db")
+
+
+def show_trigger_path() -> str:
+    # The running app polls this file's mtime and opens its popup when it changes.
+    return os.path.join(data_home(), "weather-widget", ".show")
+
+
+def touch_show_trigger():
+    p = show_trigger_path()
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "a"):
+        os.utime(p, None)
 
 
 def load_latlon():
@@ -141,13 +154,25 @@ def fmt_age(age_ms):
     return f"{m // 1440}d ago"
 
 
+def click_command() -> str:
+    # genmon runs <click> in a shell when the widget is clicked. Re-invoke this script in --show
+    # mode (same interpreter) to signal the running app to open its popup.
+    return f"{shlex.quote(sys.executable)} {shlex.quote(os.path.abspath(__file__))} --show"
+
+
 def emit(body, color, tooltip):
-    # genmon reads <txt>/<tool> from stdout each tick; <txt> supports Pango markup.
+    # genmon reads <txt>/<tool>/<click> from stdout each tick; <txt> supports Pango markup.
     print(f"<txt><span font='{FONT}' foreground='{color}'>{body}</span></txt>")
     print(f"<tool>{tooltip}</tool>")
+    print(f"<click>{click_command()}</click>")
 
 
 def main():
+    # --show: clicked in the panel — signal the running app to open its popup, then exit.
+    if "--show" in sys.argv[1:]:
+        touch_show_trigger()
+        return
+
     path = db_path()
     if not os.path.exists(path):
         emit("--", STALE_COLOR, "Weather Widget: no database yet")
