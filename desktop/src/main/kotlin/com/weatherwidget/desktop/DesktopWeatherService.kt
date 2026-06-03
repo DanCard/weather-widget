@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
@@ -94,7 +95,7 @@ class DesktopWeatherService(
 
         val observations = currentObs?.let { obs ->
             listOf(
-                com.weatherwidget.data.local.ObservationEntity(
+                DesktopObservationEntity(
                     stationId = grid.observationStationsUrl?.substringAfterLast("/") ?: "NWS",
                     stationName = obs.stationName,
                     timestamp = try { java.time.ZonedDateTime.parse(obs.timestamp).toInstant().toEpochMilli() } catch (e: Exception) { System.currentTimeMillis() },

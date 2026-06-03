@@ -13,19 +13,19 @@ Converts the desktop application from a stateless to a stateful model by introdu
 - Configured `:shared/build.gradle.kts` to expose `sqlite-jdbc` as an `api` dependency.
 
 ### 2. Core Persistence Layer (`:shared`)
-- **`com.weatherwidget.data.local.DesktopDbPaths`**: Resolves the SQLite DB path to `~/.local/share/weather-widget/weather.db` (following XDG specs).
-- **`com.weatherwidget.data.local.WeatherDatabase`**:
+- **`com.weatherwidget.data.local.desktop.DesktopDbPaths`**: Resolves the SQLite DB path to `~/.local/share/weather-widget/weather.db` (following XDG specs).
+- **`com.weatherwidget.data.local.desktop.DesktopWeatherDatabase`**:
     - Manages SQLite connection and `PRAGMA user_version`.
     - Implements auto-initialization for tables: `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `observations`, and `daily_extremes`.
     - Includes indexing for efficient lookups by location and time.
-- **`com.weatherwidget.data.local.WeatherDao`**:
+- **`com.weatherwidget.data.local.desktop.DesktopWeatherDao`**:
     - Hand-written SQL with `INSERT OR REPLACE` semantics for upserts.
     - Optimized batch inserts for hourly and daily forecast data.
     - Implements `cleanup(beforeEpochMs)` for 30-day data retention.
-- **`com.weatherwidget.data.local.Entities`**: Defined `ObservationEntity` and `DailyExtremeEntity` in the shared module (parity with Android entities but without Room dependencies).
+- **`com.weatherwidget.data.local.desktop.DesktopEntities`**: Defined `DesktopObservationEntity` and `DesktopDailyExtremeEntity` in a dedicated sub-package to avoid naming collisions with Android's Room entities.
 
 ### 3. Repository & Service Updates
-- **`com.weatherwidget.data.model.ForecastResult`**: Extended to include `rawObservations` and `currentObservedAt`.
+- **`com.weatherwidget.data.model.ForecastResult`**: Extended to include `rawObservations` (of type `DesktopObservationEntity`) and `currentObservedAt`.
 - **`com.weatherwidget.desktop.DesktopWeatherRepository`**:
     - Acts as the primary data orchestrator for the desktop app.
     - `loadCached()`: Reconstructs a `ForecastResult` from local SQLite (current obs + latest daily/hourly).
@@ -34,7 +34,7 @@ Converts the desktop application from a stateless to a stateful model by introdu
 
 ### 4. UI Integration (`:desktop`)
 - **`com.weatherwidget.desktop.Main.kt`**:
-    - Initialized `WeatherDatabase` and `WeatherDao` at the application root.
+    - Initialized `DesktopWeatherDatabase` and `DesktopWeatherDao` at the application root.
     - Modified the weather fetch `LaunchedEffect` to:
         1. Perform an immediate `loadCached()` to populate the UI (tray/popup) instantly.
         2. Enter a 15-minute refresh loop using the repository.
@@ -42,10 +42,11 @@ Converts the desktop application from a stateless to a stateful model by introdu
 ## Verification Results
 
 ### Automated Tests
-- **`com.weatherwidget.data.local.WeatherDaoTest`**: Verified round-trip persistence for hourly, daily, and observation data against a real SQLite driver (using temp files).
+- **`com.weatherwidget.data.local.desktop.DesktopWeatherDaoTest`**: Verified round-trip persistence for hourly, daily, and observation data against a real SQLite driver (using temp files).
 - **Gradle Verification**:
     - `./gradlew :shared:test`: Passed.
     - `./gradlew :desktop:test`: Passed.
+    - `./scripts/emulator-tests.sh`: Passed (verified no collisions with Android Room DB).
 
 ### Manual Verification Path
 1. Launch app -> `~/.local/share/weather-widget/weather.db` is created.

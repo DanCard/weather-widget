@@ -19,9 +19,9 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.WeatherDao
-import com.weatherwidget.data.local.DesktopDbPaths
+import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
+import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.remote.NominatimApi
 import io.ktor.client.HttpClient
@@ -55,8 +55,8 @@ fun main() = application {
         var config by remember { mutableStateOf(configStore.load()) }
 
         // Persistence layer
-        val weatherDb = remember { WeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
-        val weatherDao = remember { WeatherDao(weatherDb) }
+        val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
+        val weatherDao = remember { DesktopWeatherDao(weatherDb) }
 
         var popupVisible by remember { mutableStateOf(config != null) }
         var pickerVisible by remember { mutableStateOf(config == null) }

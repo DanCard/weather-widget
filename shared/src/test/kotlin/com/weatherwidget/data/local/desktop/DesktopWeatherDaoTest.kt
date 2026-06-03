@@ -1,4 +1,4 @@
-package com.weatherwidget.data.local
+package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
@@ -9,17 +9,17 @@ import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
 
-class WeatherDaoTest {
+class DesktopWeatherDaoTest {
     private lateinit var tempDbPath: Path
-    private lateinit var db: WeatherDatabase
-    private lateinit var dao: WeatherDao
+    private lateinit var db: DesktopWeatherDatabase
+    private lateinit var dao: DesktopWeatherDao
 
     @Before
     fun setUp() {
         tempDbPath = Files.createTempFile("weather_test", ".db")
-        db = WeatherDatabase(tempDbPath)
+        db = DesktopWeatherDatabase(tempDbPath)
         db.initialize()
-        dao = WeatherDao(db)
+        dao = DesktopWeatherDao(db)
     }
 
     @After
@@ -69,7 +69,7 @@ class WeatherDaoTest {
         val lat = 40.0
         val lon = -75.0
         val now = System.currentTimeMillis()
-        val obs = ObservationEntity(
+        val obs = DesktopObservationEntity(
             stationId = "KPHL",
             stationName = "Philadelphia Intl",
             timestamp = now,
@@ -94,10 +94,6 @@ class WeatherDaoTest {
         val lon = -75.0
         val source = "NWS"
         val now = System.currentTimeMillis()
-        
-        // This is tricky because fetchedAt is set to now in the DAO.
-        // I might need to wait or mock time if I really want to test cleanup based on fetchedAt.
-        // For Tier 1, I'll trust the SQL DELETE.
         
         val daily = listOf(DailyForecast("2026-06-02", 80f, 60f, "Sunny"))
         dao.upsertForecasts(lat, lon, source, daily)

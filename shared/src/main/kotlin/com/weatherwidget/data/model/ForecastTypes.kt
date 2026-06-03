@@ -1,5 +1,7 @@
 package com.weatherwidget.data.model
 
+import com.weatherwidget.data.local.desktop.DesktopObservationEntity
+
 data class HourlyForecast(
     val dateTime: Long,
     val temperature: Float,
@@ -25,5 +27,5 @@ data class ForecastResult(
     val currentObservedAt: Long? = null,
     val daily: List<DailyForecast> = emptyList(),
     val hourly: List<HourlyForecast> = emptyList(),
-    val rawObservations: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
+    val rawObservations: List<DesktopObservationEntity> = emptyList(),
 )

@@ -1,4 +1,4 @@
-package com.weatherwidget.data.local
+package com.weatherwidget.data.local.desktop
 
 import java.nio.file.Path
 import java.sql.Connection
@@ -6,7 +6,7 @@ import java.sql.DriverManager
 import java.util.Properties
 import kotlin.io.path.createDirectories
 
-class WeatherDatabase(private val dbPath: Path) {
+class DesktopWeatherDatabase(private val dbPath: Path) {
 
     init {
         dbPath.parent.createDirectories()

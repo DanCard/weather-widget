@@ -1,4 +1,4 @@
-package com.weatherwidget.data.local
+package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
@@ -8,7 +8,7 @@ import java.sql.Types
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-class WeatherDao(private val db: WeatherDatabase) {
+class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     fun upsertHourlyForecasts(locationLat: Double, locationLon: Double, source: String, hourly: List<HourlyForecast>) {
         db.getConnection().use { conn ->
@@ -121,7 +121,7 @@ class WeatherDao(private val db: WeatherDatabase) {
         }
     }
 
-    fun upsertObservations(observations: List<com.weatherwidget.data.local.ObservationEntity>) {
+    fun upsertObservations(observations: List<DesktopObservationEntity>) {
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {
@@ -158,7 +158,7 @@ class WeatherDao(private val db: WeatherDatabase) {
         }
     }
 
-    fun getLatestObservation(locationLat: Double, locationLon: Double, maxAgeMs: Long): com.weatherwidget.data.local.ObservationEntity? {
+    fun getLatestObservation(locationLat: Double, locationLon: Double, maxAgeMs: Long): DesktopObservationEntity? {
         val minTimestamp = System.currentTimeMillis() - maxAgeMs
         db.getConnection().use { conn ->
             val sql = """
@@ -172,7 +172,7 @@ class WeatherDao(private val db: WeatherDatabase) {
                 stmt.setLong(3, minTimestamp)
                 val rs = stmt.executeQuery()
                 if (rs.next()) {
-                    return com.weatherwidget.data.local.ObservationEntity(
+                    return DesktopObservationEntity(
                         stationId = rs.getString("stationId"),
                         stationName = rs.getString("stationName"),
                         timestamp = rs.getLong("timestamp"),
@@ -194,7 +194,7 @@ class WeatherDao(private val db: WeatherDatabase) {
         return null
     }
 
-    fun upsertDailyExtremes(extremes: List<com.weatherwidget.data.local.DailyExtremeEntity>) {
+    fun upsertDailyExtremes(extremes: List<DesktopDailyExtremeEntity>) {
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {

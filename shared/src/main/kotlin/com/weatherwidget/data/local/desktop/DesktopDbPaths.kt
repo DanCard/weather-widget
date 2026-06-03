@@ -1,4 +1,4 @@
-package com.weatherwidget.data.local
+package com.weatherwidget.data.local.desktop
 
 import java.nio.file.Path
 

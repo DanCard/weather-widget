@@ -1,6 +1,6 @@
-package com.weatherwidget.data.local
+package com.weatherwidget.data.local.desktop
 
-data class ObservationEntity(
+data class DesktopObservationEntity(
     val stationId: String,
     val stationName: String,
     val timestamp: Long,
@@ -17,7 +17,7 @@ data class ObservationEntity(
     val precipAmountMm: Float? = null,
 )
 
-data class DailyExtremeEntity(
+data class DesktopDailyExtremeEntity(
     val date: Long,
     val source: String,
     val locationLat: Double,

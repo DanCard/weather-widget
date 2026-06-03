@@ -1,13 +1,13 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.local.WeatherDao
+import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.ForecastResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class DesktopWeatherRepository(
     private val weatherService: DesktopWeatherService,
-    private val weatherDao: WeatherDao,
+    private val weatherDao: DesktopWeatherDao,
     private val latitude: Double,
     private val longitude: Double,
     private val weatherSource: String
