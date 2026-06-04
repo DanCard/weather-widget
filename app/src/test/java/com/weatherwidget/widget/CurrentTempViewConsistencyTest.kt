@@ -1,9 +1,10 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toReading
+import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
-import com.weatherwidget.util.SpatialInterpolator
 import com.weatherwidget.widget.handlers.buildHourDataList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -55,7 +56,7 @@ class CurrentTempViewConsistencyTest {
     /** Simulates what getMainObservationsWithComputedNwsBlend() produces. */
     private fun buildCurrentTempsWithBlend(): List<ObservationEntity> {
         val stations = listOf(stationAw020, stationKnuq, stationKsjc)
-        val blendedTemp = SpatialInterpolator.interpolateIDW(TestData.LAT, TestData.LON, stations, nowMs)
+        val blendedTemp = SpatialInterpolator.interpolateIDW(com.weatherwidget.testutil.TestData.LAT, com.weatherwidget.testutil.TestData.LON, stations.map { it.toReading() }, nowMs)
             ?: return stations
         val nwsBlend = ObservationEntity(
             stationId = "NWS_BLEND",

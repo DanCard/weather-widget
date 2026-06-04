@@ -14,7 +14,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
@@ -39,7 +39,6 @@ class WeatherRepositoryTest {
     private lateinit var openMeteoApi: OpenMeteoApi
     private lateinit var weatherApi: WeatherApi
     private lateinit var widgetStateManager: WidgetStateManager
-    private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var observationDao: ObservationDao
     private lateinit var dailyExtremeDao: DailyExtremeDao
@@ -67,7 +66,6 @@ class WeatherRepositoryTest {
         openMeteoApi = mockk()
         weatherApi = mockk()
         widgetStateManager = mockk(relaxed = true)
-        temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
         dailyExtremeDao = mockk(relaxed = true)
@@ -103,7 +101,6 @@ class WeatherRepositoryTest {
             weatherApi,
             mockk(relaxed = true),
             widgetStateManager,
-            temperatureInterpolator,
             mockk(relaxed = true),
             mockk(relaxed = true)
         )

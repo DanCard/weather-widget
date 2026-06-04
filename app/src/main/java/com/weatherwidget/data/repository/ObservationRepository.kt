@@ -13,8 +13,9 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.data.local.toReading
+import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.util.ObservationBlender
-import com.weatherwidget.util.SpatialInterpolator
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetConstants
@@ -113,7 +114,7 @@ class ObservationRepository @Inject constructor(
             return@coroutineScope null
         }
 
-        val blendedTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, successfulEntities)
+        val blendedTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, successfulEntities.map { it.toReading() })
             ?: return@coroutineScope null
 
         val closest = successfulEntities.minBy { it.distanceKm }
@@ -658,7 +659,7 @@ class ObservationRepository @Inject constructor(
             Log.d(TAG, "  deduped ${obs.stationId}: timestamp=${obs.timestamp}")
         }
 
-        val blendedTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, dedupedNwsObs)
+        val blendedTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, dedupedNwsObs.map { it.toReading() })
             ?: return@coroutineScope persistedMainObs
 
         val closest = dedupedNwsObs.minBy { it.distanceKm }

@@ -7,7 +7,7 @@ import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-class DesktopTemperatureInterpolatorTest {
+class TemperatureInterpolatorTest {
     private val zone = ZoneId.of("America/Los_Angeles")
 
     @Test
@@ -16,7 +16,7 @@ class DesktopTemperatureInterpolatorTest {
         val eleven = epoch("2026-06-03T11:00")
         val target = epoch("2026-06-03T10:30")
 
-        val result = DesktopTemperatureInterpolator.getInterpolatedTemperature(
+        val result = TemperatureInterpolator.getInterpolatedTemperature(
             listOf(
                 HourlyForecast(ten, 70f, "Clear"),
                 HourlyForecast(eleven, 80f, "Clear"),
@@ -33,7 +33,7 @@ class DesktopTemperatureInterpolatorTest {
         val ten = epoch("2026-06-03T10:00")
         val target = epoch("2026-06-03T10:45")
 
-        val result = DesktopTemperatureInterpolator.getInterpolatedTemperature(
+        val result = TemperatureInterpolator.getInterpolatedTemperature(
             listOf(HourlyForecast(ten, 70f, "Clear")),
             target,
             zone,
@@ -47,7 +47,7 @@ class DesktopTemperatureInterpolatorTest {
         val noon = epoch("2026-06-03T12:00")
         val target = epoch("2026-06-03T10:30")
 
-        val result = DesktopTemperatureInterpolator.getInterpolatedTemperature(
+        val result = TemperatureInterpolator.getInterpolatedTemperature(
             listOf(HourlyForecast(noon, 82f, "Clear")),
             target,
             zone,
@@ -58,7 +58,7 @@ class DesktopTemperatureInterpolatorTest {
 
     @Test
     fun `returns null for empty forecasts`() {
-        assertNull(DesktopTemperatureInterpolator.getInterpolatedTemperature(emptyList(), epoch("2026-06-03T10:30"), zone))
+        assertNull(TemperatureInterpolator.getInterpolatedTemperature(emptyList(), epoch("2026-06-03T10:30"), zone))
     }
 
     private fun epoch(value: String): Long =

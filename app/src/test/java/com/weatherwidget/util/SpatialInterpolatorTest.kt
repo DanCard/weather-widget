@@ -1,6 +1,8 @@
 package com.weatherwidget.util
 
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toReading
+import com.weatherwidget.shared.util.SpatialInterpolator
 import org.junit.Assert.*
 import org.junit.Test
 import com.weatherwidget.test.category.ShortDuration
@@ -37,13 +39,13 @@ class SpatialInterpolatorTest {
     }
 
     @Test fun singleStation_returnsExactTemp() {
-        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, listOf(obs("A", 72f, 5f)), nowMs)
+        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, listOf(obs("A", 72f, 5f)).map { it.toReading() }, nowMs)
         assertEquals(72f, result!!, 0.01f)
     }
 
     @Test fun twoEquidistantStations_returnsAverage() {
         val observations = listOf(obs("A", 60f, 10f), obs("B", 80f, 10f))
-        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations, nowMs)
+        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations.map { it.toReading() }, nowMs)
         assertEquals(70f, result!!, 0.1f)
     }
 
@@ -51,7 +53,7 @@ class SpatialInterpolatorTest {
         // 1 km vs 10 km: w_near = 1/1 = 1.0, w_far = 1/100 = 0.01
         // blend ≈ (70*1.0 + 50*0.01) / 1.01 ≈ 69.8°F — near station dominates
         val observations = listOf(obs("NEAR", 70f, 1f), obs("FAR", 50f, 10f))
-        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations, nowMs)
+        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations.map { it.toReading() }, nowMs)
         assertNotNull(result)
         assertTrue("Closer station should dominate; got $result", result!! > 69f)
     }
@@ -61,13 +63,13 @@ class SpatialInterpolatorTest {
     @Test fun veryCloseStation_returnsItsTemp() {
         // Station at 0.05 km — below the 0.1 km threshold
         val observations = listOf(obs("SNAP", 68f, 0.05f), obs("FAR", 90f, 20f))
-        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations, nowMs)
+        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations.map { it.toReading() }, nowMs)
         assertEquals(68f, result!!, 0.01f)
     }
 
     @Test fun multipleVeryCloseStations_returnsClosest() {
         val observations = listOf(obs("SNAP_A", 68f, 0.08f), obs("SNAP_B", 75f, 0.05f))
-        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations, nowMs)
+        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations.map { it.toReading() }, nowMs)
         // SNAP_B is closer (0.05 km)
         assertEquals(75f, result!!, 0.01f)
     }
@@ -80,14 +82,14 @@ class SpatialInterpolatorTest {
             obs("STALE", 100f, 2f, ageMs = threeHoursAgoMs),
             obs("FRESH", 72f, 5f, ageMs = 0L),
         )
-        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations, nowMs)
+        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations.map { it.toReading() }, nowMs)
         assertEquals(72f, result!!, 0.01f)
     }
 
     @Test fun allObservationsStale_returnsNull() {
         val threeHoursAgoMs = 3 * 60 * 60 * 1000L
         val observations = listOf(obs("STALE", 72f, 2f, ageMs = threeHoursAgoMs))
-        assertNull(SpatialInterpolator.interpolateIDW(37.0, -122.0, observations, nowMs))
+        assertNull(SpatialInterpolator.interpolateIDW(37.0, -122.0, observations.map { it.toReading() }, nowMs))
     }
 
     // ── Time-spread filtering ────────────────────────────────────────────────
@@ -132,7 +134,7 @@ class SpatialInterpolatorTest {
             obs("OLD", 50f, 3f, ageMs = ninetyMinMs),
         )
         // Only "NEW" should survive → exact temp returned
-        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations, nowMs)
+        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations.map { it.toReading() }, nowMs)
         assertEquals(72f, result!!, 0.01f)
     }
 }

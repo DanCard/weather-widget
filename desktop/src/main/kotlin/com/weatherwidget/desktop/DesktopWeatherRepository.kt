@@ -5,7 +5,8 @@ import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.ObservationReading
-import com.weatherwidget.shared.util.DesktopTemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.SpatialInterpolator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -33,7 +34,7 @@ class DesktopWeatherRepository(
         val newestObs = observations.maxByOrNull { it.timestamp }
         // Freshness gate only governs whether the *current temp* is shown as observed vs interpolated.
         val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
-        val interpolatedTemp = DesktopTemperatureInterpolator.getInterpolatedTemperature(hourly, now)
+        val interpolatedTemp = TemperatureInterpolator.getInterpolatedTemperature(hourly, now)
         val actuals = loadDailyActuals(daily)
         val snapshots = loadDailySnapshots(daily)
 
@@ -109,7 +110,7 @@ class DesktopWeatherRepository(
 
         result.copy(
             currentTemp = result.currentTemp
-                ?: DesktopTemperatureInterpolator.getInterpolatedTemperature(result.hourly, now),
+                ?: TemperatureInterpolator.getInterpolatedTemperature(result.hourly, now),
             dailyActuals = actuals,
             dailySnapshots = snapshots,
             rawObservations = result.rawObservations,

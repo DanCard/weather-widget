@@ -20,3 +20,12 @@ data class HourlyForecastEntity(
     val precipAmountMm: Float? = null, // Hourly precipitation amount in millimeters
     val fetchedAt: Long, // When this data was fetched
 )
+
+fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.HourlyForecast(
+    dateTime = dateTime,
+    temperature = temperature,
+    condition = condition,
+    precipProbability = precipProbability,
+    cloudCover = cloudCover,
+    precipAmountMm = precipAmountMm,
+)

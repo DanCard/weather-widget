@@ -4,7 +4,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
-import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -71,7 +71,6 @@ class WeatherGapIntegrationTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            TemperatureInterpolator(),
             mockk(relaxed = true),
             mockk(relaxed = true)
         )

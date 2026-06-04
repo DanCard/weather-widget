@@ -26,7 +26,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
-import com.weatherwidget.shared.util.DesktopTemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
@@ -987,7 +987,7 @@ private fun WidgetHeader(
     val targetHour = remember(headerTime) { headerTime.truncatedTo(ChronoUnit.HOURS) }
 
     val nowEpoch = System.currentTimeMillis()
-    val interpolatedForecastTemp = com.weatherwidget.shared.util.DesktopTemperatureInterpolator.getInterpolatedTemperature(forecast.hourly, nowEpoch)
+    val interpolatedForecastTemp = com.weatherwidget.shared.util.TemperatureInterpolator.getInterpolatedTemperature(forecast.hourly, nowEpoch)
     val currentForecastTemp = forecast.currentTemp
     val deltaTemp = if (currentForecastTemp != null && interpolatedForecastTemp != null) {
         val diff = currentForecastTemp - interpolatedForecastTemp
@@ -1263,7 +1263,7 @@ internal fun determineLaunchRefreshAction(
 
 internal fun computeRefreshDelayMs(hourly: List<com.weatherwidget.data.model.HourlyForecast>?): Long {
     if (hourly.isNullOrEmpty()) return DEFAULT_REFRESH_DELAY_MS
-    val updatesPerHour = DesktopTemperatureInterpolator.getUpdatesPerHour(hourly)
+    val updatesPerHour = TemperatureInterpolator.getUpdatesPerHour(hourly)
     val intervalMs = (3600_000L / updatesPerHour).coerceAtLeast(MIN_REFRESH_DELAY_MS)
     return intervalMs
 }

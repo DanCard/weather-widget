@@ -9,6 +9,7 @@ import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.model.ForecastResult
@@ -21,8 +22,8 @@ import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
-import com.weatherwidget.util.SpatialInterpolator
-import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.SpatialInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -59,7 +60,6 @@ class CurrentTempRepository
         private val weatherApi: WeatherApi,
         private val silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
-        private val temperatureInterpolator: TemperatureInterpolator,
         private val dailyExtremeDao: DailyExtremeDao,
         private val observationRepository: ObservationRepository,
         private val tomorrowIoApi: TomorrowIoApi? = null,
@@ -67,6 +67,9 @@ class CurrentTempRepository
     ) {
         private val syncMutex = Mutex()
         companion object {
+            private val logTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
+            private fun formatLogTime(ms: Long?): String = if (ms == null) "none" else logTimeFormatter.format(Instant.ofEpochMilli(ms))
+
             private const val CURRENT_TEMP_FRESHNESS_MS = 300_000L // 5 minutes
             private const val MAX_RETRIES = 5
 
@@ -454,10 +457,13 @@ class CurrentTempRepository
             val nowMs = System.currentTimeMillis()
             val observedAgeMin = reading?.observedAt?.let { (nowMs - it) / 60_000L }
             val errorSummary = exception?.let { " error=${it.javaClass.simpleName}:${it.message ?: "no_message"}" }.orEmpty()
+            val observedTimeStr = formatLogTime(reading?.observedAt)
+            val fetchTimeStr = formatLogTime(nowMs)
             appLogDao.log(
                 "CURR_FETCH_SOURCE_RESULT",
                 "reason=$reason source=${source.id} success=${reading != null} " +
-                    "temp=${reading?.temperature ?: "none"} observedAt=${reading?.observedAt ?: "none"} " +
+                    "temp=${reading?.temperature ?: "none"} observedAt=$observedTimeStr " +
+                    "fetchedAt=$fetchTimeStr " +
                     "observedAgeMin=${observedAgeMin ?: "none"} condition=${reading?.condition ?: "none"} " +
                     "durationMs=$durationMs$errorSummary",
                 if (reading != null) "INFO" else "WARN",
@@ -471,10 +477,12 @@ class CurrentTempRepository
 
         private suspend fun logCurrentObservationInsert(obsEntity: ObservationEntity) {
             val nowMs = System.currentTimeMillis()
+            val observedTimeStr = formatLogTime(obsEntity.timestamp)
+            val fetchTimeStr = formatLogTime(obsEntity.fetchedAt)
             appLogDao.log(
                 "OBS_CURRENT_INSERT",
-                "source=${obsEntity.api} station=${obsEntity.stationId} timestamp=${obsEntity.timestamp} " +
-                    "fetchedAt=${obsEntity.fetchedAt} temp=${obsEntity.temperature} " +
+                "source=${obsEntity.api} station=${obsEntity.stationId} timestamp=$observedTimeStr " +
+                    "fetchedAt=$fetchTimeStr temp=${obsEntity.temperature} " +
                     "timestampAgeMin=${(nowMs - obsEntity.timestamp) / 60_000L} " +
                     "fetchAgeMin=${(nowMs - obsEntity.fetchedAt) / 60_000L}",
                 "INFO",
@@ -527,7 +535,11 @@ class CurrentTempRepository
             val endMs = time.plusHours(3).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
             val hourlyForecasts = hourlyForecastDao.getHourlyForecasts(startMs, endMs, latitude, longitude)
 
-            return if (hourlyForecasts.isEmpty()) null else temperatureInterpolator.getInterpolatedTemperature(hourlyForecasts, time)
+            return if (hourlyForecasts.isEmpty()) null
+            else TemperatureInterpolator.getInterpolatedTemperature(
+                hourlyForecasts.map { it.toHourlyForecast() },
+                time.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            )
         }
 
         suspend fun getNextInterpolationUpdateTime(
@@ -543,7 +555,8 @@ class CurrentTempRepository
             val forecasts = hourlyForecastDao.getHourlyForecasts(currentHourMs, nextHourMs, latitude, longitude)
             
             val tempDiff = if (forecasts.size >= 2) (forecasts[1].temperature - forecasts[0].temperature).toInt() else 0
-            return temperatureInterpolator.getNextUpdateTime(time, tempDiff)
+            val nextEpochMs = TemperatureInterpolator.getNextUpdateTime(time.atZone(zoneId).toInstant().toEpochMilli(), tempDiff)
+            return Instant.ofEpochMilli(nextEpochMs).atZone(zoneId).toLocalDateTime()
         }
 
         @androidx.annotation.VisibleForTesting

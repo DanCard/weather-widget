@@ -8,7 +8,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.util.Log
-import com.weatherwidget.shared.util.DesktopTemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.SpatialInterpolator
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
@@ -106,7 +107,7 @@ class DesktopWeatherService(
         }
 
         val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, latestReadings)
-            ?: DesktopTemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
+            ?: TemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
             ?: hourlyRaw.firstOrNull()?.temperature
 
         val closestBundle = bundles.minByOrNull { distanceKm(latitude, longitude, it.station.lat, it.station.lon) }

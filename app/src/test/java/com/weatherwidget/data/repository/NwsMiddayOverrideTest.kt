@@ -11,7 +11,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
-import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
@@ -39,7 +39,6 @@ class NwsMiddayOverrideTest {
     private lateinit var openMeteoApi: OpenMeteoApi
     private lateinit var weatherApi: WeatherApi
     private lateinit var widgetStateManager: WidgetStateManager
-    private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var observationDao: ObservationDao
     private lateinit var forecastRepository: ForecastRepository
@@ -64,7 +63,6 @@ class NwsMiddayOverrideTest {
         openMeteoApi = mockk()
         weatherApi = mockk()
         widgetStateManager = mockk(relaxed = true)
-        temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
 
@@ -100,7 +98,7 @@ class NwsMiddayOverrideTest {
             weatherApi,
             mockk(relaxed = true),
             widgetStateManager,
-            temperatureInterpolator,
+            
             mockk(relaxed = true),
             mockk(relaxed = true)
         )

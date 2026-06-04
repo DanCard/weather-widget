@@ -10,7 +10,7 @@ import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.handlers.DailyViewLogic
 import com.weatherwidget.widget.handlers.buildHourDataList
-import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -63,8 +63,6 @@ class YesterdayActualHighConsistencyTest {
             db.hourlyForecastDao()
         )
         
-        val temperatureInterpolator = TemperatureInterpolator(db.appLogDao())
-        
         val currentTempRepository = CurrentTempRepository(
             context,
             db.observationDao(),
@@ -76,7 +74,6 @@ class YesterdayActualHighConsistencyTest {
             weatherApi,
             silurianApi,
             widgetStateManager,
-            temperatureInterpolator,
             db.dailyExtremeDao(),
             observationRepository,
             tomorrowIoApi,

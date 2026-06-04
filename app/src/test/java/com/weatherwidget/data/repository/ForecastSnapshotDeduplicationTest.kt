@@ -7,7 +7,7 @@ import com.weatherwidget.testutil.TestData.LAT
 import com.weatherwidget.testutil.TestData.LON
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
-import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
@@ -69,7 +69,6 @@ class ForecastSnapshotDeduplicationTest {
             mockk(),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            TemperatureInterpolator(),
             mockk(relaxed = true),
             mockk(relaxed = true)
         )

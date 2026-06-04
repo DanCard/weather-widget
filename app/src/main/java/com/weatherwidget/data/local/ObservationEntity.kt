@@ -33,3 +33,19 @@ data class ObservationEntity(
     val api: String, // Which API provided this observation (NWS, OPEN_METEO, WEATHER_API, SILURIAN)
     val precipAmountMm: Float? = null, // Observed precipitation amount in mm
 )
+
+fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationReading(
+    stationId = stationId,
+    stationName = stationName,
+    timestamp = timestamp,
+    temperature = temperature,
+    condition = condition,
+    locationLat = locationLat,
+    locationLon = locationLon,
+    distanceKm = distanceKm,
+    stationType = stationType,
+    maxTempLast24h = maxTempLast24h,
+    minTempLast24h = minTempLast24h,
+    api = api,
+    precipAmountMm = precipAmountMm,
+)

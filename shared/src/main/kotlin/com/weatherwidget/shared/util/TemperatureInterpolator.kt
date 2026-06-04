@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-object DesktopTemperatureInterpolator {
+object TemperatureInterpolator {
     const val INTERPOLATION_THRESHOLD = 0.1f
 
     fun getInterpolatedTemperature(
@@ -41,12 +41,20 @@ object DesktopTemperatureInterpolator {
         return currentTemp + tempDiff * factor
     }
 
+    fun getUpdatesPerHour(tempDifference: Number): Int {
+        val absDiff = abs(tempDifference.toFloat())
+        return when {
+            absDiff >= 6f -> 4
+            absDiff >= 4f -> 3
+            absDiff >= 2f -> 2
+            else -> 1
+        }
+    }
+
     fun getUpdatesPerHour(hourlyForecasts: List<HourlyForecast>): Int {
         if (hourlyForecasts.size < 2) return 1
-        val maxDiff = hourlyForecasts
-            .sortedBy { it.dateTime }
-            .zipWithNext()
-            .maxOf { abs(it.second.temperature - it.first.temperature) }
+        val sorted = hourlyForecasts.sortedBy { it.dateTime }
+        val maxDiff = sorted.zipWithNext().maxOf { abs(it.second.temperature - it.first.temperature) }
         return when {
             maxDiff >= 8f -> 4
             maxDiff >= 4f -> 2
@@ -115,5 +123,32 @@ object DesktopTemperatureInterpolator {
             i++
         }
         return extrema
+    }
+
+    /**
+     * Gets the next scheduled update time based on temperature difference.
+     *
+     * @param targetEpochMs The current time in epoch millis
+     * @param tempDifference The difference between current and next hour temperatures
+     * @return The next time the widget should update its temperature display in epoch millis
+     */
+    fun getNextUpdateTime(
+        targetEpochMs: Long,
+        tempDifference: Int,
+        zoneId: java.time.ZoneId = java.time.ZoneId.systemDefault()
+    ): Long {
+        val updatesPerHour = getUpdatesPerHour(tempDifference)
+        val intervalMinutes = 60 / updatesPerHour
+
+        val currentTime = java.time.Instant.ofEpochMilli(targetEpochMs).atZone(zoneId).toLocalDateTime()
+        val currentMinute = currentTime.minute
+        val nextUpdateMinute = ((currentMinute / intervalMinutes) + 1) * intervalMinutes
+
+        val nextUpdateTime = if (nextUpdateMinute >= 60) {
+            currentTime.truncatedTo(ChronoUnit.HOURS).plusHours(1)
+        } else {
+            currentTime.truncatedTo(ChronoUnit.HOURS).plusMinutes(nextUpdateMinute.toLong())
+        }
+        return nextUpdateTime.atZone(zoneId).toInstant().toEpochMilli()
     }
 }

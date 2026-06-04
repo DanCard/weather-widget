@@ -4,8 +4,9 @@ import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -39,7 +40,6 @@ data class QuickCurrentTemperature(
 object CurrentTemperatureResolver {
     private const val TAG = "CurrentTempResolver"
     private const val STALE_HOURLY_FETCH_THRESHOLD_MS = 2 * 60 * 60 * 1000L
-    private val interpolator = TemperatureInterpolator()
     @Volatile
     private var defaultAppLogDao: AppLogDao? = null
     private val logScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -257,6 +257,13 @@ object CurrentTemperatureResolver {
         )
     }
 
+    private fun List<HourlyForecastEntity>.applySmoothing(smoothed: Map<Long, Float>?): List<com.weatherwidget.data.model.HourlyForecast> {
+        return this.map { entity ->
+            val temp = smoothed?.get(entity.dateTime) ?: entity.temperature
+            entity.toHourlyForecast().copy(temperature = temp)
+        }
+    }
+
     fun resolveQuick(
         now: LocalDateTime,
         displaySource: WeatherSource,
@@ -265,11 +272,9 @@ object CurrentTemperatureResolver {
         smoothedForecasts: Map<Long, Float>? = null,
     ): QuickCurrentTemperature {
         val estimatedTemp =
-            interpolator.getInterpolatedTemperature(
-                hourlyForecasts = hourlyForecasts,
-                targetTime = now,
-                source = displaySource,
-                smoothedForecasts = smoothedForecasts,
+            TemperatureInterpolator.getInterpolatedTemperature(
+                hourlyForecasts = hourlyForecasts.applySmoothing(smoothedForecasts),
+                targetEpochMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             )
         val displayTemp = lastObservedTemp ?: estimatedTemp
         val isStaleEstimate = lastObservedTemp == null && estimatedTemp != null && isStaleHourlyData(now, displaySource, hourlyForecasts)
@@ -360,11 +365,9 @@ object CurrentTemperatureResolver {
             return null
         }
 
-        return interpolator.getInterpolatedTemperature(
-            hourlyForecasts = listOf(currentHourForecast, nextHourForecast),
-            targetTime = targetTime,
-            source = null,
-            smoothedForecasts = smoothedForecasts,
+        return TemperatureInterpolator.getInterpolatedTemperature(
+            hourlyForecasts = listOf(currentHourForecast, nextHourForecast).applySmoothing(smoothedForecasts),
+            targetEpochMs = targetTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
     }
 

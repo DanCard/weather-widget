@@ -8,7 +8,8 @@ import android.os.Build
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.util.NavigationUtils
-import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.shared.util.TemperatureInterpolator
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
@@ -22,7 +23,6 @@ import java.time.format.DateTimeFormatter
  */
 class UIUpdateScheduler(private val context: Context) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    private val interpolator = TemperatureInterpolator()
 
     /**
      * Schedule the next UI-only update based on current temperature change rate.
@@ -69,7 +69,11 @@ class UIUpdateScheduler(private val context: Context) {
                 }
 
             // Calculate next update time based on temperature change rate
-            val nextUpdateTime = interpolator.getNextUpdateTime(now, tempDifference)
+            val nextUpdateEpochMs = TemperatureInterpolator.getNextUpdateTime(
+                Instant.now().toEpochMilli(),
+                tempDifference
+            )
+            val nextUpdateTime = Instant.ofEpochMilli(nextUpdateEpochMs).atZone(ZoneId.systemDefault()).toLocalDateTime()
 
             // If plugged in (and screen is on, handled by receiver), update very frequently
             val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))

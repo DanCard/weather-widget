@@ -126,7 +126,7 @@ fun PrecipitationGraph(
         val windowSpan = (windowEnd - windowStart).coerceAtLeast(1L).toFloat()
 
         val rawProbs = points.map { it.precipProbability?.toFloat() ?: 0f }
-        val smoothedProbs = com.weatherwidget.shared.util.DesktopTemperatureInterpolator.smoothValuesPreservingAllExtrema(rawProbs, smoothIterations)
+        val smoothedProbs = com.weatherwidget.shared.util.TemperatureInterpolator.smoothValuesPreservingAllExtrema(rawProbs, smoothIterations)
         
         val maxProb = smoothedProbs.maxOrNull() ?: 0f
         val yScaleMax = (maxProb * 1.15f).coerceAtLeast(10f).coerceAtMost(100f)

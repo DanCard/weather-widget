@@ -185,7 +185,7 @@ fun TemperatureGraph(
         }
 
         val rawForecastTemps = points.map { it.temperature }
-        val forecastTemps = com.weatherwidget.shared.util.DesktopTemperatureInterpolator.smoothValuesPreservingAllExtrema(rawForecastTemps, smoothIterations)
+        val forecastTemps = com.weatherwidget.shared.util.TemperatureInterpolator.smoothValuesPreservingAllExtrema(rawForecastTemps, smoothIterations)
         val expectedTemps = forecastTemps.map { it + appliedDelta }
         val allTemps = forecastTemps + actualLinePoints.mapNotNull { it.actualTemp } + expectedTemps
         val rawMin = allTemps.minOrNull() ?: 0f
