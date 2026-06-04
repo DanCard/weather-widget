@@ -150,21 +150,21 @@ class DesktopWeatherService(
     private suspend fun getCachedOrFetchStations(stationsUrl: String): List<NwsApi.StationInfo> {
         val cacheKey = "nws_stations_${stationsUrl.hashCode()}"
         weatherDao?.getCachedStations(cacheKey, STATION_CACHE_MS)?.let { cached ->
-            if (cached.isNotEmpty()) return orderStations(cached)
+            if (cached.isNotEmpty()) return cached
         }
 
         val fetched = nwsApi.getObservationStations(stationsUrl)
         if (fetched.isNotEmpty()) {
             weatherDao?.upsertStationCache(cacheKey, fetched)
         }
-        return orderStations(fetched)
+        return fetched
     }
 
     private suspend fun fetchObservationBundles(stations: List<NwsApi.StationInfo>): List<ObservationBundle> = coroutineScope {
         val end = Instant.now().truncatedTo(ChronoUnit.SECONDS)
         val start = end.minus(HISTORY_DAYS, ChronoUnit.DAYS)
         
-        val deferreds = orderStations(stations).take(MAX_OBSERVATION_STATIONS).map { station ->
+        val deferreds = stations.take(MAX_OBSERVATION_STATIONS).map { station ->
             async {
                 val historical = bestEffort("historical observations ${station.id}") {
                     nwsApi.getObservations(station.id, start.toString(), end.toString()).also { obs ->
@@ -259,14 +259,7 @@ class DesktopWeatherService(
     }
 }
 
-internal fun orderStations(stations: List<NwsApi.StationInfo>): List<NwsApi.StationInfo> =
-    stations.withIndex()
-        .sortedWith(
-            compareBy<IndexedValue<NwsApi.StationInfo>> {
-                if (it.value.type == NwsApi.StationType.OFFICIAL) 0 else 1
-            }.thenBy { it.index }
-        )
-        .map { it.value }
+
 
 private fun NwsApi.Observation.isFreshObservation(nowMs: Long = System.currentTimeMillis()): Boolean {
     val observedAt = runCatching { ZonedDateTime.parse(timestamp).toInstant().toEpochMilli() }.getOrNull()
