@@ -323,6 +323,30 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
+    fun getLastSuccessfulObservationFetch(source: String? = null): Long? {
+        db.getConnection().use { conn ->
+            val sql = if (source != null) {
+                """
+                    SELECT MAX(timestamp) FROM app_logs
+                    WHERE tag IN ('REFRESH', 'OBS_REFRESH') AND level = 'INFO' AND message LIKE ?
+                """.trimIndent()
+            } else {
+                "SELECT MAX(timestamp) FROM app_logs WHERE tag IN ('REFRESH', 'OBS_REFRESH') AND level = 'INFO'"
+            }
+            conn.prepareStatement(sql).use { stmt ->
+                if (source != null) {
+                    stmt.setString(1, "source=$source%")
+                }
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    val ts = rs.getLong(1)
+                    return if (ts > 0L) ts else null
+                }
+            }
+        }
+        return null
+    }
+
     fun getRecentLogs(limit: Int = 200): List<DesktopLogEntity> {
         val result = mutableListOf<DesktopLogEntity>()
         db.getConnection().use { conn ->

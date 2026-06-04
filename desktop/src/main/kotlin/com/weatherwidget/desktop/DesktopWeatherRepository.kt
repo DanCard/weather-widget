@@ -133,10 +133,14 @@ class DesktopWeatherRepository(
         )
 
         result.copy(
+            currentTemp = result.currentTemp ?: cached?.currentTemp,
+            currentCondition = result.currentCondition ?: cached?.currentCondition,
+            currentObservedAt = result.currentObservedAt ?: cached?.currentObservedAt,
             daily = cached?.daily ?: emptyList(),
             hourly = cached?.hourly ?: emptyList(),
             dailyActuals = cached?.dailyActuals ?: emptyMap(),
             dailySnapshots = cached?.dailySnapshots ?: emptyMap(),
+            rawObservations = if (result.rawObservations.isNotEmpty()) result.rawObservations else cached?.rawObservations ?: emptyList(),
         )
     }
 

@@ -1,6 +1,8 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.WeatherSource
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -47,5 +49,69 @@ class RefreshDelayTest {
         )
         val delay = computeRefreshDelayMs(hourly)
         assertTrue(delay >= 10 * 60 * 1000L)
+    }
+
+    @Test
+    fun `launch refresh uses full forecast when cache is missing`() {
+        val action = determineLaunchRefreshAction(
+            cachePresent = false,
+            lastObservationFetchMs = 900_000L,
+            nowMs = 1_000_000L,
+        )
+
+        assertEquals(LaunchRefreshAction.FULL_FORECAST, action)
+    }
+
+    @Test
+    fun `launch refresh skips network when cached observations are fresh`() {
+        val action = determineLaunchRefreshAction(
+            cachePresent = true,
+            lastObservationFetchMs = 500_000L,
+            nowMs = 1_000_000L,
+        )
+
+        assertEquals(LaunchRefreshAction.NONE, action)
+    }
+
+    @Test
+    fun `launch refresh uses observations only when cached observations are stale`() {
+        val action = determineLaunchRefreshAction(
+            cachePresent = true,
+            lastObservationFetchMs = 300_000L,
+            nowMs = 1_000_000L,
+        )
+
+        assertEquals(LaunchRefreshAction.OBSERVATIONS, action)
+    }
+
+    @Test
+    fun `launch refresh uses observations only when cached observation fetch is unknown`() {
+        val action = determineLaunchRefreshAction(
+            cachePresent = true,
+            lastObservationFetchMs = null,
+            nowMs = 1_000_000L,
+        )
+
+        assertEquals(LaunchRefreshAction.OBSERVATIONS, action)
+    }
+
+    @Test
+    fun `observations only refresh skips unsupported current-only sources`() = runTest {
+        val service = DesktopWeatherService(
+            latitude = 37.4220,
+            longitude = -122.0841,
+            weatherSource = WeatherSource.TOMORROW_IO.id,
+        )
+
+        try {
+            val result = service.fetchObservationsOnly()
+
+            assertNull(result.currentTemp)
+            assertTrue(result.daily.isEmpty())
+            assertTrue(result.hourly.isEmpty())
+            assertTrue(result.rawObservations.isEmpty())
+        } finally {
+            service.close()
+        }
     }
 }

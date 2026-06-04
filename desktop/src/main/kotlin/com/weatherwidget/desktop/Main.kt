@@ -220,26 +220,43 @@ private fun runApp() = application {
                     println("DataStatus updated to Live (cached). lastFetch: $lastFetch")
                 }
 
-                // 2. Staleness-gated launch fetch: skip if cache is fresh (< 10 min) and present
-                val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
-                val cacheIsFresh = cached != null && lastFetch != null &&
-                    (System.currentTimeMillis() - lastFetch) < FRESHNESS_THRESHOLD_MS
+                // 2. Launch network refresh: missing forecast data needs a full fetch; stale current
+                // observations use the observations-only path so daily/hourly forecasts stay on the
+                // 60-minute cadence.
+                val now = System.currentTimeMillis()
+                val lastForecastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
+                val lastObservationFetch = weatherDao.getLastSuccessfulObservationFetch(currentConfig?.weatherSource)
+                val launchRefreshAction = determineLaunchRefreshAction(
+                    cachePresent = cached != null,
+                    lastObservationFetchMs = lastObservationFetch,
+                    nowMs = now,
+                )
 
-                println("Cache fresh? $cacheIsFresh. lastFetch: $lastFetch")
+                println("Launch refresh action: $launchRefreshAction. lastForecastFetch: $lastForecastFetch lastObservationFetch: $lastObservationFetch")
                 
                 weatherDao.log(
                     tag = "LAUNCH_REFRESH_CHECK",
-                    message = "source=${currentConfig?.weatherSource} cachePresent=${cached != null} cacheIsFresh=$cacheIsFresh lastFetch=$lastFetch ageMs=${lastFetch?.let { System.currentTimeMillis() - it }}",
+                    message = "source=${currentConfig?.weatherSource} cachePresent=${cached != null} action=$launchRefreshAction " +
+                        "lastForecastFetch=$lastForecastFetch forecastAgeMs=${lastForecastFetch?.let { now - it }} " +
+                        "lastObservationFetch=$lastObservationFetch observationAgeMs=${lastObservationFetch?.let { now - it }}",
                     level = "INFO"
                 )
 
-                if (!cacheIsFresh) {
+                if (launchRefreshAction != LaunchRefreshAction.NONE) {
                     try {
-                        println("Refreshing from network...")
-                        forecast = repo.refresh()
-                        val now = System.currentTimeMillis()
-                        dataStatus = DataStatus.Live(now)
-                        println("Refresh successful. DataStatus updated to Live.")
+                        forecast = when (launchRefreshAction) {
+                            LaunchRefreshAction.FULL_FORECAST -> {
+                                println("Refreshing full forecast from network...")
+                                repo.refresh()
+                            }
+                            LaunchRefreshAction.OBSERVATIONS -> {
+                                println("Refreshing current observations from network...")
+                                repo.refreshObservations()
+                            }
+                            LaunchRefreshAction.NONE -> forecast
+                        }
+                        dataStatus = DataStatus.Live(System.currentTimeMillis())
+                        println("Launch refresh successful. DataStatus updated to Live.")
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         println("Refresh cancelled.")
                         throw e
@@ -1226,6 +1243,23 @@ private const val ACTUALS_REFRESH_INTERVAL_MS = 10 * 60 * 1000L
 private const val ACTIVE_FORECAST_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
 /** Full forecast for non-active weather sources: 120 minutes */
 private const val NON_ACTIVE_FORECAST_REFRESH_INTERVAL_MS = 120 * 60 * 1000L
+
+internal enum class LaunchRefreshAction {
+    FULL_FORECAST,
+    OBSERVATIONS,
+    NONE,
+}
+
+internal fun determineLaunchRefreshAction(
+    cachePresent: Boolean,
+    lastObservationFetchMs: Long?,
+    nowMs: Long = System.currentTimeMillis(),
+): LaunchRefreshAction {
+    if (!cachePresent) return LaunchRefreshAction.FULL_FORECAST
+    val observationsAreFresh = lastObservationFetchMs != null &&
+        (nowMs - lastObservationFetchMs) < FRESHNESS_THRESHOLD_MS
+    return if (observationsAreFresh) LaunchRefreshAction.NONE else LaunchRefreshAction.OBSERVATIONS
+}
 
 internal fun computeRefreshDelayMs(hourly: List<com.weatherwidget.data.model.HourlyForecast>?): Long {
     if (hourly.isNullOrEmpty()) return DEFAULT_REFRESH_DELAY_MS

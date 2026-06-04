@@ -247,15 +247,18 @@ class DesktopWeatherService(
         when (weatherSource) {
             "NWS" -> fetchNwsObservationsOnly()
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
-            WeatherSource.TOMORROW_IO.id -> tomorrowIo.getForecast(latitude, longitude)
-            WeatherSource.WEATHER_API.id -> weatherApi.getForecast(latitude, longitude)
-            WeatherSource.VISUAL_CROSSING.id -> visualCrossing.getForecast(latitude, longitude)
-            WeatherSource.SILURIAN.id -> silurian.getForecast(latitude, longitude)
-            WeatherSource.OPEN_WEATHER_MAP.id -> openWeatherMap.getForecast(latitude, longitude)
+            WeatherSource.TOMORROW_IO.id,
+            WeatherSource.WEATHER_API.id,
+            WeatherSource.VISUAL_CROSSING.id,
+            WeatherSource.SILURIAN.id,
+            WeatherSource.OPEN_WEATHER_MAP.id -> {
+                Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
+                ForecastResult()
+            }
             else -> fetchOpenMeteoObservationsOnly()
         }
     }.getOrElse { e ->
-        if (weatherSource != WeatherSource.OPEN_METEO.id) {
+        if (weatherSource == "NWS") {
             fetchOpenMeteoObservationsOnly()
         } else {
             throw e
