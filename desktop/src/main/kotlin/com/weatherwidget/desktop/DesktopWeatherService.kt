@@ -115,11 +115,31 @@ class DesktopWeatherService(
             ?: hourlyRaw.firstOrNull()?.shortForecast
 
         // All readings (latest + historical) from all successful stations
-        val observations = bundles.flatMap { bundle ->
+        val rawObservations = bundles.flatMap { bundle ->
             buildList {
                 bundle.latest?.let { add(it.toReading(bundle.station)) }
                 bundle.historical.forEach { add(it.toReading(bundle.station)) }
             }
+        }
+
+        // Add NWS_BLEND synthetic reading if we successfully blended. Matches Android parity
+        // and ensures the graph and header use the same weighted truth.
+        val observations = if (currentTemp != null && latestReadings.isNotEmpty()) {
+            val newestMs = latestReadings.maxOf { it.timestamp }
+            rawObservations + ObservationReading(
+                stationId = "NWS_BLEND",
+                stationName = "NWS Blended",
+                timestamp = newestMs,
+                temperature = currentTemp,
+                condition = currentCondition ?: "none",
+                locationLat = latitude,
+                locationLon = longitude,
+                distanceKm = 0f,
+                stationType = "VIRTUAL",
+                api = "NWS"
+            )
+        } else {
+            rawObservations
         }
 
         ForecastResult(
@@ -289,11 +309,31 @@ class DesktopWeatherService(
         val closestBundle = bundles.minByOrNull { distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
         val currentCondition = closestBundle?.latest?.textDescription
 
-        val observations = bundles.flatMap { bundle ->
+        // All readings (latest + historical) from all successful stations
+        val rawObservations = bundles.flatMap { bundle ->
             buildList {
                 bundle.latest?.let { add(it.toReading(bundle.station)) }
                 bundle.historical.forEach { add(it.toReading(bundle.station)) }
             }
+        }
+
+        // Add NWS_BLEND synthetic reading if we successfully blended. Matches Android parity.
+        val observations = if (currentTemp != null && latestReadings.isNotEmpty()) {
+            val newestMs = latestReadings.maxOf { it.timestamp }
+            rawObservations + ObservationReading(
+                stationId = "NWS_BLEND",
+                stationName = "NWS Blended",
+                timestamp = newestMs,
+                temperature = currentTemp,
+                condition = currentCondition ?: "none",
+                locationLat = latitude,
+                locationLon = longitude,
+                distanceKm = 0f,
+                stationType = "VIRTUAL",
+                api = "NWS"
+            )
+        } else {
+            rawObservations
         }
 
         ForecastResult(

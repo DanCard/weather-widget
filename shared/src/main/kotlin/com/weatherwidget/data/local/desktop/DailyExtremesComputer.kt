@@ -30,6 +30,7 @@ object DailyExtremesComputer {
         if (observations.isEmpty()) return emptyList()
 
         return observations
+            .filter { it.stationId != "NWS_BLEND" }
             .groupBy { obs ->
                 val day = Instant.ofEpochMilli(obs.timestamp).atZone(zone).toLocalDate()
                 ExtremeKey(day.toEpochDay(), obs.api, obs.locationLat, obs.locationLon)

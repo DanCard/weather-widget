@@ -31,7 +31,12 @@ class DesktopWeatherRepository(
         val observations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
             .map { it.toReading() }
 
-        val newestObs = observations.maxByOrNull { it.timestamp }
+        val newestTs = observations.maxOfOrNull { it.timestamp }
+        val newestObs = if (newestTs != null) {
+            val candidates = observations.filter { it.timestamp == newestTs }
+            candidates.find { it.stationId == "NWS_BLEND" } ?: candidates.firstOrNull()
+        } else null
+
         // Freshness gate only governs whether the *current temp* is shown as observed vs interpolated.
         val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
         val interpolatedTemp = TemperatureInterpolator.getInterpolatedTemperature(hourly, now)
