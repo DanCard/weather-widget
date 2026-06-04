@@ -83,6 +83,26 @@ class DesktopUiTest {
     }
 
     @Test
+    fun testCloudCoverToggle() {
+        var updatedConfig: DesktopConfig? = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = "HOURLY"),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { updatedConfig = it },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        // Tapping the cloud emoji switcher in temperature graph (HOURLY)
+        composeTestRule.onNodeWithText("☁️").performClick()
+        assertEquals("CLOUD_COVER", updatedConfig?.viewMode)
+    }
+
+    @Test
     fun testHourlyNavigationStepsBySixHours() {
         var updatedConfig: DesktopConfig? = null
         composeTestRule.setContent {

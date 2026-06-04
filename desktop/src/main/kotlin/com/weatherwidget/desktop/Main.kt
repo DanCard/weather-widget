@@ -625,26 +625,45 @@ internal fun WidgetPopup(
                         onOpenSettings = onOpenSettings,
                         onOpenObservations = onOpenObservations,
                         onUpdateLocation = onUpdateLocation,
-                        showWeatherSummary = config.viewMode == "HOURLY",
+                        showWeatherSummary = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER",
                         headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
                     )
 
                     Spacer(Modifier.height(8.dp))
 
-                    if (config.viewMode == "HOURLY") {
+                    val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER"
+                    if (isHourly) {
                         Box(modifier = Modifier.fillMaxWidth().weight(1f).testTag("hourly_temperature_surface")) {
-                            TemperatureGraph(
-                                hourly = snapshot.hourly,
-                                currentTemp = snapshot.currentTemp,
-                                currentObservedAt = snapshot.currentObservedAt,
-                                observations = snapshot.rawObservations,
-                                displaySourceId = config.weatherSource,
-                                latitude = config.lat,
-                                longitude = config.lon,
-                                modifier = Modifier.fillMaxSize(),
-                                centerOffsetHours = config.hourlyOffset,
-                                zoomLevel = config.zoomLevel,
-                            )
+                            if (config.viewMode == "CLOUD_COVER") {
+                                CloudCoverGraph(
+                                    hourly = snapshot.hourly,
+                                    displaySourceId = config.weatherSource,
+                                    latitude = config.lat,
+                                    longitude = config.lon,
+                                    modifier = Modifier.fillMaxSize(),
+                                    centerOffsetHours = config.hourlyOffset,
+                                    zoomLevel = config.zoomLevel,
+                                    onViewModeChange = { targetView ->
+                                        onUpdateConfig(config.copy(viewMode = targetView))
+                                    }
+                                )
+                            } else {
+                                TemperatureGraph(
+                                    hourly = snapshot.hourly,
+                                    currentTemp = snapshot.currentTemp,
+                                    currentObservedAt = snapshot.currentObservedAt,
+                                    observations = snapshot.rawObservations,
+                                    displaySourceId = config.weatherSource,
+                                    latitude = config.lat,
+                                    longitude = config.lon,
+                                    modifier = Modifier.fillMaxSize(),
+                                    centerOffsetHours = config.hourlyOffset,
+                                    zoomLevel = config.zoomLevel,
+                                    onViewModeChange = { targetView ->
+                                        onUpdateConfig(config.copy(viewMode = targetView))
+                                    }
+                                )
+                            }
                             NavArrow(
                                 alignment = Alignment.CenterStart,
                                 enabled = config.hourlyOffset > MIN_HOURLY_OFFSET,
@@ -915,17 +934,32 @@ private fun WidgetHeader(
                     modifier = Modifier.size(13.dp).clickable { onOpenSettings() },
                     tint = Color.White.copy(alpha = 0.7f)
                 )
+                val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER"
+                if (isHourly) {
+                    Spacer(Modifier.width(6.dp))
+                    val isCloud = config.viewMode == "CLOUD_COVER"
+                    val emoji = if (isCloud) "🌡️" else "☁️"
+                    Text(
+                        text = emoji,
+                        fontSize = 11.sp,
+                        modifier = Modifier.clickable {
+                            val nextMode = if (isCloud) "HOURLY" else "CLOUD_COVER"
+                            onUpdateConfig(config.copy(viewMode = nextMode))
+                        }
+                    )
+                }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                if (config.viewMode == "HOURLY") {
+                val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER"
+                if (isHourly) {
                     ViewModeChip(config.zoomLevel.take(1), true) {
                         val nextZoom = if (config.zoomLevel == "WIDE") "NARROW" else "WIDE"
                         onUpdateConfig(config.copy(zoomLevel = nextZoom))
                     }
                     Spacer(Modifier.width(4.dp))
                 }
-                ViewModeChip("H", config.viewMode == "HOURLY") {
+                ViewModeChip("H", isHourly) {
                     onUpdateConfig(config.copy(viewMode = "HOURLY"))
                 }
                 ViewModeChip("D", config.viewMode == "DAILY") {

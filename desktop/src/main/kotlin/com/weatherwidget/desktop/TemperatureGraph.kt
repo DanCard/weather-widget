@@ -26,6 +26,8 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
@@ -102,6 +104,7 @@ fun TemperatureGraph(
     modifier: Modifier = Modifier,
     centerOffsetHours: Int = 0,
     zoomLevel: String = "WIDE",
+    onViewModeChange: (String) -> Unit = {},
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
@@ -129,7 +132,20 @@ fun TemperatureGraph(
 
     if (points.size < 2) return
 
-    Canvas(modifier = modifier) {
+    Canvas(
+        modifier = modifier.pointerInput(points, zoomLevel) {
+            detectTapGestures { offset ->
+                if (offset.y >= size.height - 44.dp.toPx()) {
+                    val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
+                    val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
+                    val clickedPoint = points[index]
+                    val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
+                    val targetView = WeatherIcon.resolveIconHome(iconRes)
+                    onViewModeChange(targetView)
+                }
+            }
+        }
+    ) {
         val windowStart = start
         val windowEnd = cutoff
         val windowSpan = (windowEnd - windowStart).coerceAtLeast(1L).toFloat()

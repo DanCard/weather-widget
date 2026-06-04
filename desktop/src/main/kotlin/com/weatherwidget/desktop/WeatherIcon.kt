@@ -62,4 +62,22 @@ object WeatherIcon {
             else -> null
         }
     }
+
+    fun isRainIndicator(iconRes: String): Boolean {
+        val lower = iconRes.lowercase()
+        return lower.contains("rain") || lower.contains("storm") || lower.contains("snow")
+    }
+
+    fun isCloudForecastEligible(iconRes: String): Boolean {
+        val lower = iconRes.lowercase()
+        return lower.contains("cloudy") || lower.contains("mostly_clear") || lower.contains("fog") || lower.contains("horizon_sun")
+    }
+
+    fun resolveIconHome(iconRes: String): String {
+        return when {
+            isRainIndicator(iconRes) -> "HOURLY" // Or "PRECIPITATION" if added later
+            isCloudForecastEligible(iconRes) -> "CLOUD_COVER"
+            else -> "HOURLY"
+        }
+    }
 }

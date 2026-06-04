@@ -1,0 +1,517 @@
+package com.weatherwidget.desktop
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.weatherwidget.data.model.HourlyForecast
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import java.time.format.TextStyle as JavaTextStyle
+
+private val COLOR_CLOUD_CURVE = Color(0xFFAAAAAA)
+private val COLOR_CLOUD_FILL_START = Color(0xFF8E99A4).copy(alpha = 0.22f)
+private val COLOR_CLOUD_FILL_END = Color.Transparent
+
+private val FORECAST_SUNNY = Color(0xFFF4C542)
+private val FORECAST_CLOUDY = Color(0xFF8E99A4)
+private val FORECAST_RAINY = Color(0xFF5A8FBF)
+private val FORECAST_NIGHT = Color(0xFFBBBBBB)
+private val FORECAST_TWILIGHT = Color(0xFFFFA726)
+
+private fun forecastColor(flags: WeatherIcon.ConditionFlags): Color {
+    return when {
+        flags.isRainy -> FORECAST_RAINY
+        flags.isNight -> FORECAST_NIGHT
+        flags.isTwilight && flags.isSunny -> FORECAST_TWILIGHT
+        flags.isMixed -> FORECAST_SUNNY
+        flags.isSunny -> FORECAST_SUNNY
+        else -> FORECAST_CLOUDY
+    }
+}
+
+private const val WIDE_BACK_HOURS = 12
+private const val WIDE_FORWARD_HOURS = 12
+private const val WIDE_LABEL_INTERVAL = 4
+private const val NARROW_WIDE_LABEL_INTERVAL = 6
+private const val NARROW_WIDTH_PX = 420f
+
+@Composable
+fun CloudCoverGraph(
+    hourly: List<HourlyForecast>,
+    displaySourceId: String = "NWS",
+    latitude: Double = 0.0,
+    longitude: Double = 0.0,
+    modifier: Modifier = Modifier,
+    centerOffsetHours: Int = 0,
+    zoomLevel: String = "WIDE",
+    onViewModeChange: (String) -> Unit = {},
+) {
+    val textMeasurer = rememberTextMeasurer()
+    val now = System.currentTimeMillis()
+    val center = now + centerOffsetHours * 3_600_000L
+    
+    val backHours = if (zoomLevel == "NARROW") 2 else WIDE_BACK_HOURS
+    val forwardHours = if (zoomLevel == "NARROW") 2 else WIDE_FORWARD_HOURS
+    
+    val start = center - backHours * 3_600_000L
+    val cutoff = center + forwardHours * 3_600_000L
+
+    val points = remember(hourly, centerOffsetHours, zoomLevel) {
+        hourly.filter { it.dateTime in (start - 3_600_000L)..cutoff }
+            .sortedBy { it.dateTime }
+            .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
+    }
+
+    val iconSpacing = if (points.size > 24) 4 else if (points.size > 12) 3 else 2
+    val painters = mutableListOf<Painter?>()
+    for (i in points.indices) {
+        painters.add(if (i % iconSpacing == 0) painterResource(WeatherIcon.getIconResource(points[i].condition)) else null)
+    }
+
+    val smoothIterations = if (zoomLevel == "NARROW") 1 else 3
+
+    if (points.size < 2) return
+
+    val watermarkPainter = painterResource("drawable/ic_weather_mostly_cloudy.xml")
+
+    Canvas(
+        modifier = modifier.pointerInput(points, zoomLevel) {
+            detectTapGestures { offset ->
+                if (offset.y >= size.height - 44.dp.toPx()) {
+                    val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
+                    val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
+                    val clickedPoint = points[index]
+                    val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
+                    val targetView = WeatherIcon.resolveIconHome(iconRes)
+                    onViewModeChange(targetView)
+                }
+            }
+        }
+    ) {
+        val windowStart = start
+        val windowEnd = cutoff
+        val windowSpan = (windowEnd - windowStart).coerceAtLeast(1L).toFloat()
+
+        val rawCloudValues = points.map { it.cloudCover?.toFloat() ?: 0f }
+        val smoothedClouds = com.weatherwidget.shared.util.DesktopTemperatureInterpolator.smoothValuesPreservingAllExtrema(rawCloudValues, smoothIterations)
+        
+        val visibleMax = smoothedClouds.maxOrNull()?.coerceIn(0f, 100f) ?: 0f
+        val topScale = (visibleMax + 12f).coerceIn(85f, 100f)
+
+        val w = size.width
+        val h = size.height
+
+        val graphTop = 38.dp.toPx()
+        val footerIconSize = 18.dp.toPx()
+        val bottomInset = 4.dp.toPx()
+        val graphBottom = h - footerIconSize - bottomInset
+        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
+
+        fun xAtTime(t: Long): Float = ((t - windowStart).toFloat() / windowSpan * w).coerceIn(0f, w)
+        fun xAt(i: Int): Float = xAtTime(points[i].dateTime)
+        fun yAt(cover: Float): Float {
+            val clamped = cover.coerceIn(0f, 100f)
+            return graphBottom - graphHeight * (clamped / topScale)
+        }
+
+        val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(smoothedClouds[i])) }
+
+        fun getCurveYAtX(x: Float): Float {
+            if (coords.isEmpty()) return 0f
+            if (x <= coords.first().x) return coords.first().y
+            if (x >= coords.last().x) return coords.last().y
+            val nextIdx = coords.indexOfFirst { it.x > x }
+            if (nextIdx == -1 || nextIdx == 0) return coords.last().y
+            val before = coords[nextIdx - 1]
+            val after = coords[nextIdx]
+            val t = (x - before.x) / (after.x - before.x)
+            return before.y + (after.y - before.y) * t
+        }
+
+        // Draw Fill Path
+        val fillPath = Path().apply {
+            addPath(buildCurve(coords))
+            lineTo(coords.last().x, graphBottom)
+            lineTo(coords.first().x, graphBottom)
+            close()
+        }
+        val fillBrush = Brush.verticalGradient(
+            colors = listOf(COLOR_CLOUD_FILL_START, COLOR_CLOUD_FILL_END),
+            startY = graphTop,
+            endY = graphBottom
+        )
+        drawPath(fillPath, brush = fillBrush)
+
+        // Draw Curve Line
+        val curveStroke = if (zoomLevel == "NARROW") 2.dp.toPx() else 3.dp.toPx()
+        drawPath(
+            path = buildCurve(coords),
+            color = COLOR_CLOUD_CURVE,
+            style = Stroke(width = curveStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        // Draw Now vertical dashed guide line
+        val nowIdx = points.indexOfByClosestTime(now)
+        val markerCloud = smoothedClouds[nowIdx]
+        val markerX = xAtTime(now)
+        val markerY = yAt(markerCloud)
+        if (now in windowStart..windowEnd) {
+            drawLine(
+                color = Color.White.copy(alpha = 0.36f),
+                start = Offset(markerX, graphTop),
+                end = Offset(markerX, graphBottom),
+                strokeWidth = 1.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+            )
+            drawCircle(color = Color.White, radius = 4.5f, center = Offset(markerX, markerY))
+            drawCircle(color = COLOR_CLOUD_CURVE, radius = 2.5f, center = Offset(markerX, markerY))
+        }
+
+        // Extrema Label Placement
+        val labelSignal = smoothedClouds.map { it.roundToInt().coerceIn(0, 100) }
+        val globalMaxVal = labelSignal.maxOrNull() ?: -1
+        val globalMinVal = labelSignal.minOrNull() ?: -1
+
+        val globalMaxIdx = labelSignal.indexOfFirst { it == globalMaxVal }
+        val globalMinIdx = labelSignal.indexOfFirst { it == globalMinVal }
+
+        // Find soft dips
+        val softDipCandidates = mutableListOf<Int>()
+        var jIdx = 0
+        while (jIdx < labelSignal.size) {
+            val prob = labelSignal[jIdx]
+            if (prob <= 0 || prob > 85) {
+                jIdx++
+                continue
+            }
+            var runEnd = jIdx
+            while (runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] == prob) {
+                runEnd++
+            }
+            val left = (jIdx - 4).coerceAtLeast(0)
+            val right = (runEnd + 4).coerceAtMost(labelSignal.lastIndex)
+            if (left < jIdx && right > runEnd) {
+                val leftMax = (left until jIdx).maxOfOrNull { labelSignal[it] } ?: prob
+                val rightMax = ((runEnd + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
+                if (leftMax >= prob + 15 && rightMax >= prob + 15) {
+                    softDipCandidates.add(jIdx + (runEnd - jIdx) / 2)
+                }
+            }
+            jIdx = runEnd + 1
+        }
+
+        val candidates = mutableListOf<Int>()
+        if (globalMaxIdx >= 0) candidates.add(globalMaxIdx)
+        if (globalMinIdx >= 0 && globalMinIdx != globalMaxIdx) candidates.add(globalMinIdx)
+        if (0 !in candidates) candidates.add(0)
+        if (points.lastIndex !in candidates && points.isNotEmpty()) candidates.add(points.lastIndex)
+        candidates.addAll(softDipCandidates)
+        candidates.sortBy { it }
+
+        // Filter dense labels roughly
+        val finalCandidates = candidates.distinct()
+
+        val drawnLabels = mutableListOf<Rect>()
+        for (index in finalCandidates) {
+            if (index !in labelSignal.indices) continue
+            val cloudPct = labelSignal[index]
+            val labelText = "$cloudPct%"
+            
+            val textLayout = textMeasurer.measure(labelText, TextStyle(fontSize = 11.sp, color = Color.White))
+            val textWidth = textLayout.size.width.toFloat()
+            val textHeight = textLayout.size.height.toFloat()
+            
+            val centerX = coords[index].x
+            val pointY = coords[index].y
+
+            val isPeak = index == globalMaxIdx || (index > 0 && index < labelSignal.lastIndex &&
+                labelSignal[index] > labelSignal[index - 1] && labelSignal[index] > labelSignal[index + 1])
+            val isEndLabelCandidate = index == points.lastIndex
+            val isRisingAtEnd = isEndLabelCandidate && index > 0 && coords[index].y < coords[index - 1].y - 2f
+            val isFallingFromLeftEdge = index == 0 && points.size > 1 && coords[1].y > coords[0].y + 2f
+            val preferAbove = isPeak || isRisingAtEnd || isFallingFromLeftEdge
+
+            val attempts = if (preferAbove) listOf(true, false) else listOf(false, true)
+            var placed = false
+
+            for (placeAbove in attempts) {
+                val gapPx = if (placeAbove) 6.dp.toPx() else 6.dp.toPx()
+                val textTop = if (placeAbove) {
+                    val curveMinY = minOf(getCurveYAtX(centerX - textWidth / 2f), pointY, getCurveYAtX(centerX + textWidth / 2f))
+                    curveMinY - gapPx - textHeight
+                } else {
+                    val curveMaxY = maxOf(getCurveYAtX(centerX - textWidth / 2f), pointY, getCurveYAtX(centerX + textWidth / 2f))
+                    curveMaxY + gapPx
+                }
+
+                val x = centerX.coerceIn(textWidth / 2f, w - textWidth / 2f)
+                val bounds = Rect(offset = Offset(x - textWidth / 2f, textTop), size = Size(textWidth, textHeight))
+
+                val safeBottom = graphBottom - 10.dp.toPx()
+                if (bounds.top < 0f || bounds.bottom > safeBottom) continue
+
+                val overlaps = drawnLabels.any { it.overlaps(bounds.inflate(4.dp.toPx())) }
+                if (!overlaps) {
+                    drawText(textLayout, topLeft = bounds.topLeft)
+                    drawnLabels.add(bounds)
+                    placed = true
+                    
+                    // Draw leader line if shifted significantly
+                    val baselineTop = if (placeAbove) pointY - gapPx - textHeight else pointY + gapPx
+                    val shift = abs(textTop - baselineTop)
+                    if (shift > 1.5f) {
+                        val leaderLineStart = Offset(centerX, pointY)
+                        val leaderLineEnd = if (placeAbove) Offset(centerX, textTop + textHeight) else Offset(centerX, textTop)
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.35f),
+                            start = leaderLineStart,
+                            end = leaderLineEnd,
+                            strokeWidth = 0.5.dp.toPx()
+                        )
+                    }
+                    break
+                }
+            }
+        }
+
+        // Draw Cloud Watermark in emptiest region
+        val windowSize = (points.size / 5).coerceIn(3, 6)
+        val candidateCenters = (0..points.size - windowSize)
+            .map { start ->
+                val avg = (start until start + windowSize).map { smoothedClouds[it] }.average().toFloat()
+                val center = start + windowSize / 2
+                val edgeDistance = minOf(center, points.lastIndex - center)
+                Triple(center, avg, edgeDistance)
+            }
+            .sortedWith(compareBy<Triple<Int, Float, Int>> { it.second }.thenByDescending { it.third })
+            .map { it.first }
+            .distinct()
+
+        var watermarkPlaced = false
+        val watermarkIconSize = 48.dp.toPx()
+        for (center in candidateCenters) {
+            val curveX = coords[center].x
+            val curveY = coords[center].y
+            for (fraction in listOf(0.5f, 0.65f, 0.35f)) {
+                val centerY = graphTop + (curveY - graphTop) * fraction
+                val bounds = Rect(
+                    offset = Offset(curveX - watermarkIconSize / 2f, centerY - watermarkIconSize / 2f),
+                    size = Size(watermarkIconSize, watermarkIconSize)
+                )
+                val fitsAboveCurve = bounds.top >= 0f && bounds.bottom < curveY - 2.dp.toPx()
+                val overlapsLabels = drawnLabels.any { it.overlaps(bounds) }
+                if (fitsAboveCurve && !overlapsLabels) {
+                    translate(bounds.left, bounds.top) {
+                        with(watermarkPainter) {
+                            draw(
+                                size = Size(watermarkIconSize, watermarkIconSize),
+                                alpha = 0.08f
+                            )
+                        }
+                    }
+                    watermarkPlaced = true
+                    break
+                }
+            }
+            if (watermarkPlaced) break
+        }
+
+        // Draw Missing Data Diagnostic if needed
+        val expectedTotalPoints = if (zoomLevel == "NARROW") 5 else 25
+        if (points.size < expectedTotalPoints) {
+            val msg = if (points.isEmpty()) "Cloud data unavailable" else "Cloud data missing for ${expectedTotalPoints - points.size} of $expectedTotalPoints hrs"
+            val textLayout = textMeasurer.measure(
+                text = msg,
+                style = TextStyle(
+                    fontSize = 10.sp,
+                    color = Color(0xFFDDC8CFD8)
+                )
+            )
+            drawText(
+                textLayoutResult = textLayout,
+                topLeft = Offset(w / 2f - textLayout.size.width / 2f, h / 2f - textLayout.size.height / 2f)
+            )
+        }
+
+        // Draw Day Labels at bottom
+        drawDayLabels(
+            leftDate = Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault()).toLocalDate(),
+            rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
+            textMeasurer = textMeasurer,
+            occupied = drawnLabels,
+        )
+
+        // Draw Bottom Strip: icons + hour labels
+        val labelInterval = if (zoomLevel == "NARROW") {
+            1
+        } else {
+            if (w <= NARROW_WIDTH_PX) NARROW_WIDE_LABEL_INTERVAL else WIDE_LABEL_INTERVAL
+        }
+        for (i in points.indices) {
+            val hourFromStart = ((points[i].dateTime - windowStart) / 3_600_000L).toInt()
+            if (hourFromStart % labelInterval != 0) continue
+            val p = points[i]
+            val x = xAt(i)
+            painters[i]?.let { painter ->
+                val iconSize = 18.dp.toPx()
+                val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
+                val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
+                val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
+                    isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
+                )
+                val filter = if (!flags.isRainy && !flags.isMixed) {
+                    val tint = when {
+                        flags.isNight -> Color(0xFFBBBBBB)
+                        flags.isTwilight -> Color(0xFFFFA726)
+                        flags.isSunny -> Color(0xFFFFD60A)
+                        else -> Color(0xFFBBBBBB)
+                    }
+                    ColorFilter.tint(tint)
+                } else {
+                    null
+                }
+                translate(x - iconSize / 2f, h - 38f) {
+                    with(painter) { draw(size = Size(iconSize, iconSize), colorFilter = filter) }
+                }
+            }
+            val time = Instant.ofEpochMilli(p.dateTime)
+                .atZone(ZoneId.systemDefault())
+                .toLocalTime()
+            val timeStr = formatHourLabel(time.hour)
+            val timeLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = 9.sp, color = Color.Gray))
+            drawText(timeLayout, topLeft = Offset(x - timeLayout.size.width / 2f, h - 14f))
+        }
+    }
+}
+
+private fun DrawScope.drawDayLabels(
+    leftDate: LocalDate,
+    rightDate: LocalDate,
+    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    occupied: MutableList<Rect>,
+) {
+    val today = LocalDate.now()
+    val dates = listOf(0f to leftDate, size.width to rightDate)
+    dates.forEach { (edgeX, date) ->
+        val isToday = date == today
+        val color = if (isToday) Color.Yellow.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.45f)
+        val text = date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
+        val layout = textMeasurer.measure(text, TextStyle(fontSize = 10.sp, color = color))
+        val x = edgeX.coerceIn(layout.size.width / 2f, size.width - layout.size.width / 2f)
+        val candidates = listOf(8f, size.height * 0.48f, size.height - 48f)
+        val y = candidates.firstOrNull { top ->
+            val rect = Rect(
+                offset = Offset(x - layout.size.width / 2f, top),
+                size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
+            )
+            occupied.none { it.overlaps(rect.inflate(4f)) }
+        } ?: candidates.last()
+        val rect = Rect(
+            offset = Offset(x - layout.size.width / 2f, y),
+            size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
+        )
+        drawText(layout, topLeft = rect.topLeft)
+        occupied.add(rect)
+    }
+}
+
+private fun formatHourLabel(hour: Int): String {
+    val hour12 = when (val h = hour % 12) {
+        0 -> 12
+        else -> h
+    }
+    val suffix = if (hour < 12) "a" else "p"
+    return "$hour12$suffix"
+}
+
+private fun computeTangents(coords: List<Offset>): List<Offset> {
+    if (coords.size < 2) return coords.map { Offset.Zero }
+    return coords.indices.map { i ->
+        when (i) {
+            0 -> Offset(
+                (coords[1].x - coords[0].x) * 0.5f,
+                (coords[1].y - coords[0].y) * 0.5f
+            )
+            coords.size - 1 -> Offset(
+                (coords[i].x - coords[i - 1].x) * 0.5f,
+                (coords[i].y - coords[i - 1].y) * 0.5f
+            )
+            else -> {
+                val dxPrev = coords[i].x - coords[i - 1].x
+                val dxNext = coords[i + 1].x - coords[i].x
+                val dx = (dxPrev + dxNext) * 0.5f
+                var dy = (coords[i + 1].y - coords[i - 1].y) * 0.5f
+
+                val delta1 = coords[i].y - coords[i - 1].y
+                val delta2 = coords[i + 1].y - coords[i].y
+                if (delta1 == 0f || delta2 == 0f || (delta1 > 0 && delta2 < 0) || (delta1 < 0 && delta2 > 0)) {
+                    dy = 0f
+                }
+                
+                val maxSafeDx = dxPrev.coerceAtMost(dxNext) * 1.5f
+                if (dx > maxSafeDx && maxSafeDx > 0) {
+                    val scale = maxSafeDx / dx
+                    Offset(maxSafeDx, dy * scale)
+                } else {
+                    Offset(dx, dy)
+                }
+            }
+        }
+    }
+}
+
+private fun buildCurve(coords: List<Offset>): Path = Path().apply {
+    if (coords.isEmpty()) return@apply
+    moveTo(coords[0].x, coords[0].y)
+    if (coords.size > 1) {
+        val tangents = computeTangents(coords)
+        for (i in 0 until coords.size - 1) {
+            val cp1x = coords[i].x + tangents[i].x / 3f
+            val cp1y = coords[i].y + tangents[i].y / 3f
+            val cp2x = coords[i + 1].x - tangents[i + 1].x / 3f
+            val cp2y = coords[i + 1].y - tangents[i + 1].y / 3f
+            cubicTo(cp1x, cp1y, cp2x, cp2y, coords[i + 1].x, coords[i + 1].y)
+        }
+    }
+}
+
+private fun List<HourlyForecast>.indexOfByClosestTime(targetTime: Long): Int {
+    var minDiff = Long.MAX_VALUE
+    var closestIdx = 0
+    forEachIndexed { index, forecast ->
+        val diff = abs(forecast.dateTime - targetTime)
+        if (diff < minDiff) {
+            minDiff = diff
+            closestIdx = index
+        }
+    }
+    return closestIdx
+}
