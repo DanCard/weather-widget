@@ -23,7 +23,7 @@ set -x
 
 printf "\n\t Starting desktop app through autostart launcher: $AUTOSTART_SCRIPT\n"
 set -x
-nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 &
+nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 & disown
 { set +x; } 2>/dev/null
 sleep 1   # No hup message prints late.  Add sleep so messages come out in expected order.
 printf "\t Started launcher pid $!. Logs: $LOG_FILE\n"

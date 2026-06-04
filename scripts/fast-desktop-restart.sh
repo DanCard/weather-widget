@@ -23,7 +23,7 @@ if [ ! -x "$APP_BIN" ]; then
 fi
 
 echo "Relaunching existing distributable (new instance will signal old to quit)..."
-nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 &
+nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 & disown
 echo "Started launcher pid $!. Logs: $LOG_FILE"
 
 # Touch .show to ensure the window is surfaced immediately on restart
