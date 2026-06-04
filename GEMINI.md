@@ -45,12 +45,23 @@ The project requires Java 21. Ensure your environment is configured correctly be
 
 ### Desktop (Linux)
 ```bash
-# Run the desktop app
+# Run the desktop app for development (fast iteration, no distributable)
 ./gradlew :desktop:run
 
-# Package the desktop app
+# Build the repo-local app distribution (used by autostart)
+./gradlew :desktop:createDistributable
+
+# Run the autostart launcher script (rebuilds distributable if missing)
+scripts/desktop-app-launcher-and-autostart.sh
+
+# Rebuild, stop running app, and restart the new repo distributable immediately
+scripts/build-exe-and-restart.sh
+
+# Fast restart of existing distributable (relaunch without rebuilding)
+scripts/fast-desktop-restart.sh
+
+# Package the desktop app as a Debian package
 ./gradlew :desktop:packageDeb
-./gradlew :desktop:packageAppImage
 ```
 
 ---
@@ -75,6 +86,10 @@ When investigating bugs or data mismatches, follow this strict sequence:
 - **Naming**: PascalCase for Classes, camelCase for functions/properties, backtick-wrapped sentences for test functions.
 - **Logging**: Use `private const val TAG = "ClassName"` and standardized log levels. Do **NOT** remove debug logs during the cleanup phase or after verifying a fix unless explicitly requested by the user. Maintain consistent logging for critical paths (e.g., both High and Low temperature labels).
 - **Imports**: Grouped by (1) Android/Framework, (2) Libraries, (3) Project.
+- **Desktop Single Instance**: Uses a fire-and-forget, last-launch-wins model. A new launch touches a `.quit` trigger file (`~/.local/share/weather-widget/.quit`), causing any running instance (incumbent) to gracefully quit, allowing the new launch to take over immediately.
+- **Desktop Autostart**: Autostart file at `~/.config/autostart/weather-widget-desktop.desktop` executes `scripts/desktop-app-launcher-and-autostart.sh`, which runs the repo-local distributable app (rebuilding it once if missing).
+- **Desktop Packaging**: Requires a full JDK with `jpackage` (bundled Android Studio JBR is insufficient; use `/usr/lib/jvm/java-21-openjdk-amd64` or set `JPACKAGE_HOME`). The packaged runtime must declare `java.sql`, crypto modules, and `jdk.unsupported`.
+- **Desktop XFCE Genmon**: Integrates via `scripts/genmon-weather.py` (queries `weather.db` and writes Pango markup for panel display). Click events are captured via genmon and touch a `.show` file to open the popup window.
 
 ---
 

@@ -4,7 +4,7 @@
 # or build.gradle.kts changes (e.g. the app got wedged, or to re-read on-disk config).
 #
 # If you changed Kotlin code or JVM flags in build.gradle.kts, use
-# desktop-full-rebuild-and-restart.sh instead — those changes only reach the running process
+# build-exe-and-restart.sh instead — those changes only reach the running process
 # after createDistributable regenerates the launcher + its .cfg.
 set -euo pipefail
 
@@ -18,7 +18,7 @@ mkdir -p "$LOG_DIR"
 
 if [ ! -x "$APP_BIN" ]; then
   echo "Distributable not built yet ($APP_BIN missing)."
-  echo "Run scripts/desktop-full-rebuild-and-restart.sh once to build it."
+  echo "Run scripts/build-exe-and-restart.sh once to build it."
   exit 1
 fi
 

@@ -52,7 +52,7 @@ one at `/usr/lib/jvm/java-21-openjdk-amd64`).
 ./gradlew :desktop:createDistributable
 
 # Build, stop the running app, and start the new repo-local distributable
-scripts/desktop-full-rebuild-and-restart.sh
+scripts/build-exe-and-restart.sh
 
 # Development only: run without the distributable wrapper
 ./gradlew :desktop:run
@@ -64,7 +64,7 @@ scripts/desktop-full-rebuild-and-restart.sh
 Daily autostart uses `scripts/desktop-app-launcher-and-autostart.sh`, which launches the repo-local
 distributable at `desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop`.
 If the distributable is missing, the script rebuilds it once with `:desktop:createDistributable`.
-Use `scripts/desktop-full-rebuild-and-restart.sh` to test a newly built daily app immediately.
+Use `scripts/build-exe-and-restart.sh` to test a newly built daily app immediately.
 A single-instance lock prevents duplicate tray icons.
 
 ### Tray icon
