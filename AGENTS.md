@@ -1,7 +1,7 @@
 ## Project Overview
 
-**Weather Widget** is an Android widget-only application that displays weather forecasts with multiple API support.
-The app has no launcher activity - users interact entirely through the resizable home screen widget.
+**Weather Widget** is an Android widget application that displays weather forecasts with multiple API support.
+There is also a Linux app that is intended to function similarly.
 
 ### Key Features
 - **Multiple API Sources**: Fetches from NWS (US-only, official government data), Open-Meteo (global, no API key), openweather api, and silurian.
@@ -165,16 +165,6 @@ For bug reports, regressions, "why is this happening?" analysis, and data mismat
 2. **Needs Android Context, SharedPreferences, Room, or Resources**: Extend `com.weatherwidget.test.RobolectricTest` (which provides `@RunWith(RobolectricTestRunner::class)`, `@Config(sdk = [34])`, and `@Category(LongDuration::class)`). Use `ApplicationProvider.getApplicationContext()` for Context.
 3. **Needs real Canvas/Bitmap rendering, RemoteViews + performClick, real View.measure/layout, or real SQLite migrations**: Only then write instrumented tests in `androidTest/`.
 
-When migrating from instrumented to Robolectric:
-- Replace `InstrumentationRegistry.getInstrumentation().targetContext` with `ApplicationProvider.getApplicationContext()`
-- Replace `@RunWith(AndroidJUnit4::class)` with `@RunWith(RobolectricTestRunner::class)` + `@Config(sdk = [34])`
-- Wrap `WidgetIntentRouter.handleX()` calls in `try { } catch (_: Exception) {}` since AppWidgetManager.updateAppWidget fails without a registered widget in Robolectric
-- Use `TestDatabase.create()` for Room in-memory databases
-- Add test duration category annotations:
-  - `@Category(ShortDuration::class)` — Pure JVM tests with no Android framework (no Robolectric, no Context). Just Kotlin logic. **Never use on Robolectric tests.**
-  - `@Category(MediumDuration::class)` — Integration tests or slow unit tests that don't need the Robolectric framework.
-  - `@Category(LongDuration::class)` — All Robolectric tests (JVM tests that need Android Context, SharedPreferences, or Room). This is the default for `RobolectricTest` subclasses.
-
 ### Test Structure
 ```kotlin
 class TemperatureInterpolatorTest {
@@ -209,7 +199,6 @@ class TemperatureInterpolatorTest {
 ## Widget Development
 
 ### Widget-Only App Considerations
-- No `MAIN`/`LAUNCHER` activity in manifest
 - Primary entry point is `WeatherWidgetProvider` (AppWidgetProvider)
 - Use RemoteViews for widget layouts (limited widget support)
 - All user interactions via PendingIntents on widget elements
@@ -277,6 +266,16 @@ override fun onAppWidgetOptionsChanged(...) {
 - The weather window uses a standard system title bar so it can be resized/minimized/closed by the window manager.
 - Closing the weather window hides it to the tray; it does not exit the app.
 - Tray `Quit` should close long-lived resources such as the desktop `HttpClient` before calling `exitApplication()`.
+
+### Desktop autostart chain
+
+```
+~/.config/autostart/weather-widget-desktop.desktop
+  Exec= scripts/desktop-app-launcher-and-autostart.sh
+        └─ exec's: desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop
+                   └─ this binary IS the createDistributable output (jpackage launcher)
+```
+
 
 ## Data Model
 
@@ -349,12 +348,6 @@ done
 - Verify the actual device/emulator identity with `adb shell getprop` instead of inferring from the serial format.
 - Collect evidence from app state, widget state, logs, and the active NWS/Open-Meteo endpoint before asking the user follow-up questions.
 - Only ask the user for location or endpoint details after those runtime discovery paths are exhausted.
-
-### Manual Testing
-1. Build and install: `./gradlew installDebug`
-2. On device/emulator: Long-press home screen → "Widgets"
-3. Find "Weather Widget" and drag to home screen
-4. Resize to test different layouts (1x1, 1x3, 2x3, 4x3, etc.)
 
 ### Available Emulators
 - `Generic_Foldable_API36`

@@ -30,7 +30,9 @@ class DesktopWeatherRepository(
         val observations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
             .map { it.toReading() }
 
-        val latestObs = observations.maxByOrNull { it.timestamp }?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
+        val newestObs = observations.maxByOrNull { it.timestamp }
+        // Freshness gate only governs whether the *current temp* is shown as observed vs interpolated.
+        val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
         val interpolatedTemp = DesktopTemperatureInterpolator.getInterpolatedTemperature(hourly, now)
         val actuals = loadDailyActuals(daily)
         val snapshots = loadDailySnapshots(daily)
@@ -42,7 +44,10 @@ class DesktopWeatherRepository(
         ForecastResult(
             currentTemp = latestObs?.temperature ?: interpolatedTemp ?: hourly.firstOrNull()?.temperature,
             currentCondition = latestObs?.condition ?: hourly.firstOrNull()?.condition,
-            currentObservedAt = latestObs?.timestamp ?: hourly.firstOrNull()?.dateTime,
+            // Timestamp of the genuine newest observation — never the earliest forecast hour.
+            // The graph uses this as the actual/forecast transition; an early forecast hour here
+            // would collapse the whole actual line. Mirrors DesktopWeatherService's refresh path.
+            currentObservedAt = newestObs?.timestamp,
             daily = daily,
             hourly = hourly,
             dailyActuals = actuals,

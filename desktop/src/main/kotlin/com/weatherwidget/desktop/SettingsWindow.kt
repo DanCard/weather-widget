@@ -24,7 +24,8 @@ import com.weatherwidget.data.model.WeatherSource
 internal fun SettingsWindow(
     config: DesktopConfig,
     onClose: () -> Unit,
-    onSave: (DesktopConfig) -> Unit
+    onSave: (DesktopConfig) -> Unit,
+    onExit: () -> Unit
 ) {
     var currentConfig by remember { mutableStateOf(config) }
     val scrollState = rememberScrollState()
@@ -84,10 +85,16 @@ internal fun SettingsWindow(
                 }
 
                 // Footer
-                Box(
+                Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    contentAlignment = Alignment.CenterEnd
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    // Exit the whole app — the only quit affordance when running without a tray
+                    // (WEATHER_DESKTOP_NO_TRAY).
+                    OutlinedButton(onClick = onExit, modifier = Modifier.testTag("exit_app")) {
+                        Text("Exit app")
+                    }
                     Button(onClick = {
                         onSave(currentConfig)
                         onClose()

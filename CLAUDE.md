@@ -18,6 +18,7 @@
 ## Project Overview
 
 Android weather widget app with resizable widget support and forecast accuracy tracking.
+Also desktop Linux app that is intended to be the same as Android weather widget.
 
 ## Weather Data APIs
 
@@ -174,29 +175,33 @@ The `:desktop` module is a Compose-for-Desktop tray app sharing `:shared` with A
 
 - **For daily use: run the repo-local distributable from autostart** — build with
   `./gradlew :desktop:createDistributable`; login autostart should point at
-  `scripts/weather-widget-desktop-autostart.sh`. The script launches
+  `scripts/desktop-app-launcher-and-autostart.sh`. The script launches
   `desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop`, rebuilding
   the distributable once if it is missing. This keeps daily use tied to the repo rather than the `.deb`.
-- **To test a new daily build now:** run `scripts/restart-desktop-distributable.sh`. It builds first,
+- **To test a new daily build now:** run `scripts/desktop-full-rebuild-and-restart.sh`. It builds first,
   then stops any running desktop app, then starts the same repo autostart launcher used at login.
 - **For development only: `./gradlew :desktop:run`** (fast iteration, no distributable step). Not for
   daily autostart.
-- A **single-instance file lock** (`~/.local/share/weather-widget/.lock`) enforces the split: once the
-  daily app is running, a stray `:desktop:run` or second launch exits immediately (avoids
-  duplicate Dorkbox trays).
+- **Last-launch-wins single instance**: a new launch touches a `.quit` trigger file
+  (`~/.local/share/weather-widget/.quit`) that any running instance's `WatchService` is watching, so
+  the incumbent exits and the new launch takes over. This mirrors the `.show` trigger and is
+  best-effort/fire-and-forget — the new instance does not wait (brief tray overlap is fine; the new
+  `PanelIpcServer` rebinds `weather.sock`). The toucher never quits itself because it writes `.quit`
+  in `main()` before its own watcher registers. `quit()` ends with `exitProcess(0)` after
+  `application {}` returns, since AWT's non-daemon EDT otherwise keeps the JVM alive after the UI is
+  disposed. There is also an **"Exit app"** button on the Settings screen (the only quit affordance
+  under `WEATHER_DESKTOP_NO_TRAY`). The old `.lock` file is no longer used.
 - **Packaging needs a full JDK with `jpackage`** (Android Studio's JBR lacks it). Build config points
   at `/usr/lib/jvm/java-21-openjdk-amd64` if present, overridable via `JPACKAGE_HOME` /
   `-Djpackage.home`. The jlink'd runtime must include `java.sql` (sqlite-jdbc), the crypto modules
   (NWS TLS), and `jdk.unsupported` (JNA) — declared in `nativeDistributions { modules(...) }`.
-- **`:desktop:test` cannot run while the app is running** (Dorkbox `SystemTray.get()` singleton) —
-  stop the app first or the forked test worker crashes with a `NoSuchFileException` results-binary error.
 - **genmon panel temperature**: `scripts/genmon-weather.py` reads `weather.db` for clock-sized panel
   text; clicking it opens the popup. For repo-based daily use, point genmon at the repo script.
   Packaged builds still extract a copy to `~/.local/share/weather-widget/genmon-weather.py`.
 
 ## Testing the Widget
 
-This is a widget-only app (no launcher activity). To test:
+To test:
 
 1. Build and install: `./gradlew installDebug`
 2. On the emulator/device, long-press the home screen and select "Widgets"

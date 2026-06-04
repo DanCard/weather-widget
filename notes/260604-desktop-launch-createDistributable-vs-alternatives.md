@@ -10,7 +10,7 @@ since the login autostart "references the project directory directly."
 
 ```
 ~/.config/autostart/weather-widget-desktop.desktop
-  Exec= scripts/weather-widget-desktop-autostart.sh
+  Exec= scripts/desktop-app-launcher-and-autostart.sh
         └─ exec's: desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop
                    └─ this binary IS the createDistributable output (jpackage launcher)
 ```
@@ -78,11 +78,11 @@ The motivation was fast restarts, not removing the packaging concept. Resolution
   ~7 s up-to-date pass, not a re-jlink.
 - For a restart that does **not** need to pick up code/flag changes, the build is genuinely
   unnecessary: just kill + relaunch the existing repo binary. That's instant.
-- → Added `scripts/restart-desktop-fast.sh`: kill running instances + relaunch the existing
+- → Added `scripts/desktop-fast-restart-no-rebuild.sh`: kill running instances + relaunch the existing
   distributable via the autostart launcher, **no Gradle build**. Use it for plain restarts;
-  use `scripts/restart-desktop-distributable.sh` when you changed code or `build.gradle.kts`.
+  use `scripts/desktop-full-rebuild-and-restart.sh` when you changed code or `build.gradle.kts`.
 
 ### Recommended split (matches CLAUDE.md intent)
 - autostart / daily use → `createDistributable` output (one JVM, bundled natives, declarative flags)
-- plain restart, no code change → `restart-desktop-fast.sh` (no build)
+- plain restart, no code change → `desktop-fast-restart-no-rebuild.sh` (no build)
 - active development / fast loops → `./gradlew :desktop:run` (dev-only, not wired into login)

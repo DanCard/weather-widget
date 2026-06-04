@@ -4,9 +4,15 @@ set -euo pipefail
 REPO_DIR="/home/dcar/projects/weather-widget"
 APP_BIN="$REPO_DIR/desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop"
 LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/weather-widget"
-LOG_FILE="$LOG_DIR/desktop-autostart.log"
+LOG_FILE="$LOG_DIR/autostart-$(date +%Y%m%d-%H%M%S).log"
 
 mkdir -p "$LOG_DIR"
+
+# Clean up empty logs older than 3 days
+find "$LOG_DIR" -name "*.log" -type f -empty -mtime +3 -delete || true
+# Clean up all logs older than 90 days
+find "$LOG_DIR" -name "*.log" -type f -mtime +90 -delete || true
+
 cd "$REPO_DIR"
 
 {

@@ -66,38 +66,36 @@ private const val HOURLY_NAV_JUMP = 6
 private const val MIN_HOURLY_OFFSET = -720
 private const val MAX_HOURLY_OFFSET = 720
 
-/** Held for the process lifetime to enforce a single running instance; never released. */
-private var instanceLockChannel: java.nio.channels.FileChannel? = null
-
 private fun appDataDir(): java.nio.file.Path = DesktopDbPaths.defaultDbPath().parent
 
 private fun isPackaged(): Boolean = System.getProperty("jpackage.app-path") != null
 
+private const val QUIT_TRIGGER = ".quit"
+
 /**
- * Prevents duplicate trays (Dorkbox SystemTray is a process-level singleton) when login-autostart
- * and a manual launch race. Returns false when another instance already holds the lock.
+ * Best-effort, last-launch-wins single-instance handoff. Dorkbox SystemTray is a process-level
+ * singleton, so two instances would fight over the tray (and double up on background fetches + DB
+ * writers). Rather than the new launch giving up, it touches the [QUIT_TRIGGER] file that any
+ * running instance's WatchService is watching, so the incumbent exits itself. This mirrors the
+ * `.show` trigger and makes dev iteration painless — a fresh launch simply replaces whatever's
+ * running.
+ *
+ * Fire-and-forget: we do NOT wait for the incumbent to exit (a brief tray/socket overlap is fine —
+ * the new PanelIpcServer rebinds weather.sock anyway). Crucially this runs in main() *before* the
+ * Compose composition registers this instance's own WatchService — inotify never replays a
+ * pre-existing file, so the new instance never quits itself; only the already-watching incumbent
+ * reacts.
  */
-private fun acquireSingleInstanceLock(): Boolean = try {
-    val dir = appDataDir()
+private fun signalIncumbentToQuit(dir: java.nio.file.Path) {
     java.nio.file.Files.createDirectories(dir)
-    val channel = java.nio.channels.FileChannel.open(
-        dir.resolve(".lock"),
+    val trigger = dir.resolve(QUIT_TRIGGER)
+    java.nio.file.Files.newOutputStream(
+        trigger,
         java.nio.file.StandardOpenOption.CREATE,
         java.nio.file.StandardOpenOption.WRITE,
-    )
-    val lock = channel.tryLock()
-    if (lock == null) {
-        channel.close()
-        false
-    } else {
-        instanceLockChannel = channel
-        true
-    }
-} catch (e: java.nio.channels.OverlappingFileLockException) {
-    true // already locked by this same JVM (e.g. repeated in-process launches) — allow.
-} catch (e: Exception) {
-    System.err.println("single-instance lock failed, continuing: $e")
-    true
+    ).close()
+    // utime so an already-existing file still emits ENTRY_MODIFY (mirrors the genmon .show trigger).
+    java.nio.file.Files.setLastModifiedTime(trigger, java.nio.file.attribute.FileTime.from(java.time.Instant.now()))
 }
 
 /** Packaged-only first-run setup: extract the genmon script. */
@@ -124,29 +122,18 @@ fun main() {
     if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
         return
     }
-    val lockAcquired = acquireSingleInstanceLock()
-    if (lockAcquired) {
-        maybePackagedSetup()
-    }
-    runApp(lockAcquired)
+    runCatching { signalIncumbentToQuit(appDataDir()) } // ask any running instance to exit (best-effort)
+    maybePackagedSetup()
+    runApp()
 }
 
-private fun runApp(lockAcquired: Boolean) = application {
+private fun runApp() = application {
     // Rename the AWT Event Dispatch Thread (which handles Compose UI) to be equally descriptive.
     SwingUtilities.invokeLater {
         Thread.currentThread().name = "WeatherUI"
     }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
-        if (!lockAcquired) {
-            Window(
-                onCloseRequest = ::exitApplication,
-                title = "Weather Widget",
-                state = rememberWindowState(width = 300.dp, height = 200.dp, position = WindowPosition(Alignment.Center))
-            ) {
-                CenteredMessage("Weather Widget is already running.\nCheck your system tray.")
-            }
-        } else {
             val startupSmoke = remember { System.getProperty("weatherwidget.desktop.startupSmoke") == "true" }
             val configStore = remember { DesktopConfigStore() }
             var config by remember { mutableStateOf(configStore.load()) }
@@ -309,6 +296,19 @@ private fun runApp(lockAcquired: Boolean) = application {
             showRequestId++
         }
 
+        // Clean shutdown. Declared above the WatchService so the .quit handler below can call it.
+        // exitApplication() disposes the UI + removes the tray icon, but Dorkbox's GTK loop and AWT's
+        // EDT are non-daemon, so application {} never returns and the JVM lingers headless. Force a
+        // hard exit shortly after, giving the EDT a moment to finish the clean tray teardown first.
+        fun quit() {
+            desktopClients.close()
+            exitApplication()
+            kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
+                Thread.sleep(400)
+                kotlin.system.exitProcess(0)
+            }
+        }
+
         // External show request: the genmon panel click (and any other caller) touches the .show
         // trigger file. We use WatchService (inotify on Linux) to avoid polling every second,
         // allowing the CPU to stay in a lower power state until a click actually happens.
@@ -326,9 +326,10 @@ private fun runApp(lockAcquired: Boolean) = application {
                     while (true) {
                         val key = watchService.take() // Blocks until an event occurs
                         for (event in key.pollEvents()) {
-                            val context = event.context() as? java.nio.file.Path
-                            if (context?.toString() == ".show") {
-                                requestShowPopup()
+                            when ((event.context() as? java.nio.file.Path)?.toString()) {
+                                ".show" -> requestShowPopup()
+                                // A newer instance is taking over — bow out so it can claim the tray.
+                                QUIT_TRIGGER -> SwingUtilities.invokeLater { quit() }
                             }
                         }
                         if (!key.reset()) break
@@ -337,11 +338,6 @@ private fun runApp(lockAcquired: Boolean) = application {
                     watchService.close()
                 }
             }
-        }
-
-        fun quit() {
-            desktopClients.close()
-            exitApplication()
         }
 
         // Dynamic icon showing the current temperature.
@@ -437,7 +433,8 @@ private fun runApp(lockAcquired: Boolean) = application {
                     onSave = { newConfig ->
                         configStore.save(newConfig)
                         config = newConfig
-                    }
+                    },
+                    onExit = { quit() }
                 )
             }
         }
@@ -505,7 +502,6 @@ private fun runApp(lockAcquired: Boolean) = application {
             }
         }
     }
-}
 }
 
 internal fun createTrayTextMeasurer(): TextMeasurer =

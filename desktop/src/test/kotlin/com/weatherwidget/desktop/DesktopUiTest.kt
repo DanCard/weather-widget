@@ -129,7 +129,8 @@ class DesktopUiTest {
             SettingsWindow(
                 config = stubConfig,
                 onClose = {},
-                onSave = { savedConfig = it }
+                onSave = { savedConfig = it },
+                onExit = {}
             )
         }
 
@@ -141,6 +142,23 @@ class DesktopUiTest {
     }
 
     @Test
+    fun testSettingsExitButtonInvokesOnExit() {
+        var exited = false
+        composeTestRule.setContent {
+            SettingsWindow(
+                config = stubConfig,
+                onClose = {},
+                onSave = {},
+                onExit = { exited = true }
+            )
+        }
+
+        composeTestRule.onNodeWithTag("exit_app").performClick()
+
+        assert(exited)
+    }
+
+    @Test
     fun testSettingsSourceToggle() {
         var savedConfig: DesktopConfig? = null
         val configWithMultipleSources = stubConfig.copy(visibleSources = listOf("NWS", "OPEN_METEO"))
@@ -149,7 +167,8 @@ class DesktopUiTest {
             SettingsWindow(
                 config = configWithMultipleSources,
                 onClose = {},
-                onSave = { savedConfig = it }
+                onSave = { savedConfig = it },
+                onExit = {}
             )
         }
 
