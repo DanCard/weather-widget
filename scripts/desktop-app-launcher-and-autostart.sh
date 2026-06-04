@@ -24,4 +24,4 @@ cd "$REPO_DIR"
   echo "[$(date -Is)] exec $APP_BIN"
 } >>"$LOG_FILE" 2>&1
 
-exec "$APP_BIN" >>"$LOG_FILE" 2>&1
+exec "$APP_BIN" "$@" >>"$LOG_FILE" 2>&1

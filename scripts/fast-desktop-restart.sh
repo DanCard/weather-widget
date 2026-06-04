@@ -25,3 +25,8 @@ fi
 echo "Relaunching existing distributable (new instance will signal old to quit)..."
 nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 &
 echo "Started launcher pid $!. Logs: $LOG_FILE"
+
+# Touch .show to ensure the window is surfaced immediately on restart
+SHOW_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/weather-widget/.show"
+sleep 1
+touch "$SHOW_FILE"

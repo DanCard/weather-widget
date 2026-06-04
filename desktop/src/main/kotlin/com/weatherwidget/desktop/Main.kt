@@ -114,13 +114,16 @@ private fun extractGenmonScript() {
     target.toFile().setExecutable(true)
 }
 
-fun main() {
+fun main(args: Array<String>) {
     // On Linux, jpackage names the main JVM thread "MainThread" by default. Override to something
     // descriptive for system monitors like 'top'.
     Thread.currentThread().name = "WeatherWidget"
 
     if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
         return
+    }
+    if (args.contains("--minimized")) {
+        System.setProperty("weatherwidget.desktop.minimized", "true")
     }
     runCatching { signalIncumbentToQuit(appDataDir()) } // ask any running instance to exit (best-effort)
     maybePackagedSetup()
@@ -142,7 +145,7 @@ private fun runApp() = application {
             val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
             val weatherDao = remember { DesktopWeatherDao(weatherDb) }
 
-        var popupVisible by remember { mutableStateOf(config != null) }
+        var popupVisible by remember { mutableStateOf(config != null && System.getProperty("weatherwidget.desktop.minimized") != "true") }
         // Edge-triggered show counter: a boolean can't re-fire an effect when it's already
         // true, so bump this on every show request to reliably raise an already-open window.
         var showRequestId by remember { mutableStateOf(0) }

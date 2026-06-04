@@ -27,3 +27,8 @@ nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 &
 { set +x; } 2>/dev/null
 sleep 1   # No hup message prints late.  Add sleep so messages come out in expected order.
 printf "\t Started launcher pid $!. Logs: $LOG_FILE\n"
+
+# Touch .show to ensure the window is surfaced immediately on restart
+SHOW_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/weather-widget/.show"
+sleep 1
+touch "$SHOW_FILE"
