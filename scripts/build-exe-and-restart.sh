@@ -11,13 +11,19 @@ QUIT_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/weather-widget/.quit"
 mkdir -p "$LOG_DIR"
 cd "$REPO_DIR"
 
-echo "Stopping running desktop app instance (graceful signal)..."
+printf "\t Stopping running desktop app instance (graceful signal)...\n"
+set -x
 touch "$QUIT_FILE"
-sleep 1
+{ set +x; } 2>/dev/null
 
-echo "Building desktop distributable..."
+printf "\t Building executable desktop distributable...\n\n\t"
+set -x
 ./gradlew :desktop:createDistributable
+{ set +x; } 2>/dev/null
 
-echo "Starting desktop app through autostart launcher..."
+printf "\n\t Starting desktop app through autostart launcher: $AUTOSTART_SCRIPT\n"
+set -x
 nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 &
-echo "Started launcher pid $!. Logs: $LOG_FILE"
+{ set +x; } 2>/dev/null
+sleep 1   # No hup message prints late.  Add sleep so messages come out in expected order.
+printf "\t Started launcher pid $!. Logs: $LOG_FILE\n"
