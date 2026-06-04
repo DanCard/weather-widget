@@ -9,12 +9,14 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.painter.Painter
@@ -52,6 +54,23 @@ private val COLOR_COLD = Color(0xFF5AC8FA)
 private val COLOR_MILD = Color(0xFFE8A24E)
 private val COLOR_HOT = Color(0xFFFF6B35)
 private val COLOR_ACTUAL = Color(0xFFFF3366) // matches Android TemperatureGraphStyle.OBSERVED
+
+private val FORECAST_SUNNY = Color(0xFFF4C542)
+private val FORECAST_CLOUDY = Color(0xFF8E99A4)
+private val FORECAST_RAINY = Color(0xFF5A8FBF)
+private val FORECAST_NIGHT = Color(0xFFBBBBBB)
+private val FORECAST_TWILIGHT = Color(0xFFFFA726)
+
+private fun forecastColor(flags: WeatherIcon.ConditionFlags): Color {
+    return when {
+        flags.isRainy -> FORECAST_RAINY
+        flags.isNight -> FORECAST_NIGHT
+        flags.isTwilight && flags.isSunny -> FORECAST_TWILIGHT
+        flags.isMixed -> FORECAST_SUNNY
+        flags.isSunny -> FORECAST_SUNNY
+        else -> FORECAST_CLOUDY
+    }
+}
 
 private const val COLD_THRESHOLD = 50f
 private const val MILD_TEMP = 70f
@@ -142,9 +161,17 @@ fun TemperatureGraph(
                     point.timeMs <= transitionMs
             }
 
+        val lastActualPoint = actualSeries.points.lastOrNull { it.isActual && it.actualTemp != null }
+        val appliedDelta = if (lastActualPoint != null) {
+            lastActualPoint.actualTemp!! - lastActualPoint.forecastTemp
+        } else {
+            0f
+        }
+
         val rawForecastTemps = points.map { it.temperature }
         val forecastTemps = com.weatherwidget.shared.util.DesktopTemperatureInterpolator.smoothValuesPreservingAllExtrema(rawForecastTemps, smoothIterations)
-        val allTemps = forecastTemps + actualLinePoints.mapNotNull { it.actualTemp }
+        val expectedTemps = forecastTemps.map { it + appliedDelta }
+        val allTemps = forecastTemps + actualLinePoints.mapNotNull { it.actualTemp } + expectedTemps
         val rawMin = allTemps.minOrNull() ?: 0f
         val rawMax = allTemps.maxOrNull() ?: 100f
         val fMin = forecastTemps.minOrNull() ?: 0f
@@ -163,35 +190,80 @@ fun TemperatureGraph(
         fun yAt(t: Float): Float = h * (1f - (t - minTemp) / range)
 
         val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(forecastTemps[i])) }
+        val expectedCoords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(forecastTemps[i] + appliedDelta)) }
+
+        fun getCurveYAtX(x: Float): Float {
+            if (coords.isEmpty()) return 0f
+            if (x <= coords.first().x) return coords.first().y
+            if (x >= coords.last().x) return coords.last().y
+            val nextIdx = coords.indexOfFirst { it.x > x }
+            if (nextIdx == -1 || nextIdx == 0) return coords.last().y
+            val before = coords[nextIdx - 1]
+            val after = coords[nextIdx]
+            val t = (x - before.x) / (after.x - before.x)
+            return before.y + (after.y - before.y) * t
+        }
 
         drawCloudAndPrecipOverlays(points, ::xAt)
 
-        // Gradient fill always spans the full window
-        drawFill(coords, minTemp, maxTemp, range)
+        // Gradient fill always spans the full window under the expected curve
+        drawFill(expectedCoords, minTemp, maxTemp, range)
 
         // Lines:
-        // 1. Actual (Solid Pink) for observations
+        // 1. Forecast Line segments (Dashed and colored by weather condition)
+        if (coords.size >= 2) {
+            val tangents = computeTangents(coords)
+            for (i in 0 until coords.size - 1) {
+                val p = points[i + 1]
+                val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
+                val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
+                val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
+                    isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
+                )
+                val segmentColor = forecastColor(flags)
+                val segmentPath = Path().apply {
+                    moveTo(coords[i].x, coords[i].y)
+                    val cp1x = coords[i].x + tangents[i].x / 3f
+                    val cp1y = coords[i].y + tangents[i].y / 3f
+                    val cp2x = coords[i + 1].x - tangents[i + 1].x / 3f
+                    val cp2y = coords[i + 1].y - tangents[i + 1].y / 3f
+                    cubicTo(cp1x, cp1y, cp2x, cp2y, coords[i + 1].x, coords[i + 1].y)
+                }
+                drawPath(
+                    path = segmentPath,
+                    color = segmentColor,
+                    style = Stroke(
+                        width = 3f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 4.dp.toPx()))
+                    )
+                )
+            }
+        }
+
+        // 2. Ghost Line (Shifted forecast curve representing expected path)
+        val transitionX = lastActualPoint?.let { xAtTime(it.timeMs) }
+        if (transitionX != null && abs(appliedDelta) >= 0.1f) {
+            clipRect(left = transitionX, top = 0f, right = w, bottom = h) {
+                val expectedPath = buildCurve(expectedCoords)
+                drawPath(
+                    path = expectedPath,
+                    color = Color.White.copy(alpha = 0.22f),
+                    style = Stroke(
+                        width = 1.2.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.1f, 4.dp.toPx()))
+                    )
+                )
+            }
+        }
+
+        // 3. Actual (Solid Pink) for observations
         if (actualLinePoints.size >= 2) {
             val obsCoords = actualLinePoints.map { point -> Offset(xAtTime(point.timeMs), yAt(point.actualTemp!!)) }
             drawActualLine(obsCoords)
         }
 
-        // 2. Forecast Line:
-        // - Dashed (Ghost) for past
-        // - Solid for future
+        // "Now" marker: vertical guide (dashed) + target circle
         val nowIdx = points.indexOfByClosestTime(now)
-        val splitIdx = points.indexOfFirst { it.dateTime >= now }.let { if (it == -1) points.lastIndex else it }
-        val pastCoords = coords.take(splitIdx + 1)
-        val futureCoords = coords.drop(splitIdx)
-
-        if (pastCoords.size >= 2) {
-            drawCurveLine(pastCoords, minTemp, maxTemp, range, dashed = true, alpha = 0.5f)
-        }
-        if (futureCoords.size >= 2) {
-            drawCurveLine(futureCoords, minTemp, maxTemp, range, dashed = false)
-        }
-
-        // "Now" marker: vertical guide + target circle
         val markerTemp = currentTemp ?: forecastTemps[nowIdx]
         val markerX = xAtTime(now)
         val markerY = yAt(markerTemp.coerceIn(minTemp, maxTemp))
@@ -200,7 +272,8 @@ fun TemperatureGraph(
                 color = Color.White.copy(alpha = 0.36f),
                 start = Offset(markerX, 0f),
                 end = Offset(markerX, h - 44f),
-                strokeWidth = 1.5f,
+                strokeWidth = 1.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
             )
             drawCircle(color = Color.White, radius = 4.5f, center = Offset(markerX, markerY))
             drawCircle(color = tempToColor(markerTemp), radius = 2.5f, center = Offset(markerX, markerY))
@@ -222,15 +295,55 @@ fun TemperatureGraph(
         for ((idx, text, color) in labels) {
             val point = coords[idx]
             val textLayout = textMeasurer.measure(text, TextStyle(fontSize = 11.sp, color = color))
+            val textWidth = textLayout.size.width.toFloat()
+            val textHeight = textLayout.size.height.toFloat()
             val isHigh = idx == highIdx
-            val topOffset = if (isHigh) -18f else 4f
+            
+            // Curve avoidance logic: sample Y around the label's horizontal range to detect intrusion
+            val xStart = point.x - textWidth / 2f
+            val xEnd = point.x + textWidth / 2f
+            val verticalGap = 4.dp.toPx()
+            
+            val textTop: Float
+            val baselineTop: Float
+            if (isHigh) {
+                // Placing label ABOVE the curve. Sample minimum Y (physically highest points).
+                val curveMinY = minOf(getCurveYAtX(xStart), getCurveYAtX(point.x), getCurveYAtX(xEnd))
+                val desiredTextBottom = curveMinY - verticalGap
+                textTop = desiredTextBottom - textHeight
+                baselineTop = point.y - verticalGap - textHeight
+            } else {
+                // Placing label BELOW the curve. Sample maximum Y (physically lowest points).
+                val curveMaxY = maxOf(getCurveYAtX(xStart), getCurveYAtX(point.x), getCurveYAtX(xEnd))
+                textTop = curveMaxY + verticalGap
+                baselineTop = point.y + verticalGap
+            }
+            
             val labelRect = Rect(
-                offset = Offset(point.x - textLayout.size.width / 2f, point.y + topOffset),
-                size = Size(textLayout.size.width.toFloat(), textLayout.size.height.toFloat())
+                offset = Offset(point.x - textWidth / 2f, textTop),
+                size = Size(textWidth, textHeight)
             )
-            if (drawnLabels.none { it.overlaps(labelRect.inflate(4f)) }) {
+            
+            if (drawnLabels.none { it.overlaps(labelRect.inflate(4.dp.toPx())) }) {
                 drawText(textLayout, topLeft = labelRect.topLeft)
                 drawnLabels.add(labelRect)
+                
+                // Draw leader line if label has been shifted significantly (e.g., > 1.5px)
+                val shift = abs(textTop - baselineTop)
+                if (shift > 1.5f) {
+                    val leaderLineStart = Offset(point.x, point.y)
+                    val leaderLineEnd = if (isHigh) {
+                        Offset(point.x, textTop + textHeight)
+                    } else {
+                        Offset(point.x, textTop)
+                    }
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.35f),
+                        start = leaderLineStart,
+                        end = leaderLineEnd,
+                        strokeWidth = 0.5.dp.toPx()
+                    )
+                }
             }
         }
 
@@ -254,8 +367,24 @@ fun TemperatureGraph(
             val x = xAt(i)
             painters[i]?.let { painter ->
                 val iconSize = 18.dp.toPx()
+                val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
+                val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
+                val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
+                    isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
+                )
+                val filter = if (!flags.isRainy && !flags.isMixed) {
+                    val tint = when {
+                        flags.isNight -> Color(0xFFBBBBBB)
+                        flags.isTwilight -> Color(0xFFFFA726)
+                        flags.isSunny -> Color(0xFFFFD60A)
+                        else -> Color(0xFFBBBBBB)
+                    }
+                    ColorFilter.tint(tint)
+                } else {
+                    null
+                }
                 translate(x - iconSize / 2f, h - 38f) {
-                    with(painter) { draw(size = Size(iconSize, iconSize)) }
+                    with(painter) { draw(size = Size(iconSize, iconSize), colorFilter = filter) }
                 }
             }
             val time = Instant.ofEpochMilli(p.dateTime)
