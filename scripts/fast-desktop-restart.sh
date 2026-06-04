@@ -28,5 +28,5 @@ echo "Started launcher pid $!. Logs: $LOG_FILE"
 
 # Touch .show to ensure the window is surfaced immediately on restart
 SHOW_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/weather-widget/.show"
-sleep 1
+sleep 3
 touch "$SHOW_FILE"

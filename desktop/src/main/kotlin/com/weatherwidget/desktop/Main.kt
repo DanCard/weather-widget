@@ -27,6 +27,7 @@ import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
 import com.weatherwidget.shared.util.DesktopTemperatureInterpolator
+import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
@@ -62,6 +63,7 @@ import dorkbox.systemTray.MenuItem as TrayMenuItem
  * the Android home-screen widget.
  */
 private const val APP_PACKAGE = "weather-widget-desktop"
+private const val TAG = "Main"
 private const val HOURLY_NAV_JUMP = 6
 private const val MIN_HOURLY_OFFSET = -720
 private const val MAX_HOURLY_OFFSET = 720
@@ -149,6 +151,12 @@ private fun runApp() = application {
         // Edge-triggered show counter: a boolean can't re-fire an effect when it's already
         // true, so bump this on every show request to reliably raise an already-open window.
         var showRequestId by remember { mutableStateOf(0) }
+        LaunchedEffect(popupVisible) {
+            Log.i(TAG, "popupVisible changed to $popupVisible (minimized property = ${System.getProperty("weatherwidget.desktop.minimized")})")
+        }
+        LaunchedEffect(config) {
+            Log.i(TAG, "config loaded: config != null is ${config != null}")
+        }
         var pickerVisible by remember { mutableStateOf(config == null) }
         var settingsVisible by remember { mutableStateOf(false) }
         var statsVisible by remember { mutableStateOf(false) }
@@ -477,9 +485,13 @@ private fun runApp() = application {
                 title = "Weather Widget",
                 icon = appIcon,
             ) {
+                LaunchedEffect(Unit) {
+                    Log.i(TAG, "Window composed/visible now")
+                }
                 // Raise an already-open (possibly buried) window on every show request.
                 // FrameWindowScope exposes the underlying AWT ComposeWindow as `window`.
                 LaunchedEffect(showRequestId) {
+                    Log.i(TAG, "Window show request received: showRequestId=$showRequestId")
                     window.toFront()
                     window.requestFocus()
                 }
