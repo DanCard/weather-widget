@@ -132,6 +132,10 @@ fun main(args: Array<String>) {
     // descriptive for system monitors like 'top'.
     Thread.currentThread().name = "WeatherWidget"
 
+    Log.i("Main", "Starting WeatherWidget...")
+    Log.i("Main", "Environment: DISPLAY=${System.getenv("DISPLAY")}, XAUTHORITY=${System.getenv("XAUTHORITY")}")
+    Log.i("Main", "Java: ${System.getProperty("java.version")} (${System.getProperty("java.vendor")}) @ ${System.getProperty("java.home")}")
+
     if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
         return
     }
@@ -210,9 +214,9 @@ private fun runApp() = application {
 
             try {
                 // 1. Instant load from cache
-                println("Loading cached data...")
+                Log.i("Main", "Loading cached data...")
                 val cached = repo.loadCached()
-                println("Cached data loaded. Null? ${cached == null}")
+                Log.i("Main", "Cached data loaded. Null? ${cached == null}")
                 if (cached != null) {
                     forecast = cached
                     val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
@@ -246,17 +250,17 @@ private fun runApp() = application {
                     try {
                         forecast = when (launchRefreshAction) {
                             LaunchRefreshAction.FULL_FORECAST -> {
-                                println("Refreshing full forecast from network...")
+                                Log.i("Main", "Refreshing full forecast from network...")
                                 repo.refresh()
                             }
                             LaunchRefreshAction.OBSERVATIONS -> {
-                                println("Refreshing current observations from network...")
+                                Log.i("Main", "Refreshing current observations from network...")
                                 repo.refreshObservations()
                             }
                             LaunchRefreshAction.NONE -> forecast
                         }
                         dataStatus = DataStatus.Live(System.currentTimeMillis())
-                        println("Launch refresh successful. DataStatus updated to Live.")
+                        Log.i("Main", "Launch refresh successful. DataStatus updated to Live.")
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         println("Refresh cancelled.")
                         throw e
@@ -667,9 +671,19 @@ private fun TemperatureSystemTray(
     onUpdateLocation: () -> Unit,
     onQuit: () -> Unit,
 ) {
-    val tray = remember { SystemTray.get() }
+    Log.i("Main", "Initializing SystemTray...")
+    val tray = remember {
+        try {
+            SystemTray.get()
+        } catch (e: Throwable) {
+            // Note: GTK errors often cause a hard abort that try-catch cannot stop,
+            // but logging before/after helps isolate the cause.
+            Log.e("Main", "Failed to initialize SystemTray: $e")
+            null
+        }
+    }
     if (tray == null) {
-        println("SystemTray is NOT supported on this system.")
+        Log.w("Main", "SystemTray is NOT supported or failed to initialize on this system.")
         return
     }
 
@@ -687,7 +701,7 @@ private fun TemperatureSystemTray(
 
         onDispose {
             tray.shutdown()
-            println("TrayIcon removed from SystemTray.")
+            Log.i("Main", "TrayIcon removed from SystemTray.")
         }
     }
 
