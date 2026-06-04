@@ -37,7 +37,7 @@ Bring the desktop hourly temperature graph up to parity with the Android widget 
 ## Implementation Steps
 
 1.  **Update Config**: Add `zoomLevel` to `DesktopConfig` and `DesktopConfigStore`.
-2.  **Extract Header Data**: Update the data extraction in `Main.kt` (perhaps creating a dedicated `DesktopHourlyViewState` or passing the required fields) to supply `delta` and `precipProbability` to `WidgetHeader`. Use `DesktopTemperatureInterpolator` or similar existing logic to compute the delta if not already available in `ForecastResult`.
+2.  **Extract Header Data**: Update the data extraction in `Main.kt` (perhaps creating a dedicated `DesktopHourlyViewState` or passing the required fields) to supply `delta` and `precipProbability` to `WidgetHeader`. Use `TemperatureInterpolator` or similar existing logic to compute the delta if not already available in `ForecastResult`.
 3.  **Update `WidgetHeader`**: Add the UI elements for Delta, Precip, and the Zoom toggle button. Wire the Zoom toggle to `onUpdateConfig` to cycle the `zoomLevel`.
 4.  **Update `TemperatureGraph`**: Modify the composable signature to accept `zoomLevel`. Implement the dynamic window bounds (back/forward hours) and label intervals based on the selected zoom state.
 5.  **Refine Smoothing**: Check `TemperatureGraph.buildCurve` and implement iterative smoothing if needed to match Android's `smoothIterations` behavior.

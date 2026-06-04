@@ -32,7 +32,7 @@ simpler than the old Variant B (which hit NWS directly and needed caching).
 ## Approach: `scripts/genmon-weather.py`
 
 Reads the DB **read-only** (WAL allows concurrent reads while the app writes; set `busy_timeout`),
-and replicates the app's current-temp logic (`DesktopWeatherService` + `DesktopTemperatureInterpolator`):
+and replicates the app's current-temp logic (`DesktopWeatherService` + `TemperatureInterpolator`):
 
 ```
 #!/usr/bin/env python3
@@ -66,7 +66,7 @@ def render(tempF, age_ms):
 ```
 
 - `interpolate` ports the ~10-line linear-between-surrounding-hours logic from
-  `DesktopTemperatureInterpolator` (find the hour bucket ≤ now and the next; blend by `minute/60`).
+  `TemperatureInterpolator` (find the hour bucket ≤ now and the next; blend by `minute/60`).
 - **Staleness:** if the newest data is old (app stopped), gray the text instead of showing a stale
   number as if live. Keeps it honest without IPC.
 - Open **read-only** + `busy_timeout` so it never blocks or corrupts the app's writes.
@@ -103,7 +103,7 @@ figures out the temp" and keep the app unchanged; revisit only if drift is visib
 ## Reuse / alignment
 
 - Mirrors `DesktopWeatherService.fetchNwsForecast` current-temp precedence (fresh obs → interpolate →
-  hourly) and `DesktopTemperatureInterpolator` math.
+  hourly) and `TemperatureInterpolator` math.
 - DB is WAL with `busy_timeout` (Tier 1/2) — safe for a concurrent reader.
 - Honors [[nws-observations-fractional-seconds]] is N/A here (no NWS calls); relies on the app's
   populated tables instead. See [[genmon-tray-big-text-deferred]] for the full backstory.

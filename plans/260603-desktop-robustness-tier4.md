@@ -11,7 +11,7 @@ The desktop refresh loop is currently fragile and opaque (`Main.kt`):
 - The popup has only two states: `"Loading…"` (null snapshot) and a live view. There is **no offline
   indicator, no "last updated" timestamp, no error state, no "tap to configure"**.
 - Refresh is a fixed 15-min timer — it **always refetches on launch** even when the cache is fresh,
-  and ignores the already-ported `DesktopTemperatureInterpolator.getUpdatesPerHour` cadence hint.
+  and ignores the already-ported `TemperatureInterpolator.getUpdatesPerHour` cadence hint.
 
 Android's contract (from CLAUDE.md "Error Handling") is the parity target:
 
@@ -101,6 +101,6 @@ Natural home for diagnosing REFRESH/REFRESH_FAIL history. Defer if the tier is g
 
 ## Reuse / alignment
 
-- `DesktopTemperatureInterpolator.getUpdatesPerHour` (ported in Tier 3, currently unused) → cadence.
+- `TemperatureInterpolator.getUpdatesPerHour` (ported in Tier 3, currently unused) → cadence.
 - `app_logs` + `DesktopWeatherDao.log/getRecentLogs` (Tier 2) → REFRESH_FAIL + viewer.
 - Honor [[nws-observations-fractional-seconds]] and [[desktop-test-running-app-conflict]] during work.

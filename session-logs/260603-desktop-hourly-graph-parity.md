@@ -17,7 +17,7 @@
 
 ## 3. Implementation Strategy
 1. **State Persistence**: Add `zoomLevel` to `DesktopConfig.kt`.
-2. **Data Model**: Port `smoothValuesPreservingAllExtrema` and `computeTangents` from Android's `GraphRenderUtils` to the desktop's `DesktopTemperatureInterpolator` and `TemperatureGraph.kt`.
+2. **Data Model**: Port `smoothValuesPreservingAllExtrema` and `computeTangents` from Android's `GraphRenderUtils` to the desktop's `TemperatureInterpolator` and `TemperatureGraph.kt`.
 3. **UI - Header**: Update `WidgetHeader` in `Main.kt` to compute and display Delta Temp and Precip Probability, and add a Zoom mode toggle chip.
 4. **UI - Graph**: Update `TemperatureGraph.kt` to adapt window size, label intervals, and smoothing iterations based on the `zoomLevel`.
 
@@ -27,7 +27,7 @@
 - Modified `DesktopConfig.kt` to include `val zoomLevel: String = "WIDE"`.
 
 ### Logic & Math
-- **`DesktopTemperatureInterpolator.kt`**:
+- **`TemperatureInterpolator.kt`**:
     - Added `smoothValuesPreservingAllExtrema` and `findLocalExtremaIndices` to handle iterative data point smoothing.
 - **`TemperatureGraph.kt`**:
     - Ported `computeTangents` to implement monotone-aware cubic spline interpolation (prevents curve overshoots).

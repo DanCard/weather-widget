@@ -68,7 +68,7 @@ Data quality underpins Tier 2's accuracy, so this is highest-value.
 ## Files
 
 - `desktop/.../DesktopWeatherService.kt` — station ordering + multi-station fallback (workstream A).
-- `shared/.../util/DesktopTemperatureInterpolator.kt` *(new)* — ported interpolator (B).
+- `shared/.../util/TemperatureInterpolator.kt` *(new)* — ported interpolator (B).
 - `desktop/.../DesktopWeatherService.kt` / `DesktopWeatherRepository.kt` — wire interpolated current
   temp (B).
 - `desktop/.../DailyForecastGraph.kt`, `TemperatureGraph.kt` — overlays (C); popup passes actuals.

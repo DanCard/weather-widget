@@ -44,7 +44,7 @@ whole session.
   entities. Flagged the `stationId` bug, empty `daily_extremes`, layering inversion, no WAL — all
   addressed in Tier 2.
 - **Tier 3 (fidelity, Codex, `9e5e66be`):** excellent. `orderStations` (official-first), multi-station
-  fallback, 24h station cache, ported `DesktopTemperatureInterpolator`, graph overlays (actual-vs-forecast,
+  fallback, 24h station cache, ported `TemperatureInterpolator`, graph overlays (actual-vs-forecast,
   now-marker, cloud/precip). Verified live picking official KNUQ over personal AW020.
 - **Tier 4 (robustness, GLM, `029a43ce`):** faithful. Pure `deriveDataStatus` (Loading/Live/Stale/NoData),
   resilient refresh loop (staleness-gated, `REFRESH_FAIL` logged, adaptive cadence), offline/last-updated

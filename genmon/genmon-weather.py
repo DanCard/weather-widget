@@ -9,7 +9,7 @@ just reads it. Configure genmon's command as:
 
 The desktop app's tray icon stays responsible for click/popup; this is display-only.
 
-Current-temp precedence mirrors the app (DesktopWeatherService + DesktopTemperatureInterpolator):
+Current-temp precedence mirrors the app (DesktopWeatherService + TemperatureInterpolator):
   1. a fresh measured observation (<= 30 min old)
   2. else linear interpolation of the hourly forecast at "now"
   3. else the nearest hourly point
