@@ -75,7 +75,7 @@ object WeatherIcon {
 
     fun resolveIconHome(iconRes: String): String {
         return when {
-            isRainIndicator(iconRes) -> "HOURLY" // Or "PRECIPITATION" if added later
+            isRainIndicator(iconRes) -> "PRECIPITATION"
             isCloudForecastEligible(iconRes) -> "CLOUD_COVER"
             else -> "HOURLY"
         }

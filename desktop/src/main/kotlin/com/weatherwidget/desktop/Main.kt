@@ -640,18 +640,32 @@ internal fun WidgetPopup(
                         onOpenSettings = onOpenSettings,
                         onOpenObservations = onOpenObservations,
                         onUpdateLocation = onUpdateLocation,
-                        showWeatherSummary = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER",
+                        showWeatherSummary = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION",
                         headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
                     )
 
                     Spacer(Modifier.height(8.dp))
 
-                    val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER"
+                    val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
                     if (isHourly) {
                         Box(modifier = Modifier.fillMaxWidth().weight(1f).testTag("hourly_temperature_surface")) {
                             if (config.viewMode == "CLOUD_COVER") {
                                 CloudCoverGraph(
                                     hourly = snapshot.hourly,
+                                    displaySourceId = config.weatherSource,
+                                    latitude = config.lat,
+                                    longitude = config.lon,
+                                    modifier = Modifier.fillMaxSize(),
+                                    centerOffsetHours = config.hourlyOffset,
+                                    zoomLevel = config.zoomLevel,
+                                    onViewModeChange = { targetView ->
+                                        onUpdateConfig(config.copy(viewMode = targetView))
+                                    }
+                                )
+                            } else if (config.viewMode == "PRECIPITATION") {
+                                PrecipitationGraph(
+                                    hourly = snapshot.hourly,
+                                    observations = snapshot.rawObservations,
                                     displaySourceId = config.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,
@@ -719,7 +733,10 @@ internal fun WidgetPopup(
                                     onDayClick = { clickedDate ->
                                         val now = LocalDateTime.now()
                                         val hours = java.time.Duration.between(now, clickedDate.atStartOfDay()).toHours().toInt()
-                                        onUpdateConfig(config.copy(viewMode = "HOURLY", hourlyOffset = hours))
+                                        val clickedDay = dailyState.days.find { it.date == clickedDate }
+                                        val clickedIcon = clickedDay?.iconCondition
+                                        val targetView = clickedIcon?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: "HOURLY"
+                                        onUpdateConfig(config.copy(viewMode = targetView, hourlyOffset = hours))
                                     }
                                 )
                             } else {
@@ -729,7 +746,10 @@ internal fun WidgetPopup(
                                     onDayClick = { clickedDate ->
                                         val now = LocalDateTime.now()
                                         val hours = java.time.Duration.between(now, clickedDate.atStartOfDay()).toHours().toInt()
-                                        onUpdateConfig(config.copy(viewMode = "HOURLY", hourlyOffset = hours))
+                                        val clickedDay = dailyState.days.find { it.date == clickedDate }
+                                        val clickedIcon = clickedDay?.iconCondition
+                                        val targetView = clickedIcon?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: "HOURLY"
+                                        onUpdateConfig(config.copy(viewMode = targetView, hourlyOffset = hours))
                                     }
                                 )
                             }
@@ -884,7 +904,12 @@ private fun WidgetHeader(
                         text = "$precipProb%",
                         style = MaterialTheme.typography.labelMedium,
                         color = Color(0xFF4FC3F7),
-                        modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
+                        modifier = Modifier
+                            .align(Alignment.CenterVertically)
+                            .offset(y = 2.dp)
+                            .clickable {
+                                onUpdateConfig(config.copy(viewMode = "PRECIPITATION"))
+                            }
                     )
                 }
             }
@@ -949,16 +974,17 @@ private fun WidgetHeader(
                     modifier = Modifier.size(13.dp).clickable { onOpenSettings() },
                     tint = Color.White.copy(alpha = 0.7f)
                 )
-                val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER"
+                val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
                 if (isHourly) {
                     Spacer(Modifier.width(6.dp))
                     val isCloud = config.viewMode == "CLOUD_COVER"
-                    val emoji = if (isCloud) "🌡️" else "☁️"
+                    val isPrecip = config.viewMode == "PRECIPITATION"
+                    val emoji = if (isCloud || isPrecip) "🌡️" else "☁️"
                     Text(
                         text = emoji,
                         fontSize = 11.sp,
                         modifier = Modifier.clickable {
-                            val nextMode = if (isCloud) "HOURLY" else "CLOUD_COVER"
+                            val nextMode = if (isCloud || isPrecip) "HOURLY" else "CLOUD_COVER"
                             onUpdateConfig(config.copy(viewMode = nextMode))
                         }
                     )
@@ -966,7 +992,7 @@ private fun WidgetHeader(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER"
+                val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
                 if (isHourly) {
                     ViewModeChip(config.zoomLevel.take(1), true) {
                         val nextZoom = if (config.zoomLevel == "WIDE") "NARROW" else "WIDE"

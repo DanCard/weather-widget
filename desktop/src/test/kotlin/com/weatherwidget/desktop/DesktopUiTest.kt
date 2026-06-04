@@ -103,6 +103,36 @@ class DesktopUiTest {
     }
 
     @Test
+    fun testPrecipitationHeaderClickTogglesPrecipitationView() {
+        var updatedConfig: DesktopConfig? = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = "DAILY"),
+                forecast = stubForecast.copy(
+                    hourly = listOf(
+                        com.weatherwidget.data.model.HourlyForecast(
+                            dateTime = System.currentTimeMillis(),
+                            temperature = 72f,
+                            condition = "Rainy",
+                            precipProbability = 80,
+                            precipAmountMm = 2f
+                        )
+                    )
+                ),
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { updatedConfig = it },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        // Click on "80%" in header to switch to PRECIPITATION graph
+        composeTestRule.onNodeWithText("80%").performClick()
+        assertEquals("PRECIPITATION", updatedConfig?.viewMode)
+    }
+
+    @Test
     fun testHourlyNavigationStepsBySixHours() {
         var updatedConfig: DesktopConfig? = null
         composeTestRule.setContent {

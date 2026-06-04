@@ -196,6 +196,9 @@ class TemperatureInterpolatorTest {
 - Include user prompts
 - Prefer numbered lists over bulleted lists in `session-logs/` for long lists.
 
+### Plan Files
+- Always write or copy plan files directly to the `plans/` directory in the repository root.
+
 ## Widget Development
 
 ### Widget-Only App Considerations
