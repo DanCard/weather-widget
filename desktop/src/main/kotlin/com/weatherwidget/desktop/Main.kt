@@ -156,6 +156,9 @@ private fun runApp(lockAcquired: Boolean) = application {
             val weatherDao = remember { DesktopWeatherDao(weatherDb) }
 
         var popupVisible by remember { mutableStateOf(config != null) }
+        // Edge-triggered show counter: a boolean can't re-fire an effect when it's already
+        // true, so bump this on every show request to reliably raise an already-open window.
+        var showRequestId by remember { mutableStateOf(0) }
         var pickerVisible by remember { mutableStateOf(config == null) }
         var settingsVisible by remember { mutableStateOf(false) }
         var statsVisible by remember { mutableStateOf(false) }
@@ -299,6 +302,13 @@ private fun runApp(lockAcquired: Boolean) = application {
             }
         }
 
+        // Surface the popup for any show request. Bumping showRequestId edge-triggers the
+        // raise-to-front effect even when the window is already visible (just buried).
+        fun requestShowPopup() {
+            popupVisible = true
+            showRequestId++
+        }
+
         // External show request: the genmon panel click (and any other caller) touches the .show
         // trigger file. We use WatchService (inotify on Linux) to avoid polling every second,
         // allowing the CPU to stay in a lower power state until a click actually happens.
@@ -318,7 +328,7 @@ private fun runApp(lockAcquired: Boolean) = application {
                         for (event in key.pollEvents()) {
                             val context = event.context() as? java.nio.file.Path
                             if (context?.toString() == ".show") {
-                                popupVisible = true
+                                requestShowPopup()
                             }
                         }
                         if (!key.reset()) break
@@ -355,7 +365,7 @@ private fun runApp(lockAcquired: Boolean) = application {
             TemperatureSystemTray(
                 temperature = forecast?.currentTemp,
                 dataStatus = dataStatus,
-                onShow = { popupVisible = true },
+                onShow = { requestShowPopup() },
                 onSettings = { settingsVisible = true },
                 onStatistics = { statsVisible = true },
                 onUpdateLocation = {
@@ -467,6 +477,12 @@ private fun runApp(lockAcquired: Boolean) = application {
                 title = "Weather Widget",
                 icon = appIcon,
             ) {
+                // Raise an already-open (possibly buried) window on every show request.
+                // FrameWindowScope exposes the underlying AWT ComposeWindow as `window`.
+                LaunchedEffect(showRequestId) {
+                    window.toFront()
+                    window.requestFocus()
+                }
                 WidgetPopup(
                     config = currentConfig,
                     forecast = forecast,
