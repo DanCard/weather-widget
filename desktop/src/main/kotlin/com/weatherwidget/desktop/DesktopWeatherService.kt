@@ -98,30 +98,33 @@ class DesktopWeatherService(
 
         val hourlyRaw = hourlyDeferred.await()
         val dailyRaw = dailyDeferred.await()
-        val observationBundle = selectObservationBundle(stationsDeferred.await())
-        val station = observationBundle?.station
-        val currentObs = observationBundle?.latest
-        val historicalObs = observationBundle?.historical ?: emptyList()
+        val bundles = fetchObservationBundles(stationsDeferred.await())
+        
+        // Latest fresh readings for IDW blending
+        val latestReadings = bundles.mapNotNull { bundle ->
+            bundle.latest?.takeIf { it.isFreshObservation() }?.toReading(bundle.station)
+        }
 
-        // Latest detailed reading + the historical window, mapped to the pure model type. The DB
-        // dedups by (stationId, timestamp), so an overlapping latest reading is harmless.
-        val observations = buildList {
-            station?.let { st ->
-                currentObs?.let { add(it.toReading(st)) }
-                historicalObs.forEach { add(it.toReading(st)) }
+        val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, latestReadings)
+            ?: DesktopTemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
+            ?: hourlyRaw.firstOrNull()?.temperature
+
+        val closestBundle = bundles.minByOrNull { distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
+        val currentCondition = closestBundle?.latest?.textDescription
+            ?: hourlyRaw.firstOrNull()?.shortForecast
+
+        // All readings (latest + historical) from all successful stations
+        val observations = bundles.flatMap { bundle ->
+            buildList {
+                bundle.latest?.let { add(it.toReading(bundle.station)) }
+                bundle.historical.forEach { add(it.toReading(bundle.station)) }
             }
         }
 
         ForecastResult(
-            currentTemp = currentObs
-                ?.takeIf { it.isFreshObservation() }
-                ?.temperatureCelsius
-                ?.let { (it * 1.8f) + 32f }
-                ?: DesktopTemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
-                ?: hourlyRaw.firstOrNull()?.temperature,
-            currentCondition = currentObs?.textDescription
-                ?: hourlyRaw.firstOrNull()?.shortForecast,
-            currentObservedAt = observations.firstOrNull()?.timestamp,
+            currentTemp = currentTemp,
+            currentCondition = currentCondition,
+            currentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
             hourly = hourlyRaw.map { it.toHourlyForecast() },
             daily = mapNwsToDaily(dailyRaw),
             rawObservations = observations
@@ -157,24 +160,30 @@ class DesktopWeatherService(
         return orderStations(fetched)
     }
 
-    private suspend fun selectObservationBundle(stations: List<NwsApi.StationInfo>): ObservationBundle? {
+    private suspend fun fetchObservationBundles(stations: List<NwsApi.StationInfo>): List<ObservationBundle> = coroutineScope {
         val end = Instant.now().truncatedTo(ChronoUnit.SECONDS)
         val start = end.minus(HISTORY_DAYS, ChronoUnit.DAYS)
-        for (station in orderStations(stations).take(MAX_OBSERVATION_STATIONS)) {
-            val historical = bestEffort("historical observations ${station.id}") {
-                nwsApi.getObservations(station.id, start.toString(), end.toString()).also { obs ->
-                    Log.i(TAG, "historical observations: station=${station.id} type=${station.type} count=${obs.size}")
+        
+        val deferreds = orderStations(stations).take(MAX_OBSERVATION_STATIONS).map { station ->
+            async {
+                val historical = bestEffort("historical observations ${station.id}") {
+                    nwsApi.getObservations(station.id, start.toString(), end.toString()).also { obs ->
+                        Log.i(TAG, "historical observations: station=${station.id} type=${station.type} count=${obs.size}")
+                    }
+                }.orEmpty()
+                
+                if (historical.isNotEmpty()) {
+                    val latest = bestEffort("latest observation ${station.id}") {
+                        nwsApi.getLatestObservationDetailed(station.id)
+                    }
+                    Log.i(TAG, "selected observation station=${station.id} type=${station.type} historical=${historical.size} latest=${latest != null}")
+                    ObservationBundle(station, latest, historical)
+                } else {
+                    null
                 }
-            }.orEmpty()
-            if (historical.isEmpty()) continue
-
-            val latest = bestEffort("latest observation ${station.id}") {
-                nwsApi.getLatestObservationDetailed(station.id)
             }
-            Log.i(TAG, "selected observation station=${station.id} type=${station.type} historical=${historical.size} latest=${latest != null}")
-            return ObservationBundle(station, latest, historical)
         }
-        return null
+        deferreds.mapNotNull { it.await() }
     }
 
     private data class ObservationBundle(

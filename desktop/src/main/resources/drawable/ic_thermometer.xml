@@ -1,0 +1,32 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Outer glass tube -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M12,3 L12,15" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:pathData="M12,15 m-3,3 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    
+    <!-- Red Liquid (Mercury/Alcohol) -->
+    <path
+        android:fillColor="#FF3B30"
+        android:pathData="M12,18 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+    <path
+        android:strokeColor="#FF3B30"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:pathData="M12,18 L12,8" />
+        
+    <!-- Measurement ticks -->
+    <path
+        android:strokeColor="#AAFFFFFF"
+        android:strokeWidth="1"
+        android:pathData="M14,5 L15,5 M14,8 L15,8 M14,11 L15,11" />
+</vector>

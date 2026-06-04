@@ -25,6 +25,10 @@ data class DesktopConfig(
     val dateOffset: Int = 0,
     val hourlyOffset: Int = 0,
     val zoomLevel: String = "WIDE",
+    val obsWindowX: Float? = null,
+    val obsWindowY: Float? = null,
+    val obsWindowWidth: Float? = null,
+    val obsWindowHeight: Float? = null,
 )
 
 class DesktopConfigStore(

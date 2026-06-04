@@ -158,6 +158,7 @@ private fun runApp(lockAcquired: Boolean) = application {
         var pickerVisible by remember { mutableStateOf(config == null) }
         var settingsVisible by remember { mutableStateOf(false) }
         var statsVisible by remember { mutableStateOf(false) }
+        var observationsVisible by remember { mutableStateOf(false) }
         val desktopClients = remember { DesktopClients() }
         val locationResolver = remember {
             LocationResolver(
@@ -249,13 +250,13 @@ private fun runApp(lockAcquired: Boolean) = application {
 
             // 3. Adaptive refresh loop
             while (true) {
-                val delayMs = if (popupVisible) {
+                val delayMs = if (popupVisible || observationsVisible) {
                     computeRefreshDelayMs(forecast?.hourly)
                 } else {
                     // When not being displayed, wake up every two minutes as requested.
                     2 * 60 * 1000L
                 }
-                println("Next refresh in ${delayMs / 1000}s (popupVisible=$popupVisible)")
+                println("Next refresh in ${delayMs / 1000}s (popupVisible=$popupVisible observationsVisible=$observationsVisible)")
                 kotlinx.coroutines.delay(delayMs)
                 try {
                     println("Loop refresh starting...")
@@ -346,6 +347,19 @@ private fun runApp(lockAcquired: Boolean) = application {
                 weatherDao = weatherDao,
                 config = currentConfig,
                 onClose = { statsVisible = false },
+            )
+        }
+
+        if (observationsVisible && currentConfig != null && repository != null) {
+            ObservationsWindow(
+                weatherDao = weatherDao,
+                repository = repository,
+                config = currentConfig,
+                onClose = { observationsVisible = false },
+                onConfigUpdate = { newConfig ->
+                    configStore.save(newConfig)
+                    config = newConfig
+                }
             )
         }
 
@@ -443,6 +457,9 @@ private fun runApp(lockAcquired: Boolean) = application {
                     },
                     onOpenSettings = {
                         settingsVisible = true
+                    },
+                    onOpenObservations = {
+                        observationsVisible = true
                     }
                 )
             }
@@ -553,6 +570,7 @@ internal fun WidgetPopup(
     onUpdateLocation: () -> Unit,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenObservations: () -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxSize()) {
         when (dataStatus) {
@@ -569,6 +587,7 @@ internal fun WidgetPopup(
                         forecast = snapshot,
                         onUpdateConfig = onUpdateConfig,
                         onOpenSettings = onOpenSettings,
+                        onOpenObservations = onOpenObservations,
                         onUpdateLocation = onUpdateLocation,
                         showWeatherSummary = config.viewMode == "HOURLY",
                         headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
@@ -734,6 +753,7 @@ private fun WidgetHeader(
     forecast: ForecastResult,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenObservations: () -> Unit,
     onUpdateLocation: () -> Unit,
     showWeatherSummary: Boolean = true,
     headerTime: LocalDateTime = LocalDateTime.now(),
@@ -746,90 +766,88 @@ private fun WidgetHeader(
     val currentForecastTemp = forecast.currentTemp
     val deltaTemp = if (currentForecastTemp != null && interpolatedForecastTemp != null) {
         val diff = currentForecastTemp - interpolatedForecastTemp
-        if (kotlin.math.abs(diff) >= 0.5f) diff else null
+        if (kotlin.math.abs(diff) >= 0.1f) diff else null
     } else null
-    
-    val currentHourData = forecast.hourly.find { 
-        it.dateTime >= nowEpoch - 3_600_000L && it.dateTime <= nowEpoch + 3_600_000L 
+
+    val currentHourData = forecast.hourly.find {
+        it.dateTime >= nowEpoch - 3_600_000L && it.dateTime <= nowEpoch + 3_600_000L
     }
     val precipProb = currentHourData?.precipProbability?.takeIf { it > 0 }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        if (showWeatherSummary) {
-            // Top row: dominant current temp (left) + API source / date (right)
+        // Top row: current temp/icon (left) | API source / date (right)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f).clickable { onOpenObservations() }
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    androidx.compose.foundation.Image(
-                        painter = WeatherIcon.painter(forecast.currentCondition),
-                        contentDescription = null,
-                        modifier = Modifier.size(32.dp).padding(end = 6.dp)
-                    )
+                androidx.compose.foundation.Image(
+                    painter = WeatherIcon.painter(forecast.currentCondition),
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp).padding(end = 4.dp)
+                )
+                Text(
+                    text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontSize = 22.sp
+                )
+                if (deltaTemp != null) {
+                    Spacer(Modifier.width(2.dp))
                     Text(
-                        text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
-                        style = MaterialTheme.typography.displaySmall,
-                    )
-                    if (deltaTemp != null) {
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = String.format(Locale.US, "%+.1f", deltaTemp),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color(0xFFFF6B35),
-                            modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
-                        )
-                    }
-                    if (precipProb != null) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "$precipProb%",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color(0xFF4FC3F7),
-                            modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = forecast.currentCondition ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.6f),
-                        maxLines = 1,
+                        text = String.format(Locale.US, "%+.1f", deltaTemp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFFF6B35),
+                        modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
                     )
                 }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    val visibleSources = config.visibleSources
-                    if (visibleSources.size > 1) {
-                        Text(
-                            text = config.weatherSource,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.clickable {
-                                val nextIdx = (visibleSources.indexOf(config.weatherSource) + 1) % visibleSources.size
-                                onUpdateConfig(config.copy(weatherSource = visibleSources[nextIdx]))
-                            }
-                        )
-                    } else {
-                        Text(
-                            text = config.weatherSource,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.5f),
-                        )
-                    }
+                if (precipProb != null) {
+                    Spacer(Modifier.width(6.dp))
                     Text(
-                        text = targetHour.format(dateFormatter),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.7f)
+                        text = "$precipProb%",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFF4FC3F7),
+                        modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
                     )
                 }
             }
 
-            Spacer(Modifier.height(6.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                val visibleSources = config.visibleSources
+                if (visibleSources.size > 1) {
+                    Text(
+                        text = config.weatherSource,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 9.sp,
+                        modifier = Modifier.clickable {
+                            val nextIdx = (visibleSources.indexOf(config.weatherSource) + 1) % visibleSources.size
+                            onUpdateConfig(config.copy(weatherSource = visibleSources[nextIdx]))
+                        }
+                    )
+                } else {
+                    Text(
+                        text = config.weatherSource,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 9.sp,
+                        color = Color.White.copy(alpha = 0.5f),
+                    )
+                }
+                Text(
+                    text = targetHour.format(dateFormatter),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
         }
 
-        // Bottom row: location + gear (left) | H / D mode chips (right)
+        Spacer(Modifier.height(4.dp))
+
+        // Bottom row: location + icons (left) | mode chips (right)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -845,10 +863,17 @@ private fun WidgetHeader(
                 )
                 Spacer(Modifier.width(6.dp))
                 Icon(
+                    painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
+                    contentDescription = "Stations",
+                    modifier = Modifier.size(13.dp).clickable { onOpenObservations() },
+                    tint = Color.White.copy(alpha = 0.7f)
+                )
+                Spacer(Modifier.width(6.dp))
+                Icon(
                     painter = androidx.compose.ui.res.painterResource("drawable/ic_settings_gear.xml"),
                     contentDescription = "Settings",
                     modifier = Modifier.size(13.dp).clickable { onOpenSettings() },
-                    tint = Color.White.copy(alpha = 0.5f)
+                    tint = Color.White.copy(alpha = 0.7f)
                 )
             }
 

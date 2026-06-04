@@ -469,6 +469,42 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
+    fun getRecentObservations(sinceMs: Long): List<DesktopObservationEntity> {
+        val result = mutableListOf<DesktopObservationEntity>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT * FROM observations 
+                WHERE timestamp >= ?
+                ORDER BY timestamp DESC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setLong(1, sinceMs)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(
+                        DesktopObservationEntity(
+                            stationId = rs.getString("stationId"),
+                            stationName = rs.getString("stationName"),
+                            timestamp = rs.getLong("timestamp"),
+                            temperature = rs.getFloat("temperature"),
+                            condition = rs.getString("condition"),
+                            locationLat = rs.getDouble("locationLat"),
+                            locationLon = rs.getDouble("locationLon"),
+                            distanceKm = rs.getFloat("distanceKm"),
+                            stationType = rs.getString("stationType"),
+                            fetchedAt = rs.getLong("fetchedAt"),
+                            maxTempLast24h = if (rs.getObject("maxTempLast24h") != null) rs.getFloat("maxTempLast24h") else null,
+                            minTempLast24h = if (rs.getObject("minTempLast24h") != null) rs.getFloat("minTempLast24h") else null,
+                            api = rs.getString("api"),
+                            precipAmountMm = if (rs.getObject("precipAmountMm") != null) rs.getFloat("precipAmountMm") else null,
+                        )
+                    )
+                }
+            }
+        }
+        return result
+    }
+
     fun getObservationsInRange(startTs: Long, endTs: Long, locationLat: Double, locationLon: Double): List<DesktopObservationEntity> {
         val result = mutableListOf<DesktopObservationEntity>()
         db.getConnection().use { conn ->
