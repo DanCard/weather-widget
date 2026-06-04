@@ -73,11 +73,12 @@ private fun appDataDir(): java.nio.file.Path = DesktopDbPaths.defaultDbPath().pa
 private fun isPackaged(): Boolean = System.getProperty("jpackage.app-path") != null
 
 private const val QUIT_TRIGGER = ".quit"
+private const val QUIT_PREFIX = ".quit-"
 
 /**
  * Best-effort, last-launch-wins single-instance handoff. Dorkbox SystemTray is a process-level
  * singleton, so two instances would fight over the tray (and double up on background fetches + DB
- * writers). Rather than the new launch giving up, it touches the [QUIT_TRIGGER] file that any
+ * writers). Rather than the new launch giving up, it touches a [.quit-<launchId>] file that any
  * running instance's WatchService is watching, so the incumbent exits itself. This mirrors the
  * `.show` trigger and makes dev iteration painless — a fresh launch simply replaces whatever's
  * running.
@@ -88,16 +89,26 @@ private const val QUIT_TRIGGER = ".quit"
  * pre-existing file, so the new instance never quits itself; only the already-watching incumbent
  * reacts.
  */
-private fun signalIncumbentToQuit(dir: java.nio.file.Path) {
+private val appLaunchId = java.util.UUID.randomUUID().toString()
+
+private fun signalIncumbentToQuit(dir: java.nio.file.Path, launchId: String) {
     java.nio.file.Files.createDirectories(dir)
-    val trigger = dir.resolve(QUIT_TRIGGER)
-    java.nio.file.Files.newOutputStream(
+    if (java.nio.file.Files.exists(dir)) {
+        java.nio.file.Files.list(dir).use { paths ->
+            paths.forEach { path ->
+                val name = path.fileName.toString()
+                if (name == QUIT_TRIGGER || name.startsWith(QUIT_PREFIX)) {
+                    runCatching { java.nio.file.Files.deleteIfExists(path) }
+                }
+            }
+        }
+    }
+    val trigger = dir.resolve("$QUIT_PREFIX$launchId")
+    java.nio.file.Files.writeString(
         trigger,
-        java.nio.file.StandardOpenOption.CREATE,
-        java.nio.file.StandardOpenOption.WRITE,
-    ).close()
-    // utime so an already-existing file still emits ENTRY_MODIFY (mirrors the genmon .show trigger).
-    java.nio.file.Files.setLastModifiedTime(trigger, java.nio.file.attribute.FileTime.from(java.time.Instant.now()))
+        "",
+        java.nio.charset.StandardCharsets.UTF_8
+    )
 }
 
 /** Packaged-only first-run setup: extract the genmon script. */
@@ -127,7 +138,7 @@ fun main(args: Array<String>) {
     if (args.contains("--minimized")) {
         System.setProperty("weatherwidget.desktop.minimized", "true")
     }
-    runCatching { signalIncumbentToQuit(appDataDir()) } // ask any running instance to exit (best-effort)
+    runCatching { signalIncumbentToQuit(appDataDir(), appLaunchId) } // ask any running instance to exit (best-effort)
     maybePackagedSetup()
     runApp()
 }
@@ -204,17 +215,23 @@ private fun runApp() = application {
                 println("Cached data loaded. Null? ${cached == null}")
                 if (cached != null) {
                     forecast = cached
-                    val lastFetch = weatherDao.getLastSuccessfulFetch()
+                    val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
                     dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
                     println("DataStatus updated to Live (cached). lastFetch: $lastFetch")
                 }
 
-                // 2. Staleness-gated launch fetch: skip if cache is fresh (< 30 min)
-                val lastFetch = weatherDao.getLastSuccessfulFetch()
-                val cacheIsFresh = lastFetch != null &&
+                // 2. Staleness-gated launch fetch: skip if cache is fresh (< 10 min) and present
+                val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
+                val cacheIsFresh = cached != null && lastFetch != null &&
                     (System.currentTimeMillis() - lastFetch) < FRESHNESS_THRESHOLD_MS
 
                 println("Cache fresh? $cacheIsFresh. lastFetch: $lastFetch")
+                
+                weatherDao.log(
+                    tag = "LAUNCH_REFRESH_CHECK",
+                    message = "source=${currentConfig?.weatherSource} cachePresent=${cached != null} cacheIsFresh=$cacheIsFresh lastFetch=$lastFetch ageMs=${lastFetch?.let { System.currentTimeMillis() - it }}",
+                    level = "INFO"
+                )
 
                 if (!cacheIsFresh) {
                     try {
@@ -232,7 +249,7 @@ private fun runApp() = application {
                         val isOffline = isOfflineException(e)
                         val reason = if (isOffline) "offline" else "source_error"
                         weatherDao.log("REFRESH_FAIL", "launch fetch: $reason ${e.message}", "WARN")
-                        val lastSuccess = weatherDao.getLastSuccessfulFetch()
+                        val lastSuccess = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
                         dataStatus = deriveDataStatus(
                             cachePresent = forecast != null,
                             lastFetchMs = lastSuccess,
@@ -272,30 +289,98 @@ private fun runApp() = application {
                 }
             }
 
-            // 3b. Network data-fetch loop: full multi-source fetch + persistence. The desktop is
-            //     always "plugged in + screen on", so it uses Android's plugged-in fetch interval.
+            // 3b. Temp actuals (observations) fetch loop: active weather source every 10 minutes
+            launch {
+                while (true) {
+                    kotlinx.coroutines.delay(ACTUALS_REFRESH_INTERVAL_MS)
+                    try {
+                        println("Temp actuals loop refresh starting for ${currentConfig?.weatherSource}...")
+                        val result = repo.refreshObservations()
+                        forecast = result
+                        dataStatus = DataStatus.Live(weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource) ?: System.currentTimeMillis())
+                        println("Temp actuals loop refresh successful.")
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        println("Temp actuals loop refresh cancelled.")
+                        throw e
+                    } catch (e: Exception) {
+                        println("Temp actuals loop refresh failed: ${e.message}")
+                        val isOffline = isOfflineException(e)
+                        val reason = if (isOffline) "offline" else "source_error"
+                        weatherDao.log("REFRESH_FAIL", "temp actuals: $reason ${e.message}", "WARN")
+                        val lastSuccess = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
+                        dataStatus = deriveDataStatus(
+                            cachePresent = forecast != null,
+                            lastFetchMs = lastSuccess,
+                            refreshFailed = true,
+                            failureIsOffline = isOffline,
+                        )
+                    }
+                }
+            }
+
+            // 3c. Forecast fetch loop: active source every 60m, non-active sources every 120m
             while (true) {
-                kotlinx.coroutines.delay(NETWORK_REFRESH_INTERVAL_MS)
+                kotlinx.coroutines.delay(ACTIVE_FORECAST_REFRESH_INTERVAL_MS)
+                val activeSource = currentConfig?.weatherSource ?: "NWS"
+                val allVisible = currentConfig?.visibleSources ?: listOf(activeSource)
+                
                 try {
-                    println("Loop refresh starting...")
+                    println("Loop forecast refresh starting for active source: $activeSource...")
                     forecast = repo.refresh()
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
-                    println("Loop refresh successful.")
+                    println("Active source forecast refresh successful.")
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     println("Loop refresh cancelled.")
                     throw e
                 } catch (e: Exception) {
-                    println("Loop refresh failed: ${e.message}")
+                    println("Active source forecast refresh failed: ${e.message}")
                     val isOffline = isOfflineException(e)
                     val reason = if (isOffline) "offline" else "source_error"
                     weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
-                    val lastSuccess = weatherDao.getLastSuccessfulFetch()
+                    val lastSuccess = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
                     dataStatus = deriveDataStatus(
                         cachePresent = forecast != null,
                         lastFetchMs = lastSuccess,
                         refreshFailed = true,
                         failureIsOffline = isOffline,
                     )
+                }
+
+                // Slower forecast fetch for other APIs (every 120 minutes)
+                val nonActiveSources = allVisible.filter { it != activeSource }
+                for (otherSource in nonActiveSources) {
+                    try {
+                        val lastOtherFetch = weatherDao.getLastSuccessfulFetch(otherSource)
+                        val isDue = lastOtherFetch == null || 
+                            (System.currentTimeMillis() - lastOtherFetch) >= NON_ACTIVE_FORECAST_REFRESH_INTERVAL_MS
+                        
+                        if (isDue) {
+                            println("Refreshing forecast for non-active source: $otherSource...")
+                            val otherService = DesktopWeatherService(
+                                currentConfig?.lat ?: DesktopWeatherService.FALLBACK_LATITUDE,
+                                currentConfig?.lon ?: DesktopWeatherService.FALLBACK_LONGITUDE,
+                                otherSource,
+                                currentConfig?.apiKeys ?: emptyMap(),
+                                weatherDao
+                            )
+                            val otherRepo = DesktopWeatherRepository(
+                                otherService,
+                                weatherDao,
+                                currentConfig?.lat ?: DesktopWeatherService.FALLBACK_LATITUDE,
+                                currentConfig?.lon ?: DesktopWeatherService.FALLBACK_LONGITUDE,
+                                otherSource
+                            )
+                            otherRepo.refresh()
+                            println("Non-active source $otherSource forecast refresh successful.")
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        println("Non-active source $otherSource forecast refresh failed: ${e.message}")
+                        val isOffline = isOfflineException(e)
+                        val reason = if (isOffline) "offline" else "source_error"
+                        weatherDao.log("REFRESH_FAIL", "forecast other $otherSource: $reason ${e.message}", "WARN")
+                    }
                 }
             }
         }
@@ -313,6 +398,10 @@ private fun runApp() = application {
         // hard exit shortly after, giving the EDT a moment to finish the clean tray teardown first.
         fun quit() {
             desktopClients.close()
+            runCatching {
+                val myQuitFile = appDataDir().resolve("$QUIT_PREFIX$appLaunchId")
+                java.nio.file.Files.deleteIfExists(myQuitFile)
+            }
             exitApplication()
             kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
                 Thread.sleep(400)
@@ -326,6 +415,17 @@ private fun runApp() = application {
         LaunchedEffect(Unit) {
             withContext(Dispatchers.IO) {
                 val dir = appDataDir()
+                // Clean up any old .quit files (except our own signature file)
+                if (java.nio.file.Files.exists(dir)) {
+                    java.nio.file.Files.list(dir).use { paths ->
+                        paths.forEach { path ->
+                            val name = path.fileName.toString()
+                            if (name == QUIT_TRIGGER || (name.startsWith(QUIT_PREFIX) && name != "$QUIT_PREFIX$appLaunchId")) {
+                                runCatching { java.nio.file.Files.deleteIfExists(path) }
+                            }
+                        }
+                    }
+                }
                 val watchService = java.nio.file.FileSystems.getDefault().newWatchService()
                 dir.register(
                     watchService,
@@ -337,10 +437,24 @@ private fun runApp() = application {
                     while (true) {
                         val key = watchService.take() // Blocks until an event occurs
                         for (event in key.pollEvents()) {
-                            when ((event.context() as? java.nio.file.Path)?.toString()) {
-                                ".show" -> requestShowPopup()
-                                // A newer instance is taking over — bow out so it can claim the tray.
-                                QUIT_TRIGGER -> SwingUtilities.invokeLater { quit() }
+                            val name = (event.context() as? java.nio.file.Path)?.toString()
+                            if (name != null) {
+                                when {
+                                    name == ".show" -> requestShowPopup()
+                                    name == QUIT_TRIGGER -> {
+                                        println("Script or manual quit trigger detected. Exiting.")
+                                        SwingUtilities.invokeLater { quit() }
+                                    }
+                                    name.startsWith(QUIT_PREFIX) -> {
+                                        val suffix = name.substring(QUIT_PREFIX.length)
+                                        if (suffix != appLaunchId) {
+                                            println("Newer instance detected (launchId=$suffix, mine=$appLaunchId). Exiting.")
+                                            SwingUtilities.invokeLater { quit() }
+                                        } else {
+                                            println("Ignored quit trigger (launchId=$suffix, mine=$appLaunchId).")
+                                        }
+                                    }
+                                }
                             }
                         }
                         if (!key.reset()) break
@@ -1098,14 +1212,20 @@ private fun CenteredMessage(text: String) {
     }
 }
 
-private const val FRESHNESS_THRESHOLD_MS = 30 * 60 * 1000L
+private const val FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000L
 private const val MIN_REFRESH_DELAY_MS = 10 * 60 * 1000L
 private const val DEFAULT_REFRESH_DELAY_MS = 15 * 60 * 1000L
 
 /** Cheap, network-free re-interpolation of the displayed current temp. */
 private const val CURRENT_TEMP_UI_INTERVAL_MS = 2 * 60 * 1000L
-/** Full network data fetch. Matches Android's plugged-in interval; the desktop is always plugged in. */
-private const val NETWORK_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
+
+/** Network refresh intervals matching Android (plugged in, charging, screen interactive): */
+/** Temp actuals (observations) for the active weather source: 10 minutes */
+private const val ACTUALS_REFRESH_INTERVAL_MS = 10 * 60 * 1000L
+/** Full forecast for the active weather source: 60 minutes */
+private const val ACTIVE_FORECAST_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
+/** Full forecast for non-active weather sources: 120 minutes */
+private const val NON_ACTIVE_FORECAST_REFRESH_INTERVAL_MS = 120 * 60 * 1000L
 
 internal fun computeRefreshDelayMs(hourly: List<com.weatherwidget.data.model.HourlyForecast>?): Long {
     if (hourly.isNullOrEmpty()) return DEFAULT_REFRESH_DELAY_MS

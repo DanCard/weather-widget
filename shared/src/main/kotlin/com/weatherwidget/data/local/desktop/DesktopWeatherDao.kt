@@ -302,11 +302,17 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
-    fun getLastSuccessfulFetch(): Long? {
+    fun getLastSuccessfulFetch(source: String? = null): Long? {
         db.getConnection().use { conn ->
-            conn.prepareStatement(
+            val sql = if (source != null) {
+                "SELECT MAX(timestamp) FROM app_logs WHERE tag = 'REFRESH' AND level = 'INFO' AND message LIKE ?"
+            } else {
                 "SELECT MAX(timestamp) FROM app_logs WHERE tag = 'REFRESH' AND level = 'INFO'"
-            ).use { stmt ->
+            }
+            conn.prepareStatement(sql).use { stmt ->
+                if (source != null) {
+                    stmt.setString(1, "source=$source%")
+                }
                 val rs = stmt.executeQuery()
                 if (rs.next()) {
                     val ts = rs.getLong(1)

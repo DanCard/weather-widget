@@ -116,6 +116,30 @@ class DesktopWeatherRepository(
         )
     }
 
+    suspend fun refreshObservations(): ForecastResult = withContext(Dispatchers.IO) {
+        val result = weatherService.fetchObservationsOnly()
+        val now = System.currentTimeMillis()
+
+        if (result.rawObservations.isNotEmpty()) {
+            weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
+        }
+
+        val extremesCount = recomputeDailyExtremes(now)
+        val cached = loadCached()
+
+        weatherDao.log(
+            tag = "OBS_REFRESH",
+            message = "source=$weatherSource obs=${result.rawObservations.size} extremes=$extremesCount",
+        )
+
+        result.copy(
+            daily = cached?.daily ?: emptyList(),
+            hourly = cached?.hourly ?: emptyList(),
+            dailyActuals = cached?.dailyActuals ?: emptyMap(),
+            dailySnapshots = cached?.dailySnapshots ?: emptyMap(),
+        )
+    }
+
     /** Reads the stored observation window, (re)computes daily_extremes, and returns the row count. */
     private fun recomputeDailyExtremes(now: Long): Int {
         val windowStart = now - (HISTORY_WINDOW_DAYS + 1) * DailyExtremesComputer.MS_IN_A_DAY

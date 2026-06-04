@@ -243,6 +243,85 @@ class DesktopWeatherService(
         }.sortedBy { it.date }
     }
 
+    suspend fun fetchObservationsOnly(): ForecastResult = runCatching {
+        when (weatherSource) {
+            "NWS" -> fetchNwsObservationsOnly()
+            WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
+            WeatherSource.TOMORROW_IO.id -> tomorrowIo.getForecast(latitude, longitude)
+            WeatherSource.WEATHER_API.id -> weatherApi.getForecast(latitude, longitude)
+            WeatherSource.VISUAL_CROSSING.id -> visualCrossing.getForecast(latitude, longitude)
+            WeatherSource.SILURIAN.id -> silurian.getForecast(latitude, longitude)
+            WeatherSource.OPEN_WEATHER_MAP.id -> openWeatherMap.getForecast(latitude, longitude)
+            else -> fetchOpenMeteoObservationsOnly()
+        }
+    }.getOrElse { e ->
+        if (weatherSource != WeatherSource.OPEN_METEO.id) {
+            fetchOpenMeteoObservationsOnly()
+        } else {
+            throw e
+        }
+    }
+
+    private suspend fun fetchNwsObservationsOnly(): ForecastResult = coroutineScope {
+        val grid = nwsApi.getGridPoint(latitude, longitude)
+        
+        // Resolve candidate observation stations once, then try official stations first.
+        val stations = bestEffort("observation stations") {
+            grid.observationStationsUrl?.let { url -> getCachedOrFetchStations(url) }
+        } ?: emptyList()
+
+        val bundles = fetchObservationBundles(stations)
+        
+        // Latest fresh readings for IDW blending
+        val latestReadings = bundles.mapNotNull { bundle ->
+            bundle.latest?.takeIf { it.isFreshObservation() }?.toReading(bundle.station)
+        }
+
+        val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, latestReadings)
+            ?: bundles.minByOrNull { distanceKm(latitude, longitude, it.station.lat, it.station.lon) }?.latest?.let {
+                (it.temperatureCelsius * 1.8f) + 32f
+            }
+
+        val closestBundle = bundles.minByOrNull { distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
+        val currentCondition = closestBundle?.latest?.textDescription
+
+        val observations = bundles.flatMap { bundle ->
+            buildList {
+                bundle.latest?.let { add(it.toReading(bundle.station)) }
+                bundle.historical.forEach { add(it.toReading(bundle.station)) }
+            }
+        }
+
+        ForecastResult(
+            currentTemp = currentTemp,
+            currentCondition = currentCondition,
+            currentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
+            rawObservations = observations
+        )
+    }
+
+    private suspend fun fetchOpenMeteoObservationsOnly(): ForecastResult = coroutineScope {
+        val reading = openMeteo.getCurrent(latitude, longitude)
+            ?: throw Exception("Open-Meteo current reading is null")
+        val condition = reading.weatherCode?.let { openMeteo.weatherCodeToCondition(it) } ?: "Unknown"
+        val obsReading = ObservationReading(
+            stationId = "OPEN_METEO_MAIN",
+            stationName = "Meteo: Current",
+            timestamp = reading.observedAt ?: System.currentTimeMillis(),
+            temperature = reading.temperature,
+            condition = condition,
+            locationLat = latitude,
+            locationLon = longitude,
+            api = WeatherSource.OPEN_METEO.id,
+        )
+        ForecastResult(
+            currentTemp = reading.temperature,
+            currentCondition = condition,
+            currentObservedAt = reading.observedAt,
+            rawObservations = listOf(obsReading)
+        )
+    }
+
     fun close() = httpClient.close()
 
     companion object {

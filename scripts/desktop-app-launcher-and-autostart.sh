@@ -20,7 +20,7 @@ LOG_FILE="$LOG_DIR/autostart-$(date +%Y%m%d-%H%M%S).log"
 mkdir -p "$LOG_DIR"
 
 # Clean up empty logs older than 3 days
-find "$LOG_DIR" -name "*.log" -type f -empty -mtime +3 -delete || true
+find "$LOG_DIR" -name "*.log" -type f -empty -mtime +2 -delete || true
 # Clean up all logs older than 90 days
 find "$LOG_DIR" -name "*.log" -type f -mtime +90 -delete || true
 

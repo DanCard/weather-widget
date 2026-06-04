@@ -29,6 +29,6 @@ sleep 1   # No hup message prints late.  Add sleep so messages come out in expec
 printf "\t Started launcher pid $!. Logs: $LOG_FILE\n"
 
 # Touch .show to ensure the window is surfaced immediately on restart
-SHOW_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/weather-widget/.show"
-sleep 3
-touch "$SHOW_FILE"
+# SHOW_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/weather-widget/.show"
+# sleep 3
+# touch "$SHOW_FILE"
