@@ -7,6 +7,7 @@ data class HourlyForecast(
     val precipProbability: Int? = null,
     val precipAmountMm: Float? = null,
     val cloudCover: Int? = null,
+    val source: String? = null,
 )
 
 data class DailyForecast(

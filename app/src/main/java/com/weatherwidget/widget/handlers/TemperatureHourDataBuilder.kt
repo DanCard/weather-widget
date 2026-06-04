@@ -4,9 +4,11 @@ import android.os.SystemClock
 import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.util.ObservationBlender
-import com.weatherwidget.util.ObservationBlender.BlendObservationStats
+import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.actuals.BlendObservationStats
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
@@ -140,33 +142,9 @@ internal fun buildHourDataResult(
     val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
     val startHour = alignedCenter.minusHours(zoom.backHours)
     val endHour = alignedCenter.plusHours(zoom.forwardHours)
-    val startMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
-    val endMs = endHour.atZone(zoneId).toInstant().toEpochMilli()
-
-    val contextStartMs = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
-    val contextEndMs = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
-
     val lat = hourlyForecasts.firstOrNull()?.locationLat ?: com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_LAT
     val lon = hourlyForecasts.firstOrNull()?.locationLon ?: com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_LON
     val sourceActuals = actuals.filter { matchesObservationSource(it, displaySource) }
-    val selectedStationId =
-        if (displaySource != WeatherSource.NWS) {
-            selectObservationSeries(
-                observations = sourceActuals,
-                displaySource = displaySource,
-                startHour = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS),
-                endHour = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS),
-            ).stationId
-        } else {
-            null
-        }
-    val blendInputActuals =
-        if (selectedStationId != null) {
-            sourceActuals.filter { it.stationId == selectedStationId }
-        } else {
-            sourceActuals
-        }
-    val stationCount = blendInputActuals.map { it.stationId }.toSet().size
     val sourceSpanSummary =
         if (sourceActuals.isEmpty()) {
             "none"
@@ -178,6 +156,30 @@ internal fun buildHourDataResult(
             val lastLocal = Instant.ofEpochMilli(lastTs).atZone(zoneId).toLocalDateTime().format(formatter)
             "$firstLocal..$lastLocal"
         }
+    val actualSeries = ActualTemperatureSeriesBuilder.build(
+        hourlyForecasts = hourlyForecasts.map { it.toSharedHourlyForecast() },
+        observations = actuals.map { it.toSharedObservationReading() },
+        centerTime = centerTime,
+        displaySourceId = displaySource.id,
+        userLat = lat,
+        userLon = lon,
+        backHours = zoom.backHours,
+        forwardHours = zoom.forwardHours,
+        contextLookbackHours = WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS,
+        contextLookaheadHours = WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS,
+        now = now,
+        zoneId = zoneId,
+        smoothedForecasts = smoothedForecasts,
+        onBlendDebug = onBlendDebug,
+    )
+    val selectedStationId = actualSeries.selectedStationId
+    val blendInputActuals =
+        if (selectedStationId != null) {
+            sourceActuals.filter { it.stationId == selectedStationId }
+        } else {
+            sourceActuals
+        }
+    val stationCount = blendInputActuals.map { it.stationId }.toSet().size
     if (blendInputActuals.isNotEmpty()) {
         onBlendDebug?.invoke {
             val stationBreakdown = blendInputActuals
@@ -200,23 +202,12 @@ internal fun buildHourDataResult(
     } else {
         onBlendDebug?.invoke { "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=0 stations=0" }
     }
-    val blendedActualsResult = ObservationBlender.blendObservationSeries(
-        observations = blendInputActuals,
-        hourlyForecasts = hourlyForecasts,
-        displaySource = displaySource,
-        userLat = lat,
-        userLon = lon,
-        startMs = contextStartMs,
-        endMs = contextEndMs,
-        onBlendDebug = onBlendDebug,
-    )
-    val blendedActuals = blendedActualsResult.observations
     Log.d(
         TAG,
         "buildHourDataList: source=${displaySource.id}, sourceRows=${sourceActuals.size}, " +
             "sourceSpan=$sourceSpanSummary, selectedStation=${selectedStationId ?: "ALL"}, " +
             "blendInputRows=${blendInputActuals.size}, stations=$stationCount, " +
-            "blendedPoints=${blendedActuals.size}, visualWindow=${startHour.format(DateTimeFormatter.ISO_LOCAL_TIME)} to ${endHour.format(DateTimeFormatter.ISO_LOCAL_TIME)}"
+            "blendedPoints=${actualSeries.blendStats?.emittedPointCount ?: 0}, visualWindow=${startHour.format(DateTimeFormatter.ISO_LOCAL_TIME)} to ${endHour.format(DateTimeFormatter.ISO_LOCAL_TIME)}"
     )
 
     // Narrow widgets space WIDE-zoom hour markers further apart (every 6h vs 4h) so the wider
@@ -293,58 +284,22 @@ internal fun buildHourDataResult(
 
     // 2. Inject sub-hourly actuals
     val finalHours = mutableListOf<HourData>()
-    val allTimes = hours.map { it.dateTime }.toMutableSet()
-    val actualMap = mutableMapOf<LocalDateTime, ObservationEntity>()
-
-    // Pre-initialize lastActual from the full blended series to ensure consistency at window boundaries
-    var lastActual: Float? = blendedActuals
-        .filter { it.timestamp < startMs && it.timestamp <= now.atZone(zoneId).toInstant().toEpochMilli() }
-        .lastOrNull()?.temperature
-
-    blendedActuals.forEach { obs ->
-        val obsTime = Instant.ofEpochMilli(obs.timestamp)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDateTime()
-        
-        if (!obsTime.isBefore(startHour) && !obsTime.isAfter(endHour) && obsTime.isBefore(now)) {
-            allTimes.add(obsTime)
-            actualMap[obsTime] = obs
-        }
+    val pointsByTime = actualSeries.points.associateBy {
+        Instant.ofEpochMilli(it.timeMs).atZone(zoneId).toLocalDateTime()
     }
 
-    val sortedTimes = allTimes.sorted()
-
-    for (time in sortedTimes) {
+    for (time in pointsByTime.keys.sorted()) {
         val isTopHour = time.minute == 0 && time.second == 0
-        val isPast = time.isBefore(now)
-        val actualObservation = actualMap[time]
-        val actualTemp = actualObservation?.temperature
-        val isRawObservedActual = actualObservation?.condition == "observed"
+        val actualPoint = pointsByTime.getValue(time)
 
         if (isTopHour) {
             val topHourData = hours.find { it.dateTime == time }
             if (topHourData != null) {
-                val iconRes = topHourData.iconRes ?: actualObservation?.condition?.let { cond ->
-                    if (cond != "observed" && cond != "interpolated" && cond != "forecast_extrapolated") {
-                        WeatherIconMapper.getIconResource(
-                            condition = cond,
-                            isNight = topHourData.isNight,
-                            cloudCover = null,
-                            precipProbability = null,
-                            isTwilight = topHourData.isTwilight,
-                            isSunBoundary = topHourData.isSunBoundary,
-                        )
-                    } else null
-                }
                 finalHours.add(
                     topHourData.copy(
-                        iconRes = iconRes,
-                        isSunny = iconRes?.let { WeatherIconMapper.isSunny(it) } ?: topHourData.isSunny,
-                        isRainy = iconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: topHourData.isRainy,
-                        isMixed = iconRes?.let { WeatherIconMapper.isMixed(it) } ?: topHourData.isMixed,
-                        isActual = isPast && actualTemp != null,
-                        actualTemperature = actualTemp,
-                        isObservedActual = isPast && isRawObservedActual,
+                        isActual = actualPoint.isActual,
+                        actualTemperature = actualPoint.actualTemp,
+                        isObservedActual = actualPoint.isObservedActual,
                     )
                 )
             }
@@ -372,23 +327,12 @@ internal fun buildHourDataResult(
             }
 
             val subSunInfo = SunPositionUtils.getSunInfo(time, lat, lon)
-            val iconRes = actualObservation?.condition?.let { cond ->
-                if (cond != "observed" && cond != "interpolated" && cond != "forecast_extrapolated") {
-                    WeatherIconMapper.getIconResource(
-                        condition = cond,
-                        isNight = subSunInfo.isNight,
-                        cloudCover = null, // Observations usually don't have this parsed separately here
-                        precipProbability = null,
-                        isTwilight = subSunInfo.phase == SunPhase.TWILIGHT,
-                        isSunBoundary = subSunInfo.isSunBoundary,
-                    )
-                } else null
-            }
+            val iconRes: Int? = null
 
             finalHours.add(
                 HourData(
                     dateTime = time,
-                    temperature = forecastTemp,
+                    temperature = actualPoint.forecastTemp.takeUnless { it.isNaN() } ?: forecastTemp,
                     label = formatHourLabel(time),
                     iconRes = iconRes,
                     isNight = subSunInfo.isNight,
@@ -399,39 +343,17 @@ internal fun buildHourDataResult(
                     isMixed = iconRes?.let { WeatherIconMapper.isMixed(it) } ?: false,
                     isCurrentHour = false,
                     showLabel = false,
-                    isActual = true,
-                    actualTemperature = actualTemp,
-                    isObservedActual = isRawObservedActual,
+                    isActual = actualPoint.isActual,
+                    actualTemperature = actualPoint.actualTemp,
+                    isObservedActual = actualPoint.isObservedActual,
                 )
             )
         }
     }
 
-    for (i in finalHours.indices) {
-        if (finalHours[i].isActual && finalHours[i].actualTemperature != null) {
-            lastActual = finalHours[i].actualTemperature
-        } else if (finalHours[i].dateTime.isBefore(now)) {
-            if (lastActual != null) {
-                finalHours[i] =
-                    finalHours[i].copy(
-                        isActual = true,
-                        actualTemperature = lastActual,
-                        isObservedActual = false,
-                    )
-            } else {
-                finalHours[i] =
-                    finalHours[i].copy(
-                        isActual = false,
-                        actualTemperature = null,
-                        isObservedActual = false,
-                    )
-            }
-        }
-    }
-
     return BuildHourDataResult(
         hours = finalHours,
-        blendStats = blendedActualsResult.stats,
+        blendStats = actualSeries.blendStats,
     )
 }
 
@@ -442,41 +364,18 @@ internal fun selectObservationSeries(
     startHour: LocalDateTime,
     endHour: LocalDateTime,
 ): SelectedObservationSeries {
-    val sourceObservations = observations.filter { matchesObservationSource(it, displaySource) }
-    if (sourceObservations.isEmpty()) {
-        return SelectedObservationSeries(
-            stationId = null,
-            stationName = null,
-            stationType = null,
-            observations = emptyList(),
-            rejectedGroupCount = 0,
-        )
-    }
-
-    val grouped = sourceObservations.groupBy { it.stationId }
-    val selectedEntry = grouped.entries.maxWithOrNull(
-        compareBy<Map.Entry<String, List<ObservationEntity>>>(
-            { entry -> entry.value.map { observationHour(it) }.toSet().size },
-            { entry -> entry.value.size },
-            { entry -> -entry.value.minOfOrNull { it.distanceKm }!! },
-            { entry -> entry.value.maxOf { it.timestamp } },
-            { entry -> -entry.key.hashCode() },
-        )
+    val selected = ActualTemperatureSeriesBuilder.selectObservationSeries(
+        observations = observations.map { it.toSharedObservationReading() },
+        displaySourceId = displaySource.id,
+        startHour = startHour,
+        endHour = endHour,
     )
-
-    val chosen = selectedEntry?.value.orEmpty().sortedBy { it.timestamp }
-    val metadata = chosen.firstOrNull()
     return SelectedObservationSeries(
-        stationId = selectedEntry?.key,
-        stationName = metadata?.stationName,
-        stationType = metadata?.stationType,
-        observations = chosen.filter { obs ->
-            val obsTime = Instant.ofEpochMilli(obs.timestamp)
-                .atZone(ZoneId.systemDefault())
-                .toLocalDateTime()
-            !obsTime.isBefore(startHour) && !obsTime.isAfter(endHour)
-        },
-        rejectedGroupCount = (grouped.size - 1).coerceAtLeast(0),
+        stationId = selected.stationId,
+        stationName = selected.stationName,
+        stationType = selected.stationType,
+        observations = observations.filter { obs -> selected.observations.any { it.stationId == obs.stationId && it.timestamp == obs.timestamp } },
+        rejectedGroupCount = selected.rejectedGroupCount,
     )
 }
 
@@ -487,8 +386,30 @@ internal fun matchesObservationSource(
     return observation.api == displaySource.id || observation.api == WeatherSource.GENERIC_GAP.id
 }
 
-private fun observationHour(observation: ObservationEntity): LocalDateTime =
-    Instant.ofEpochMilli(observation.timestamp)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDateTime()
-        .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+private fun HourlyForecastEntity.toSharedHourlyForecast(): HourlyForecast =
+    HourlyForecast(
+        dateTime = dateTime,
+        temperature = temperature,
+        condition = condition,
+        precipProbability = precipProbability,
+        precipAmountMm = precipAmountMm,
+        cloudCover = cloudCover,
+        source = source,
+    )
+
+private fun ObservationEntity.toSharedObservationReading(): ObservationReading =
+    ObservationReading(
+        stationId = stationId,
+        stationName = stationName,
+        timestamp = timestamp,
+        temperature = temperature,
+        condition = condition,
+        locationLat = locationLat,
+        locationLon = locationLon,
+        distanceKm = distanceKm,
+        stationType = stationType,
+        maxTempLast24h = maxTempLast24h,
+        minTempLast24h = minTempLast24h,
+        api = api,
+        precipAmountMm = precipAmountMm,
+    )

@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -49,7 +51,8 @@ class DesktopUiTest {
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
-                onOpenSettings = {}
+                onOpenSettings = {},
+                onOpenObservations = {},
             )
         }
 
@@ -68,7 +71,8 @@ class DesktopUiTest {
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
                 onUpdateConfig = { updatedConfig = it },
-                onOpenSettings = {}
+                onOpenSettings = {},
+                onOpenObservations = {},
             )
         }
 
@@ -88,7 +92,8 @@ class DesktopUiTest {
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
                 onUpdateConfig = { updatedConfig = it },
-                onOpenSettings = {}
+                onOpenSettings = {},
+                onOpenObservations = {},
             )
         }
 
@@ -109,7 +114,8 @@ class DesktopUiTest {
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
-                onOpenSettings = {}
+                onOpenSettings = {},
+                onOpenObservations = {},
             )
         }
 
@@ -188,6 +194,53 @@ class DesktopUiTest {
         }
 
         // This is a smoke test to ensure no crash during loading-state rendering.
+        composeTestRule.onNodeWithTag("dummy").assertDoesNotExist()
+    }
+
+    @Test
+    fun testTemperatureGraphRendersWithPreparedActuals() {
+        val now = System.currentTimeMillis()
+        val hour = 60 * 60 * 1000L
+        composeTestRule.setContent {
+            TemperatureGraph(
+                hourly = listOf(
+                    HourlyForecast(now - hour, 70f, "Clear", source = WeatherSource.NWS.id),
+                    HourlyForecast(now, 72f, "Clear", source = WeatherSource.NWS.id),
+                    HourlyForecast(now + hour, 74f, "Clear", source = WeatherSource.NWS.id),
+                ),
+                currentTemp = 71f,
+                currentObservedAt = now - 30 * 60 * 1000L,
+                observations = listOf(
+                    ObservationReading(
+                        stationId = "S1",
+                        stationName = "Station 1",
+                        timestamp = now - 45 * 60 * 1000L,
+                        temperature = 70.5f,
+                        condition = "observed",
+                        locationLat = 37.4220,
+                        locationLon = -122.0841,
+                        distanceKm = 1f,
+                        api = WeatherSource.NWS.id,
+                    ),
+                    ObservationReading(
+                        stationId = "S2",
+                        stationName = "Station 2",
+                        timestamp = now - 30 * 60 * 1000L,
+                        temperature = 71.5f,
+                        condition = "observed",
+                        locationLat = 37.4220,
+                        locationLon = -122.0841,
+                        distanceKm = 3f,
+                        api = WeatherSource.NWS.id,
+                    ),
+                ),
+                displaySourceId = WeatherSource.NWS.id,
+                latitude = 37.4220,
+                longitude = -122.0841,
+                modifier = Modifier.size(420.dp, 220.dp),
+            )
+        }
+
         composeTestRule.onNodeWithTag("dummy").assertDoesNotExist()
     }
 

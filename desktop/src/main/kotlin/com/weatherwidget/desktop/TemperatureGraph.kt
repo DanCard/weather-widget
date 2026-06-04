@@ -26,8 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.abs
@@ -56,6 +58,8 @@ private const val MILD_TEMP = 70f
 private const val HOT_THRESHOLD = 90f
 private const val WIDE_BACK_HOURS = 12
 private const val WIDE_FORWARD_HOURS = 12
+private const val ACTUALS_CONTEXT_LOOKBACK_HOURS = 72L
+private const val ACTUALS_CONTEXT_LOOKAHEAD_HOURS = 60L
 private const val WIDE_LABEL_INTERVAL = 4
 private const val NARROW_WIDE_LABEL_INTERVAL = 6
 private const val NARROW_WIDTH_PX = 420f
@@ -71,7 +75,11 @@ private fun tempToColor(temp: Float): Color = when {
 fun TemperatureGraph(
     hourly: List<HourlyForecast>,
     currentTemp: Float? = null,
+    currentObservedAt: Long? = null,
     observations: List<ObservationReading> = emptyList(),
+    displaySourceId: String = "NWS",
+    latitude: Double = 0.0,
+    longitude: Double = 0.0,
     modifier: Modifier = Modifier,
     centerOffsetHours: Int = 0,
     zoomLevel: String = "WIDE",
@@ -107,13 +115,36 @@ fun TemperatureGraph(
         val windowEnd = cutoff
         val windowSpan = (windowEnd - windowStart).coerceAtLeast(1L).toFloat()
 
-        val obsInWindow = observations
-            .filter { it.timestamp in (windowStart - 3600_000L)..minOf(now, windowEnd) }
-            .sortedBy { it.timestamp }
+        val zoneId = ZoneId.systemDefault()
+        val actualSeries = ActualTemperatureSeriesBuilder.build(
+            hourlyForecasts = hourly,
+            observations = observations,
+            centerTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(center), zoneId),
+            displaySourceId = displaySourceId,
+            userLat = latitude,
+            userLon = longitude,
+            backHours = backHours.toLong(),
+            forwardHours = forwardHours.toLong(),
+            contextLookbackHours = ACTUALS_CONTEXT_LOOKBACK_HOURS,
+            contextLookaheadHours = ACTUALS_CONTEXT_LOOKAHEAD_HOURS,
+            now = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId),
+            zoneId = zoneId,
+            smoothedForecasts = null,
+        )
+        val transitionMs = currentObservedAt
+            ?: actualSeries.points.lastOrNull { it.isObservedActual }?.timeMs
+            ?: actualSeries.points.lastOrNull { it.isActual }?.timeMs
+        val actualLinePoints = actualSeries.points
+            .filter { point ->
+                point.isActual &&
+                    point.actualTemp != null &&
+                    transitionMs != null &&
+                    point.timeMs <= transitionMs
+            }
 
         val rawForecastTemps = points.map { it.temperature }
         val forecastTemps = com.weatherwidget.shared.util.DesktopTemperatureInterpolator.smoothValuesPreservingAllExtrema(rawForecastTemps, smoothIterations)
-        val allTemps = forecastTemps + obsInWindow.map { it.temperature }
+        val allTemps = forecastTemps + actualLinePoints.mapNotNull { it.actualTemp }
         val rawMin = allTemps.minOrNull() ?: 0f
         val rawMax = allTemps.maxOrNull() ?: 100f
         val fMin = forecastTemps.minOrNull() ?: 0f
@@ -140,8 +171,8 @@ fun TemperatureGraph(
 
         // Lines:
         // 1. Actual (Solid Pink) for observations
-        if (obsInWindow.size >= 2) {
-            val obsCoords = obsInWindow.map { obs -> Offset(xAtTime(obs.timestamp), yAt(obs.temperature)) }
+        if (actualLinePoints.size >= 2) {
+            val obsCoords = actualLinePoints.map { point -> Offset(xAtTime(point.timeMs), yAt(point.actualTemp!!)) }
             drawActualLine(obsCoords)
         }
 

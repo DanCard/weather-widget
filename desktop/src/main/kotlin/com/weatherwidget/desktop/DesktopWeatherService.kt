@@ -214,7 +214,8 @@ class DesktopWeatherService(
         condition = shortForecast,
         precipProbability = precipProbability,
         precipAmountMm = precipAmountMm,
-        cloudCover = cloudCover
+        cloudCover = cloudCover,
+        source = "NWS",
     )
 
     private fun mapNwsToDaily(periods: List<NwsApi.ForecastPeriod>): List<DailyForecast> {

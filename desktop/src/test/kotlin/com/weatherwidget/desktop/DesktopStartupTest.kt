@@ -92,7 +92,8 @@ class DesktopStartupTest {
                 dataStatus = com.weatherwidget.data.model.DataStatus.Loading,
                 onUpdateLocation = {},
                 onUpdateConfig = {},
-                onOpenSettings = {}
+                onOpenSettings = {},
+                onOpenObservations = {},
             )
         }
 

@@ -600,7 +600,11 @@ internal fun WidgetPopup(
                             TemperatureGraph(
                                 hourly = snapshot.hourly,
                                 currentTemp = snapshot.currentTemp,
+                                currentObservedAt = snapshot.currentObservedAt,
                                 observations = snapshot.rawObservations,
+                                displaySourceId = config.weatherSource,
+                                latitude = config.lat,
+                                longitude = config.lon,
                                 modifier = Modifier.fillMaxSize(),
                                 centerOffsetHours = config.hourlyOffset,
                                 zoomLevel = config.zoomLevel,

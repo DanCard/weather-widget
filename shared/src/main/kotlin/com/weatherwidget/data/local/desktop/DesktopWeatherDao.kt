@@ -359,7 +359,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         condition = rs.getString("condition"),
                         precipProbability = rs.getNullableInt("precipProbability"),
                         cloudCover = rs.getNullableInt("cloudCover"),
-                        precipAmountMm = rs.getNullableFloat("precipAmountMm")
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        source = source,
                     ))
                 }
             }
