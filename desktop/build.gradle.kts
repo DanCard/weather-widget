@@ -49,6 +49,25 @@ compose.desktop {
     application {
         mainClass = "com.weatherwidget.desktop.MainKt"
 
+        // Idle-CPU tuning. With the popup closed the app code is fully asleep, but the HotSpot JVM
+        // still runs an internal heartbeat that keeps the process off 0%. Thread-level sampling
+        // (strace futex attribution) showed the regular wakers are all JVM-internal:
+        //   - VM Periodic Task Thread (~20Hz)  -> the hsperfdata sampler           => -XX:-UsePerfData
+        //   - G1 Service + ~22 GC worker threads (overkill for a ~5MB heap)        => -XX:+UseSerialGC
+        //   - the 1Hz "guaranteed safepoint" that wakes every thread when idle     => GuaranteedSafepointInterval=0
+        //   - the Monitor Deflation Thread reclaiming idle locks on a 1s timer      => GuaranteedAsyncDeflationInterval=0
+        // The Guaranteed* flags are diagnostic, so they must be unlocked first or the JVM refuses to
+        // start. Setting them to 0 makes those passes threshold-driven instead of clock-driven, so
+        // an idle app stops waking for them. Trade-off of -UsePerfData: jps/jstat can't read this
+        // process's counters (jcmd/jstack still attach fine).
+        jvmArgs += listOf(
+            "-XX:+UseSerialGC",
+            "-XX:-UsePerfData",
+            "-XX:+UnlockDiagnosticVMOptions",
+            "-XX:GuaranteedSafepointInterval=0",
+            "-XX:GuaranteedAsyncDeflationInterval=0",
+        )
+
         // jpackage/jlink need a full JDK; Gradle here runs on Android Studio's JBR which omits
         // jpackage. Point packaging at a jpackage-capable JDK from env/property, else a known
         // local JDK if present. Left unset on machines where none is found (uses the toolchain).

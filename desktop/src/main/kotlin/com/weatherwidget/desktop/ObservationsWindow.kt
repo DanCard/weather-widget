@@ -80,6 +80,12 @@ internal fun ObservationsWindow(
                 val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
                 val obs = weatherDao.getRecentObservations(sinceMs)
                     .filter { it.api == currentSource.id }
+                    // Hide synthetic aggregates (the internal IDW blend) — same guard the Android
+                    // widget applies via WeatherObservationsActivity.matchesObservationSource().
+                    .filter {
+                        it.stationId != DesktopObservationEntity.NWS_BLEND_STATION_ID &&
+                            it.stationType != "BLENDED"
+                    }
                     .groupBy { it.stationId }
                     .map { it.value.first() }
                     .sortedBy { it.distanceKm }

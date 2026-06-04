@@ -39,6 +39,7 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.awt.Font
@@ -248,16 +249,32 @@ private fun runApp(lockAcquired: Boolean) = application {
                 return@LaunchedEffect
             }
 
-            // 3. Adaptive refresh loop
-            while (true) {
-                val delayMs = if (popupVisible || observationsVisible) {
-                    computeRefreshDelayMs(forecast?.hourly)
-                } else {
-                    // When not being displayed, wake up every two minutes as requested.
-                    2 * 60 * 1000L
+            // Two-tier background updates (mirrors the Android design): a cheap UI-temp loop
+            // that never touches the network, and a battery-aware data-fetch loop. Previously
+            // these were collapsed into one loop that ran the full fetch every 2 min — ~15 HTTP
+            // calls + ~1,600 observation upserts + extremes recompute + cleanup, 720×/day — which
+            // is what showed up as steady background CPU in `top`.
+
+            // 3a. Current-temp UI loop: re-interpolate currentTemp from cached hourly data as the
+            //     wall clock advances. No network, no DB writes — this is the "wake every two
+            //     minutes just to update the temp" tier.
+            launch {
+                while (true) {
+                    kotlinx.coroutines.delay(CURRENT_TEMP_UI_INTERVAL_MS)
+                    try {
+                        repo.loadCached()?.let { forecast = it }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        println("Current-temp UI update failed: ${e.message}")
+                    }
                 }
-                println("Next refresh in ${delayMs / 1000}s (popupVisible=$popupVisible observationsVisible=$observationsVisible)")
-                kotlinx.coroutines.delay(delayMs)
+            }
+
+            // 3b. Network data-fetch loop: full multi-source fetch + persistence. The desktop is
+            //     always "plugged in + screen on", so it uses Android's plugged-in fetch interval.
+            while (true) {
+                kotlinx.coroutines.delay(NETWORK_REFRESH_INTERVAL_MS)
                 try {
                     println("Loop refresh starting...")
                     forecast = repo.refresh()
@@ -329,18 +346,25 @@ private fun runApp(lockAcquired: Boolean) = application {
             }
         }
 
-        TemperatureSystemTray(
-            temperature = forecast?.currentTemp,
-            dataStatus = dataStatus,
-            onShow = { popupVisible = true },
-            onSettings = { settingsVisible = true },
-            onStatistics = { statsVisible = true },
-            onUpdateLocation = {
-                popupVisible = false
-                pickerVisible = true
-            },
-            onQuit = ::quit,
-        )
+        // The Dorkbox SystemTray runs a continuous GTK/X11 event loop (the AWT-XAWT + "GTK Native
+        // Event Loop" threads) — the last regular CPU waker once the JVM idle flags are applied.
+        // Set WEATHER_DESKTOP_NO_TRAY=1 to drop it and rely on the genmon panel (which already shows
+        // the temperature and opens the popup via the .show trigger) for display + interaction.
+        val trayEnabled = remember { System.getenv("WEATHER_DESKTOP_NO_TRAY") != "1" }
+        if (trayEnabled) {
+            TemperatureSystemTray(
+                temperature = forecast?.currentTemp,
+                dataStatus = dataStatus,
+                onShow = { popupVisible = true },
+                onSettings = { settingsVisible = true },
+                onStatistics = { statsVisible = true },
+                onUpdateLocation = {
+                    popupVisible = false
+                    pickerVisible = true
+                },
+                onQuit = ::quit,
+            )
+        }
 
         if (statsVisible && currentConfig != null) {
             StatisticsWindow(
@@ -990,6 +1014,11 @@ private fun CenteredMessage(text: String) {
 private const val FRESHNESS_THRESHOLD_MS = 30 * 60 * 1000L
 private const val MIN_REFRESH_DELAY_MS = 10 * 60 * 1000L
 private const val DEFAULT_REFRESH_DELAY_MS = 15 * 60 * 1000L
+
+/** Cheap, network-free re-interpolation of the displayed current temp. */
+private const val CURRENT_TEMP_UI_INTERVAL_MS = 2 * 60 * 1000L
+/** Full network data fetch. Matches Android's plugged-in interval; the desktop is always plugged in. */
+private const val NETWORK_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
 
 internal fun computeRefreshDelayMs(hourly: List<com.weatherwidget.data.model.HourlyForecast>?): Long {
     if (hourly.isNullOrEmpty()) return DEFAULT_REFRESH_DELAY_MS
