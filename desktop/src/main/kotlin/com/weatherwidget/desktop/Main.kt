@@ -301,7 +301,16 @@ private fun runApp() = application {
                 while (true) {
                     kotlinx.coroutines.delay(CURRENT_TEMP_UI_INTERVAL_MS)
                     try {
-                        repo.loadCached()?.let { forecast = it }
+                        val currentForecast = forecast
+                        if (currentForecast != null) {
+                            val (newTemp, newCondition) = recalculateCurrentTemp(currentForecast, System.currentTimeMillis())
+                            if (newTemp != currentForecast.currentTemp || newCondition != currentForecast.currentCondition) {
+                                forecast = currentForecast.copy(
+                                    currentTemp = newTemp,
+                                    currentCondition = newCondition
+                                )
+                            }
+                        }
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -1298,4 +1307,22 @@ internal fun computeRefreshDelayMs(hourly: List<com.weatherwidget.data.model.Hou
     val updatesPerHour = TemperatureInterpolator.getUpdatesPerHour(hourly)
     val intervalMs = (3600_000L / updatesPerHour).coerceAtLeast(MIN_REFRESH_DELAY_MS)
     return intervalMs
+}
+
+internal fun recalculateCurrentTemp(
+    forecast: ForecastResult,
+    now: Long
+): Pair<Float?, String?> {
+    val newestTs = forecast.rawObservations.maxOfOrNull { it.timestamp }
+    val newestObs = if (newestTs != null) {
+        val candidates = forecast.rawObservations.filter { it.timestamp == newestTs }
+        candidates.find { it.stationId == "NWS_BLEND" } ?: candidates.firstOrNull()
+    } else null
+
+    val latestObs = newestObs?.takeIf { now - it.timestamp < 30 * 60 * 1000L }
+    val interpolatedTemp = TemperatureInterpolator.getInterpolatedTemperature(forecast.hourly, now)
+
+    val newTemp = latestObs?.temperature ?: interpolatedTemp ?: forecast.hourly.firstOrNull()?.temperature
+    val newCondition = latestObs?.condition ?: forecast.hourly.firstOrNull()?.condition
+    return Pair(newTemp, newCondition)
 }

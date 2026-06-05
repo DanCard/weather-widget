@@ -1,7 +1,6 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.model.HourlyForecast
-import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
@@ -114,4 +113,78 @@ class RefreshDelayTest {
             service.close()
         }
     }
+
+    @Test
+    fun `recalculateCurrentTemp uses fresh observation when available`() {
+        val now = 1000L * 60 * 60
+        val forecast = ForecastResult(
+            hourly = listOf(HourlyForecast(now, 70f, "Sunny")),
+            rawObservations = listOf(
+                ObservationReading(
+                    stationId = "NWS_BLEND",
+                    stationName = "Blend Station",
+                    timestamp = now - 1000 * 60 * 10, // 10 mins ago (fresh)
+                    temperature = 72f,
+                    condition = "Mostly Sunny",
+                    locationLat = 37.4,
+                    locationLon = -122.0,
+                    api = "NWS"
+                )
+            )
+        )
+        val (temp, cond) = recalculateCurrentTemp(forecast, now)
+        assertEquals(72f, temp)
+        assertEquals("Mostly Sunny", cond)
+    }
+
+    @Test
+    fun `recalculateCurrentTemp uses interpolated temp when observations are stale`() {
+        val zoneId = java.time.ZoneId.systemDefault()
+        val now = 1000L * 60 * 60 * 24 * 10 // 10 days from epoch
+        
+        // Force testNow to be at minute 30
+        val testNow = java.time.Instant.ofEpochMilli(now).atZone(zoneId)
+            .withMinute(30).withSecond(0).withNano(0)
+            .toInstant().toEpochMilli()
+            
+        val targetHour = java.time.Instant.ofEpochMilli(testNow).atZone(zoneId).toLocalDateTime().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val nextHour = targetHour.plusHours(1)
+        val targetHourMs = targetHour.atZone(zoneId).toInstant().toEpochMilli()
+        val nextHourMs = nextHour.atZone(zoneId).toInstant().toEpochMilli()
+
+        val forecast = ForecastResult(
+            hourly = listOf(
+                HourlyForecast(targetHourMs, 60f, "Sunny"),
+                HourlyForecast(nextHourMs, 80f, "Sunny")
+            ),
+            rawObservations = listOf(
+                ObservationReading(
+                    stationId = "NWS_BLEND",
+                    stationName = "Blend Station",
+                    timestamp = testNow - 1000 * 60 * 40, // 40 mins ago (stale, threshold is 30 mins)
+                    temperature = 50f,
+                    condition = "Cloudy",
+                    locationLat = 37.4,
+                    locationLon = -122.0,
+                    api = "NWS"
+                )
+            )
+        )
+        val (temp, cond) = recalculateCurrentTemp(forecast, testNow)
+        assertEquals(70f, temp!!, 0.1f)
+        assertEquals("Sunny", cond)
+    }
+
+    @Test
+    fun `recalculateCurrentTemp falls back to first hourly if interpolation fails`() {
+        val now = 1000L * 60 * 60
+        val forecast = ForecastResult(
+            hourly = listOf(HourlyForecast(now + 1000L * 60 * 120, 75f, "Sunny")),
+            rawObservations = emptyList()
+        )
+        val (temp, cond) = recalculateCurrentTemp(forecast, now)
+        assertEquals(75f, temp)
+        assertEquals("Sunny", cond)
+    }
 }
+
