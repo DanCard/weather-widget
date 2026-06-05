@@ -647,6 +647,15 @@ private fun runApp() = application {
                 // FrameWindowScope exposes the underlying AWT ComposeWindow as `window`.
                 LaunchedEffect(showRequestId) {
                     Log.i(TAG, "Window show request received: showRequestId=$showRequestId")
+                    if (windowState.isMinimized) {
+                        windowState.isMinimized = false
+                    }
+                    if (window is java.awt.Frame) {
+                        val state = window.extendedState
+                        if ((state and java.awt.Frame.ICONIFIED) != 0) {
+                            window.extendedState = java.awt.Frame.NORMAL
+                        }
+                    }
                     window.toFront()
                     window.requestFocus()
                 }
