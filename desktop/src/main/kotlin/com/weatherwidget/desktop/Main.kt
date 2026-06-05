@@ -436,21 +436,18 @@ private fun runApp() = application {
             showRequestId++
         }
 
-        // Clean shutdown. Declared above the WatchService so the .quit handler below can call it.
-        // exitApplication() disposes the UI + removes the tray icon, but Dorkbox's GTK loop and AWT's
-        // EDT are non-daemon, so application {} never returns and the JVM lingers headless. Force a
-        // hard exit shortly after, giving the EDT a moment to finish the clean tray teardown first.
         fun quit() {
+            // Spawn hard-exit daemon thread first so it runs even if EDT teardown or HTTP close hangs.
+            kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
+                Thread.sleep(400)
+                kotlin.system.exitProcess(0)
+            }
             desktopClients.close()
             runCatching {
                 val myQuitFile = appDataDir().resolve("$QUIT_PREFIX$appLaunchId")
                 java.nio.file.Files.deleteIfExists(myQuitFile)
             }
             exitApplication()
-            kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
-                Thread.sleep(400)
-                kotlin.system.exitProcess(0)
-            }
         }
 
         // External show request: the genmon panel click (and any other caller) touches the .show
