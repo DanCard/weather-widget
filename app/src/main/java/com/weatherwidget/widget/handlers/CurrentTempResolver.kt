@@ -4,9 +4,11 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.util.ObservationBlender
+import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.widget.ObservationResolver
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -51,13 +53,13 @@ object CurrentTempResolver {
         now: LocalDateTime,
         queryWindow: GraphDataLoader.CurrentTempResolutionWindow = GraphDataLoader.buildCurrentTempResolutionWindow(now),
     ): ObservationResolver.ObservedCurrentTemperature? {
-        val resolved = ObservationBlender.resolveCurrentObservation(
-            observations = observations,
-            hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
+        val resolved = ActualsAggregator.resolveCurrentObservation(
+            observations = observations.map { it.toReading() },
+            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+            displaySourceId = displaySource.id,
             userLat = lat,
             userLon = lon,
-            now = now,
+            nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             lookbackHours = 12L,
             lookaheadHours = 2L,
         )
@@ -69,12 +71,12 @@ object CurrentTempResolver {
                 "resolvedTemp=${resolved?.first} resolvedAt=${resolved?.second} anchorAt=${resolved?.third}",
         )
 
-        return resolved?.let { (temp, time, anchorTime) ->
+        return resolved?.let { (temp, timestamp, fetchedAt) ->
             ObservationResolver.ObservedCurrentTemperature(
                 temperature = temp,
-                observedAt = anchorTime,
+                observedAt = timestamp,
                 source = displaySource.id,
-                rowFetchedAt = System.currentTimeMillis()
+                rowFetchedAt = fetchedAt
             )
         }
     }

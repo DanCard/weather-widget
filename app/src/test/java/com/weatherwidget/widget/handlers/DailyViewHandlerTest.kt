@@ -58,6 +58,29 @@ class DailyViewHandlerTest {
     private fun epoch(dateTime: String): Long =
         LocalDateTime.parse(dateTime).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
+    private fun extreme(
+        date: LocalDate,
+        high: Float,
+        low: Float,
+        condition: String = "Clear",
+        precipAmountMm: Float? = null,
+        precipDayMm: Float? = null,
+        precipNightMm: Float? = null,
+        source: String = WeatherSource.NWS.id
+    ) = com.weatherwidget.data.model.DailyExtreme(
+        date = date.toEpochDay() * 86_400_000L,
+        source = source,
+        locationLat = 0.0,
+        locationLon = 0.0,
+        highTemp = high,
+        lowTemp = low,
+        condition = condition,
+        updatedAt = System.currentTimeMillis(),
+        precipAmountMm = precipAmountMm,
+        precipDayMm = precipDayMm,
+        precipNightMm = precipNightMm
+    )
+
     @Test
     fun `prepareTextDays numColumns=2 shows only 2 slots`() {
 
@@ -212,12 +235,7 @@ class DailyViewHandlerTest {
             skipHistory = false,
             hourlyForecasts = hourlyForecasts,
             dailyActuals = mapOf(
-                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = today,
-                    highTemp = 74f,
-                    lowTemp = 65f,
-                    condition = "Clear",
-                )
+                today to extreme(today, 74f, 65f, "Sunny")
             )
         )
 
@@ -420,12 +438,7 @@ class DailyViewHandlerTest {
             skipHistory = false,
             hourlyForecasts = hourlyForecasts,
             dailyActuals = mapOf(
-                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = today,
-                    highTemp = 74f,
-                    lowTemp = 67f,
-                    condition = "Clear",
-                )
+                today to extreme(today, 74f, 67f, "Sunny")
             )
         )
 
@@ -449,12 +462,7 @@ class DailyViewHandlerTest {
             yesterday to createWeather(yesterdayStr, highTemp = 77f, lowTemp = 56f)
         )
         val dailyActuals = mapOf(
-            yesterday to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                date = yesterday,
-                highTemp = 80.9f,
-                lowTemp = 55f,
-                condition = "Sunny",
-            )
+            yesterday to extreme(yesterday, 80.9f, 55f, "Sunny")
         )
 
         val result = DailyViewLogic.prepareTextDays(
@@ -510,12 +518,7 @@ class DailyViewHandlerTest {
             yesterday to createWeather(yesterdayStr, highTemp = 77f, lowTemp = 56f)
         )
         val dailyActuals = mapOf(
-            yesterday to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                date = yesterday,
-                highTemp = 80.9f,
-                lowTemp = 55f,
-                condition = "Sunny",
-            )
+            yesterday to extreme(yesterday, 80.9f, 55f, "Sunny")
         )
 
         val days = DailyViewLogic.prepareGraphDays(
@@ -1158,7 +1161,7 @@ class DailyViewHandlerTest {
         val decisions = computeMissingDataRefreshes(
             today = today,
             displaySource = WeatherSource.NWS,
-            dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 70f, lowTemp = 55f, condition = "Clear")),
+            dailyActuals = mapOf(today to extreme(today, 70f, 55f, "Clear")),
             visibleDates = setOf(yesterday),
         )
 
@@ -1191,7 +1194,7 @@ class DailyViewHandlerTest {
         val decisions = computeMissingDataRefreshes(
             today = today,
             displaySource = WeatherSource.NWS,
-            dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 70f, lowTemp = 55f, condition = "Clear")),
+            dailyActuals = mapOf(today to extreme(today, 70f, 55f, "Clear")),
             todayHasForecast = true,
             todayHasSnapshot = false,
         )
@@ -1225,7 +1228,7 @@ class DailyViewHandlerTest {
         val decisions = computeMissingDataRefreshes(
             today = today,
             displaySource = WeatherSource.NWS,
-            dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 70f, lowTemp = 55f, condition = "Clear")),
+            dailyActuals = mapOf(today to extreme(today, 70f, 55f, "Clear")),
             todayHasForecast = true,
             todayHasSnapshot = true,
         )
@@ -1300,7 +1303,7 @@ class DailyViewHandlerTest {
         val decisions = computeMissingDataRefreshes(
             today = today,
             displaySource = WeatherSource.NWS,
-            dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 71f, lowTemp = 54f, condition = "Clear")),
+            dailyActuals = mapOf(today to extreme(today, 71f, 54f, "Clear")),
         )
 
         assertTrue(decisions.none { it.refreshType == "actuals_today" })
@@ -1322,12 +1325,7 @@ class DailyViewHandlerTest {
                 createWeather(genericGapFuture.toString(), source = WeatherSource.GENERIC_GAP.id),
             ),
             dailyActuals = mapOf(
-                selectedHistory to ObservationResolver.DailyActual(
-                    date = selectedHistory,
-                    highTemp = 70f,
-                    lowTemp = 55f,
-                    condition = "Clear",
-                ),
+                selectedHistory to extreme(selectedHistory, 70f, 50f, "Sunny")
             ),
             displaySource = WeatherSource.NWS,
         )
@@ -1367,14 +1365,9 @@ class DailyViewHandlerTest {
                 hourlyForecasts = emptyList(),
                 dailyActualsBySource = mapOf(
                     WeatherSource.NWS.id to mapOf(
-                        today to ObservationResolver.DailyActual(
-                            date = today,
-                            highTemp = 71f,
-                            lowTemp = 54f,
-                            condition = "Clear",
-                        ),
-                    ),
-                ),
+                        today to extreme(today, 71f, 54f, "Sunny")
+                    )
+                )
             ),
             observationData = ObservationData(),
             now = now,

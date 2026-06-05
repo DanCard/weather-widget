@@ -93,10 +93,7 @@ object DailyActualsEstimator {
 
         // Prefer the official daily high/low from the API for the dashed line.
         val dashedLineHigh = fallbackWeather?.highTemp ?: hourlyMax
-        val dashedLineLow = listOfNotNull(
-            fallbackWeather?.lowTemp,
-            hourlyMin
-        ).minOrNull()
+        val dashedLineLow = fallbackWeather?.lowTemp ?: hourlyMin
 
         Log.d("DailyEstimator", "today: actual.high=${actual?.highTemp} actual.low=${actual?.lowTemp} currentTemp=$currentTemp " +
             "solidLineHigh=$solidLineHigh solidLineHighSource=$solidLineHighSource " +

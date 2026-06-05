@@ -15,7 +15,6 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.shared.util.SpatialInterpolator
-import com.weatherwidget.util.ObservationBlender
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetConstants
@@ -431,44 +430,12 @@ class ObservationRepository @Inject constructor(
         val todayObs = observationDao.getObservationsInRange(todayStartMs, tomorrowMs, latitude, longitude)
             .filter { it.stationId != "NWS_BLEND" }
 
-        val todayBlendedActuals = mutableMapOf<String, Map<LocalDate, ObservationResolver.DailyActual>>()
-        activeSourceList.forEach { sourceId ->
-            val source = WeatherSource.fromId(sourceId)
-            val blendedResult = ObservationBlender.blendObservationSeries(
-                observations = todayObs.filter { it.api == sourceId },
-                hourlyForecasts = hourlyForecasts,
-                displaySource = source,
-                userLat = latitude,
-                userLon = longitude,
-                startMs = todayStartMs,
-                endMs = tomorrowMs,
-            )
-            val blendedObs = blendedResult.observations
-            if (blendedObs.isNotEmpty()) {
-                val high = blendedObs.maxOf { obs -> obs.temperature }
-                val low = blendedObs.minOf { obs -> obs.temperature }
-                // Precip mirrors the past-day persisted path: measured-preferred, with NWS
-                // forecast-fallback. Without this, today's daily rain label shows only the
-                // forecast probability even when daily_extremes already has measured precip.
-                val precip = ObservationResolver.resolveDailyPrecip(
-                    dayObs = todayObs.filter { it.api == sourceId },
-                    sourceHourly = hourlyForecasts.filter { it.source == sourceId },
-                    date = today,
-                    zone = zone,
-                )
-                todayBlendedActuals[sourceId] = mapOf(
-                    today to ObservationResolver.DailyActual(
-                        date = today,
-                        highTemp = high,
-                        lowTemp = low,
-                        condition = "blended",
-                        precipAmountMm = precip.total,
-                        precipDayMm = precip.day,
-                        precipNightMm = precip.night,
-                    ),
-                )
-            }
-        }
+        val todayBlendedActuals = ObservationResolver.aggregateObservationsToDailyBySource(
+            observations = todayObs,
+            hourlyForecasts = hourlyForecasts,
+            locationLat = latitude,
+            locationLon = longitude
+        )
 
         val obsSpanSummary =
             if (todayObs.isEmpty()) {

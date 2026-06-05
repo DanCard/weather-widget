@@ -11,14 +11,14 @@ QUIT_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/weather-widget/.quit"
 mkdir -p "$LOG_DIR"
 cd "$REPO_DIR"
 
-printf "\t Stopping running desktop app instance (graceful signal)...\n"
-set -x
-touch "$QUIT_FILE"
-{ set +x; } 2>/dev/null
-
 printf "\t Building executable desktop distributable...\n\n\t"
 set -x
 ./gradlew :desktop:createDistributable
+{ set +x; } 2>/dev/null
+
+printf "\t Stopping running desktop app instance (graceful signal)...\n"
+set -x
+touch "$QUIT_FILE"
 { set +x; } 2>/dev/null
 
 printf "\n\t Starting desktop app through autostart launcher: $AUTOSTART_SCRIPT\n"

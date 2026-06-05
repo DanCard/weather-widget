@@ -4,6 +4,8 @@ import android.os.SystemClock
 import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -157,8 +159,8 @@ internal fun buildHourDataResult(
             "$firstLocal..$lastLocal"
         }
     val actualSeries = ActualTemperatureSeriesBuilder.build(
-        hourlyForecasts = hourlyForecasts.map { it.toSharedHourlyForecast() },
-        observations = actuals.map { it.toSharedObservationReading() },
+        hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+        observations = actuals.map { it.toReading() },
         centerTime = centerTime,
         displaySourceId = displaySource.id,
         userLat = lat,
@@ -365,7 +367,7 @@ internal fun selectObservationSeries(
     endHour: LocalDateTime,
 ): SelectedObservationSeries {
     val selected = ActualTemperatureSeriesBuilder.selectObservationSeries(
-        observations = observations.map { it.toSharedObservationReading() },
+        observations = observations.map { it.toReading() },
         displaySourceId = displaySource.id,
         startHour = startHour,
         endHour = endHour,
@@ -385,31 +387,3 @@ internal fun matchesObservationSource(
 ): Boolean {
     return observation.api == displaySource.id || observation.api == WeatherSource.GENERIC_GAP.id
 }
-
-private fun HourlyForecastEntity.toSharedHourlyForecast(): HourlyForecast =
-    HourlyForecast(
-        dateTime = dateTime,
-        temperature = temperature,
-        condition = condition,
-        precipProbability = precipProbability,
-        precipAmountMm = precipAmountMm,
-        cloudCover = cloudCover,
-        source = source,
-    )
-
-private fun ObservationEntity.toSharedObservationReading(): ObservationReading =
-    ObservationReading(
-        stationId = stationId,
-        stationName = stationName,
-        timestamp = timestamp,
-        temperature = temperature,
-        condition = condition,
-        locationLat = locationLat,
-        locationLon = locationLon,
-        distanceKm = distanceKm,
-        stationType = stationType,
-        maxTempLast24h = maxTempLast24h,
-        minTempLast24h = minTempLast24h,
-        api = api,
-        precipAmountMm = precipAmountMm,
-    )

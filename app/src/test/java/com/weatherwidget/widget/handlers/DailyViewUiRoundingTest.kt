@@ -2,7 +2,9 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.testutil.TestData.dateEpoch
+import com.weatherwidget.widget.WidgetConstants
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -11,8 +13,6 @@ import java.time.format.DateTimeFormatter
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
-
-
 @Category(ShortDuration::class)
 class DailyViewUiRoundingTest {
 
@@ -20,6 +20,17 @@ class DailyViewUiRoundingTest {
     private val tomorrow = today.plusDays(1)
     private val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
     private val tomorrowStr = tomorrow.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+        date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+        source = WeatherSource.OPEN_METEO.id,
+        locationLat = 0.0,
+        locationLon = 0.0,
+        highTemp = high,
+        lowTemp = low,
+        condition = "Clear",
+        updatedAt = System.currentTimeMillis()
+    )
 
     @Test
     fun `UI preserves today and history actual decimals but rounds tomorrow forecast`() {
@@ -44,18 +55,8 @@ class DailyViewUiRoundingTest {
             numColumns = 7,
             displaySource = displaySource,
             dailyActuals = mapOf(
-                yesterday to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = yesterday,
-                    highTemp = 72.4f,
-                    lowTemp = 50.6f,
-                    condition = "Clear",
-                ),
-                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = today,
-                    highTemp = 72.4f,
-                    lowTemp = 50.6f,
-                    condition = "Clear",
-                ),
+                yesterday to extreme(yesterday, 72.4f, 50.6f),
+                today to extreme(today, 72.4f, 50.6f),
             )
         )
 
@@ -84,7 +85,8 @@ class DailyViewUiRoundingTest {
             highTemp = high,
             lowTemp = low,
             condition = "Clear",
-            source = WeatherSource.OPEN_METEO.id
+            source = WeatherSource.OPEN_METEO.id,
+            fetchedAt = 1L
         )
     }
 }

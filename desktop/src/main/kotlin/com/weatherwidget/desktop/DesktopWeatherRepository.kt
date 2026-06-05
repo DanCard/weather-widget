@@ -1,10 +1,8 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.local.desktop.DailyExtremesComputer
-import com.weatherwidget.data.local.desktop.DesktopObservationEntity
-import com.weatherwidget.data.local.desktop.DesktopWeatherDao
-import com.weatherwidget.data.model.ForecastResult
-import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.local.desktop.*
+import com.weatherwidget.data.model.*
+import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.SpatialInterpolator
 import kotlinx.coroutines.Dispatchers
@@ -61,22 +59,6 @@ class DesktopWeatherRepository(
             rawObservations = observations,
         )
     }
-
-    private fun DesktopObservationEntity.toReading() = ObservationReading(
-        stationId = stationId,
-        stationName = stationName,
-        timestamp = timestamp,
-        temperature = temperature,
-        condition = condition,
-        locationLat = locationLat,
-        locationLon = locationLon,
-        distanceKm = distanceKm,
-        stationType = stationType,
-        maxTempLast24h = maxTempLast24h,
-        minTempLast24h = minTempLast24h,
-        api = api,
-        precipAmountMm = precipAmountMm,
-    )
 
     suspend fun refresh(): ForecastResult = withContext(Dispatchers.IO) {
         val result = weatherService.fetchForecast()
@@ -152,17 +134,24 @@ class DesktopWeatherRepository(
 
     /** Reads the stored observation window, (re)computes daily_extremes, and returns the row count. */
     private fun recomputeDailyExtremes(now: Long): Int {
-        val windowStart = now - (HISTORY_WINDOW_DAYS + 1) * DailyExtremesComputer.MS_IN_A_DAY
-        val windowEnd = now + DailyExtremesComputer.MS_IN_A_DAY
+        val windowStart = now - (HISTORY_WINDOW_DAYS + 1) * 86_400_000L
+        val windowEnd = now + 86_400_000L
         val observations = weatherDao.getObservationsInRange(windowStart, windowEnd, latitude, longitude)
-        val extremes = DailyExtremesComputer.compute(observations)
-        if (extremes.isNotEmpty()) {
-            weatherDao.upsertDailyExtremes(extremes)
-        }
+        val hourly = weatherDao.getLatestHourly(latitude, longitude, weatherSource, 48 * 3600 * 1000L)
+
+        val extremes = ActualsAggregator.aggregate(
+            observations = observations.map { it.toReading() },
+            hourlyForecasts = hourly,
+            locationLat = latitude,
+            locationLon = longitude,
+            updatedAtMs = now
+        )
+
+        weatherDao.upsertDailyExtremes(extremes)
         return extremes.size
     }
 
-    private fun loadDailyActuals(daily: List<com.weatherwidget.data.model.DailyForecast>): Map<String, com.weatherwidget.data.model.DailyActual> {
+    private fun loadDailyActuals(daily: List<com.weatherwidget.data.model.DailyForecast>): Map<String, com.weatherwidget.data.model.DailyExtreme> {
         if (daily.isEmpty()) return emptyMap()
         val dates = daily.map { LocalDate.parse(it.date) }
         val start = dates.min().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -177,23 +166,6 @@ class DesktopWeatherRepository(
         val end = dates.max().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         return weatherDao.getDailyForecastSnapshots(start, end, latitude, longitude, weatherSource)
     }
-
-    private fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
-        stationId = stationId,
-        stationName = stationName,
-        timestamp = timestamp,
-        temperature = temperature,
-        condition = condition,
-        locationLat = locationLat,
-        locationLon = locationLon,
-        distanceKm = distanceKm,
-        stationType = stationType,
-        fetchedAt = fetchedAt,
-        maxTempLast24h = maxTempLast24h,
-        minTempLast24h = minTempLast24h,
-        api = api,
-        precipAmountMm = precipAmountMm,
-    )
 
     companion object {
         private const val HISTORY_WINDOW_DAYS = 7L

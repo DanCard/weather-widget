@@ -18,6 +18,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.widget.DailyActualsBySource
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.coroutineScope

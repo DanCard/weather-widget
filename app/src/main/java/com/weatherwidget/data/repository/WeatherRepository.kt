@@ -156,7 +156,7 @@ class WeatherRepository
             longitude: Double,
             hourlyForecasts: List<HourlyForecastEntity>,
             activeSourceList: List<String>,
-        ) = observationRepository.getDailyActualsWithLiveToday(latitude, longitude, hourlyForecasts, activeSourceList)
+        ): com.weatherwidget.widget.DailyActualsBySource = observationRepository.getDailyActualsWithLiveToday(latitude, longitude, hourlyForecasts, activeSourceList)
         suspend fun getMainObservationsWithComputedNwsBlend(
             latitude: Double,
             longitude: Double,

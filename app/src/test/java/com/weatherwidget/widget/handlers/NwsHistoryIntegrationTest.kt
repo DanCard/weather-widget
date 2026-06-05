@@ -3,8 +3,10 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.widget.ObservationResolver
+import com.weatherwidget.widget.WidgetConstants
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -23,6 +25,17 @@ class NwsHistoryIntegrationTest {
     private val yesterday = today.minusDays(1)
     private val yesterdayStr = yesterday.toString()
 
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+        date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+        source = WeatherSource.NWS.id,
+        locationLat = 37.42,
+        locationLon = -122.08,
+        highTemp = high,
+        lowTemp = low,
+        condition = "Sunny",
+        updatedAt = System.currentTimeMillis()
+    )
+
     @Test
     fun nws_history_bar_uses_source_specific_actuals() = runBlocking {
         val partialForecast = ForecastEntity(
@@ -33,16 +46,12 @@ class NwsHistoryIntegrationTest {
             condition = "Sunny",
             source = WeatherSource.NWS.id,
             locationLat = 37.42,
-            locationLon = -122.08
+            locationLon = -122.08,
+            fetchedAt = 1L
         )
 
         val dailyActuals = mapOf(
-            yesterday to ObservationResolver.DailyActual(
-                date = yesterday,
-                highTemp = 78f,
-                lowTemp = 52f,
-                condition = "Sunny",
-            )
+            yesterday to extreme(yesterday, 78f, 52f)
         )
 
         val days = DailyViewLogic.prepareGraphDays(
@@ -124,7 +133,8 @@ class NwsHistoryIntegrationTest {
             condition = "Sunny",
             source = WeatherSource.NWS.id,
             locationLat = 37.42,
-            locationLon = -122.08
+            locationLon = -122.08,
+            fetchedAt = 1L
         )
 
         val hourly = listOf(
@@ -133,12 +143,7 @@ class NwsHistoryIntegrationTest {
         )
 
         val dailyActuals = mapOf(
-            today to ObservationResolver.DailyActual(
-                date = today,
-                highTemp = 52f,
-                lowTemp = 52f,
-                condition = "Clear",
-            )
+            today to extreme(today, 52f, 52f)
         )
 
         val days = DailyViewLogic.prepareGraphDays(

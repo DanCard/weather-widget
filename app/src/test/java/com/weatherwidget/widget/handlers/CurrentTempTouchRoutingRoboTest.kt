@@ -13,6 +13,7 @@ import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -22,6 +23,7 @@ import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.WidgetConstants
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -56,6 +58,17 @@ class CurrentTempTouchRoutingRoboTest {
         app = RuntimeEnvironment.getApplication()
         WidgetStateManager(context).clearWidgetState(appWidgetId)
     }
+
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+        date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+        source = WeatherSource.NWS.id,
+        locationLat = 0.0,
+        locationLon = 0.0,
+        highTemp = high,
+        lowTemp = low,
+        condition = "Clear",
+        updatedAt = System.currentTimeMillis()
+    )
 
     @Test
     fun `daily current temp touch zone toggles to temperature view`() = runBlocking {
@@ -455,12 +468,7 @@ class CurrentTempTouchRoutingRoboTest {
     private fun sampleDailyActuals(today: LocalDate): DailyActualsBySource =
         mapOf(
             WeatherSource.NWS.id to mapOf(
-                today to ObservationResolver.DailyActual(
-                    date = today,
-                    highTemp = 67f,
-                    lowTemp = 51f,
-                    condition = "Clear",
-                ),
+                today to extreme(today, 67f, 51f),
             ),
         )
 

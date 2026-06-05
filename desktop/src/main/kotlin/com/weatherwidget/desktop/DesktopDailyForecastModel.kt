@@ -1,6 +1,6 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.model.DailyActual
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.ForecastResult
@@ -37,7 +37,7 @@ data class DesktopDailyDay(
     val date: LocalDate,
     val label: String,
     val forecast: DailyForecast?,
-    val actual: DailyActual?,
+    val actual: DailyExtreme?,
     val snapshot: DailyForecastSnapshot?,
     val solidHigh: Float?,
     val solidLow: Float?,
@@ -155,7 +155,7 @@ object DesktopDailyForecastModel {
         today: LocalDate,
         now: LocalDateTime,
         forecast: DailyForecast?,
-        actual: DailyActual?,
+        actual: DailyExtreme?,
         snapshots: List<DailyForecastSnapshot>,
         hourly: List<HourlyForecast>,
         currentTemp: Float?,

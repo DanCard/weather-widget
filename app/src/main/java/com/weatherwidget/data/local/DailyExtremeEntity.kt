@@ -29,3 +29,31 @@ data class DailyExtremeEntity(
     val precipDayMm: Float? = null, // Daytime (8AM-8PM) observed precipitation in mm
     val precipNightMm: Float? = null, // Nighttime (8PM-8AM) observed precipitation in mm
 )
+
+fun DailyExtremeEntity.toDailyExtreme() = com.weatherwidget.data.model.DailyExtreme(
+    date = date,
+    source = source,
+    locationLat = locationLat,
+    locationLon = locationLon,
+    highTemp = highTemp,
+    lowTemp = lowTemp,
+    condition = condition,
+    updatedAt = updatedAt,
+    precipAmountMm = precipAmountMm,
+    precipDayMm = precipDayMm,
+    precipNightMm = precipNightMm,
+)
+
+fun com.weatherwidget.data.model.DailyExtreme.toEntity() = DailyExtremeEntity(
+    date = date,
+    source = source,
+    locationLat = locationLat,
+    locationLon = locationLon,
+    highTemp = highTemp,
+    lowTemp = lowTemp,
+    condition = condition,
+    updatedAt = updatedAt,
+    precipAmountMm = precipAmountMm,
+    precipDayMm = precipDayMm,
+    precipNightMm = precipNightMm,
+)

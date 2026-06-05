@@ -1,5 +1,7 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.data.model.ObservationReading
+
 data class DesktopObservationEntity(
     val stationId: String,
     val stationName: String,
@@ -26,18 +28,38 @@ data class DesktopObservationEntity(
     }
 }
 
-data class DesktopDailyExtremeEntity(
-    val date: Long,
-    val source: String,
-    val locationLat: Double,
-    val locationLon: Double,
-    val highTemp: Float,
-    val lowTemp: Float,
-    val condition: String,
-    val updatedAt: Long,
-    val precipAmountMm: Float? = null,
-    val precipDayMm: Float? = null,
-    val precipNightMm: Float? = null,
+fun DesktopObservationEntity.toReading() = ObservationReading(
+    stationId = stationId,
+    stationName = stationName,
+    timestamp = timestamp,
+    temperature = temperature,
+    condition = condition,
+    locationLat = locationLat,
+    locationLon = locationLon,
+    distanceKm = distanceKm,
+    stationType = stationType,
+    maxTempLast24h = maxTempLast24h,
+    minTempLast24h = minTempLast24h,
+    api = api,
+    fetchedAt = fetchedAt,
+    precipAmountMm = precipAmountMm,
+)
+
+fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
+    stationId = stationId,
+    stationName = stationName,
+    timestamp = timestamp,
+    temperature = temperature,
+    condition = condition,
+    locationLat = locationLat,
+    locationLon = locationLon,
+    distanceKm = distanceKm,
+    stationType = stationType,
+    fetchedAt = fetchedAt,
+    maxTempLast24h = maxTempLast24h,
+    minTempLast24h = minTempLast24h,
+    api = api,
+    precipAmountMm = precipAmountMm,
 )
 
 /** A persistent app-log row (desktop analogue of the Android app_logs table). */

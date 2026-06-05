@@ -13,6 +13,7 @@ import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.widget.handlers.RefreshScheduler
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import com.weatherwidget.data.model.DailyExtreme
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -280,6 +281,19 @@ class WidgetIntentRouterRobolectricTest {
                         fetchedAt = obsTimeMs,
                     ),
                 ),
+            )
+            db.hourlyForecastDao().insertAll(
+                listOf(
+                    HourlyForecastEntity(
+                        dateTime = obsTimeMs,
+                        locationLat = lat,
+                        locationLon = lon,
+                        temperature = 80f,
+                        condition = "Clear",
+                        source = WeatherSource.NWS.id,
+                        fetchedAt = obsTimeMs,
+                    )
+                )
             )
             db.dailyExtremeDao().insertAll(
                 listOf(

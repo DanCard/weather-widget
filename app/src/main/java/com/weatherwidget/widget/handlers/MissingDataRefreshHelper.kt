@@ -2,7 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.ObservationResolver
+import com.weatherwidget.widget.DailyActualMap
 import java.time.LocalDate
 
 @VisibleForTesting
@@ -21,7 +21,7 @@ private const val MISSING_DATA_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
 internal fun computeMissingDataRefreshes(
     today: LocalDate,
     displaySource: WeatherSource,
-    dailyActuals: Map<LocalDate, ObservationResolver.DailyActual>,
+    dailyActuals: DailyActualMap,
     visibleDates: Set<LocalDate> = emptySet(),
     todayHasSnapshot: Boolean = true,
     todayHasForecast: Boolean = true,

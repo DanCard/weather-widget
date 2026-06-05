@@ -11,8 +11,10 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.util.ObservationBlender
+import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.widget.handlers.CurrentTempResolver
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.widget.handlers.CloudCoverViewHandler
@@ -141,21 +143,21 @@ object WidgetRenderer {
                     queryWindow = nowResolutionWindow,
                 )
             } else {
-                ObservationBlender.resolveCurrentObservation(
-                    observations = currentTemps,
-                    hourlyForecasts = hourlyForecasts,
-                    displaySource = displaySource,
+                ActualsAggregator.resolveCurrentObservation(
+                    observations = currentTemps.map { it.toReading() },
+                    hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+                    displaySourceId = displaySource.id,
                     userLat = locationLat,
                     userLon = locationLon,
-                    now = now,
+                    nowMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     lookbackHours = 12L,
                     lookaheadHours = 2L,
-                )?.let { (temp, observedAt, anchorAt) ->
+                )?.let { (temp, timestamp, fetchedAt) ->
                     ObservationResolver.ObservedCurrentTemperature(
                         temperature = temp,
-                        observedAt = anchorAt,
+                        observedAt = timestamp,
                         source = displaySource.id,
-                        rowFetchedAt = observedAt,
+                        rowFetchedAt = fetchedAt,
                     )
                 }
             }

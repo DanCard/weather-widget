@@ -3,9 +3,11 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ObservationResolver
+import com.weatherwidget.widget.WidgetConstants
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,6 +19,17 @@ import java.time.ZoneId
 
 @Category(ShortDuration::class)
 class DailyViewHandlerUnitTest {
+
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+        date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+        source = WeatherSource.NWS.id,
+        locationLat = 37.422,
+        locationLon = -122.0841,
+        highTemp = high,
+        lowTemp = low,
+        condition = "Clear",
+        updatedAt = System.currentTimeMillis()
+    )
 
     @Test
     fun navigationUtils_getDayOffsets_returnsCorrectNumber() {
@@ -56,12 +69,7 @@ class DailyViewHandlerUnitTest {
                 condition = "Sunny",
                 source = WeatherSource.NWS.id,
             ),
-            dailyActual = ObservationResolver.DailyActual(
-                date = today,
-                highTemp = 83.40072f,
-                lowTemp = 62.006f,
-                condition = "Clear",
-            ),
+            dailyActual = extreme(today, 83.40072f, 62.006f),
             todayDay = DailyForecastGraphRenderer.DayData(
                 date = today,
                 label = "Today",

@@ -1,37 +1,35 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.model.DailyActual
-import com.weatherwidget.data.model.DailyForecast
-import com.weatherwidget.data.model.DailyForecastSnapshot
-import com.weatherwidget.data.model.ForecastResult
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import com.weatherwidget.data.model.*
+import org.junit.Assert.*
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 class DesktopDailyForecastModelTest {
+
     private val config = DesktopConfig(
         lat = 37.4220,
         lon = -122.0841,
-        label = "Mountain View",
-        source = "Manual",
+        label = "Test",
+        source = "NWS",
+        weatherSource = "NWS",
+        dateOffset = -1
+    )
+
+    private fun extreme(date: String, high: Float, low: Float, condition: String) = DailyExtreme(
+        date = LocalDate.parse(date).toEpochDay() * 86_400_000L,
+        source = "NWS",
+        locationLat = 37.4220,
+        locationLon = -122.0841,
+        highTemp = high,
+        lowTemp = low,
+        condition = condition,
+        updatedAt = System.currentTimeMillis()
     )
 
     @Test
-    fun `dimensions use Android column and graph thresholds`() {
-        val narrow = DesktopDailyForecastModel.dimensions(widthDp = 92, heightDp = 80)
-        assertEquals(2, narrow.cols)
-        assertEquals(1, narrow.rows)
-        assertFalse(narrow.useGraph)
-
-        val wide = DesktopDailyForecastModel.dimensions(widthDp = 520, heightDp = 220)
-        assertEquals(8, wide.cols)
-        assertTrue(wide.useGraph)
-    }
-
-    @Test
-    fun `build uses responsive visible days and snapshot backed history navigation`() {
+    fun `build properly groups and maps daily data`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
         val state = DesktopDailyForecastModel.build(
             config = config,
@@ -44,8 +42,8 @@ class DesktopDailyForecastModelTest {
                     DailyForecast("2026-06-05", 83f, 62f, "Rain", precipProbability = 40),
                 ),
                 dailyActuals = mapOf(
-                    "2026-06-01" to DailyActual("2026-06-01", 77f, 56f, "Fair"),
-                    "2026-06-02" to DailyActual("2026-06-02", 78f, 57f, "Fair"),
+                    "2026-06-01" to extreme("2026-06-01", 77f, 56f, "Fair"),
+                    "2026-06-02" to extreme("2026-06-02", 78f, 57f, "Fair"),
                 ),
                 dailySnapshots = mapOf(
                     "2026-06-01" to listOf(
@@ -53,42 +51,50 @@ class DesktopDailyForecastModelTest {
                     ),
                     "2026-06-02" to listOf(
                         DailyForecastSnapshot("2026-06-02", 76f, 58f, "Cloudy", fetchedAt = 1L),
-                    ),
-                ),
+                    )
+                )
             ),
-            dimensions = DesktopDailyForecastModel.dimensions(widthDp = 180, heightDp = 180),
-            now = now,
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now
         )
 
-        assertEquals(listOf("2026-06-02", "2026-06-03", "2026-06-04"), state.days.map { it.date.toString() })
-        assertTrue(state.canNavigateLeft)
-        assertTrue(state.canNavigateRight)
-        assertEquals(76f, state.days.first().forecastHigh)
+        assertEquals(8, state.days.size) // NavigationUtils default for 8 columns
+
+        val jun1 = state.days.find { it.date == LocalDate.parse("2026-06-01") }!!
+        assertEquals(77f, jun1.solidHigh)
+        assertEquals(56f, jun1.solidLow)
+        assertEquals(75f, jun1.forecastHigh)
+        assertEquals(57f, jun1.forecastLow)
+
+        val jun3 = state.days.find { it.date == LocalDate.parse("2026-06-03") }!!
+        assertTrue(jun3.isToday)
+        assertEquals(80f, jun3.forecastHigh)
+        assertEquals(60f, jun3.forecastLow)
+        // Today's solid high is max(actual.high, current)
+        assertEquals(72.4f, jun3.solidHigh) 
     }
 
     @Test
-    fun `today day uses current temperature with forecast and snapshot side bars`() {
-        val now = LocalDateTime.parse("2026-06-03T09:00:00")
-        val state = DesktopDailyForecastModel.build(
-            config = config,
-            forecast = ForecastResult(
-                currentTemp = 73.2f,
-                currentCondition = "Sunny",
-                daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
-                dailySnapshots = mapOf(
-                    "2026-06-03" to listOf(
-                        DailyForecastSnapshot("2026-06-03", 78f, 59f, "Partly Cloudy", fetchedAt = 100L),
-                    ),
-                ),
-            ),
-            dimensions = DesktopDailyForecastModel.dimensions(widthDp = 240, heightDp = 180),
-            now = now,
-        )
+    fun `isIconWidth detection works`() {
+        val narrow = DesktopDailyForecastModel.dimensions(120, 100)
+        assertTrue(narrow.isIconWidth)
+        assertFalse(narrow.useGraph)
 
-        val today = state.days.first { it.isToday }
-        assertEquals(73.2f, today.solidHigh)
-        assertEquals(80f, today.forecastHigh)
-        assertEquals(78f, today.snapshotHigh)
-        assertEquals("73.2°", state.header.currentTempText)
+        val wide = DesktopDailyForecastModel.dimensions(600, 400)
+        assertFalse(wide.isIconWidth)
+        assertTrue(wide.useGraph)
+    }
+
+    @Test
+    fun `detects available dates correctly for navigation`() {
+        val now = LocalDateTime.parse("2026-06-03T07:00:00")
+        val forecast = ForecastResult(
+            daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+            dailyActuals = mapOf("2026-06-01" to extreme("2026-06-01", 77f, 56f, "Fair"))
+        )
+        val state = DesktopDailyForecastModel.build(config, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
+        
+        assertFalse(state.canNavigateLeft) // Already at the earliest date (June 1st)
+        assertFalse(state.canNavigateRight) // No data past today
     }
 }

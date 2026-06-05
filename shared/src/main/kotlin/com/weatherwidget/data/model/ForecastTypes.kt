@@ -55,6 +55,7 @@ data class ObservationReading(
     val maxTempLast24h: Float? = null, // Fahrenheit
     val minTempLast24h: Float? = null, // Fahrenheit
     val api: String,
+    val fetchedAt: Long = System.currentTimeMillis(),
     val precipAmountMm: Float? = null,
 )
 
@@ -64,7 +65,7 @@ data class ForecastResult(
     val currentObservedAt: Long? = null,
     val daily: List<DailyForecast> = emptyList(),
     val hourly: List<HourlyForecast> = emptyList(),
-    val dailyActuals: Map<String, DailyActual> = emptyMap(),
+    val dailyActuals: Map<String, DailyExtreme> = emptyMap(),
     val dailySnapshots: Map<String, List<DailyForecastSnapshot>> = emptyMap(),
     val rawObservations: List<ObservationReading> = emptyList(),
 )

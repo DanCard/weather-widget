@@ -4,13 +4,17 @@ import android.util.Log
 import com.weatherwidget.data.local.DailyExtremeEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toDailyExtreme
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
+import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.util.ObservationBlender
+import com.weatherwidget.shared.actuals.ActualsAggregator
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-typealias DailyActualMap = Map<LocalDate, ObservationResolver.DailyActual>
+typealias DailyActualMap = Map<LocalDate, com.weatherwidget.data.model.DailyExtreme>
 typealias DailyActualsBySource = Map<String, DailyActualMap>
 
 /**
@@ -23,16 +27,6 @@ object ObservationResolver {
         val observedAt: Long,
         val source: String,
         val rowFetchedAt: Long,
-    )
-
-    data class DailyActual(
-        val date: LocalDate,
-        val highTemp: Float,
-        val lowTemp: Float,
-        val condition: String,
-        val precipAmountMm: Float? = null,
-        val precipDayMm: Float? = null,
-        val precipNightMm: Float? = null,
     )
 
     /**
@@ -65,45 +59,6 @@ object ObservationResolver {
     }
 
     /**
-     * Runs [ObservationBlender.blendObservationSeries] for one (date, source) bucket and
-     * returns the time-aligned high/low. This is the shared core that replaces the legacy
-     * per-station-spot-max blend: each blended sample is an IDW combination of stations at
-     * a single instant, so taking max/min over the series produces a physically real value
-     * (one the live widget would have displayed at some point in the day).
-     */
-    private fun blendDailyExtremesViaSeries(
-        dayObs: List<ObservationEntity>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        sourceId: String,
-        locationLat: Double,
-        locationLon: Double,
-        dayStartMs: Long,
-        dayEndMs: Long,
-    ): Pair<Float, Float>? {
-        if (dayObs.isEmpty()) return null
-        val source = WeatherSource.fromId(sourceId)
-        val result = ObservationBlender.blendObservationSeries(
-            observations = dayObs,
-            hourlyForecasts = hourlyForecasts,
-            displaySource = source,
-            userLat = locationLat,
-            userLon = locationLon,
-            startMs = dayStartMs,
-            endMs = dayEndMs,
-        )
-        val series = result.observations
-        if (series.isEmpty()) return null
-        val high = series.maxOf { it.temperature }
-        val low = series.minOf { it.temperature }
-        Log.d(
-            "ObsResolver",
-            "blendDailyExtremesViaSeries: source=$sourceId stations=${result.stats.stationCount} " +
-                "emittedPoints=${result.stats.emittedPointCount} high=$high low=$low",
-        )
-        return high to low
-    }
-
-    /**
      * Aggregates raw observations into daily highs and lows, grouped by source.
      * Uses time-aligned IDW blending to match what the live widget displayed during the day.
      */
@@ -114,54 +69,17 @@ object ObservationResolver {
         locationLon: Double,
     ): DailyActualsBySource {
         val local = ZoneId.systemDefault()
-        val today = LocalDate.now(local)
+        val sharedExtremes = ActualsAggregator.aggregate(
+            observations = observations.map { it.toReading() },
+            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+            locationLat = locationLat,
+            locationLon = locationLon,
+            zoneId = local
+        )
 
-        return observations
-            .filter { it.stationId != "NWS_BLEND" }
-            .groupBy { it.api }
-            .mapValues { (sourceId, obsList) ->
-                val sourceHourly = hourlyForecasts.filter { it.source == sourceId }
-                obsList
-                    .groupBy { obs -> Instant.ofEpochMilli(obs.timestamp).atZone(local).toLocalDate() }
-                    .mapNotNull { (date, dayObs) ->
-                        val dayStartMs = date.atStartOfDay(local).toInstant().toEpochMilli()
-                        val dayEndMs = date.plusDays(1).atStartOfDay(local).toInstant().toEpochMilli()
-                        val (highTemp, lowTemp) = blendDailyExtremesViaSeries(
-                            dayObs = dayObs,
-                            hourlyForecasts = hourlyForecasts,
-                            sourceId = sourceId,
-                            locationLat = locationLat,
-                            locationLon = locationLon,
-                            dayStartMs = dayStartMs,
-                            dayEndMs = dayEndMs,
-                        ) ?: return@mapNotNull null
-
-                        val mostCommonCondition = dayObs
-                            .map { it.condition }
-                            .groupingBy { it }
-                            .eachCount()
-                            .maxByOrNull { it.value }
-                            ?.key ?: "Unknown"
-
-                        // Precip: measured-preferred. Forecast fallback only for today (an
-                        // incomplete day); completed past days are measured-only so history
-                        // never shows a forecast value masquerading as a measured actual.
-                        val precip = resolveDailyPrecip(
-                            dayObs, sourceHourly, date, local,
-                            allowForecastFallback = !date.isBefore(today),
-                        )
-
-                        date to DailyActual(
-                            date = date,
-                            highTemp = highTemp,
-                            lowTemp = lowTemp,
-                            condition = mostCommonCondition,
-                            precipAmountMm = precip.total,
-                            precipDayMm = precip.day,
-                            precipNightMm = precip.night,
-                        )
-                    }
-                    .toMap()
+        return sharedExtremes.groupBy { it.source }
+            .mapValues { (_, sourceExtremes) ->
+                sourceExtremes.associateBy { it.toLocalDate() }
             }
     }
 
@@ -178,60 +96,16 @@ object ObservationResolver {
     ): List<DailyExtremeEntity> {
         val local = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
-        val today = LocalDate.now(local)
+        val sharedExtremes = ActualsAggregator.aggregate(
+            observations = observations.map { it.toReading() },
+            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+            locationLat = locationLat,
+            locationLon = locationLon,
+            zoneId = local,
+            updatedAtMs = now
+        )
 
-        val filteredObs = observations.filter { it.stationId != "NWS_BLEND" }
-
-        return filteredObs
-            .groupBy { obs ->
-                val date = Instant.ofEpochMilli(obs.timestamp).atZone(local).toLocalDate()
-                date to obs.api
-            }
-            .mapNotNull { (key, dayObs) ->
-                val (date, sourceId) = key
-                val dayStartMs = date.atStartOfDay(local).toInstant().toEpochMilli()
-                val dayEndMs = date.plusDays(1).atStartOfDay(local).toInstant().toEpochMilli()
-                val (highTemp, lowTemp) = blendDailyExtremesViaSeries(
-                    dayObs = dayObs,
-                    hourlyForecasts = hourlyForecasts,
-                    sourceId = sourceId,
-                    locationLat = locationLat,
-                    locationLon = locationLon,
-                    dayStartMs = dayStartMs,
-                    dayEndMs = dayEndMs,
-                ) ?: return@mapNotNull null
-
-                val condition = dayObs
-                    .map { it.condition }
-                    .groupingBy { it }
-                    .eachCount()
-                    .maxByOrNull { it.value }
-                    ?.key
-                    ?: "Unknown"
-
-                // Precip: measured-preferred. Forecast fallback only for today (an incomplete
-                // day); completed past days are measured-only so persisted history never shows
-                // a forecast value masquerading as a measured actual.
-                val sourceHourly = hourlyForecasts.filter { it.source == sourceId }
-                val precip = resolveDailyPrecip(
-                    dayObs, sourceHourly, date, local,
-                    allowForecastFallback = !date.isBefore(today),
-                )
-
-                DailyExtremeEntity(
-                    date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                    source = sourceId,
-                    locationLat = locationLat,
-                    locationLon = locationLon,
-                    highTemp = highTemp,
-                    lowTemp = lowTemp,
-                    condition = condition,
-                    updatedAt = now,
-                    precipAmountMm = precip.total,
-                    precipDayMm = precip.day,
-                    precipNightMm = precip.night,
-                )
-            }
+        return sharedExtremes.map { it.toEntity() }
     }
 
     /**
@@ -249,7 +123,7 @@ object ObservationResolver {
                 val date = Instant.ofEpochMilli(obs.timestamp)
                     .atZone(ZoneId.systemDefault())
                     .toLocalDate()
-                    .toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                    .toEpochDay() * 86_400_000L // UTC midnight epoch millis approximation
                 date to obs.api
             }
             .mapNotNull { (key, dayObs) ->
@@ -269,21 +143,10 @@ object ObservationResolver {
             }
 
     /**
-     * Maps a list of [DailyExtremeEntity] to [DailyActual] objects.
+     * Maps a list of [DailyExtremeEntity] to [com.weatherwidget.data.model.DailyExtreme] objects.
      */
-    fun extremesToDailyActuals(extremes: List<DailyExtremeEntity>): List<DailyActual> =
-        extremes.map { entity ->
-            val date = LocalDate.ofEpochDay(entity.date / WidgetConstants.MS_IN_A_DAY)
-            DailyActual(
-                date = date,
-                highTemp = entity.highTemp,
-                lowTemp = entity.lowTemp,
-                condition = entity.condition,
-                precipAmountMm = entity.precipAmountMm,
-                precipDayMm = entity.precipDayMm,
-                precipNightMm = entity.precipNightMm,
-            )
-        }
+    fun extremesToDailyActuals(extremes: List<DailyExtremeEntity>): List<com.weatherwidget.data.model.DailyExtreme> =
+        extremes.map { it.toDailyExtreme() }
 
     /**
      * Maps a list of [DailyExtremeEntity] to a [DailyActualsBySource] map.
@@ -293,181 +156,39 @@ object ObservationResolver {
         extremes: List<DailyExtremeEntity>,
         lat: Double,
         lon: Double,
-    ): DailyActualsBySource =
-        extremes
+    ): DailyActualsBySource {
+        val local = ZoneId.systemDefault()
+        return extremes
+            .filter { it.locationLat == lat && it.locationLon == lon }
             .groupBy { it.source }
-            .mapValues { (_, sourceExtremes) ->
-                sourceExtremes
-                    .groupBy { LocalDate.ofEpochDay(it.date / WidgetConstants.MS_IN_A_DAY) }
-                    .mapValues { (_, dateExtremes) ->
-                        // If multiple locations exist for the same day/source, pick the closest one
-                        val closest = dateExtremes.minBy { 
-                            com.weatherwidget.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
-                        }
-                        DailyActual(
-                            date = LocalDate.ofEpochDay(closest.date / WidgetConstants.MS_IN_A_DAY),
-                            highTemp = closest.highTemp,
-                            lowTemp = closest.lowTemp,
-                            condition = closest.condition,
-                            precipAmountMm = closest.precipAmountMm,
-                            precipDayMm = closest.precipDayMm,
-                            precipNightMm = closest.precipNightMm,
-                        )
-                    }
+            .mapValues { (_, sourceEntities) ->
+                sourceExtremesToDailyActualMap(sourceEntities, local)
             }
+    }
+
+    private fun sourceExtremesToDailyActualMap(
+        entities: List<DailyExtremeEntity>,
+        local: ZoneId,
+    ): DailyActualMap {
+        return entities.associate { entity ->
+            val extreme = entity.toDailyExtreme()
+            extreme.toLocalDate() to extreme
+        }
+    }
 
     /**
-     * Merges per-source daily actuals while preserving the widest known high/low bounds for
-     * overlapping dates. Later values win only for metadata like condition text.
+     * Merges two daily-actual sets. When dates collide, [primary] wins.
+     * Useful for combining historical DB data with live "today" computations.
      */
     fun mergeDailyActualsBySource(
         primary: DailyActualsBySource,
         secondary: DailyActualsBySource,
-    ): DailyActualsBySource =
-        (primary.keys + secondary.keys).associateWith { source ->
-            mergeDailyActualMap(
-                primary[source].orEmpty(),
-                secondary[source].orEmpty(),
-            )
+    ): DailyActualsBySource {
+        val allSources = primary.keys + secondary.keys
+        return allSources.associateWith { source ->
+            val pMap = primary[source] ?: emptyMap()
+            val sMap = secondary[source] ?: emptyMap()
+            sMap + pMap // Primary wins
         }
-
-    private fun mergeDailyActualMap(
-        primary: DailyActualMap,
-        secondary: DailyActualMap,
-    ): DailyActualMap =
-        (primary.keys + secondary.keys).associateWith { date ->
-            mergeDailyActual(primary[date], secondary[date])
-        }.filterValues { it != null }
-            .mapValues { (_, actual) -> checkNotNull(actual) }
-
-    private fun mergeDailyActual(
-        primary: DailyActual?,
-        secondary: DailyActual?,
-    ): DailyActual? =
-        when {
-            primary == null -> secondary
-            secondary == null -> primary
-            else ->
-                DailyActual(
-                    date = primary.date,
-                    highTemp = maxOf(primary.highTemp, secondary.highTemp),
-                    lowTemp = minOf(primary.lowTemp, secondary.lowTemp),
-                    condition = secondary.condition.ifBlank { primary.condition },
-                    precipAmountMm = primary.precipAmountMm ?: secondary.precipAmountMm,
-                    precipDayMm = primary.precipDayMm ?: secondary.precipDayMm,
-                    precipNightMm = primary.precipNightMm ?: secondary.precipNightMm,
-                )
-        }
-
-    /**
-     * Sums daytime (8AM-8PM) precipitation from observations for a given date.
-     */
-    private fun sumDaytimePrecip(
-        observations: List<ObservationEntity>,
-        date: LocalDate,
-        zone: ZoneId,
-    ): Float? {
-        val dayStartMs = date.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
-        val dayEndMs = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
-        val dayObs = observations.filter { it.timestamp >= dayStartMs && it.timestamp < dayEndMs }
-        return dayObs.mapNotNull { it.precipAmountMm }
-            .takeIf { it.isNotEmpty() }
-            ?.sum()
     }
-
-    /**
-     * Sums nighttime precipitation from observations for a given date.
-     * Night = pre-dawn (00:00–08:00) ∪ late-evening (20:00–24:00), both within calendar day D.
-     * Keeping both halves on the same date guarantees day + night = total and avoids the
-     * pre-dawn gap that the old "20:00 of D → 08:00 of D+1" definition left uncovered for
-     * storms whose rain falls between midnight and 8 AM.
-     */
-    private fun sumNighttimePrecip(
-        observations: List<ObservationEntity>,
-        date: LocalDate,
-        zone: ZoneId,
-    ): Float? {
-        val startOfDayMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
-        val morningEndMs = date.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
-        val eveningStartMs = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
-        val endOfDayMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val nightObs = observations.filter {
-            (it.timestamp >= startOfDayMs && it.timestamp < morningEndMs) ||
-                (it.timestamp >= eveningStartMs && it.timestamp < endOfDayMs)
-        }
-        return nightObs.mapNotNull { it.precipAmountMm }
-            .takeIf { it.isNotEmpty() }
-            ?.sum()
-    }
-
-    /** Daily precip totals for one (date, source) bucket: total, daytime, nighttime. */
-    data class DailyPrecip(val total: Float?, val day: Float?, val night: Float?)
-
-    /**
-     * Resolves a day's precip with a single coherent provenance, measured-preferred:
-     * if any observation that day reported precip, sum the observations (existing behavior for
-     * sources whose `_MAIN` pseudo-actuals carry precip — Open-Meteo, Tomorrow.io, Silurian);
-     * otherwise optionally fall back to the source's hourly *forecast* precip.
-     *
-     * The forecast fallback is gated by [allowForecastFallback]. It is appropriate for the
-     * *current* day (still incomplete — the forecast fills the gap until measurements arrive),
-     * but NOT for a completed past day: there a forecast value would masquerade as a measured
-     * actual, which is misleading and can disagree (in amount and time-of-day) with another
-     * source's measured trace. NWS station observations frequently report null precip, so for
-     * past days NWS rain is shown only when stations actually measured it (else null = no rain).
-     *
-     * Both branches use the same day/night windows so they render identically:
-     *   day   = 08:00–20:00 of `date`
-     *   night = (00:00–08:00) ∪ (20:00–24:00) of `date`  — same calendar day; day + night = total
-     *
-     * Callers must pre-filter `dayObs` to a single (date, source) bucket and `sourceHourly` to
-     * one source (window filtering for the forecast branch happens inside).
-     */
-    fun resolveDailyPrecip(
-        dayObs: List<ObservationEntity>,
-        sourceHourly: List<HourlyForecastEntity>,
-        date: LocalDate,
-        zone: ZoneId,
-        allowForecastFallback: Boolean = true,
-    ): DailyPrecip {
-        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
-        val dayEndMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        if (dayObs.any { it.precipAmountMm != null }) {
-            return DailyPrecip(
-                total = dayObs.mapNotNull { it.precipAmountMm }.takeIf { it.isNotEmpty() }?.sum(),
-                day = sumDaytimePrecip(dayObs, date, zone),
-                night = sumNighttimePrecip(dayObs, date, zone),
-            )
-        }
-        // No measured precip. For completed past days, do NOT substitute forecast precip —
-        // history must reflect what was actually measured (null = no measured rain).
-        if (!allowForecastFallback) {
-            return DailyPrecip(total = null, day = null, night = null)
-        }
-        val dayWindowStart = date.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
-        val dayWindowEnd = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
-        // Night = pre-dawn ∪ late-evening; null only when neither half has any forecast precip.
-        val nightPreDawn = sumForecastPrecip(sourceHourly, dayStartMs, dayWindowStart)
-        val nightLateEvening = sumForecastPrecip(sourceHourly, dayWindowEnd, dayEndMs)
-        val night = when {
-            nightPreDawn == null && nightLateEvening == null -> null
-            else -> (nightPreDawn ?: 0f) + (nightLateEvening ?: 0f)
-        }
-        return DailyPrecip(
-            total = sumForecastPrecip(sourceHourly, dayStartMs, dayEndMs),
-            day = sumForecastPrecip(sourceHourly, dayWindowStart, dayWindowEnd),
-            night = night,
-        )
-    }
-
-    /** Sums hourly-forecast precip within [startMs, endMs); null when no row carries precip. */
-    private fun sumForecastPrecip(
-        hourly: List<HourlyForecastEntity>,
-        startMs: Long,
-        endMs: Long,
-    ): Float? =
-        hourly.filter { it.dateTime in startMs until endMs }
-            .mapNotNull { it.precipAmountMm }
-            .takeIf { it.isNotEmpty() }
-            ?.sum()
 }

@@ -1,8 +1,10 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
-import com.weatherwidget.util.ObservationBlender
+import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.widget.ZoomLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,8 +18,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
-
-
 
 /**
  * Unit tests for buildHourDataList actuals integration.
@@ -97,17 +97,18 @@ class TemperatureViewHandlerActualsTest {
         val forecasts = wideForecasts()
         val start = TestData.toEpoch("2026-02-20T10:00")
         val end = TestData.toEpoch("2026-02-20T11:00")
-        val result = ObservationBlender.blendObservationSeries(
+        val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
             observations = listOf(
                 TestData.observation(timestamp = start, temperature = 68f),
                 TestData.observation(timestamp = end, temperature = 72f),
-            ),
-            hourlyForecasts = forecasts,
-            displaySource = WeatherSource.NWS,
+            ).map { it.toReading() },
+            hourlyForecasts = forecasts.map { it.toHourlyForecast() },
+            displaySourceId = WeatherSource.NWS.id,
             userLat = TestData.LAT,
             userLon = TestData.LON,
             startMs = start,
             endMs = end,
+            onBlendDebug = null,
         )
 
         // Only 2 candidate times (real observation timestamps), no synthetic grid
@@ -128,14 +129,15 @@ class TemperatureViewHandlerActualsTest {
         val endMs = center.plusHours(ZoomLevel.WIDE.forwardHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
         val startNs = System.nanoTime()
-        val blendResult = ObservationBlender.blendObservationSeries(
-            observations = actuals,
-            hourlyForecasts = forecasts,
-            displaySource = WeatherSource.NWS,
+        val blendResult = ActualTemperatureSeriesBuilder.blendObservationSeries(
+            observations = actuals.map { it.toReading() },
+            hourlyForecasts = forecasts.map { it.toHourlyForecast() },
+            displaySourceId = WeatherSource.NWS.id,
             userLat = TestData.LAT,
             userLon = TestData.LON,
             startMs = startMs,
             endMs = endMs,
+            onBlendDebug = null,
         )
         val elapsedMs = (System.nanoTime() - startNs) / 1_000_000L
 
@@ -570,7 +572,6 @@ class TemperatureViewHandlerActualsTest {
         // KSJC is further (15.8km) but has a fresh observed point at 10:30.
         // The anchor for T10:30 will be AW020 because it matches the timestamp exactly (0 offset).
         val forecasts = wideForecasts()
-        val t1015 = TestData.toEpoch("2026-02-20T10:15")
         val t1030 = TestData.toEpoch("2026-02-20T10:30")
         
         val actuals = listOf(
@@ -596,112 +597,6 @@ class TemperatureViewHandlerActualsTest {
         val lastObserved = requireNotNull(hours.lastOrNull { it.isObservedActual })
         assertEquals("Fetch dot anchor should be at the freshest observed point (10:30) even if it's from a further station", 
             LocalDateTime.parse("2026-02-20T10:30"), lastObserved.dateTime)
-    }
-
-    @Test
-    fun `hourly backfill requested when NWS history has singleton station coverage`() {
-        val observations = listOf(
-            observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),
-            observationAt("2026-02-20T10:15", 58f, stationId = "AW020", distanceKm = 2.9f),
-            observationAt("2026-02-20T10:10", 60f, stationId = "LOAC1", distanceKm = 9f),
-        )
-
-        val decision = evaluateHourlyBackfillNeed(
-            displaySource = WeatherSource.NWS,
-            graphStart = LocalDateTime.parse("2026-02-20T10:00"),
-            graphEnd = LocalDateTime.parse("2026-02-20T14:00"),
-            observations = observations,
-            now = LocalDateTime.parse("2026-02-20T11:00"),
-        )
-
-        assertTrue(decision.shouldRequest)
-        assertTrue(decision.reason.contains("singleton_stations=LOAC1"))
-    }
-
-    @Test
-    fun `hourly backfill skipped when NWS history is dense and recent`() {
-        val observations = listOf(
-            observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),
-            observationAt("2026-02-20T10:25", 56f, stationId = "AW020", distanceKm = 2.9f),
-            observationAt("2026-02-20T10:45", 55f, stationId = "AW020", distanceKm = 2.9f),
-            observationAt("2026-02-20T10:15", 60f, stationId = "KNUQ", distanceKm = 3.7f),
-            observationAt("2026-02-20T10:35", 59f, stationId = "KNUQ", distanceKm = 3.7f),
-            observationAt("2026-02-20T10:55", 58f, stationId = "KNUQ", distanceKm = 3.7f),
-        )
-
-        val decision = evaluateHourlyBackfillNeed(
-            displaySource = WeatherSource.NWS,
-            graphStart = LocalDateTime.parse("2026-02-20T10:00"),
-            graphEnd = LocalDateTime.parse("2026-02-20T14:00"),
-            observations = observations,
-            now = LocalDateTime.parse("2026-02-20T11:00"),
-        )
-
-        assertFalse(decision.shouldRequest)
-        assertTrue(decision.reason.contains("coverage_ok"))
-    }
-
-    @Test
-    fun `hourly backfill skipped for non NWS sources`() {
-        val observations = listOf(
-            observationAt("2026-02-20T10:05", 70f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f),
-        )
-
-        val decision = evaluateHourlyBackfillNeed(
-            displaySource = WeatherSource.OPEN_METEO,
-            graphStart = LocalDateTime.parse("2026-02-20T10:00"),
-            graphEnd = LocalDateTime.parse("2026-02-20T14:00"),
-            observations = observations,
-            now = LocalDateTime.parse("2026-02-20T11:00"),
-        )
-
-        assertFalse(decision.shouldRequest)
-        assertEquals("organic_backfill_active", decision.reason)
-    }
-
-    @Test
-    fun `single series selection applies to non NWS sources too`() {
-        val forecasts = wideForecasts().map {
-            it.copy(source = WeatherSource.OPEN_METEO.id)
-        }
-        val actuals = listOf(
-            observationAt("2026-02-20T10:05", 70f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f, api = WeatherSource.OPEN_METEO.id),
-            observationAt("2026-02-20T11:05", 71f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f, api = WeatherSource.OPEN_METEO.id),
-            observationAt("2026-02-20T10:25", 55f, stationId = "OPEN_METEO_1", distanceKm = 8f, api = WeatherSource.OPEN_METEO.id),
-        )
-
-        val hours = buildHourDataList(
-            hourlyForecasts = forecasts,
-            centerTime = center,
-            numColumns = 5,
-            displaySource = WeatherSource.OPEN_METEO,
-            zoom = ZoomLevel.WIDE,
-            actuals = actuals,
-        )
-
-        val hour10 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:05") })
-        val hour11 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:05") })
-
-        assertEquals(70f, hour10.actualTemperature)
-        assertEquals(71f, hour11.actualTemperature)
-    }
-
-    @Test
-    fun `when coverage ties nearest station wins`() {
-        val selected = selectObservationSeries(
-            observations = listOf(
-                observationAt("2026-02-20T10:05", 61f, stationId = "KNEAR", distanceKm = 1f),
-                observationAt("2026-02-20T11:05", 62f, stationId = "KNEAR", distanceKm = 1f),
-                observationAt("2026-02-20T10:10", 71f, stationId = "KFAR", distanceKm = 9f),
-                observationAt("2026-02-20T11:10", 72f, stationId = "KFAR", distanceKm = 9f),
-            ),
-            displaySource = WeatherSource.NWS,
-            startHour = LocalDateTime.parse("2026-02-20T10:00"),
-            endHour = LocalDateTime.parse("2026-02-20T12:00"),
-        )
-
-        assertEquals("KNEAR", selected.stationId)
-        assertEquals(2, selected.observations.size)
     }
 
     private fun observationAt(

@@ -20,6 +20,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.HeaderPrecipCalculator
@@ -813,7 +814,7 @@ object DailyViewHandler : WidgetViewHandler {
         today: LocalDate,
         displaySource: WeatherSource,
         forecastWeather: ForecastEntity?,
-        dailyActual: ObservationResolver.DailyActual?,
+        dailyActual: DailyExtreme?,
         todayDay: DailyForecastGraphRenderer.DayData,
         currentTemp: Float?,
         observedAt: Long?,

@@ -1,8 +1,11 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.testutil.TestData
-import com.weatherwidget.util.ObservationBlender
+import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.util.DailyActualsEstimator
 import com.weatherwidget.widget.TemperatureExtrema
 import com.weatherwidget.widget.HourData
@@ -56,21 +59,31 @@ class TemperatureUnificationRegressionTest {
         )
 
         // Calculate the Blended Series (Source of Truth for both views now)
-        val blendedResult = ObservationBlender.blendObservationSeries(
-            observations = observations,
-            hourlyForecasts = forecasts,
-            displaySource = WeatherSource.NWS,
+        val blendedResult = ActualTemperatureSeriesBuilder.blendObservationSeries(
+            observations = observations.map { it.toReading() },
+            hourlyForecasts = forecasts.map { it.toHourlyForecast() },
+            displaySourceId = WeatherSource.NWS.id,
             userLat = TestData.LAT,
             userLon = TestData.LON,
             startMs = today.atStartOfDay(zone).toInstant().toEpochMilli(),
             endMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli(),
+            onBlendDebug = null,
         )
 
         // --- 1. Calculate Daily View High (The way it is AFTER fix) ---
         // We now use the blended result as the source of truth for the Daily Actual
         val unifiedHigh = blendedResult.observations.maxOf { it.temperature }
         val dailyActuals = mapOf(
-            today to ObservationResolver.DailyActual(today, unifiedHigh, 50f, "Clear")
+            today to DailyExtreme(
+                date = today.toEpochDay() * 86_400_000L,
+                source = WeatherSource.NWS.id,
+                locationLat = TestData.LAT,
+                locationLon = TestData.LON,
+                highTemp = unifiedHigh,
+                lowTemp = 50f,
+                condition = "Clear",
+                updatedAt = System.currentTimeMillis()
+            )
         )
         
         val tripleLine = DailyActualsEstimator.calculateTodayTripleLineValues(

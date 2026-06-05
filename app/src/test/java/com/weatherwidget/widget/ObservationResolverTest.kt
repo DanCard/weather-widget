@@ -13,6 +13,7 @@ import org.junit.experimental.categories.Category
 
 
 
+import com.weatherwidget.data.model.DailyExtreme
 @Category(ShortDuration::class)
 class ObservationResolverTest {
 
@@ -216,27 +217,28 @@ class ObservationResolverTest {
         assertEquals(60f, meteoEntity.highTemp, 0.01f)
     }
 
+    private fun extreme(date: java.time.LocalDate, high: Float, low: Float) = com.weatherwidget.data.model.DailyExtreme(
+        date = date.toEpochDay() * 86_400_000L,
+        source = WeatherSource.NWS.id,
+        locationLat = 37.42,
+        locationLon = -122.08,
+        highTemp = high,
+        lowTemp = low,
+        condition = "Clear",
+        updatedAt = System.currentTimeMillis()
+    )
+
     @Test
     fun `mergeDailyActualsBySource preserves widest known today bounds`() {
         val today = java.time.LocalDate.of(2026, 4, 14)
         val persisted = mapOf(
             WeatherSource.NWS.id to mapOf(
-                today to ObservationResolver.DailyActual(
-                    date = today,
-                    highTemp = 63.82f,
-                    lowTemp = 46.30f,
-                    condition = "Clear",
-                )
+                today to extreme(today, 63.82f, 46.30f)
             )
         )
         val live = mapOf(
             WeatherSource.NWS.id to mapOf(
-                today to ObservationResolver.DailyActual(
-                    date = today,
-                    highTemp = 63.82f,
-                    lowTemp = 60.53f,
-                    condition = "Clear",
-                )
+                today to extreme(today, 63.82f, 60.53f)
             )
         )
 

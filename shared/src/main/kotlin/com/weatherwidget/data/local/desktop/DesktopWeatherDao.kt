@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
@@ -198,7 +199,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
-    fun upsertDailyExtremes(extremes: List<DesktopDailyExtremeEntity>) {
+    fun upsertDailyExtremes(extremes: List<DailyExtreme>) {
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {
@@ -573,8 +574,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
-    fun getExtremesInRange(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double): List<DesktopDailyExtremeEntity> {
-        val result = mutableListOf<DesktopDailyExtremeEntity>()
+    fun getExtremesInRange(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double): List<DailyExtreme> {
+        val result = mutableListOf<DailyExtreme>()
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM daily_extremes
@@ -588,7 +589,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setLong(4, endEpoch)
                 val rs = stmt.executeQuery()
                 while (rs.next()) {
-                    result.add(DesktopDailyExtremeEntity(
+                    result.add(DailyExtreme(
                         date = rs.getLong("date"),
                         source = rs.getString("source"),
                         locationLat = rs.getDouble("locationLat"),
@@ -607,18 +608,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
-    fun getDailyActuals(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): Map<String, DailyActual> {
+    fun getDailyActuals(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): Map<String, DailyExtreme> {
         return getExtremesInRange(startEpoch, endEpoch, locationLat, locationLon)
             .filter { it.source == source }
-            .associate { extreme ->
-                val date = LocalDate.ofEpochDay(extreme.date / DailyExtremesComputer.MS_IN_A_DAY).toString()
-                date to DailyActual(
-                    date = date,
-                    highTemp = extreme.highTemp,
-                    lowTemp = extreme.lowTemp,
-                    condition = extreme.condition,
-                )
-            }
+            .associateBy { LocalDate.ofEpochDay(it.date / 86_400_000L).toString() }
     }
 
     fun getForecastsInRangeBySource(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): List<DesktopForecastRow> {

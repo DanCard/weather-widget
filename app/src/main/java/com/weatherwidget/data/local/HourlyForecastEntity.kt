@@ -28,4 +28,5 @@ fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.Hourl
     precipProbability = precipProbability,
     cloudCover = cloudCover,
     precipAmountMm = precipAmountMm,
+    source = source,
 )

@@ -4,10 +4,12 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
+import com.weatherwidget.widget.WidgetConstants
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -27,6 +29,29 @@ import java.time.format.DateTimeFormatter
 @Config(sdk = [35])
 @Category(LongDuration::class)
 class DailyViewLogicTest {
+
+    private fun extreme(
+        date: LocalDate,
+        high: Float,
+        low: Float,
+        condition: String = "Clear",
+        precipAmountMm: Float? = null,
+        precipDayMm: Float? = null,
+        precipNightMm: Float? = null,
+        source: String = WeatherSource.NWS.id
+    ) = DailyExtreme(
+        date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+        source = source,
+        locationLat = 0.0,
+        locationLon = 0.0,
+        highTemp = high,
+        lowTemp = low,
+        condition = condition,
+        updatedAt = System.currentTimeMillis(),
+        precipAmountMm = precipAmountMm,
+        precipDayMm = precipDayMm,
+        precipNightMm = precipNightMm
+    )
 
     @Test
     fun `future day with GENERIC_GAP data is visible`() {
@@ -180,7 +205,7 @@ class DailyViewLogicTest {
             pastWed to createWeather(pastWedStr, highTemp = 72.9f, lowTemp = 56.5f),
         )
         val dailyActuals = mapOf(
-            pastWed to com.weatherwidget.widget.ObservationResolver.DailyActual(pastWed, 72.9f, 56.5f, "Clear"),
+            pastWed to extreme(pastWed, 72.9f, 56.5f),
         )
         val climateNormals = mapOf(
             java.time.MonthDay.from(pastWed) to Pair(58, 48),  // bait: would be the bad fallback
@@ -219,7 +244,7 @@ class DailyViewLogicTest {
             pastWed to createWeather(pastWedStr, highTemp = 72.9f, lowTemp = 56.5f),
         )
         val dailyActuals = mapOf(
-            pastWed to com.weatherwidget.widget.ObservationResolver.DailyActual(pastWed, 72.9f, 56.5f, "Clear"),
+            pastWed to extreme(pastWed, 72.9f, 56.5f),
         )
         val snapshot = createWeather(date = pastWedStr, highTemp = 72f, lowTemp = 53f)
         val forecastSnapshots = mapOf(pastWed to listOf(snapshot))
@@ -250,13 +275,6 @@ class DailyViewLogicTest {
 
     @Test
     fun `past day skips NWS latest-batch with null lowTemp and uses older usable NWS batch`() {
-        // Regression guard: NWS evening forecast batches drop lowTemp once the day's low
-        // has passed. The deduped DAO query must skip null-pair rows (it does, via
-        // `highTemp IS NOT NULL AND lowTemp IS NOT NULL` in getLatestForecastsInRange),
-        // and the past-day filter in DailyViewLogic must not fall back to other sources.
-        // If the DAO ever loses the non-null filter, this test still guards prepareGraphDays:
-        // when the input contains both a null-low NWS row and an older usable NWS row,
-        // the older usable one must be picked.
         val now = LocalDateTime.of(2026, 5, 9, 12, 0)
         val today = now.toLocalDate()
         val pastWed = today.minusDays(3)
@@ -266,7 +284,7 @@ class DailyViewLogicTest {
             pastWed to createWeather(pastWedStr, highTemp = 72.9f, lowTemp = 56.5f),
         )
         val dailyActuals = mapOf(
-            pastWed to com.weatherwidget.widget.ObservationResolver.DailyActual(pastWed, 72.9f, 56.5f, "Clear"),
+            pastWed to extreme(pastWed, 72.9f, 56.5f),
         )
         val nwsLatestNullLow = createWeather(date = pastWedStr, highTemp = 72f, lowTemp = null)
             .copy(fetchedAt = 2000L)
@@ -296,11 +314,6 @@ class DailyViewLogicTest {
 
     @Test
     fun `past day ignores GENERIC_GAP source rows even when displaySource has only null-low data`() {
-        // Regression guard: when NWS latest batch has null lowTemp AND no older usable
-        // NWS batch is in the map, the filter must NOT fall back to GENERIC_GAP / Generic
-        // source rows that contain climate-normal data. Better to draw no overlay than
-        // a wrong one synthesized from monthly averages. This is the bug that produced
-        // chosen=src=Generic h=58 l=48 on Samsung's NWS view of past Wed.
         val now = LocalDateTime.of(2026, 5, 9, 12, 0)
         val today = now.toLocalDate()
         val pastWed = today.minusDays(3)
@@ -310,7 +323,7 @@ class DailyViewLogicTest {
             pastWed to createWeather(pastWedStr, highTemp = 72.9f, lowTemp = 56.5f),
         )
         val dailyActuals = mapOf(
-            pastWed to com.weatherwidget.widget.ObservationResolver.DailyActual(pastWed, 72.9f, 56.5f, "Clear"),
+            pastWed to extreme(pastWed, 72.9f, 56.5f),
         )
         val nwsNullLow = createWeather(date = pastWedStr, highTemp = 72f, lowTemp = null)
         val genericClimateNormal = createWeather(
@@ -1756,10 +1769,10 @@ class DailyViewLogicTest {
             pastDay to createWeather(pastDayStr, highTemp = 68f, lowTemp = 52f),
         )
         val dailyActuals = mapOf(
-            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+            pastDay to extreme(
                 date = pastDay,
-                highTemp = 68f,
-                lowTemp = 52f,
+                high = 68f,
+                low = 52f,
                 condition = "Rain",
                 precipAmountMm = 10.5f,
                 precipDayMm = 6.2f,
@@ -1798,10 +1811,10 @@ class DailyViewLogicTest {
             pastDay to createWeather(pastDayStr, highTemp = 68f, lowTemp = 52f),
         )
         val dailyActuals = mapOf(
-            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+            pastDay to extreme(
                 date = pastDay,
-                highTemp = 68f,
-                lowTemp = 52f,
+                high = 68f,
+                low = 52f,
                 condition = "Rain",
                 precipAmountMm = 10.5f,
                 precipDayMm = 6.2f,
@@ -1840,10 +1853,10 @@ class DailyViewLogicTest {
             pastDay to createWeather(pastDayStr, highTemp = 68f, lowTemp = 52f),
         )
         val dailyActuals = mapOf(
-            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+            pastDay to extreme(
                 date = pastDay,
-                highTemp = 68f,
-                lowTemp = 52f,
+                high = 68f,
+                low = 52f,
                 condition = "Clear",
                 precipAmountMm = 0f,
                 precipDayMm = 0f,
@@ -1881,10 +1894,10 @@ class DailyViewLogicTest {
             pastDay to createWeather(pastDayStr, highTemp = 68f, lowTemp = 52f),
         )
         val dailyActuals = mapOf(
-            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+            pastDay to extreme(
                 date = pastDay,
-                highTemp = 68f,
-                lowTemp = 52f,
+                high = 68f,
+                low = 52f,
                 condition = "Clear",
                 precipAmountMm = null,
                 precipDayMm = null,
@@ -1923,10 +1936,10 @@ class DailyViewLogicTest {
         )
         // Has precipDayMm but no precipAmountMm
         val dailyActuals = mapOf(
-            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+            pastDay to extreme(
                 date = pastDay,
-                highTemp = 68f,
-                lowTemp = 52f,
+                high = 68f,
+                low = 52f,
                 condition = "Rain",
                 precipAmountMm = null,
                 precipDayMm = 5.0f,

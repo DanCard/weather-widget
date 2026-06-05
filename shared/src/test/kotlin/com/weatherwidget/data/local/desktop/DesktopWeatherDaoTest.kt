@@ -1,5 +1,7 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.remote.NwsApi
@@ -71,7 +73,7 @@ class DesktopWeatherDaoTest {
         val lon = -75.0
         val source = "NWS"
         val date = java.time.LocalDate.parse("2026-06-02")
-        val epoch = date.toEpochDay() * DailyExtremesComputer.MS_IN_A_DAY
+        val epoch = date.toEpochDay() * 86_400_000L
 
         dao.upsertForecasts(lat, lon, source, listOf(DailyForecast("2026-06-02", 78f, 59f, "Cloudy")))
         Thread.sleep(5)
@@ -145,10 +147,10 @@ class DesktopWeatherDaoTest {
         val lat = 40.0
         val lon = -75.0
         val date = java.time.LocalDate.parse("2026-06-02")
-            .toEpochDay() * DailyExtremesComputer.MS_IN_A_DAY
+            .toEpochDay() * 86_400_000L
         dao.upsertDailyExtremes(
             listOf(
-                DesktopDailyExtremeEntity(
+                DailyExtreme(
                     date = date,
                     source = "NWS",
                     locationLat = lat,

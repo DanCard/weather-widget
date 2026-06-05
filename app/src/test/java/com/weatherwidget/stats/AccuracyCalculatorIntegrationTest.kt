@@ -138,8 +138,8 @@ class AccuracyCalculatorIntegrationTest {
 
     @Test
     fun `getDailyAccuracyBreakdown computes correct errors for single day`() = runTest {
-        val target = dateStr(1)
-        val forecastMade = dateStr(2) // 1-day-ahead: forecast captured the day before the target
+        val target = dateStr(1) // yesterday
+        val forecastMade = dateStr(2) // day before yesterday
 
         insertExtreme(target, WeatherSource.NWS, highTemp = 72f, lowTemp = 50f)
         insertForecastSnapshot(target, forecastMade, WeatherSource.NWS, highTemp = 68f, lowTemp = 53f)

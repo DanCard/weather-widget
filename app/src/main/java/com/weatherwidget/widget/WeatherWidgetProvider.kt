@@ -50,6 +50,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
+import com.weatherwidget.widget.DailyActualsBySource
+import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.handlers.DailyViewHandler
 import com.weatherwidget.widget.handlers.TemperatureViewHandler
 import com.weatherwidget.widget.handlers.PrecipViewHandler

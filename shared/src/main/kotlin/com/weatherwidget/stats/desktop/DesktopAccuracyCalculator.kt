@@ -1,10 +1,11 @@
 package com.weatherwidget.stats.desktop
 
-import com.weatherwidget.data.local.desktop.DailyExtremesComputer.MS_IN_A_DAY
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import java.time.LocalDate
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+private const val MS_IN_A_DAY = 86_400_000L
 
 /**
  * Forecast-accuracy statistics for a single source over a lookback window. Mirrors the Android

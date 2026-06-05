@@ -13,6 +13,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import com.weatherwidget.data.model.DailyExtreme
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -127,7 +128,7 @@ class ObservationRepositoryDailyMergeTest {
         )
 
         val todayActual = result[WeatherSource.NWS.id]?.get(today)
-        assertNotNull("Expected an NWS DailyActual entry for today", todayActual)
+        assertNotNull("Expected an NWS DailyExtreme entry for today", todayActual)
 
         // BEFORE fix: this is 73.5 (mergeDailyActual maxOf picks the persisted value).
         // AFTER  fix: this is ~73.1 (live blended wins, persisted is not consulted).

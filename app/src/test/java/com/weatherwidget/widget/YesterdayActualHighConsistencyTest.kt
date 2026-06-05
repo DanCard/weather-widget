@@ -13,6 +13,7 @@ import com.weatherwidget.widget.handlers.buildHourDataList
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import com.weatherwidget.data.model.DailyExtreme
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

@@ -119,16 +119,15 @@ class AccuracyCalculator
             val forecasts = forecastDao.getForecastsInRangeBySource(startEpoch, endEpoch, lat, lon, source.id)
 
             val dailyAccuracies = mutableListOf<DailyAccuracy>()
-
             for (actual in dailyActuals) {
-                val targetDate = actual.date
+                val targetDate = actual.toLocalDate()
                 val forecastDate = targetDate.minusDays(1)
-                val targetEpoch = targetDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val targetEpochVal = targetDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
                 val forecastEpoch = forecastDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
                 val forecast = forecasts
                     .filter {
-                        it.targetDate == targetEpoch &&
+                        it.targetDate == targetEpochVal &&
                                 it.forecastDate == forecastEpoch &&
                                 it.source == source.id
                     }
@@ -150,7 +149,7 @@ class AccuracyCalculator
 
                         dailyAccuracies.add(
                             DailyAccuracy(
-                                date = actual.date.toString(),
+                                date = targetDate.toString(),
                                 actualHigh = roundedActualHigh,
                                 actualLow = roundedActualLow,
                                 forecastHigh = roundedForecastHigh,

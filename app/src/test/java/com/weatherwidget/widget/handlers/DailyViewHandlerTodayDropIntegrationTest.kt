@@ -13,10 +13,12 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.WidgetConstants
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -38,8 +40,6 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
-
-
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -63,6 +63,17 @@ class DailyViewHandlerTodayDropIntegrationTest {
 
     private fun epoch(dateTime: String): Long =
         LocalDateTime.parse(dateTime).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+        date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+        source = WeatherSource.NWS.id,
+        locationLat = 0.0,
+        locationLon = 0.0,
+        highTemp = high,
+        lowTemp = low,
+        condition = "Clear",
+        updatedAt = System.currentTimeMillis()
+    )
 
     @Test
     fun `updateWidget today bar represents current temp even when below daily peak`() = runBlocking {
@@ -91,12 +102,7 @@ class DailyViewHandlerTodayDropIntegrationTest {
         )
         val dailyActualsBySource = mapOf(
             "NWS" to mapOf(
-                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = today,
-                    highTemp = 82f,
-                    lowTemp = 60f,
-                    condition = "Clear"
-                )
+                today to extreme(today, 82f, 60f)
             )
         )
 
@@ -178,12 +184,7 @@ class DailyViewHandlerTodayDropIntegrationTest {
         )
         val dailyActualsBySource = mapOf(
             "NWS" to mapOf(
-                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = today,
-                    highTemp = 82f,
-                    lowTemp = 60f,
-                    condition = "Clear"
-                )
+                today to extreme(today, 82f, 60f)
             )
         )
 

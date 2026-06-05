@@ -2,9 +2,11 @@ package com.weatherwidget.perf
 
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.testutil.TestData
-import com.weatherwidget.util.ObservationBlender
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import org.junit.Test
 import java.time.LocalDateTime
@@ -13,8 +15,6 @@ import kotlin.system.measureTimeMillis
 import kotlin.system.measureNanoTime
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
-
-
 
 @Category(LongDuration::class)
 class TemperaturePipelineBenchmark {
@@ -85,24 +85,24 @@ class TemperaturePipelineBenchmark {
     }
 
     private fun runPipeline(observations: List<ObservationEntity>, hourlyForecasts: List<HourlyForecastEntity>) {
-        val graphStyleObs = ObservationBlender.resolveCurrentObservation(
-            observations = observations,
-            hourlyForecasts = hourlyForecasts,
-            displaySource = WeatherSource.NWS,
+        val resolved = ActualsAggregator.resolveCurrentObservation(
+            observations = observations.map { it.toReading() },
+            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+            displaySourceId = WeatherSource.NWS.id,
             userLat = lat,
             userLon = lon,
-            now = now,
+            nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             lookbackHours = 12L,
             lookaheadHours = 2L
         )
 
-        if (graphStyleObs != null) {
+        if (resolved != null) {
             CurrentTemperatureResolver.resolve(
                 now = now,
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourlyForecasts,
-                lastObservedTemp = graphStyleObs.first,
-                observedAt = graphStyleObs.second,
+                lastObservedTemp = resolved.first,
+                observedAt = resolved.third, // ActualsAggregator.resolveCurrentObservation returns (temp, time, anchorTime)
                 storedDeltaState = null,
                 currentLat = lat,
                 currentLon = lon

@@ -47,5 +47,6 @@ fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationRead
     maxTempLast24h = maxTempLast24h,
     minTempLast24h = minTempLast24h,
     api = api,
+    fetchedAt = fetchedAt,
     precipAmountMm = precipAmountMm,
 )

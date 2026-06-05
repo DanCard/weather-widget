@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestData.dateEpoch
+import com.weatherwidget.widget.WidgetConstants
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -13,13 +14,24 @@ import java.time.format.DateTimeFormatter
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
-
+import com.weatherwidget.data.model.DailyExtreme
 
 @Category(ShortDuration::class)
 class TripleLinePrecisionTest {
 
     private val today = LocalDate.now()
     private val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+        date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+        source = WeatherSource.OPEN_METEO.id,
+        locationLat = 0.0,
+        locationLon = 0.0,
+        highTemp = high,
+        lowTemp = low,
+        condition = "Clear",
+        updatedAt = System.currentTimeMillis()
+    )
 
     @Test
     fun `Today triple line uses precise forecast high from DB snapshot`() {
@@ -36,7 +48,8 @@ class TripleLinePrecisionTest {
             highTemp = 72.4f, // Precise decimal
             lowTemp = 50.6f,  // Precise decimal
             condition = "Clear",
-            source = displaySource.id
+            source = displaySource.id,
+            fetchedAt = 1L
         )
 
         // 2. Setup hourly data (Used for the 'Observed' parts of the triple line)
@@ -54,12 +67,7 @@ class TripleLinePrecisionTest {
             displaySource = displaySource,
             fallbackWeather = forecastFromSnapshot,
             dailyActuals = mapOf(
-                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = today,
-                    highTemp = 71.5f,
-                    lowTemp = 70.0f,
-                    condition = "Clear",
-                )
+                today to extreme(today, 71.5f, 70.0f)
             ),
         )
 

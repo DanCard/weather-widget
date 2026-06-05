@@ -13,6 +13,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
+import com.weatherwidget.data.model.DailyExtreme
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -21,7 +22,7 @@ import java.time.ZoneId
 
 /**
  * Regression for the today-precip-drop bug: getDailyActualsWithLiveToday used to construct
- * today's DailyActual without any precip fields, so the daily-view rain label couldn't see
+ * today's DailyExtreme without any precip fields, so the daily-view rain label couldn't see
  * measured rain that was already in daily_extremes / observations. The fix is to compute
  * precip via the same resolveDailyPrecip helper the past-day persisted path uses.
  *
@@ -63,12 +64,12 @@ class ObservationRepositoryTodayPrecipTest {
 
     /**
      * Measured branch: when observations carry precipAmountMm (Open-Meteo / Tomorrow.io /
-     * Silurian pattern via their _MAIN pseudo-actuals), today's DailyActual must expose all
+     * Silurian pattern via their _MAIN pseudo-actuals), today's DailyExtreme must expose all
      * three precip values summed from those observations — and the measured precip must win
      * over forecast precip (we seed conflicting hourly forecasts to prove it).
      */
     @Test
-    fun `today live DailyActual carries measured precip total day and night`() = runTest {
+    fun `today live DailyExtreme carries measured precip total day and night`() = runTest {
         val sourceId = WeatherSource.OPEN_METEO.id
 
         val dayObs = TestData.observation(
@@ -102,7 +103,7 @@ class ObservationRepositoryTodayPrecipTest {
         )
 
         val todayActual = result[sourceId]?.get(today)
-        assertNotNull("Expected a DailyActual for today", todayActual)
+        assertNotNull("Expected a DailyExtreme for today", todayActual)
         assertEquals("Total precip = observation sum", 4.0f, todayActual!!.precipAmountMm!!, 0.01f)
         assertEquals("Day precip = 10AM observation", 1.0f, todayActual.precipDayMm!!, 0.01f)
         assertEquals("Night precip = 22:00 observation", 3.0f, todayActual.precipNightMm!!, 0.01f)
@@ -110,12 +111,12 @@ class ObservationRepositoryTodayPrecipTest {
 
     /**
      * Forecast-fallback branch (NWS hybrid): when observations have null precip,
-     * today's DailyActual falls back to summing the source's hourly_forecasts precip over
+     * today's DailyExtreme falls back to summing the source's hourly_forecasts precip over
      * the day/night windows. Before the fix, this value was dropped on the floor and the
      * today daily-view rain label could only fall back to forecast probability.
      */
     @Test
-    fun `today live DailyActual falls back to forecast precip when observations have null precip`() = runTest {
+    fun `today live DailyExtreme falls back to forecast precip when observations have null precip`() = runTest {
         val sourceId = WeatherSource.NWS.id
 
         // Two NWS station readings, both with null precip (the real NWS pattern).
@@ -148,7 +149,7 @@ class ObservationRepositoryTodayPrecipTest {
         )
 
         val todayActual = result[sourceId]?.get(today)
-        assertNotNull("Expected a DailyActual for today", todayActual)
+        assertNotNull("Expected a DailyExtreme for today", todayActual)
         assertEquals("Total precip = forecast sum", 4.0f, todayActual!!.precipAmountMm!!, 0.01f)
         assertEquals("Day precip = 10AM forecast", 1.5f, todayActual.precipDayMm!!, 0.01f)
         assertEquals("Night precip = 22:00 forecast", 2.5f, todayActual.precipNightMm!!, 0.01f)

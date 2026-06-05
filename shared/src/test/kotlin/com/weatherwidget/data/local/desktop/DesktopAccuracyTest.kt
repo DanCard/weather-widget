@@ -1,6 +1,8 @@
 package com.weatherwidget.data.local.desktop
 
-import com.weatherwidget.data.local.desktop.DailyExtremesComputer.MS_IN_A_DAY
+import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
 import org.junit.After
 import org.junit.Assert.*
@@ -9,6 +11,7 @@ import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 class DesktopAccuracyTest {
@@ -18,6 +21,7 @@ class DesktopAccuracyTest {
 
     private val lat = 40.0
     private val lon = -75.0
+    private val MS_IN_A_DAY = 86_400_000L
 
     @Before
     fun setUp() {
@@ -32,20 +36,28 @@ class DesktopAccuracyTest {
         Files.deleteIfExists(tempDbPath)
     }
 
-    // --- DailyExtremesComputer -------------------------------------------------
+    // --- ActualsAggregator (Unified Logic) -------------------------------------
 
     @Test
     fun `computes daily high low and day-night precip from observations`() {
         val day = LocalDate.of(2026, 3, 15)
-        fun atUtc(hour: Int) = day.atTime(hour, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+        fun atUtc(hour: Int) = day.atTime(hour, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli()
 
         val obs = listOf(
-            obsAt(atUtc(3), temp = 50f, condition = "Clear", precip = 0.5f),   // night
+            obsAt(atUtc(3), temp = 50f, condition = "Sunny", precip = 0.5f),   // night
             obsAt(atUtc(9), temp = 60f, condition = "Cloudy", precip = 1.0f),  // day
             obsAt(atUtc(15), temp = 70f, condition = "Sunny", precip = 2.0f),  // day (warmest)
         )
 
-        val extremes = DailyExtremesComputer.compute(obs, zone = ZoneOffset.UTC, updatedAt = 123L)
+        // Note: ActualsAggregator uses IDW blending. With only one station, it returns the station temp.
+        val extremes = ActualsAggregator.aggregate(
+            observations = obs.map { it.toReading() },
+            hourlyForecasts = emptyList(),
+            locationLat = lat,
+            locationLon = lon,
+            zoneId = ZoneOffset.UTC,
+            updatedAtMs = 123L
+        )
 
         assertEquals(1, extremes.size)
         val e = extremes.first()
@@ -65,10 +77,17 @@ class DesktopAccuracyTest {
         val d1 = LocalDate.of(2026, 3, 15)
         val d2 = LocalDate.of(2026, 3, 16)
         val obs = listOf(
-            obsAt(d1.atTime(12, 0).toInstant(ZoneOffset.UTC).toEpochMilli(), 65f),
-            obsAt(d2.atTime(12, 0).toInstant(ZoneOffset.UTC).toEpochMilli(), 80f),
+            obsAt(d1.atTime(12, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(), 65f),
+            obsAt(d2.atTime(12, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(), 80f),
         )
-        val extremes = DailyExtremesComputer.compute(obs, zone = ZoneOffset.UTC).sortedBy { it.date }
+        val extremes = ActualsAggregator.aggregate(
+            observations = obs.map { it.toReading() },
+            hourlyForecasts = emptyList(),
+            locationLat = lat,
+            locationLon = lon,
+            zoneId = ZoneOffset.UTC
+        ).sortedBy { it.date }
+        
         assertEquals(2, extremes.size)
         assertEquals(65f, extremes[0].highTemp)
         assertEquals(80f, extremes[1].highTemp)
@@ -78,8 +97,6 @@ class DesktopAccuracyTest {
 
     @Test
     fun `accuracy stats reflect seeded forecast-vs-actual pairs`() {
-        // Three past target days. forecastDate = targetDate - 1 (a true 1-day-ahead snapshot).
-        // Errors (actual - forecast): high {+3, -1, 0}, low {+1, -1, +2}.
         val today = LocalDate.now()
         val pairs = listOf(
             Triple(today.minusDays(2), Pair(73f, 51f) /*actual h,l*/, Pair(70f, 50f) /*forecast h,l*/),
@@ -97,15 +114,12 @@ class DesktopAccuracyTest {
 
         val stats = calc.calculateAccuracy("NWS", lat, lon, days = 30)!!
         assertEquals(3, stats.totalForecasts)
-        // avg |high err| = (3+1+0)/3 = 1.333; avg |low err| = (1+1+2)/3 = 1.333
         assertEquals(1.333, stats.avgHighError, 0.01)
         assertEquals(1.333, stats.avgLowError, 0.01)
-        // high bias = (3-1+0)/3 = 0.667 (forecast ran low on highs); low bias = (1-1+2)/3 = 0.667
         assertEquals(0.667, stats.highBias, 0.01)
         assertEquals(0.667, stats.lowBias, 0.01)
-        assertEquals(3, stats.maxError) // worst single error magnitude
-        assertEquals(100.0, stats.percentWithin3Degrees, 0.01) // all within ±3
-        // avgError ~1.333 is in the "excellent" band: 5.0 - (1.333 - 1.0) * 0.5 = 4.833
+        assertEquals(3, stats.maxError)
+        assertEquals(100.0, stats.percentWithin3Degrees, 0.01)
         assertEquals(4.833, stats.accuracyScore, 0.01)
     }
 
@@ -113,7 +127,6 @@ class DesktopAccuracyTest {
     fun `accuracy ignores days missing a matching 1-day-ahead forecast`() {
         val target = LocalDate.now().minusDays(2)
         insertExtreme(target, 75f, 55f)
-        // Forecast made the SAME day (0-day-ahead), not the day before -> must be ignored.
         insertForecast(target = target, forecastMade = target, high = 70f, low = 50f)
 
         val calc = DesktopAccuracyCalculator(dao)
@@ -140,7 +153,7 @@ class DesktopAccuracyTest {
         DesktopObservationEntity(
             stationId = "KTST",
             stationName = "Test Station",
-            timestamp = timestamp + (stationSeq++), // keep PK (stationId,timestamp) unique within a test
+            timestamp = timestamp + (stationSeq++),
             temperature = temp,
             condition = condition,
             locationLat = lat,
@@ -151,7 +164,7 @@ class DesktopAccuracyTest {
 
     private fun insertExtreme(target: LocalDate, high: Float, low: Float) {
         dao.upsertDailyExtremes(listOf(
-            DesktopDailyExtremeEntity(
+            DailyExtreme(
                 date = target.toEpochDay() * MS_IN_A_DAY,
                 source = "NWS",
                 locationLat = lat,
@@ -164,7 +177,6 @@ class DesktopAccuracyTest {
         ))
     }
 
-    /** Raw insert so we control forecastDate precisely (the DAO's upsert forces forecastDate=today). */
     private fun insertForecast(target: LocalDate, forecastMade: LocalDate, high: Float, low: Float) {
         db.getConnection().use { conn ->
             val sql = """
