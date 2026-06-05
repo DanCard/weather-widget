@@ -209,7 +209,7 @@ private fun runApp() = application {
 
         // Background fetch logic with persistence
         LaunchedEffect(repository) {
-            println("LaunchedEffect(repository) started. Repository null? ${repository == null}")
+            Log.i(TAG, "LaunchedEffect(repository) started. Repository null? ${repository == null}")
             val repo = repository ?: return@LaunchedEffect
 
             try {
@@ -221,7 +221,7 @@ private fun runApp() = application {
                     forecast = cached
                     val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
                     dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
-                    println("DataStatus updated to Live (cached). lastFetch: $lastFetch")
+                    Log.i(TAG, "DataStatus updated to Live (cached). lastFetch: $lastFetch")
                 }
 
                 // 2. Launch network refresh: missing forecast data needs a full fetch; stale current
@@ -236,7 +236,7 @@ private fun runApp() = application {
                     nowMs = now,
                 )
 
-                println("Launch refresh action: $launchRefreshAction. lastForecastFetch: $lastForecastFetch lastObservationFetch: $lastObservationFetch")
+                Log.i(TAG, "Launch refresh action: $launchRefreshAction. lastForecastFetch: $lastForecastFetch lastObservationFetch: $lastObservationFetch")
                 
                 weatherDao.log(
                     tag = "LAUNCH_REFRESH_CHECK",
@@ -262,10 +262,10 @@ private fun runApp() = application {
                         dataStatus = DataStatus.Live(System.currentTimeMillis())
                         Log.i("Main", "Launch refresh successful. DataStatus updated to Live.")
                     } catch (e: kotlinx.coroutines.CancellationException) {
-                        println("Refresh cancelled.")
+                        Log.i(TAG, "Refresh cancelled.")
                         throw e
                     } catch (e: Exception) {
-                        println("Refresh failed: ${e.message}")
+                        Log.e(TAG, "Refresh failed: ${e.message}")
                         e.printStackTrace()
                         val isOffline = isOfflineException(e)
                         val reason = if (isOffline) "offline" else "source_error"
@@ -277,12 +277,12 @@ private fun runApp() = application {
                             refreshFailed = true,
                             failureIsOffline = isOffline,
                         )
-                        println("DataStatus updated to: $dataStatus")
+                        Log.i(TAG, "DataStatus updated to: $dataStatus")
                     }
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                println("Initialization failure: ${e.message}")
+                Log.e(TAG, "Initialization failure: ${e.message}")
                 e.printStackTrace()
                 dataStatus = DataStatus.Error("Initialization failed: ${e.message}")
                 return@LaunchedEffect
@@ -305,26 +305,36 @@ private fun runApp() = application {
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        println("Current-temp UI update failed: ${e.message}")
+                        Log.e(TAG, "Current-temp UI update failed: ${e.message}")
                     }
                 }
             }
 
-            // 3b. Temp actuals (observations) fetch loop: active weather source every 10 minutes
+            // 3b. Temp actuals (observations) fetch loop: dynamic battery-aware interval.
             launch {
                 while (true) {
-                    kotlinx.coroutines.delay(ACTUALS_REFRESH_INTERVAL_MS)
+                    val (isCharging, level) = PowerDetector.getPowerState()
+                    val delayMs = DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging, level)
+
+                    if (delayMs == null) {
+                        Log.i(TAG, "Observation loop: background fetch suspended due to low battery ($level%). Re-checking in 5 min.")
+                        kotlinx.coroutines.delay(SUSPEND_RECHECK_INTERVAL_MS)
+                        continue
+                    }
+
+                    kotlinx.coroutines.delay(delayMs)
+
                     try {
-                        println("Temp actuals loop refresh starting for ${currentConfig?.weatherSource}...")
+                        Log.i(TAG, "Temp actuals loop refresh starting for ${currentConfig?.weatherSource} (charging=$isCharging, level=$level%)...")
                         val result = repo.refreshObservations()
                         forecast = result
                         dataStatus = DataStatus.Live(weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource) ?: System.currentTimeMillis())
-                        println("Temp actuals loop refresh successful.")
+                        Log.i(TAG, "Temp actuals loop refresh successful.")
                     } catch (e: kotlinx.coroutines.CancellationException) {
-                        println("Temp actuals loop refresh cancelled.")
+                        Log.i(TAG, "Temp actuals loop refresh cancelled.")
                         throw e
                     } catch (e: Exception) {
-                        println("Temp actuals loop refresh failed: ${e.message}")
+                        Log.i(TAG, "Temp actuals loop refresh failed: ${e.message}")
                         val isOffline = isOfflineException(e)
                         val reason = if (isOffline) "offline" else "source_error"
                         weatherDao.log("REFRESH_FAIL", "temp actuals: $reason ${e.message}", "WARN")
@@ -339,22 +349,32 @@ private fun runApp() = application {
                 }
             }
 
-            // 3c. Forecast fetch loop: active source every 60m, non-active sources every 120m
+            // 3c. Forecast fetch loop: dynamic battery-aware interval for active and non-active sources.
             while (true) {
-                kotlinx.coroutines.delay(ACTIVE_FORECAST_REFRESH_INTERVAL_MS)
+                val (isCharging, level) = PowerDetector.getPowerState()
+                val delayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging, level, isActiveSource = true)
+
+                if (delayMs == null) {
+                    Log.i(TAG, "Forecast loop: background fetch suspended due to low battery ($level%). Re-checking in 5 min.")
+                    kotlinx.coroutines.delay(SUSPEND_RECHECK_INTERVAL_MS)
+                    continue
+                }
+
+                kotlinx.coroutines.delay(delayMs)
+
                 val activeSource = currentConfig?.weatherSource ?: "NWS"
                 val allVisible = currentConfig?.visibleSources ?: listOf(activeSource)
                 
                 try {
-                    println("Loop forecast refresh starting for active source: $activeSource...")
+                    Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource (charging=$isCharging, level=$level%)...")
                     forecast = repo.refresh()
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
-                    println("Active source forecast refresh successful.")
+                    Log.i(TAG, "Active source forecast refresh successful.")
                 } catch (e: kotlinx.coroutines.CancellationException) {
-                    println("Loop refresh cancelled.")
+                    Log.i(TAG, "Loop refresh cancelled.")
                     throw e
                 } catch (e: Exception) {
-                    println("Active source forecast refresh failed: ${e.message}")
+                    Log.i(TAG, "Active source forecast refresh failed: ${e.message}")
                     val isOffline = isOfflineException(e)
                     val reason = if (isOffline) "offline" else "source_error"
                     weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
@@ -367,16 +387,19 @@ private fun runApp() = application {
                     )
                 }
 
-                // Slower forecast fetch for other APIs (every 120 minutes)
+                // Slower forecast fetch for other APIs (interval also scales with battery)
                 val nonActiveSources = allVisible.filter { it != activeSource }
                 for (otherSource in nonActiveSources) {
                     try {
                         val lastOtherFetch = weatherDao.getLastSuccessfulFetch(otherSource)
+                        val otherDelayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging, level, isActiveSource = false)
+                            ?: continue // Should not happen if primary delay was non-null, but safe.
+
                         val isDue = lastOtherFetch == null || 
-                            (System.currentTimeMillis() - lastOtherFetch) >= NON_ACTIVE_FORECAST_REFRESH_INTERVAL_MS
+                            (System.currentTimeMillis() - lastOtherFetch) >= otherDelayMs
                         
                         if (isDue) {
-                            println("Refreshing forecast for non-active source: $otherSource...")
+                            Log.i(TAG, "Refreshing forecast for non-active source: $otherSource...")
                             val otherService = DesktopWeatherService(
                                 currentConfig?.lat ?: DesktopWeatherService.FALLBACK_LATITUDE,
                                 currentConfig?.lon ?: DesktopWeatherService.FALLBACK_LONGITUDE,
@@ -392,12 +415,12 @@ private fun runApp() = application {
                                 otherSource
                             )
                             otherRepo.refresh()
-                            println("Non-active source $otherSource forecast refresh successful.")
+                            Log.i(TAG, "Non-active source $otherSource forecast refresh successful.")
                         }
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        println("Non-active source $otherSource forecast refresh failed: ${e.message}")
+                        Log.i(TAG, "Non-active source $otherSource forecast refresh failed: ${e.message}")
                         val isOffline = isOfflineException(e)
                         val reason = if (isOffline) "offline" else "source_error"
                         weatherDao.log("REFRESH_FAIL", "forecast other $otherSource: $reason ${e.message}", "WARN")
@@ -463,16 +486,16 @@ private fun runApp() = application {
                                 when {
                                     name == ".show" -> requestShowPopup()
                                     name == QUIT_TRIGGER -> {
-                                        println("Script or manual quit trigger detected. Exiting.")
+                                        Log.i(TAG, "Script or manual quit trigger detected. Exiting.")
                                         SwingUtilities.invokeLater { quit() }
                                     }
                                     name.startsWith(QUIT_PREFIX) -> {
                                         val suffix = name.substring(QUIT_PREFIX.length)
                                         if (suffix != appLaunchId) {
-                                            println("Newer instance detected (launchId=$suffix, mine=$appLaunchId). Exiting.")
+                                            Log.i(TAG, "Newer instance detected (launchId=$suffix, mine=$appLaunchId). Exiting.")
                                             SwingUtilities.invokeLater { quit() }
                                         } else {
-                                            println("Ignored quit trigger (launchId=$suffix, mine=$appLaunchId).")
+                                            Log.i(TAG, "Ignored quit trigger (launchId=$suffix, mine=$appLaunchId).")
                                         }
                                     }
                                 }
@@ -1250,13 +1273,8 @@ private const val DEFAULT_REFRESH_DELAY_MS = 15 * 60 * 1000L
 /** Cheap, network-free re-interpolation of the displayed current temp. */
 private const val CURRENT_TEMP_UI_INTERVAL_MS = 2 * 60 * 1000L
 
-/** Network refresh intervals matching Android (plugged in, charging, screen interactive): */
-/** Temp actuals (observations) for the active weather source: 10 minutes */
-private const val ACTUALS_REFRESH_INTERVAL_MS = 10 * 60 * 1000L
-/** Full forecast for the active weather source: 60 minutes */
-private const val ACTIVE_FORECAST_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
-/** Full forecast for non-active weather sources: 120 minutes */
-private const val NON_ACTIVE_FORECAST_REFRESH_INTERVAL_MS = 120 * 60 * 1000L
+/** How often to re-check the power state when fetching is suspended due to low battery. */
+private const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 
 internal enum class LaunchRefreshAction {
     FULL_FORECAST,
