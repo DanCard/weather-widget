@@ -115,10 +115,11 @@ compose.desktop {
     }
 }
 
-tasks.register<JavaExec>("runDaemonSpike") {
+tasks.register<JavaExec>("runDaemon") {
     group = "application"
-    description = "Runs the headless daemon spike."
-    mainClass.set("com.weatherwidget.desktop.DaemonSpikeKt")
+    description = "Runs the headless daemon."
+    mainClass.set("com.weatherwidget.desktop.MainKt")
+    args("--daemon")
     val sourceSets = project.extensions.getByType<org.gradle.api.plugins.JavaPluginExtension>().sourceSets
     classpath = sourceSets.getByName("main").runtimeClasspath
     jvmArgs(
@@ -128,7 +129,26 @@ tasks.register<JavaExec>("runDaemonSpike") {
         "-XX:+UnlockDiagnosticVMOptions",
         "-XX:GuaranteedSafepointInterval=0",
         "-XX:GuaranteedAsyncDeflationInterval=0",
+        "-XX:AsyncDeflationInterval=0",
+        "-XX:TieredStopAtLevel=1"
+    )
+}
+
+tasks.register<JavaExec>("runUi") {
+    group = "application"
+    description = "Runs the UI process."
+    mainClass.set("com.weatherwidget.desktop.MainKt")
+    args("--ui")
+    val sourceSets = project.extensions.getByType<org.gradle.api.plugins.JavaPluginExtension>().sourceSets
+    classpath = sourceSets.getByName("main").runtimeClasspath
+    jvmArgs(
+        "-XX:+UseSerialGC",
+        "-XX:-UsePerfData",
+        "-XX:+UnlockDiagnosticVMOptions",
+        "-XX:GuaranteedSafepointInterval=0",
+        "-XX:GuaranteedAsyncDeflationInterval=0",
         "-XX:AsyncDeflationInterval=0"
     )
 }
+
 

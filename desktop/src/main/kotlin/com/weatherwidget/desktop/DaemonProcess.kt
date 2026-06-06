@@ -8,117 +8,66 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.shared.util.Log
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.nio.file.StandardWatchEventKinds
 import kotlin.system.exitProcess
 
-private const val TAG = "DaemonSpike"
+private const val TAG = "DaemonProcess"
 
-private const val QUIT_TRIGGER = ".quit"
-private const val QUIT_PREFIX = ".quit-"
-
-private val appLaunchId = java.util.UUID.randomUUID().toString()
-
-private fun appDataDir(): Path = DesktopDbPaths.defaultDbPath().parent
-
-private fun signalIncumbentToQuit(dir: Path, launchId: String) {
-    Files.createDirectories(dir)
-    if (Files.exists(dir)) {
-        Files.list(dir).use { paths ->
-            paths.forEach { path ->
-                val name = path.fileName.toString()
-                if (name == QUIT_TRIGGER || name.startsWith(QUIT_PREFIX)) {
-                    runCatching { Files.deleteIfExists(path) }
-                }
-            }
-        }
-    }
-    val trigger = dir.resolve("$QUIT_PREFIX$launchId")
-    Files.writeString(
-        trigger,
-        "",
-        java.nio.charset.StandardCharsets.UTF_8
-    )
-}
-
-private class SpikeDesktopClients {
-    val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
-
-    val httpClient = HttpClient(CIO) {
-        install(ContentNegotiation) { json(json) }
-        install(HttpTimeout) {
-            requestTimeoutMillis = 30_000
-            connectTimeoutMillis = 10_000
-            socketTimeoutMillis = 30_000
-        }
-    }
-
-    fun close() {
-        httpClient.close()
-    }
-}
-
-private const val CURRENT_TEMP_UI_INTERVAL_MS = 2 * 60 * 1000L
-private const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
-
-fun main() {
+fun runDaemon() {
     // As the very first statement: java.awt.headless = true
     System.setProperty("java.awt.headless", "true")
 
     // Set thread name to WeatherDaemon
     Thread.currentThread().name = "WeatherDaemon"
 
-    Log.i(TAG, "Starting headless WeatherDaemon spike...")
+    Log.i(TAG, "Starting headless WeatherDaemon...")
     Log.i(TAG, "Java: ${System.getProperty("java.version")} (${System.getProperty("java.vendor")}) @ ${System.getProperty("java.home")}")
 
     val appDir = appDataDir()
     runCatching { signalIncumbentToQuit(appDir, appLaunchId) }
 
     val configStore = DesktopConfigStore()
-    val config = configStore.load()
-    if (config == null) {
-        Log.e(TAG, "No configuration found! Run the main UI app first to configure location.")
-        exitProcess(1)
-    }
-
-    Log.i(TAG, "Loaded config: lat=${config.lat}, lon=${config.lon}, source=${config.weatherSource}")
+    var currentConfig = configStore.load()
 
     // Persistence layer
     val weatherDb = DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() }
     val weatherDao = DesktopWeatherDao(weatherDb)
-
-    val desktopClients = SpikeDesktopClients()
-
-    val weatherService = DesktopWeatherService(config.lat, config.lon, config.weatherSource, config.apiKeys, weatherDao)
-    val repo = DesktopWeatherRepository(weatherService, weatherDao, config.lat, config.lon, config.weatherSource)
 
     // IPC server
     val ipcServer = PanelIpcServer(appDir).apply { start() }
 
     val forecastState = MutableStateFlow<ForecastResult?>(null)
     val dataStatusState = MutableStateFlow<DataStatus>(DataStatus.Loading)
+    val configState = MutableStateFlow<DesktopConfig?>(currentConfig)
 
-    fun quit() {
-        Log.i(TAG, "Quitting daemon spike...")
+    var uiProcess: Process? = null
+
+    val daemonScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    var fetchJob: Job? = null
+    var weatherService: DesktopWeatherService? = null
+    var repo: DesktopWeatherRepository? = null
+
+    fun quit(killUi: Boolean = true) {
+        Log.i(TAG, "Quitting daemon (killUi=$killUi)...")
+        // Kill UI process if running
+        if (killUi) {
+            uiProcess?.destroy()
+        }
+        daemonScope.cancel()
+
         kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
             Thread.sleep(400)
             exitProcess(0)
         }
-        desktopClients.close()
+
+        runCatching { weatherService?.close() }
         runCatching {
             val myQuitFile = appDir.resolve("$QUIT_PREFIX$appLaunchId")
             Files.deleteIfExists(myQuitFile)
@@ -126,20 +75,29 @@ fun main() {
         exitProcess(0)
     }
 
-    runBlocking {
-        // Sync the state flows with IPC server updates
-        launch {
-            combine(forecastState, dataStatusState) { forecast, dataStatus ->
-                ipcServer.update(forecast, dataStatus, config)
-            }.collect {}
-        }
+    // Sync the state flows with IPC server updates
+    daemonScope.launch {
+        combine(forecastState, dataStatusState, configState) { forecast, dataStatus, config ->
+            ipcServer.update(forecast, dataStatus, config)
+        }.collect {}
+    }
 
-        coroutineScope {
+    fun startFetchLoops() {
+        fetchJob?.cancel()
+        runCatching { weatherService?.close() }
+
+        val config = currentConfig ?: return
+        val svc = DesktopWeatherService(config.lat, config.lon, config.weatherSource, config.apiKeys, weatherDao)
+        weatherService = svc
+        val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.weatherSource)
+        repo = newRepo
+
+        fetchJob = daemonScope.launch {
             // 1. Startup refresh
             launch {
                 try {
                     Log.i(TAG, "Loading cached data...")
-                    val cached = repo.loadCached()
+                    val cached = newRepo.loadCached()
                     Log.i(TAG, "Cached data loaded. Null? ${cached == null}")
                     if (cached != null) {
                         forecastState.value = cached
@@ -172,11 +130,11 @@ fun main() {
                             val result = when (launchRefreshAction) {
                                 LaunchRefreshAction.FULL_FORECAST -> {
                                     Log.i(TAG, "Refreshing full forecast from network...")
-                                    repo.refresh()
+                                    newRepo.refresh()
                                 }
                                 LaunchRefreshAction.OBSERVATIONS -> {
                                     Log.i(TAG, "Refreshing current observations from network...")
-                                    repo.refreshObservations()
+                                    newRepo.refreshObservations()
                                 }
                                 LaunchRefreshAction.NONE -> forecastState.value
                             }
@@ -215,7 +173,7 @@ fun main() {
                 while (true) {
                     delay(CURRENT_TEMP_UI_INTERVAL_MS)
                     try {
-                        repo.loadCached()?.let { forecastState.value = it }
+                        newRepo.loadCached()?.let { forecastState.value = it }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -240,7 +198,7 @@ fun main() {
 
                     try {
                         Log.i(TAG, "Temp actuals loop refresh starting for ${config.weatherSource} (charging=$isCharging, level=$level%)...")
-                        val result = repo.refreshObservations()
+                        val result = newRepo.refreshObservations()
                         forecastState.value = result
                         dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.weatherSource) ?: System.currentTimeMillis())
                         Log.i(TAG, "Temp actuals loop refresh successful.")
@@ -282,7 +240,7 @@ fun main() {
 
                     try {
                         Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource (charging=$isCharging, level=$level%)...")
-                        val result = repo.refresh()
+                        val result = newRepo.refresh()
                         forecastState.value = result
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                         Log.i(TAG, "Active source forecast refresh successful.")
@@ -331,6 +289,7 @@ fun main() {
                                     otherSource
                                 )
                                 otherRepo.refresh()
+                                otherService.close()
                                 Log.i(TAG, "Non-active source $otherSource forecast refresh successful.")
                             }
                         } catch (e: CancellationException) {
@@ -344,64 +303,114 @@ fun main() {
                     }
                 }
             }
+        }
+    }
 
-            // WatchService loop
-            launch(Dispatchers.IO) {
-                // Clean up any old .quit files (except our own signature file)
-                if (Files.exists(appDir)) {
-                    Files.list(appDir).use { paths ->
-                        paths.forEach { path ->
-                            val name = path.fileName.toString()
-                            if (name == QUIT_TRIGGER || (name.startsWith(QUIT_PREFIX) && name != "$QUIT_PREFIX$appLaunchId")) {
-                                runCatching { Files.deleteIfExists(path) }
-                            }
-                        }
+    if (currentConfig != null) {
+        startFetchLoops()
+    } else {
+        ipcServer.update(null, DataStatus.Loading, null)
+    }
+
+    // WatchService loop
+    daemonScope.launch(Dispatchers.IO) {
+        // Clean up any old .quit files (except our own signature file)
+        if (Files.exists(appDir)) {
+            Files.list(appDir).use { paths ->
+                paths.forEach { path ->
+                    val name = path.fileName.toString()
+                    if (name == QUIT_TRIGGER || (name.startsWith(QUIT_PREFIX) && name != "$QUIT_PREFIX$appLaunchId")) {
+                        runCatching { Files.deleteIfExists(path) }
                     }
                 }
-                val watchService = FileSystems.getDefault().newWatchService()
-                appDir.register(
-                    watchService,
-                    StandardWatchEventKinds.ENTRY_CREATE,
-                    StandardWatchEventKinds.ENTRY_MODIFY
-                )
+            }
+        }
+        val watchService = FileSystems.getDefault().newWatchService()
+        appDir.register(
+            watchService,
+            StandardWatchEventKinds.ENTRY_CREATE,
+            StandardWatchEventKinds.ENTRY_MODIFY
+        )
 
-                try {
-                    while (true) {
-                        val key = watchService.take()
-                        for (event in key.pollEvents()) {
-                            val name = (event.context() as? Path)?.toString()
-                            if (name != null) {
-                                when {
-                                    name == ".show" -> {
-                                        Log.i(TAG, "WatchService: .show trigger detected. Would spawn UI.")
-                                        // Optional delete of .show so it doesn't linger
-                                        runCatching { Files.deleteIfExists(appDir.resolve(".show")) }
+        try {
+            while (true) {
+                val key = watchService.take()
+                for (event in key.pollEvents()) {
+                    val name = (event.context() as? Path)?.toString()
+                    if (name != null) {
+                        when (name) {
+                            SHOW_TRIGGER -> {
+                                Log.i(TAG, "WatchService: .show trigger detected.")
+                                runCatching { Files.deleteIfExists(appDir.resolve(SHOW_TRIGGER)) }
+                                if (uiProcess?.isAlive == true) {
+                                    Log.i(TAG, "UI process is already alive. Bumping UI via .ui-show...")
+                                    val uiShowFile = appDir.resolve(UI_SHOW_TRIGGER)
+                                    runCatching {
+                                        Files.writeString(uiShowFile, "", java.nio.charset.StandardCharsets.UTF_8)
                                     }
-                                    name == QUIT_TRIGGER -> {
-                                        Log.i(TAG, "Script or manual quit trigger detected. Exiting.")
-                                        quit()
+                                } else {
+                                    Log.i(TAG, "UI process is not alive. Spawning a new UI process...")
+                                    uiProcess = runCatching { launchUiProcess() }.getOrElse { e ->
+                                        Log.e(TAG, "Failed to launch UI process: ${e.message}", e)
+                                        null
                                     }
-                                    name.startsWith(QUIT_PREFIX) -> {
-                                        val suffix = name.substring(QUIT_PREFIX.length)
-                                        if (suffix != appLaunchId) {
-                                            Log.i(TAG, "Newer instance detected (launchId=$suffix, mine=$appLaunchId). Exiting.")
-                                            quit()
-                                        } else {
-                                            Log.i(TAG, "Ignored quit trigger (launchId=$suffix, mine=$appLaunchId).")
-                                        }
+                                }
+                            }
+                            CONFIG_CHANGED_TRIGGER -> {
+                                Log.i(TAG, "WatchService: .config-changed trigger detected. Reloading config...")
+                                runCatching { Files.deleteIfExists(appDir.resolve(CONFIG_CHANGED_TRIGGER)) }
+                                val newConfig = configStore.load()
+                                if (newConfig == null) {
+                                    Log.w(TAG, "Config loaded was null. Stopping loops.")
+                                    fetchJob?.cancel()
+                                    currentConfig = null
+                                    configState.value = null
+                                    forecastState.value = null
+                                } else {
+                                    val localConfig = currentConfig
+                                    val locationOrSourceChanged = localConfig == null ||
+                                            newConfig.lat != localConfig.lat ||
+                                            newConfig.lon != localConfig.lon ||
+                                            newConfig.weatherSource != localConfig.weatherSource ||
+                                            newConfig.visibleSources != localConfig.visibleSources
+                                    
+                                    currentConfig = newConfig
+                                    configState.value = newConfig
+                                    
+                                    if (locationOrSourceChanged) {
+                                        Log.i(TAG, "Location/source changed. Restarting fetch loops...")
+                                        startFetchLoops()
+                                    } else {
+                                        Log.i(TAG, "Config changed but location/source are identical. Ignoring loop restart.")
+                                    }
+                                }
+                            }
+                            QUIT_TRIGGER -> {
+                                Log.i(TAG, "Script or manual quit trigger detected. Exiting.")
+                                quit()
+                            }
+                            else -> {
+                                if (name.startsWith(QUIT_PREFIX)) {
+                                    val suffix = name.substring(QUIT_PREFIX.length)
+                                    if (suffix != appLaunchId) {
+                                        Log.i(TAG, "Newer instance detected (launchId=$suffix, mine=$appLaunchId). Exiting.")
+                                        quit(killUi = false)
+                                    } else {
+                                        Log.i(TAG, "Ignored quit trigger (launchId=$suffix, mine=$appLaunchId).")
                                     }
                                 }
                             }
                         }
-                        if (!key.reset()) break
                     }
-                } finally {
-                    watchService.close()
                 }
+                if (!key.reset()) break
             }
-
-            // Await cancellation to keep the blocking scope alive
-            awaitCancellation()
+        } finally {
+            watchService.close()
         }
+    }
+
+    runBlocking {
+        awaitCancellation()
     }
 }

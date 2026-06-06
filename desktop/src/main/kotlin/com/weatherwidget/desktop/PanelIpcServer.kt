@@ -51,7 +51,7 @@ class PanelIpcServer(private val appDataDir: Path) {
         }
     }
 
-    fun update(forecast: ForecastResult?, dataStatus: DataStatus, config: DesktopConfig) {
+    fun update(forecast: ForecastResult?, dataStatus: DataStatus, config: DesktopConfig?) {
         val temp = forecast?.currentTemp
         val body = if (temp != null) String.format(Locale.US, "%.1f°", temp) else "--"
         
@@ -66,7 +66,7 @@ class PanelIpcServer(private val appDataDir: Path) {
             } else {
                 "interpolated"
             }
-        } else "no data"
+        } else if (config == null) "not configured" else "no data"
         
         val ageStr = when (dataStatus) {
             is DataStatus.Live -> "just now"
@@ -77,7 +77,7 @@ class PanelIpcServer(private val appDataDir: Path) {
         val tooltip = "Weather Widget — $detail $ageStr"
         val showTrigger = appDataDir.resolve(".show").toAbsolutePath().toString()
         val clickCmd = "touch $showTrigger"
-
+        
         val markup = """
             <txt><span font='Sans Bold 20' foreground='$color' line_height='0.6'>$body</span></txt>
             <tool>$tooltip</tool>

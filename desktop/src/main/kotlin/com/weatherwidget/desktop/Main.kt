@@ -68,89 +68,24 @@ private const val HOURLY_NAV_JUMP = 6
 private const val MIN_HOURLY_OFFSET = -720
 private const val MAX_HOURLY_OFFSET = 720
 
-private fun appDataDir(): java.nio.file.Path = DesktopDbPaths.defaultDbPath().parent
-
-private fun isPackaged(): Boolean = System.getProperty("jpackage.app-path") != null
-
-private const val QUIT_TRIGGER = ".quit"
-private const val QUIT_PREFIX = ".quit-"
-
-/**
- * Best-effort, last-launch-wins single-instance handoff. Dorkbox SystemTray is a process-level
- * singleton, so two instances would fight over the tray (and double up on background fetches + DB
- * writers). Rather than the new launch giving up, it touches a [.quit-<launchId>] file that any
- * running instance's WatchService is watching, so the incumbent exits itself. This mirrors the
- * `.show` trigger and makes dev iteration painless — a fresh launch simply replaces whatever's
- * running.
- *
- * Fire-and-forget: we do NOT wait for the incumbent to exit (a brief tray/socket overlap is fine —
- * the new PanelIpcServer rebinds weather.sock anyway). Crucially this runs in main() *before* the
- * Compose composition registers this instance's own WatchService — inotify never replays a
- * pre-existing file, so the new instance never quits itself; only the already-watching incumbent
- * reacts.
- */
-private val appLaunchId = java.util.UUID.randomUUID().toString()
-
-private fun signalIncumbentToQuit(dir: java.nio.file.Path, launchId: String) {
-    java.nio.file.Files.createDirectories(dir)
-    if (java.nio.file.Files.exists(dir)) {
-        java.nio.file.Files.list(dir).use { paths ->
-            paths.forEach { path ->
-                val name = path.fileName.toString()
-                if (name == QUIT_TRIGGER || name.startsWith(QUIT_PREFIX)) {
-                    runCatching { java.nio.file.Files.deleteIfExists(path) }
-                }
-            }
-        }
-    }
-    val trigger = dir.resolve("$QUIT_PREFIX$launchId")
-    java.nio.file.Files.writeString(
-        trigger,
-        "",
-        java.nio.charset.StandardCharsets.UTF_8
-    )
-}
-
-/** Packaged-only first-run setup: extract the genmon script. */
-private fun maybePackagedSetup() {
-    if (!isPackaged()) return
-    runCatching { extractGenmonScript() }.onFailure { System.err.println("genmon extract failed: $it") }
-}
-
-/** Copies the bundled genmon script to a stable XDG path so the panel command survives repo removal. */
-private fun extractGenmonScript() {
-    val target = appDataDir().resolve("genmon-weather.py")
-    if (java.nio.file.Files.exists(target)) return
-    val stream = object {}.javaClass.getResourceAsStream("/scripts/genmon-weather.py") ?: return
-    java.nio.file.Files.createDirectories(target.parent)
-    stream.use { java.nio.file.Files.copy(it, target) }
-    target.toFile().setExecutable(true)
-}
-
 fun main(args: Array<String>) {
-    // On Linux, jpackage names the main JVM thread "MainThread" by default. Override to something
-    // descriptive for system monitors like 'top'.
-    Thread.currentThread().name = "WeatherWidget"
-
-    Log.i("Main", "Starting WeatherWidget...")
-    Log.i("Main", "Environment: DISPLAY=${System.getenv("DISPLAY")}, XAUTHORITY=${System.getenv("XAUTHORITY")}")
-    Log.i("Main", "Java: ${System.getProperty("java.version")} (${System.getProperty("java.vendor")}) @ ${System.getProperty("java.home")}")
-
+    val isUiMode = args.contains("--ui") || args.contains("ui") || args.contains("--show") || args.contains("show")
     if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
+        if (isUiMode) {
+            runApp()
+        }
         return
     }
-    // Minimized (popup hidden) is the default for a panel/tray app — the window shouldn't pop open
-    // on every launch/restart. Pass --show to open the popup on launch instead. (--minimized is
-    // still accepted as a harmless no-op for backward compatibility.)
-    if (args.contains("--show")) {
-        System.setProperty("weatherwidget.desktop.show", "true")
+    if (isUiMode) {
+        Thread.currentThread().name = "WeatherUI"
+        Log.i("Main", "Starting WeatherUI process...")
+        if (args.contains("--show")) {
+            System.setProperty("weatherwidget.desktop.show", "true")
+        }
+        runApp()
+    } else {
+        runDaemon()
     }
-    if (args.contains("--no-tray")) {
-        System.setProperty("weatherwidget.desktop.noTray", "true")
-    }
-    runCatching { signalIncumbentToQuit(appDataDir(), appLaunchId) } // ask any running instance to exit (best-effort)
-    maybePackagedSetup()
-    runApp()
 }
 
 private fun runApp() = application {
@@ -160,21 +95,19 @@ private fun runApp() = application {
     }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
-            val startupSmoke = remember { System.getProperty("weatherwidget.desktop.startupSmoke") == "true" }
-            val configStore = remember { DesktopConfigStore() }
-            var config by remember { mutableStateOf(configStore.load()) }
+        val startupSmoke = remember { System.getProperty("weatherwidget.desktop.startupSmoke") == "true" }
+        val configStore = remember { DesktopConfigStore() }
+        var config by remember { mutableStateOf(configStore.load()) }
 
-            // Persistence layer
-            val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
-            val weatherDao = remember { DesktopWeatherDao(weatherDb) }
+        // Persistence layer
+        val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
+        val weatherDao = remember { DesktopWeatherDao(weatherDb) }
 
-        var popupVisible by remember { mutableStateOf(config != null && System.getProperty("weatherwidget.desktop.show") == "true") }
+        var popupVisible by remember { mutableStateOf(config != null) }
         // Edge-triggered show counter: a boolean can't re-fire an effect when it's already
         // true, so bump this on every show request to reliably raise an already-open window.
         var showRequestId by remember { mutableStateOf(0) }
-        LaunchedEffect(popupVisible) {
-            Log.i(TAG, "popupVisible changed to $popupVisible (show property = ${System.getProperty("weatherwidget.desktop.show")})")
-        }
+        
         LaunchedEffect(config) {
             Log.i(TAG, "config loaded: config != null is ${config != null}")
         }
@@ -196,12 +129,6 @@ private fun runApp() = application {
         var dataStatus by remember { mutableStateOf<DataStatus>(DataStatus.Loading) }
         val currentConfig = config
 
-        // IPC server for the XFCE panel plugin (genmon)
-        val ipcServer = remember { PanelIpcServer(appDataDir()).apply { start() } }
-        LaunchedEffect(forecast, dataStatus, currentConfig) {
-            currentConfig?.let { ipcServer.update(forecast, dataStatus, it) }
-        }
-
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.apiKeys) {
             currentConfig?.let {
                 DesktopWeatherService(it.lat, it.lon, it.weatherSource, it.apiKeys, weatherDao)
@@ -213,224 +140,55 @@ private fun runApp() = application {
             }
         }
 
-        // Background fetch logic with persistence
-        LaunchedEffect(repository) {
-            Log.i(TAG, "LaunchedEffect(repository) started. Repository null? ${repository == null}")
-            val repo = repository ?: return@LaunchedEffect
+        // Helper to save config and notify the daemon
+        val saveConfigAndNotify = remember {
+            { newConfig: DesktopConfig ->
+                configStore.save(newConfig)
+                config = newConfig
+                runCatching {
+                    val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
+                    java.nio.file.Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
+                }
+            }
+        }
 
+        // Exit on close logic:
+        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || observationsVisible
+        LaunchedEffect(anyWindowOpen) {
+            if (!anyWindowOpen) {
+                Log.i(TAG, "All windows closed. Ephemeral UI process exiting...")
+                kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
+                    Thread.sleep(400)
+                    kotlin.system.exitProcess(0)
+                }
+                desktopClients.close()
+                exitApplication()
+            }
+        }
+
+        // Load cached forecast data once and start the re-interpolation loop
+        LaunchedEffect(repository) {
+            val repo = repository ?: return@LaunchedEffect
             try {
-                // 1. Instant load from cache
-                Log.i("Main", "Loading cached data...")
+                Log.i(TAG, "Loading cached data...")
                 val cached = repo.loadCached()
-                Log.i("Main", "Cached data loaded. Null? ${cached == null}")
                 if (cached != null) {
                     forecast = cached
                     val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
                     dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
-                    Log.i(TAG, "DataStatus updated to Live (cached). lastFetch: $lastFetch")
-                }
-
-                // 2. Launch network refresh: missing forecast data needs a full fetch; stale current
-                // observations use the observations-only path so daily/hourly forecasts stay on the
-                // 60-minute cadence.
-                val now = System.currentTimeMillis()
-                val lastForecastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
-                val lastObservationFetch = weatherDao.getLastSuccessfulObservationFetch(currentConfig?.weatherSource)
-                val launchRefreshAction = determineLaunchRefreshAction(
-                    cachePresent = cached != null,
-                    lastObservationFetchMs = lastObservationFetch,
-                    nowMs = now,
-                )
-
-                Log.i(TAG, "Launch refresh action: $launchRefreshAction. lastForecastFetch: $lastForecastFetch lastObservationFetch: $lastObservationFetch")
-                
-                weatherDao.log(
-                    tag = "LAUNCH_REFRESH_CHECK",
-                    message = "source=${currentConfig?.weatherSource} cachePresent=${cached != null} action=$launchRefreshAction " +
-                        "lastForecastFetch=$lastForecastFetch forecastAgeMs=${lastForecastFetch?.let { now - it }} " +
-                        "lastObservationFetch=$lastObservationFetch observationAgeMs=${lastObservationFetch?.let { now - it }}",
-                    level = "INFO"
-                )
-
-                if (launchRefreshAction != LaunchRefreshAction.NONE) {
-                    try {
-                        forecast = when (launchRefreshAction) {
-                            LaunchRefreshAction.FULL_FORECAST -> {
-                                Log.i("Main", "Refreshing full forecast from network...")
-                                repo.refresh()
-                            }
-                            LaunchRefreshAction.OBSERVATIONS -> {
-                                Log.i("Main", "Refreshing current observations from network...")
-                                repo.refreshObservations()
-                            }
-                            LaunchRefreshAction.NONE -> forecast
-                        }
-                        dataStatus = DataStatus.Live(System.currentTimeMillis())
-                        Log.i("Main", "Launch refresh successful. DataStatus updated to Live.")
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        Log.i(TAG, "Refresh cancelled.")
-                        throw e
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Refresh failed: ${e.message}")
-                        e.printStackTrace()
-                        val isOffline = isOfflineException(e)
-                        val reason = if (isOffline) "offline" else "source_error"
-                        weatherDao.log("REFRESH_FAIL", "launch fetch: $reason ${e.message}", "WARN")
-                        val lastSuccess = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
-                        dataStatus = deriveDataStatus(
-                            cachePresent = forecast != null,
-                            lastFetchMs = lastSuccess,
-                            refreshFailed = true,
-                            failureIsOffline = isOffline,
-                        )
-                        Log.i(TAG, "DataStatus updated to: $dataStatus")
-                    }
                 }
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                Log.e(TAG, "Initialization failure: ${e.message}")
-                e.printStackTrace()
-                dataStatus = DataStatus.Error("Initialization failed: ${e.message}")
-                return@LaunchedEffect
+                Log.e(TAG, "Failed to load initial cache: ${e.message}")
             }
 
-            // Two-tier background updates (mirrors the Android design): a cheap UI-temp loop
-            // that never touches the network, and a battery-aware data-fetch loop. Previously
-            // these were collapsed into one loop that ran the full fetch every 2 min — ~15 HTTP
-            // calls + ~1,600 observation upserts + extremes recompute + cleanup, 720×/day — which
-            // is what showed up as steady background CPU in `top`.
-
-            // 3a. Current-temp UI loop: re-interpolate currentTemp from cached hourly data as the
-            //     wall clock advances. No network, no DB writes — this is the "wake every two
-            //     minutes just to update the temp" tier.
-            launch {
-                while (true) {
-                    kotlinx.coroutines.delay(CURRENT_TEMP_UI_INTERVAL_MS)
-                    try {
-                        repo.loadCached()?.let { forecast = it }
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Current-temp UI update failed: ${e.message}")
-                    }
-                }
-            }
-
-            // 3b. Temp actuals (observations) fetch loop: dynamic battery-aware interval.
-            launch {
-                while (true) {
-                    val (isCharging, level) = PowerDetector.getPowerState()
-                    val delayMs = DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging, level)
-
-                    if (delayMs == null) {
-                        Log.i(TAG, "Observation loop: background fetch suspended due to low battery ($level%). Re-checking in 5 min.")
-                        kotlinx.coroutines.delay(SUSPEND_RECHECK_INTERVAL_MS)
-                        continue
-                    }
-
-                    kotlinx.coroutines.delay(delayMs)
-
-                    try {
-                        Log.i(TAG, "Temp actuals loop refresh starting for ${currentConfig?.weatherSource} (charging=$isCharging, level=$level%)...")
-                        val result = repo.refreshObservations()
-                        forecast = result
-                        dataStatus = DataStatus.Live(weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource) ?: System.currentTimeMillis())
-                        Log.i(TAG, "Temp actuals loop refresh successful.")
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        Log.i(TAG, "Temp actuals loop refresh cancelled.")
-                        throw e
-                    } catch (e: Exception) {
-                        Log.i(TAG, "Temp actuals loop refresh failed: ${e.message}")
-                        val isOffline = isOfflineException(e)
-                        val reason = if (isOffline) "offline" else "source_error"
-                        weatherDao.log("REFRESH_FAIL", "temp actuals: $reason ${e.message}", "WARN")
-                        val lastSuccess = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
-                        dataStatus = deriveDataStatus(
-                            cachePresent = forecast != null,
-                            lastFetchMs = lastSuccess,
-                            refreshFailed = true,
-                            failureIsOffline = isOffline,
-                        )
-                    }
-                }
-            }
-
-            // 3c. Forecast fetch loop: dynamic battery-aware interval for active and non-active sources.
             while (true) {
-                val (isCharging, level) = PowerDetector.getPowerState()
-                val delayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging, level, isActiveSource = true)
-
-                if (delayMs == null) {
-                    Log.i(TAG, "Forecast loop: background fetch suspended due to low battery ($level%). Re-checking in 5 min.")
-                    kotlinx.coroutines.delay(SUSPEND_RECHECK_INTERVAL_MS)
-                    continue
-                }
-
-                kotlinx.coroutines.delay(delayMs)
-
-                val activeSource = currentConfig?.weatherSource ?: "NWS"
-                val allVisible = currentConfig?.visibleSources ?: listOf(activeSource)
-                
+                kotlinx.coroutines.delay(CURRENT_TEMP_UI_INTERVAL_MS)
                 try {
-                    Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource (charging=$isCharging, level=$level%)...")
-                    forecast = repo.refresh()
-                    dataStatus = DataStatus.Live(System.currentTimeMillis())
-                    Log.i(TAG, "Active source forecast refresh successful.")
+                    repo.loadCached()?.let { forecast = it }
                 } catch (e: kotlinx.coroutines.CancellationException) {
-                    Log.i(TAG, "Loop refresh cancelled.")
                     throw e
                 } catch (e: Exception) {
-                    Log.i(TAG, "Active source forecast refresh failed: ${e.message}")
-                    val isOffline = isOfflineException(e)
-                    val reason = if (isOffline) "offline" else "source_error"
-                    weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
-                    val lastSuccess = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
-                    dataStatus = deriveDataStatus(
-                        cachePresent = forecast != null,
-                        lastFetchMs = lastSuccess,
-                        refreshFailed = true,
-                        failureIsOffline = isOffline,
-                    )
-                }
-
-                // Slower forecast fetch for other APIs (interval also scales with battery)
-                val nonActiveSources = allVisible.filter { it != activeSource }
-                for (otherSource in nonActiveSources) {
-                    try {
-                        val lastOtherFetch = weatherDao.getLastSuccessfulFetch(otherSource)
-                        val otherDelayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging, level, isActiveSource = false)
-                            ?: continue // Should not happen if primary delay was non-null, but safe.
-
-                        val isDue = lastOtherFetch == null || 
-                            (System.currentTimeMillis() - lastOtherFetch) >= otherDelayMs
-                        
-                        if (isDue) {
-                            Log.i(TAG, "Refreshing forecast for non-active source: $otherSource...")
-                            val otherService = DesktopWeatherService(
-                                currentConfig?.lat ?: DesktopWeatherService.FALLBACK_LATITUDE,
-                                currentConfig?.lon ?: DesktopWeatherService.FALLBACK_LONGITUDE,
-                                otherSource,
-                                currentConfig?.apiKeys ?: emptyMap(),
-                                weatherDao
-                            )
-                            val otherRepo = DesktopWeatherRepository(
-                                otherService,
-                                weatherDao,
-                                currentConfig?.lat ?: DesktopWeatherService.FALLBACK_LATITUDE,
-                                currentConfig?.lon ?: DesktopWeatherService.FALLBACK_LONGITUDE,
-                                otherSource
-                            )
-                            otherRepo.refresh()
-                            Log.i(TAG, "Non-active source $otherSource forecast refresh successful.")
-                        }
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.i(TAG, "Non-active source $otherSource forecast refresh failed: ${e.message}")
-                        val isOffline = isOfflineException(e)
-                        val reason = if (isOffline) "offline" else "source_error"
-                        weatherDao.log("REFRESH_FAIL", "forecast other $otherSource: $reason ${e.message}", "WARN")
-                    }
+                    Log.e(TAG, "Current-temp UI update failed: ${e.message}")
                 }
             }
         }
@@ -443,36 +201,27 @@ private fun runApp() = application {
         }
 
         fun quit() {
+            // Signal daemon to quit first
+            runCatching {
+                val quitFile = appDataDir().resolve(QUIT_TRIGGER)
+                java.nio.file.Files.writeString(quitFile, "", java.nio.charset.StandardCharsets.UTF_8)
+            }
             // Spawn hard-exit daemon thread first so it runs even if EDT teardown or HTTP close hangs.
             kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
                 Thread.sleep(400)
                 kotlin.system.exitProcess(0)
             }
             desktopClients.close()
-            runCatching {
-                val myQuitFile = appDataDir().resolve("$QUIT_PREFIX$appLaunchId")
-                java.nio.file.Files.deleteIfExists(myQuitFile)
-            }
             exitApplication()
         }
 
-        // External show request: the genmon panel click (and any other caller) touches the .show
-        // trigger file. We use WatchService (inotify on Linux) to avoid polling every second,
-        // allowing the CPU to stay in a lower power state until a click actually happens.
+        // Watch for external show request (specifically on .ui-show)
         LaunchedEffect(Unit) {
             withContext(Dispatchers.IO) {
                 val dir = appDataDir()
-                // Clean up any old .quit files (except our own signature file)
-                if (java.nio.file.Files.exists(dir)) {
-                    java.nio.file.Files.list(dir).use { paths ->
-                        paths.forEach { path ->
-                            val name = path.fileName.toString()
-                            if (name == QUIT_TRIGGER || (name.startsWith(QUIT_PREFIX) && name != "$QUIT_PREFIX$appLaunchId")) {
-                                runCatching { java.nio.file.Files.deleteIfExists(path) }
-                            }
-                        }
-                    }
-                }
+                java.nio.file.Files.createDirectories(dir)
+                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
+                
                 val watchService = java.nio.file.FileSystems.getDefault().newWatchService()
                 dir.register(
                     watchService,
@@ -485,23 +234,10 @@ private fun runApp() = application {
                         val key = watchService.take() // Blocks until an event occurs
                         for (event in key.pollEvents()) {
                             val name = (event.context() as? java.nio.file.Path)?.toString()
-                            if (name != null) {
-                                when {
-                                    name == ".show" -> requestShowPopup()
-                                    name == QUIT_TRIGGER -> {
-                                        Log.i(TAG, "Script or manual quit trigger detected. Exiting.")
-                                        SwingUtilities.invokeLater { quit() }
-                                    }
-                                    name.startsWith(QUIT_PREFIX) -> {
-                                        val suffix = name.substring(QUIT_PREFIX.length)
-                                        if (suffix != appLaunchId) {
-                                            Log.i(TAG, "Newer instance detected (launchId=$suffix, mine=$appLaunchId). Exiting.")
-                                            SwingUtilities.invokeLater { quit() }
-                                        } else {
-                                            Log.i(TAG, "Ignored quit trigger (launchId=$suffix, mine=$appLaunchId).")
-                                        }
-                                    }
-                                }
+                            if (name == UI_SHOW_TRIGGER) {
+                                Log.i(TAG, "WatchService: .ui-show trigger detected. Bumping showRequestId.")
+                                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
+                                SwingUtilities.invokeLater { requestShowPopup() }
                             }
                         }
                         if (!key.reset()) break
@@ -524,30 +260,6 @@ private fun runApp() = application {
             }
         }
 
-        // The Dorkbox SystemTray runs a continuous GTK/X11 event loop (the AWT-XAWT + "GTK Native
-        // Event Loop" threads) — the last regular CPU waker once the JVM idle flags are applied.
-        // Disable it with EITHER the `--no-tray` launch flag OR WEATHER_DESKTOP_NO_TRAY=1, and rely
-        // on the genmon panel (which already shows the temperature and opens the popup via the .show
-        // trigger) for display + interaction.
-        val trayEnabled = remember {
-            System.getenv("WEATHER_DESKTOP_NO_TRAY") != "1" &&
-                System.getProperty("weatherwidget.desktop.noTray") != "true"
-        }
-        if (trayEnabled) {
-            TemperatureSystemTray(
-                temperature = forecast?.currentTemp,
-                dataStatus = dataStatus,
-                onShow = { requestShowPopup() },
-                onSettings = { settingsVisible = true },
-                onStatistics = { statsVisible = true },
-                onUpdateLocation = {
-                    popupVisible = false
-                    pickerVisible = true
-                },
-                onQuit = ::quit,
-            )
-        }
-
         if (statsVisible && currentConfig != null) {
             StatisticsWindow(
                 weatherDao = weatherDao,
@@ -563,8 +275,7 @@ private fun runApp() = application {
                 config = currentConfig,
                 onClose = { observationsVisible = false },
                 onConfigUpdate = { newConfig ->
-                    configStore.save(newConfig)
-                    config = newConfig
+                    saveConfigAndNotify(newConfig)
                 }
             )
         }
@@ -583,8 +294,7 @@ private fun runApp() = application {
             ) {
                 LocationPicker(locationResolver) { resolved ->
                     val saved = resolved.toConfig()
-                    configStore.save(saved)
-                    config = saved
+                    saveConfigAndNotify(saved)
                     pickerVisible = false
                     popupVisible = true
                 }
@@ -607,8 +317,7 @@ private fun runApp() = application {
                     config = config!!,
                     onClose = { settingsVisible = false },
                     onSave = { newConfig ->
-                        configStore.save(newConfig)
-                        config = newConfig
+                        saveConfigAndNotify(newConfig)
                     },
                     onExit = { quit() }
                 )
@@ -638,8 +347,7 @@ private fun runApp() = application {
                         windowHeight = windowState.size.height.value
                     )
                     if (newConfig != currentConfig) {
-                        configStore.save(newConfig)
-                        config = newConfig
+                        saveConfigAndNotify(newConfig)
                     }
                 }
             }
@@ -678,8 +386,7 @@ private fun runApp() = application {
                         pickerVisible = true
                     },
                     onUpdateConfig = { newConfig ->
-                        configStore.save(newConfig)
-                        config = newConfig
+                        saveConfigAndNotify(newConfig)
                     },
                     onOpenSettings = {
                         settingsVisible = true
@@ -1251,26 +958,6 @@ private fun ViewModeChip(label: String, selected: Boolean, onClick: () -> Unit) 
     )
 }
 
-private class DesktopClients {
-    val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
-
-    val httpClient = HttpClient(CIO) {
-        install(ContentNegotiation) { json(json) }
-        install(HttpTimeout) {
-            requestTimeoutMillis = 30_000
-            connectTimeoutMillis = 10_000
-            socketTimeoutMillis = 30_000
-        }
-    }
-
-    fun close() {
-        httpClient.close()
-    }
-}
-
 @Composable
 private fun CenteredMessage(text: String) {
     Column(
@@ -1280,38 +967,4 @@ private fun CenteredMessage(text: String) {
     ) {
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
-}
-
-private const val FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000L
-private const val MIN_REFRESH_DELAY_MS = 10 * 60 * 1000L
-private const val DEFAULT_REFRESH_DELAY_MS = 15 * 60 * 1000L
-
-/** Cheap, network-free re-interpolation of the displayed current temp. */
-private const val CURRENT_TEMP_UI_INTERVAL_MS = 2 * 60 * 1000L
-
-/** How often to re-check the power state when fetching is suspended due to low battery. */
-private const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
-
-internal enum class LaunchRefreshAction {
-    FULL_FORECAST,
-    OBSERVATIONS,
-    NONE,
-}
-
-internal fun determineLaunchRefreshAction(
-    cachePresent: Boolean,
-    lastObservationFetchMs: Long?,
-    nowMs: Long = System.currentTimeMillis(),
-): LaunchRefreshAction {
-    if (!cachePresent) return LaunchRefreshAction.FULL_FORECAST
-    val observationsAreFresh = lastObservationFetchMs != null &&
-        (nowMs - lastObservationFetchMs) < FRESHNESS_THRESHOLD_MS
-    return if (observationsAreFresh) LaunchRefreshAction.NONE else LaunchRefreshAction.OBSERVATIONS
-}
-
-internal fun computeRefreshDelayMs(hourly: List<com.weatherwidget.data.model.HourlyForecast>?): Long {
-    if (hourly.isNullOrEmpty()) return DEFAULT_REFRESH_DELAY_MS
-    val updatesPerHour = TemperatureInterpolator.getUpdatesPerHour(hourly)
-    val intervalMs = (3600_000L / updatesPerHour).coerceAtLeast(MIN_REFRESH_DELAY_MS)
-    return intervalMs
 }
