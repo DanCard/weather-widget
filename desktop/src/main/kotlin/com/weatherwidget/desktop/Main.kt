@@ -139,8 +139,14 @@ fun main(args: Array<String>) {
     if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
         return
     }
-    if (args.contains("--minimized")) {
-        System.setProperty("weatherwidget.desktop.minimized", "true")
+    // Minimized (popup hidden) is the default for a panel/tray app — the window shouldn't pop open
+    // on every launch/restart. Pass --show to open the popup on launch instead. (--minimized is
+    // still accepted as a harmless no-op for backward compatibility.)
+    if (args.contains("--show")) {
+        System.setProperty("weatherwidget.desktop.show", "true")
+    }
+    if (args.contains("--no-tray")) {
+        System.setProperty("weatherwidget.desktop.noTray", "true")
     }
     runCatching { signalIncumbentToQuit(appDataDir(), appLaunchId) } // ask any running instance to exit (best-effort)
     maybePackagedSetup()
@@ -162,12 +168,12 @@ private fun runApp() = application {
             val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
             val weatherDao = remember { DesktopWeatherDao(weatherDb) }
 
-        var popupVisible by remember { mutableStateOf(config != null && System.getProperty("weatherwidget.desktop.minimized") != "true") }
+        var popupVisible by remember { mutableStateOf(config != null && System.getProperty("weatherwidget.desktop.show") == "true") }
         // Edge-triggered show counter: a boolean can't re-fire an effect when it's already
         // true, so bump this on every show request to reliably raise an already-open window.
         var showRequestId by remember { mutableStateOf(0) }
         LaunchedEffect(popupVisible) {
-            Log.i(TAG, "popupVisible changed to $popupVisible (minimized property = ${System.getProperty("weatherwidget.desktop.minimized")})")
+            Log.i(TAG, "popupVisible changed to $popupVisible (show property = ${System.getProperty("weatherwidget.desktop.show")})")
         }
         LaunchedEffect(config) {
             Log.i(TAG, "config loaded: config != null is ${config != null}")
@@ -520,9 +526,13 @@ private fun runApp() = application {
 
         // The Dorkbox SystemTray runs a continuous GTK/X11 event loop (the AWT-XAWT + "GTK Native
         // Event Loop" threads) — the last regular CPU waker once the JVM idle flags are applied.
-        // Set WEATHER_DESKTOP_NO_TRAY=1 to drop it and rely on the genmon panel (which already shows
-        // the temperature and opens the popup via the .show trigger) for display + interaction.
-        val trayEnabled = remember { System.getenv("WEATHER_DESKTOP_NO_TRAY") != "1" }
+        // Disable it with EITHER the `--no-tray` launch flag OR WEATHER_DESKTOP_NO_TRAY=1, and rely
+        // on the genmon panel (which already shows the temperature and opens the popup via the .show
+        // trigger) for display + interaction.
+        val trayEnabled = remember {
+            System.getenv("WEATHER_DESKTOP_NO_TRAY") != "1" &&
+                System.getProperty("weatherwidget.desktop.noTray") != "true"
+        }
         if (trayEnabled) {
             TemperatureSystemTray(
                 temperature = forecast?.currentTemp,
