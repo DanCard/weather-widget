@@ -319,7 +319,13 @@ private fun runApp() = application {
                     onSave = { newConfig ->
                         saveConfigAndNotify(newConfig)
                     },
-                    onExit = { quit() }
+                    onExit = { quit() },
+                    onUpdateLocation = {
+                        pickerVisible = true
+                    },
+                    onOpenObservations = {
+                        observationsVisible = true
+                    }
                 )
             }
         }
@@ -522,8 +528,6 @@ internal fun WidgetPopup(
             is DataStatus.Live, is DataStatus.Stale -> {
                 val snapshot = forecast ?: return@Surface
                 Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                    StatusBar(dataStatus)
-                    Spacer(Modifier.height(4.dp))
                     WidgetHeader(
                         config = config,
                         forecast = snapshot,
@@ -693,44 +697,7 @@ private fun NavArrow(
     }
 }
 
-@Composable
-private fun StatusBar(dataStatus: DataStatus) {
-    val relativeTime = when (dataStatus) {
-        is DataStatus.Live -> formatRelativeTime(dataStatus.updatedAt)
-        is DataStatus.Stale -> formatRelativeTime(dataStatus.updatedAt)
-        else -> return
-    }
-    val text = when (dataStatus) {
-        is DataStatus.Live -> "Updated $relativeTime"
-        is DataStatus.Stale -> when (dataStatus.reason) {
-            com.weatherwidget.data.model.StaleReason.OFFLINE -> "Offline — last updated $relativeTime"
-            com.weatherwidget.data.model.StaleReason.SOURCE_ERROR -> "Source error — last updated $relativeTime"
-        }
-        else -> return
-    }
-    val color = if (dataStatus is DataStatus.Stale) {
-        Color(0xFFFFA726) // muted orange/amber
-    } else {
-        Color.White.copy(alpha = 0.5f)
-    }
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        color = color,
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
 
-private fun formatRelativeTime(epochMs: Long): String {
-    val elapsed = System.currentTimeMillis() - epochMs
-    val minutes = elapsed / 60_000
-    return when {
-        minutes < 1 -> "just now"
-        minutes < 60 -> "${minutes}m ago"
-        minutes < 1440 -> "${minutes / 60}h ago"
-        else -> "${minutes / 1440}d ago"
-    }
-}
 
 @Composable
 private fun WidgetHeader(
@@ -758,28 +725,37 @@ private fun WidgetHeader(
         it.dateTime >= nowEpoch - 3_600_000L && it.dateTime <= nowEpoch + 3_600_000L
     }
     val precipProb = currentHourData?.precipProbability?.takeIf { it > 0 }
+    val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Top row: current temp/icon (left) | API source / date (right)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Left cluster: current temp/icon clickable to toggle view
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f).clickable { onOpenObservations() }
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                androidx.compose.foundation.Image(
-                    painter = WeatherIcon.painter(forecast.currentCondition),
-                    contentDescription = null,
-                    modifier = Modifier.size(32.dp).padding(end = 4.dp)
-                )
-                Text(
-                    text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontSize = 22.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable {
+                        val targetMode = if (isHourly) "DAILY" else "HOURLY"
+                        onUpdateConfig(config.copy(viewMode = targetMode))
+                    }.testTag("current_temp_toggle")
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter = WeatherIcon.painter(forecast.currentCondition),
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp).padding(end = 4.dp)
+                    )
+                    Text(
+                        text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontSize = 22.sp
+                    )
+                }
                 if (deltaTemp != null) {
                     Spacer(Modifier.width(2.dp))
                     Text(
@@ -805,7 +781,26 @@ private fun WidgetHeader(
                 }
             }
 
-            Column(horizontalAlignment = Alignment.End) {
+            // Center cluster: date text
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = targetHour.format(dateFormatter),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
+
+            // Right cluster: API source + Settings gear
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 val visibleSources = config.visibleSources
                 if (visibleSources.size > 1) {
                     Text(
@@ -816,7 +811,7 @@ private fun WidgetHeader(
                         modifier = Modifier.clickable {
                             val nextIdx = (visibleSources.indexOf(config.weatherSource) + 1) % visibleSources.size
                             onUpdateConfig(config.copy(weatherSource = visibleSources[nextIdx]))
-                        }
+                        }.padding(end = 6.dp)
                     )
                 } else {
                     Text(
@@ -824,49 +819,40 @@ private fun WidgetHeader(
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 9.sp,
                         color = Color.White.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(end = 6.dp)
                     )
                 }
-                Text(
-                    text = targetHour.format(dateFormatter),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 9.sp,
-                    color = Color.White.copy(alpha = 0.7f)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(4.dp))
-
-        // Bottom row: location + icons (left) | mode chips (right)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = config.label,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.7f),
-                    maxLines = 1,
-                    modifier = Modifier.clickable { onUpdateLocation() }
-                )
-                Spacer(Modifier.width(6.dp))
-                Icon(
-                    painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
-                    contentDescription = "Stations",
-                    modifier = Modifier.size(13.dp).clickable { onOpenObservations() },
-                    tint = Color.White.copy(alpha = 0.7f)
-                )
-                Spacer(Modifier.width(6.dp))
                 Icon(
                     painter = androidx.compose.ui.res.painterResource("drawable/ic_settings_gear.xml"),
                     contentDescription = "Settings",
                     modifier = Modifier.size(13.dp).clickable { onOpenSettings() },
                     tint = Color.White.copy(alpha = 0.7f)
                 )
-                val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
-                if (isHourly) {
+            }
+        }
+
+        if (isHourly) {
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = config.label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        modifier = Modifier.clickable { onUpdateLocation() }
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
+                        contentDescription = "Stations",
+                        modifier = Modifier.size(13.dp).clickable { onOpenObservations() },
+                        tint = Color.White.copy(alpha = 0.7f)
+                    )
                     Spacer(Modifier.width(6.dp))
                     val isCloud = config.viewMode == "CLOUD_COVER"
                     val isPrecip = config.viewMode == "PRECIPITATION"
@@ -880,22 +866,19 @@ private fun WidgetHeader(
                         }
                     )
                 }
-            }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
-                if (isHourly) {
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     ViewModeChip(config.zoomLevel.take(1), true) {
                         val nextZoom = if (config.zoomLevel == "WIDE") "NARROW" else "WIDE"
                         onUpdateConfig(config.copy(zoomLevel = nextZoom))
                     }
                     Spacer(Modifier.width(4.dp))
-                }
-                ViewModeChip("H", isHourly) {
-                    onUpdateConfig(config.copy(viewMode = "HOURLY"))
-                }
-                ViewModeChip("D", config.viewMode == "DAILY") {
-                    onUpdateConfig(config.copy(viewMode = "DAILY"))
+                    ViewModeChip("H", true) {
+                        onUpdateConfig(config.copy(viewMode = "HOURLY"))
+                    }
+                    ViewModeChip("D", false) {
+                        onUpdateConfig(config.copy(viewMode = "DAILY"))
+                    }
                 }
             }
         }

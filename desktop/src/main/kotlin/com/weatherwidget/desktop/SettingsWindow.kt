@@ -25,7 +25,9 @@ internal fun SettingsWindow(
     config: DesktopConfig,
     onClose: () -> Unit,
     onSave: (DesktopConfig) -> Unit,
-    onExit: () -> Unit
+    onExit: () -> Unit,
+    onUpdateLocation: () -> Unit = {},
+    onOpenObservations: () -> Unit = {}
 ) {
     var currentConfig by remember { mutableStateOf(config) }
     val scrollState = rememberScrollState()
@@ -82,6 +84,40 @@ internal fun SettingsWindow(
                     Text("Icon Gallery", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(8.dp))
                     IconGallery()
+
+                    Spacer(Modifier.height(24.dp))
+
+                    // Location
+                    Text("Location", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = currentConfig.label.ifEmpty { "No location set" },
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Button(
+                            onClick = onUpdateLocation,
+                            modifier = Modifier.testTag("change_location_btn")
+                        ) {
+                            Text("Change Location")
+                        }
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    // Diagnostics / Observations
+                    Text("Diagnostics", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = onOpenObservations,
+                        modifier = Modifier.testTag("open_observations_btn")
+                    ) {
+                        Text("Stations / Observations")
+                    }
                 }
 
                 // Footer

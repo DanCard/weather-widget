@@ -26,9 +26,7 @@ private val COLOR_FORECAST_CLOUDY = Color(0xFF8E99A4)
 private val COLOR_FORECAST_RAINY = Color(0xFF5A8FBF)
 private val COLOR_OBSERVED = Color(0xFFFF3366)
 private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
-private val COLOR_HEADER = Color.White.copy(alpha = 0.67f)
-
-private const val TOP_PADDING_FRACTION = 0.23f
+private const val TOP_PADDING_FRACTION = 0.10f
 private const val GRAPH_BOTTOM_FRACTION = 0.76f
 private const val GHOST_BAR_ALPHA = 0.3f
 
@@ -41,8 +39,6 @@ fun DailyForecastGraph(
     val textMeasurer = rememberTextMeasurer()
     val displayDays = state.days
     val painters = displayDays.map { painterResource(WeatherIcon.getIconResource(it.iconCondition)) }
-    val headerPainter = painterResource(WeatherIcon.getIconResource(state.header.iconCondition))
-    val settingsPainter = painterResource("drawable/ic_settings_gear.xml")
 
     if (displayDays.isEmpty()) return
 
@@ -80,13 +76,6 @@ fun DailyForecastGraph(
         val tripleOffset = (8f * (dayWidth / 70.dp.toPx()).coerceIn(0.85f, 1.2f)).dp.toPx()
 
         fun yAt(temp: Float): Float = top + graphHeight * (1f - (temp - minTemp) / range)
-
-        drawHeader(
-            header = state.header,
-            headerPainter = headerPainter,
-            settingsPainter = settingsPainter,
-            textMeasurer = textMeasurer,
-        )
 
         displayDays.forEachIndexed { index, day ->
             val centerX = dayWidth * index + dayWidth / 2f
@@ -151,45 +140,6 @@ fun DailyForecastGraph(
                 val anchorY = highForLabel?.let { yAt(it) - 40f } ?: top + 10f
                 drawText(rainLayout, topLeft = Offset(centerX - rainLayout.size.width / 2f, anchorY.coerceAtLeast(24f)))
             }
-        }
-    }
-}
-
-private fun DrawScope.drawHeader(
-    header: DesktopDailyHeader,
-    headerPainter: androidx.compose.ui.graphics.painter.Painter,
-    settingsPainter: androidx.compose.ui.graphics.painter.Painter,
-    textMeasurer: androidx.compose.ui.text.TextMeasurer,
-) {
-    val iconSize = 28.dp.toPx()
-    translate(0f, -2.dp.toPx()) {
-        with(headerPainter) { draw(Size(iconSize, iconSize)) }
-    }
-    var cursorX = iconSize + 5.dp.toPx()
-    header.currentTempText?.let { temp ->
-        val layout = textMeasurer.measure(temp, TextStyle(fontSize = 30.sp, color = COLOR_HEADER))
-        drawText(layout, topLeft = Offset(cursorX, 0f))
-        cursorX += layout.size.width + 7.dp.toPx()
-    }
-    header.precipText?.let { precip ->
-        val layout = textMeasurer.measure(precip, TextStyle(fontSize = 13.sp, color = COLOR_FORECAST_RAINY))
-        drawText(layout, topLeft = Offset(cursorX, 11.dp.toPx()))
-    }
-    header.dateText?.let { date ->
-        val layout = textMeasurer.measure(date, TextStyle(fontSize = 13.sp, color = COLOR_HEADER))
-        val left = (size.width - layout.size.width) / 2f
-        if (left > cursorX + 8.dp.toPx()) {
-            drawText(layout, topLeft = Offset(left, 8.dp.toPx()))
-        }
-    }
-    header.apiSourceText?.let { source ->
-        val layout = textMeasurer.measure(source, TextStyle(fontSize = 12.sp, color = COLOR_HEADER))
-        drawText(layout, topLeft = Offset(size.width - layout.size.width - 23.dp.toPx(), 7.dp.toPx()))
-    }
-    if (header.showSettings) {
-        val gear = 14.dp.toPx()
-        translate(size.width - gear, 4.dp.toPx()) {
-            with(settingsPainter) { draw(Size(gear, gear), alpha = 0.67f) }
         }
     }
 }

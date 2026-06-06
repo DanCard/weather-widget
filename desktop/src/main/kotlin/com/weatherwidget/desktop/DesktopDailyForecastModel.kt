@@ -24,15 +24,6 @@ data class DesktopWidgetDimensions(
     val useGraph: Boolean,
 )
 
-data class DesktopDailyHeader(
-    val iconCondition: String?,
-    val currentTempText: String?,
-    val precipText: String?,
-    val dateText: String?,
-    val apiSourceText: String?,
-    val showSettings: Boolean,
-)
-
 data class DesktopDailyDay(
     val date: LocalDate,
     val label: String,
@@ -55,7 +46,6 @@ data class DesktopDailyDay(
 
 data class DesktopDailyViewState(
     val dimensions: DesktopWidgetDimensions,
-    val header: DesktopDailyHeader,
     val days: List<DesktopDailyDay>,
     val canNavigateLeft: Boolean,
     val canNavigateRight: Boolean,
@@ -117,36 +107,11 @@ object DesktopDailyForecastModel {
 
         return DesktopDailyViewState(
             dimensions = dimensions,
-            header = buildHeader(config, forecast, dimensions, now, today),
             days = days,
             canNavigateLeft = canNavigate(today, offset - 1, dimensions.cols, skipYesterday, availableDates, left = true),
             canNavigateRight = canNavigate(today, offset + 1, dimensions.cols, skipYesterday, availableDates, left = false),
             skipYesterday = skipYesterday,
             clampedDateOffset = offset,
-        )
-    }
-
-    private fun buildHeader(
-        config: DesktopConfig,
-        forecast: ForecastResult,
-        dimensions: DesktopWidgetDimensions,
-        now: LocalDateTime,
-        today: LocalDate,
-    ): DesktopDailyHeader {
-        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val precip = forecast.hourly
-            .asSequence()
-            .filter { it.dateTime >= nowMs }
-            .take(8)
-            .mapNotNull { it.precipProbability }
-            .maxOrNull()
-        return DesktopDailyHeader(
-            iconCondition = forecast.currentCondition ?: forecast.daily.firstOrNull { it.date == today.toString() }?.condition,
-            currentTempText = forecast.currentTemp?.let { formatHeaderTemperature(it, dimensions.cols) },
-            precipText = precip?.takeIf { it > 0 }?.let { "$it%" },
-            dateText = if (dimensions.cols >= 3) today.toString() else null,
-            apiSourceText = if (dimensions.isIconWidth) null else config.weatherSource,
-            showSettings = !dimensions.isIconWidth,
         )
     }
 
@@ -284,6 +249,5 @@ object DesktopDailyForecastModel {
             .maxOrNull()
     }
 
-    private fun formatHeaderTemperature(temp: Float, numColumns: Int): String =
-        if (numColumns >= 2) String.format("%.1f°", temp) else String.format("%.0f°", temp)
+
 }

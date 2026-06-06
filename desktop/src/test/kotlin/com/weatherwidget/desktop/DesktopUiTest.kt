@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.DailyForecast
@@ -56,8 +57,7 @@ class DesktopUiTest {
             )
         }
 
-        // Verify location chrome is displayed and daily forecast renders through the canvas surface.
-        composeTestRule.onNodeWithText("Mountain View").assertExists()
+        // Verify daily forecast renders through the canvas surface.
         composeTestRule.onNodeWithTag("daily_forecast_surface").assertExists()
     }
 
@@ -76,10 +76,51 @@ class DesktopUiTest {
             )
         }
 
-        // Initially in DAILY mode (default)
-        composeTestRule.onNodeWithText("H").performClick()
+        // Initially in DAILY mode (default). Tap the current temp to switch to HOURLY.
+        composeTestRule.onNodeWithTag("current_temp_toggle").performClick()
 
         assert(updatedConfig?.viewMode == "HOURLY")
+    }
+
+    @Test
+    fun testCurrentTempAppearsOnceInSemantics() {
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig,
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+        composeTestRule.onNodeWithText("72.0°").assertExists()
+    }
+
+    @Test
+    fun testSettingsExposesLocationAndObservations() {
+        var locationClicked = false
+        var observationsClicked = false
+        composeTestRule.setContent {
+            SettingsWindow(
+                config = stubConfig,
+                onClose = {},
+                onSave = {},
+                onExit = {},
+                onUpdateLocation = { locationClicked = true },
+                onOpenObservations = { observationsClicked = true }
+            )
+        }
+
+        composeTestRule.onNodeWithText("Mountain View").assertExists()
+        composeTestRule.onNodeWithTag("change_location_btn").performScrollTo().performClick()
+        composeTestRule.waitForIdle()
+        assert(locationClicked)
+
+        composeTestRule.onNodeWithTag("open_observations_btn").performScrollTo().performClick()
+        composeTestRule.waitForIdle()
+        assert(observationsClicked)
     }
 
     @Test
