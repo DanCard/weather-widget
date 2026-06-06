@@ -128,20 +128,23 @@ fun launchUiProcess(): Process {
     }
     Log.i("DesktopProcess", "Launching UI process: $command")
     val pb = ProcessBuilder(command)
-    
+
+    // Start from a clean, minimal environment for the GUI child, then forward only what it needs.
+    // CRITICAL: XDG_CONFIG_HOME / XDG_DATA_HOME must be carried over — the app derives config.json
+    // (DesktopConfig) and weather.db + the trigger files + weather.sock (DesktopDbPaths) from them.
+    // If they were set for the daemon but dropped here, the UI process would resolve a *different*
+    // data dir and silently stop sharing state with the daemon (wrong DB, .ui-show never arrives).
     val env = pb.environment()
-    val display = env["DISPLAY"]
-    val xauth = env["XAUTHORITY"]
-    val home = env["HOME"]
-    val path = env["PATH"]
-    val ldLibrary = env["LD_LIBRARY_PATH"]
-    
+    val passthrough = listOf(
+        "DISPLAY", "XAUTHORITY",            // X11 connection
+        "HOME", "PATH", "LD_LIBRARY_PATH",  // process basics + native libs
+        "XDG_CONFIG_HOME", "XDG_DATA_HOME", // app config/data dirs (where daemon & UI rendezvous)
+        "XDG_RUNTIME_DIR",                  // session runtime dir (GUI/portals)
+        "DBUS_SESSION_BUS_ADDRESS",         // desktop session bus (GTK/portals)
+    )
+    val preserved = passthrough.mapNotNull { key -> env[key]?.let { key to it } }
     env.clear()
-    if (display != null) env["DISPLAY"] = display
-    if (xauth != null) env["XAUTHORITY"] = xauth
-    if (home != null) env["HOME"] = home
-    if (path != null) env["PATH"] = path
-    if (ldLibrary != null) env["LD_LIBRARY_PATH"] = ldLibrary
-    
+    preserved.forEach { (key, value) -> env[key] = value }
+
     return pb.inheritIO().start()
 }
