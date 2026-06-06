@@ -104,6 +104,7 @@ fun TemperatureGraph(
     modifier: Modifier = Modifier,
     centerOffsetHours: Int = 0,
     zoomLevel: String = "WIDE",
+    scale: Float = 1f,
     onViewModeChange: (String) -> Unit = {},
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -133,9 +134,9 @@ fun TemperatureGraph(
     if (points.size < 2) return
 
     Canvas(
-        modifier = modifier.pointerInput(points, zoomLevel) {
+        modifier = modifier.pointerInput(points, zoomLevel, scale) {
             detectTapGestures { offset ->
-                if (offset.y >= size.height - 44.dp.toPx()) {
+                if (offset.y >= size.height - 44.dp.toPx() * scale) {
                     val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
                     val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
                     val clickedPoint = points[index]
@@ -201,9 +202,13 @@ fun TemperatureGraph(
         val h = size.height
         val n = points.size
 
+        val top = 8f * scale
+        val bottomReserve = 44f * scale
+        val graphHeight = (h - top - bottomReserve).coerceAtLeast(1f)
+
         fun xAtTime(t: Long): Float = ((t - windowStart).toFloat() / windowSpan * w).coerceIn(0f, w)
         fun xAt(i: Int): Float = xAtTime(points[i].dateTime)
-        fun yAt(t: Float): Float = h * (1f - (t - minTemp) / range)
+        fun yAt(t: Float): Float = top + graphHeight * (1f - (t - minTemp) / range)
 
         val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(forecastTemps[i])) }
         val expectedCoords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(forecastTemps[i] + appliedDelta)) }
@@ -220,10 +225,10 @@ fun TemperatureGraph(
             return before.y + (after.y - before.y) * t
         }
 
-        drawCloudAndPrecipOverlays(points, ::xAt)
+        drawCloudAndPrecipOverlays(points, scale, ::xAt)
 
         // Gradient fill always spans the full window under the expected curve
-        drawFill(expectedCoords, minTemp, maxTemp, range)
+        drawFill(expectedCoords, minTemp, maxTemp, range, scale)
 
         // Lines:
         // 1. Forecast Line segments (Dashed and colored by weather condition)
@@ -249,8 +254,8 @@ fun TemperatureGraph(
                     path = segmentPath,
                     color = segmentColor,
                     style = Stroke(
-                        width = 3f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 4.dp.toPx()))
+                        width = 3f * scale,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx() * scale, 4.dp.toPx() * scale))
                     )
                 )
             }
@@ -259,14 +264,14 @@ fun TemperatureGraph(
         // 2. Ghost Line (Shifted forecast curve representing expected path)
         val transitionX = lastActualPoint?.let { xAtTime(it.timeMs) }
         if (transitionX != null && abs(appliedDelta) >= 0.1f) {
-            clipRect(left = transitionX, top = 0f, right = w, bottom = h) {
+            clipRect(left = transitionX, top = 0f, right = w, bottom = h - bottomReserve) {
                 val expectedPath = buildCurve(expectedCoords)
                 drawPath(
                     path = expectedPath,
                     color = Color.White.copy(alpha = 0.22f),
                     style = Stroke(
-                        width = 1.2.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.1f, 4.dp.toPx()))
+                        width = 1.2.dp.toPx() * scale,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.1f * scale, 4.dp.toPx() * scale))
                     )
                 )
             }
@@ -275,61 +280,139 @@ fun TemperatureGraph(
         // 3. Actual (Solid Pink) for observations
         if (actualLinePoints.size >= 2) {
             val obsCoords = actualLinePoints.map { point -> Offset(xAtTime(point.timeMs), yAt(point.actualTemp!!)) }
-            drawActualLine(obsCoords)
+            drawActualLine(obsCoords, scale)
         }
 
-        // "Now" marker: vertical guide (dashed) + target circle
         val nowIdx = points.indexOfByClosestTime(now)
         val markerTemp = currentTemp ?: forecastTemps[nowIdx]
         val markerX = xAtTime(now)
         val markerY = yAt(markerTemp.coerceIn(minTemp, maxTemp))
-        if (now in windowStart..windowEnd) {
-            drawLine(
-                color = Color.White.copy(alpha = 0.36f),
-                start = Offset(markerX, 0f),
-                end = Offset(markerX, h - 44f),
-                strokeWidth = 1.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
-            )
-            drawCircle(color = Color.White, radius = 4.5f, center = Offset(markerX, markerY))
-            drawCircle(color = tempToColor(markerTemp), radius = 2.5f, center = Offset(markerX, markerY))
-        }
 
         // Peak labels (Hi / Lo / Now) anchored to forecast extremes
         val highIdx = forecastTemps.indexOf(fMax)
         val lowIdx = forecastTemps.indexOf(fMin)
+        val endIdx = points.lastIndex
+
+        val drawnLabels = mutableListOf<Rect>()
+
+        // Fetch dot and value/age labels
+        val tMs = transitionMs
+        val fetchDotPoint = if (tMs != null) actualSeries.points.firstOrNull { it.timeMs == tMs && it.actualTemp != null } else null
+        var fetchDotXVal: Float? = null
+        var fetchDotYVal: Float? = null
+        var isAnchoredToFetchDot = false
+
+        if (tMs != null && fetchDotPoint != null && tMs in windowStart..windowEnd) {
+            val fetchDotX = xAtTime(tMs)
+            val fetchDotY = yAt(fetchDotPoint.actualTemp!!)
+            fetchDotXVal = fetchDotX
+            fetchDotYVal = fetchDotY
+            
+            val tempVal = fetchDotPoint.actualTemp!!
+            val tempText = if (tempVal % 1.0f == 0f) "${tempVal.roundToInt()}°" else String.format(Locale.US, "%.1f°", tempVal)
+            val valueTextLayout = textMeasurer.measure(
+                tempText,
+                TextStyle(fontSize = (11 * scale).sp, color = COLOR_ACTUAL, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            )
+            val valueWidth = valueTextLayout.size.width.toFloat()
+            val valueHeight = valueTextLayout.size.height.toFloat()
+            val sideGap = 4.dp.toPx() * scale
+            val dotRadius = 4.5f * scale
+            
+            val rightX = fetchDotX + dotRadius + sideGap
+            val rightY = fetchDotY - valueHeight / 2f
+            
+            val leftX = fetchDotX - dotRadius - sideGap - valueWidth
+            val leftY = fetchDotY - valueHeight / 2f
+            
+            val aboveX = fetchDotX - valueWidth / 2f
+            val aboveY = fetchDotY - dotRadius - sideGap - valueHeight
+            
+            val rect = when {
+                rightX + valueWidth <= w -> Rect(Offset(rightX, rightY), Size(valueWidth, valueHeight))
+                leftX >= 0 -> Rect(Offset(leftX, leftY), Size(valueWidth, valueHeight))
+                else -> Rect(Offset(aboveX.coerceIn(0f, w - valueWidth), aboveY), Size(valueWidth, valueHeight))
+            }
+            
+            drawText(valueTextLayout, topLeft = rect.topLeft)
+            drawnLabels.add(rect)
+            
+            isAnchoredToFetchDot = abs(markerX - fetchDotX) <= 4.dp.toPx() * scale
+            
+            // Age label if stale
+            val ageMinutes = (now - tMs) / 60000L
+            if (ageMinutes >= 30L) {
+                val ageStr = if (ageMinutes >= 60L) "${ageMinutes / 60L}h${if (ageMinutes % 60L > 0L) "${ageMinutes % 60L}m" else ""}" else "${ageMinutes}m"
+                val ageLabelText = "($ageStr ago)"
+                val ageTextLayout = textMeasurer.measure(
+                    ageLabelText,
+                    TextStyle(fontSize = (9 * scale).sp, color = Color.Gray)
+                )
+                val ageWidth = ageTextLayout.size.width.toFloat()
+                val ageHeight = ageTextLayout.size.height.toFloat()
+                val padding = 4.dp.toPx() * scale
+                
+                val belowY = fetchDotY + dotRadius + padding
+                val belowRect = Rect(Offset(fetchDotX - ageWidth / 2f, belowY), Size(ageWidth, ageHeight))
+                
+                val collisionBelow = drawnLabels.any { it.overlaps(belowRect.inflate(2.dp.toPx() * scale)) } || (belowY + ageHeight > h - bottomReserve)
+                
+                val finalAgeRect = if (collisionBelow) {
+                    val aboveY = fetchDotY - dotRadius - padding - ageHeight
+                    val aboveRect = Rect(Offset(fetchDotX - ageWidth / 2f, aboveY), Size(ageWidth, ageHeight))
+                    val collisionAbove = drawnLabels.any { it.overlaps(aboveRect.inflate(2.dp.toPx() * scale)) } || (aboveY < 0f)
+                    if (collisionAbove) {
+                        belowRect
+                    } else {
+                        aboveRect
+                    }
+                } else {
+                    belowRect
+                }
+                
+                drawText(ageTextLayout, topLeft = finalAgeRect.topLeft)
+                drawnLabels.add(finalAgeRect)
+            }
+        }
+
+        val nowTempText = if (currentTemp != null) {
+            if (currentTemp % 1.0f == 0f) "${currentTemp.roundToInt()}°" else String.format(Locale.US, "%.1f°", currentTemp)
+        } else {
+            "${forecastTemps[nowIdx].roundToInt()}°"
+        }
+        val nowTempColor = if (currentTemp != null) COLOR_ACTUAL else Color.White.copy(alpha = 0.8f)
+
         val labels = mutableListOf<Triple<Int, String, Color>>()
         labels.add(Triple(highIdx, "${fMax.roundToInt()}°", Color.White))
         labels.add(Triple(lowIdx, "${fMin.roundToInt()}°", Color.White))
-        if (now in windowStart..windowEnd && nowIdx != highIdx && nowIdx != lowIdx) {
-            labels.add(Triple(nowIdx, "${forecastTemps[nowIdx].roundToInt()}°", Color.White.copy(alpha = 0.8f)))
+        if (now in windowStart..windowEnd && nowIdx != highIdx && nowIdx != lowIdx && !isAnchoredToFetchDot) {
+            labels.add(Triple(nowIdx, nowTempText, nowTempColor))
+        }
+        if (endIdx != highIdx && endIdx != lowIdx && endIdx != nowIdx) {
+            labels.add(Triple(endIdx, "${forecastTemps[endIdx].roundToInt()}°", Color.White.copy(alpha = 0.6f)))
         }
 
-        val drawnLabels = mutableListOf<Rect>()
         labels.sortByDescending { it.first == highIdx || it.first == lowIdx }
 
         for ((idx, text, color) in labels) {
             val point = coords[idx]
-            val textLayout = textMeasurer.measure(text, TextStyle(fontSize = 11.sp, color = color))
+            val textLayout = textMeasurer.measure(text, TextStyle(fontSize = (11 * scale).sp, color = color))
             val textWidth = textLayout.size.width.toFloat()
             val textHeight = textLayout.size.height.toFloat()
             val isHigh = idx == highIdx
             
-            // Curve avoidance logic: sample Y around the label's horizontal range to detect intrusion
             val xStart = point.x - textWidth / 2f
             val xEnd = point.x + textWidth / 2f
-            val verticalGap = 4.dp.toPx()
+            val verticalGap = 4.dp.toPx() * scale
             
             val textTop: Float
             val baselineTop: Float
             if (isHigh) {
-                // Placing label ABOVE the curve. Sample minimum Y (physically highest points).
                 val curveMinY = minOf(getCurveYAtX(xStart), getCurveYAtX(point.x), getCurveYAtX(xEnd))
                 val desiredTextBottom = curveMinY - verticalGap
                 textTop = desiredTextBottom - textHeight
                 baselineTop = point.y - verticalGap - textHeight
             } else {
-                // Placing label BELOW the curve. Sample maximum Y (physically lowest points).
                 val curveMaxY = maxOf(getCurveYAtX(xStart), getCurveYAtX(point.x), getCurveYAtX(xEnd))
                 textTop = curveMaxY + verticalGap
                 baselineTop = point.y + verticalGap
@@ -340,13 +423,12 @@ fun TemperatureGraph(
                 size = Size(textWidth, textHeight)
             )
             
-            if (drawnLabels.none { it.overlaps(labelRect.inflate(4.dp.toPx())) }) {
+            if (drawnLabels.none { it.overlaps(labelRect.inflate(4.dp.toPx() * scale)) }) {
                 drawText(textLayout, topLeft = labelRect.topLeft)
                 drawnLabels.add(labelRect)
                 
-                // Draw leader line if label has been shifted significantly (e.g., > 1.5px)
                 val shift = abs(textTop - baselineTop)
-                if (shift > 1.5f) {
+                if (shift > 1.5f * scale) {
                     val leaderLineStart = Offset(point.x, point.y)
                     val leaderLineEnd = if (isHigh) {
                         Offset(point.x, textTop + textHeight)
@@ -357,7 +439,7 @@ fun TemperatureGraph(
                         color = Color.White.copy(alpha = 0.35f),
                         start = leaderLineStart,
                         end = leaderLineEnd,
-                        strokeWidth = 0.5.dp.toPx()
+                        strokeWidth = 0.5.dp.toPx() * scale
                     )
                 }
             }
@@ -368,6 +450,7 @@ fun TemperatureGraph(
             rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
             textMeasurer = textMeasurer,
             occupied = drawnLabels,
+            scale = scale,
         )
 
         // Bottom strip: weather icons + hour labels
@@ -377,38 +460,124 @@ fun TemperatureGraph(
             if (w <= NARROW_WIDTH_PX) NARROW_WIDE_LABEL_INTERVAL else WIDE_LABEL_INTERVAL
         }
         for (i in points.indices) {
-            val hourFromStart = ((points[i].dateTime - windowStart) / 3_600_000L).toInt()
-            if (hourFromStart % labelInterval != 0) continue
             val p = points[i]
+            val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
+            if (localZdt.hour % labelInterval != 0) continue
             val x = xAt(i)
-            painters[i]?.let { painter ->
-                val iconSize = 18.dp.toPx()
-                val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-                val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
-                val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
-                    isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
-                )
-                val filter = if (!flags.isRainy && !flags.isMixed) {
-                    val tint = when {
-                        flags.isNight -> Color(0xFFBBBBBB)
-                        flags.isTwilight -> Color(0xFFFFA726)
-                        flags.isSunny -> Color(0xFFFFD60A)
-                        else -> Color(0xFFBBBBBB)
-                    }
-                    ColorFilter.tint(tint)
-                } else {
-                    null
-                }
-                translate(x - iconSize / 2f, h - 38f) {
-                    with(painter) { draw(size = Size(iconSize, iconSize), colorFilter = filter) }
-                }
-            }
+            
             val time = Instant.ofEpochMilli(p.dateTime)
                 .atZone(ZoneId.systemDefault())
                 .toLocalTime()
             val timeStr = formatHourLabel(time.hour)
-            val timeLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = 9.sp, color = Color.Gray))
-            drawText(timeLayout, topLeft = Offset(x - timeLayout.size.width / 2f, h - 14f))
+            
+            val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = (9 * scale).sp, color = Color.Gray))
+            val textW = textLayout.size.width.toFloat()
+            val textH = textLayout.size.height.toFloat()
+            
+            val yOffset = h - 22f * scale
+            val textY = yOffset - textH / 2f
+            
+            val isLast = i == points.lastIndex || (x + (textW + 14.dp.toPx() * scale) / 2f > w)
+            
+            if (!isLast && painters[i] != null) {
+                val iconSize = 12.dp.toPx() * scale
+                val gap = 2.dp.toPx() * scale
+                val totalW = textW + gap + iconSize
+                
+                val startX = x - totalW / 2f
+                val textTopLeft = Offset(startX.coerceAtLeast(4f * scale), textY)
+                drawText(textLayout, topLeft = textTopLeft)
+                
+                val iconLeft = startX + textW + gap
+                val iconTop = yOffset - iconSize / 2f
+                
+                painters[i]?.let { painter ->
+                    val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
+                    val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
+                        isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
+                    )
+                    val filter = if (!flags.isRainy && !flags.isMixed) {
+                        val tint = when {
+                            flags.isNight -> Color(0xFFBBBBBB)
+                            flags.isTwilight -> Color(0xFFFFA726)
+                            flags.isSunny -> Color(0xFFFFD60A)
+                            else -> Color(0xFFBBBBBB)
+                        }
+                        ColorFilter.tint(tint)
+                    } else {
+                        null
+                    }
+                    translate(iconLeft, iconTop) {
+                        with(painter) { draw(size = Size(iconSize, iconSize), colorFilter = filter) }
+                    }
+                }
+            } else {
+                val textTopLeft = Offset(x - textW / 2f, textY)
+                drawText(textLayout, topLeft = textTopLeft)
+            }
+        }
+
+        // Draw fetch dot (circle rings) if it exists
+        if (fetchDotXVal != null && fetchDotYVal != null && fetchDotPoint != null) {
+            val dotRadius = 4.5f * scale
+            val outerRadius = dotRadius + 0.75f * scale
+            drawCircle(color = Color.Black.copy(alpha = 0.26f), radius = outerRadius, center = Offset(fetchDotXVal, fetchDotYVal))
+            drawCircle(color = Color.White, radius = dotRadius, center = Offset(fetchDotXVal, fetchDotYVal))
+            drawCircle(color = tempToColor(fetchDotPoint.actualTemp!!), radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
+        }
+
+        // NOW indicator (dashed line, target circles, and "NOW" label)
+        if (now in windowStart..windowEnd) {
+            val lineHeight = graphHeight * 0.6f
+            val lineTop = top + (graphHeight - lineHeight) / 2f
+            val lineBottom = lineTop + lineHeight
+            
+            // 1. Draw the vertical line
+            drawLine(
+                color = Color.White.copy(alpha = 0.8f),
+                start = Offset(markerX, lineTop),
+                end = Offset(markerX, lineBottom),
+                strokeWidth = 1.5.dp.toPx() * scale,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx() * scale, 3.dp.toPx() * scale))
+            )
+            
+            // 2. Draw the "NOW" label text
+            val nowLabelStyle = TextStyle(
+                fontSize = (9 * scale).sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = Color.White
+            )
+            val nowLabelLayout = textMeasurer.measure("NOW", nowLabelStyle)
+            val nowLabelWidth = nowLabelLayout.size.width.toFloat()
+            val nowLabelHeight = nowLabelLayout.size.height.toFloat()
+            
+            val topCandidate = lineTop - nowLabelHeight - 2.dp.toPx() * scale
+            val bottomCandidate = lineBottom + 2.dp.toPx() * scale
+            
+            var finalNowRect: Rect? = null
+            for (candidateTop in listOf(topCandidate, bottomCandidate)) {
+                val rect = Rect(
+                    offset = Offset(markerX - nowLabelWidth / 2f, candidateTop),
+                    size = Size(nowLabelWidth, nowLabelHeight)
+                )
+                val padding = 4.dp.toPx() * scale
+                if (drawnLabels.none { it.overlaps(rect.inflate(padding)) }) {
+                    finalNowRect = rect
+                    break
+                }
+            }
+            val nowRect = finalNowRect ?: Rect(
+                offset = Offset(markerX - nowLabelWidth / 2f, topCandidate),
+                size = Size(nowLabelWidth, nowLabelHeight)
+            )
+            drawText(nowLabelLayout, topLeft = nowRect.topLeft)
+            drawnLabels.add(nowRect)
+            
+            // 3. Draw target circle at the curve if not overlapping fetch dot
+            if (!isAnchoredToFetchDot) {
+                drawCircle(color = Color.White, radius = 4.5f * scale, center = Offset(markerX, markerY))
+                drawCircle(color = tempToColor(markerTemp), radius = 2.5f * scale, center = Offset(markerX, markerY))
+            }
         }
     }
 }
@@ -418,6 +587,7 @@ private fun DrawScope.drawDayLabels(
     rightDate: LocalDate,
     textMeasurer: androidx.compose.ui.text.TextMeasurer,
     occupied: MutableList<Rect>,
+    scale: Float,
 ) {
     val today = LocalDate.now()
     val dates = listOf(0f to leftDate, size.width to rightDate)
@@ -425,15 +595,15 @@ private fun DrawScope.drawDayLabels(
         val isToday = date == today
         val color = if (isToday) Color.Yellow.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.45f)
         val text = date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
-        val layout = textMeasurer.measure(text, TextStyle(fontSize = 10.sp, color = color))
+        val layout = textMeasurer.measure(text, TextStyle(fontSize = (10 * scale).sp, color = color))
         val x = edgeX.coerceIn(layout.size.width / 2f, size.width - layout.size.width / 2f)
-        val candidates = listOf(8f, size.height * 0.48f, size.height - 48f)
+        val candidates = listOf(8f * scale, size.height * 0.48f, size.height - 48f * scale)
         val y = candidates.firstOrNull { top ->
             val rect = Rect(
                 offset = Offset(x - layout.size.width / 2f, top),
                 size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
             )
-            occupied.none { it.overlaps(rect.inflate(4f)) }
+            occupied.none { it.overlaps(rect.inflate(4f * scale)) }
         } ?: candidates.last()
         val rect = Rect(
             offset = Offset(x - layout.size.width / 2f, y),
@@ -453,9 +623,9 @@ private fun formatHourLabel(hour: Int): String {
     return "$hour12$suffix"
 }
 
-private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, xAt: (Int) -> Float) {
+private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, scale: Float, xAt: (Int) -> Float) {
     if (points.isEmpty()) return
-    val bandBottom = size.height - 44f
+    val bandBottom = size.height - 44f * scale
     val cloudHeight = bandBottom.coerceAtLeast(0f)
     val stepWidth = if (points.size > 1) size.width / (points.size - 1) else size.width
     points.forEachIndexed { i, p ->
@@ -474,12 +644,12 @@ private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, x
             p.precipAmountMm?.let { (it / 6f).coerceIn(0f, 1f) } ?: 0f,
         )
         if (precipSignal > 0f) {
-            val barHeight = (precipSignal * 18f).coerceAtLeast(2f)
+            val barHeight = (precipSignal * 18f * scale).coerceAtLeast(2f * scale)
             drawLine(
                 color = Color(0xFF4FC3F7).copy(alpha = 0.35f + 0.45f * precipSignal),
                 start = Offset(xAt(i), bandBottom - barHeight),
                 end = Offset(xAt(i), bandBottom),
-                strokeWidth = 2.5f,
+                strokeWidth = 2.5f * scale,
                 cap = StrokeCap.Round,
             )
         }
@@ -523,8 +693,8 @@ private fun computeTangents(coords: List<Offset>): List<Offset> {
                 
                 val maxSafeDx = dxPrev.coerceAtMost(dxNext) * 1.5f
                 if (dx > maxSafeDx && maxSafeDx > 0) {
-                    val scale = maxSafeDx / dx
-                    Offset(maxSafeDx, dy * scale)
+                    val scaleFactor = maxSafeDx / dx
+                    Offset(maxSafeDx, dy * scaleFactor)
                 } else {
                     Offset(dx, dy)
                 }
@@ -548,17 +718,20 @@ private fun buildCurve(coords: List<Offset>): Path = Path().apply {
     }
 }
 
-private fun DrawScope.drawFill(coords: List<Offset>, minTemp: Float, maxTemp: Float, range: Float) {
+private fun DrawScope.drawFill(coords: List<Offset>, minTemp: Float, maxTemp: Float, range: Float, scale: Float) {
     val h = size.height
+    val graphBottom = h - 44f * scale
     val fill = Path().apply {
-        addPath(buildCurve(coords))
-        lineTo(coords.last().x, h)
-        lineTo(coords.first().x, h)
-        close()
+        if (coords.isNotEmpty()) {
+            addPath(buildCurve(coords))
+            lineTo(coords.last().x, graphBottom)
+            lineTo(coords.first().x, graphBottom)
+            close()
+        }
     }
     val stops = buildColorStops(minTemp, maxTemp, range)
     val fillStops = stops.map { (pos, color) -> pos to color.copy(alpha = 0.40f * (1f - pos)) }.toTypedArray()
-    drawPath(fill, brush = Brush.verticalGradient(colorStops = fillStops, startY = 0f, endY = h))
+    drawPath(fill, brush = Brush.verticalGradient(colorStops = fillStops, startY = 0f, endY = graphBottom))
 }
 
 private fun DrawScope.drawCurveLine(
@@ -567,10 +740,12 @@ private fun DrawScope.drawCurveLine(
     maxTemp: Float,
     range: Float,
     dashed: Boolean,
+    scale: Float,
     alpha: Float = 1f,
 ) {
     val h = size.height
-    val pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(16f, 8f)) else null
+    val graphBottom = h - 44f * scale
+    val pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(16f * scale, 8f * scale)) else null
     drawPath(
         buildCurve(coords),
         brush = Brush.verticalGradient(
@@ -578,17 +753,17 @@ private fun DrawScope.drawCurveLine(
                 pos to color.copy(alpha = alpha) 
             }.toTypedArray(),
             startY = 0f,
-            endY = h,
+            endY = graphBottom,
         ),
-        style = Stroke(width = 3f, pathEffect = pathEffect),
+        style = Stroke(width = 3f * scale, pathEffect = pathEffect),
     )
 }
 
-private fun DrawScope.drawActualLine(coords: List<Offset>) {
+private fun DrawScope.drawActualLine(coords: List<Offset>, scale: Float) {
     drawPath(
         buildCurve(coords),
         color = COLOR_ACTUAL,
-        style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        style = Stroke(width = 3f * scale, cap = StrokeCap.Round, join = StrokeJoin.Round),
     )
 }
 

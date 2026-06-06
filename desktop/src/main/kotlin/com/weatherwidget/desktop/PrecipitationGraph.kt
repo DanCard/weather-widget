@@ -77,6 +77,7 @@ fun PrecipitationGraph(
     modifier: Modifier = Modifier,
     centerOffsetHours: Int = 0,
     zoomLevel: String = "WIDE",
+    scale: Float = 1f,
     onViewModeChange: (String) -> Unit = {},
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -108,9 +109,9 @@ fun PrecipitationGraph(
     val watermarkPainter = painterResource("drawable/ic_weather_rain.xml")
 
     Canvas(
-        modifier = modifier.pointerInput(points, zoomLevel) {
+        modifier = modifier.pointerInput(points, zoomLevel, scale) {
             detectTapGestures { offset ->
-                if (offset.y >= size.height - 44.dp.toPx()) {
+                if (offset.y >= size.height - 44.dp.toPx() * scale) {
                     val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
                     val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
                     val clickedPoint = points[index]
@@ -134,9 +135,9 @@ fun PrecipitationGraph(
         val w = size.width
         val h = size.height
 
-        val graphTop = 38.dp.toPx()
-        val footerIconSize = 18.dp.toPx()
-        val bottomInset = 4.dp.toPx()
+        val graphTop = 38.dp.toPx() * scale
+        val footerIconSize = 18.dp.toPx() * scale
+        val bottomInset = 4.dp.toPx() * scale
         val graphBottom = h - footerIconSize - bottomInset
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
         val stepWidth = w / (points.size - 1).coerceAtLeast(1)
@@ -164,10 +165,12 @@ fun PrecipitationGraph(
 
         // Draw Fill Path
         val fillPath = Path().apply {
-            addPath(buildCurve(coords))
-            lineTo(coords.last().x, graphBottom)
-            lineTo(coords.first().x, graphBottom)
-            close()
+            if (coords.isNotEmpty()) {
+                addPath(buildCurve(coords))
+                lineTo(coords.last().x, graphBottom)
+                lineTo(coords.first().x, graphBottom)
+                close()
+            }
         }
         val fillBrush = Brush.verticalGradient(
             colors = listOf(COLOR_PRECP_FILL_START, COLOR_PRECP_FILL_END),
@@ -177,7 +180,7 @@ fun PrecipitationGraph(
         drawPath(fillPath, brush = fillBrush)
 
         // Draw Curve Line
-        val curveStroke = if (zoomLevel == "NARROW") 2.dp.toPx() else 3.dp.toPx()
+        val curveStroke = if (zoomLevel == "NARROW") 2.dp.toPx() * scale else 3.dp.toPx() * scale
         drawPath(
             path = buildCurve(coords),
             color = COLOR_PRECP_CURVE,
@@ -200,8 +203,8 @@ fun PrecipitationGraph(
                         color = COLOR_DAY_NIGHT_DIVIDER,
                         start = Offset(boundaryX, graphTop),
                         end = Offset(boundaryX, graphBottom),
-                        strokeWidth = 1.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 3.dp.toPx()))
+                        strokeWidth = 1.dp.toPx() * scale,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx() * scale, 3.dp.toPx() * scale))
                     )
                 }
             }
@@ -217,15 +220,15 @@ fun PrecipitationGraph(
                 color = Color.White.copy(alpha = 0.36f),
                 start = Offset(markerX, graphTop),
                 end = Offset(markerX, graphBottom),
-                strokeWidth = 1.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+                strokeWidth = 1.dp.toPx() * scale,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx() * scale, 3.dp.toPx() * scale))
             )
-            drawCircle(color = Color.White, radius = 4.5f, center = Offset(markerX, markerY))
-            drawCircle(color = COLOR_PRECP_CURVE, radius = 2.5f, center = Offset(markerX, markerY))
+            drawCircle(color = Color.White, radius = 4.5f * scale, center = Offset(markerX, markerY))
+            drawCircle(color = COLOR_PRECP_CURVE, radius = 2.5f * scale, center = Offset(markerX, markerY))
             
             // NOW Label
-            val nowLayout = textMeasurer.measure("NOW", TextStyle(fontSize = 8.sp, color = Color.White.copy(alpha = 0.6f)))
-            drawText(nowLayout, topLeft = Offset(markerX - nowLayout.size.width / 2f, graphTop + 2.dp.toPx()))
+            val nowLayout = textMeasurer.measure("NOW", TextStyle(fontSize = (8 * scale).sp, color = Color.White.copy(alpha = 0.6f)))
+            drawText(nowLayout, topLeft = Offset(markerX - nowLayout.size.width / 2f, graphTop + 2.dp.toPx() * scale))
         }
 
         // Extrema Label Placement
@@ -277,7 +280,7 @@ fun PrecipitationGraph(
             val probVal = labelSignal[index]
             val labelText = "$probVal%"
             
-            val textLayout = textMeasurer.measure(labelText, TextStyle(fontSize = 11.sp, color = Color.White))
+            val textLayout = textMeasurer.measure(labelText, TextStyle(fontSize = (11 * scale).sp, color = Color.White))
             val textWidth = textLayout.size.width.toFloat()
             val textHeight = textLayout.size.height.toFloat()
             
@@ -287,15 +290,15 @@ fun PrecipitationGraph(
             val isPeak = index == globalMaxIdx || (index > 0 && index < labelSignal.lastIndex &&
                 labelSignal[index] > labelSignal[index - 1] && labelSignal[index] > labelSignal[index + 1])
             val isEndLabelCandidate = index == points.lastIndex
-            val isRisingAtEnd = isEndLabelCandidate && index > 0 && coords[index].y < coords[index - 1].y - 2f
-            val isFallingFromLeftEdge = index == 0 && points.size > 1 && coords[1].y > coords[0].y + 2f
+            val isRisingAtEnd = isEndLabelCandidate && index > 0 && coords[index].y < coords[index - 1].y - 2f * scale
+            val isFallingFromLeftEdge = index == 0 && points.size > 1 && coords[1].y > coords[0].y + 2f * scale
             val preferAbove = isPeak || isRisingAtEnd || isFallingFromLeftEdge
 
             val attempts = if (preferAbove) listOf(true, false) else listOf(false, true)
             var placed = false
 
             for (placeAbove in attempts) {
-                val gapPx = 6.dp.toPx()
+                val gapPx = 6.dp.toPx() * scale
                 val textTop = if (placeAbove) {
                     val curveMinY = minOf(getCurveYAtX(centerX - textWidth / 2f), pointY, getCurveYAtX(centerX + textWidth / 2f))
                     curveMinY - gapPx - textHeight
@@ -307,26 +310,25 @@ fun PrecipitationGraph(
                 val x = centerX.coerceIn(textWidth / 2f, w - textWidth / 2f)
                 val bounds = Rect(offset = Offset(x - textWidth / 2f, textTop), size = Size(textWidth, textHeight))
 
-                val safeBottom = graphBottom - 10.dp.toPx()
+                val safeBottom = graphBottom - 10.dp.toPx() * scale
                 if (bounds.top < 0f || bounds.bottom > safeBottom) continue
 
-                val overlaps = drawnLabels.any { it.overlaps(bounds.inflate(4.dp.toPx())) }
+                val overlaps = drawnLabels.any { it.overlaps(bounds.inflate(4.dp.toPx() * scale)) }
                 if (!overlaps) {
                     drawText(textLayout, topLeft = bounds.topLeft)
                     drawnLabels.add(bounds)
                     placed = true
                     
-                    // Draw leader line if shifted significantly
                     val baselineTop = if (placeAbove) pointY - gapPx - textHeight else pointY + gapPx
                     val shift = abs(textTop - baselineTop)
-                    if (shift > 1.5f) {
+                    if (shift > 1.5f * scale) {
                         val leaderLineStart = Offset(centerX, pointY)
                         val leaderLineEnd = if (placeAbove) Offset(centerX, textTop + textHeight) else Offset(centerX, textTop)
                         drawLine(
                             color = Color.White.copy(alpha = 0.35f),
                             start = leaderLineStart,
                             end = leaderLineEnd,
-                            strokeWidth = 0.5.dp.toPx()
+                            strokeWidth = 0.5.dp.toPx() * scale
                         )
                     }
                     break
@@ -334,37 +336,24 @@ fun PrecipitationGraph(
             }
         }
 
-        // --- Rain Amount Layout & Positioning (Forecast & Observed Actuals) ---
-        val actualPrecipByHour = observations.associate { obs ->
-            val ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(obs.timestamp), zoneId)
-                .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            ldt to (obs.precipAmountMm ?: 0f)
-        }
-
-        val isNarrow = zoomLevel == "NARROW"
-        val (rainPeriods, actualRainPeriods) = if (isNarrow) {
-            perHourRainPeriods(points, stepWidth) { it.precipAmountMm } to
-            perHourRainPeriods(points, stepWidth) { actualPrecipByHour[LocalDateTime.ofInstant(Instant.ofEpochMilli(it.dateTime), zoneId)] }
-        } else {
-            val segments = selectDayNightSegments(points, observations)
-            val pred = segments.mapNotNull { it.toRainPeriod(points, stepWidth) { h -> h.precipAmountMm } }
-            val act = segments.mapNotNull { it.toRainPeriod(points, stepWidth) { h -> actualPrecipByHour[LocalDateTime.ofInstant(Instant.ofEpochMilli(h.dateTime), zoneId)] } }
-            pred to act
-        }
+        // Resolving rain periods & drawing rain amount labels
+        val forecastRainPeriods = selectDayNightSegments(points, emptyList())
+            .mapNotNull { it.toRainPeriod(points, stepWidth) { f -> f.precipAmountMm } }
+        val actualRainPeriods = selectDayNightSegments(points, observations)
+            .mapNotNull { it.toRainPeriod(points, stepWidth) { f -> f.precipAmountMm } }
 
         val rainPlacements = calculateRainAmountPlacements(
-            rainPeriods = rainPeriods,
+            rainPeriods = forecastRainPeriods,
             widthPx = w,
             graphTop = graphTop,
             graphBottom = graphBottom,
             graphHeight = graphHeight,
             initialCollisionBounds = drawnLabels,
-            labelPrefix = if (isNarrow) "" else "Pred ",
+            labelPrefix = "",
             textMeasurer = textMeasurer,
-            textStyle = TextStyle(fontSize = 10.sp, color = COLOR_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-            dpToPx = 1.dp.toPx()
+            textStyle = TextStyle(fontSize = (10 * scale).sp, color = COLOR_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+            dpToPx = 1.dp.toPx() * scale
         )
-
         val actualRainPlacements = calculateRainAmountPlacements(
             rainPeriods = actualRainPeriods,
             widthPx = w,
@@ -372,27 +361,27 @@ fun PrecipitationGraph(
             graphBottom = graphBottom,
             graphHeight = graphHeight,
             initialCollisionBounds = drawnLabels + rainPlacements.map { it.bounds },
-            labelPrefix = if (isNarrow) "" else "Act ",
+            labelPrefix = "Actual: ",
             textMeasurer = textMeasurer,
-            textStyle = TextStyle(fontSize = 10.sp, color = COLOR_ACTUAL_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-            dpToPx = 1.dp.toPx()
+            textStyle = TextStyle(fontSize = (10 * scale).sp, color = COLOR_ACTUAL_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+            dpToPx = 1.dp.toPx() * scale
         )
 
         // Draw Rain Amount Labels
         for (p in rainPlacements) {
-            val textLayout = textMeasurer.measure(p.text, TextStyle(fontSize = 10.sp, color = COLOR_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+            val textLayout = textMeasurer.measure(p.text, TextStyle(fontSize = (10 * scale).sp, color = COLOR_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
             drawText(textLayout, topLeft = p.bounds.topLeft)
             drawnLabels.add(p.bounds)
         }
         for (p in actualRainPlacements) {
-            val textLayout = textMeasurer.measure(p.text, TextStyle(fontSize = 10.sp, color = COLOR_ACTUAL_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+            val textLayout = textMeasurer.measure(p.text, TextStyle(fontSize = (10 * scale).sp, color = COLOR_ACTUAL_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
             drawText(textLayout, topLeft = p.bounds.topLeft)
             drawnLabels.add(p.bounds)
         }
 
         // Draw Watermark Rain Icon (centered)
         var watermarkPlaced = false
-        val watermarkIconSize = 44.dp.toPx()
+        val watermarkIconSize = 44.dp.toPx() * scale
         val candidateCenters = listOf(coords.size / 2, coords.size / 3, 2 * coords.size / 3)
         for (center in candidateCenters) {
             val curveX = coords[center].x
@@ -403,7 +392,7 @@ fun PrecipitationGraph(
                     offset = Offset(curveX - watermarkIconSize / 2f, centerY - watermarkIconSize / 2f),
                     size = Size(watermarkIconSize, watermarkIconSize)
                 )
-                val fitsAboveCurve = bounds.top >= 0f && bounds.bottom < curveY - 2.dp.toPx()
+                val fitsAboveCurve = bounds.top >= 0f && bounds.bottom < curveY - 2.dp.toPx() * scale
                 val overlapsLabels = drawnLabels.any { it.overlaps(bounds) }
                 if (fitsAboveCurve && !overlapsLabels) {
                     translate(bounds.left, bounds.top) {
@@ -427,6 +416,7 @@ fun PrecipitationGraph(
             rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
             textMeasurer = textMeasurer,
             occupied = drawnLabels,
+            scale = scale,
         )
 
         // Draw Bottom Strip: icons + hour labels
@@ -436,38 +426,61 @@ fun PrecipitationGraph(
             if (w <= NARROW_WIDTH_PX) NARROW_WIDE_LABEL_INTERVAL else WIDE_LABEL_INTERVAL
         }
         for (i in points.indices) {
-            val hourFromStart = ((points[i].dateTime - windowStart) / 3_600_000L).toInt()
-            if (hourFromStart % labelInterval != 0) continue
             val p = points[i]
+            val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
+            if (localZdt.hour % labelInterval != 0) continue
             val x = xAt(i)
-            painters[i]?.let { painter ->
-                val iconSize = 18.dp.toPx()
-                val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-                val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
-                val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
-                    isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
-                )
-                val filter = if (!flags.isRainy && !flags.isMixed) {
-                    val tint = when {
-                        flags.isNight -> Color(0xFFBBBBBB)
-                        flags.isTwilight -> Color(0xFFFFA726)
-                        flags.isSunny -> Color(0xFFFFD60A)
-                        else -> Color(0xFFBBBBBB)
-                    }
-                    ColorFilter.tint(tint)
-                } else {
-                    null
-                }
-                translate(x - iconSize / 2f, h - 38f) {
-                    with(painter) { draw(size = Size(iconSize, iconSize), colorFilter = filter) }
-                }
-            }
+            
             val time = Instant.ofEpochMilli(p.dateTime)
                 .atZone(ZoneId.systemDefault())
                 .toLocalTime()
             val timeStr = formatHourLabel(time.hour)
-            val timeLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = 9.sp, color = Color.Gray))
-            drawText(timeLayout, topLeft = Offset(x - timeLayout.size.width / 2f, h - 14f))
+            
+            val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = (9 * scale).sp, color = Color.Gray))
+            val textW = textLayout.size.width.toFloat()
+            val textH = textLayout.size.height.toFloat()
+            
+            val yOffset = h - 22f * scale
+            val textY = yOffset - textH / 2f
+            
+            val isLast = i == points.lastIndex || (x + (textW + 14.dp.toPx() * scale) / 2f > w)
+            
+            if (!isLast && painters[i] != null) {
+                val iconSize = 12.dp.toPx() * scale
+                val gap = 2.dp.toPx() * scale
+                val totalW = textW + gap + iconSize
+                
+                val startX = x - totalW / 2f
+                val textTopLeft = Offset(startX.coerceAtLeast(4f * scale), textY)
+                drawText(textLayout, topLeft = textTopLeft)
+                
+                val iconLeft = startX + textW + gap
+                val iconTop = yOffset - iconSize / 2f
+                
+                painters[i]?.let { painter ->
+                    val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
+                    val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
+                        isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
+                    )
+                    val filter = if (!flags.isRainy && !flags.isMixed) {
+                        val tint = when {
+                            flags.isNight -> Color(0xFFBBBBBB)
+                            flags.isTwilight -> Color(0xFFFFA726)
+                            flags.isSunny -> Color(0xFFFFD60A)
+                            else -> Color(0xFFBBBBBB)
+                        }
+                        ColorFilter.tint(tint)
+                    } else {
+                        null
+                    }
+                    translate(iconLeft, iconTop) {
+                        with(painter) { draw(size = Size(iconSize, iconSize), colorFilter = filter) }
+                    }
+                }
+            } else {
+                val textTopLeft = Offset(x - textW / 2f, textY)
+                drawText(textLayout, topLeft = textTopLeft)
+            }
         }
     }
 }
@@ -477,6 +490,7 @@ private fun DrawScope.drawDayLabels(
     rightDate: LocalDate,
     textMeasurer: androidx.compose.ui.text.TextMeasurer,
     occupied: MutableList<Rect>,
+    scale: Float,
 ) {
     val today = LocalDate.now()
     val dates = listOf(0f to leftDate, size.width to rightDate)
@@ -484,15 +498,15 @@ private fun DrawScope.drawDayLabels(
         val isToday = date == today
         val color = if (isToday) Color.Yellow.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.45f)
         val text = date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
-        val layout = textMeasurer.measure(text, TextStyle(fontSize = 10.sp, color = color))
+        val layout = textMeasurer.measure(text, TextStyle(fontSize = (10 * scale).sp, color = color))
         val x = edgeX.coerceIn(layout.size.width / 2f, size.width - layout.size.width / 2f)
-        val candidates = listOf(8f, size.height * 0.48f, size.height - 48f)
+        val candidates = listOf(8f * scale, size.height * 0.48f, size.height - 48f * scale)
         val y = candidates.firstOrNull { top ->
             val rect = Rect(
                 offset = Offset(x - layout.size.width / 2f, top),
                 size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
             )
-            occupied.none { it.overlaps(rect.inflate(4f)) }
+            occupied.none { it.overlaps(rect.inflate(4f * scale)) }
         } ?: candidates.last()
         val rect = Rect(
             offset = Offset(x - layout.size.width / 2f, y),

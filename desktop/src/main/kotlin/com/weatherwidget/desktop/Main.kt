@@ -558,6 +558,7 @@ internal fun WidgetPopup(
                                     modifier = Modifier.fillMaxSize(),
                                     centerOffsetHours = config.hourlyOffset,
                                     zoomLevel = config.zoomLevel,
+                                    scale = uiScale,
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
                                     }
@@ -572,6 +573,7 @@ internal fun WidgetPopup(
                                     modifier = Modifier.fillMaxSize(),
                                     centerOffsetHours = config.hourlyOffset,
                                     zoomLevel = config.zoomLevel,
+                                    scale = uiScale,
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
                                     }
@@ -588,6 +590,7 @@ internal fun WidgetPopup(
                                     modifier = Modifier.fillMaxSize(),
                                     centerOffsetHours = config.hourlyOffset,
                                     zoomLevel = config.zoomLevel,
+                                    scale = uiScale,
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
                                     }
@@ -791,18 +794,65 @@ private fun WidgetHeader(
                 }
             }
 
-            // Center cluster: date text
+            // Center cluster: view-switch icons when hourly, else date text
             Row(
                 modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = targetHour.format(dateFormatter),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = (12 * scale).sp,
-                    color = Color.White.copy(alpha = 0.7f)
-                )
+                if (isHourly) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy((8 * scale).dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // ☁ Cloud cover view mode
+                        val isCloud = config.viewMode == "CLOUD_COVER"
+                        Text(
+                            text = "☁️",
+                            fontSize = (13 * scale).sp,
+                            color = if (isCloud) Color.Yellow else Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.clickable {
+                                onUpdateConfig(config.copy(viewMode = "CLOUD_COVER"))
+                            }.testTag("switch_to_cloud_cover")
+                        )
+                        // 🌡 Temperature view mode
+                        val isTemp = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE"
+                        Text(
+                            text = "🌡️",
+                            fontSize = (13 * scale).sp,
+                            color = if (isTemp) Color.Yellow else Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.clickable {
+                                onUpdateConfig(config.copy(viewMode = "HOURLY"))
+                            }.testTag("switch_to_hourly")
+                        )
+                        // 🏠 Home/Daily view mode
+                        Text(
+                            text = "🏠",
+                            fontSize = (13 * scale).sp,
+                            color = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.clickable {
+                                onUpdateConfig(config.copy(viewMode = "DAILY"))
+                            }.testTag("switch_to_daily")
+                        )
+                        // 📈 Precipitation view mode
+                        val isPrecip = config.viewMode == "PRECIPITATION"
+                        Text(
+                            text = "📈",
+                            fontSize = (13 * scale).sp,
+                            color = if (isPrecip) Color.Yellow else Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.clickable {
+                                onUpdateConfig(config.copy(viewMode = "PRECIPITATION"))
+                            }.testTag("switch_to_precipitation")
+                        )
+                    }
+                } else {
+                    Text(
+                        text = targetHour.format(dateFormatter),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = (12 * scale).sp,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
             }
 
             // Right cluster: API source + Settings gear
@@ -838,59 +888,6 @@ private fun WidgetHeader(
                     modifier = Modifier.size((14 * scale).dp).clickable { onOpenSettings() },
                     tint = Color.White.copy(alpha = 0.7f)
                 )
-            }
-        }
-
-        if (isHourly) {
-            Spacer(Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = config.label,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = (12 * scale).sp,
-                        color = Color.White.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        modifier = Modifier.clickable { onUpdateLocation() }
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Icon(
-                        painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
-                        contentDescription = "Stations",
-                        modifier = Modifier.size((13 * scale).dp).clickable { onOpenObservations() },
-                        tint = Color.White.copy(alpha = 0.7f)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    val isCloud = config.viewMode == "CLOUD_COVER"
-                    val isPrecip = config.viewMode == "PRECIPITATION"
-                    val emoji = if (isCloud || isPrecip) "🌡️" else "☁️"
-                    Text(
-                        text = emoji,
-                        fontSize = (11 * scale).sp,
-                        modifier = Modifier.clickable {
-                            val nextMode = if (isCloud || isPrecip) "HOURLY" else "CLOUD_COVER"
-                            onUpdateConfig(config.copy(viewMode = nextMode))
-                        }
-                    )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    ViewModeChip(config.zoomLevel.take(1), true) {
-                        val nextZoom = if (config.zoomLevel == "WIDE") "NARROW" else "WIDE"
-                        onUpdateConfig(config.copy(zoomLevel = nextZoom))
-                    }
-                    Spacer(Modifier.width(4.dp))
-                    ViewModeChip("H", true) {
-                        onUpdateConfig(config.copy(viewMode = "HOURLY"))
-                    }
-                    ViewModeChip("D", false) {
-                        onUpdateConfig(config.copy(viewMode = "DAILY"))
-                    }
-                }
             }
         }
     }
