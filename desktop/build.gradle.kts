@@ -55,10 +55,17 @@ compose.desktop {
         //   - VM Periodic Task Thread (~20Hz)  -> the hsperfdata sampler           => -XX:-UsePerfData
         //   - G1 Service + ~22 GC worker threads (overkill for a ~5MB heap)        => -XX:+UseSerialGC
         //   - the 1Hz "guaranteed safepoint" that wakes every thread when idle     => GuaranteedSafepointInterval=0
-        //   - the Monitor Deflation Thread reclaiming idle locks on a 1s timer      => GuaranteedAsyncDeflationInterval=0
-        // The Guaranteed* flags are diagnostic, so they must be unlocked first or the JVM refuses to
-        // start. Setting them to 0 makes those passes threshold-driven instead of clock-driven, so
-        // an idle app stops waking for them. Trade-off of -UsePerfData: jps/jstat can't read this
+        //   - the Monitor Deflation Thread reclaiming idle locks                    => see below
+        // Monitor deflation has TWO clocks: GuaranteedAsyncDeflationInterval (max gap, default 60s)
+        // AND AsyncDeflationInterval (default 250ms) — the latter is the real waker. Per-thread
+        // context-switch sampling on an idle (popup-closed) process showed "Monitor Deflati" waking
+        // at exactly 4.00/s = one tick per 250ms, i.e. AsyncDeflationInterval, which an earlier pass
+        // left at its default. Both must be 0 to stop the timer-driven passes (deflation then only
+        // runs when the live-monitor count crosses MonitorUsedDeflationThreshold). This was ~46% of
+        // all idle wakeups.
+        // The diagnostic flags must be unlocked first or the JVM refuses to start. Setting the
+        // interval flags to 0 makes those passes threshold-driven instead of clock-driven, so an
+        // idle app stops waking for them. Trade-off of -UsePerfData: jps/jstat can't read this
         // process's counters (jcmd/jstack still attach fine).
         jvmArgs += listOf(
             "-XX:+UseSerialGC",
@@ -66,6 +73,7 @@ compose.desktop {
             "-XX:+UnlockDiagnosticVMOptions",
             "-XX:GuaranteedSafepointInterval=0",
             "-XX:GuaranteedAsyncDeflationInterval=0",
+            "-XX:AsyncDeflationInterval=0",
         )
 
         // jpackage/jlink need a full JDK; Gradle here runs on Android Studio's JBR which omits
@@ -106,3 +114,21 @@ compose.desktop {
         }
     }
 }
+
+tasks.register<JavaExec>("runDaemonSpike") {
+    group = "application"
+    description = "Runs the headless daemon spike."
+    mainClass.set("com.weatherwidget.desktop.DaemonSpikeKt")
+    val sourceSets = project.extensions.getByType<org.gradle.api.plugins.JavaPluginExtension>().sourceSets
+    classpath = sourceSets.getByName("main").runtimeClasspath
+    jvmArgs(
+        "-Djava.awt.headless=true",
+        "-XX:+UseSerialGC",
+        "-XX:-UsePerfData",
+        "-XX:+UnlockDiagnosticVMOptions",
+        "-XX:GuaranteedSafepointInterval=0",
+        "-XX:GuaranteedAsyncDeflationInterval=0",
+        "-XX:AsyncDeflationInterval=0"
+    )
+}
+
