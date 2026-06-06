@@ -31,6 +31,9 @@ fun runDaemon() {
 
     val appDir = appDataDir()
     runCatching { signalIncumbentToQuit(appDir, appLaunchId) }
+    // Packaged-only first-run setup (extract the genmon script to a stable XDG path). The daemon owns
+    // this now that it is the long-lived process; the UI process is ephemeral and must not.
+    maybePackagedSetup()
 
     val configStore = DesktopConfigStore()
     var currentConfig = configStore.load()
