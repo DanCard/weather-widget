@@ -531,7 +531,7 @@ internal fun WidgetPopup(
             is DataStatus.NoData -> CenteredMessage("Tap to configure")
             is DataStatus.Live, is DataStatus.Stale -> {
                 val snapshot = forecast ?: return@Surface
-                Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                Column(modifier = Modifier.fillMaxSize().padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 2.dp)) {
                     WidgetHeader(
                         config = config,
                         forecast = snapshot,
@@ -593,7 +593,19 @@ internal fun WidgetPopup(
                                     scale = uiScale,
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
-                                    }
+                                    },
+                                     onToggleZoom = { clickedOffset ->
+                                         if (config.zoomLevel == "WIDE") {
+                                             onUpdateConfig(
+                                                 config.copy(
+                                                     zoomLevel = "NARROW",
+                                                     hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
+                                                 )
+                                             )
+                                         } else {
+                                             onUpdateConfig(config.copy(zoomLevel = "WIDE"))
+                                         }
+                                     }
                                 )
                             }
                             NavArrow(

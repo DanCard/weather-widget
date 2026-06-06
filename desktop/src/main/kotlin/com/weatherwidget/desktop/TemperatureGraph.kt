@@ -106,6 +106,7 @@ fun TemperatureGraph(
     zoomLevel: String = "WIDE",
     scale: Float = 1f,
     onViewModeChange: (String) -> Unit = {},
+    onToggleZoom: (Int) -> Unit = {},
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
@@ -134,15 +135,21 @@ fun TemperatureGraph(
     if (points.size < 2) return
 
     Canvas(
-        modifier = modifier.pointerInput(points, zoomLevel, scale) {
+        modifier = modifier.pointerInput(points, zoomLevel, scale, start, cutoff) {
             detectTapGestures { offset ->
                 if (offset.y >= size.height - 44.dp.toPx() * scale) {
+                    // Bottom strip: switch the view to the tapped hour's condition home view.
                     val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
                     val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
                     val clickedPoint = points[index]
                     val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
                     val targetView = WeatherIcon.resolveIconHome(iconRes)
                     onViewModeChange(targetView)
+                } else {
+                    // Graph body: toggle zoom (WIDE ↔ NARROW) — the in/out "zoom" interaction.
+                    val clickedTimeMs = start + (offset.x / size.width.toFloat()) * (cutoff - start)
+                    val clickedOffset = ((clickedTimeMs - now) / 3_600_000f).roundToInt()
+                    onToggleZoom(clickedOffset)
                 }
             }
         }
@@ -193,17 +200,28 @@ fun TemperatureGraph(
         val rawMax = allTemps.maxOrNull() ?: 100f
         val fMin = forecastTemps.minOrNull() ?: 0f
         val fMax = forecastTemps.maxOrNull() ?: 100f
-        val pad = ((rawMax - rawMin) * 0.25f).coerceAtLeast(2f)
-        val minTemp = rawMin - pad
-        val maxTemp = rawMax + pad
+        val rawRange = (rawMax - rawMin).coerceAtLeast(1f)
+        val topBuffer = (rawRange * 0.1f).coerceAtLeast(3f)
+        val bottomBuffer = (rawRange * 0.03f).coerceAtLeast(2.5f)
+        val minTemp = rawMin - bottomBuffer
+        val maxTemp = rawMax + topBuffer
         val range = (maxTemp - minTemp).coerceAtLeast(1f)
 
         val w = size.width
         val h = size.height
         val n = points.size
 
-        val top = 8f * scale
-        val bottomReserve = 44f * scale
+        // Bottom strip (hour labels + day-night icons): size the reserve to the actual label so it
+        // sits tight against the canvas bottom instead of floating with dead space above it.
+        val hourLabelFontSize = (12f * scale).sp
+        val hourIconPx = 12.dp.toPx() * scale
+        val hourLabelH = textMeasurer.measure("12p", TextStyle(fontSize = hourLabelFontSize)).size.height.toFloat()
+        val bottomBandH = maxOf(hourLabelH, hourIconPx)
+        val bottomMargin = 0f * scale
+        // Curve runs high to the top; bottom reserve clears the full hour band (+gap) so the trough
+        // doesn't overlap the hour labels. Top still allows a little overlap (peak label on top).
+        val top = 2f * scale
+        val bottomReserve = bottomMargin + bottomBandH + 8f * scale
         val graphHeight = (h - top - bottomReserve).coerceAtLeast(1f)
 
         fun xAtTime(t: Long): Float = ((t - windowStart).toFloat() / windowSpan * w).coerceIn(0f, w)
@@ -312,7 +330,7 @@ fun TemperatureGraph(
             val tempText = if (tempVal % 1.0f == 0f) "${tempVal.roundToInt()}°" else String.format(Locale.US, "%.1f°", tempVal)
             val valueTextLayout = textMeasurer.measure(
                 tempText,
-                TextStyle(fontSize = (11 * scale).sp, color = COLOR_ACTUAL, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                TextStyle(fontSize = (14 * scale).sp, color = COLOR_ACTUAL, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             )
             val valueWidth = valueTextLayout.size.width.toFloat()
             val valueHeight = valueTextLayout.size.height.toFloat()
@@ -396,7 +414,7 @@ fun TemperatureGraph(
 
         for ((idx, text, color) in labels) {
             val point = coords[idx]
-            val textLayout = textMeasurer.measure(text, TextStyle(fontSize = (11 * scale).sp, color = color))
+            val textLayout = textMeasurer.measure(text, TextStyle(fontSize = (14 * scale).sp, color = color))
             val textWidth = textLayout.size.width.toFloat()
             val textHeight = textLayout.size.height.toFloat()
             val isHigh = idx == highIdx
@@ -470,24 +488,26 @@ fun TemperatureGraph(
                 .toLocalTime()
             val timeStr = formatHourLabel(time.hour)
             
-            val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = (9 * scale).sp, color = Color.Gray))
+            val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = hourLabelFontSize, color = Color.Gray))
             val textW = textLayout.size.width.toFloat()
             val textH = textLayout.size.height.toFloat()
-            
-            val yOffset = h - 22f * scale
+
+            val yOffset = h - bottomMargin - bottomBandH / 2f
             val textY = yOffset - textH / 2f
-            
+
             val isLast = i == points.lastIndex || (x + (textW + 14.dp.toPx() * scale) / 2f > w)
-            
+
             if (!isLast && painters[i] != null) {
-                val iconSize = 12.dp.toPx() * scale
+                val iconSize = hourIconPx
                 val gap = 2.dp.toPx() * scale
                 val totalW = textW + gap + iconSize
-                
-                val startX = x - totalW / 2f
-                val textTopLeft = Offset(startX.coerceAtLeast(4f * scale), textY)
+
+                // Clamp the whole label+icon group to the left edge together, so the icon position is
+                // derived from the same clamped x as the text (otherwise they collide at the edge).
+                val startX = (x - totalW / 2f).coerceAtLeast(4f * scale)
+                val textTopLeft = Offset(startX, textY)
                 drawText(textLayout, topLeft = textTopLeft)
-                
+
                 val iconLeft = startX + textW + gap
                 val iconTop = yOffset - iconSize / 2f
                 
@@ -543,7 +563,7 @@ fun TemperatureGraph(
             
             // 2. Draw the "NOW" label text
             val nowLabelStyle = TextStyle(
-                fontSize = (9 * scale).sp,
+                fontSize = (11 * scale).sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                 color = Color.White
             )
@@ -595,7 +615,7 @@ private fun DrawScope.drawDayLabels(
         val isToday = date == today
         val color = if (isToday) Color.Yellow.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.45f)
         val text = date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
-        val layout = textMeasurer.measure(text, TextStyle(fontSize = (10 * scale).sp, color = color))
+        val layout = textMeasurer.measure(text, TextStyle(fontSize = (14 * scale).sp, color = color))
         val x = edgeX.coerceIn(layout.size.width / 2f, size.width - layout.size.width / 2f)
         val candidates = listOf(8f * scale, size.height * 0.48f, size.height - 48f * scale)
         val y = candidates.firstOrNull { top ->
