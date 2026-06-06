@@ -26,14 +26,13 @@ private val COLOR_FORECAST_CLOUDY = Color(0xFF8E99A4)
 private val COLOR_FORECAST_RAINY = Color(0xFF5A8FBF)
 private val COLOR_OBSERVED = Color(0xFFFF3366)
 private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
-private const val TOP_PADDING_FRACTION = 0.10f
-private const val GRAPH_BOTTOM_FRACTION = 0.76f
 private const val GHOST_BAR_ALPHA = 0.3f
 
 @Composable
 fun DailyForecastGraph(
     state: DesktopDailyViewState,
     modifier: Modifier = Modifier,
+    scale: Float = 1f,
     onDayClick: (java.time.LocalDate) -> Unit = {},
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -63,17 +62,27 @@ fun DailyForecastGraph(
         }
         val rawMin = allTemps.minOrNull() ?: 0f
         val rawMax = allTemps.maxOrNull() ?: 100f
-        val rangePad = ((rawMax - rawMin) * 0.18f).coerceAtLeast(4f)
+        // Minimal range padding so the hottest bar reaches the top and the coldest reaches the
+        // bottom of the graph band — bars fill the available height (overlap with labels is fine).
+        val rangePad = ((rawMax - rawMin) * 0.04f).coerceAtLeast(1f)
         val minTemp = rawMin - rangePad
         val maxTemp = rawMax + rangePad
         val range = (maxTemp - minTemp).coerceAtLeast(1f)
-        val top = size.height * TOP_PADDING_FRACTION
-        val bottom = size.height * GRAPH_BOTTOM_FRACTION
-        val graphHeight = (bottom - top).coerceAtLeast(1f)
         val dayWidth = size.width / displayDays.size
-        val barWidth = (dayWidth * 0.14f).coerceIn(5.dp.toPx(), 10.dp.toPx())
+        val iconSize = (30.dp.toPx() * scale).coerceAtMost(dayWidth * 0.6f)
+        // Top: tiny reserve — the hottest bar runs to the top and its high label overlaps the bar
+        // top slightly (acceptable). Bottom: reserve enough for the low label + icon + day name so
+        // those sit below the bars without overlapping them.
+        val lowLabelBand = 11f * scale * 1.4f + 4f * scale
+        val dayLabelBand = labelSizeFor(dayWidth) * scale * 1.5f + 6f * scale
+        val top = 2f * scale
+        val bottomReserve = lowLabelBand + iconSize + dayLabelBand + 6f * scale
+        val bottom = (size.height - bottomReserve).coerceAtLeast(size.height * 0.4f)
+        val iconFloorTop = size.height - dayLabelBand - iconSize
+        val graphHeight = (bottom - top).coerceAtLeast(1f)
+        val barWidth = (7.dp.toPx() * scale).coerceAtMost(dayWidth * 0.22f)
         val thinWidth = barWidth * 0.65f
-        val tripleOffset = (8f * (dayWidth / 70.dp.toPx()).coerceIn(0.85f, 1.2f)).dp.toPx()
+        val tripleOffset = (6.dp.toPx() * scale).coerceAtMost(dayWidth * 0.18f)
 
         fun yAt(temp: Float): Float = top + graphHeight * (1f - (temp - minTemp) / range)
 
@@ -110,35 +119,41 @@ fun DailyForecastGraph(
                 val highY = yAt(highForLabel)
                 val highText = textMeasurer.measure(
                     "${highForLabel.roundToInt()}°",
-                    TextStyle(fontSize = 12.sp, color = if (day.isToday) Color.Yellow else Color.White)
+                    TextStyle(fontSize = (12f * scale).sp, color = if (day.isToday) Color.Yellow else Color.White)
                 )
-                drawText(highText, topLeft = Offset(centerX - highText.size.width / 2f, highY - 24f))
+                // Sit above the bar top; never clip off the canvas top (overlap the bar instead).
+                val highLabelY = (highY - highText.size.height - 3f * scale).coerceAtLeast(0f)
+                drawText(highText, topLeft = Offset(centerX - highText.size.width / 2f, highLabelY))
             }
             if (lowForLabel != null) {
                 val lowY = yAt(lowForLabel)
                 val lowText = textMeasurer.measure(
                     "${lowForLabel.roundToInt()}°",
-                    TextStyle(fontSize = 11.sp, color = Color.White.copy(alpha = 0.78f))
+                    TextStyle(fontSize = (11f * scale).sp, color = Color.White.copy(alpha = 0.78f))
                 )
-                drawText(lowText, topLeft = Offset(centerX - lowText.size.width / 2f, lowY + 34f))
+                // Low label sits below the bar; icon below the label. Both clamp to stay above the
+                // day-name row, so for cold days they overlap the bar bottom rather than clip.
+                val lowLabelY = (lowY + 4f * scale).coerceAtMost(iconFloorTop - lowText.size.height - 2f * scale)
+                drawText(lowText, topLeft = Offset(centerX - lowText.size.width / 2f, lowLabelY))
 
-                val iconSize = (dayWidth * 0.34f).coerceIn(20.dp.toPx(), 34.dp.toPx())
-                translate(centerX - iconSize / 2f, lowY + 7f) {
+                val iconTop = (lowLabelY + lowText.size.height + 2f * scale).coerceAtMost(iconFloorTop)
+                translate(centerX - iconSize / 2f, iconTop) {
                     with(painters[index]) { draw(Size(iconSize, iconSize)) }
                 }
             }
 
             val dayText = textMeasurer.measure(
                 day.label,
-                TextStyle(fontSize = labelSizeFor(dayWidth).sp, color = if (day.isToday) Color.Yellow else COLOR_LABEL_GRAY)
+                TextStyle(fontSize = (labelSizeFor(dayWidth) * scale).sp, color = if (day.isToday) Color.Yellow else COLOR_LABEL_GRAY)
             )
-            drawText(dayText, topLeft = Offset(centerX - dayText.size.width / 2f, size.height - 18f))
+            drawText(dayText, topLeft = Offset(centerX - dayText.size.width / 2f, size.height - dayText.size.height - 6f * scale))
 
             val rainText = buildRainLabel(day)
             if (rainText != null) {
-                val rainLayout = textMeasurer.measure(rainText, TextStyle(fontSize = 9.sp, color = COLOR_FORECAST_RAINY))
-                val anchorY = highForLabel?.let { yAt(it) - 40f } ?: top + 10f
-                drawText(rainLayout, topLeft = Offset(centerX - rainLayout.size.width / 2f, anchorY.coerceAtLeast(24f)))
+                val rainLayout = textMeasurer.measure(rainText, TextStyle(fontSize = (9f * scale).sp, color = COLOR_FORECAST_RAINY))
+                // Sit above the high-temp label: bar top - (high label height ~14sp*scale) - gap - own height.
+                val anchorY = highForLabel?.let { yAt(it) - (14f * scale + 8f * scale) - rainLayout.size.height } ?: (top + 10f)
+                drawText(rainLayout, topLeft = Offset(centerX - rainLayout.size.width / 2f, anchorY.coerceAtLeast(2f)))
             }
         }
     }

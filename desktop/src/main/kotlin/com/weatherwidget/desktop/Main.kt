@@ -520,7 +520,11 @@ internal fun WidgetPopup(
     onOpenSettings: () -> Unit,
     onOpenObservations: () -> Unit,
 ) {
-    Surface(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+      // One shared scale for header + graph so everything grows together with the window.
+      // Density-independent (maxHeight and 320.dp both carry density). ~2x at a typical window.
+      val uiScale = (maxHeight / 320.dp).coerceIn(1f, 3f)
+      Surface(modifier = Modifier.fillMaxSize()) {
         when (dataStatus) {
             is DataStatus.Error -> CenteredMessage(dataStatus.message)
             is DataStatus.Loading -> CenteredMessage("Loading…")
@@ -537,9 +541,10 @@ internal fun WidgetPopup(
                         onUpdateLocation = onUpdateLocation,
                         showWeatherSummary = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION",
                         headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
+                        scale = uiScale,
                     )
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
 
                     val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
                     if (isHourly) {
@@ -625,6 +630,7 @@ internal fun WidgetPopup(
                                 DailyForecastGraph(
                                     state = dailyState,
                                     modifier = Modifier.fillMaxSize(),
+                                    scale = uiScale,
                                     onDayClick = { clickedDate ->
                                         val now = LocalDateTime.now()
                                         val hours = java.time.Duration.between(now, clickedDate.atStartOfDay()).toHours().toInt()
@@ -668,6 +674,7 @@ internal fun WidgetPopup(
                 }
             }
         }
+      }
     }
 }
 
@@ -709,6 +716,7 @@ private fun WidgetHeader(
     onUpdateLocation: () -> Unit,
     showWeatherSummary: Boolean = true,
     headerTime: LocalDateTime = LocalDateTime.now(),
+    scale: Float = 1f,
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
     val targetHour = remember(headerTime) { headerTime.truncatedTo(ChronoUnit.HOURS) }
@@ -748,12 +756,12 @@ private fun WidgetHeader(
                     androidx.compose.foundation.Image(
                         painter = WeatherIcon.painter(forecast.currentCondition),
                         contentDescription = null,
-                        modifier = Modifier.size(32.dp).padding(end = 4.dp)
+                        modifier = Modifier.size((22 * scale).dp).padding(end = 4.dp)
                     )
                     Text(
                         text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
                         style = MaterialTheme.typography.displaySmall,
-                        fontSize = 22.sp
+                        fontSize = (15 * scale).sp
                     )
                 }
                 if (deltaTemp != null) {
@@ -761,6 +769,7 @@ private fun WidgetHeader(
                     Text(
                         text = String.format(Locale.US, "%+.1f", deltaTemp),
                         style = MaterialTheme.typography.labelSmall,
+                        fontSize = (11 * scale).sp,
                         color = Color(0xFFFF6B35),
                         modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
                     )
@@ -770,6 +779,7 @@ private fun WidgetHeader(
                     Text(
                         text = "$precipProb%",
                         style = MaterialTheme.typography.labelMedium,
+                        fontSize = (12 * scale).sp,
                         color = Color(0xFF4FC3F7),
                         modifier = Modifier
                             .align(Alignment.CenterVertically)
@@ -790,7 +800,7 @@ private fun WidgetHeader(
                 Text(
                     text = targetHour.format(dateFormatter),
                     style = MaterialTheme.typography.labelSmall,
-                    fontSize = 11.sp,
+                    fontSize = (12 * scale).sp,
                     color = Color.White.copy(alpha = 0.7f)
                 )
             }
@@ -807,7 +817,7 @@ private fun WidgetHeader(
                         text = config.weatherSource,
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 9.sp,
+                        fontSize = (10 * scale).sp,
                         modifier = Modifier.clickable {
                             val nextIdx = (visibleSources.indexOf(config.weatherSource) + 1) % visibleSources.size
                             onUpdateConfig(config.copy(weatherSource = visibleSources[nextIdx]))
@@ -817,7 +827,7 @@ private fun WidgetHeader(
                     Text(
                         text = config.weatherSource,
                         style = MaterialTheme.typography.labelSmall,
-                        fontSize = 9.sp,
+                        fontSize = (10 * scale).sp,
                         color = Color.White.copy(alpha = 0.5f),
                         modifier = Modifier.padding(end = 6.dp)
                     )
@@ -825,7 +835,7 @@ private fun WidgetHeader(
                 Icon(
                     painter = androidx.compose.ui.res.painterResource("drawable/ic_settings_gear.xml"),
                     contentDescription = "Settings",
-                    modifier = Modifier.size(13.dp).clickable { onOpenSettings() },
+                    modifier = Modifier.size((14 * scale).dp).clickable { onOpenSettings() },
                     tint = Color.White.copy(alpha = 0.7f)
                 )
             }
@@ -842,6 +852,7 @@ private fun WidgetHeader(
                     Text(
                         text = config.label,
                         style = MaterialTheme.typography.bodySmall,
+                        fontSize = (12 * scale).sp,
                         color = Color.White.copy(alpha = 0.7f),
                         maxLines = 1,
                         modifier = Modifier.clickable { onUpdateLocation() }
@@ -850,7 +861,7 @@ private fun WidgetHeader(
                     Icon(
                         painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
                         contentDescription = "Stations",
-                        modifier = Modifier.size(13.dp).clickable { onOpenObservations() },
+                        modifier = Modifier.size((13 * scale).dp).clickable { onOpenObservations() },
                         tint = Color.White.copy(alpha = 0.7f)
                     )
                     Spacer(Modifier.width(6.dp))
@@ -859,7 +870,7 @@ private fun WidgetHeader(
                     val emoji = if (isCloud || isPrecip) "🌡️" else "☁️"
                     Text(
                         text = emoji,
-                        fontSize = 11.sp,
+                        fontSize = (11 * scale).sp,
                         modifier = Modifier.clickable {
                             val nextMode = if (isCloud || isPrecip) "HOURLY" else "CLOUD_COVER"
                             onUpdateConfig(config.copy(viewMode = nextMode))
