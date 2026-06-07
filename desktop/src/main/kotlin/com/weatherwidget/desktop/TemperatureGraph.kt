@@ -85,6 +85,23 @@ private const val ACTUALS_CONTEXT_LOOKAHEAD_HOURS = 60L
 private const val WIDE_LABEL_INTERVAL = 4
 private const val NARROW_WIDE_LABEL_INTERVAL = 6
 private const val NARROW_WIDTH_PX = 420f
+private const val AGE_LABEL_MAX_HOURS_SPAN = 12L
+
+/**
+ * Fetch-dot staleness age, mirroring Android's `TemperatureGraphStyle.formatAgeLabel`: show the age
+ * for any non-negative value, but only when the visible window is narrow enough (≤12h span) that
+ * freshness is meaningful — so it appears in the zoomed-in view and hides in the wide 24h view.
+ * Returns null when it should not be drawn. Format matches Android: "17m", "1h 5m".
+ */
+private fun formatAgeLabel(ageMinutes: Long, spanHours: Long): String? {
+    if (ageMinutes < 0) return null
+    if (spanHours > AGE_LABEL_MAX_HOURS_SPAN) return null
+    return if (ageMinutes >= 60) {
+        "${ageMinutes / 60}h${if (ageMinutes % 60 > 0) " ${ageMinutes % 60}m" else ""}"
+    } else {
+        "${ageMinutes}m"
+    }
+}
 
 private fun tempToColor(temp: Float): Color = when {
     temp <= COLD_THRESHOLD -> COLOR_COLD
@@ -156,7 +173,6 @@ fun TemperatureGraph(
     ) {
         val windowStart = start
         val windowEnd = cutoff
-        val windowSpan = (windowEnd - windowStart).coerceAtLeast(1L).toFloat()
 
         val zoneId = ZoneId.systemDefault()
         val actualSeries = ActualTemperatureSeriesBuilder.build(
@@ -224,7 +240,14 @@ fun TemperatureGraph(
         val bottomReserve = bottomMargin + bottomBandH + 8f * scale
         val graphHeight = (h - top - bottomReserve).coerceAtLeast(1f)
 
-        fun xAtTime(t: Long): Float = ((t - windowStart).toFloat() / windowSpan * w).coerceIn(0f, w)
+        // Map by the actual data span (first..last point) rather than the window, so the rightmost
+        // hourly point lands on the right edge and the curve fills the full width (matches Android's
+        // index-based hour spacing). NOW/fetch-dot/labels all route through xAtTime, so they stay
+        // aligned. windowStart/windowEnd remain the gating window for visibility checks.
+        val dataStart = points.first().dateTime
+        val dataEnd = points.last().dateTime
+        val dataSpan = (dataEnd - dataStart).coerceAtLeast(1L).toFloat()
+        fun xAtTime(t: Long): Float = ((t - dataStart).toFloat() / dataSpan * w).coerceIn(0f, w)
         fun xAt(i: Int): Float = xAtTime(points[i].dateTime)
         fun yAt(t: Float): Float = top + graphHeight * (1f - (t - minTemp) / range)
 
@@ -357,37 +380,43 @@ fun TemperatureGraph(
             
             isAnchoredToFetchDot = abs(markerX - fetchDotX) <= 4.dp.toPx() * scale
             
-            // Age label if stale
+            // Staleness age label (mirrors Android: any non-negative age, but only in a ≤12h window
+            // so it shows in the zoomed-in view and hides in the wide 24h view). Drawn in the actual
+            // line's pink (#FF3366) with a dark shadow, placed above the dot like Android — flipping
+            // below only on collision / if it would clip off the top.
             val ageMinutes = (now - tMs) / 60000L
-            if (ageMinutes >= 30L) {
-                val ageStr = if (ageMinutes >= 60L) "${ageMinutes / 60L}h${if (ageMinutes % 60L > 0L) "${ageMinutes % 60L}m" else ""}" else "${ageMinutes}m"
-                val ageLabelText = "($ageStr ago)"
+            val spanHours = (windowEnd - windowStart) / 3_600_000L
+            val ageLabelText = formatAgeLabel(ageMinutes, spanHours)
+            if (ageLabelText != null) {
                 val ageTextLayout = textMeasurer.measure(
                     ageLabelText,
-                    TextStyle(fontSize = (9 * scale).sp, color = Color.Gray)
+                    TextStyle(
+                        fontSize = (9 * scale).sp,
+                        color = COLOR_ACTUAL,
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Color.Black.copy(alpha = 0.7f),
+                            offset = Offset(0f, 1f * scale),
+                            blurRadius = 2f * scale
+                        )
+                    )
                 )
                 val ageWidth = ageTextLayout.size.width.toFloat()
                 val ageHeight = ageTextLayout.size.height.toFloat()
                 val padding = 4.dp.toPx() * scale
-                
-                val belowY = fetchDotY + dotRadius + padding
-                val belowRect = Rect(Offset(fetchDotX - ageWidth / 2f, belowY), Size(ageWidth, ageHeight))
-                
-                val collisionBelow = drawnLabels.any { it.overlaps(belowRect.inflate(2.dp.toPx() * scale)) } || (belowY + ageHeight > h - bottomReserve)
-                
-                val finalAgeRect = if (collisionBelow) {
-                    val aboveY = fetchDotY - dotRadius - padding - ageHeight
-                    val aboveRect = Rect(Offset(fetchDotX - ageWidth / 2f, aboveY), Size(ageWidth, ageHeight))
-                    val collisionAbove = drawnLabels.any { it.overlaps(aboveRect.inflate(2.dp.toPx() * scale)) } || (aboveY < 0f)
-                    if (collisionAbove) {
-                        belowRect
-                    } else {
-                        aboveRect
-                    }
+
+                val aboveY = fetchDotY - dotRadius - padding - ageHeight
+                val aboveRect = Rect(Offset(fetchDotX - ageWidth / 2f, aboveY), Size(ageWidth, ageHeight))
+                val collisionAbove = drawnLabels.any { it.overlaps(aboveRect.inflate(2.dp.toPx() * scale)) } || (aboveY < 0f)
+
+                val finalAgeRect = if (collisionAbove) {
+                    val belowY = fetchDotY + dotRadius + padding
+                    val belowRect = Rect(Offset(fetchDotX - ageWidth / 2f, belowY), Size(ageWidth, ageHeight))
+                    val collisionBelow = drawnLabels.any { it.overlaps(belowRect.inflate(2.dp.toPx() * scale)) } || (belowY + ageHeight > h - bottomReserve)
+                    if (collisionBelow) aboveRect else belowRect
                 } else {
-                    belowRect
+                    aboveRect
                 }
-                
+
                 drawText(ageTextLayout, topLeft = finalAgeRect.topLeft)
                 drawnLabels.add(finalAgeRect)
             }
