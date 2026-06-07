@@ -68,6 +68,15 @@ private const val HOURLY_NAV_JUMP = 6
 private const val MIN_HOURLY_OFFSET = -720
 private const val MAX_HOURLY_OFFSET = 720
 
+/**
+ * Hours from now to **noon** of [clickedDate]. The hourly graphs render a ±12h WIDE window around
+ * `now + hourlyOffset`, so anchoring on the clicked day's midday makes that window span the clicked
+ * day midnight→midnight instead of straddling noon-of-prev-day → noon-of-clicked-day.
+ */
+private fun offsetToDayCenter(clickedDate: LocalDate): Int =
+    java.time.Duration.between(LocalDateTime.now(), clickedDate.atStartOfDay().plusHours(12))
+        .toHours().toInt()
+
 fun main(args: Array<String>) {
     val isUiMode = args.contains("--ui") || args.contains("ui") || args.contains("--show") || args.contains("show")
     if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
@@ -649,8 +658,7 @@ internal fun WidgetPopup(
                                     modifier = Modifier.fillMaxSize(),
                                     scale = uiScale,
                                     onDayClick = { clickedDate ->
-                                        val now = LocalDateTime.now()
-                                        val hours = java.time.Duration.between(now, clickedDate.atStartOfDay()).toHours().toInt()
+                                        val hours = offsetToDayCenter(clickedDate)
                                         val clickedDay = dailyState.days.find { it.date == clickedDate }
                                         val clickedIcon = clickedDay?.iconCondition
                                         val targetView = clickedIcon?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: "HOURLY"
@@ -662,8 +670,7 @@ internal fun WidgetPopup(
                                     state = dailyState,
                                     modifier = Modifier.fillMaxSize(),
                                     onDayClick = { clickedDate ->
-                                        val now = LocalDateTime.now()
-                                        val hours = java.time.Duration.between(now, clickedDate.atStartOfDay()).toHours().toInt()
+                                        val hours = offsetToDayCenter(clickedDate)
                                         val clickedDay = dailyState.days.find { it.date == clickedDate }
                                         val clickedIcon = clickedDay?.iconCondition
                                         val targetView = clickedIcon?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: "HOURLY"
