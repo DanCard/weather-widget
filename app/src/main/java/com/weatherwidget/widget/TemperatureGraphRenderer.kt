@@ -132,22 +132,6 @@ object TemperatureGraphRenderer {
         return CurveIntrusion.merge(a, f)
     }
 
-    private fun isCurveGrazeWithinAllowedDip(
-        bounds: RectF,
-        intrusion: CurveIntrusion,
-        placeAbove: Boolean,
-        allowedDipPx: Float,
-    ): Boolean {
-        if (intrusion.isEmpty) return true
-        val intrusionDepth =
-            if (placeAbove) {
-                bounds.bottom - intrusion.minY
-            } else {
-                intrusion.maxY - bounds.top
-            }
-        return intrusionDepth <= allowedDipPx
-    }
-
     private const val STALENESS_MINOR_OVERLAP_RATIO = 0.40f
     private const val MAX_STALENESS_DISPLACEMENT_STEPS = 15
     private const val STALENESS_LEADER_LINE_MIN_STEPS = 2
@@ -523,7 +507,6 @@ object TemperatureGraphRenderer {
 
         val gapAbovePx = dpToPx(ctx.context, gapDp.aboveDp)
         val gapBelowPx = dpToPx(ctx.context, gapDp.belowDp)
-        val allowedCurveDipPx = dpToPx(ctx.context, CURVE_AVOIDANCE_ALLOWED_DIP_DP)
 
         outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
             for (placeAbove in directions) {
@@ -559,11 +542,11 @@ object TemperatureGraphRenderer {
 
                 val curveAvoidanceEligible = candidate.role in CURVE_AVOIDANCE_ROLES
                 val curveIntrusion = if (curveAvoidanceEligible) combinedCurveIntrusion(ctx, bounds) else CurveIntrusion.NONE
-                val allowFlippedAboveCurveGraze =
-                    flipDecided &&
-                        placeAbove &&
-                        curveAvoidanceEligible &&
-                        isCurveGrazeWithinAllowedDip(bounds, curveIntrusion, placeAbove = true, allowedDipPx = allowedCurveDipPx)
+                // A valley low the below-cascade decided to lift above (flipDecided) sits directly
+                // above its valley point, where the curve naturally rises into the label's lower
+                // corners. Tolerate that graze unconditionally — rejecting it only pushes the label
+                // back down into the hour-axis footer, which is worse than a little curve overlap.
+                val allowFlippedAboveCurveGraze = flipDecided && placeAbove && curveAvoidanceEligible
                 val overlapsCurve = curveAvoidanceEligible && !curveIntrusion.isEmpty && !allowFlippedAboveCurveGraze
 
                 val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve
@@ -905,30 +888,36 @@ object TemperatureGraphRenderer {
             )
         }
 
-        if (collidingMeta.isValleyBelow && overlapRatio <= GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO) {
-            // Last resort: a heavy (>option2) overlap stacked on another below valley. Rather than
-            // accept it, lift this label above the line when it is strictly warmer than the one it
-            // collides with — warmer-on-top matches the points' vertical order. Equal rounded values
-            // (and colder labels) keep the existing below-overlap behavior.
-            val currentVal = candidate.labelTemps[candidate.index].roundToInt()
-            val collidingVal = collidingMeta.temperature.roundToInt()
-            if (currentVal > collidingVal) {
+        if (collidingMeta.isValleyBelow) {
+            // Heavier-than-relaxed overlap stacked on another below valley. Compare the *raw*
+            // temperatures, not the rounded labels: a 50.0° forecast low colliding with a 49.8°
+            // actual low both render as "50°" but the forecast is genuinely warmer, so it should sit
+            // on top. Lifting the strictly-warmer label above keeps warmer-on-top order and — more
+            // importantly — keeps it out of the hour-axis footer that a downward cascade would
+            // otherwise push it into. This flip wins even when the overlap is heavier than the
+            // valley-vs-valley cap; equal/colder labels keep stacking below, but only up to that cap
+            // (beyond it we give up with None and let the caller fall back).
+            val currentTemp = candidate.labelTemps[candidate.index]
+            val collidingTemp = collidingMeta.temperature
+            if (currentTemp > collidingTemp) {
                 if (shouldLogPlacement(candidate.role)) {
-                    Log.d(TAG, "LabelCascade: role=${candidate.role} flip-above-warmer current=$currentVal colliding=$collidingVal collidingRole=${collidingMeta.role} ratio=${String.format("%.2f", overlapRatio)}")
+                    Log.d(TAG, "LabelCascade: role=${candidate.role} flip-above-warmer current=${String.format("%.1f", currentTemp)} colliding=${String.format("%.1f", collidingTemp)} collidingRole=${collidingMeta.role} ratio=${String.format("%.2f", overlapRatio)}")
                 }
                 return ValleyCascadeOutcome.FlipAbove
             }
-            if (shouldLogPlacement(candidate.role)) {
-                Log.d(TAG, "LabelCascade: role=${candidate.role} option1-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO} collidingRole=${collidingMeta.role}")
-            }
-            return ValleyCascadeOutcome.Below(
-                CascadeResult(
-                    x = centerX,
-                    baselineY = verticalPlacement.baselineY,
-                    bounds = centeredBounds,
-                    reason = "below-valley-overlap",
+            if (overlapRatio <= GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO) {
+                if (shouldLogPlacement(candidate.role)) {
+                    Log.d(TAG, "LabelCascade: role=${candidate.role} option1-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO} collidingRole=${collidingMeta.role}")
+                }
+                return ValleyCascadeOutcome.Below(
+                    CascadeResult(
+                        x = centerX,
+                        baselineY = verticalPlacement.baselineY,
+                        bounds = centeredBounds,
+                        reason = "below-valley-overlap",
+                    )
                 )
-            )
+            }
         }
 
         if (shouldLogPlacement(candidate.role)) {

@@ -173,6 +173,58 @@ class TemperatureLabelCollisionOrderTest {
         )
     }
 
+    @Test
+    fun `forecast low flips above when it rounds equal but is rawer warmer than actual low`() {
+        val placements = mutableListOf<LabelPlacementDebug>()
+
+        // Emulator repro: a forecast daily LOW of 50.0 and an ACTUAL_LOW of 49.8 land at the same
+        // spot. Both render as "50°", so a rounded comparison would treat them as equal and stack
+        // (or cascade the forecast label down into the hour-axis footer). They are 0.2° apart and a
+        // wide range (high 81) compresses that into a near-total vertical overlap (~0.9), heavier
+        // than the valley-vs-valley cap. The flip must key off the *raw* temps: 50.0 > 49.8, so the
+        // forecast low lifts above the line while the colder actual low stays below.
+        val forecast = MutableList(48) { 70f }
+        forecast[12] = 81f
+        forecast[24] = 50f
+        forecast[25] = 50f
+        forecast[26] = 50f
+        val actual = MutableList<Float?>(48) { null }
+        actual[25] = 49.8f
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = buildHours(forecast, actual),
+            widthPx = 900,
+            heightPx = 400,
+            currentTime = LocalDateTime.of(2026, 4, 9, 12, 0),
+            observedAt = LocalDateTime.of(2026, 4, 9, 2, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val forecastLow = placements.find { it.role == TemperatureRole.LOW && it.temperature == 50f }
+        val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
+
+        if (forecastLow == null || actualLow == null) {
+            println("Placements: ${placements.map { "${it.role}=${it.temperature} above=${it.placedAbove} y=${"%.1f".format(it.y)} reason=${it.reason}" }}")
+        }
+
+        assertNotNull("Forecast LOW (50) should be placed", forecastLow)
+        assertNotNull("ACTUAL_LOW (49.8) should be placed", actualLow)
+
+        assertTrue(
+            "Expected the rawer-warmer 50° forecast low above. forecastLow=$forecastLow",
+            forecastLow!!.placedAbove
+        )
+        assertTrue(
+            "Expected the colder 49.8° actual low below. actualLow=$actualLow",
+            !actualLow!!.placedAbove
+        )
+        assertTrue(
+            "Expected 50° above 49.8°. 50_y=${forecastLow.y}, 49.8_y=${actualLow.y}",
+            forecastLow.y < actualLow.y
+        )
+    }
+
     private fun assertNotNull(message: String, value: Any?) {
         if (value == null) throw AssertionError(message)
     }
