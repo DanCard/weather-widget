@@ -70,12 +70,16 @@ fun DailyForecastGraph(
         val range = (maxTemp - minTemp).coerceAtLeast(1f)
         val dayWidth = size.width / displayDays.size
         val iconSize = (30.dp.toPx() * scale).coerceAtMost(dayWidth * 0.6f)
-        // Top: tiny reserve — the hottest bar runs to the top and its high label overlaps the bar
-        // top slightly (acceptable). Bottom: reserve enough for the low label + icon + day name so
-        // those sit below the bars without overlapping them.
+        // Top: tiny reserve — the hottest bar runs to the top, and its high/rain labels ride up a
+        // little past the canvas top into the header row (by design; the Canvas isn't clipped, so
+        // the overflow paints over the header). Bottom: reserve enough for the low label + icon +
+        // day name so those sit below the bars without overlapping them.
         val lowLabelBand = 11f * scale * 1.4f + 4f * scale
         val dayLabelBand = labelSizeFor(dayWidth) * scale * 1.5f + 6f * scale
         val top = 2f * scale
+        // How far labels may ride above the canvas top, overlapping the header (~high-label height
+        // + gap, so the hottest day's high label fully clears its bar).
+        val headerBleed = 12f * scale * 1.4f + 4f * scale
         val bottomReserve = lowLabelBand + iconSize + dayLabelBand + 6f * scale
         val bottom = (size.height - bottomReserve).coerceAtLeast(size.height * 0.4f)
         val iconFloorTop = size.height - dayLabelBand - iconSize
@@ -121,8 +125,9 @@ fun DailyForecastGraph(
                     "${highForLabel.roundToInt()}°",
                     TextStyle(fontSize = (12f * scale).sp, color = if (day.isToday) Color.Yellow else Color.White)
                 )
-                // Sit above the bar top; never clip off the canvas top (overlap the bar instead).
-                val highLabelY = (highY - highText.size.height - 3f * scale).coerceAtLeast(0f)
+                // Sit above the bar top; for the hottest bar this rides up past the canvas top into
+                // the header (a little overlap is welcome) rather than dropping onto the bar.
+                val highLabelY = (highY - highText.size.height - 3f * scale).coerceAtLeast(-headerBleed)
                 drawText(highText, topLeft = Offset(centerX - highText.size.width / 2f, highLabelY))
             }
             if (lowForLabel != null) {
@@ -153,7 +158,9 @@ fun DailyForecastGraph(
                 val rainLayout = textMeasurer.measure(rainText, TextStyle(fontSize = (9f * scale).sp, color = COLOR_FORECAST_RAINY))
                 // Sit above the high-temp label: bar top - (high label height ~14sp*scale) - gap - own height.
                 val anchorY = highForLabel?.let { yAt(it) - (14f * scale + 8f * scale) - rainLayout.size.height } ?: (top + 10f)
-                drawText(rainLayout, topLeft = Offset(centerX - rainLayout.size.width / 2f, anchorY.coerceAtLeast(2f)))
+                // Stays above the high-temp label; may ride a little further into the header than it.
+                val rainFloor = -headerBleed - rainLayout.size.height - 2f * scale
+                drawText(rainLayout, topLeft = Offset(centerX - rainLayout.size.width / 2f, anchorY.coerceAtLeast(rainFloor)))
             }
         }
     }
