@@ -16,10 +16,18 @@ set -x
 ./gradlew :desktop:createDistributable
 { set +x; } 2>/dev/null
 
-printf "\t Stopping running desktop app instance (graceful signal)...\n"
+printf "\t Stopping running desktop app instance(s)...\n"
 set -x
-touch "$QUIT_FILE"
+touch "$QUIT_FILE"   # graceful: WatchService-driven quit
 { set +x; } 2>/dev/null
+# Deterministic stop so dev rebuilds never stack instances: let the graceful signal land, then
+# force-kill any survivors (daemon + UI) before launching the new build.
+APP_PROC_PATTERN='weather-widget-desktop/bin/weather-widget-desktop'
+for _ in 1 2 3 4 5 6; do
+  pgrep -f "$APP_PROC_PATTERN" >/dev/null 2>&1 || break
+  sleep 0.25
+done
+pkill -9 -f "$APP_PROC_PATTERN" 2>/dev/null || true
 
 printf "\n\t Starting desktop app through autostart launcher: $AUTOSTART_SCRIPT\n"
 set -x

@@ -124,11 +124,10 @@ fun TemperatureGraph(
             .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
     }
 
-    val iconSpacing = if (points.size > 24) 4 else if (points.size > 12) 3 else 2
-    val painters = mutableListOf<Painter?>()
-    for (i in points.indices) {
-        painters.add(if (i % iconSpacing == 0) painterResource(WeatherIcon.getIconResource(points[i].condition)) else null)
-    }
+    // One painter per point. Icon spacing is decided by the hour-label filter in the bottom strip
+    // (drawn at every labeled hour), NOT by index spacing here — index spacing never aligns with the
+    // clock-hour labels in WIDE, which left every label without its day-night icon.
+    val painters: List<Painter> = points.map { painterResource(WeatherIcon.getIconResource(it.condition)) }
 
     val smoothIterations = if (zoomLevel == "NARROW") 1 else 3
 
@@ -497,7 +496,7 @@ fun TemperatureGraph(
 
             val isLast = i == points.lastIndex || (x + (textW + 14.dp.toPx() * scale) / 2f > w)
 
-            if (!isLast && painters[i] != null) {
+            if (!isLast) {
                 val iconSize = hourIconPx
                 val gap = 2.dp.toPx() * scale
                 val totalW = textW + gap + iconSize
@@ -510,8 +509,8 @@ fun TemperatureGraph(
 
                 val iconLeft = startX + textW + gap
                 val iconTop = yOffset - iconSize / 2f
-                
-                painters[i]?.let { painter ->
+
+                painters[i].let { painter ->
                     val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
                     val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
                         isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT

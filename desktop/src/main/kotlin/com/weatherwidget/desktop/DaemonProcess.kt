@@ -413,6 +413,20 @@ fun runDaemon() {
         }
     }
 
+    // Safety net for the lossy WatchService: the `.quit-<id>` interrupt above is the fast path, but
+    // Java's WatchService can drop events, leaving a superseded daemon alive (the cause of stacked
+    // instances). Actively re-check on a slow timer so an older daemon still exits even if it never
+    // received the file-watch event. Newest-launch-wins, same as the interrupt path.
+    daemonScope.launch(Dispatchers.IO) {
+        while (true) {
+            delay(INSTANCE_RECHECK_INTERVAL_MS)
+            if (supersededByNewerInstance(appDir, appLaunchId)) {
+                Log.i(TAG, "Instance re-check: a newer instance is active (mine=$appLaunchId). Exiting.")
+                quit(killUi = false)
+            }
+        }
+    }
+
     runBlocking {
         awaitCancellation()
     }

@@ -22,7 +22,18 @@ if [ ! -x "$APP_BIN" ]; then
   exit 1
 fi
 
-echo "Relaunching existing distributable (new instance will signal old to quit)..."
+# Deterministic stop so dev restarts never stack instances: graceful .quit, then force-kill any
+# survivors (daemon + UI) before relaunching.
+QUIT_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/weather-widget/.quit"
+APP_PROC_PATTERN='weather-widget-desktop/bin/weather-widget-desktop'
+touch "$QUIT_FILE"
+for _ in 1 2 3 4 5 6; do
+  pgrep -f "$APP_PROC_PATTERN" >/dev/null 2>&1 || break
+  sleep 0.25
+done
+pkill -9 -f "$APP_PROC_PATTERN" 2>/dev/null || true
+
+echo "Relaunching existing distributable..."
 nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 & disown
 echo "Started launcher pid $!. Logs: $LOG_FILE"
 

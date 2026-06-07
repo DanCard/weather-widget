@@ -596,6 +596,7 @@ internal fun WidgetPopup(
                                     },
                                      onToggleZoom = { clickedOffset ->
                                          if (config.zoomLevel == "WIDE") {
+                                             // Zoom in: frame the clicked time ±2h (NARROW centers on hourlyOffset).
                                              onUpdateConfig(
                                                  config.copy(
                                                      zoomLevel = "NARROW",
@@ -603,7 +604,8 @@ internal fun WidgetPopup(
                                                  )
                                              )
                                          } else {
-                                             onUpdateConfig(config.copy(zoomLevel = "WIDE"))
+                                             // Zoom out: recenter on now (Android wide view re-centers on now).
+                                             onUpdateConfig(config.copy(zoomLevel = "WIDE", hourlyOffset = 0))
                                          }
                                      }
                                 )

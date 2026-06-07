@@ -97,6 +97,27 @@ fun signalIncumbentToQuit(dir: Path, launchId: String) {
     )
 }
 
+/** How often a daemon actively re-checks whether a newer instance has superseded it. */
+const val INSTANCE_RECHECK_INTERVAL_MS = 30_000L
+
+/**
+ * True if the app dir contains a `.quit-<launchId>` signal from a *different* (newer) launch than
+ * [myLaunchId]. The newest launcher's `signalIncumbentToQuit` leaves exactly its own token in the
+ * dir, so an older daemon that missed the WatchService event can still discover it by polling this.
+ * Best-effort safety net for the lossy file-watch interrupt — not a replacement for it.
+ */
+fun supersededByNewerInstance(dir: Path, myLaunchId: String): Boolean {
+    if (!Files.exists(dir)) return false
+    return runCatching {
+        Files.list(dir).use { paths ->
+            paths.anyMatch { path ->
+                val name = path.fileName.toString()
+                name.startsWith(QUIT_PREFIX) && name.substring(QUIT_PREFIX.length) != myLaunchId
+            }
+        }
+    }.getOrDefault(false)
+}
+
 fun maybePackagedSetup() {
     if (!isPackaged()) return
     runCatching { extractGenmonScript() }.onFailure { System.err.println("genmon extract failed: $it") }
