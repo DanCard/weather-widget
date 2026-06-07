@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.graph.*
 import android.content.Context
 import android.graphics.*
 import android.util.TypedValue

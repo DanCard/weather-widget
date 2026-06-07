@@ -1,22 +1,34 @@
-package com.weatherwidget.widget
+package com.weatherwidget.shared.graph
 
-import android.graphics.Paint
-import android.graphics.RectF
-import android.util.Log
-import com.weatherwidget.BuildConfig
-import com.weatherwidget.util.WeatherConditionColors
+import com.weatherwidget.shared.util.Log
 import java.time.LocalDateTime
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.round
 
-internal object TemperatureLabelResolver {
+data class ResolvedLabelGeometry(
+    val index: Int,
+    val role: TemperatureRole,
+    val rawTemperature: Float,
+    val displayTemperature: Float,
+    val label: String,
+    val isFuture: Boolean,
+    val isValley: Boolean,
+    val isEssential: Boolean,
+    val sx: Float,
+    val sy: Float,
+    val textWidth: Float,
+    val clampedX: Float,
+)
+
+object TemperatureLabelResolver {
     private const val TAG = "TempLabelResolver"
     private const val MAX_TEMP_LABEL_CANDIDATES = 6
     private val DENSE_TEMP_DIFF_THRESHOLDS = listOf(3, 4, 5)
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 2.5f
 
-    internal val ESSENTIAL_LABEL_ROLES: Set<TemperatureRole> = setOf(
+    val ESSENTIAL_LABEL_ROLES: Set<TemperatureRole> = setOf(
         TemperatureRole.LOW,
         TemperatureRole.HIGH,
         TemperatureRole.FORECAST_LOW,
@@ -36,18 +48,14 @@ internal object TemperatureLabelResolver {
         val overriddenRole: TemperatureRole? = null,
     )
 
-    data class CandidatePlacement(
-        val sx: Float,
-        val sy: Float,
-        val label: String,
-        val labelPaint: Paint,
-        val textWidth: Float,
-        val clampedX: Float,
-        val isFuture: Boolean,
-        val isValley: Boolean,
-        val isEssential: Boolean,
-        val leaderLinePaint: Paint,
-    )
+    fun formatTemp(value: Float): String {
+        val rounded = round(value * 10f) / 10f
+        return if (rounded % 1f == 0f) {
+            "%.0f".format(rounded)
+        } else {
+            "%.1f".format(rounded)
+        }
+    }
 
     fun computeExtremaIndices(
         hours: List<HourData>,
@@ -76,11 +84,14 @@ internal object TemperatureLabelResolver {
 
         val potentialAnchors = buildPotentialAnchors(extrema, hours.size)
         extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
+        Log.d(TAG, "Potential anchors: $potentialAnchors")
 
         val deduplicatedIndices = deduplicateAnchors(potentialAnchors, labelTemps, actualLabelTemps)
+        Log.d(TAG, "Deduplicated: $deduplicatedIndices")
         val explicitAnchors = deduplicatedIndices.filter { idx ->
             potentialAnchors.any { it.first == idx && it.second != TemperatureRole.LOCAL }
         }.toSet()
+        Log.d(TAG, "Explicit: $explicitAnchors")
 
         val filteredIndices = GraphLabelPlacementUtils.filterDenseLabelCandidates(
             items = labelTemps,
@@ -94,6 +105,7 @@ internal object TemperatureLabelResolver {
             protectedIndices = deduplicatedIndices.filter { it in extrema.significantLocalExtrema && it > effectiveActualEndIndex }.toSet(),
             immovableIndices = explicitAnchors,
         )
+        Log.d(TAG, "Filtered: $filteredIndices")
 
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
             items = labelTemps,
@@ -231,7 +243,7 @@ internal object TemperatureLabelResolver {
             val isActualRole = role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.ACTUAL_END
             val temps = if (isActualRole) actualLabelTemps else labelTemps
             val v = temps[idx]
-            val formattedValue = TemperatureGraphStyle.formatTemp(v)
+            val formattedValue = formatTemp(v)
             var first = idx; var last = idx
             while (first > 0 && temps[first - 1] == v) first--
             while (last < temps.lastIndex && temps[last + 1] == v) last++
@@ -415,57 +427,82 @@ internal object TemperatureLabelResolver {
         return target
     }
 
-    fun resolveCandidatePlacement(
-        ctx: RenderContext,
-        hours: List<HourData>,
+    fun resolveCandidateGeometry(
         candidate: TempLabelCandidate,
-    ): CandidatePlacement? {
+        originalPoints: List<Pair<Float, Float>>,
+        forecastPoints: List<Pair<Float, Float>>,
+        transitionX: Float?,
+        widthPx: Int,
+        density: Float,
+        fetchDotX: Float?,
+        lastObservedTemp: Float?,
+        tempToY: (Float) -> Float,
+        metrics: LabelTextMetrics,
+    ): ResolvedLabelGeometry? {
         val idx = candidate.index
         val temps = candidate.labelTemps
-        val isFuture = candidate.forceForecastSeries || ctx.originalPoints[idx].first > (ctx.transitionX ?: -1f)
-        val points = if (isFuture) ctx.forecastPoints else ctx.originalPoints
-        val sx = if (candidate.role in listOf(TemperatureRole.LOW, TemperatureRole.HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.LOCAL)) {
-            centerOfRun(idx, temps, candidate.forceForecastSeries, ctx.originalPoints, ctx.forecastPoints, ctx.transitionX).first
-        } else points[idx].first
-        val sy = ctx.tempToY(temps[idx])
+        val isFuture = candidate.forceForecastSeries || (originalPoints.getOrNull(idx)?.first ?: 0f) > (transitionX ?: -1f)
+        val points = if (isFuture) forecastPoints else originalPoints
+        val sx = if (candidate.role in listOf(
+                TemperatureRole.LOW, TemperatureRole.HIGH,
+                TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH,
+                TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH,
+                TemperatureRole.LOCAL
+            )) {
+            centerOfRun(idx, temps, candidate.forceForecastSeries, originalPoints, forecastPoints, transitionX).first
+        } else {
+            points.getOrNull(idx)?.first ?: 0f
+        }
+        val sy = tempToY(temps[idx])
 
-        val label = TemperatureGraphStyle.formatTemp(temps[idx]) + "°"
-        val labelPaint = if (isFuture) {
-            val hour = hours[idx.coerceAtMost(hours.lastIndex)]
-            Paint(ctx.paints.forecastTempLabelTextPaint).also {
-                it.color = com.weatherwidget.util.WeatherConditionColors.forecastColor(hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight, hour.isTwilight)
-            }
-        } else ctx.paints.actualTempLabelTextPaint
-        val textWidth = labelPaint.measureText(label)
-        val clampedX = sx.coerceIn(textWidth / 2f, ctx.widthPx - textWidth / 2f)
+        val label = formatTemp(temps[idx]) + "°"
+        val textWidth = metrics.width(label, isFuture)
+        val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-        val fetchDotX = ctx.fetchDotX
-        val lastObservedTemp = ctx.lastObservedTemp
         if (fetchDotX != null && lastObservedTemp != null && candidate.role !in setOf(TemperatureRole.START, TemperatureRole.END)) {
-            val fetchDotLabel = TemperatureGraphStyle.formatTemp(lastObservedTemp) + "°"
-            val dist = kotlin.math.abs(clampedX - fetchDotX)
-            if (label == fetchDotLabel && dist < TemperatureGraphStyle.dpToPx(ctx.context, 12f)) {
+            val fetchDotLabel = formatTemp(lastObservedTemp) + "°"
+            val dist = abs(clampedX - fetchDotX)
+            if (label == fetchDotLabel && dist < 12f * density) {
                 return null
             }
         }
 
         val leftVal = findPrevDifferent(temps, idx)
         val rightVal = findNextDifferent(temps, idx)
-        val isValley = candidate.role in listOf(TemperatureRole.LOW, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_LOW) || (candidate.role == TemperatureRole.LOCAL && temps[idx] < leftVal && temps[idx] < rightVal)
+        val isValley = candidate.role in listOf(TemperatureRole.LOW, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_LOW) || 
+            (candidate.role == TemperatureRole.LOCAL && temps[idx] < leftVal && temps[idx] < rightVal)
         val isEssential = candidate.role in ESSENTIAL_LABEL_ROLES
 
-        val leaderLinePaint = if (isFuture) {
-            Paint(ctx.paints.forecastLeaderLinePaint).also { it.color = TemperatureGraphStyle.withAlpha(labelPaint.color, 80) }
-        } else ctx.paints.actualLeaderLinePaint
-
-        return CandidatePlacement(sx, sy, label, labelPaint, textWidth, clampedX, isFuture, isValley, isEssential, leaderLinePaint)
+        return ResolvedLabelGeometry(
+            index = idx,
+            role = candidate.role,
+            rawTemperature = candidate.rawTemperature,
+            displayTemperature = temps[idx],
+            label = label,
+            isFuture = isFuture,
+            isValley = isValley,
+            isEssential = isEssential,
+            sx = sx,
+            sy = sy,
+            textWidth = textWidth,
+            clampedX = clampedX
+        )
     }
 
-    private fun centerOfRun(idx: Int, temps: List<Float>, forceForecast: Boolean, original: List<Pair<Float, Float>>, forecast: List<Pair<Float, Float>>, transitionX: Float?): Pair<Float, Float> {
+    private fun centerOfRun(
+        idx: Int,
+        temps: List<Float>,
+        forceForecast: Boolean,
+        original: List<Pair<Float, Float>>,
+        forecast: List<Pair<Float, Float>>,
+        transitionX: Float?
+    ): Pair<Float, Float> {
         val v = temps[idx]; var first = idx; var last = idx
         while (first > 0 && abs(temps[first - 1] - v) < 0.01f) first--
         while (last < temps.lastIndex && abs(temps[last + 1] - v) < 0.01f) last++
-        val points = if (forceForecast || original[idx].first > (transitionX ?: -1f)) forecast else original
-        return (points[first].first + points[last].first) / 2f to (points[first].second + points[last].second) / 2f
+        val points = if (forceForecast || (original.getOrNull(idx)?.first ?: 0f) > (transitionX ?: -1f)) forecast else original
+        val fPoint = points.getOrNull(first) ?: (0f to 0f)
+        val lPoint = points.getOrNull(last) ?: (0f to 0f)
+        return (fPoint.first + lPoint.first) / 2f to (fPoint.second + lPoint.second) / 2f
     }
 }

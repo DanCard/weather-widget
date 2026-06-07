@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.graph.*
 import androidx.test.core.app.ApplicationProvider
 import android.content.Context
 import org.junit.Assert.assertEquals

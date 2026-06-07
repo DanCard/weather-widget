@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.util.Log
 import android.util.TypedValue
+import com.weatherwidget.shared.graph.HourData
 
 object HourlyGraphDefaults {
     const val WEATHER_ICON_SIZE_DP = 15f

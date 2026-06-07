@@ -1,13 +1,12 @@
-package com.weatherwidget.widget
+package com.weatherwidget.shared.graph
 
-import android.util.Log
-import com.weatherwidget.BuildConfig
+import com.weatherwidget.shared.util.Log
 import java.time.LocalDateTime
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-internal object TemperatureExtrema {
+object TemperatureExtrema {
     private const val TAG = "TempExtrema"
 
     data class ExtremaIndices(

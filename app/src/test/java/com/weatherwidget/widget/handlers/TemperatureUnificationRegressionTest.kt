@@ -7,8 +7,8 @@ import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.util.DailyActualsEstimator
-import com.weatherwidget.widget.TemperatureExtrema
-import com.weatherwidget.widget.HourData
+import com.weatherwidget.shared.graph.TemperatureExtrema
+import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.ObservationResolver
 import org.junit.Assert.assertEquals
 import org.junit.Test

@@ -11,23 +11,10 @@ import java.time.Instant
 
 import com.weatherwidget.BuildConfig
 
-data class HourData(
-    val dateTime: LocalDateTime,
-    val temperature: Float,          // Forecast temperature (drives the dashed forecast line)
-    val label: String, // "12a", "1p", "2p"
-    val iconRes: Int? = null,
-    val isNight: Boolean = false,
-    val isTwilight: Boolean = false,
-    val isSunBoundary: Boolean = false,
-    val isSunny: Boolean = false,
-    val isRainy: Boolean = false,
-    val isMixed: Boolean = false,
-    val isCurrentHour: Boolean = false,
-    val showLabel: Boolean = true, // Only at intervals
-    val isActual: Boolean = false,           // True when actualTemperature is available
-    val actualTemperature: Float? = null,    // Observed actual temp (past hours only)
-    val isObservedActual: Boolean = false,   // Backed by a real blended/observed point, not carry-forward filler
-)
+import com.weatherwidget.shared.graph.HourData
+import com.weatherwidget.shared.graph.TemperatureRole
+import com.weatherwidget.shared.graph.LabelPlacementDebug
+import com.weatherwidget.shared.graph.PlacedLabelMeta
 
 data class PaintSet(
     val density: Float,
@@ -50,32 +37,6 @@ data class PaintSet(
     val actualLeaderLinePaint: android.graphics.Paint,
     val forecastLeaderLinePaint: android.graphics.Paint,
     val dotPaint: android.graphics.Paint,
-)
-
-enum class TemperatureRole {
-    HIGH, LOW, START, END, ACTUAL_HIGH, ACTUAL_LOW, FORECAST_HIGH, FORECAST_LOW, PAST_FORECAST_HIGH, PAST_FORECAST_LOW, LOCAL, ACTUAL_END
-}
-
-data class LabelPlacementDebug(
-    val index: Int,
-    val role: TemperatureRole,
-    val temperature: Float,
-    val rawTemperature: Float,
-    val x: Float,
-    val y: Float,
-    val placedAbove: Boolean,
-    val series: String = "",
-    val colorFamily: String = "",
-    val hexColor: String = "",
-    val reason: String = "",
-    val displacementSteps: Int = 0,
-)
-
-data class PlacedLabelMeta(
-    val bounds: RectF,
-    val isValleyBelow: Boolean,
-    val role: TemperatureRole,
-    val temperature: Float,
 )
 
 data class FetchDotDebug(

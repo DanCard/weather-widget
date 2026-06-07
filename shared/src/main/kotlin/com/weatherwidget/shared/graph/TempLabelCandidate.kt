@@ -1,7 +1,4 @@
-package com.weatherwidget.widget
-
-// Extracted from TemperatureGraphRenderer.kt
-// A data class to hold candidates for temperature label placement
+package com.weatherwidget.shared.graph
 
 data class TempLabelCandidate(
     val index: Int,
@@ -10,4 +7,3 @@ data class TempLabelCandidate(
     val rawTemperature: Float,
     val forceForecastSeries: Boolean
 )
-

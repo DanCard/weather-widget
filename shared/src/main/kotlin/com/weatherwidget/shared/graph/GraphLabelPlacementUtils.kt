@@ -1,7 +1,6 @@
-package com.weatherwidget.widget
+package com.weatherwidget.shared.graph
 
-import android.graphics.RectF
-import android.util.Log
+import com.weatherwidget.shared.util.Log
 import kotlin.math.abs
 
 object GraphLabelPlacementUtils {
@@ -158,6 +157,7 @@ object GraphLabelPlacementUtils {
         if (index == globalMinIdx) return CandidateKind.GLOBAL_MIN
         if (index == 0 || index == items.lastIndex) return CandidateKind.EDGE
 
+
         val prevValue = items.getOrNull(index - 1)?.let(valueFunction) ?: return CandidateKind.EDGE
         val currentValue = items.getOrNull(index)?.let(valueFunction) ?: return CandidateKind.EDGE
         val nextValue = items.getOrNull(index + 1)?.let(valueFunction) ?: return CandidateKind.EDGE
@@ -281,12 +281,19 @@ object GraphLabelPlacementUtils {
     ): Boolean = isMinorOverlapEligible(role) && overlapHeight <= labelHeight * MINOR_OVERLAP_HEIGHT_RATIO
 
     fun maxVerticalOverlap(
-        bounds: RectF,
-        existingBounds: List<RectF>,
+        bounds: GraphRect,
+        existingBounds: List<GraphRect>,
     ): Float {
-        val intersect = RectF()
         return existingBounds.maxOfOrNull { existing ->
-            if (intersect.setIntersect(existing, bounds)) intersect.height() else 0f
+            val l = maxOf(existing.left, bounds.left)
+            val r = minOf(existing.right, bounds.right)
+            val t = maxOf(existing.top, bounds.top)
+            val b = minOf(existing.bottom, bounds.bottom)
+            if (l < r && t < b) {
+                b - t
+            } else {
+                0f
+            }
         } ?: 0f
     }
 }

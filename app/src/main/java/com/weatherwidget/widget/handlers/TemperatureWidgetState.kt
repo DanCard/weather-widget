@@ -2,7 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import android.graphics.Bitmap
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.HourData
+import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.ZoomLevel
 
 internal data class TemperatureWidgetState(

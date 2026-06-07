@@ -1,5 +1,7 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.graph.GraphLabelPlacementUtils
+import com.weatherwidget.shared.graph.TemperatureRole
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context

@@ -10,6 +10,7 @@ import com.weatherwidget.widget.ViewMode
 
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.shared.graph.HourData
 import java.time.LocalDateTime
 
 internal object TemperatureViewBinder {

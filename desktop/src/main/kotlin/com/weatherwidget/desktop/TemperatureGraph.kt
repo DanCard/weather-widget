@@ -31,6 +31,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.graph.*
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -392,73 +393,103 @@ fun TemperatureGraph(
             }
         }
 
-        val nowTempText = if (currentTemp != null) {
-            if (currentTemp % 1.0f == 0f) "${currentTemp.roundToInt()}°" else String.format(Locale.US, "%.1f°", currentTemp)
+        val hourDataList = points.mapIndexed { idx, p ->
+            val actualPoint = actualSeries.points.find { it.timeMs == p.dateTime }
+            val isAct = actualPoint?.isActual ?: false
+            val actTemp = actualPoint?.actualTemp
+            val temp = forecastTemps[idx]
+            val dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(p.dateTime), zoneId)
+            HourData(
+                dateTime = dt,
+                temperature = temp,
+                label = formatHourLabel(dt.hour),
+                isActual = isAct,
+                actualTemperature = actTemp
+            )
+        }
+
+        val originalPointsList = points.mapIndexed { idx, p ->
+            val actualPoint = actualSeries.points.find { it.timeMs == p.dateTime }
+            val actTemp = actualPoint?.actualTemp ?: (forecastTemps[idx] + appliedDelta)
+            xAt(idx) to yAt(actTemp)
+        }
+        val forecastPointsList = points.mapIndexed { idx, _ ->
+            xAt(idx) to yAt(forecastTemps[idx])
+        }
+        val actualVisiblePointsList = actualLinePoints.map { point ->
+            xAtTime(point.timeMs) to yAt(point.actualTemp!!)
+        }
+
+        val effectiveActualEndIndex = if (transitionMs != null) {
+            points.indexOfLast { it.dateTime <= transitionMs }
         } else {
-            "${forecastTemps[nowIdx].roundToInt()}°"
+            -1
         }
-        val nowTempColor = if (currentTemp != null) COLOR_ACTUAL else Color.White.copy(alpha = 0.8f)
-
-        val labels = mutableListOf<Triple<Int, String, Color>>()
-        labels.add(Triple(highIdx, "${fMax.roundToInt()}°", Color.White))
-        labels.add(Triple(lowIdx, "${fMin.roundToInt()}°", Color.White))
-        if (now in windowStart..windowEnd && nowIdx != highIdx && nowIdx != lowIdx && !isAnchoredToFetchDot) {
-            labels.add(Triple(nowIdx, nowTempText, nowTempColor))
-        }
-        if (endIdx != highIdx && endIdx != lowIdx && endIdx != nowIdx) {
-            labels.add(Triple(endIdx, "${forecastTemps[endIdx].roundToInt()}°", Color.White.copy(alpha = 0.6f)))
+        val fetchTime = transitionMs?.let {
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(it), zoneId)
         }
 
-        labels.sortByDescending { it.first == highIdx || it.first == lowIdx }
+        val textStyle = TextStyle(fontSize = (14 * scale).sp)
+        val textHeight = textMeasurer.measure("80°", textStyle).size.height.toFloat()
+        val metricsAdapter = object : LabelTextMetrics {
+            override val ascent: Float = -textHeight
+            override val descent: Float = 0f
+            override val height: Float = textHeight
+            override fun width(text: String, isFuture: Boolean): Float {
+                return textMeasurer.measure(text, textStyle).size.width.toFloat()
+            }
+        }
 
-        for ((idx, text, color) in labels) {
-            val point = coords[idx]
-            val textLayout = textMeasurer.measure(text, TextStyle(fontSize = (14 * scale).sp, color = color))
+        val placements = TemperatureLabelEngine.computePlacements(
+            hours = hourDataList,
+            widthPx = w.toInt(),
+            heightPx = h.toInt(),
+            density = scale,
+            originalPoints = originalPointsList,
+            forecastPoints = forecastPointsList,
+            actualVisiblePoints = actualVisiblePointsList,
+            transitionX = transitionMs?.let { xAtTime(it) },
+            fetchDotX = fetchDotXVal,
+            lastObservedTemp = fetchDotPoint?.actualTemp,
+            observedAt = transitionMs,
+            effectiveActualEndIndex = effectiveActualEndIndex,
+            fetchTime = fetchTime,
+            numColumns = points.size,
+            tempToY = { yAt(it) },
+            metrics = metricsAdapter,
+            drawnIconBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) }
+        )
+
+        for (label in placements) {
+            val color = when (label.role) {
+                TemperatureRole.HIGH, TemperatureRole.LOW -> Color.White
+                TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW -> Color.White
+                TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW -> Color.White
+                TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_END -> COLOR_ACTUAL
+                TemperatureRole.LOCAL -> Color.White
+                TemperatureRole.START, TemperatureRole.END -> Color.White.copy(alpha = 0.6f)
+                else -> Color.White
+            }
+            val textLayout = textMeasurer.measure(label.text, TextStyle(fontSize = (14 * scale).sp, color = color))
             val textWidth = textLayout.size.width.toFloat()
             val textHeight = textLayout.size.height.toFloat()
-            val isHigh = idx == highIdx
-            
-            val xStart = point.x - textWidth / 2f
-            val xEnd = point.x + textWidth / 2f
-            val verticalGap = 4.dp.toPx() * scale
-            
-            val textTop: Float
-            val baselineTop: Float
-            if (isHigh) {
-                val curveMinY = minOf(getCurveYAtX(xStart), getCurveYAtX(point.x), getCurveYAtX(xEnd))
-                val desiredTextBottom = curveMinY - verticalGap
-                textTop = desiredTextBottom - textHeight
-                baselineTop = point.y - verticalGap - textHeight
-            } else {
-                val curveMaxY = maxOf(getCurveYAtX(xStart), getCurveYAtX(point.x), getCurveYAtX(xEnd))
-                textTop = curveMaxY + verticalGap
-                baselineTop = point.y + verticalGap
-            }
-            
+
+            val textTop = label.baselineY - textHeight
             val labelRect = Rect(
-                offset = Offset(point.x - textWidth / 2f, textTop),
+                offset = Offset(label.x - textWidth / 2f, textTop),
                 size = Size(textWidth, textHeight)
             )
-            
-            if (drawnLabels.none { it.overlaps(labelRect.inflate(4.dp.toPx() * scale)) }) {
-                drawText(textLayout, topLeft = labelRect.topLeft)
-                drawnLabels.add(labelRect)
-                
-                val shift = abs(textTop - baselineTop)
-                if (shift > 1.5f * scale) {
-                    val leaderLineStart = Offset(point.x, point.y)
-                    val leaderLineEnd = if (isHigh) {
-                        Offset(point.x, textTop + textHeight)
-                    } else {
-                        Offset(point.x, textTop)
-                    }
-                    drawLine(
-                        color = Color.White.copy(alpha = 0.35f),
-                        start = leaderLineStart,
-                        end = leaderLineEnd,
-                        strokeWidth = 0.5.dp.toPx() * scale
-                    )
-                }
+
+            drawText(textLayout, topLeft = labelRect.topLeft)
+            drawnLabels.add(labelRect)
+
+            if (label.drawLeaderLine) {
+                drawLine(
+                    color = Color.White.copy(alpha = 0.35f),
+                    start = Offset(label.x, label.leaderFromY),
+                    end = Offset(label.x, label.leaderToY),
+                    strokeWidth = 0.5.dp.toPx() * scale
+                )
             }
         }
 

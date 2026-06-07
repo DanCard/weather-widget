@@ -6,7 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.CloudCoverGraphRenderer
-import com.weatherwidget.widget.HourData
+import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.PrecipitationGraphRenderer
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.widget.ZoomLevel

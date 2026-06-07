@@ -18,7 +18,7 @@ import com.weatherwidget.widget.GraphRenderUtils
 import com.weatherwidget.widget.HourlyGraphDefaults
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
-import com.weatherwidget.widget.HourData
+import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.ZoomLevel
 import java.time.Instant

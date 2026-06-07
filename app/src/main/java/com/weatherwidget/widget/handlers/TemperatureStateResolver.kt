@@ -20,7 +20,7 @@ import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
-import com.weatherwidget.widget.HourData
+import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
