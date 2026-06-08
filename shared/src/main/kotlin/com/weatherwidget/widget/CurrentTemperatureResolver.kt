@@ -1,16 +1,9 @@
 package com.weatherwidget.widget
 
-import android.util.Log
-import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.log
-import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.TemperatureInterpolator
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import com.weatherwidget.shared.util.Log
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -33,27 +26,21 @@ data class QuickCurrentTemperature(
 )
 
 /**
- * Resolves widget header temperature from two sources:
+ * Resolves widget/desktop temperature from two sources:
  * - estimated current temperature from hourly interpolation,
  * - observed/API current temperature fallback.
  */
 object CurrentTemperatureResolver {
     private const val TAG = "CurrentTempResolver"
     private const val STALE_HOURLY_FETCH_THRESHOLD_MS = 2 * 60 * 60 * 1000L
-    @Volatile
-    private var defaultAppLogDao: AppLogDao? = null
-    private val logScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    fun setDefaultAppLogDao(appLogDao: AppLogDao?) {
-        defaultAppLogDao = appLogDao
-    }
+    // Decoupled logging callback for writing to AppLogDao on Android or logging on Desktop
+    @Volatile
+    var dbLogger: ((tag: String, message: String, level: String) -> Unit)? = null
 
     private fun debugLog(message: String) {
         Log.d(TAG, message)
-        val dao = defaultAppLogDao ?: return
-        logScope.launch {
-            dao.log(TAG, message)
-        }
+        dbLogger?.invoke(TAG, message, "DEBUG")
     }
 
     private fun appLog(
@@ -61,10 +48,7 @@ object CurrentTemperatureResolver {
         message: String,
         level: String = "DEBUG",
     ) {
-        val dao = defaultAppLogDao ?: return
-        logScope.launch {
-            dao.log(tag, message, level)
-        }
+        dbLogger?.invoke(tag, message, level)
     }
 
     private fun formatTemp(value: Float?): String =
@@ -73,7 +57,7 @@ object CurrentTemperatureResolver {
     fun resolve(
         now: LocalDateTime,
         displaySource: WeatherSource,
-        hourlyForecasts: List<HourlyForecastEntity>,
+        hourlyForecasts: List<HourlyForecast>,
         lastObservedTemp: Float?,
         observedAt: Long?,
         storedDeltaState: CurrentTemperatureDeltaState?,
@@ -257,23 +241,16 @@ object CurrentTemperatureResolver {
         )
     }
 
-    private fun List<HourlyForecastEntity>.applySmoothing(smoothed: Map<Long, Float>?): List<com.weatherwidget.data.model.HourlyForecast> {
-        return this.map { entity ->
-            val temp = smoothed?.get(entity.dateTime) ?: entity.temperature
-            entity.toHourlyForecast().copy(temperature = temp)
-        }
-    }
-
     fun resolveQuick(
         now: LocalDateTime,
         displaySource: WeatherSource,
-        hourlyForecasts: List<HourlyForecastEntity>,
+        hourlyForecasts: List<HourlyForecast>,
         lastObservedTemp: Float?,
         smoothedForecasts: Map<Long, Float>? = null,
     ): QuickCurrentTemperature {
         val estimatedTemp =
             TemperatureInterpolator.getInterpolatedTemperature(
-                hourlyForecasts = hourlyForecasts.applySmoothing(smoothedForecasts),
+                hourlyForecasts = applySmoothing(hourlyForecasts, smoothedForecasts),
                 targetEpochMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             )
         val displayTemp = lastObservedTemp ?: estimatedTemp
@@ -284,6 +261,16 @@ object CurrentTemperatureResolver {
             observedTemp = lastObservedTemp,
             isStaleEstimate = isStaleEstimate,
         )
+    }
+
+    private fun applySmoothing(
+        forecasts: List<HourlyForecast>,
+        smoothed: Map<Long, Float>?
+    ): List<HourlyForecast> {
+        return forecasts.map { entity ->
+            val temp = smoothed?.get(entity.dateTime) ?: entity.temperature
+            entity.copy(temperature = temp)
+        }
     }
 
     fun formatDisplayTemperature(
@@ -300,7 +287,7 @@ object CurrentTemperatureResolver {
     private fun isStaleHourlyData(
         now: LocalDateTime,
         displaySource: WeatherSource,
-        hourlyForecasts: List<HourlyForecastEntity>,
+        hourlyForecasts: List<HourlyForecast>,
     ): Boolean {
         if (hourlyForecasts.isEmpty()) return true
 
@@ -310,7 +297,7 @@ object CurrentTemperatureResolver {
             }
         if (sourceScopedForecasts.isEmpty()) return true
 
-        val latestFetchMs = sourceScopedForecasts.maxOfOrNull { it.fetchedAt } ?: return true
+        val latestFetchMs = sourceScopedForecasts.map { it.fetchedAt }.maxOrNull() ?: return true
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val stale = (nowMs - latestFetchMs) > STALE_HOURLY_FETCH_THRESHOLD_MS
         debugLog(
@@ -321,7 +308,7 @@ object CurrentTemperatureResolver {
     }
 
     private fun resolveStrictForecastTemperature(
-        hourlyForecasts: List<HourlyForecastEntity>,
+        hourlyForecasts: List<HourlyForecast>,
         targetTime: LocalDateTime,
         source: WeatherSource,
         smoothedForecasts: Map<Long, Float>?,
@@ -366,9 +353,8 @@ object CurrentTemperatureResolver {
         }
 
         return TemperatureInterpolator.getInterpolatedTemperature(
-            hourlyForecasts = listOf(currentHourForecast, nextHourForecast).applySmoothing(smoothedForecasts),
+            hourlyForecasts = applySmoothing(listOf(currentHourForecast, nextHourForecast), smoothedForecasts),
             targetEpochMs = targetTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
     }
-
 }

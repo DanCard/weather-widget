@@ -8,6 +8,7 @@ data class HourlyForecast(
     val precipAmountMm: Float? = null,
     val cloudCover: Int? = null,
     val source: String? = null,
+    val fetchedAt: Long = 0L,
 )
 
 data class DailyForecast(
@@ -63,6 +64,7 @@ data class ForecastResult(
     val currentTemp: Float? = null,
     val currentCondition: String? = null,
     val currentObservedAt: Long? = null,
+    val appliedDelta: Float? = null,
     val daily: List<DailyForecast> = emptyList(),
     val hourly: List<HourlyForecast> = emptyList(),
     val dailyActuals: Map<String, DailyExtreme> = emptyMap(),

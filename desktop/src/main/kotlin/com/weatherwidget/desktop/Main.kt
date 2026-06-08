@@ -47,8 +47,10 @@ import java.awt.Font
 import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -111,6 +113,12 @@ private fun runApp() = application {
         // Persistence layer
         val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
         val weatherDao = remember { DesktopWeatherDao(weatherDb) }
+
+        remember(weatherDao) {
+            com.weatherwidget.widget.CurrentTemperatureResolver.dbLogger = { tag, message, level ->
+                weatherDao.log(tag, message, level)
+            }
+        }
 
         var popupVisible by remember { mutableStateOf(config != null) }
         // Edge-triggered show counter: a boolean can't re-fire an effect when it's already
@@ -746,12 +754,15 @@ private fun WidgetHeader(
     val targetHour = remember(headerTime) { headerTime.truncatedTo(ChronoUnit.HOURS) }
 
     val nowEpoch = System.currentTimeMillis()
-    val interpolatedForecastTemp = com.weatherwidget.shared.util.TemperatureInterpolator.getInterpolatedTemperature(forecast.hourly, nowEpoch)
-    val currentForecastTemp = forecast.currentTemp
-    val deltaTemp = if (currentForecastTemp != null && interpolatedForecastTemp != null) {
-        val diff = currentForecastTemp - interpolatedForecastTemp
-        if (kotlin.math.abs(diff) >= 0.1f) diff else null
-    } else null
+    val zoneId = remember { ZoneId.systemDefault() }
+    val nowLocal = remember(nowEpoch, zoneId) {
+        LocalDateTime.ofInstant(Instant.ofEpochMilli(nowEpoch), zoneId)
+    }
+    val displaySource = remember(config.weatherSource) {
+        WeatherSource.fromDisplaySource(config.weatherSource)
+    }
+    val displayTemp = forecast.currentTemp
+    val deltaTemp = forecast.appliedDelta?.takeIf { kotlin.math.abs(it) >= 0.1f }
 
     val currentHourData = forecast.hourly.find {
         it.dateTime >= nowEpoch - 3_600_000L && it.dateTime <= nowEpoch + 3_600_000L
@@ -783,7 +794,7 @@ private fun WidgetHeader(
                         modifier = Modifier.size((22 * scale).dp).padding(end = 4.dp)
                     )
                     Text(
-                        text = forecast.currentTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
+                        text = displayTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
                         style = MaterialTheme.typography.displaySmall,
                         fontSize = (15 * scale).sp
                     )

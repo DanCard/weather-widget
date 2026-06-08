@@ -38,9 +38,12 @@ fun runDaemon() {
     val configStore = DesktopConfigStore()
     var currentConfig = configStore.load()
 
-    // Persistence layer
     val weatherDb = DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() }
     val weatherDao = DesktopWeatherDao(weatherDb)
+
+    com.weatherwidget.widget.CurrentTemperatureResolver.dbLogger = { tag, message, level ->
+        weatherDao.log(tag, message, level)
+    }
 
     // IPC server
     val ipcServer = PanelIpcServer(appDir).apply { start() }

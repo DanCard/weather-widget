@@ -16,6 +16,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
@@ -207,7 +208,7 @@ object TemperatureViewHandler {
                 CurrentTemperatureResolver.resolve(
                     now = params.now,
                     displaySource = params.displaySource,
-                    hourlyForecasts = params.currentTempHourlyForecasts,
+                    hourlyForecasts = params.currentTempHourlyForecasts.map { it.toHourlyForecast() },
                     lastObservedTemp = params.lastObservedTemp,
                     observedAt = params.observedAt,
                     storedDeltaState = params.storedDeltaState,
@@ -226,17 +227,21 @@ object TemperatureViewHandler {
 
             val partialViews = RemoteViews(appContext.packageName, com.weatherwidget.R.layout.widget_weather)
             // Re-bind just the header parts for partial update
-            val formatted = CurrentTemperatureResolver.formatDisplayTemperature(
-                refined.displayTemp!!, params.numColumns, refined.isStaleEstimate
-            )
+            val displayTemp = refined.displayTemp
+            val appliedDelta = refined.appliedDelta
+            val formatted = displayTemp?.let {
+                CurrentTemperatureResolver.formatDisplayTemperature(
+                    it, params.numColumns, refined.isStaleEstimate
+                )
+            }
             val formattedTemp = if (formatted != null) formatted else null
             partialViews.setTextViewText(com.weatherwidget.R.id.current_temp, formattedTemp)
             partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp, android.view.View.VISIBLE)
             val currentTempPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, appContext.resources.displayMetrics)
             partialViews.setTextViewTextSize(com.weatherwidget.R.id.current_temp, android.util.TypedValue.COMPLEX_UNIT_PX, currentTempPx)
 
-            if (refined.appliedDelta != null && kotlin.math.abs(refined.appliedDelta) >= DELTA_VISIBILITY_THRESHOLD && params.isNowLineVisible) {
-                partialViews.setTextViewText(com.weatherwidget.R.id.current_temp_delta, String.format("%+.1f", refined.appliedDelta))
+            if (appliedDelta != null && kotlin.math.abs(appliedDelta) >= DELTA_VISIBILITY_THRESHOLD && params.isNowLineVisible) {
+                partialViews.setTextViewText(com.weatherwidget.R.id.current_temp_delta, String.format("%+.1f", appliedDelta))
                 val deltaPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, appContext.resources.displayMetrics)
                 partialViews.setTextViewTextSize(com.weatherwidget.R.id.current_temp_delta, android.util.TypedValue.COMPLEX_UNIT_PX, deltaPx)
                 partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.VISIBLE)
@@ -253,25 +258,29 @@ object TemperatureViewHandler {
         refined: CurrentTemperatureResolution,
         isNowLineVisible: Boolean,
     ): Boolean {
+        val qTemp = quickResolution.displayTemp
+        val rTemp = refined.displayTemp
         val tempChanged =
             when {
-                quickResolution.displayTemp == null && refined.displayTemp == null -> false
-                quickResolution.displayTemp == null || refined.displayTemp == null -> true
-                else -> kotlin.math.abs(quickResolution.displayTemp - refined.displayTemp) >= CURRENT_TEMP_FOLLOW_UP_EPSILON
+                qTemp == null && rTemp == null -> false
+                qTemp == null || rTemp == null -> true
+                else -> kotlin.math.abs(qTemp - rTemp) >= CURRENT_TEMP_FOLLOW_UP_EPSILON
             }
+        val qDelta = quickResolution.appliedDelta
+        val rDelta = refined.appliedDelta
         val quickDeltaVisible =
             isNowLineVisible &&
-                quickResolution.appliedDelta != null &&
-                kotlin.math.abs(quickResolution.appliedDelta) >= DELTA_VISIBILITY_THRESHOLD
+                qDelta != null &&
+                kotlin.math.abs(qDelta) >= DELTA_VISIBILITY_THRESHOLD
         val refinedDeltaVisible =
             isNowLineVisible &&
-                refined.appliedDelta != null &&
-                kotlin.math.abs(refined.appliedDelta) >= DELTA_VISIBILITY_THRESHOLD
+                rDelta != null &&
+                kotlin.math.abs(rDelta) >= DELTA_VISIBILITY_THRESHOLD
         val deltaChanged =
             quickDeltaVisible != refinedDeltaVisible ||
                 (quickDeltaVisible &&
                     refinedDeltaVisible &&
-                    kotlin.math.abs(quickResolution.appliedDelta - refined.appliedDelta) >= CURRENT_TEMP_FOLLOW_UP_EPSILON)
+                    kotlin.math.abs(qDelta!! - rDelta!!) >= CURRENT_TEMP_FOLLOW_UP_EPSILON)
         return tempChanged || deltaChanged || quickResolution.isStaleEstimate != refined.isStaleEstimate
     }
 

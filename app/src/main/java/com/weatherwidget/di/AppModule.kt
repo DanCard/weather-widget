@@ -23,6 +23,7 @@ import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.shared.util.TemperatureInterpolator
+import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
@@ -41,6 +42,7 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import javax.inject.Singleton
 import dagger.hilt.EntryPoint
+import kotlinx.coroutines.launch
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -115,8 +117,13 @@ object AppModule {
     @Provides
     @Singleton
     fun provideAppLogDao(database: WeatherDatabase): AppLogDao =
-        database.appLogDao().also {
-            CurrentTemperatureResolver.setDefaultAppLogDao(it)
+        database.appLogDao().also { dao ->
+            val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+            CurrentTemperatureResolver.dbLogger = { tag, message, level ->
+                scope.launch {
+                    dao.log(tag, message, level)
+                }
+            }
         }
 
     @Provides

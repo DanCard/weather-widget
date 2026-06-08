@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import android.os.SystemClock
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
@@ -27,7 +28,7 @@ internal object CurrentTempResolutionHelper {
             CurrentTemperatureResolver.resolve(
                 now = now,
                 displaySource = displaySource,
-                hourlyForecasts = hourlyForecasts,
+                hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),

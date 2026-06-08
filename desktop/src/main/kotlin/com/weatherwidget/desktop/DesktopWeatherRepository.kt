@@ -5,11 +5,13 @@ import com.weatherwidget.data.model.*
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.SpatialInterpolator
+import com.weatherwidget.widget.CurrentTemperatureResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneOffset
 
 class DesktopWeatherRepository(
@@ -19,6 +21,45 @@ class DesktopWeatherRepository(
     private val longitude: Double,
     private val weatherSource: String
 ) {
+    private fun resolveForForecastResult(
+        hourly: List<HourlyForecast>,
+        now: Long
+    ): Pair<Float?, Float?> {
+        val obsStart = now - (48 * 3600 * 1000L)
+        val obsEnd = now + (2 * 3600 * 1000L)
+        val observations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
+            .map { it.toReading() }
+
+        val displaySource = WeatherSource.fromDisplaySource(weatherSource)
+        val nowLocal = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault())
+
+        val resolvedObs = ActualsAggregator.resolveCurrentObservation(
+            observations = observations,
+            hourlyForecasts = hourly,
+            displaySourceId = displaySource.id,
+            userLat = latitude,
+            userLon = longitude,
+            nowMs = now,
+            lookbackHours = 12L,
+            lookaheadHours = 2L,
+        )
+
+        val lastObservedTemp = resolvedObs?.first
+        val observedAt = resolvedObs?.second
+
+        val resolution = CurrentTemperatureResolver.resolve(
+            now = nowLocal,
+            displaySource = displaySource,
+            hourlyForecasts = hourly,
+            lastObservedTemp = lastObservedTemp,
+            observedAt = observedAt,
+            storedDeltaState = null,
+            currentLat = latitude,
+            currentLon = longitude,
+        )
+        return resolution.displayTemp to resolution.appliedDelta
+    }
+
     suspend fun loadCached(): ForecastResult? = withContext(Dispatchers.IO) {
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
         val hourly = weatherDao.getLatestHourly(latitude, longitude, weatherSource, maxAgeMs)
@@ -37,17 +78,10 @@ class DesktopWeatherRepository(
         val newestObs = observations.filter { it.stationId == "NWS_BLEND" }.maxByOrNull { it.timestamp }
             ?: observations.maxByOrNull { it.timestamp }
 
-        // Freshness gate only governs whether the *current temp* is shown as observed vs interpolated.
+        // Freshness gate only governs whether the *current condition* is shown as observed vs forecast.
         val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
-        val interpolatedTemp = TemperatureInterpolator.getInterpolatedTemperature(hourly, now)
-        val deltaTemp = latestObs?.let {
-            val forecastAtObs = TemperatureInterpolator.getInterpolatedTemperature(hourly, it.timestamp)
-            val forecastNow = TemperatureInterpolator.getInterpolatedTemperature(hourly, now)
-            val corrected = if (forecastAtObs != null && forecastNow != null)
-                forecastNow + (it.temperature - forecastAtObs) else null
-            logDeltaCorrection("loadCached", it.temperature, it.timestamp, forecastAtObs, forecastNow, corrected, now)
-            corrected
-        }
+
+        val (currentTemp, appliedDelta) = resolveForForecastResult(hourly, now)
         val actuals = loadDailyActuals(daily)
         val snapshots = loadDailySnapshots(daily)
 
@@ -56,12 +90,10 @@ class DesktopWeatherRepository(
         }
 
         ForecastResult(
-            currentTemp = deltaTemp ?: latestObs?.temperature ?: interpolatedTemp ?: hourly.firstOrNull()?.temperature,
+            currentTemp = currentTemp,
             currentCondition = latestObs?.condition ?: hourly.firstOrNull()?.condition,
-            // Timestamp of the genuine newest observation — never the earliest forecast hour.
-            // The graph uses this as the actual/forecast transition; an early forecast hour here
-            // would collapse the whole actual line. Mirrors DesktopWeatherService's refresh path.
             currentObservedAt = newestObs?.timestamp,
+            appliedDelta = appliedDelta,
             daily = daily,
             hourly = hourly,
             dailyActuals = actuals,
@@ -105,18 +137,14 @@ class DesktopWeatherRepository(
                 "obs=${result.rawObservations.size} extremes=$extremesCount",
         )
 
-        val refreshDeltaTemp = result.currentTemp?.let { obs ->
-            result.currentObservedAt?.let { obsAt ->
-                val forecastAtObs = TemperatureInterpolator.getInterpolatedTemperature(result.hourly, obsAt)
-                val forecastNow = TemperatureInterpolator.getInterpolatedTemperature(result.hourly, now)
-                val corrected = if (forecastAtObs != null && forecastNow != null)
-                    forecastNow + (obs - forecastAtObs) else null
-                logDeltaCorrection("refresh", obs, obsAt, forecastAtObs, forecastNow, corrected, now)
-                corrected
-            }
-        } ?: TemperatureInterpolator.getInterpolatedTemperature(result.hourly, now)
+        val (currentTemp, appliedDelta) = resolveForForecastResult(result.hourly, now)
+        val newestObs = result.rawObservations.filter { it.stationId == "NWS_BLEND" }.maxByOrNull { it.timestamp }
+            ?: result.rawObservations.maxByOrNull { it.timestamp }
+
         result.copy(
-            currentTemp = refreshDeltaTemp,
+            currentTemp = currentTemp,
+            appliedDelta = appliedDelta,
+            currentObservedAt = newestObs?.timestamp ?: result.currentObservedAt,
             dailyActuals = actuals,
             dailySnapshots = snapshots,
             rawObservations = result.rawObservations,
@@ -140,22 +168,15 @@ class DesktopWeatherRepository(
         )
 
         val cachedHourly = cached?.hourly ?: emptyList()
-        val obsDeltaTemp = result.currentTemp?.let { obs ->
-            result.currentObservedAt?.let { obsAt ->
-                val forecastAtObs = TemperatureInterpolator.getInterpolatedTemperature(cachedHourly, obsAt)
-                val forecastNow = TemperatureInterpolator.getInterpolatedTemperature(cachedHourly, now)
-                val corrected = if (forecastAtObs != null && forecastNow != null)
-                    forecastNow + (obs - forecastAtObs) else null
-                logDeltaCorrection("refreshObs", obs, obsAt, forecastAtObs, forecastNow, corrected, now)
-                corrected
-            }
-        }
+        val (currentTemp, appliedDelta) = resolveForForecastResult(cachedHourly, now)
+
         result.copy(
-            currentTemp = obsDeltaTemp ?: cached?.currentTemp,
+            currentTemp = currentTemp,
+            appliedDelta = appliedDelta,
             currentCondition = result.currentCondition ?: cached?.currentCondition,
             currentObservedAt = result.currentObservedAt ?: cached?.currentObservedAt,
             daily = cached?.daily ?: emptyList(),
-            hourly = cached?.hourly ?: emptyList(),
+            hourly = cachedHourly,
             dailyActuals = cached?.dailyActuals ?: emptyMap(),
             dailySnapshots = cached?.dailySnapshots ?: emptyMap(),
             rawObservations = if (result.rawObservations.isNotEmpty()) result.rawObservations else cached?.rawObservations ?: emptyList(),
@@ -197,25 +218,7 @@ class DesktopWeatherRepository(
         return weatherDao.getDailyForecastSnapshots(start, end, latitude, longitude, weatherSource)
     }
 
-    private fun logDeltaCorrection(
-        site: String,
-        observedTemp: Float?,
-        observedAt: Long?,
-        forecastAtObs: Float?,
-        forecastNow: Float?,
-        displayTemp: Float?,
-        nowMs: Long,
-    ) {
-        val obsTime = observedAt?.let {
-            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalTime().toString().take(8)
-        } ?: "none"
-        val msg = "site=$site observed=${observedTemp?.let { "%.1f".format(it) } ?: "none"} " +
-            "obsAt=$obsTime forecastAtObs=${forecastAtObs?.let { "%.1f".format(it) } ?: "none"} " +
-            "delta=${if (observedTemp != null && forecastAtObs != null) "%.1f".format(observedTemp - forecastAtObs) else "none"} " +
-            "forecastNow=${forecastNow?.let { "%.1f".format(it) } ?: "none"} " +
-            "display=${displayTemp?.let { "%.1f".format(it) } ?: "none"}"
-        weatherDao.log("DELTA_CORRECTION", msg)
-    }
+
 
     companion object {
         private const val HISTORY_WINDOW_DAYS = 7L

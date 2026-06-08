@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
@@ -149,7 +150,7 @@ internal object TemperatureStateResolver {
             val quick = CurrentTemperatureResolver.resolveQuick(
                 now = now,
                 displaySource = displaySource,
-                hourlyForecasts = currentTempHourlyForecasts,
+                hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
                 lastObservedTemp = lastObservedTemp,
                 smoothedForecasts = currentTempSmoothedForecasts,
             )
@@ -166,7 +167,7 @@ internal object TemperatureStateResolver {
             CurrentTemperatureResolver.resolve(
                 now = now,
                 displaySource = displaySource,
-                hourlyForecasts = currentTempHourlyForecasts,
+                hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
                 storedDeltaState = storedDeltaState,

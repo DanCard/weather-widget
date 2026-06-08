@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.widget.CurrentTemperatureResolver
+import com.weatherwidget.widget.resolve
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
