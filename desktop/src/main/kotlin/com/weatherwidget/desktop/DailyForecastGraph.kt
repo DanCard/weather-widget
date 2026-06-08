@@ -104,7 +104,7 @@ fun DailyForecastGraph(
                     high = day.forecastHigh,
                     low = day.forecastLow,
                     yAt = ::yAt,
-                    color = baseColor.copy(alpha = GHOST_BAR_ALPHA),
+                    color = Color.Yellow.copy(alpha = 0.75f),
                     width = thinWidth,
                     pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
                 )
