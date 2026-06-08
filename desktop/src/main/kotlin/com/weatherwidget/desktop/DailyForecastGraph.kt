@@ -104,9 +104,8 @@ fun DailyForecastGraph(
                     high = day.forecastHigh,
                     low = day.forecastLow,
                     yAt = ::yAt,
-                    color = Color.Yellow.copy(alpha = 0.75f),
+                    color = Color.Yellow,
                     width = thinWidth,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
                 )
                 drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, barWidth * 0.72f)
             } else {
