@@ -167,7 +167,8 @@ fun DailyForecastGraph(
             )
             drawText(dayText, topLeft = Offset(centerX - dayText.size.width / 2f, size.height - dayText.size.height - 6f * scale))
 
-            val rainText = buildRainLabel(day)
+            // Daytime rain label: sits on top of the bar, above the high-temp label.
+            val rainText = day.dailyRainLabelText
             if (rainText != null) {
                 val rainLayout = textMeasurer.measure(rainText, TextStyle(fontSize = (9f * scale).sp, color = COLOR_FORECAST_RAINY))
                 // Sit above the high-temp label: bar top - (high label height ~14sp*scale) - gap - own height.
@@ -175,6 +176,23 @@ fun DailyForecastGraph(
                 // Stays above the high-temp label; may ride a little further into the header than it.
                 val rainFloor = -headerBleed - rainLayout.size.height - 2f * scale
                 drawText(rainLayout, topLeft = Offset(centerX - rainLayout.size.width / 2f, anchorY.coerceAtLeast(rainFloor)))
+            }
+
+            // Nighttime rain label: tucked between this column and the next (Android shifts it
+            // +dayWidth/2 toward the neighbor), smaller, in the low-temp band.
+            val nightText = day.nightRainLabelText
+            if (nightText != null && lowForLabel != null) {
+                val nightLayout = textMeasurer.measure(
+                    nightText,
+                    TextStyle(fontSize = (11f * scale * 0.72f).sp, color = COLOR_FORECAST_RAINY),
+                )
+                val edgeMargin = 2f * scale
+                val nightX = (centerX + dayWidth / 2f - nightLayout.size.width / 2f)
+                    .coerceIn(edgeMargin, size.width - nightLayout.size.width - edgeMargin)
+                // Anchor just below the low temp, but keep clear of the icon/day-name row.
+                val nightFloor = iconFloorTop - nightLayout.size.height - 2f * scale
+                val nightY = (yAt(lowForLabel) + 3f * scale).coerceAtMost(nightFloor)
+                drawText(nightLayout, topLeft = Offset(nightX, nightY))
             }
         }
     }
@@ -242,17 +260,6 @@ private fun forecastColor(day: DesktopDailyDay): Color {
         day.cloudCoverRatio != null && day.cloudCoverRatio < 0.6f -> COLOR_FORECAST_SUNNY
         else -> COLOR_FORECAST_CLOUDY
     }
-}
-
-private fun buildRainLabel(day: DesktopDailyDay): String? {
-    day.precipAmountMm?.takeIf { it > 0.25f }?.let {
-        return if (it >= 25.4f) {
-            "${String.format("%.1f", it / 25.4f)}in"
-        } else {
-            "${it.roundToInt()}mm"
-        }
-    }
-    return day.precipProbability?.takeIf { it >= 10 }?.let { "$it%" }
 }
 
 private fun labelSizeFor(dayWidth: Float): Int =

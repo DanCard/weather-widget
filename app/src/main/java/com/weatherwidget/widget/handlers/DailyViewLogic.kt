@@ -627,51 +627,17 @@ object DailyViewLogic {
         dayPrecipProbability: Int? = null,
         allowTodayRainChanceLabel: Boolean = false,
         observedPrecipAmountMm: Float? = null,
-    ): String? {
-        if (isPastDate) {
-            // For past days, show observed precipitation amount if available
-            if (observedPrecipAmountMm != null && observedPrecipAmountMm > 0f) {
-                Log.d(TAG, "buildDailyRainLabel past date label: date=$date amount=${observedPrecipAmountMm}mm")
-                return formatPrecipAmount(observedPrecipAmountMm)
-            }
-            Log.d(TAG, "buildDailyRainLabel skipping past date=$date (no observed precip)")
-            return null
-        }
-        if (date == today) {
-            if (dayPrecipProbability != null && dayPrecipProbability >= 95 && precipAmountMm != null) {
-                Log.d(TAG, "buildDailyRainLabel today label: date=$date amount=${precipAmountMm}mm")
-                return formatPrecipAmount(precipAmountMm)
-            }
-            if (allowTodayRainChanceLabel && dayPrecipProbability != null && dayPrecipProbability > 0) {
-                Log.d(TAG, "buildDailyRainLabel today fallback label: date=$date dayPrecip=$dayPrecipProbability%")
-                return "$dayPrecipProbability%"
-            }
-            Log.d(TAG, "buildDailyRainLabel skipping today: date=$date dayPrecip=$dayPrecipProbability precipAmount=$precipAmountMm")
-            return null
-        }
-        val daysFromToday = ChronoUnit.DAYS.between(today, date).toInt()
-        val dayMinProb = DailyForecastIconResolver.getMinimumPrecipProbabilityDay(daysFromToday)
-        val nightMinProb = DailyForecastIconResolver.getMinimumPrecipProbabilityNight(daysFromToday)
-        val dayPrecip = dayPrecipProbability
+    ): String? = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainLabel(
+        date = date,
+        today = today,
+        isPastDate = isPastDate,
+        precipAmountMm = precipAmountMm,
+        dayPrecipProbability = dayPrecipProbability,
+        allowTodayRainChanceLabel = allowTodayRainChanceLabel,
+        observedPrecipAmountMm = observedPrecipAmountMm,
+    )
 
-        val daySuppresses = dayPrecip != null && dayPrecip < dayMinProb
-        if (daySuppresses) {
-            Log.d(TAG, "buildDailyRainLabel suppressing label for $date: dayPrecip=$dayPrecip dayMin=$dayMinProb")
-            return null
-        }
-        val result = when {
-            dayPrecip != null && dayPrecip >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
-            dayPrecip != null && dayPrecip > 0 -> "$dayPrecip%"
-            else -> null
-        }
-        if (result == null) {
-            Log.d(TAG, "buildDailyRainLabel no label produced: date=$date precipAmount=$precipAmountMm")
-        } else {
-            Log.d(TAG, "buildDailyRainLabel label for $date: $result (dayPrecip=$dayPrecipProbability%)")
-        }
-        return result
-    }
-
+    // dailyRainLabelText is retained in the signature for call-site symmetry but is unused.
     private fun buildNightRainLabel(
         date: LocalDate,
         today: LocalDate,
@@ -679,34 +645,12 @@ object DailyViewLogic {
         dailyRainLabelText: String?,
         nightPrecipProbability: Int?,
         observedNightPrecipMm: Float? = null,
-    ): String? {
-        if (isPastDate) {
-            // For past days, show observed night precipitation amount if available
-            if (observedNightPrecipMm != null && observedNightPrecipMm > 0f) {
-                Log.d(TAG, "buildNightRainLabel past date label: date=$date amount=${observedNightPrecipMm}mm")
-                return formatPrecipAmount(observedNightPrecipMm)
-            }
-            Log.d(TAG, "buildNightRainLabel skipping past date=$date (no observed night precip)")
-            return null
-        }
-        val probability = nightPrecipProbability ?: run {
-            Log.d(TAG, "buildNightRainLabel skipping null night precip: date=$date")
-            return null
-        }
-        val daysFromToday = ChronoUnit.DAYS.between(today, date).toInt()
-        if (daysFromToday < 0) return null
-
-        val threshold = DailyForecastIconResolver.getMinimumPrecipProbabilityNight(daysFromToday)
-        val shouldShow = probability >= threshold
-
-        if (!shouldShow) {
-            Log.d(TAG, "buildNightRainLabel suppressing label for $date: nightPrecip=$probability threshold=$threshold daysFromToday=$daysFromToday")
-            return null
-        }
-
-        val result = "$probability%"
-        Log.d(TAG, "buildNightRainLabel label for $date: $result (threshold=$threshold daysFromToday=$daysFromToday)")
-        return result
-    }
+    ): String? = com.weatherwidget.shared.util.DailyRainLabels.buildNightRainLabel(
+        date = date,
+        today = today,
+        isPastDate = isPastDate,
+        nightPrecipProbability = nightPrecipProbability,
+        observedNightPrecipMm = observedNightPrecipMm,
+    )
 
 }

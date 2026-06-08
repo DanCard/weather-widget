@@ -40,8 +40,10 @@ data class DesktopDailyDay(
     val isToday: Boolean,
     val isPast: Boolean,
     val cloudCoverRatio: Float?,
-    val precipProbability: Int?,
-    val precipAmountMm: Float?,
+    /** Daytime rain label drawn on top of the bar (observed amount, forecast amount, or prob%). */
+    val dailyRainLabelText: String?,
+    /** Nighttime rain label tucked between columns (observed amount or prob%). */
+    val nightRainLabelText: String?,
     val isClimateNormal: Boolean,
 )
 
@@ -103,6 +105,7 @@ object DesktopDailyForecastModel {
                 snapshots = snapshotsByDate[date].orEmpty(),
                 hourly = forecast.hourly,
                 currentTemp = forecast.currentTemp,
+                displaySourceId = config.weatherSource,
             )
         }
 
@@ -125,6 +128,7 @@ object DesktopDailyForecastModel {
         snapshots: List<DailyForecastSnapshot>,
         hourly: List<HourlyForecast>,
         currentTemp: Float?,
+        displaySourceId: String,
     ): DesktopDailyDay {
         val isToday = date == today
         val isPast = date.isBefore(today)
@@ -168,6 +172,36 @@ object DesktopDailyForecastModel {
             }
         }
 
+        // Rain labels (text-building logic shared with the Android widget). The daytime label sits
+        // on the bar; the night label tucks between columns. Past days prefer observed actuals;
+        // forecast days fall back to the day/night precip-probability windows from hourly data.
+        val dayNight = if (!isPast) {
+            com.weatherwidget.shared.util.DailyRainLabels.calculateDayNightPrecipProbabilities(
+                hourly = hourly,
+                targetDate = date,
+                displaySourceId = displaySourceId,
+            )
+        } else {
+            null
+        }
+        val forecastAmountMm = forecast?.precipAmountMm ?: snapshot?.precipAmountMm
+        val dailyRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainLabel(
+            date = date,
+            today = today,
+            isPastDate = isPast,
+            precipAmountMm = forecastAmountMm,
+            dayPrecipProbability = dayNight?.dayMax ?: forecast?.precipProbability,
+            allowTodayRainChanceLabel = true,
+            observedPrecipAmountMm = actual?.precipDayMm ?: actual?.precipAmountMm,
+        )
+        val nightRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildNightRainLabel(
+            date = date,
+            today = today,
+            isPastDate = isPast,
+            nightPrecipProbability = dayNight?.nightMax,
+            observedNightPrecipMm = actual?.precipNightMm,
+        )
+
         return DesktopDailyDay(
             date = date,
             label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
@@ -184,8 +218,8 @@ object DesktopDailyForecastModel {
             isToday = isToday,
             isPast = isPast,
             cloudCoverRatio = resolveNoonCloudCoverRatio(date, hourly),
-            precipProbability = if (isToday) nextPrecipProbability(now, hourly) else forecast?.precipProbability,
-            precipAmountMm = forecast?.precipAmountMm ?: snapshot?.precipAmountMm,
+            dailyRainLabelText = dailyRainLabelText,
+            nightRainLabelText = nightRainLabelText,
             isClimateNormal = forecast?.isClimateNormal == true,
         )
     }
@@ -249,16 +283,5 @@ object DesktopDailyForecastModel {
             ?.coerceIn(0, 100)
             ?.div(100f)
     }
-
-    private fun nextPrecipProbability(now: LocalDateTime, hourly: List<HourlyForecast>): Int? {
-        val zone = ZoneId.systemDefault()
-        val nowMs = now.atZone(zone).toInstant().toEpochMilli()
-        val endMs = now.plusHours(8).atZone(zone).toInstant().toEpochMilli()
-        return hourly.asSequence()
-            .filter { it.dateTime in nowMs..endMs }
-            .mapNotNull { it.precipProbability }
-            .maxOrNull()
-    }
-
 
 }

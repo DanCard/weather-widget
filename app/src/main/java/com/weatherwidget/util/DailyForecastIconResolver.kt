@@ -6,7 +6,6 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 object DailyForecastIconResolver {
@@ -16,13 +15,11 @@ object DailyForecastIconResolver {
         val nightMax: Int?,
     )
 
-    fun getMinimumPrecipProbabilityDay(daysFromToday: Int): Int {
-        return (4 * daysFromToday) + 1
-    }
+    fun getMinimumPrecipProbabilityDay(daysFromToday: Int): Int =
+        com.weatherwidget.shared.util.DailyRainLabels.getMinimumPrecipProbabilityDay(daysFromToday)
 
-    fun getMinimumPrecipProbabilityNight(daysFromToday: Int): Int {
-        return getMinimumPrecipProbabilityDay(daysFromToday)
-    }
+    fun getMinimumPrecipProbabilityNight(daysFromToday: Int): Int =
+        com.weatherwidget.shared.util.DailyRainLabels.getMinimumPrecipProbabilityNight(daysFromToday)
 
     @Deprecated("Use getMinimumPrecipProbabilityDay() for clarity", replaceWith = ReplaceWith("getMinimumPrecipProbabilityDay(daysFromToday)"))
     fun getMinimumPrecipProbability(daysFromToday: Int): Int = getMinimumPrecipProbabilityDay(daysFromToday)
@@ -35,34 +32,20 @@ object DailyForecastIconResolver {
         longitude: Double,
         displaySource: WeatherSource,
     ): DayNightPrecip {
-        val zoneId = ZoneId.systemDefault()
-        val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
-        val endMs = targetDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-
-        // Daytime: 8:00 AM to 8:00 PM (on the target date)
-        val dayStartMs = targetDate.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
-        val dayEndMs = targetDate.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
-
-        // Nighttime: 8:00 PM on target date to 8:00 AM next day
-        val nightStartMs = dayEndMs
-        val nightEndMs = targetDate.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
-
-        val sourceForecasts = hourlyForecasts.filter { it.source == displaySource.id }
-        val candidateForecasts = if (sourceForecasts.isNotEmpty()) sourceForecasts
-            else hourlyForecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }
-
-        val dayPrecips = candidateForecasts
-            .filter { it.dateTime >= dayStartMs && it.dateTime < dayEndMs }
-            .mapNotNull { it.precipProbability }
-
-        val nightPrecips = candidateForecasts
-            .filter { it.dateTime >= nightStartMs && it.dateTime < nightEndMs }
-            .mapNotNull { it.precipProbability }
-
-        return DayNightPrecip(
-            dayMax = dayPrecips.maxOrNull(),
-            nightMax = nightPrecips.maxOrNull(),
+        val shared = com.weatherwidget.shared.util.DailyRainLabels.calculateDayNightPrecipProbabilities(
+            hourly = hourlyForecasts.map {
+                com.weatherwidget.data.model.HourlyForecast(
+                    dateTime = it.dateTime,
+                    temperature = it.temperature,
+                    condition = it.condition,
+                    precipProbability = it.precipProbability,
+                    source = it.source,
+                )
+            },
+            targetDate = targetDate,
+            displaySourceId = displaySource.id,
         )
+        return DayNightPrecip(dayMax = shared.dayMax, nightMax = shared.nightMax)
     }
 
     fun resolveIcon(
