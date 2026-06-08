@@ -446,6 +446,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         super.onDeleted(context, appWidgetIds)
         val stateManager = stateManager(context)
         for (appWidgetId in appWidgetIds) {
+            TemperatureViewHandler.cancelCurrentTempRefinement(appWidgetId)
             stateManager.clearWidgetState(appWidgetId)
             lastUpdateByWidgetId.remove(appWidgetId)
         }

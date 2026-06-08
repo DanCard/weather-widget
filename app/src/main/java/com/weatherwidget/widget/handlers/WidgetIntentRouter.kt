@@ -399,6 +399,9 @@ suspend fun handleToggleView(
         val stateManager = WidgetStateManager(context)
         val newMode = stateManager.toggleViewMode(appWidgetId)
         Log.d(TAG, "handleToggleView: Toggled to $newMode for widget $appWidgetId")
+        if (newMode != ViewMode.TEMPERATURE) {
+            TemperatureViewHandler.cancelCurrentTempRefinement(appWidgetId)
+        }
 
         val ctx = resolveRefreshContext(context, "toggle_view")
 
@@ -515,6 +518,9 @@ suspend fun handleTogglePrecip(
         val stateManager = WidgetStateManager(context)
         val newMode = stateManager.togglePrecipitationMode(appWidgetId)
         Log.d(TAG, "handleTogglePrecip: Toggled to $newMode for widget $appWidgetId")
+        if (newMode != ViewMode.TEMPERATURE) {
+            TemperatureViewHandler.cancelCurrentTempRefinement(appWidgetId)
+        }
 
         val ctx = resolveRefreshContext(context, "toggle_precip")
 
@@ -561,6 +567,9 @@ suspend fun handleSetView(
         val previousZoom = stateManager.getZoomLevel(appWidgetId)
         val previousOffset = stateManager.getHourlyOffset(appWidgetId)
         stateManager.setViewMode(appWidgetId, targetMode)
+        if (previousMode == ViewMode.TEMPERATURE && targetMode != ViewMode.TEMPERATURE) {
+            TemperatureViewHandler.cancelCurrentTempRefinement(appWidgetId)
+        }
         Log.d(
             TAG,
             "handleSetView: target=$targetMode previousMode=$previousMode previousZoom=$previousZoom " +
