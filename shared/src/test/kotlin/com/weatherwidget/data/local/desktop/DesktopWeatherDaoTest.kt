@@ -190,6 +190,77 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `hourly reads match a nearby coordinate so precision jitter does not fragment the cache`() {
+        // Same fixed location, persisted at two precisions across sessions.
+        val storedLat = 37.416883; val storedLon = -122.089009
+        val queryLat = 37.4167; val queryLon = -122.089
+        val source = "NWS"
+        val hour = 1_780_682_400_000L
+
+        dao.upsertHourlyForecasts(
+            storedLat, storedLon, source,
+            listOf(HourlyForecast(hour, 61f, "Cloudy", cloudCover = 80)),
+        )
+        dao.upsertHourlyForecastHistory(
+            storedLat, storedLon, source, snapshotBucket = 1_780_500_000_000L,
+            listOf(HourlyForecast(hour, 61f, "Cloudy", cloudCover = 80)),
+        )
+
+        // Querying the slightly-different config coordinate still finds the data.
+        val latest = dao.getLatestHourly(queryLat, queryLon, source, 10_000)
+        assertEquals(1, latest.size)
+        assertEquals(80, latest[0].cloudCover)
+
+        val history = dao.getHourlyHistory(queryLat, queryLon, source, hour - 1, hour + 1)
+        assertEquals(1, history.size)
+        assertEquals(80, history[0].cloudCover)
+    }
+
+    @Test
+    fun `hourly reads ignore a far-away coordinate beyond the proximity box`() {
+        val source = "NWS"
+        val hour = 1_780_682_400_000L
+        // ~70 miles away — outside the ~5-mile read box.
+        dao.upsertHourlyForecasts(
+            38.5, -121.5, source,
+            listOf(HourlyForecast(hour, 99f, "Sunny", cloudCover = 5)),
+        )
+
+        val latest = dao.getLatestHourly(37.4167, -122.089, source, 10_000)
+        assertEquals(0, latest.size)
+    }
+
+    @Test
+    fun `getHourlyHistory coalesces cloud cover from an older snapshot when the freshest lacks it`() {
+        val lat = 40.0
+        val lon = -75.0
+        val source = "NWS"
+        val hour = 1_780_682_400_000L
+
+        // Older snapshot of this hour (taken when it was further out in the forecast horizon) carries
+        // sky cover; the freshest snapshot (taken as the hour became "now") arrived with cloudCover
+        // null, mirroring NWS near-term gridpoint gaps.
+        dao.upsertHourlyForecastHistory(
+            lat, lon, source, snapshotBucket = 1_780_500_000_000L,
+            listOf(HourlyForecast(hour, 60f, "Cloudy", precipProbability = 20, cloudCover = 75)),
+        )
+        dao.upsertHourlyForecastHistory(
+            lat, lon, source, snapshotBucket = 1_780_675_200_000L,
+            listOf(HourlyForecast(hour, 64f, "Sunny", precipProbability = null, cloudCover = null)),
+        )
+
+        val history = dao.getHourlyHistory(lat, lon, source, hour - 1, hour + 1)
+
+        assertEquals(1, history.size)
+        // Temperature/condition come from the freshest snapshot...
+        assertEquals(64f, history[0].temperature)
+        assertEquals("Sunny", history[0].condition)
+        // ...but the missing cloud cover (and precip) are backfilled from the older snapshot.
+        assertEquals(75, history[0].cloudCover)
+        assertEquals(20, history[0].precipProbability)
+    }
+
+    @Test
     fun `test cleanup`() {
         val lat = 40.0
         val lon = -75.0

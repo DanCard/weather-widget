@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
+import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.SpatialInterpolator
@@ -162,18 +163,7 @@ class DesktopWeatherRepository(
                 "obs=${result.rawObservations.size} extremes=$extremesCount",
         )
 
-        val (currentTemp, appliedDelta) = resolveForForecastResult(result.hourly, now)
-        val newestObs = result.rawObservations.filter { it.stationId == "NWS_BLEND" }.maxByOrNull { it.timestamp }
-            ?: result.rawObservations.maxByOrNull { it.timestamp }
-
-        result.copy(
-            currentTemp = currentTemp,
-            appliedDelta = appliedDelta,
-            currentObservedAt = newestObs?.timestamp ?: result.currentObservedAt,
-            dailyActuals = actuals,
-            dailySnapshots = snapshots,
-            rawObservations = result.rawObservations,
-        )
+        loadCached() ?: result
     }
 
     suspend fun refreshObservations(): ForecastResult = withContext(Dispatchers.IO) {

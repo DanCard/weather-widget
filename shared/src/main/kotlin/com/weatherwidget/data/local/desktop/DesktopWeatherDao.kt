@@ -14,6 +14,17 @@ import java.sql.Types
 import java.time.LocalDate
 import java.time.ZoneOffset
 
+// A desktop machine doesn't move, yet the same fixed location can be persisted at slightly different
+// precisions across sessions — e.g. manually entered "37.4167" vs geocoded "37.416883". Because
+// locationLat/locationLon are part of every table's key and reads matched them with exact float
+// equality, those tiny differences fragmented the cache into separate silos: cloud-cover history
+// saved under one coordinate was invisible to a session querying another, leaving the graph flat.
+// Reads therefore match within a small proximity box (~5 miles) instead of `=`. Writes still store
+// under the live config coordinate; the loose read simply reunites the silos. At ~37°N, ~5 miles is
+// 0.072° of latitude and ~0.092° of longitude — rounded up slightly for margin.
+private const val LOCATION_LAT_TOLERANCE_DEG = 0.08
+private const val LOCATION_LON_TOLERANCE_DEG = 0.10
+
 class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     fun upsertHourlyForecasts(locationLat: Double, locationLon: Double, source: String, hourly: List<HourlyForecast>) {
@@ -169,7 +180,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM observations 
-                WHERE locationLat = ? AND locationLon = ? AND timestamp >= ?
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND timestamp >= ?
                 ORDER BY timestamp DESC LIMIT 1
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -375,7 +386,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM hourly_forecasts 
-                WHERE locationLat = ? AND locationLon = ? AND source = ? AND fetchedAt >= ?
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ? AND fetchedAt >= ?
                 ORDER BY dateTime ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -407,7 +418,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val sql = """
                 SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt, source
                 FROM hourly_forecast_history
-                WHERE locationLat = ? AND locationLon = ? AND (source = ? OR source = 'Generic') AND dateTime >= ? AND dateTime <= ?
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND (source = ? OR source = 'Generic') AND dateTime >= ? AND dateTime <= ?
                 ORDER BY dateTime ASC, (source = ?) DESC, snapshotBucket DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -418,24 +429,41 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setLong(5, endMs)
                 stmt.setString(6, source)
                 val rs = stmt.executeQuery()
-                val seen = hashSetOf<Long>()
+                // One merged row per (dateTime, source). The query is ordered snapshotBucket DESC,
+                // so the freshest snapshot of an hour is seen first and supplies temperature and
+                // condition. Older snapshots of the same hour only backfill nullable fields the
+                // freshest one is missing — chiefly cloudCover: NWS frequently omits sky cover on
+                // the near-term hours (the freshest snapshot of a now-past hour), yet provided it
+                // for that same hour when it sat further out in the forecast horizon. Picking only
+                // the freshest snapshot therefore dropped cloud cover for almost every past hour,
+                // collapsing the desktop cloud-cover graph to a flat line.
+                val merged = LinkedHashMap<Pair<Long, String>, HourlyForecast>()
                 while (rs.next()) {
                     val dateTime = rs.getLong("dateTime")
-                    if (!seen.add(dateTime)) continue
                     val rowSource = rs.getString("source")
-                    result.add(
-                        HourlyForecast(
-                            dateTime = dateTime,
-                            temperature = rs.getFloat("temperature"),
-                            condition = rs.getString("condition"),
-                            precipProbability = rs.getNullableInt("precipProbability"),
-                            cloudCover = rs.getNullableInt("cloudCover"),
-                            precipAmountMm = rs.getNullableFloat("precipAmountMm"),
-                            source = rowSource,
-                            fetchedAt = rs.getLong("fetchedAt"),
-                        ),
+                    val row = HourlyForecast(
+                        dateTime = dateTime,
+                        temperature = rs.getFloat("temperature"),
+                        condition = rs.getString("condition"),
+                        precipProbability = rs.getNullableInt("precipProbability"),
+                        cloudCover = rs.getNullableInt("cloudCover"),
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        source = rowSource,
+                        fetchedAt = rs.getLong("fetchedAt"),
                     )
+                    val key = dateTime to rowSource
+                    val existing = merged[key]
+                    if (existing == null) {
+                        merged[key] = row
+                    } else if (existing.cloudCover == null || existing.precipProbability == null || existing.precipAmountMm == null) {
+                        merged[key] = existing.copy(
+                            precipProbability = existing.precipProbability ?: row.precipProbability,
+                            cloudCover = existing.cloudCover ?: row.cloudCover,
+                            precipAmountMm = existing.precipAmountMm ?: row.precipAmountMm,
+                        )
+                    }
                 }
+                result.addAll(merged.values)
             }
         }
         return result
@@ -445,7 +473,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT COUNT(DISTINCT dateTime) FROM hourly_forecast_history
-                WHERE locationLat = ? AND locationLon = ? AND (source = ? OR source = 'Generic')
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND (source = ? OR source = 'Generic')
                 AND dateTime >= ? AND dateTime <= ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -480,7 +508,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<DailyForecast>()
         db.getConnection().use { conn ->
             // Get the latest batch
-            val latestBatchSql = "SELECT MAX(batchFetchedAt) FROM forecasts WHERE locationLat = ? AND locationLon = ? AND source = ?"
+            val latestBatchSql = "SELECT MAX(batchFetchedAt) FROM forecasts WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ?"
             val latestBatch = conn.prepareStatement(latestBatchSql).use { stmt ->
                 stmt.setDouble(1, locationLat)
                 stmt.setDouble(2, locationLon)
@@ -493,7 +521,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
             val sql = """
                 SELECT * FROM forecasts 
-                WHERE locationLat = ? AND locationLon = ? AND source = ? AND batchFetchedAt = ?
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ? AND batchFetchedAt = ?
                 ORDER BY targetDate ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -531,7 +559,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val latestBatchSql = """
                 SELECT MAX(batchFetchedAt) FROM forecasts
-                WHERE locationLat = ? AND locationLon = ? AND source = ?
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ?
             """.trimIndent()
             val latestBatch = conn.prepareStatement(latestBatchSql).use { stmt ->
                 stmt.setDouble(1, locationLat)
@@ -545,7 +573,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 SELECT targetDate, highTemp, lowTemp, condition, nativeDailyIconToken,
                     precipProbability, precipAmountMm, fetchedAt, batchFetchedAt
                 FROM forecasts
-                WHERE locationLat = ? AND locationLon = ? AND source = ?
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ?
                     AND targetDate >= ? AND targetDate <= ?
                 ORDER BY targetDate ASC, fetchedAt DESC
             """.trimIndent()
@@ -619,7 +647,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM observations
-                WHERE locationLat = ? AND locationLon = ? AND timestamp >= ? AND timestamp < ?
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND timestamp >= ? AND timestamp < ?
                 ORDER BY timestamp ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -656,7 +684,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM daily_extremes
-                WHERE locationLat = ? AND locationLon = ? AND date >= ? AND date <= ?
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND date >= ? AND date <= ?
                 ORDER BY date ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -696,7 +724,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT targetDate, forecastDate, source, highTemp, lowTemp, fetchedAt FROM forecasts
-                WHERE locationLat = ? AND locationLon = ? AND source = ? AND targetDate >= ? AND targetDate <= ?
+                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ? AND targetDate >= ? AND targetDate <= ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, locationLat)
