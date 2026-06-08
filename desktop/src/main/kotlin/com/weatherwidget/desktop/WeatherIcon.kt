@@ -3,29 +3,17 @@ package com.weatherwidget.desktop
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
+import com.weatherwidget.shared.util.WeatherConditionResolver
+import com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags
 
 /**
  * Maps weather conditions to desktop resources.
- * These resources were ported from the Android widget's XML drawables.
+ * Delegates pure logic to shared [WeatherConditionResolver]; maps icon names to Compose resource paths.
  */
 object WeatherIcon {
     fun getIconResource(condition: String?): String {
-        if (condition == null) return "drawable/ic_weather_unknown.xml"
-        val lower = condition.lowercase()
-        return when {
-            lower.contains("storm") || lower.contains("thunder") || lower.contains("hail") -> "drawable/ic_weather_storm.xml"
-            lower.contains("snow") || lower.contains("flurries") || lower.contains("blizzard") || lower.contains("sleet") || lower.contains("ice pellet") -> "drawable/ic_weather_snow.xml"
-            lower.contains("rain") || lower.contains("drizzle") || lower.contains("shower") -> "drawable/ic_weather_rain.xml"
-            lower.contains("dense fog") -> "drawable/ic_weather_fog_dense.xml"
-            lower.contains("patchy fog") || lower.contains("light fog") -> "drawable/ic_weather_fog_light.xml"
-            lower.contains("fog") || lower.contains("mist") || lower.contains("haze") -> "drawable/ic_weather_fog.xml"
-            lower.contains("mostly cloudy") || lower.contains("(75%)") || lower.contains("broken") -> "drawable/ic_weather_mostly_cloudy.xml"
-            lower.contains("partly") -> "drawable/ic_weather_partly_cloudy.xml"
-            lower.contains("mostly clear") || lower.contains("mostly sunny") || lower.contains("partly sunny") || lower.contains("(25%)") -> "drawable/ic_weather_mostly_clear.xml"
-            lower.contains("cloudy") || lower.contains("overcast") -> "drawable/ic_weather_cloudy.xml"
-            lower.contains("clear") || lower.contains("sunny") || lower.contains("fair") -> "drawable/ic_weather_clear.xml"
-            else -> "drawable/ic_weather_clear.xml"
-        }
+        val iconName = WeatherConditionResolver.resolveIconName(condition)
+        return "drawable/${iconName}.xml"
     }
 
     @Composable
@@ -33,51 +21,31 @@ object WeatherIcon {
         return painterResource(getIconResource(condition))
     }
 
-    data class ConditionFlags(
-        val isSunny: Boolean,
-        val isRainy: Boolean,
-        val isMixed: Boolean,
-        val isNight: Boolean = false,
-        val isTwilight: Boolean = false,
-    )
-
     fun getConditionFlags(condition: String?, isNight: Boolean = false): ConditionFlags {
-        if (condition == null) return ConditionFlags(false, false, false, isNight)
-        val iconRes = getIconResource(condition)
-        val isRainy = iconRes.contains("rain") || iconRes.contains("storm") || iconRes.contains("snow")
-        val isSunny = iconRes.contains("clear") || iconRes.contains("mostly_clear")
-        val isMixed = iconRes.contains("mostly_cloudy") || iconRes.contains("partly") || iconRes.contains("mostly_clear") || iconRes.contains("fog_light")
-        return ConditionFlags(isSunny, isRainy, isMixed, isNight)
+        val iconName = WeatherConditionResolver.resolveIconName(condition, isNight = isNight)
+        return WeatherConditionResolver.getConditionFlags(iconName, isNight)
     }
 
     fun getCloudRatio(condition: String?): Float? {
-        if (condition == null) return null
-        val lower = condition.lowercase()
-        return when {
-            lower.contains("mostly clear") || lower.contains("mostly sunny") -> 0.18f
-            lower.contains("partly") -> 0.35f
-            lower.contains("mostly cloudy") || lower.contains("broken") -> 0.70f
-            lower.contains("cloudy") || lower.contains("overcast") -> 0.95f
-            lower.contains("fog") -> 0.50f
-            else -> null
-        }
+        return WeatherConditionResolver.cloudRatioFromCondition(condition)
     }
 
     fun isRainIndicator(iconRes: String): Boolean {
-        val lower = iconRes.lowercase()
-        return lower.contains("rain") || lower.contains("storm") || lower.contains("snow")
+        val iconName = iconRes.removePrefix("drawable/").removeSuffix(".xml")
+        return WeatherConditionResolver.isRainIndicator(iconName)
     }
 
     fun isCloudForecastEligible(iconRes: String): Boolean {
-        val lower = iconRes.lowercase()
-        return lower.contains("cloudy") || lower.contains("mostly_clear") || lower.contains("fog") || lower.contains("horizon_sun")
+        val iconName = iconRes.removePrefix("drawable/").removeSuffix(".xml")
+        return WeatherConditionResolver.isCloudForecastEligible(iconName)
     }
 
     fun resolveIconHome(iconRes: String): String {
-        return when {
-            isRainIndicator(iconRes) -> "PRECIPITATION"
-            isCloudForecastEligible(iconRes) -> "CLOUD_COVER"
-            else -> "HOURLY"
+        val iconName = iconRes.removePrefix("drawable/").removeSuffix(".xml")
+        return when (WeatherConditionResolver.resolveIconHome(iconName)) {
+            WeatherConditionResolver.IconHome.PRECIPITATION -> "PRECIPITATION"
+            WeatherConditionResolver.IconHome.CLOUD_COVER -> "CLOUD_COVER"
+            WeatherConditionResolver.IconHome.HOURLY -> "HOURLY"
         }
     }
 }

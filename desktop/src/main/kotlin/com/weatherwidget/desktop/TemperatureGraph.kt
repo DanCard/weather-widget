@@ -65,7 +65,7 @@ private val FORECAST_RAINY = Color(0xFF5A8FBF)
 private val FORECAST_NIGHT = Color(0xFFBBBBBB)
 private val FORECAST_TWILIGHT = Color(0xFFFFA726)
 
-private fun forecastColor(flags: WeatherIcon.ConditionFlags): Color {
+private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
     return when {
         flags.isRainy -> FORECAST_RAINY
         flags.isNight -> FORECAST_NIGHT

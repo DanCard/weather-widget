@@ -148,6 +148,8 @@ Extract pure-Kotlin logic from Android into `:shared`, then update desktop to co
 
 ## Implementation Order
 
+Each phase follows: **implement → test → fix failures → commit → push**.
+
 | # | Task | Files Created | Files Modified | Risk |
 |---|------|---------------|----------------|------|
 | 1.1 | WeatherConditionResolver | 1 shared | 2 (Android mapper, desktop icon) | Low — pure extraction |
@@ -164,13 +166,30 @@ Extract pure-Kotlin logic from Android into `:shared`, then update desktop to co
 
 ---
 
-## Testing Strategy
+## Testing & Verification Protocol
 
-- Each extraction gets unit tests in `shared/src/test/` covering the pure logic
-- Existing Android instrumented tests validate no regression on widget rendering
-- Existing desktop tests validate no regression on desktop UI
-- Run `./gradlew test` (shared + desktop JVM tests) after each phase
-- Run `./gradlew connectedDebugAndroidTest` after Phase 1 & 2 to verify Android widget
+After **every** phase:
+
+1. **Run shared + desktop JVM tests:**
+   ```bash
+   ./gradlew :shared:test :desktop:test
+   ```
+2. **Run Android unit tests:**
+   ```bash
+   ./gradlew :app:test
+   ```
+3. **If any test fails:** fix the failure before proceeding.
+4. **Commit** with a descriptive message covering the phase's changes.
+5. **Push** to remote.
+
+After **Phase 1** and **Phase 2** (significant Android changes):
+6. **Run Android instrumented tests** (if emulator available):
+   ```bash
+   ./gradlew connectedDebugAndroidTest
+   ```
+   Fix any regressions before proceeding.
+
+---
 
 ## Risk Mitigation
 
