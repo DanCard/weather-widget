@@ -62,19 +62,28 @@ val tomorrowIoApiKey =
             ?: ""
     )
 
-// Release signing secrets are read from local.properties or the environment (never committed).
-// They are empty for debug-only builds; `assembleRelease` requires them to be set.
+// Release signing secrets are read from gradle.properties (global or local), local.properties,
+// or the environment (never committed). They are empty for debug-only builds;
+// `assembleRelease` requires them to be set.
 val releaseStorePassword =
     (
-        localProperties.getProperty("RELEASE_STORE_PASSWORD")
+        project.findProperty("RELEASE_STORE_PASSWORD") as? String
+            ?: localProperties.getProperty("RELEASE_STORE_PASSWORD")
             ?: System.getenv("RELEASE_STORE_PASSWORD")
             ?: ""
     )
 val releaseKeyPassword =
     (
-        localProperties.getProperty("RELEASE_KEY_PASSWORD")
+        project.findProperty("RELEASE_KEY_PASSWORD") as? String
+            ?: localProperties.getProperty("RELEASE_KEY_PASSWORD")
             ?: System.getenv("RELEASE_KEY_PASSWORD")
             ?: ""
+    )
+val releaseKeyAlias =
+    (
+        project.findProperty("RELEASE_KEY_ALIAS") as? String
+            ?: localProperties.getProperty("RELEASE_KEY_ALIAS")
+            ?: "weatherwidget"
     )
 
 ktlint {
@@ -129,9 +138,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file("release.keystore")
+            val storeFilePath = project.findProperty("RELEASE_STORE_FILE") as? String
+            storeFile = if (!storeFilePath.isNullOrBlank()) file(storeFilePath) else rootProject.file("release.keystore")
             storePassword = releaseStorePassword
-            keyAlias = "weatherwidget"
+            keyAlias = releaseKeyAlias
             keyPassword = releaseKeyPassword
         }
     }

@@ -24,6 +24,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import android.appwidget.AppWidgetManager
+import android.os.Build
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.google.android.flexbox.FlexboxLayout
@@ -40,6 +41,7 @@ import javax.inject.Inject
 
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.util.SharedPreferencesUtil
+import com.weatherwidget.util.DeviceUtils
 
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
@@ -372,6 +374,15 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun setupLocationSettings() {
+        val locationSection = findViewById<View>(R.id.location_settings_section)
+        
+        // Hide location settings if it's a device that reports standard GPS
+        if (DeviceUtils.reportsStandardGps(this)) {
+            locationSection.visibility = View.GONE
+            return
+        }
+
+        locationSection.visibility = View.VISIBLE
         val latInput = findViewById<EditText>(R.id.lat_input)
         val lonInput = findViewById<EditText>(R.id.lon_input)
         val saveButton = findViewById<Button>(R.id.save_location_button)
@@ -428,8 +439,8 @@ class SettingsActivity : AppCompatActivity() {
             labelText = "Default Location: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLon)}"
         }
 
-        latInput.setText(currentLat!!.toString())
-        lonInput.setText(currentLon!!.toString())
+        latInput.setText(currentLat.toString())
+        lonInput.setText(currentLon.toString())
         locationLabel.text = labelText
 
         saveButton.setOnClickListener {

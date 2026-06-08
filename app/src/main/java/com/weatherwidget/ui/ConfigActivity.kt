@@ -25,6 +25,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.util.DeviceUtils
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -72,6 +73,12 @@ class ConfigActivity : AppCompatActivity() {
         val latInput = findViewById<EditText>(R.id.lat_input)
         val lonInput = findViewById<EditText>(R.id.lon_input)
         val useCoordinatesButton = findViewById<Button>(R.id.use_coordinates_button)
+        val coordinatesSection = findViewById<View>(R.id.coordinates_section)
+
+        // Hide coordinates section if it's a device that reports standard GPS
+        if (DeviceUtils.reportsStandardGps(this)) {
+            coordinatesSection.visibility = View.GONE
+        }
 
         // Setup Source Spinner
         val sources = WeatherSource.entries.filter { it != WeatherSource.GENERIC_GAP && it != WeatherSource.OPEN_WEATHER_MAP }
