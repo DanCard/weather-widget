@@ -22,6 +22,9 @@ import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
+import com.weatherwidget.data.remote.NominatimApi
+import com.weatherwidget.data.remote.IpGeolocationApi
+import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.CurrentTemperatureResolver
@@ -273,4 +276,25 @@ object AppModule {
     ): TomorrowIoApi = TomorrowIoApi(httpClient, json) { 
         widgetStateManager.getApiKey(WeatherSource.TOMORROW_IO) ?: com.weatherwidget.BuildConfig.TOMORROW_IO_API_KEY 
     }
+
+    @Provides
+    @Singleton
+    fun provideNominatimApi(
+        httpClient: HttpClient,
+        json: Json,
+    ): NominatimApi = NominatimApi(httpClient, json)
+
+    @Provides
+    @Singleton
+    fun provideIpGeolocationApi(
+        httpClient: HttpClient,
+        json: Json,
+    ): IpGeolocationApi = IpGeolocationApi(httpClient, json)
+
+    @Provides
+    @Singleton
+    fun provideSharedLocationResolver(
+        nominatimApi: NominatimApi,
+        ipGeolocationApi: IpGeolocationApi,
+    ): SharedLocationResolver = SharedLocationResolver(nominatimApi, ipGeolocationApi)
 }

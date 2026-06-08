@@ -42,6 +42,9 @@ class ConfigActivity : AppCompatActivity() {
     @Inject
     lateinit var appLogDao: AppLogDao
 
+    @Inject
+    lateinit var sharedLocationResolver: com.weatherwidget.data.repository.SharedLocationResolver
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_config)
@@ -95,7 +98,16 @@ class ConfigActivity : AppCompatActivity() {
             val lon = lonInput.text.toString().toDoubleOrNull()
             if (lat != null && lat in -90.0..90.0 && lon != null && lon in -180.0..180.0) {
                 saveSelectedSource()
-                saveLocation(lat, lon)
+                lifecycleScope.launch {
+                    try {
+                        val resolved = sharedLocationResolver.fromCoordinates(lat, lon)
+                        Toast.makeText(this@ConfigActivity, "Location: ${resolved.label}", Toast.LENGTH_LONG).show()
+                        saveLocation(lat, lon)
+                    } catch (e: Exception) {
+                        Toast.makeText(this@ConfigActivity, "Saving coordinates (Label lookup offline)", Toast.LENGTH_SHORT).show()
+                        saveLocation(lat, lon)
+                    }
+                }
             } else {
                 Toast.makeText(this, "Please enter valid coordinates (-90 to 90 lat, -180 to 180 lon)", Toast.LENGTH_SHORT).show()
             }
