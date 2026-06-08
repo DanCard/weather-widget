@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ZoomLevel
@@ -58,6 +59,7 @@ object GraphDataLoader {
 
     suspend fun loadGraphWindowHourlyForecasts(
         hourlyDao: HourlyForecastDao,
+        hourlyHistoryDao: HourlyForecastHistoryDao? = null,
         lat: Double,
         lon: Double,
         centerTime: LocalDateTime,
@@ -75,23 +77,70 @@ object GraphDataLoader {
         } else {
             hourlyDao.getHourlyForecasts(centerStartMs, centerEndMs, lat, lon)
         }
-
-        if (window.nowStart == null || window.nowEnd == null) {
-            return centerRows
-        }
-
-        val nowStartMs = window.nowStart.atZone(zoneId).toInstant().toEpochMilli()
-        val nowEndMs = window.nowEnd.atZone(zoneId).toInstant().toEpochMilli()
-
-        val nowRows = if (source != null) {
-            hourlyDao.getHourlyForecastsBySource(nowStartMs, nowEndMs, lat, lon, source.id)
+        val currentRows = if (window.nowStart == null || window.nowEnd == null) {
+            centerRows
         } else {
-            hourlyDao.getHourlyForecasts(nowStartMs, nowEndMs, lat, lon)
+            val nowStartMs = window.nowStart.atZone(zoneId).toInstant().toEpochMilli()
+            val nowEndMs = window.nowEnd.atZone(zoneId).toInstant().toEpochMilli()
+
+            val nowRows = if (source != null) {
+                hourlyDao.getHourlyForecastsBySource(nowStartMs, nowEndMs, lat, lon, source.id)
+            } else {
+                hourlyDao.getHourlyForecasts(nowStartMs, nowEndMs, lat, lon)
+            }
+
+            (centerRows + nowRows)
+                .distinctBy { "${it.dateTime}|${it.source}|${it.locationLat}|${it.locationLon}" }
+                .sortedBy { it.dateTime }
         }
 
-        return (centerRows + nowRows)
-            .distinctBy { "${it.dateTime}|${it.source}|${it.locationLat}|${it.locationLon}" }
-            .sortedBy { it.dateTime }
+        if (hourlyHistoryDao == null || source == null) {
+            return currentRows
+        }
+
+        val historyRows = run {
+            val sourceId = source.id
+            hourlyHistoryDao.getHistoryInRangeForBucketWindow(
+                startDateTime = centerStartMs,
+                endDateTime = centerEndMs,
+                bucketStart = Long.MIN_VALUE,
+                bucketEnd = Long.MAX_VALUE,
+                lat = lat,
+                lon = lon,
+                source = sourceId,
+            ).map {
+                HourlyForecastEntity(
+                    dateTime = it.dateTime,
+                    locationLat = it.locationLat,
+                    locationLon = it.locationLon,
+                    temperature = it.temperature,
+                    condition = it.condition,
+                    source = it.source,
+                    precipProbability = it.precipProbability,
+                    cloudCover = it.cloudCover,
+                    precipAmountMm = it.precipAmountMm,
+                    fetchedAt = it.fetchedAt,
+                )
+            }
+        }
+
+        val historyByTime = historyRows.associateBy { it.dateTime }
+        val stitched = linkedMapOf<Long, HourlyForecastEntity>()
+        for (row in historyRows) {
+            stitched[row.dateTime] = row
+        }
+        for (row in currentRows) {
+            val historical = historyByTime[row.dateTime]
+            stitched[row.dateTime] = if (historical != null) {
+                row.copy(
+                    cloudCover = row.cloudCover ?: historical.cloudCover,
+                )
+            } else {
+                row
+            }
+        }
+
+        return stitched.values.sortedBy { it.dateTime }
     }
 
     suspend fun loadCurrentTempResolutionHourlyForecasts(

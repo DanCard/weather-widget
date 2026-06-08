@@ -83,6 +83,10 @@ class DesktopWeatherService(
         }
     }
 
+    suspend fun fetchHistory(historyDays: Int): ForecastResult {
+        return openMeteo.getForecast(latitude, longitude, days = 1, historyDays = historyDays)
+    }
+
     private suspend fun fetchNwsForecast(): ForecastResult = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
         val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }

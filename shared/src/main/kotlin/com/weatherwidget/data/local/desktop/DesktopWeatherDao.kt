@@ -405,10 +405,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt
+                SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt, source
                 FROM hourly_forecast_history
-                WHERE locationLat = ? AND locationLon = ? AND source = ? AND dateTime >= ? AND dateTime <= ?
-                ORDER BY dateTime ASC, snapshotBucket DESC
+                WHERE locationLat = ? AND locationLon = ? AND (source = ? OR source = 'Generic') AND dateTime >= ? AND dateTime <= ?
+                ORDER BY dateTime ASC, (source = ?) DESC, snapshotBucket DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, locationLat)
@@ -416,11 +416,13 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setString(3, source)
                 stmt.setLong(4, startMs)
                 stmt.setLong(5, endMs)
+                stmt.setString(6, source)
                 val rs = stmt.executeQuery()
                 val seen = hashSetOf<Long>()
                 while (rs.next()) {
                     val dateTime = rs.getLong("dateTime")
                     if (!seen.add(dateTime)) continue
+                    val rowSource = rs.getString("source")
                     result.add(
                         HourlyForecast(
                             dateTime = dateTime,
@@ -429,7 +431,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             precipProbability = rs.getNullableInt("precipProbability"),
                             cloudCover = rs.getNullableInt("cloudCover"),
                             precipAmountMm = rs.getNullableFloat("precipAmountMm"),
-                            source = source,
+                            source = rowSource,
                             fetchedAt = rs.getLong("fetchedAt"),
                         ),
                     )
@@ -437,6 +439,25 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
         return result
+    }
+
+    fun getHourlyHistoryCount(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Int {
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT COUNT(DISTINCT dateTime) FROM hourly_forecast_history
+                WHERE locationLat = ? AND locationLon = ? AND (source = ? OR source = 'Generic')
+                AND dateTime >= ? AND dateTime <= ?
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                stmt.setLong(4, startMs)
+                stmt.setLong(5, endMs)
+                val rs = stmt.executeQuery()
+                return if (rs.next()) rs.getInt(1) else 0
+            }
+        }
     }
 
     fun getHourlyWithHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, maxAgeMs: Long): List<HourlyForecast> {

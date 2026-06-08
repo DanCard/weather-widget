@@ -348,6 +348,7 @@ suspend fun handleToggleApi(
             sourceDataMissingForCurrentWindow(
                 forecastDao = ctx.forecastDao,
                 hourlyDao = hourlyDao,
+                hourlyHistoryDao = ctx.database.hourlyForecastHistoryDao(),
                 lat = ctx.location.lat,
                 lon = ctx.location.lon,
                 source = newSource,
@@ -453,6 +454,7 @@ suspend fun handleToggleView(
     private suspend fun sourceDataMissingForCurrentWindow(
         forecastDao: ForecastDao,
         hourlyDao: HourlyForecastDao,
+        hourlyHistoryDao: com.weatherwidget.data.local.HourlyForecastHistoryDao,
         lat: Double,
         lon: Double,
         source: WeatherSource,
@@ -471,6 +473,7 @@ suspend fun handleToggleView(
             if (centerTime != null && zoom != null) {
                 GraphDataLoader.loadGraphWindowHourlyForecasts(
                     hourlyDao = hourlyDao,
+                    hourlyHistoryDao = hourlyHistoryDao,
                     lat = lat,
                     lon = lon,
                     centerTime = centerTime,
@@ -808,6 +811,7 @@ suspend fun handleResize(
         val hourlyForecasts =
             GraphDataLoader.loadGraphWindowHourlyForecasts(
                 hourlyDao = database.hourlyForecastDao(),
+                hourlyHistoryDao = database.hourlyForecastHistoryDao(),
                 lat = lat,
                 lon = lon,
                 centerTime = centerTime,
