@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
-private val COLOR_FORECAST_SUNNY = Color(0xFFFFD60A)
+private val COLOR_FORECAST_SUNNY = Color(0xFFF4C542)
 private val COLOR_FORECAST_CLOUDY = Color(0xFF8E99A4)
 private val COLOR_FORECAST_RAINY = Color(0xFF5A8FBF)
 private val COLOR_OBSERVED = Color(0xFFFF3366)
@@ -95,9 +95,22 @@ fun DailyForecastGraph(
             val baseColor = forecastColor(day)
 
             if (day.isToday) {
+                val snapshotFlags = WeatherIcon.getConditionFlags(day.snapshot?.condition)
+                val sCondColor = when {
+                    snapshotFlags.isRainy -> COLOR_FORECAST_RAINY
+                    snapshotFlags.isMixed -> COLOR_FORECAST_SUNNY
+                    snapshotFlags.isSunny -> COLOR_FORECAST_SUNNY
+                    else -> COLOR_FORECAST_CLOUDY
+                }
+                val snapshotColor = if (sCondColor == COLOR_FORECAST_SUNNY || day.snapshot?.condition == null) {
+                    Color.Yellow
+                } else {
+                    sCondColor
+                }
+
                 drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, barWidth)
-                drawRangeLine(centerX + tripleOffset, day.forecastHigh, day.forecastLow, ::yAt, baseColor.copy(alpha = 0.72f), thinWidth)
-                drawRangeLine(centerX - tripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, baseColor.copy(alpha = 0.34f), thinWidth)
+                drawRangeLine(centerX + tripleOffset, day.forecastHigh, day.forecastLow, ::yAt, baseColor, thinWidth)
+                drawRangeLine(centerX - tripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, snapshotColor, thinWidth)
             } else if (day.isPast) {
                 drawRangeLine(
                     centerX = centerX + tripleOffset,
@@ -222,6 +235,7 @@ private fun forecastColor(day: DesktopDailyDay): Color {
     val flags = WeatherIcon.getConditionFlags(day.iconCondition)
     return when {
         flags.isRainy -> COLOR_FORECAST_RAINY
+        flags.isMixed -> COLOR_FORECAST_SUNNY
         flags.isSunny -> COLOR_FORECAST_SUNNY
         day.cloudCoverRatio != null && day.cloudCoverRatio < 0.6f -> COLOR_FORECAST_SUNNY
         else -> COLOR_FORECAST_CLOUDY
