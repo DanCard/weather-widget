@@ -127,3 +127,8 @@ The project follows a **pure function extraction** philosophy to maximize testab
 - **Data Types**: NWS returns integer temperatures; Open-Meteo returns decimals.
 - **Fallback Logic**: `buildHourDataList` uses a priority fallback: Preferred Source → SOURCE_GENERIC_GAP → first available.
 - **Diagnostics**: `app_logs` table stores timestamps as epoch millis. Use `datetime(timestamp/1000, 'unixepoch', 'localtime')` for queries.
+
+### Desktop App & Daily Graph Rendering
+- **Degenerate NWS Snapshots**: Once a day passes, NWS updates historical forecasts with degenerate placeholder values (`highTemp == lowTemp`). To ensure the comparison snapshot correctly represents the final forecast, filter out degenerate records when querying snapshots from the database.
+- **Solid Yellow Historical Bars**: To avoid muddy/dark-brown color mixing on dark backgrounds and maintain visual parity with Android (which uses solid overlay bars), draw past days' historical forecast bars as solid, opaque vertical bars in perfect yellow (`Color.Yellow`).
+
