@@ -100,13 +100,19 @@ class DesktopWeatherService(
         val hourlyRaw = hourlyDeferred.await()
         val dailyRaw = dailyDeferred.await()
         val bundles = fetchObservationBundles(stationsDeferred.await())
-        
-        // Latest fresh readings for IDW blending
-        val latestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest?.takeIf { it.isFreshObservation() }?.toReading(bundle.station)
+
+        // All station latest readings, including moderately stale ones — IDW applies its own
+        // time-decay weighting (1 - age/3h) so older stations reduce their own contribution
+        // automatically. Matching Android which uses a 3-hour staleness window rather than 30 min.
+        val allLatestReadings = bundles.mapNotNull { bundle ->
+            bundle.latest?.toReading(bundle.station)
+        }
+        // Subset used to decide whether a fresh observed temp is available for the header.
+        val freshLatestReadings = allLatestReadings.filter {
+            System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
         }
 
-        val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, latestReadings)
+        val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, allLatestReadings)
             ?: TemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
             ?: hourlyRaw.firstOrNull()?.temperature
 
@@ -124,6 +130,8 @@ class DesktopWeatherService(
 
         // Add NWS_BLEND synthetic reading if we successfully blended. Matches Android parity
         // and ensures the graph and header use the same weighted truth.
+        // Timestamp anchored to freshLatestReadings so the header freshness gate works correctly.
+        val latestReadings = freshLatestReadings.ifEmpty { allLatestReadings }
         val observations = if (currentTemp != null && latestReadings.isNotEmpty()) {
             val newestMs = latestReadings.maxOf { it.timestamp }
             rawObservations + ObservationReading(
@@ -296,12 +304,14 @@ class DesktopWeatherService(
 
         val bundles = fetchObservationBundles(stations)
         
-        // Latest fresh readings for IDW blending
-        val latestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest?.takeIf { it.isFreshObservation() }?.toReading(bundle.station)
+        val allLatestReadings = bundles.mapNotNull { bundle ->
+            bundle.latest?.toReading(bundle.station)
+        }
+        val freshLatestReadings = allLatestReadings.filter {
+            System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
         }
 
-        val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, latestReadings)
+        val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, allLatestReadings)
             ?: bundles.minByOrNull { distanceKm(latitude, longitude, it.station.lat, it.station.lon) }?.latest?.let {
                 (it.temperatureCelsius * 1.8f) + 32f
             }
@@ -317,7 +327,7 @@ class DesktopWeatherService(
             }
         }
 
-        // Add NWS_BLEND synthetic reading if we successfully blended. Matches Android parity.
+        val latestReadings = freshLatestReadings.ifEmpty { allLatestReadings }
         val observations = if (currentTemp != null && latestReadings.isNotEmpty()) {
             val newestMs = latestReadings.maxOf { it.timestamp }
             rawObservations + ObservationReading(

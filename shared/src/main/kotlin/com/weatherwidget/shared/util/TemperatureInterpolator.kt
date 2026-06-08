@@ -18,27 +18,30 @@ object TemperatureInterpolator {
         if (hourlyForecasts.isEmpty()) return null
 
         val sorted = hourlyForecasts.sortedBy { it.dateTime }
-        val targetTime = Instant.ofEpochMilli(targetEpochMs).atZone(zoneId).toLocalDateTime()
-        val targetHour = targetTime.truncatedTo(ChronoUnit.HOURS)
-        val nextHour = targetHour.plusHours(1)
-        val targetHourMs = targetHour.atZone(zoneId).toInstant().toEpochMilli()
-        val nextHourMs = nextHour.atZone(zoneId).toInstant().toEpochMilli()
+        val prev = sorted.lastOrNull { it.dateTime <= targetEpochMs }
+        val next = sorted.firstOrNull { it.dateTime >= targetEpochMs }
 
-        val current = sorted.find { it.dateTime == targetHourMs }
-        val next = sorted.find { it.dateTime == nextHourMs }
+        if (prev == null && next == null) return null
+        if (prev != null && next == null) return prev.temperature
+        if (prev == null && next != null) return next.temperature
 
-        if (current != null && next == null) return current.temperature
-        if (current == null && next != null) return next.temperature
-        if (current == null && next == null) {
-            return sorted.minByOrNull { abs(it.dateTime - targetEpochMs) }?.temperature
+        if (prev!!.dateTime == targetEpochMs) return prev.temperature
+        if (next!!.dateTime == targetEpochMs) return next.temperature
+
+        val timeDiff = next.dateTime - prev.dateTime
+        if (timeDiff <= 3 * 3600 * 1000L) {
+            val targetOffset = targetEpochMs - prev.dateTime
+            val tempDiff = next.temperature - prev.temperature
+            if (abs(tempDiff) < INTERPOLATION_THRESHOLD) return prev.temperature
+            val factor = targetOffset.toFloat() / timeDiff
+            return prev.temperature + tempDiff * factor
+        } else {
+            return if (targetEpochMs - prev.dateTime <= next.dateTime - targetEpochMs) {
+                prev.temperature
+            } else {
+                next.temperature
+            }
         }
-
-        val currentTemp = current!!.temperature
-        val tempDiff = next!!.temperature - currentTemp
-        if (abs(tempDiff) < INTERPOLATION_THRESHOLD) return currentTemp
-
-        val factor = targetTime.minute / 60.0f
-        return currentTemp + tempDiff * factor
     }
 
     fun getUpdatesPerHour(tempDifference: Number): Int {
@@ -123,6 +126,22 @@ object TemperatureInterpolator {
             i++
         }
         return extrema
+    }
+
+    /**
+     * Projects current temperature forward from the last observation using the hourly forecast
+     * trend. Returns null when hourly data lacks coverage for either the observation time or now
+     * (callers should fall back to raw observedTemp or pure interpolation).
+     */
+    fun deltaCorrectedTemp(
+        observedTemp: Float,
+        observedAt: Long,
+        hourly: List<HourlyForecast>,
+        nowMs: Long,
+    ): Float? {
+        val forecastAtObs = getInterpolatedTemperature(hourly, observedAt) ?: return null
+        val forecastNow = getInterpolatedTemperature(hourly, nowMs) ?: return null
+        return forecastNow + (observedTemp - forecastAtObs)
     }
 
     /**

@@ -61,6 +61,54 @@ class TemperatureInterpolatorTest {
         assertNull(TemperatureInterpolator.getInterpolatedTemperature(emptyList(), epoch("2026-06-03T10:30"), zone))
     }
 
+    @Test
+    fun `interpolates linearly for gaps up to 3 hours`() {
+        val ten = epoch("2026-06-03T10:00")
+        val onePm = epoch("2026-06-03T13:00") // 3 hours gap
+        val target = epoch("2026-06-03T11:30") // half way (1.5 hours)
+
+        val result = TemperatureInterpolator.getInterpolatedTemperature(
+            listOf(
+                HourlyForecast(ten, 70f, "Clear"),
+                HourlyForecast(onePm, 80f, "Clear"),
+            ),
+            target,
+            zone,
+        )
+
+        assertEquals(75f, result!!, 0.001f)
+    }
+
+    @Test
+    fun `falls back to closest bucket for gaps greater than 3 hours`() {
+        val ten = epoch("2026-06-03T10:00")
+        val twoPm = epoch("2026-06-03T14:00") // 4 hours gap
+        
+        // Target closer to 10:00 (1.5 hours from 10:00, 2.5 hours from 14:00)
+        val target1 = epoch("2026-06-03T11:30")
+        val result1 = TemperatureInterpolator.getInterpolatedTemperature(
+            listOf(
+                HourlyForecast(ten, 70f, "Clear"),
+                HourlyForecast(twoPm, 80f, "Clear"),
+            ),
+            target1,
+            zone,
+        )
+        assertEquals(70f, result1!!, 0.001f)
+
+        // Target closer to 14:00 (1 hour from 14:00, 3 hours from 10:00)
+        val target2 = epoch("2026-06-03T13:00")
+        val result2 = TemperatureInterpolator.getInterpolatedTemperature(
+            listOf(
+                HourlyForecast(ten, 70f, "Clear"),
+                HourlyForecast(twoPm, 80f, "Clear"),
+            ),
+            target2,
+            zone,
+        )
+        assertEquals(80f, result2!!, 0.001f)
+    }
+
     private fun epoch(value: String): Long =
         LocalDateTime.parse(value).atZone(zone).toInstant().toEpochMilli()
 }
