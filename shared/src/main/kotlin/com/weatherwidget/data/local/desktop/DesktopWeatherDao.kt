@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.util.Log
 import java.sql.Connection
@@ -398,6 +399,50 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
         return result
+    }
+
+    fun getHourlyHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): List<HourlyForecast> {
+        val result = mutableListOf<HourlyForecast>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt
+                FROM hourly_forecast_history
+                WHERE locationLat = ? AND locationLon = ? AND source = ? AND dateTime >= ? AND dateTime <= ?
+                ORDER BY dateTime ASC, snapshotBucket DESC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                stmt.setLong(4, startMs)
+                stmt.setLong(5, endMs)
+                val rs = stmt.executeQuery()
+                val seen = hashSetOf<Long>()
+                while (rs.next()) {
+                    val dateTime = rs.getLong("dateTime")
+                    if (!seen.add(dateTime)) continue
+                    result.add(
+                        HourlyForecast(
+                            dateTime = dateTime,
+                            temperature = rs.getFloat("temperature"),
+                            condition = rs.getString("condition"),
+                            precipProbability = rs.getNullableInt("precipProbability"),
+                            cloudCover = rs.getNullableInt("cloudCover"),
+                            precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                            source = source,
+                            fetchedAt = rs.getLong("fetchedAt"),
+                        ),
+                    )
+                }
+            }
+        }
+        return result
+    }
+
+    fun getHourlyWithHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, maxAgeMs: Long): List<HourlyForecast> {
+        val current = getLatestHourly(locationLat, locationLon, source, maxAgeMs).filter { it.dateTime in startMs..endMs }
+        val history = getHourlyHistory(locationLat, locationLon, source, startMs, endMs)
+        return HourlyForecastStitcher.stitch(current, history)
     }
 
     fun getDailyForecasts(locationLat: Double, locationLon: Double, source: String): List<DailyForecast> {

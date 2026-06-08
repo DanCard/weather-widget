@@ -1186,6 +1186,7 @@ object DailyViewHandler : WidgetViewHandler {
             },
             headerData = headerRenderData,
             showErrorWatermark = ctx.stateManager.isSourceErrored(ctx.displaySource),
+            errorSourceLabel = ctx.displaySource.displayName,
         )
         val renderMs = SystemClock.elapsedRealtime() - renderStartMs
         ctx.views.setImageViewBitmap(R.id.graph_view, bitmap)

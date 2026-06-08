@@ -263,6 +263,7 @@ class WeatherWidgetWorker
             return try {
                 val database = WeatherDatabase.getDatabase(context)
                 val hourlyDao = database.hourlyForecastDao()
+                val historyDao = database.hourlyForecastHistoryDao()
                 val now = LocalDateTime.now()
                 val zoneId = ZoneId.systemDefault()
                 // Extended range for hourly view and rain analysis: 72h past to 168h future (today + 7 days)
@@ -270,7 +271,36 @@ class WeatherWidgetWorker
                 val startTimeMs = now.minusHours(72).atZone(zoneId).toInstant().toEpochMilli()
                 val endTimeMs = now.plusHours(168).atZone(zoneId).toInstant().toEpochMilli()
                 Log.d(TAG, "fetchHourlyForecasts: range=${now.minusHours(72)} to ${now.plusHours(168)} (ms=$startTimeMs to $endTimeMs)")
-                hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
+                val current = hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
+                val history = historyDao.getHistoryInRangeForBucketWindowAllSources(
+                    startDateTime = startTimeMs,
+                    endDateTime = endTimeMs,
+                    bucketStart = Long.MIN_VALUE,
+                    bucketEnd = Long.MAX_VALUE,
+                    lat = lat,
+                    lon = lon,
+                ).map {
+                    HourlyForecastEntity(
+                        dateTime = it.dateTime,
+                        locationLat = it.locationLat,
+                        locationLon = it.locationLon,
+                        temperature = it.temperature,
+                        condition = it.condition,
+                        source = it.source,
+                        precipProbability = it.precipProbability,
+                        cloudCover = it.cloudCover,
+                        precipAmountMm = it.precipAmountMm,
+                        fetchedAt = it.fetchedAt,
+                    )
+                }
+                val stitched = (history + current)
+                    .associateBy { it.dateTime }
+                    .values
+                    .sortedBy { it.dateTime }
+                if (stitched.size != current.size) {
+                    Log.i(TAG, "fetchHourlyForecasts: stitched ${stitched.size - current.size} missing rows from history")
+                }
+                stitched
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch hourly forecasts", e)
                 emptyList()

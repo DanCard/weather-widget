@@ -848,21 +848,58 @@ internal object GraphRenderUtils {
         width: Float,
         height: Float,
         density: Float,
+        sourceLabel: String? = null,
     ) {
-        val paint = Paint().apply {
+        // A translucent "glass" pill near the top center, naming the failing source so the
+        // user can tell which data feed is stale (e.g. "Silurian" vs "NWS"). Drawn last, on top.
+        val label = sourceLabel?.takeIf { it.isNotBlank() }?.let { "${it.uppercase()} UPDATES FAILING" }
+            ?: "UPDATES FAILING"
+        val text = "⚠ $label" // warning triangle prefix
+
+        val textPaint = Paint().apply {
             isAntiAlias = true
-            color = Color.parseColor("#33FF5252") // semi-transparent premium rose/coral-red
-            textSize = 14f * density
+            color = Color.parseColor("#FFFF5A5A") // bright coral-red, full opacity
+            textSize = 12f * density
             textAlign = Paint.Align.CENTER
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
             if (android.os.Build.VERSION.SDK_INT >= 26) {
-                letterSpacing = 0.15f
+                letterSpacing = 0.08f
             }
         }
-        val text = "UPDATES FAILING"
-        val x = width / 2f
-        val y = height / 2f - (paint.descent() + paint.ascent()) / 2f
-        canvas.drawText(text, x, y, paint)
+
+        val hPad = 12f * density
+        val vPad = 6f * density
+        val textWidth = textPaint.measureText(text)
+        val fm = textPaint.fontMetrics
+        val textHeight = fm.descent - fm.ascent
+
+        val pillWidth = (textWidth + hPad * 2f).coerceAtMost(width - 8f * density)
+        val pillHeight = textHeight + vPad * 2f
+        val centerX = width / 2f
+        val pillTop = 8f * density
+        val pillRect = RectF(
+            centerX - pillWidth / 2f,
+            pillTop,
+            centerX + pillWidth / 2f,
+            pillTop + pillHeight,
+        )
+        val radius = pillHeight / 2f
+
+        val bgPaint = Paint().apply {
+            isAntiAlias = true
+            color = Color.parseColor("#8C1A0E0E") // ~55% opacity dark, faint warm tint
+        }
+        val borderPaint = Paint().apply {
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = 1f * density
+            color = Color.parseColor("#66FF5A5A") // soft coral outline
+        }
+        canvas.drawRoundRect(pillRect, radius, radius, bgPaint)
+        canvas.drawRoundRect(pillRect, radius, radius, borderPaint)
+
+        val baselineY = pillRect.centerY() - (fm.ascent + fm.descent) / 2f
+        canvas.drawText(text, centerX, baselineY, textPaint)
     }
 }
 

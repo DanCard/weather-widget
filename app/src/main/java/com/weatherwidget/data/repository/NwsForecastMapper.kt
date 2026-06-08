@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.NwsDailyMapper
+import com.weatherwidget.data.remote.NwsHourlyGridMerge
 import com.weatherwidget.widget.WidgetConstants
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -15,11 +16,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.max
-import kotlin.math.min
 
 @Singleton
 class NwsForecastMapper @Inject constructor(
@@ -91,31 +89,12 @@ class NwsForecastMapper @Inject constructor(
             )
         }
 
-        val hourlyPeriodsWithSkyCover = if (skyCoverMap.isNotEmpty()) {
-            rawHourlyPeriods.map { period ->
-                val hourKey = runCatching {
-                    Instant.ofEpochMilli(period.startTime)
-                        .atZone(ZoneId.systemDefault())
-                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                }.getOrNull()
-                val cover = hourKey?.let { skyCoverMap[it] }
-                if (cover != null) period.copy(cloudCover = cover) else period
-            }
-        } else {
-            rawHourlyPeriods
-        }
-        val hourlyPeriods = if (gridQpfIntervals.isNotEmpty()) {
-            hourlyPeriodsWithSkyCover.map { period ->
-                val gridAmount = resolveGridQpfForHourlyPeriod(period, gridQpfIntervals)
-                if (gridAmount != null) {
-                    period.copy(precipAmountMm = gridAmount)
-                } else {
-                    period
-                }
-            }
-        } else {
-            hourlyPeriodsWithSkyCover
-        }
+        // Sky cover + grid QPF live in the gridpoints response, not the hourly endpoint. Merge
+        // them onto the hourly rows via the shared helper so Android and desktop populate
+        // identical cloudCover/precip data. See NwsHourlyGridMerge.
+        val hourlyPeriods = NwsHourlyGridMerge.applyGridpointData(
+            rawHourlyPeriods, skyCoverMap, gridQpfIntervals,
+        )
 
         persistNwsPeriodSummary(grid.forecastUrl, forecastPeriods)
 
@@ -218,30 +197,6 @@ class NwsForecastMapper @Inject constructor(
                 precipAmountMap[dateString] = (precipAmountMap[dateString] ?: 0f) + amount
             }
         }
-    }
-
-    fun resolveGridQpfForHourlyPeriod(
-        period: NwsApi.HourlyForecastPeriod,
-        intervals: List<NwsApi.QuantitativePrecipitationInterval>,
-    ): Float? {
-        if (intervals.isEmpty()) return null
-        val periodEnd = period.startTime + 60 * 60 * 1000L
-        val overlapping = intervals.filter { interval ->
-            interval.startTime < periodEnd && interval.endTime > period.startTime
-        }
-        if (overlapping.isEmpty()) return null
-
-        return overlapping.sumOf { interval ->
-            val overlapStart = max(period.startTime, interval.startTime)
-            val overlapEnd = min(periodEnd, interval.endTime)
-            val overlapMs = (overlapEnd - overlapStart).coerceAtLeast(0L)
-            if (overlapMs == 0L) {
-                0.0
-            } else {
-                val intervalMs = (interval.endTime - interval.startTime).coerceAtLeast(1L)
-                interval.amountMm.toDouble() * overlapMs.toDouble() / intervalMs.toDouble()
-            }
-        }.toFloat()
     }
 
     fun initConditionsFromHourly(

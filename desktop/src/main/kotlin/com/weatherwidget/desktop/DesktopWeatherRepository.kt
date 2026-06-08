@@ -62,9 +62,10 @@ class DesktopWeatherRepository(
 
     suspend fun loadCached(): ForecastResult? = withContext(Dispatchers.IO) {
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
-        val hourly = weatherDao.getLatestHourly(latitude, longitude, weatherSource, maxAgeMs)
-        val daily = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
         val now = System.currentTimeMillis()
+        val stitchedStart = now - (72 * 3600 * 1000L)
+        val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, stitchedStart, now + (168 * 3600 * 1000L), maxAgeMs)
+        val daily = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
         
         // Fetch observations for the past 48 hours to populate the actual line
         val obsStart = now - (48 * 3600 * 1000L)
@@ -188,7 +189,7 @@ class DesktopWeatherRepository(
         val windowStart = now - (HISTORY_WINDOW_DAYS + 1) * 86_400_000L
         val windowEnd = now + 86_400_000L
         val observations = weatherDao.getObservationsInRange(windowStart, windowEnd, latitude, longitude)
-        val hourly = weatherDao.getLatestHourly(latitude, longitude, weatherSource, 48 * 3600 * 1000L)
+        val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, now - (72 * 3600 * 1000L), now + 86_400_000L, 48 * 3600 * 1000L)
 
         val extremes = ActualsAggregator.aggregate(
             observations = observations.map { it.toReading() },

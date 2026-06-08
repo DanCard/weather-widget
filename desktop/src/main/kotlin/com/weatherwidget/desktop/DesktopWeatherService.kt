@@ -111,6 +111,12 @@ class DesktopWeatherService(
         val hourlyRaw = hourlyDeferred.await()
         val dailyRaw = dailyDeferred.await()
         val gridpoints = gridpointsDeferred.await()
+        // The hourly endpoint omits sky cover + grid QPF; merge them on via the shared helper so
+        // the cloud-cover graph (and grid precip) match Android. Without this, every NWS hourly
+        // row has cloudCover=null and the cloud graph collapses to a flat zero line.
+        val hourly = NwsHourlyGridMerge.applyGridpointData(
+            hourlyRaw, gridpoints.skyCoverByHour, gridpoints.qpfIntervals,
+        )
         val bundles = fetchObservationBundles(stationsDeferred.await())
 
         // All station latest readings, including moderately stale ones — IDW applies its own
@@ -166,7 +172,7 @@ class DesktopWeatherService(
             currentTemp = currentTemp,
             currentCondition = currentCondition,
             currentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
-            hourly = hourlyRaw.map { it.toHourlyForecast() },
+            hourly = hourly.map { it.toHourlyForecast() },
             daily = NwsDailyMapper.buildDailyForecasts(dailyRaw, gridpoints.dailyTemperatures, LocalDate.now()),
             rawObservations = observations
         )

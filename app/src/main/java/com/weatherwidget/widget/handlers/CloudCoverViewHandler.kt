@@ -383,6 +383,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 missingReason = missingReason,
                 job = coroutineContext[Job],
                 showErrorWatermark = stateManager.isSourceErrored(effectiveDisplaySource),
+                errorSourceLabel = effectiveDisplaySource.displayName,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
 
