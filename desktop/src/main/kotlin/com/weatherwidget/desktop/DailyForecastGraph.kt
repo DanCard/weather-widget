@@ -26,6 +26,7 @@ private val COLOR_FORECAST_CLOUDY = Color(0xFF8E99A4)
 private val COLOR_FORECAST_RAINY = Color(0xFF5A8FBF)
 private val COLOR_OBSERVED = Color(0xFFFF3366)
 private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
+private val COLOR_GAP_FALLBACK = Color(0xFF34C759)
 private const val GHOST_BAR_ALPHA = 0.3f
 
 @Composable
@@ -125,7 +126,8 @@ fun DailyForecastGraph(
                 val high = day.solidHigh
                 val low = day.solidLow
                 if (high != null && low != null) {
-                    drawAdaptiveBar(centerX, yAt(high), yAt(low), barWidth, baseColor, day.cloudCoverRatio)
+                    val color = if (day.isClimateNormal) COLOR_GAP_FALLBACK else baseColor
+                    drawAdaptiveBar(centerX, yAt(high), yAt(low), barWidth, color, day.cloudCoverRatio)
                 }
             }
 

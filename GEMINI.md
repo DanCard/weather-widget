@@ -131,4 +131,6 @@ The project follows a **pure function extraction** philosophy to maximize testab
 ### Desktop App & Daily Graph Rendering
 - **Degenerate NWS Snapshots**: Once a day passes, NWS updates historical forecasts with degenerate placeholder values (`highTemp == lowTemp`). To ensure the comparison snapshot correctly represents the final forecast, filter out degenerate records when querying snapshots from the database.
 - **Solid Yellow Historical Bars**: To avoid muddy/dark-brown color mixing on dark backgrounds and maintain visual parity with Android (which uses solid overlay bars), draw past days' historical forecast bars as solid, opaque vertical bars in perfect yellow (`Color.Yellow`).
+- **Condition Flags & Icon Mapping**: On daily graph rendering, derive condition flags (like `isSunny`, `isRainy`, `isMixed`) from the resolved icon resource path rather than raw condition strings. This ensures fallback mapping consistency (e.g. `"Unknown"` or empty conditions that default to clear/sunny icons also correctly color the vertical bars in sunny gold).
+
 

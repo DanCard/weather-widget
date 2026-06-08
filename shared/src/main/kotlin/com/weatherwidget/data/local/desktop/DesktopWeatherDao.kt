@@ -110,7 +110,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setFloat(7, d.lowTemp)
                         stmt.setString(8, d.condition)
                         stmt.setString(9, d.iconToken)
-                        stmt.setInt(10, 0) // isClimateNormal
+                        stmt.setInt(10, if (d.isClimateNormal) 1 else 0)
                         stmt.setString(11, source)
                         stmt.setNullableInt(12, d.precipProbability)
                         stmt.setNullableFloat(13, d.precipAmountMm)
@@ -530,7 +530,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         condition = rs.getString("condition"),
                         iconToken = rs.getString("nativeDailyIconToken"),
                         precipProbability = rs.getNullableInt("precipProbability"),
-                        precipAmountMm = rs.getNullableFloat("precipAmountMm")
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        isClimateNormal = rs.getInt("isClimateNormal") == 1
                     ))
                 }
             }

@@ -43,10 +43,10 @@ object WeatherIcon {
 
     fun getConditionFlags(condition: String?, isNight: Boolean = false): ConditionFlags {
         if (condition == null) return ConditionFlags(false, false, false, isNight)
-        val lower = condition.lowercase()
-        val isRainy = lower.contains("rain") || lower.contains("storm") || lower.contains("drizzle") || lower.contains("shower")
-        val isSunny = lower.contains("sunny") || lower.contains("clear") || lower.contains("mostly clear")
-        val isMixed = lower.contains("mostly") || lower.contains("partly") || lower.contains("patchy") || lower.contains("light")
+        val iconRes = getIconResource(condition)
+        val isRainy = iconRes.contains("rain") || iconRes.contains("storm") || iconRes.contains("snow")
+        val isSunny = iconRes.contains("clear") || iconRes.contains("mostly_clear")
+        val isMixed = iconRes.contains("mostly_cloudy") || iconRes.contains("partly") || iconRes.contains("mostly_clear") || iconRes.contains("fog_light")
         return ConditionFlags(isSunny, isRainy, isMixed, isNight)
     }
 

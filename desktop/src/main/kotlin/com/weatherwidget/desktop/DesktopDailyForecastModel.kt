@@ -42,6 +42,7 @@ data class DesktopDailyDay(
     val cloudCoverRatio: Float?,
     val precipProbability: Int?,
     val precipAmountMm: Float?,
+    val isClimateNormal: Boolean,
 )
 
 data class DesktopDailyViewState(
@@ -179,6 +180,7 @@ object DesktopDailyForecastModel {
             cloudCoverRatio = resolveNoonCloudCoverRatio(date, hourly),
             precipProbability = if (isToday) nextPrecipProbability(now, hourly) else forecast?.precipProbability,
             precipAmountMm = forecast?.precipAmountMm ?: snapshot?.precipAmountMm,
+            isClimateNormal = forecast?.isClimateNormal == true,
         )
     }
 

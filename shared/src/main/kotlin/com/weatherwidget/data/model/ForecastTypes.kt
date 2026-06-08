@@ -19,6 +19,7 @@ data class DailyForecast(
     val iconToken: String? = null,
     val precipProbability: Int? = null,
     val precipAmountMm: Float? = null,
+    val isClimateNormal: Boolean = false,
 )
 
 data class DailyForecastSnapshot(
