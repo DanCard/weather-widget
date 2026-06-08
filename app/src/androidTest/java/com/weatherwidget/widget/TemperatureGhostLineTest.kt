@@ -3,6 +3,8 @@ package com.weatherwidget.widget
 import android.util.TypedValue
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.weatherwidget.shared.graph.HourData
+import com.weatherwidget.shared.graph.LabelPlacementDebug
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
