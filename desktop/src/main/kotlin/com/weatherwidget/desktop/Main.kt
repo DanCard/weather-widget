@@ -134,11 +134,14 @@ private fun runApp() = application {
         var observationsVisible by remember { mutableStateOf(false) }
         val desktopClients = remember { DesktopClients() }
         val locationResolver = remember {
+            val sharedLocationResolver = com.weatherwidget.data.repository.SharedLocationResolver(
+                nominatimApi = NominatimApi(desktopClients.httpClient, desktopClients.json),
+                ipGeolocationApi = IpGeolocationApi(desktopClients.httpClient, desktopClients.json),
+            )
             LocationResolver(
                 phoneLocator = PhoneLocator(),
                 timezoneLocator = TimezoneLocator(),
-                ipGeolocationApi = IpGeolocationApi(desktopClients.httpClient, desktopClients.json),
-                nominatimApi = NominatimApi(desktopClients.httpClient, desktopClients.json),
+                sharedLocationResolver = sharedLocationResolver,
             )
         }
 
