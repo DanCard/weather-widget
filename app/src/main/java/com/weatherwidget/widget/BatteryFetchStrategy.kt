@@ -1,5 +1,7 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.util.BatteryTier
+
 /**
  * Pure decision functions for battery-aware fetch scheduling.
  * Extracted for testability — no Android dependencies.
@@ -15,13 +17,7 @@ object BatteryFetchStrategy {
      * or null if no scheduled fetch should occur (battery too low).
      */
     fun computeFetchInterval(isCharging: Boolean, batteryLevel: Int): Long? {
-        if (isCharging) return CHARGING_FETCH_INTERVAL_MINUTES
-
-        return when {
-            batteryLevel > 70 -> 240
-            batteryLevel > 50 -> 480
-            else -> null
-        }
+        return BatteryTier.computeFetchInterval(isCharging, batteryLevel, CHARGING_FETCH_INTERVAL_MINUTES)
     }
 
     /**
