@@ -1,6 +1,5 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -20,6 +19,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.math.*
@@ -87,6 +87,17 @@ class DesktopWeatherService(
         val grid = nwsApi.getGridPoint(latitude, longitude)
         val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
         val dailyDeferred = async { nwsApi.getForecast(grid) }
+        // Raw gridpoints supply per-date min/max extremes that backstop the day/night periods —
+        // notably the final forecast day, whose overnight low is otherwise absent. Best-effort:
+        // on failure the daily mapping falls back to whatever the periods provide.
+        val gridpointsDeferred = async {
+            bestEffort("gridpoints") { nwsApi.getGridpointsBundle(grid) }
+                ?: NwsApi.GridpointsBundle(
+                    skyCoverByHour = emptyMap(),
+                    qpfIntervals = emptyList(),
+                    dailyTemperatures = NwsApi.DailyTemperatureExtremes(emptyMap(), emptyMap()),
+                )
+        }
 
         // Resolve candidate observation stations once, then try official stations first for the
         // historical window that drives actuals. Observation fetches are best-effort: if they fail
@@ -99,6 +110,7 @@ class DesktopWeatherService(
 
         val hourlyRaw = hourlyDeferred.await()
         val dailyRaw = dailyDeferred.await()
+        val gridpoints = gridpointsDeferred.await()
         val bundles = fetchObservationBundles(stationsDeferred.await())
 
         // All station latest readings, including moderately stale ones — IDW applies its own
@@ -155,7 +167,7 @@ class DesktopWeatherService(
             currentCondition = currentCondition,
             currentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
             hourly = hourlyRaw.map { it.toHourlyForecast() },
-            daily = mapNwsToDaily(dailyRaw),
+            daily = NwsDailyMapper.buildDailyForecasts(dailyRaw, gridpoints.dailyTemperatures, LocalDate.now()),
             rawObservations = observations
         )
     }
@@ -246,31 +258,6 @@ class DesktopWeatherService(
         cloudCover = cloudCover,
         source = "NWS",
     )
-
-    private fun mapNwsToDaily(periods: List<NwsApi.ForecastPeriod>): List<DailyForecast> {
-        val dailyMap = mutableMapOf<String, MutableList<NwsApi.ForecastPeriod>>()
-        for (period in periods) {
-            val date = period.startTime.take(10)
-            dailyMap.getOrPut(date) { mutableListOf() }.add(period)
-        }
-
-        return dailyMap.map { (date, dayPeriods) ->
-            val high = dayPeriods.filter { it.isDaytime }.maxOfOrNull { it.temperature.toFloat() }
-                ?: dayPeriods.maxOfOrNull { it.temperature.toFloat() } ?: 0f
-            val low = dayPeriods.filter { !it.isDaytime }.minOfOrNull { it.temperature.toFloat() }
-                ?: dayPeriods.minOfOrNull { it.temperature.toFloat() } ?: 0f
-            val condition = dayPeriods.firstOrNull { it.isDaytime }?.shortForecast 
-                ?: dayPeriods.firstOrNull()?.shortForecast ?: ""
-            
-            DailyForecast(
-                date = date,
-                highTemp = high,
-                lowTemp = low,
-                condition = condition,
-                precipProbability = dayPeriods.mapNotNull { it.precipProbability }.maxOrNull()
-            )
-        }.sortedBy { it.date }
-    }
 
     suspend fun fetchObservationsOnly(): ForecastResult = runCatching {
         when (weatherSource) {

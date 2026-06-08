@@ -1,6 +1,7 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.data.remote.NwsDailyMapper
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -25,7 +26,7 @@ class NwsForecastMapperGridpointMergeTest {
         val map = mutableMapOf<String, Pair<Float?, Float?>>(
             "2026-05-01" to (70f to 50f),
         )
-        val changed = NwsForecastMapper.mergeGridpointTemperatures(
+        val changed = NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(max = mapOf("2026-05-01" to 80f), min = mapOf("2026-05-01" to 55f)),
             today,
@@ -40,7 +41,7 @@ class NwsForecastMapperGridpointMergeTest {
         val map = mutableMapOf<String, Pair<Float?, Float?>>(
             "2026-05-07" to (null to 48f),
         )
-        val changed = NwsForecastMapper.mergeGridpointTemperatures(
+        val changed = NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(max = mapOf("2026-05-07" to 76f)),
             today,
@@ -50,7 +51,7 @@ class NwsForecastMapperGridpointMergeTest {
         assertTrue(changed.contains("2026-05-07"))
 
         // Critical: after merging, removePhantomFutureDays should keep this day.
-        NwsForecastMapper.removePhantomFutureDays(map, today)
+        NwsDailyMapper.removePhantomFutureDays(map, today)
         assertTrue(map.containsKey("2026-05-07"))
         assertEquals(76f, map["2026-05-07"]!!.first)
     }
@@ -58,7 +59,7 @@ class NwsForecastMapperGridpointMergeTest {
     @Test
     fun `brand-new 8th day is added when no existing entry`() {
         val map = mutableMapOf<String, Pair<Float?, Float?>>()
-        val changed = NwsForecastMapper.mergeGridpointTemperatures(
+        val changed = NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(
                 max = mapOf("2026-05-07" to 76f),
@@ -74,7 +75,7 @@ class NwsForecastMapperGridpointMergeTest {
     @Test
     fun `horizon cap rejects dates beyond today plus 7`() {
         val map = mutableMapOf<String, Pair<Float?, Float?>>()
-        val changed = NwsForecastMapper.mergeGridpointTemperatures(
+        val changed = NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(max = mapOf("2026-05-08" to 80f)), // today + 8
             today,
@@ -86,7 +87,7 @@ class NwsForecastMapperGridpointMergeTest {
     @Test
     fun `past dates are ignored`() {
         val map = mutableMapOf<String, Pair<Float?, Float?>>()
-        val changed = NwsForecastMapper.mergeGridpointTemperatures(
+        val changed = NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(
                 max = mapOf("2026-04-29" to 75f),
@@ -103,7 +104,7 @@ class NwsForecastMapperGridpointMergeTest {
         val map = mutableMapOf<String, Pair<Float?, Float?>>(
             "2026-05-01" to (null to 50f),
         )
-        val changed = NwsForecastMapper.mergeGridpointTemperatures(
+        val changed = NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(
                 max = mapOf("2026-05-01" to 80f),
@@ -119,7 +120,7 @@ class NwsForecastMapperGridpointMergeTest {
     @Test
     fun `today inclusive in horizon`() {
         val map = mutableMapOf<String, Pair<Float?, Float?>>()
-        NwsForecastMapper.mergeGridpointTemperatures(
+        NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(max = mapOf("2026-04-30" to 70f)),
             today,
@@ -130,7 +131,7 @@ class NwsForecastMapperGridpointMergeTest {
     @Test
     fun `custom horizon cap - 5 days`() {
         val map = mutableMapOf<String, Pair<Float?, Float?>>()
-        NwsForecastMapper.mergeGridpointTemperatures(
+        NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(
                 max = mapOf(
@@ -150,7 +151,7 @@ class NwsForecastMapperGridpointMergeTest {
         val map = mutableMapOf<String, Pair<Float?, Float?>>()
         val highSources = mutableMapOf<String, String>()
         val lowSources = mutableMapOf<String, String>()
-        NwsForecastMapper.mergeGridpointTemperatures(
+        NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(
                 max = mapOf("2026-05-01" to 78f),
@@ -173,7 +174,7 @@ class NwsForecastMapperGridpointMergeTest {
         )
         val highSources = mutableMapOf("2026-05-01" to "FCST:Today@2026-05-01T06:00")
         val lowSources = mutableMapOf<String, String>()
-        NwsForecastMapper.mergeGridpointTemperatures(
+        NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(
                 max = mapOf("2026-05-01" to 80f),
@@ -192,7 +193,7 @@ class NwsForecastMapperGridpointMergeTest {
     @Test
     fun `source tracking null maps are ignored without error`() {
         val map = mutableMapOf<String, Pair<Float?, Float?>>()
-        NwsForecastMapper.mergeGridpointTemperatures(
+        NwsDailyMapper.mergeGridpointTemperatures(
             map,
             extremes(max = mapOf("2026-05-01" to 78f), min = mapOf("2026-05-01" to 52f)),
             today,

@@ -205,7 +205,11 @@ class DesktopWeatherRepository(
     private fun loadDailyActuals(daily: List<com.weatherwidget.data.model.DailyForecast>): Map<String, com.weatherwidget.data.model.DailyExtreme> {
         if (daily.isEmpty()) return emptyMap()
         val dates = daily.map { LocalDate.parse(it.date) }
-        val start = dates.min().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        // Look back past the forecast window so historical actual extremes are available for
+        // left/history navigation. The forecast `daily` list begins ~yesterday, so anchoring the
+        // query at dates.min() never loaded older actuals and left the history arrow disabled.
+        val start = dates.min().minusDays(ACTUALS_HISTORY_DAYS)
+            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         val end = dates.max().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         return weatherDao.getDailyActuals(start, end, latitude, longitude, weatherSource)
     }
@@ -222,6 +226,8 @@ class DesktopWeatherRepository(
 
     companion object {
         private const val HISTORY_WINDOW_DAYS = 7L
+        // Match the widget's ~30-day history navigation and the 1-month data retention window.
+        private const val ACTUALS_HISTORY_DAYS = 31L
         private const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L
     }
 }

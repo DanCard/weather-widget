@@ -1,6 +1,7 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.data.remote.NwsDailyMapper
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -18,7 +19,7 @@ class ForecastRepositoryPhantomDayTest {
         val map = mutableMapOf<String, Pair<Float?, Float?>>(
             "2026-04-04" to (null to 65f),
         )
-        NwsForecastMapper.removePhantomFutureDays(map, today)
+        NwsDailyMapper.removePhantomFutureDays(map, today)
         assertEquals(1, map.size)
         assertEquals(65f, map["2026-04-04"]!!.second)
     }
@@ -29,7 +30,7 @@ class ForecastRepositoryPhantomDayTest {
         val map = mutableMapOf<String, Pair<Float?, Float?>>(
             "2026-04-04" to (72f to 65f),
         )
-        NwsForecastMapper.removePhantomFutureDays(map, today)
+        NwsDailyMapper.removePhantomFutureDays(map, today)
         assertEquals(1, map.size)
         assertEquals(72f, map["2026-04-04"]!!.first)
     }
@@ -40,7 +41,7 @@ class ForecastRepositoryPhantomDayTest {
         val map = mutableMapOf<String, Pair<Float?, Float?>>(
             "2026-03-28" to (null to 65f),
         )
-        NwsForecastMapper.removePhantomFutureDays(map, today)
+        NwsDailyMapper.removePhantomFutureDays(map, today)
         assertEquals(1, map.size)
     }
 
@@ -50,7 +51,7 @@ class ForecastRepositoryPhantomDayTest {
         val map = mutableMapOf<String, Pair<Float?, Float?>>(
             "2026-03-27" to (null to 65f),
         )
-        NwsForecastMapper.removePhantomFutureDays(map, today)
+        NwsDailyMapper.removePhantomFutureDays(map, today)
         assertEquals(1, map.size)
     }
 
@@ -62,7 +63,7 @@ class ForecastRepositoryPhantomDayTest {
             "2026-04-05" to (null to 62f),
             "2026-03-30" to (75f to 55f),
         )
-        NwsForecastMapper.removePhantomFutureDays(map, today)
+        NwsDailyMapper.removePhantomFutureDays(map, today)
         assertEquals(2, map.size)
         assertTrue(map.containsKey("2026-04-05"))
         assertTrue(map.containsKey("2026-03-30"))
@@ -73,16 +74,16 @@ class ForecastRepositoryPhantomDayTest {
     fun `no-op on empty map`() {
         val today = LocalDate.parse("2026-03-28")
         val map = mutableMapOf<String, Pair<Float?, Float?>>()
-        NwsForecastMapper.removePhantomFutureDays(map, today)
+        NwsDailyMapper.removePhantomFutureDays(map, today)
         assertTrue(map.isEmpty())
     }
 
     @Test
     fun `applyForecastPeriods fills temperature nulls left by gridpoints`() {
-        val acc = NwsForecastMapper.NwsDayAccumulator()
+        val acc = NwsDailyMapper.NwsDayAccumulator()
         acc.temperatureMap["2026-04-23"] = (72.6f to null)
 
-        NwsForecastMapper.applyForecastPeriods(
+        NwsDailyMapper.applyForecastPeriods(
             forecastPeriods = listOf(
                 NwsApi.ForecastPeriod(
                     name = "Thursday",
@@ -115,9 +116,9 @@ class ForecastRepositoryPhantomDayTest {
 
     @Test
     fun `applyForecastPeriods maps terminal night period to friday low only`() {
-        val acc = NwsForecastMapper.NwsDayAccumulator()
+        val acc = NwsDailyMapper.NwsDayAccumulator()
 
-        NwsForecastMapper.applyForecastPeriods(
+        NwsDailyMapper.applyForecastPeriods(
             forecastPeriods = listOf(
                 NwsApi.ForecastPeriod(
                     name = "Thursday",
