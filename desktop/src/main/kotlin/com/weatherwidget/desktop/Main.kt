@@ -826,25 +826,29 @@ private fun WidgetHeader(
                         horizontalArrangement = Arrangement.spacedBy((8 * scale).dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // ☁ Cloud cover view mode
-                        val isCloud = config.viewMode == "CLOUD_COVER"
+                        // Cycling graph selector
+                        val currentView = config.viewMode
+                        val (nextEmoji, nextView) = when (currentView) {
+                            "CLOUD_COVER" -> "🌧️" to "PRECIPITATION"
+                            "PRECIPITATION" -> "🌡️" to "HOURLY"
+                            else -> "☁️" to "CLOUD_COVER"
+                        }
                         Text(
-                            text = "☁️",
+                            text = nextEmoji,
                             fontSize = (13 * scale).sp,
-                            color = if (isCloud) Color.Yellow else Color.White.copy(alpha = 0.5f),
+                            color = Color.White,
                             modifier = Modifier.clickable {
-                                onUpdateConfig(config.copy(viewMode = "CLOUD_COVER"))
-                            }.testTag("switch_to_cloud_cover")
+                                onUpdateConfig(config.copy(viewMode = nextView))
+                            }.testTag("graph_selector")
                         )
-                        // 🌡 Temperature view mode
-                        val isTemp = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE"
+                        // Station observations button
                         Text(
                             text = "🌡️",
                             fontSize = (13 * scale).sp,
-                            color = if (isTemp) Color.Yellow else Color.White.copy(alpha = 0.5f),
+                            color = Color.White.copy(alpha = 0.5f),
                             modifier = Modifier.clickable {
-                                onUpdateConfig(config.copy(viewMode = "HOURLY"))
-                            }.testTag("switch_to_hourly")
+                                onOpenObservations()
+                            }.testTag("open_observations_header")
                         )
                         // 🏠 Home/Daily view mode
                         Text(
@@ -854,16 +858,6 @@ private fun WidgetHeader(
                             modifier = Modifier.clickable {
                                 onUpdateConfig(config.copy(viewMode = "DAILY"))
                             }.testTag("switch_to_daily")
-                        )
-                        // 📈 Precipitation view mode
-                        val isPrecip = config.viewMode == "PRECIPITATION"
-                        Text(
-                            text = "📈",
-                            fontSize = (13 * scale).sp,
-                            color = if (isPrecip) Color.Yellow else Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.clickable {
-                                onUpdateConfig(config.copy(viewMode = "PRECIPITATION"))
-                            }.testTag("switch_to_precipitation")
                         )
                     }
                 } else {

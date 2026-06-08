@@ -36,6 +36,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -103,6 +104,22 @@ private fun formatAgeLabel(ageMinutes: Long, spanHours: Long): String? {
     }
 }
 
+internal data class HourWindow(val startMs: Long, val endMs: Long)
+
+internal fun temperatureGraphHourWindow(
+    centerMs: Long,
+    backHours: Int,
+    forwardHours: Int,
+    zoneId: ZoneId = ZoneId.systemDefault()
+): HourWindow {
+    val center = LocalDateTime.ofInstant(Instant.ofEpochMilli(centerMs), zoneId)
+    val truncated = center.truncatedTo(ChronoUnit.HOURS)
+    val alignedCenter = if (center.minute >= 30) truncated.plusHours(1) else truncated
+    val startMs = alignedCenter.minusHours(backHours.toLong()).atZone(zoneId).toInstant().toEpochMilli()
+    val endMs = alignedCenter.plusHours(forwardHours.toLong()).atZone(zoneId).toInstant().toEpochMilli()
+    return HourWindow(startMs, endMs)
+}
+
 private fun tempToColor(temp: Float): Color = when {
     temp <= COLD_THRESHOLD -> COLOR_COLD
     temp >= HOT_THRESHOLD -> COLOR_HOT
@@ -133,11 +150,15 @@ fun TemperatureGraph(
     val backHours = if (zoomLevel == "NARROW") 2 else WIDE_BACK_HOURS
     val forwardHours = if (zoomLevel == "NARROW") 2 else WIDE_FORWARD_HOURS
     
-    val start = center - backHours * 3_600_000L
-    val cutoff = center + forwardHours * 3_600_000L
+    val zoneId = ZoneId.systemDefault()
+    val window = remember(center, backHours, forwardHours, zoneId) {
+        temperatureGraphHourWindow(center, backHours, forwardHours, zoneId)
+    }
+    val start = window.startMs
+    val cutoff = window.endMs
 
-    val points = remember(hourly, centerOffsetHours, zoomLevel) {
-        hourly.filter { it.dateTime in (start - 3_600_000L)..cutoff }
+    val points = remember(hourly, start, cutoff) {
+        hourly.filter { it.dateTime in start..cutoff }
             .sortedBy { it.dateTime }
             .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
     }

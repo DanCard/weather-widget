@@ -359,4 +359,75 @@ class DesktopUiTest {
         assertEquals("72.6", formatTrayTemperature(72.6f))
         assertEquals("72.0", formatTrayTemperature(72f))
     }
+
+    @Test
+    fun headerObservationsButtonOpensObservations() {
+        var opened = false
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = "HOURLY"),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = { opened = true },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("open_observations_header").performClick()
+        assert(opened)
+    }
+
+    @Test
+    fun headerGraphSelectorCyclesViews() {
+        var viewMode: String? = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = "HOURLY"),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { viewMode = it.viewMode },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        // HOURLY -> click selector -> CLOUD_COVER
+        composeTestRule.onNodeWithTag("graph_selector").performClick()
+        assertEquals("CLOUD_COVER", viewMode)
+
+        // Reset and check CLOUD_COVER -> PRECIPITATION
+        viewMode = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = "CLOUD_COVER"),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { viewMode = it.viewMode },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("graph_selector").performClick()
+        assertEquals("PRECIPITATION", viewMode)
+
+        // Reset and check PRECIPITATION -> HOURLY
+        viewMode = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = "PRECIPITATION"),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { viewMode = it.viewMode },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("graph_selector").performClick()
+        assertEquals("HOURLY", viewMode)
+    }
 }
