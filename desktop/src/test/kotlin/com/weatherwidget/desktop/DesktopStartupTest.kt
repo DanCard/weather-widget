@@ -120,6 +120,7 @@ class DesktopStartupTest {
             assertTrue("UI process was not spawned in response to .show trigger. Output:\n${outputLines.joinToString("\n")}", uiSpawned)
 
         } finally {
+            runningProcess.descendants().forEach { it.destroyForcibly() }
             runningProcess.destroyForcibly()
             readThread.interrupt()
             // Clean up temporary files
