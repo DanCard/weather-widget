@@ -191,6 +191,7 @@ object CurrentTemperatureResolver {
                 )
             } else {
                 debugLog("resolve:anchorDelta FAILED - no forecast for observation time=$obsTime")
+                appliedDelta = null
             }
         }
 
@@ -271,15 +272,15 @@ object CurrentTemperatureResolver {
         displaySource: WeatherSource,
         hourlyForecasts: List<HourlyForecast>,
     ): Boolean {
-        if (hourlyForecasts.isEmpty()) return true
+        if (hourlyForecasts.isEmpty()) return false
 
         val sourceScopedForecasts =
             hourlyForecasts.filter {
                 it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id
             }
-        if (sourceScopedForecasts.isEmpty()) return true
+        if (sourceScopedForecasts.isEmpty()) return false
 
-        val latestFetchMs = sourceScopedForecasts.map { it.fetchedAt }.maxOrNull() ?: return true
+        val latestFetchMs = sourceScopedForecasts.map { it.fetchedAt }.maxOrNull() ?: return false
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val stale = (nowMs - latestFetchMs) > STALE_HOURLY_FETCH_THRESHOLD_MS
         debugLog(
