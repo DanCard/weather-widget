@@ -3,14 +3,13 @@ package com.weatherwidget.stats
 import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.stats.AccuracyPure
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetConstants
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.abs
-import kotlin.math.roundToInt
 
 @Singleton
 class AccuracyCalculator
@@ -19,13 +18,6 @@ class AccuracyCalculator
         private val forecastDao: ForecastDao,
         private val dailyExtremeDao: DailyExtremeDao,
     ) {
-        companion object {
-            private const val PERFECT_THRESHOLD = 1.0
-            private const val EXCELLENT_THRESHOLD = 2.0
-            private const val GOOD_THRESHOLD = 3.0
-            private const val FAIR_THRESHOLD = 4.0
-        }
-
         suspend fun calculateAccuracy(
             source: WeatherSource,
             lat: Double,
@@ -33,41 +25,22 @@ class AccuracyCalculator
             days: Int = 30,
         ): AccuracyStatistics? {
             val dailyAccuracies = getDailyAccuracyBreakdown(source, lat, lon, days)
-
-            if (dailyAccuracies.isEmpty()) {
-                return null
+            val pureDailies = dailyAccuracies.map {
+                AccuracyPure.DailyAccuracy(it.date, it.actualHigh, it.actualLow, it.forecastHigh, it.forecastLow, it.source, it.highError, it.lowError)
             }
-
-            val totalHighError = dailyAccuracies.sumOf { abs(it.highError) }
-            val totalLowError = dailyAccuracies.sumOf { abs(it.lowError) }
-            val avgHighError = totalHighError.toDouble() / dailyAccuracies.size
-            val avgLowError = totalLowError.toDouble() / dailyAccuracies.size
-            val avgError = (avgHighError + avgLowError) / 2
-
-            val highBias = dailyAccuracies.sumOf { it.highError }.toDouble() / dailyAccuracies.size
-            val lowBias = dailyAccuracies.sumOf { it.lowError }.toDouble() / dailyAccuracies.size
-
-            val maxError = dailyAccuracies.maxOf { maxOf(abs(it.highError), abs(it.lowError)) }
-
-            val within3Degrees = dailyAccuracies.count {
-                abs(it.highError) <= 3 && abs(it.lowError) <= 3
-            }
-            val percentWithin3 = (within3Degrees.toDouble() / dailyAccuracies.size) * 100
-
-            val score = calculateScore(avgError)
-
+            val stats = AccuracyPure.computeStatistics(pureDailies, source.displayName, days) ?: return null
             return AccuracyStatistics(
-                source = source.displayName,
-                avgHighError = avgHighError,
-                avgLowError = avgLowError,
-                highBias = highBias,
-                lowBias = lowBias,
-                avgError = avgError,
-                maxError = maxError,
-                percentWithin3Degrees = percentWithin3,
-                accuracyScore = score,
-                totalForecasts = dailyAccuracies.size,
-                periodDays = days,
+                source = stats.source,
+                avgHighError = stats.avgHighError,
+                avgLowError = stats.avgLowError,
+                highBias = stats.highBias,
+                lowBias = stats.lowBias,
+                avgError = stats.avgError,
+                maxError = stats.maxError,
+                percentWithin3Degrees = stats.percentWithin3Degrees,
+                accuracyScore = stats.accuracyScore,
+                totalForecasts = stats.totalForecasts,
+                periodDays = stats.periodDays,
             )
         }
 
@@ -134,29 +107,25 @@ class AccuracyCalculator
                     .maxByOrNull { it.fetchedAt }
 
                 if (forecast != null) {
-                    val aHigh = actual.highTemp
-                    val aLow = actual.lowTemp
-                    val fHigh = forecast.highTemp
-                    val fLow = forecast.lowTemp
-
-                    if (fHigh != null && fLow != null) {
-                        val roundedActualHigh = aHigh.roundToInt()
-                        val roundedActualLow = aLow.roundToInt()
-                        val roundedForecastHigh = fHigh.roundToInt()
-                        val roundedForecastLow = fLow.roundToInt()
-                        val highError = roundedActualHigh - roundedForecastHigh
-                        val lowError = roundedActualLow - roundedForecastLow
-
+                    val entry = AccuracyPure.buildDailyAccuracy(
+                        date = targetDate.toString(),
+                        actualHigh = actual.highTemp,
+                        actualLow = actual.lowTemp,
+                        forecastHigh = forecast.highTemp,
+                        forecastLow = forecast.lowTemp,
+                        source = source.displayName,
+                    )
+                    if (entry != null) {
                         dailyAccuracies.add(
                             DailyAccuracy(
-                                date = targetDate.toString(),
-                                actualHigh = roundedActualHigh,
-                                actualLow = roundedActualLow,
-                                forecastHigh = roundedForecastHigh,
-                                forecastLow = roundedForecastLow,
-                                source = source.displayName,
-                                highError = highError,
-                                lowError = lowError,
+                                date = entry.date,
+                                actualHigh = entry.actualHigh,
+                                actualLow = entry.actualLow,
+                                forecastHigh = entry.forecastHigh,
+                                forecastLow = entry.forecastLow,
+                                source = entry.source,
+                                highError = entry.highError,
+                                lowError = entry.lowError,
                             ),
                         )
                     }
@@ -164,15 +133,5 @@ class AccuracyCalculator
             }
 
             return dailyAccuracies.sortedBy { it.date }
-        }
-
-        private fun calculateScore(avgError: Double): Double {
-            return when {
-                avgError <= PERFECT_THRESHOLD ->5.0
-                avgError <= EXCELLENT_THRESHOLD ->5.0 - ((avgError - PERFECT_THRESHOLD) * 0.5)
-                avgError <= GOOD_THRESHOLD ->4.5 - ((avgError - EXCELLENT_THRESHOLD) * 0.5)
-                avgError <= FAIR_THRESHOLD ->4.0 - ((avgError - GOOD_THRESHOLD) * 0.5)
-                else -> maxOf(0.0, 3.5 - ((avgError - FAIR_THRESHOLD) * 0.5))
-            }
         }
     }

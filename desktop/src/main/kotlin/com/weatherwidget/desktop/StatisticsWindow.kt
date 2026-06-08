@@ -16,9 +16,8 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.shared.stats.AccuracyPure
 import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
-import com.weatherwidget.stats.desktop.DesktopAccuracyStatistics
-import com.weatherwidget.stats.desktop.DesktopDailyAccuracy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -37,8 +36,8 @@ internal fun StatisticsWindow(
     Window(onCloseRequest = onClose, state = state, title = "Forecast Accuracy") {
         val source = config.weatherSource
         var loading by remember { mutableStateOf(true) }
-        var stats by remember { mutableStateOf<DesktopAccuracyStatistics?>(null) }
-        var breakdown by remember { mutableStateOf<List<DesktopDailyAccuracy>>(emptyList()) }
+        var stats by remember { mutableStateOf<AccuracyPure.AccuracyStatistics?>(null) }
+        var breakdown by remember { mutableStateOf<List<AccuracyPure.DailyAccuracy>>(emptyList()) }
 
         LaunchedEffect(source, config.lat, config.lon) {
             loading = true
@@ -90,7 +89,7 @@ private fun EmptyState() {
 }
 
 @Composable
-private fun SummaryCard(s: DesktopAccuracyStatistics) {
+private fun SummaryCard(s: AccuracyPure.AccuracyStatistics) {
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -117,7 +116,7 @@ private fun StatRow(label: String, value: String) {
 }
 
 @Composable
-private fun BreakdownTable(rows: List<DesktopDailyAccuracy>) {
+private fun BreakdownTable(rows: List<AccuracyPure.DailyAccuracy>) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             HeaderCell("Date", 2f); HeaderCell("Fcst H/L", 1.4f); HeaderCell("Actual H/L", 1.4f); HeaderCell("Err H/L", 1.2f)
