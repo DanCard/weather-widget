@@ -60,6 +60,8 @@ object RainAnalyzer {
         now: LocalDateTime = LocalDateTime.now(),
     ): String? {
         val sharedForecasts = hourlyForecasts.map { it.toHourlyForecast() }
-        return SharedRainAnalyzer.getRainSummary(sharedForecasts, date, source, now)
+        val summary = SharedRainAnalyzer.getRainSummary(sharedForecasts, date, source, now)
+        Log.d("RainAnalyzer", "rain hours for $date: summary=$summary")
+        return summary
     }
 }
