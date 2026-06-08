@@ -345,10 +345,7 @@ fun TemperatureGraph(
             drawActualLine(obsCoords, scale)
         }
 
-        val nowIdx = points.indexOfByClosestTime(now)
-        val markerTemp = currentTemp ?: forecastTemps[nowIdx]
         val markerX = xAtTime(now)
-        val markerY = yAt(markerTemp.coerceIn(minTemp, maxTemp))
 
         // Peak labels (Hi / Lo / Now) anchored to forecast extremes
         val highIdx = forecastTemps.indexOf(fMax)
@@ -362,7 +359,6 @@ fun TemperatureGraph(
         val fetchDotPoint = if (tMs != null) actualSeries.points.firstOrNull { it.timeMs == tMs && it.actualTemp != null } else null
         var fetchDotXVal: Float? = null
         var fetchDotYVal: Float? = null
-        var isAnchoredToFetchDot = false
 
         if (tMs != null && fetchDotPoint != null && tMs in windowStart..windowEnd) {
             val fetchDotX = xAtTime(tMs)
@@ -398,8 +394,6 @@ fun TemperatureGraph(
             
             drawText(valueTextLayout, topLeft = rect.topLeft)
             drawnLabels.add(rect)
-            
-            isAnchoredToFetchDot = abs(markerX - fetchDotX) <= 4.dp.toPx() * scale
             
             // Staleness age label (mirrors Android: any non-negative age, but only in a ≤12h window
             // so it shows in the zoomed-in view and hides in the wide 24h view). Drawn in the actual
@@ -672,12 +666,7 @@ fun TemperatureGraph(
             )
             drawText(nowLabelLayout, topLeft = nowRect.topLeft)
             drawnLabels.add(nowRect)
-            
-            // 3. Draw target circle at the curve if not overlapping fetch dot
-            if (!isAnchoredToFetchDot) {
-                drawCircle(color = Color.White, radius = 4.5f * scale, center = Offset(markerX, markerY))
-                drawCircle(color = tempToColor(markerTemp), radius = 2.5f * scale, center = Offset(markerX, markerY))
-            }
+
         }
     }
 }
