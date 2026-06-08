@@ -312,7 +312,7 @@ private fun runApp() = application {
                 title = "Set Weather Location",
                 icon = appIcon,
             ) {
-                LocationPicker(locationResolver) { resolved ->
+                LocationPicker(locationResolver, allowAutoSelect = config == null) { resolved ->
                     val saved = resolved.toConfig()
                     saveConfigAndNotify(saved)
                     pickerVisible = false

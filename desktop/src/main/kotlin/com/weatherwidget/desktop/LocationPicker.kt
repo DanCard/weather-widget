@@ -34,6 +34,7 @@ import javax.swing.SwingUtilities
 @Composable
 fun LocationPicker(
     resolver: LocationResolver,
+    allowAutoSelect: Boolean = true,
     onLocationSelected: (ResolvedLocation) -> Unit,
 ) {
     var suggested by remember { mutableStateOf<ResolvedLocation?>(null) }
@@ -87,10 +88,11 @@ fun LocationPicker(
                 phoneLocation = phone
                 when {
                     phone == null -> appendLog("Phone GPS did not return a usable location.")
-                    phone.isFresh -> {
+                    phone.isFresh && allowAutoSelect -> {
                         appendLog("Phone GPS returned a fresh location; saving it.")
                         selectLocation(phone)
                     }
+                    phone.isFresh -> appendLog("Phone GPS returned a fresh location; waiting for selection.")
                     else -> appendLog("Phone GPS location is stale; leaving picker open.")
                 }
             }

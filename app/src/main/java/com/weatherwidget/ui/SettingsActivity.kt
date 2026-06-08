@@ -23,6 +23,9 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import android.appwidget.AppWidgetManager
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.google.android.flexbox.FlexboxLayout
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -35,10 +38,16 @@ import java.util.UUID
 
 import javax.inject.Inject
 
+import com.weatherwidget.data.repository.SharedLocationResolver
+import com.weatherwidget.util.SharedPreferencesUtil
+
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
+
+    @Inject
+    lateinit var sharedLocationResolver: SharedLocationResolver
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +65,9 @@ class SettingsActivity : AppCompatActivity() {
 
         // Icon Gallery
         setupIconGallery()
+
+        // Location Settings
+        setupLocationSettings()
 
         // Refresh data button
         val refreshDataButton = findViewById<Button>(R.id.refresh_data_button)
@@ -357,5 +369,123 @@ class SettingsActivity : AppCompatActivity() {
         workManager.getWorkInfoByIdLiveData(currentWorkId).observe(this) { workInfo ->
             onFinished(workInfo, isForecastWork = false)
         }
+    }
+
+    private fun setupLocationSettings() {
+        val latInput = findViewById<EditText>(R.id.lat_input)
+        val lonInput = findViewById<EditText>(R.id.lon_input)
+        val saveButton = findViewById<Button>(R.id.save_location_button)
+        val locationLabel = findViewById<TextView>(R.id.current_location_label)
+
+        // Get list of active widget IDs
+        val appWidgetManager = AppWidgetManager.getInstance(this)
+        val widgetIds = appWidgetManager.getAppWidgetIds(
+            android.content.ComponentName(this, WeatherWidgetProvider::class.java)
+        )
+
+        // Find current location: try first active widget, then fallback to default POI
+        var currentLat: Double? = null
+        var currentLon: Double? = null
+        var labelText = "No location set"
+
+        if (widgetIds.isNotEmpty()) {
+            val firstWidgetId = widgetIds[0]
+            val widgetLocation = widgetStateManager.getWidgetLocation(firstWidgetId)
+            if (widgetLocation != null) {
+                currentLat = widgetLocation.first
+                currentLon = widgetLocation.second
+                labelText = "Widget Location: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLon)}"
+            }
+        }
+
+        if (currentLat == null || currentLon == null) {
+            // Fallback to historical_pois default POI
+            val weatherPrefs = SharedPreferencesUtil.getPrefs(this, "weather_prefs")
+            val historicalPois = weatherPrefs.getString("historical_pois", null)
+            val lastPoi = historicalPois
+                ?.split(";")
+                ?.lastOrNull()
+                ?.split("|")
+                ?.takeLast(3)
+                ?.let { parts ->
+                    if (parts.size == 3) {
+                        parts[1].toDoubleOrNull()?.let { lat -> parts[2].toDoubleOrNull()?.let { lon -> lat to lon } }
+                    } else {
+                        null
+                    }
+                }
+            if (lastPoi != null) {
+                currentLat = lastPoi.first
+                currentLon = lastPoi.second
+                labelText = "Default Location: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLon)}"
+            }
+        }
+
+        if (currentLat == null || currentLon == null) {
+            // Ultimate fallback to Mountain View
+            currentLat = WeatherWidgetWorker.DEFAULT_LAT
+            currentLon = WeatherWidgetWorker.DEFAULT_LON
+            labelText = "Default Location: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLon)}"
+        }
+
+        latInput.setText(currentLat!!.toString())
+        lonInput.setText(currentLon!!.toString())
+        locationLabel.text = labelText
+
+        saveButton.setOnClickListener {
+            val lat = latInput.text.toString().toDoubleOrNull()
+            val lon = lonInput.text.toString().toDoubleOrNull()
+            if (lat != null && lat in -90.0..90.0 && lon != null && lon in -180.0..180.0) {
+                lifecycleScope.launch {
+                    try {
+                        val resolved = sharedLocationResolver.fromCoordinates(lat, lon)
+                        locationLabel.text = "Saved Location: ${resolved.label}"
+                        saveLocationGlobally(lat, lon, resolved.label, widgetIds)
+                    } catch (e: Exception) {
+                        locationLabel.text = "Saved Location: ${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
+                        saveLocationGlobally(lat, lon, "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}", widgetIds)
+                    }
+                }
+            } else {
+                Toast.makeText(this, getString(R.string.invalid_coordinates_range), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun saveLocationGlobally(lat: Double, lon: Double, label: String, widgetIds: IntArray) {
+        // 1. Update all widgets
+        val widgetPrefs = SharedPreferencesUtil.getPrefs(this, ConfigActivity.PREFS_NAME)
+        val editor = widgetPrefs.edit()
+        for (widgetId in widgetIds) {
+            editor.putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", lat.toFloat())
+            editor.putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", lon.toFloat())
+        }
+        editor.apply()
+
+        // 2. Update default POI in weather_prefs
+        val weatherPrefs = SharedPreferencesUtil.getPrefs(this, "weather_prefs")
+        val historicalPois = weatherPrefs.getString("historical_pois", null)
+        val newPoi = "$label|$lat|$lon"
+        val updatedPois = if (historicalPois.isNullOrBlank()) {
+            newPoi
+        } else {
+            val pois = historicalPois.split(";").toMutableList()
+            pois.removeAll { it.contains("|$lat|$lon") || it.startsWith("$label|") }
+            pois.add(newPoi)
+            pois.takeLast(5).joinToString(";")
+        }
+        weatherPrefs.edit().putString("historical_pois", updatedPois).apply()
+
+        // 3. Trigger widgets update
+        val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                    .build()
+            )
+            .build()
+        WorkManager.getInstance(this).enqueue(workRequest)
+
+        Toast.makeText(this, getString(R.string.location_saved_success), Toast.LENGTH_SHORT).show()
     }
 }
