@@ -14,6 +14,7 @@ import java.time.ZoneId
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
+import java.util.concurrent.TimeUnit
 
 class DesktopWeatherRepository(
     private val weatherService: DesktopWeatherService,
@@ -71,9 +72,8 @@ class DesktopWeatherRepository(
         return resolution.displayTemp to resolution.appliedDelta
     }
 
-    suspend fun loadCached(): ForecastResult? = withContext(Dispatchers.IO) {
+    suspend fun loadCached(now: Long = System.currentTimeMillis()): ForecastResult? = withContext(Dispatchers.IO) {
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
-        val now = System.currentTimeMillis()
         val stitchedStart = now - (72 * 3600 * 1000L)
         val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, stitchedStart, now + (168 * 3600 * 1000L), maxAgeMs)
         val daily = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
@@ -116,9 +116,7 @@ class DesktopWeatherRepository(
 
     private var hasAttemptedBackfill = false
 
-    suspend fun refresh(): ForecastResult = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
-        
+    suspend fun refresh(now: Long = System.currentTimeMillis()): ForecastResult = withContext(Dispatchers.IO) {
         // One-time backfill if history is empty (e.g. fresh install)
         if (!hasAttemptedBackfill) {
             hasAttemptedBackfill = true
@@ -153,8 +151,6 @@ class DesktopWeatherRepository(
         // Derive actual daily highs/lows from the stored observation window — the actuals that
         // forecast-accuracy comparisons are measured against.
         val extremesCount = recomputeDailyExtremes(now)
-        val actuals = loadDailyActuals(result.daily)
-        val snapshots = loadDailySnapshots(result.daily)
 
         // Snapshot for history (Tier 1 simplification: 4h buckets)
         val snapshotBucket = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
@@ -163,17 +159,14 @@ class DesktopWeatherRepository(
         // Cleanup old data (> 30 days)
         weatherDao.cleanup(now - (30L * 24 * 3600 * 1000))
 
-        // Persistent pipeline-health summary — makes a starving actuals pipeline (e.g. zero
-        // observations) visible after the fact via the app_logs table, not just a scrolled-away
-        // console line. A low obs/extremes count here is the signal that caught the
-        // fractional-seconds bug.
+        // Persistent pipeline-health summary
         weatherDao.log(
             tag = "REFRESH",
             message = "source=$weatherSource hourly=${result.hourly.size} daily=${result.daily.size} " +
                 "obs=${result.rawObservations.size} extremes=$extremesCount",
         )
 
-        loadCached() ?: result
+        loadCached(now) ?: result
     }
 
     suspend fun refreshObservations(): ForecastResult = withContext(Dispatchers.IO) {
@@ -185,7 +178,7 @@ class DesktopWeatherRepository(
         }
 
         val extremesCount = recomputeDailyExtremes(now)
-        val cached = loadCached()
+        val cached = loadCached(now)
 
         weatherDao.log(
             tag = "OBS_REFRESH",
@@ -227,19 +220,15 @@ class DesktopWeatherRepository(
         return extremes.size
     }
 
-    private fun loadDailyActuals(daily: List<com.weatherwidget.data.model.DailyForecast>): Map<String, com.weatherwidget.data.model.DailyExtreme> {
+    private fun loadDailyActuals(daily: List<DailyForecast>): Map<String, DailyExtreme> {
         if (daily.isEmpty()) return emptyMap()
         val dates = daily.map { LocalDate.parse(it.date) }
-        // Look back past the forecast window so historical actual extremes are available for
-        // left/history navigation. The forecast `daily` list begins ~yesterday, so anchoring the
-        // query at dates.min() never loaded older actuals and left the history arrow disabled.
-        val start = dates.min().minusDays(ACTUALS_HISTORY_DAYS)
-            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val start = dates.min().minusDays(ACTUALS_HISTORY_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         val end = dates.max().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         return weatherDao.getDailyActuals(start, end, latitude, longitude, weatherSource)
     }
 
-    private fun loadDailySnapshots(daily: List<com.weatherwidget.data.model.DailyForecast>): Map<String, List<com.weatherwidget.data.model.DailyForecastSnapshot>> {
+    private fun loadDailySnapshots(daily: List<DailyForecast>): Map<String, List<DailyForecastSnapshot>> {
         if (daily.isEmpty()) return emptyMap()
         val dates = daily.map { LocalDate.parse(it.date) }
         val start = dates.min().minusDays(14).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -247,11 +236,8 @@ class DesktopWeatherRepository(
         return weatherDao.getDailyForecastSnapshots(start, end, latitude, longitude, weatherSource)
     }
 
-
-
     companion object {
         private const val HISTORY_WINDOW_DAYS = 7L
-        // Match the widget's ~30-day history navigation and the 1-month data retention window.
         private const val ACTUALS_HISTORY_DAYS = 31L
         private const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L
     }
