@@ -54,8 +54,26 @@ Queried `~/.local/share/weather-widget/weather.db` rather than only reading sour
 - Rebuilt distributable + restarted; screenshot confirms a fully-populated cloud curve
   (`11→100→54→6→56→9→48→51→17 … 47%`), "data missing" message gone.
 
+## Increase code sharing (B + C) — done
+Asked "is there a way to increase code sharing to avoid this issue?". Root: two parallel
+persistence layers — Android Room DAOs (`:app`) vs hand-written JDBC `DesktopWeatherDao` (`:shared`)
+— with nothing forcing the query rules to agree. Checked Android first: its Room DAOs **already**
+use a `BETWEEN :lat - 0.1` box, so only the desktop port had regressed. Implemented:
+- **B (shared predicate):** `shared/.../data/local/LocationMatch.kt` — `TOLERANCE_DEG = 0.1` +
+  `ROOM_WHERE` (named params) and `JDBC_WHERE` (positional). All Android `@Query` predicates now
+  interpolate `${LocationMatch.ROOM_WHERE}`; all 11 desktop queries use `${LocationMatch.JDBC_WHERE}`.
+  Verified Room/KSP accepts cross-module `const val` in `@Query`.
+- **C (shared contract):** `LocationMatchContract.CASES` in `:shared`, executed by both
+  `DesktopWeatherDaoTest` (JDBC) and new `LocationMatchContractTest` (Room/Robolectric,
+  `@Category(LongDuration)`). Any future drift fails a test.
+- Verified: `:app:kspDebugKotlin` + `:app:compileDebugKotlin`, both contract tests pass, DAO +
+  WeatherGap/Snapshot repository tests green, `:shared:test` green, desktop redeployed.
+- Bigger remaining lever (deferred): **Room Multiplatform** (Room 2.7 supports KMP) would move the
+  `@Entity`/`@Dao` into `:shared` and delete the hand-written desktop DAO + `CREATE TABLE` schema,
+  eliminating the divergence class entirely.
+
 ## Notes / follow-ups
 - The dead one-time backfill (`DesktopWeatherRepository.hasAttemptedBackfill` + `fetchHistory`) was
   left in place as a harmless fresh-install safety net; could be removed to reduce surface area.
-- Coordinate fragmentation likely affects Android too if it keys on raw lat/lon; not investigated.
-- Memories: `desktop_coordinate_fragmentation`, `desktop_history_snapshot_drops_cloud`.
+- Memories: `desktop_coordinate_fragmentation`, `desktop_history_snapshot_drops_cloud`,
+  `shared_location_match_predicate`.

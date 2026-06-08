@@ -56,7 +56,7 @@ class RateLimitedWatermarkRobolectricTest {
             heightPx = 200,
             showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
         drawnTexts.clear()
 
@@ -76,7 +76,7 @@ class RateLimitedWatermarkRobolectricTest {
             heightPx = 200,
             showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
         drawnTexts.clear()
 
@@ -96,7 +96,7 @@ class RateLimitedWatermarkRobolectricTest {
             heightPx = 200,
             showErrorWatermark = false
         )
-        assertTrue(!drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.none { it.contains("UPDATES FAILING") })
     }
 
     @Test
@@ -111,7 +111,7 @@ class RateLimitedWatermarkRobolectricTest {
             currentTime = now,
             showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
         drawnTexts.clear()
 
@@ -130,7 +130,7 @@ class RateLimitedWatermarkRobolectricTest {
             currentTime = now,
             showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
         drawnTexts.clear()
 
@@ -149,7 +149,7 @@ class RateLimitedWatermarkRobolectricTest {
             currentTime = now,
             showErrorWatermark = false
         )
-        assertTrue(!drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.none { it.contains("UPDATES FAILING") })
     }
 
     @Test
@@ -164,7 +164,7 @@ class RateLimitedWatermarkRobolectricTest {
             currentTime = now,
             showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
         drawnTexts.clear()
 
@@ -183,7 +183,7 @@ class RateLimitedWatermarkRobolectricTest {
             currentTime = now,
             showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
         drawnTexts.clear()
 
@@ -202,7 +202,7 @@ class RateLimitedWatermarkRobolectricTest {
             currentTime = now,
             showErrorWatermark = false
         )
-        assertTrue(!drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.none { it.contains("UPDATES FAILING") })
     }
 
     @Test
@@ -217,7 +217,7 @@ class RateLimitedWatermarkRobolectricTest {
             currentTime = now,
             showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
         drawnTexts.clear()
 
@@ -236,7 +236,7 @@ class RateLimitedWatermarkRobolectricTest {
             currentTime = now,
             showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
         drawnTexts.clear()
 
@@ -255,6 +255,6 @@ class RateLimitedWatermarkRobolectricTest {
             currentTime = now,
             showErrorWatermark = false
         )
-        assertTrue(!drawnTexts.contains("UPDATES FAILING"))
+        assertTrue(drawnTexts.none { it.contains("UPDATES FAILING") })
     }
 }
