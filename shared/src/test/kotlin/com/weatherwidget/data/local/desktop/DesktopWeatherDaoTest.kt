@@ -190,44 +190,24 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
-    fun `hourly reads match a nearby coordinate so precision jitter does not fragment the cache`() {
-        // Same fixed location, persisted at two precisions across sessions.
-        val storedLat = 37.416883; val storedLon = -122.089009
-        val queryLat = 37.4167; val queryLon = -122.089
+    fun `desktop DAO location matching satisfies the shared LocationMatch contract`() {
         val source = "NWS"
         val hour = 1_780_682_400_000L
-
-        dao.upsertHourlyForecasts(
-            storedLat, storedLon, source,
-            listOf(HourlyForecast(hour, 61f, "Cloudy", cloudCover = 80)),
-        )
-        dao.upsertHourlyForecastHistory(
-            storedLat, storedLon, source, snapshotBucket = 1_780_500_000_000L,
-            listOf(HourlyForecast(hour, 61f, "Cloudy", cloudCover = 80)),
-        )
-
-        // Querying the slightly-different config coordinate still finds the data.
-        val latest = dao.getLatestHourly(queryLat, queryLon, source, 10_000)
-        assertEquals(1, latest.size)
-        assertEquals(80, latest[0].cloudCover)
-
-        val history = dao.getHourlyHistory(queryLat, queryLon, source, hour - 1, hour + 1)
-        assertEquals(1, history.size)
-        assertEquals(80, history[0].cloudCover)
-    }
-
-    @Test
-    fun `hourly reads ignore a far-away coordinate beyond the proximity box`() {
-        val source = "NWS"
-        val hour = 1_780_682_400_000L
-        // ~70 miles away — outside the ~5-mile read box.
-        dao.upsertHourlyForecasts(
-            38.5, -121.5, source,
-            listOf(HourlyForecast(hour, 99f, "Sunny", cloudCover = 5)),
-        )
-
-        val latest = dao.getLatestHourly(37.4167, -122.089, source, 10_000)
-        assertEquals(0, latest.size)
+        for (case in com.weatherwidget.data.local.LocationMatchContract.CASES) {
+            // Isolate each case so a prior row can't satisfy a later "should not match" query.
+            dao.cleanup(System.currentTimeMillis() + 1_000_000_000L)
+            dao.upsertHourlyForecasts(
+                case.storedLat, case.storedLon, source,
+                listOf(HourlyForecast(hour, 61f, "Cloudy", cloudCover = 80)),
+            )
+            val rows = dao.getLatestHourly(case.queryLat, case.queryLon, source, 10_000)
+            assertEquals(
+                "${case.name}: stored(${case.storedLat},${case.storedLon}) " +
+                    "query(${case.queryLat},${case.queryLon})",
+                case.shouldMatch,
+                rows.isNotEmpty(),
+            )
+        }
     }
 
     @Test

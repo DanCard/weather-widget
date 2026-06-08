@@ -11,8 +11,7 @@ interface ForecastDao {
         """
         SELECT * FROM forecasts
         WHERE source = :source
-        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND ${LocationMatch.ROOM_WHERE}
         ORDER BY batchFetchedAt DESC, fetchedAt DESC
         LIMIT 1
     """,
@@ -37,8 +36,7 @@ interface ForecastDao {
         """
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
-        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND ${LocationMatch.ROOM_WHERE}
         ORDER BY forecastDate DESC, batchFetchedAt DESC, fetchedAt DESC
         LIMIT 1
     """,
@@ -54,8 +52,7 @@ interface ForecastDao {
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
         AND forecastDate = :forecastDate
-        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND ${LocationMatch.ROOM_WHERE}
         ORDER BY batchFetchedAt DESC, fetchedAt DESC
         LIMIT 1
     """,
@@ -72,8 +69,7 @@ interface ForecastDao {
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
         AND forecastDate = :forecastDate
-        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND ${LocationMatch.ROOM_WHERE}
         AND source = :source
         ORDER BY fetchedAt DESC
         LIMIT 1
@@ -90,8 +86,7 @@ interface ForecastDao {
     @Query(
         """
         SELECT * FROM forecasts f1
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND batchFetchedAt = (
@@ -114,8 +109,7 @@ interface ForecastDao {
     @Query(
         """
         SELECT * FROM forecasts f1
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND source IN (:sources)
@@ -141,8 +135,7 @@ interface ForecastDao {
         """
         SELECT * FROM forecasts f1
         WHERE source = :source
-        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND batchFetchedAt = (
@@ -167,8 +160,7 @@ interface ForecastDao {
         """
         SELECT * FROM forecasts f1
         WHERE source IN (:sources)
-        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND highTemp IS NOT NULL
@@ -196,8 +188,7 @@ interface ForecastDao {
     @Query(
         """
         SELECT * FROM forecasts f1
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND highTemp IS NOT NULL
@@ -224,8 +215,7 @@ interface ForecastDao {
     @Query(
         """
         SELECT * FROM forecasts f1
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
@@ -241,8 +231,7 @@ interface ForecastDao {
     @Query(
         """
         SELECT * FROM forecasts f1
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND source IN (:sources)
@@ -260,8 +249,7 @@ interface ForecastDao {
     @Query(
         """
         SELECT * FROM forecasts f1
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND source = :source
         AND targetDate >= :startDate
         AND targetDate <= :endDate
@@ -319,8 +307,7 @@ interface ForecastDao {
         """
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
-        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND ${LocationMatch.ROOM_WHERE}
         ORDER BY forecastDate ASC, batchFetchedAt ASC, fetchedAt ASC
     """,
     )

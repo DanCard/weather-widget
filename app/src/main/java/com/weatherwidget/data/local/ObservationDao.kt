@@ -22,8 +22,7 @@ interface ObservationDao {
         SELECT * FROM observations
         WHERE timestamp >= :startTs
           AND timestamp < :endTs
-          AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-          AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+          AND ${LocationMatch.ROOM_WHERE}
         ORDER BY timestamp ASC
     """,
     )
@@ -43,8 +42,7 @@ interface ObservationDao {
     @Query("""
         SELECT * FROM observations
         WHERE stationId LIKE '%\_MAIN' ESCAPE '\'
-          AND ABS(locationLat - :lat) < 0.1
-          AND ABS(locationLon - :lon) < 0.1
+          AND ${LocationMatch.ROOM_WHERE}
           AND timestamp > :sinceMs
         ORDER BY timestamp DESC
     """)
@@ -53,8 +51,7 @@ interface ObservationDao {
     @Query("""
         SELECT * FROM observations
         WHERE api = 'NWS'
-          AND ABS(locationLat - :lat) < 0.1
-          AND ABS(locationLon - :lon) < 0.1
+          AND ${LocationMatch.ROOM_WHERE}
           AND fetchedAt > :sinceMs
         ORDER BY stationId, timestamp DESC
     """)
@@ -63,8 +60,7 @@ interface ObservationDao {
     @Query("""
         SELECT * FROM observations
         WHERE stationId LIKE '%\_MAIN' ESCAPE '\'
-          AND ABS(locationLat - :lat) < 0.1
-          AND ABS(locationLon - :lon) < 0.1
+          AND ${LocationMatch.ROOM_WHERE}
           AND timestamp > :sinceMs
         ORDER BY timestamp DESC
     """)

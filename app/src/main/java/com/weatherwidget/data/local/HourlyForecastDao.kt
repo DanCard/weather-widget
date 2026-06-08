@@ -7,8 +7,7 @@ interface HourlyForecastDao {
     @Query(
         """
         SELECT * FROM hourly_forecasts
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
         ORDER BY dateTime ASC
@@ -24,8 +23,7 @@ interface HourlyForecastDao {
     @Query(
         """
         SELECT * FROM hourly_forecasts
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
         AND source = :source

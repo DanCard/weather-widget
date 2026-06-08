@@ -15,8 +15,7 @@ interface DailyExtremeDao {
         SELECT * FROM daily_extremes
         WHERE date >= :startDate
           AND date <= :endDate
-          AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-          AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+          AND ${LocationMatch.ROOM_WHERE}
         ORDER BY date ASC
         """,
     )

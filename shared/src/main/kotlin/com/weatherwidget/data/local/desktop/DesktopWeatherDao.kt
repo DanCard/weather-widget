@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.util.Log
 import java.sql.Connection
@@ -13,17 +14,6 @@ import java.sql.PreparedStatement
 import java.sql.Types
 import java.time.LocalDate
 import java.time.ZoneOffset
-
-// A desktop machine doesn't move, yet the same fixed location can be persisted at slightly different
-// precisions across sessions — e.g. manually entered "37.4167" vs geocoded "37.416883". Because
-// locationLat/locationLon are part of every table's key and reads matched them with exact float
-// equality, those tiny differences fragmented the cache into separate silos: cloud-cover history
-// saved under one coordinate was invisible to a session querying another, leaving the graph flat.
-// Reads therefore match within a small proximity box (~5 miles) instead of `=`. Writes still store
-// under the live config coordinate; the loose read simply reunites the silos. At ~37°N, ~5 miles is
-// 0.072° of latitude and ~0.092° of longitude — rounded up slightly for margin.
-private const val LOCATION_LAT_TOLERANCE_DEG = 0.08
-private const val LOCATION_LON_TOLERANCE_DEG = 0.10
 
 class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
@@ -180,7 +170,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM observations 
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND timestamp >= ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND timestamp >= ?
                 ORDER BY timestamp DESC LIMIT 1
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -386,7 +376,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM hourly_forecasts 
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ? AND fetchedAt >= ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND fetchedAt >= ?
                 ORDER BY dateTime ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -418,7 +408,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val sql = """
                 SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt, source
                 FROM hourly_forecast_history
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND (source = ? OR source = 'Generic') AND dateTime >= ? AND dateTime <= ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR source = 'Generic') AND dateTime >= ? AND dateTime <= ?
                 ORDER BY dateTime ASC, (source = ?) DESC, snapshotBucket DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -473,7 +463,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT COUNT(DISTINCT dateTime) FROM hourly_forecast_history
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND (source = ? OR source = 'Generic')
+                WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR source = 'Generic')
                 AND dateTime >= ? AND dateTime <= ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -508,7 +498,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<DailyForecast>()
         db.getConnection().use { conn ->
             // Get the latest batch
-            val latestBatchSql = "SELECT MAX(batchFetchedAt) FROM forecasts WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ?"
+            val latestBatchSql = "SELECT MAX(batchFetchedAt) FROM forecasts WHERE ${LocationMatch.JDBC_WHERE} AND source = ?"
             val latestBatch = conn.prepareStatement(latestBatchSql).use { stmt ->
                 stmt.setDouble(1, locationLat)
                 stmt.setDouble(2, locationLon)
@@ -521,7 +511,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
             val sql = """
                 SELECT * FROM forecasts 
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ? AND batchFetchedAt = ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND batchFetchedAt = ?
                 ORDER BY targetDate ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -559,7 +549,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val latestBatchSql = """
                 SELECT MAX(batchFetchedAt) FROM forecasts
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
             """.trimIndent()
             val latestBatch = conn.prepareStatement(latestBatchSql).use { stmt ->
                 stmt.setDouble(1, locationLat)
@@ -573,7 +563,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 SELECT targetDate, highTemp, lowTemp, condition, nativeDailyIconToken,
                     precipProbability, precipAmountMm, fetchedAt, batchFetchedAt
                 FROM forecasts
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
                     AND targetDate >= ? AND targetDate <= ?
                 ORDER BY targetDate ASC, fetchedAt DESC
             """.trimIndent()
@@ -647,7 +637,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM observations
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND timestamp >= ? AND timestamp < ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND timestamp >= ? AND timestamp < ?
                 ORDER BY timestamp ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -684,7 +674,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM daily_extremes
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND date >= ? AND date <= ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND date >= ? AND date <= ?
                 ORDER BY date ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -724,7 +714,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT targetDate, forecastDate, source, highTemp, lowTemp, fetchedAt FROM forecasts
-                WHERE ABS(locationLat - ?) <= $LOCATION_LAT_TOLERANCE_DEG AND ABS(locationLon - ?) <= $LOCATION_LON_TOLERANCE_DEG AND source = ? AND targetDate >= ? AND targetDate <= ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate >= ? AND targetDate <= ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, locationLat)

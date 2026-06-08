@@ -11,8 +11,7 @@ interface HourlyForecastHistoryDao {
     @Query(
         """
         SELECT * FROM hourly_forecast_history
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND source = :source
         AND snapshotBucket = :snapshotBucket
         AND dateTime >= :startDateTime
@@ -37,8 +36,7 @@ interface HourlyForecastHistoryDao {
     @Query(
         """
         SELECT * FROM hourly_forecast_history
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND source = :source
         AND dateTime >= :startDateTime AND dateTime < :endDateTime
         AND snapshotBucket >= :bucketStart AND snapshotBucket < :bucketEnd
@@ -58,8 +56,7 @@ interface HourlyForecastHistoryDao {
     @Query(
         """
         SELECT * FROM hourly_forecast_history
-        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
-        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime AND dateTime < :endDateTime
         AND snapshotBucket >= :bucketStart AND snapshotBucket < :bucketEnd
         ORDER BY dateTime ASC, snapshotBucket DESC
