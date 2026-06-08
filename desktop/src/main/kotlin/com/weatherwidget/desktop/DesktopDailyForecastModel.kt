@@ -128,8 +128,11 @@ object DesktopDailyForecastModel {
         val isToday = date == today
         val isPast = date.isBefore(today)
         val snapshot = snapshots
-            .filter { it.highTemp != null || it.lowTemp != null }
+            .filter { it.highTemp != null && it.lowTemp != null && it.highTemp != it.lowTemp }
             .maxByOrNull { it.fetchedAt }
+            ?: snapshots
+                .filter { it.highTemp != null || it.lowTemp != null }
+                .maxByOrNull { it.fetchedAt }
 
         val solidHigh: Float?
         val solidLow: Float?

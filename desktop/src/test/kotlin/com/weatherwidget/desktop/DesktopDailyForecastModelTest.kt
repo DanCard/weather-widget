@@ -48,6 +48,7 @@ class DesktopDailyForecastModelTest {
                 dailySnapshots = mapOf(
                     "2026-06-01" to listOf(
                         DailyForecastSnapshot("2026-06-01", 75f, 57f, "Cloudy", fetchedAt = 1L),
+                        DailyForecastSnapshot("2026-06-01", 51f, 51f, "Cloudy", fetchedAt = 2L),
                     ),
                     "2026-06-02" to listOf(
                         DailyForecastSnapshot("2026-06-02", 76f, 58f, "Cloudy", fetchedAt = 1L),
