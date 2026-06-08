@@ -100,15 +100,15 @@ fun DailyForecastGraph(
                 drawRangeLine(centerX - tripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, baseColor.copy(alpha = 0.34f), thinWidth)
             } else if (day.isPast) {
                 drawRangeLine(
-                    centerX = centerX,
+                    centerX = centerX + tripleOffset,
                     high = day.forecastHigh,
                     low = day.forecastLow,
                     yAt = ::yAt,
                     color = baseColor.copy(alpha = GHOST_BAR_ALPHA),
-                    width = barWidth,
+                    width = thinWidth,
                     pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
                 )
-                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, Color.White.copy(alpha = 0.82f), barWidth * 0.72f)
+                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, barWidth * 0.72f)
             } else {
                 val high = day.solidHigh
                 val low = day.solidLow
@@ -122,7 +122,7 @@ fun DailyForecastGraph(
             if (highForLabel != null) {
                 val highY = yAt(highForLabel)
                 val highText = textMeasurer.measure(
-                    "${highForLabel.roundToInt()}°",
+                    formatTemp(highForLabel, day.isToday || day.isPast),
                     TextStyle(fontSize = (12f * scale).sp, color = if (day.isToday) Color.Yellow else Color.White)
                 )
                 // Sit above the bar top; for the hottest bar this rides up past the canvas top into
@@ -133,7 +133,7 @@ fun DailyForecastGraph(
             if (lowForLabel != null) {
                 val lowY = yAt(lowForLabel)
                 val lowText = textMeasurer.measure(
-                    "${lowForLabel.roundToInt()}°",
+                    formatTemp(lowForLabel, day.isToday || day.isPast),
                     TextStyle(fontSize = (11f * scale).sp, color = Color.White.copy(alpha = 0.78f))
                 )
                 // Low label sits below the bar; icon below the label. Both clamp to stay above the
@@ -246,3 +246,14 @@ private fun labelSizeFor(dayWidth: Float): Int =
         dayWidth < 46f -> 9
         else -> 10
     }
+
+private fun formatTemp(v: Float?, isActualData: Boolean): String {
+    if (v == null) return ""
+    if (!isActualData) return "${v.roundToInt()}°"
+    val rounded = v.roundToInt()
+    return if (kotlin.math.abs(v - rounded) < 0.01f) {
+        "$rounded°"
+    } else {
+        String.format(java.util.Locale.getDefault(), "%.1f°", v)
+    }
+}
