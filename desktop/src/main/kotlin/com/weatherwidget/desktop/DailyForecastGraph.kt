@@ -21,10 +21,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
-private val COLOR_FORECAST_SUNNY = Color(0xFFF4C542)
-private val COLOR_FORECAST_CLOUDY = Color(0xFF8E99A4)
-private val COLOR_FORECAST_RAINY = Color(0xFF5A8FBF)
-private val COLOR_OBSERVED = Color(0xFFFF3366)
+private val COLOR_FORECAST_SUNNY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_SUNNY)
+private val COLOR_FORECAST_CLOUDY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_CLOUDY)
+private val COLOR_FORECAST_RAINY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_RAINY)
+private val COLOR_OBSERVED = Color(com.weatherwidget.shared.util.WeatherColors.OBSERVED)
 private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
 private val COLOR_GAP_FALLBACK = Color(0xFF34C759)
 private const val GHOST_BAR_ALPHA = 0.3f

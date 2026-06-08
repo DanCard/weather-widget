@@ -59,21 +59,9 @@ private val COLOR_MILD = Color(0xFFE8A24E)
 private val COLOR_HOT = Color(0xFFFF6B35)
 private val COLOR_ACTUAL = Color(0xFFFF3366) // matches Android TemperatureGraphStyle.OBSERVED
 
-private val FORECAST_SUNNY = Color(0xFFF4C542)
-private val FORECAST_CLOUDY = Color(0xFF8E99A4)
-private val FORECAST_RAINY = Color(0xFF5A8FBF)
-private val FORECAST_NIGHT = Color(0xFFBBBBBB)
-private val FORECAST_TWILIGHT = Color(0xFFFFA726)
-
 private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
-    return when {
-        flags.isRainy -> FORECAST_RAINY
-        flags.isNight -> FORECAST_NIGHT
-        flags.isTwilight && flags.isSunny -> FORECAST_TWILIGHT
-        flags.isMixed -> FORECAST_SUNNY
-        flags.isSunny -> FORECAST_SUNNY
-        else -> FORECAST_CLOUDY
-    }
+    val argb = com.weatherwidget.shared.util.WeatherColors.forecastColor(flags.isSunny, flags.isRainy, flags.isMixed, flags.isNight, flags.isTwilight)
+    return Color(argb)
 }
 
 private const val COLD_THRESHOLD = 50f

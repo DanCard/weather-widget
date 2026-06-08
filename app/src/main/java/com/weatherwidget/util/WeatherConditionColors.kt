@@ -8,6 +8,9 @@ import com.weatherwidget.R
 /**
  * Shared color mapping for weather-adaptive forecast rendering.
  * Forecast colors vary by weather condition; actual/observed uses a fixed hot pink.
+ *
+ * Color values match [com.weatherwidget.shared.util.WeatherColors] — kept as Color.parseColor()
+ * calls here so Android tests don't depend on the shared module's runtime classpath.
  */
 object WeatherConditionColors {
     private const val MAX_TRANSITION_FRACTION = 0.12f
@@ -68,7 +71,7 @@ object WeatherConditionColors {
         }
     }
 
-    /** Returns a vertical LinearGradient for a mixed-condition bar (gold top → gray/blue bottom), or null for solid-color bars. */
+    /** Returns a vertical LinearGradient for a mixed-condition bar (gold top -> gray/blue bottom), or null for solid-color bars. */
     fun forecastBarGradient(iconRes: Int, x: Float, topY: Float, bottomY: Float, cloudRatioOverride: Float? = null): LinearGradient? {
         val split = resolveMixedBarSplit(iconRes, cloudRatioOverride) ?: return null
         
