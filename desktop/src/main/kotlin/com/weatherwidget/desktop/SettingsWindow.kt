@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import androidx.compose.foundation.Image
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,7 +28,9 @@ internal fun SettingsWindow(
     onSave: (DesktopConfig) -> Unit,
     onExit: () -> Unit,
     onUpdateLocation: () -> Unit = {},
-    onOpenObservations: () -> Unit = {}
+    onOpenObservations: () -> Unit = {},
+    onRefreshData: suspend () -> Unit = {},
+    onViewAppLogs: () -> Unit = {}
 ) {
     var currentConfig by remember { mutableStateOf(config) }
     val scrollState = rememberScrollState()
@@ -46,8 +49,35 @@ internal fun SettingsWindow(
                     Text(
                         "Settings",
                         style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(start = 8.dp)
+                        modifier = Modifier.padding(start = 8.dp).weight(1f)
                     )
+
+                    val scope = rememberCoroutineScope()
+                    var isRefreshing by remember { mutableStateOf(false) }
+
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isRefreshing = true
+                                try {
+                                    onRefreshData()
+                                } finally {
+                                    isRefreshing = false
+                                }
+                            }
+                        },
+                        enabled = !isRefreshing,
+                        modifier = Modifier.padding(horizontal = 4.dp).testTag("refresh_data_btn")
+                    ) {
+                        Text(if (isRefreshing) "Refreshing…" else "Refresh Data")
+                    }
+
+                    Button(
+                        onClick = onViewAppLogs,
+                        modifier = Modifier.padding(horizontal = 4.dp).testTag("view_app_logs_btn")
+                    ) {
+                        Text("View App Logs")
+                    }
                 }
 
                 Column(

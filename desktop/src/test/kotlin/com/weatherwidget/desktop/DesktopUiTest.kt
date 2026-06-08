@@ -430,4 +430,66 @@ class DesktopUiTest {
         composeTestRule.onNodeWithTag("graph_selector").performClick()
         assertEquals("HOURLY", viewMode)
     }
+
+    @Test
+    fun testSettingsWindowRefreshAndLogsButtons() {
+        var refreshClicked = false
+        var logsClicked = false
+        composeTestRule.setContent {
+            SettingsWindow(
+                config = stubConfig,
+                onClose = {},
+                onSave = {},
+                onExit = {},
+                onRefreshData = { refreshClicked = true },
+                onViewAppLogs = { logsClicked = true }
+            )
+        }
+
+        composeTestRule.onNodeWithTag("refresh_data_btn").performClick()
+        composeTestRule.waitForIdle()
+        assert(refreshClicked)
+
+        composeTestRule.onNodeWithTag("view_app_logs_btn").performClick()
+        composeTestRule.waitForIdle()
+        assert(logsClicked)
+    }
+
+    @Test
+    fun testAppLogsWindowShowsLogsAndFilters() {
+        val tempDbPath = java.nio.file.Files.createTempFile("weather-ui-test", ".db")
+        val database = com.weatherwidget.data.local.desktop.DesktopWeatherDatabase(tempDbPath).apply { initialize() }
+        val dao = com.weatherwidget.data.local.desktop.DesktopWeatherDao(database)
+        try {
+            dao.log("REFRESH", "Fetch success", "INFO")
+            dao.log("REFRESH_FAIL", "Network error", "WARN")
+
+            composeTestRule.setContent {
+                AppLogsWindow(
+                    weatherDao = dao,
+                    onClose = {}
+                )
+            }
+
+            composeTestRule.onNodeWithTag("app_logs_window").assertExists()
+            composeTestRule.onNodeWithText("Fetch success").assertExists()
+            composeTestRule.onNodeWithText("Network error").assertExists()
+
+            // Filter out "error"
+            composeTestRule.onNodeWithTag("app_log_filter_input").performTextInput("error")
+            
+            composeTestRule.waitUntil(timeoutMillis = 5000L) {
+                try {
+                    composeTestRule.onNodeWithText("Fetch success").assertDoesNotExist()
+                    true
+                } catch (e: AssertionError) {
+                    false
+                }
+            }
+
+            composeTestRule.onNodeWithText("Network error").assertExists()
+        } finally {
+            java.nio.file.Files.deleteIfExists(tempDbPath)
+        }
+    }
 }

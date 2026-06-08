@@ -132,6 +132,7 @@ private fun runApp() = application {
         var settingsVisible by remember { mutableStateOf(false) }
         var statsVisible by remember { mutableStateOf(false) }
         var observationsVisible by remember { mutableStateOf(false) }
+        var appLogsVisible by remember { mutableStateOf(false) }
         val desktopClients = remember { DesktopClients() }
         val locationResolver = remember {
             val sharedLocationResolver = com.weatherwidget.data.repository.SharedLocationResolver(
@@ -173,7 +174,7 @@ private fun runApp() = application {
         }
 
         // Exit on close logic:
-        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || observationsVisible
+        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || observationsVisible || appLogsVisible
         LaunchedEffect(anyWindowOpen) {
             if (!anyWindowOpen) {
                 Log.i(TAG, "All windows closed. Ephemeral UI process exiting...")
@@ -300,6 +301,13 @@ private fun runApp() = application {
             )
         }
 
+        if (appLogsVisible) {
+            AppLogsWindow(
+                weatherDao = weatherDao,
+                onClose = { appLogsVisible = false }
+            )
+        }
+
         if (pickerVisible) {
             val pickerState = rememberWindowState(
                 position = WindowPosition(Alignment.Center),
@@ -345,6 +353,12 @@ private fun runApp() = application {
                     },
                     onOpenObservations = {
                         observationsVisible = true
+                    },
+                    onRefreshData = {
+                        repository?.let { forecast = it.refresh() }
+                    },
+                    onViewAppLogs = {
+                        appLogsVisible = true
                     }
                 )
             }
