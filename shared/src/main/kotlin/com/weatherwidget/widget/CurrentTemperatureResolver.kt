@@ -38,6 +38,44 @@ object CurrentTemperatureResolver {
     @Volatile
     var dbLogger: ((tag: String, message: String, level: String) -> Unit)? = null
 
+    const val HEADER_SMOOTH_ITERATIONS = 0
+
+    data class CurrentTempResolutionWindow(
+        val start: LocalDateTime,
+        val end: LocalDateTime,
+    )
+
+    fun buildCurrentTempResolutionWindow(now: LocalDateTime): CurrentTempResolutionWindow {
+        val truncatedNow = now.truncatedTo(ChronoUnit.HOURS)
+        val roundedNow = if (now.minute >= 30) truncatedNow.plusHours(1) else truncatedNow
+        return CurrentTempResolutionWindow(
+            start = roundedNow.minusHours(12L),
+            end = roundedNow.plusHours(3L),
+        )
+    }
+
+    fun computeSmoothedForecasts(
+        hourlyForecasts: List<HourlyForecast>,
+        displaySourceId: String,
+        smoothIterations: Int = HEADER_SMOOTH_ITERATIONS,
+    ): Map<Long, Float> {
+        val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
+            .mapValues { entry ->
+                entry.value.find { it.source == displaySourceId }
+                    ?: entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
+                    ?: entry.value.firstOrNull()
+            }
+        val sortedTimes = forecastsByTime.keys.sorted()
+        val rawTemps = sortedTimes.map { forecastsByTime[it]!!.temperature }
+        val smoothedTemps = TemperatureInterpolator.smoothValuesPreservingAllExtrema(
+            rawTemps,
+            iterations = smoothIterations,
+        )
+        return sortedTimes.mapIndexed { index, time ->
+            time to smoothedTemps[index]
+        }.toMap()
+    }
+
     private fun debugLog(message: String) {
         Log.d(TAG, message)
         dbLogger?.invoke(TAG, message, "DEBUG")
@@ -48,6 +86,7 @@ object CurrentTemperatureResolver {
         message: String,
         level: String = "DEBUG",
     ) {
+        Log.d(tag, message)
         dbLogger?.invoke(tag, message, level)
     }
 
@@ -65,10 +104,11 @@ object CurrentTemperatureResolver {
         currentLon: Double,
         smoothedForecasts: Map<Long, Float>? = null,
     ): CurrentTemperatureResolution {
-        debugLog(
+        appLog(
+            "CURR_TEMP_RESOLVE",
             "resolve:start now=$now source=${displaySource.id} hourlyCount=${hourlyForecasts.size} " +
-                "observedTemp=$lastObservedTemp observedAt=$observedAt " +
-                "currentLat=$currentLat currentLon=$currentLon hasStoredDelta=${storedDeltaState != null}",
+                "obsTemp=$lastObservedTemp obsAt=$observedAt " +
+                "lat=$currentLat lon=$currentLon hasStored=${storedDeltaState != null}",
         )
         val estimatedTemp =
             resolveStrictForecastTemperature(
@@ -150,52 +190,23 @@ object CurrentTemperatureResolver {
                         "observedTemp=$lastObservedTemp estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
                 )
             } else {
-                appliedDelta = null
-                debugLog(
-                    "resolve:anchorDelta unavailable observedTemp=$lastObservedTemp " +
-                        "estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
-                )
+                debugLog("resolve:anchorDelta FAILED - no forecast for observation time=$obsTime")
             }
-        } else {
-            debugLog(
-                "resolve:delta update skipped observedTemp=$lastObservedTemp " +
-                    "observedAt=$observedAt estimatedTemp=$estimatedTemp",
-            )
         }
 
-        val isStaleEstimate = estimatedTemp != null && isStaleHourlyData(now, displaySource, hourlyForecasts)
+        val isStaleEstimate = isStaleHourlyData(now, displaySource, hourlyForecasts)
         val displayTemp =
-            when {
-                lastObservedTemp != null && observedAt != null && estimatedTemp != null && estimatedAtObservationTime != null && appliedDelta != null ->
-                    estimatedTemp + appliedDelta
-                lastObservedTemp != null && observedAt != null -> lastObservedTemp
-                estimatedTemp != null -> estimatedTemp + (appliedDelta ?: 0f)
-                else -> lastObservedTemp
+            if (estimatedTemp != null && appliedDelta != null) {
+                estimatedTemp + appliedDelta
+            } else {
+                estimatedTemp ?: lastObservedTemp
             }
-        debugLog(
-            "resolve:result displayTemp=$displayTemp estimatedTemp=$estimatedTemp observedTemp=$lastObservedTemp " +
-                "appliedDelta=$appliedDelta isStaleEstimate=$isStaleEstimate " +
-                "shouldClearStoredDelta=${storedDeltaState != null && !scopeMatch}",
-        )
-        debugLog(
-            "resolve:explain nowForecast=${formatTemp(estimatedTemp)} " +
-                "lastObserved=${formatTemp(lastObservedTemp)} " +
-                "estimatedAtObs=${formatTemp(estimatedAtObservationTime)} " +
-                "rawStoredDelta=${formatTemp(scopedStoredDelta?.delta)} " +
-                "appliedDelta=${formatTemp(appliedDelta)} " +
-                "displayTemp=${formatTemp(displayTemp)} " +
-                "observedAt=${observedAt ?: "none"}",
-        )
-        logDisplaySelection(
-            source = displaySource,
-            nowMs = nowMs,
-            displayTemp = displayTemp,
-            estimatedTemp = estimatedTemp,
-            observedTemp = lastObservedTemp,
-            observedAt = observedAt,
-            appliedDelta = appliedDelta,
-            estimatedAtObservationTime = estimatedAtObservationTime,
-            isStaleEstimate = isStaleEstimate,
+
+        appLog(
+            "CURR_TEMP_RESULT",
+            "resolve:final display=${formatTemp(displayTemp)} estimate=${formatTemp(estimatedTemp)} " +
+                "obs=${formatTemp(lastObservedTemp)} delta=${appliedDelta?.let { String.format("%.2f", it) } ?: "none"} " +
+                "estAtObs=${formatTemp(estimatedAtObservationTime)} stale=$isStaleEstimate",
         )
 
         return CurrentTemperatureResolution(
@@ -205,39 +216,7 @@ object CurrentTemperatureResolver {
             isStaleEstimate = isStaleEstimate,
             appliedDelta = appliedDelta,
             updatedDeltaState = updatedDeltaState,
-            shouldClearStoredDelta = storedDeltaState != null && !scopeMatch,
-        )
-    }
-
-    private fun logDisplaySelection(
-        source: WeatherSource,
-        nowMs: Long,
-        displayTemp: Float?,
-        estimatedTemp: Float?,
-        observedTemp: Float?,
-        observedAt: Long?,
-        appliedDelta: Float?,
-        estimatedAtObservationTime: Float?,
-        isStaleEstimate: Boolean,
-    ) {
-        val anchorType =
-            when {
-                observedTemp != null && observedAt != null && estimatedTemp != null &&
-                    estimatedAtObservationTime != null && appliedDelta != null -> "observed_delta"
-                observedTemp != null && observedAt != null -> "observed"
-                estimatedTemp != null && appliedDelta != null -> "forecast_delta"
-                estimatedTemp != null -> "forecast"
-                observedTemp != null -> "observed_no_timestamp"
-                else -> "none"
-            }
-        val displayedAgeMin = observedAt?.let { (nowMs - it) / 60_000L }
-        appLog(
-            "CURRENT_TEMP_DISPLAY",
-            "source=${source.id} anchorType=$anchorType displayTemp=${displayTemp ?: "none"} " +
-                "estimatedTemp=${estimatedTemp ?: "none"} observedTemp=${observedTemp ?: "none"} " +
-                "observedAt=${observedAt ?: "none"} displayedAgeMin=${displayedAgeMin ?: "none"} " +
-                "appliedDelta=${appliedDelta ?: "none"} isStaleEstimate=$isStaleEstimate",
-            "INFO",
+            shouldClearStoredDelta = !scopeMatch && storedDeltaState != null,
         )
     }
 
@@ -249,12 +228,15 @@ object CurrentTemperatureResolver {
         smoothedForecasts: Map<Long, Float>? = null,
     ): QuickCurrentTemperature {
         val estimatedTemp =
-            TemperatureInterpolator.getInterpolatedTemperature(
-                hourlyForecasts = applySmoothing(hourlyForecasts, smoothedForecasts),
-                targetEpochMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            resolveStrictForecastTemperature(
+                hourlyForecasts = hourlyForecasts,
+                targetTime = now,
+                source = displaySource,
+                smoothedForecasts = smoothedForecasts,
             )
-        val displayTemp = lastObservedTemp ?: estimatedTemp
-        val isStaleEstimate = lastObservedTemp == null && estimatedTemp != null && isStaleHourlyData(now, displaySource, hourlyForecasts)
+        val isStaleEstimate = isStaleHourlyData(now, displaySource, hourlyForecasts)
+        val displayTemp = estimatedTemp ?: lastObservedTemp
+
         return QuickCurrentTemperature(
             displayTemp = displayTemp,
             estimatedTemp = estimatedTemp,

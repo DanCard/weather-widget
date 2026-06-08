@@ -2,8 +2,8 @@ package com.weatherwidget.widget
 
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.widget.CurrentTemperatureResolver.HEADER_SMOOTH_ITERATIONS
 import com.weatherwidget.widget.handlers.computeSmoothedForecasts
-import com.weatherwidget.widget.handlers.HEADER_SMOOTH_ITERATIONS
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

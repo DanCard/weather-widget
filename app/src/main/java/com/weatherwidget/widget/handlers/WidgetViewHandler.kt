@@ -23,6 +23,7 @@ data class ObservationData(
     val lastObservedTemp: Float? = null,
     val observedAt: Long? = null,
     val smoothedForecasts: Map<Long, Float>? = null,
+    val currentTempHourlyForecasts: List<HourlyForecastEntity> = emptyList(),
 )
 
 /**

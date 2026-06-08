@@ -173,10 +173,10 @@ class WidgetIntentRouterRobolectricTest {
     fun `buildCurrentTempResolutionWindow is independent of graph zoom and center`() {
         val now = LocalDateTime.of(2026, 4, 4, 10, 37)
 
-        val window = GraphDataLoader.buildCurrentTempResolutionWindow(now)
+        val window = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
 
         assertEquals(LocalDateTime.of(2026, 4, 3, 23, 0), window.start)
-        assertEquals(LocalDateTime.of(2026, 4, 4, 13, 0), window.end)
+        assertEquals(LocalDateTime.of(2026, 4, 4, 14, 0), window.end)
     }
 
     @Test

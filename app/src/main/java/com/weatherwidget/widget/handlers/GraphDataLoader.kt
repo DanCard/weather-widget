@@ -39,24 +39,6 @@ object GraphDataLoader {
         val nowEnd: LocalDateTime?,
     )
 
-    @VisibleForTesting
-    internal fun buildCurrentTempResolutionWindow(
-        now: LocalDateTime,
-    ): CurrentTempResolutionWindow {
-        val truncatedNow = now.truncatedTo(ChronoUnit.HOURS)
-        val roundedNow = if (now.minute >= 30) truncatedNow.plusHours(1) else truncatedNow
-        return CurrentTempResolutionWindow(
-            start = roundedNow.minusHours(12L),
-            end = roundedNow.plusHours(2L),
-        )
-    }
-
-    @VisibleForTesting
-    internal data class CurrentTempResolutionWindow(
-        val start: LocalDateTime,
-        val end: LocalDateTime,
-    )
-
     suspend fun loadGraphWindowHourlyForecasts(
         hourlyDao: HourlyForecastDao,
         hourlyHistoryDao: HourlyForecastHistoryDao? = null,
@@ -149,7 +131,7 @@ object GraphDataLoader {
         lon: Double,
         now: LocalDateTime,
     ): List<HourlyForecastEntity> {
-        val window = buildCurrentTempResolutionWindow(now)
+        val window = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
         val zoneId = ZoneId.systemDefault()
         return hourlyDao.getHourlyForecasts(
             window.start.atZone(zoneId).toInstant().toEpochMilli(),

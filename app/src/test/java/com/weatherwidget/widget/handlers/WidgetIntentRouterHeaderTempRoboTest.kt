@@ -107,7 +107,7 @@ class WidgetIntentRouterHeaderTempRoboTest {
             val centerTime = now.plusHours(hourlyOffset.toLong())
 
             // Simulate loadCurrentTempResolutionHourlyForecasts(now): NOW ± ~12h window
-            val nowWindow = GraphDataLoader.buildCurrentTempResolutionWindow(now)
+            val nowWindow = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
             val nowMinEpoch = nowWindow.start.atZone(zoneId).toInstant().toEpochMilli()
             val nowMaxEpoch = nowWindow.end.atZone(zoneId).toInstant().toEpochMilli()
             val currentTempHourly = db.hourlyForecastDao().getHourlyForecasts(nowMinEpoch, nowMaxEpoch, lat, lon)

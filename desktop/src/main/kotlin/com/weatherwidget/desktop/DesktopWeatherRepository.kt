@@ -26,37 +26,47 @@ class DesktopWeatherRepository(
         hourly: List<HourlyForecast>,
         now: Long
     ): Pair<Float?, Float?> {
-        val obsStart = now - (48 * 3600 * 1000L)
-        val obsEnd = now + (2 * 3600 * 1000L)
-        val observations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
-            .map { it.toReading() }
-
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
         val nowLocal = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault())
+        
+        val window = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(nowLocal)
+        val zoneId = ZoneId.systemDefault()
+        val minEpoch = window.start.atZone(zoneId).toInstant().toEpochMilli()
+        val maxEpoch = window.end.atZone(zoneId).toInstant().toEpochMilli()
+
+        val observations = weatherDao.getObservationsInRange(minEpoch, maxEpoch, latitude, longitude)
+            .map { it.toReading() }
+        
+        val narrowHourly = hourly.filter { it.dateTime in minEpoch..maxEpoch }
 
         val resolvedObs = ActualsAggregator.resolveCurrentObservation(
             observations = observations,
-            hourlyForecasts = hourly,
+            hourlyForecasts = narrowHourly,
             displaySourceId = displaySource.id,
             userLat = latitude,
             userLon = longitude,
             nowMs = now,
             lookbackHours = 12L,
-            lookaheadHours = 2L,
+            lookaheadHours = 3L,
         )
 
         val lastObservedTemp = resolvedObs?.first
         val observedAt = resolvedObs?.second
 
+        val smoothedForecasts = CurrentTemperatureResolver.computeSmoothedForecasts(
+            narrowHourly, displaySource.id
+        )
+
         val resolution = CurrentTemperatureResolver.resolve(
             now = nowLocal,
             displaySource = displaySource,
-            hourlyForecasts = hourly,
+            hourlyForecasts = narrowHourly,
             lastObservedTemp = lastObservedTemp,
             observedAt = observedAt,
             storedDeltaState = null,
             currentLat = latitude,
             currentLon = longitude,
+            smoothedForecasts = smoothedForecasts,
         )
         return resolution.displayTemp to resolution.appliedDelta
     }

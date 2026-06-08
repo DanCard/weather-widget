@@ -30,7 +30,7 @@ object ActualsAggregator {
         userLon: Double,
         nowMs: Long = System.currentTimeMillis(),
         lookbackHours: Long = 12L,
-        lookaheadHours: Long = 2L,
+        lookaheadHours: Long = 3L,
         zoneId: ZoneId = ZoneId.systemDefault()
     ): Triple<Float, Long, Long>? {
         val truncatedMs = (nowMs / 3600_000L) * 3600_000L

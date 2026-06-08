@@ -26,7 +26,7 @@ object CurrentTempResolver {
     ): ObservationResolver.ObservedCurrentTemperature? {
         if (repository == null) return null
 
-        val queryWindow = GraphDataLoader.buildCurrentTempResolutionWindow(now)
+        val queryWindow = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
         val zoneId = ZoneId.systemDefault()
         val minEpoch = queryWindow.start.atZone(zoneId).toInstant().toEpochMilli()
         val maxEpoch = queryWindow.end.atZone(zoneId).toInstant().toEpochMilli()
@@ -51,7 +51,7 @@ object CurrentTempResolver {
         lat: Double,
         lon: Double,
         now: LocalDateTime,
-        queryWindow: GraphDataLoader.CurrentTempResolutionWindow = GraphDataLoader.buildCurrentTempResolutionWindow(now),
+        queryWindow: com.weatherwidget.widget.CurrentTemperatureResolver.CurrentTempResolutionWindow = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now),
     ): ObservationResolver.ObservedCurrentTemperature? {
         val resolved = ActualsAggregator.resolveCurrentObservation(
             observations = observations.map { it.toReading() },
@@ -61,7 +61,7 @@ object CurrentTempResolver {
             userLon = lon,
             nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             lookbackHours = 12L,
-            lookaheadHours = 2L,
+            lookaheadHours = 3L,
         )
 
         Log.d(

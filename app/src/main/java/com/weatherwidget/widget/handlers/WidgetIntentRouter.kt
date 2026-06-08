@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.NavigationUtils
@@ -399,9 +400,6 @@ suspend fun handleToggleView(
         val stateManager = WidgetStateManager(context)
         val newMode = stateManager.toggleViewMode(appWidgetId)
         Log.d(TAG, "handleToggleView: Toggled to $newMode for widget $appWidgetId")
-        if (newMode != ViewMode.TEMPERATURE) {
-            TemperatureViewHandler.cancelCurrentTempRefinement(appWidgetId)
-        }
 
         val ctx = resolveRefreshContext(context, "toggle_view")
 
@@ -518,9 +516,6 @@ suspend fun handleTogglePrecip(
         val stateManager = WidgetStateManager(context)
         val newMode = stateManager.togglePrecipitationMode(appWidgetId)
         Log.d(TAG, "handleTogglePrecip: Toggled to $newMode for widget $appWidgetId")
-        if (newMode != ViewMode.TEMPERATURE) {
-            TemperatureViewHandler.cancelCurrentTempRefinement(appWidgetId)
-        }
 
         val ctx = resolveRefreshContext(context, "toggle_precip")
 
@@ -567,9 +562,6 @@ suspend fun handleSetView(
         val previousZoom = stateManager.getZoomLevel(appWidgetId)
         val previousOffset = stateManager.getHourlyOffset(appWidgetId)
         stateManager.setViewMode(appWidgetId, targetMode)
-        if (previousMode == ViewMode.TEMPERATURE && targetMode != ViewMode.TEMPERATURE) {
-            TemperatureViewHandler.cancelCurrentTempRefinement(appWidgetId)
-        }
         Log.d(
             TAG,
             "handleSetView: target=$targetMode previousMode=$previousMode previousZoom=$previousZoom " +
@@ -745,8 +737,7 @@ suspend fun handleResize(
 
         val stateManager = WidgetStateManager(context)
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-        val zoom = stateManager.getZoomLevel(appWidgetId)
-        
+
         val graphStyleObs = CurrentTempResolver.resolveGraphStyleCurrentTemp(
             repository = repository,
             lat = lat,
@@ -758,8 +749,8 @@ suspend fun handleResize(
 
         val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(ctCurrentTemps, displaySource)
 
-        val smoothedForecasts = computeSmoothedForecasts(
-            hourlyForecasts, displaySource
+        val smoothedForecasts = com.weatherwidget.widget.CurrentTemperatureResolver.computeSmoothedForecasts(
+            currentTempHourlyForecasts.map { it.toHourlyForecast() }, displaySource.id
         )
 
         DailyViewHandler.updateWidget(
@@ -777,6 +768,7 @@ suspend fun handleResize(
                 lastObservedTemp = observation?.temperature,
                 observedAt = observation?.observedAt,
                 smoothedForecasts = smoothedForecasts,
+                currentTempHourlyForecasts = currentTempHourlyForecasts,
             ),
             now = LocalDateTime.now(),
             startupToken = null,
@@ -859,7 +851,8 @@ suspend fun handleResize(
         val database = WeatherDatabase.getDatabase(context)
         val weatherList = database.forecastDao().getForecastsInRange(todayEpoch, todayEpoch, lat, lon)
         val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val currentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
+        val currentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs)
+            ?: database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
         val currentTempHourlyForecasts =
             GraphDataLoader.loadCurrentTempResolutionHourlyForecasts(
                 hourlyDao = database.hourlyForecastDao(),
@@ -870,7 +863,7 @@ suspend fun handleResize(
 
         val todayPrecip = weatherList.find { it.source == displaySource.id }?.precipProbability
         val zoom = stateManager.getZoomLevel(appWidgetId)
-        
+
         // Resolve current temperature using the graph's IDW + forward extrapolation logic for consistency.
         val graphStyleObs = CurrentTempResolver.resolveGraphStyleCurrentTemp(
             repository = repository,
@@ -880,7 +873,7 @@ suspend fun handleResize(
             hourlyForecasts = currentTempHourlyForecasts,
             now = now,
         )
-        
+
         val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
         
         logCurrentTempStalenessDebug(

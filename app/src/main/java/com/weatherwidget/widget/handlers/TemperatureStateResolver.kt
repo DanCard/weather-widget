@@ -74,8 +74,8 @@ internal object TemperatureStateResolver {
         startupToken: String? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         appLogDao: AppLogDao? = null,
+        now: LocalDateTime = LocalDateTime.now(),
     ): ResolutionResult {
-        val now = LocalDateTime.now()
         val effectiveAppLogDao = appLogDao ?: WeatherDatabase.getDatabase(context).appLogDao()
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON

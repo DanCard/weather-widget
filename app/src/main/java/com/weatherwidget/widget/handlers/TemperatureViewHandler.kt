@@ -38,10 +38,6 @@ object TemperatureViewHandler {
     private val refinementJobs = ConcurrentHashMap<Int, Job>()
     private val fullGraphRefreshJobs = ConcurrentHashMap<Int, Job>()
 
-    fun cancelCurrentTempRefinement(appWidgetId: Int) {
-        refinementJobs.remove(appWidgetId)?.cancel()
-    }
-
     suspend fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -152,6 +148,7 @@ object TemperatureViewHandler {
                     isNowLineVisible = resolutionResult.isNowLineVisible,
                     quickResolution = resolutionResult.currentTempResolution,
                     storedDeltaState = storedDeltaState,
+                    smoothedForecasts = resolutionResult.smoothedForecasts,
                 )
             )
         }
@@ -200,6 +197,7 @@ object TemperatureViewHandler {
         val isNowLineVisible: Boolean,
         val quickResolution: CurrentTemperatureResolution,
         val storedDeltaState: CurrentTemperatureDeltaState?,
+        val smoothedForecasts: Map<Long, Float>?,
     )
 
     private fun scheduleCurrentTempRefinement(
@@ -218,17 +216,13 @@ object TemperatureViewHandler {
                     storedDeltaState = params.storedDeltaState,
                     currentLat = params.currentLat,
                     currentLon = params.currentLon,
+                    smoothedForecasts = params.smoothedForecasts,
                 )
 
             if (refined.shouldClearStoredDelta) {
                 params.stateManager.clearCurrentTempDeltaState(params.appWidgetId, params.displaySource)
             }
             refined.updatedDeltaState?.let { params.stateManager.setCurrentTempDeltaState(params.appWidgetId, params.displaySource, it) }
-
-            if (params.stateManager.getViewMode(params.appWidgetId) != com.weatherwidget.widget.ViewMode.TEMPERATURE) {
-                Log.d(TAG, "scheduleCurrentTempRefinement: skipping stale partial update for widget=${params.appWidgetId}")
-                return@launch
-            }
 
             if (!shouldApplyRefinedHeaderUpdate(params.quickResolution, refined, params.isNowLineVisible)) {
                 return@launch
@@ -255,9 +249,9 @@ object TemperatureViewHandler {
                 partialViews.setTextViewTextSize(com.weatherwidget.R.id.current_temp_delta, android.util.TypedValue.COMPLEX_UNIT_PX, deltaPx)
                 partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.VISIBLE)
             } else {
-            partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.GONE)
+                partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.GONE)
             }
-
+            
             params.appWidgetManager.partiallyUpdateAppWidget(params.appWidgetId, partialViews)
         }
     }

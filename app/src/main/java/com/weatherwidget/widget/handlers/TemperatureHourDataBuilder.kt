@@ -14,6 +14,7 @@ import com.weatherwidget.shared.actuals.BlendObservationStats
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
+import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.GraphRenderUtils
 import com.weatherwidget.widget.HourlyGraphDefaults
 import com.weatherwidget.widget.ObservationResolver
@@ -29,23 +30,16 @@ import java.time.format.DateTimeFormatter
 private const val TAG = "TemperatureHourDataBuilder"
 private const val BLEND_DEBUG_THROTTLE_MS = 50L
 
-internal const val HEADER_SMOOTH_ITERATIONS = 0
-
 internal fun computeSmoothedForecasts(
     hourlyForecasts: List<HourlyForecastEntity>,
     displaySource: WeatherSource,
-    smoothIterations: Int = HEADER_SMOOTH_ITERATIONS,
+    smoothIterations: Int = CurrentTemperatureResolver.HEADER_SMOOTH_ITERATIONS,
 ): Map<Long, Float> {
-    val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
-    val sortedTimes = forecastsByTime.keys.sorted()
-    val rawTemps = sortedTimes.map { forecastsByTime[it]!!.temperature }
-    val smoothedTemps = GraphRenderUtils.smoothValuesPreservingAllExtrema(
-        rawTemps,
-        iterations = smoothIterations,
+    return CurrentTemperatureResolver.computeSmoothedForecasts(
+        hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+        displaySourceId = displaySource.id,
+        smoothIterations = smoothIterations,
     )
-    return sortedTimes.mapIndexed { index, time ->
-        time to smoothedTemps[index]
-    }.toMap()
 }
 
 internal data class SelectedObservationSeries(

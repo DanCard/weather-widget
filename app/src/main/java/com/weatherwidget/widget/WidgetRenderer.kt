@@ -120,7 +120,7 @@ object WidgetRenderer {
         // Filter hourly forecasts to the NOW-centered window for current temp resolution.
         // This ensures the current temp display is always based on forecasts around NOW,
         // not any scrolled graph window.
-        val nowResolutionWindow = GraphDataLoader.buildCurrentTempResolutionWindow(now)
+        val nowResolutionWindow = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
         val nowZoneId = ZoneId.systemDefault()
         val nowMinEpoch = nowResolutionWindow.start.atZone(nowZoneId).toInstant().toEpochMilli()
         val nowMaxEpoch = nowResolutionWindow.end.atZone(nowZoneId).toInstant().toEpochMilli()
@@ -143,21 +143,22 @@ object WidgetRenderer {
                     queryWindow = nowResolutionWindow,
                 )
             } else {
-                ActualsAggregator.resolveCurrentObservation(
+                val resolved = ActualsAggregator.resolveCurrentObservation(
                     observations = currentTemps.map { it.toReading() },
-                    hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+                    hourlyForecasts = nowCenteredHourlyForecasts.map { it.toHourlyForecast() },
                     displaySourceId = displaySource.id,
                     userLat = locationLat,
                     userLon = locationLon,
-                    nowMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     lookbackHours = 12L,
                     lookaheadHours = 2L,
-                )?.let { (temp, timestamp, fetchedAt) ->
+                )
+                resolved?.let { (temp, timestamp, fetchedAt) ->
                     ObservationResolver.ObservedCurrentTemperature(
                         temperature = temp,
                         observedAt = timestamp,
                         source = displaySource.id,
-                        rowFetchedAt = fetchedAt,
+                        rowFetchedAt = fetchedAt
                     )
                 }
             }
@@ -245,6 +246,7 @@ object WidgetRenderer {
                     observationData = ObservationData(
                         lastObservedTemp = observation?.temperature,
                         observedAt = observation?.observedAt,
+                        currentTempHourlyForecasts = nowCenteredHourlyForecasts,
                     ),
                     now = LocalDateTime.now(),
                     startupToken = startupToken,
