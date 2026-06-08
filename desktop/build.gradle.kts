@@ -36,6 +36,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation("org.jetbrains.compose.ui:ui-test-junit4:1.7.3")
     testImplementation(libs.coroutines.test)
+    testImplementation(libs.mockk)
 }
 
 // Bundle the genmon panel script into the jar (single source of truth: scripts/genmon-weather.py).

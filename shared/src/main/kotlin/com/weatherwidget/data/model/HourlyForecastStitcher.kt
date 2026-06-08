@@ -21,6 +21,8 @@ object HourlyForecastStitcher {
             byTime[row.dateTime] = if (historical != null) {
                 row.copy(
                     cloudCover = row.cloudCover ?: historical.cloudCover,
+                    precipProbability = row.precipProbability ?: historical.precipProbability,
+                    precipAmountMm = row.precipAmountMm ?: historical.precipAmountMm,
                 )
             } else {
                 row

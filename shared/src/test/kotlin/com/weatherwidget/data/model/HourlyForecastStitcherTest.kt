@@ -74,6 +74,42 @@ class HourlyForecastStitcherTest {
     }
 
     @Test
+    fun `stitch repairs missing precip fields from history`() {
+        val t1 = 1_000L
+        val current = listOf(
+            HourlyForecast(
+                dateTime = t1,
+                temperature = 70f,
+                condition = "Clear",
+                cloudCover = 10,
+                precipProbability = null,
+                precipAmountMm = null,
+                source = "NWS",
+                fetchedAt = 200L,
+            ),
+        )
+        val history = listOf(
+            HourlyForecast(
+                dateTime = t1,
+                temperature = 68f,
+                condition = "Rain",
+                cloudCover = 90,
+                precipProbability = 80,
+                precipAmountMm = 5.0f,
+                source = "NWS",
+                fetchedAt = 100L,
+            ),
+        )
+
+        val stitched = HourlyForecastStitcher.stitch(current, history)
+        val repaired = stitched.first()
+
+        assertEquals(80, repaired.precipProbability)
+        assertEquals(5.0f, repaired.precipAmountMm!!, 0.0f)
+        assertEquals(10, repaired.cloudCover) // Current cloud cover still wins
+    }
+
+    @Test
     fun `stitch keeps cloud cover null when neither current nor history has it`() {
         val result = HourlyForecastStitcher.stitch(
             current = listOf(

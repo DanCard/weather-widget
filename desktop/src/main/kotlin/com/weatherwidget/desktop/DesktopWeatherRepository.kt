@@ -103,9 +103,33 @@ class DesktopWeatherRepository(
         )
     }
 
+    private var hasAttemptedBackfill = false
+
     suspend fun refresh(): ForecastResult = withContext(Dispatchers.IO) {
-        val result = weatherService.fetchForecast()
         val now = System.currentTimeMillis()
+        
+        // One-time backfill if history is empty (e.g. fresh install)
+        if (!hasAttemptedBackfill) {
+            hasAttemptedBackfill = true
+            val historyStart = now - (72 * 3600 * 1000L)
+            val historyCount = weatherDao.getHourlyHistoryCount(latitude, longitude, weatherSource, historyStart, now)
+            if (historyCount < 24) {
+                Log.i("DesktopWeatherRepository", "History sparse ($historyCount rows), triggering one-time backfill from Open-Meteo")
+                try {
+                    val historyResult = weatherService.fetchHistory(3)
+                    if (historyResult.hourly.isNotEmpty()) {
+                        // Use bucket 0 for the one-time backfill snapshots to distinguish from regular 4h snapshots.
+                        // Store as GENERIC_GAP so it serves as a fallback without masking NWS retrieval bugs.
+                        weatherDao.upsertHourlyForecastHistory(latitude, longitude, WeatherSource.GENERIC_GAP.id, 0L, historyResult.hourly)
+                        Log.i("DesktopWeatherRepository", "Backfill success: ${historyResult.hourly.size} rows")
+                    }
+                } catch (e: Exception) {
+                    Log.e("DesktopWeatherRepository", "Backfill failed: $e")
+                }
+            }
+        }
+
+        val result = weatherService.fetchForecast()
 
         // Persist
         weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, result.hourly)
