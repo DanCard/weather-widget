@@ -67,13 +67,13 @@ private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionR
 private const val COLD_THRESHOLD = 50f
 private const val MILD_TEMP = 70f
 private const val HOT_THRESHOLD = 90f
-private const val WIDE_BACK_HOURS = 12
-private const val WIDE_FORWARD_HOURS = 12
+private const val WIDE_BACK_HOURS = DesktopGraphUtils.WIDE_BACK_HOURS
+private const val WIDE_FORWARD_HOURS = DesktopGraphUtils.WIDE_FORWARD_HOURS
 private const val ACTUALS_CONTEXT_LOOKBACK_HOURS = 72L
 private const val ACTUALS_CONTEXT_LOOKAHEAD_HOURS = 60L
-private const val WIDE_LABEL_INTERVAL = 4
-private const val NARROW_WIDE_LABEL_INTERVAL = 6
-private const val NARROW_WIDTH_PX = 420f
+private const val WIDE_LABEL_INTERVAL = DesktopGraphUtils.WIDE_LABEL_INTERVAL
+private const val NARROW_WIDE_LABEL_INTERVAL = DesktopGraphUtils.NARROW_WIDE_LABEL_INTERVAL
+private const val NARROW_WIDTH_PX = DesktopGraphUtils.NARROW_WIDTH_PX
 private const val AGE_LABEL_MAX_HOURS_SPAN = 12L
 
 /**
@@ -691,14 +691,7 @@ private fun DrawScope.drawDayLabels(
     }
 }
 
-private fun formatHourLabel(hour: Int): String {
-    val hour12 = when (val h = hour % 12) {
-        0 -> 12
-        else -> h
-    }
-    val suffix = if (hour < 12) "a" else "p"
-    return "$hour12$suffix"
-}
+private fun formatHourLabel(hour: Int): String = DesktopGraphUtils.formatHourLabel(hour)
 
 private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, scale: Float, xAt: (Int) -> Float) {
     if (points.isEmpty()) return
@@ -744,56 +737,9 @@ private fun buildColorStops(minTemp: Float, maxTemp: Float, range: Float): Array
     }.sortedBy { it.first }.distinctBy { (it.first * 1000).toInt() }.toTypedArray()
 }
 
-private fun computeTangents(coords: List<Offset>): List<Offset> {
-    if (coords.size < 2) return coords.map { Offset.Zero }
-    return coords.indices.map { i ->
-        when (i) {
-            0 -> Offset(
-                (coords[1].x - coords[0].x) * 0.5f,
-                (coords[1].y - coords[0].y) * 0.5f
-            )
-            coords.size - 1 -> Offset(
-                (coords[i].x - coords[i - 1].x) * 0.5f,
-                (coords[i].y - coords[i - 1].y) * 0.5f
-            )
-            else -> {
-                val dxPrev = coords[i].x - coords[i - 1].x
-                val dxNext = coords[i + 1].x - coords[i].x
-                val dx = (dxPrev + dxNext) * 0.5f
-                var dy = (coords[i + 1].y - coords[i - 1].y) * 0.5f
+private fun computeTangents(coords: List<Offset>): List<Offset> = DesktopGraphUtils.computeTangents(coords)
 
-                val delta1 = coords[i].y - coords[i - 1].y
-                val delta2 = coords[i + 1].y - coords[i].y
-                if (delta1 == 0f || delta2 == 0f || (delta1 > 0 && delta2 < 0) || (delta1 < 0 && delta2 > 0)) {
-                    dy = 0f
-                }
-                
-                val maxSafeDx = dxPrev.coerceAtMost(dxNext) * 1.5f
-                if (dx > maxSafeDx && maxSafeDx > 0) {
-                    val scaleFactor = maxSafeDx / dx
-                    Offset(maxSafeDx, dy * scaleFactor)
-                } else {
-                    Offset(dx, dy)
-                }
-            }
-        }
-    }
-}
-
-private fun buildCurve(coords: List<Offset>): Path = Path().apply {
-    if (coords.isEmpty()) return@apply
-    moveTo(coords[0].x, coords[0].y)
-    if (coords.size > 1) {
-        val tangents = computeTangents(coords)
-        for (i in 0 until coords.size - 1) {
-            val cp1x = coords[i].x + tangents[i].x / 3f
-            val cp1y = coords[i].y + tangents[i].y / 3f
-            val cp2x = coords[i + 1].x - tangents[i + 1].x / 3f
-            val cp2y = coords[i + 1].y - tangents[i + 1].y / 3f
-            cubicTo(cp1x, cp1y, cp2x, cp2y, coords[i + 1].x, coords[i + 1].y)
-        }
-    }
-}
+private fun buildCurve(coords: List<Offset>): Path = DesktopGraphUtils.buildCurve(coords)
 
 private fun DrawScope.drawFill(coords: List<Offset>, minTemp: Float, maxTemp: Float, range: Float, scale: Float) {
     val h = size.height
@@ -844,15 +790,4 @@ private fun DrawScope.drawActualLine(coords: List<Offset>, scale: Float) {
     )
 }
 
-private fun List<HourlyForecast>.indexOfByClosestTime(targetTime: Long): Int {
-    var minDiff = Long.MAX_VALUE
-    var closestIdx = 0
-    forEachIndexed { index, forecast ->
-        val diff = abs(forecast.dateTime - targetTime)
-        if (diff < minDiff) {
-            minDiff = diff
-            closestIdx = index
-        }
-    }
-    return closestIdx
-}
+private fun List<HourlyForecast>.indexOfByClosestTime(targetTime: Long): Int = DesktopGraphUtils.run { indexOfByClosestTime(targetTime) }
