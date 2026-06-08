@@ -59,7 +59,7 @@ class DesktopDailyForecastModelTest {
             now = now
         )
 
-        assertEquals(8, state.days.size) // NavigationUtils default for 8 columns
+        assertEquals(9, state.days.size) // NavigationUtils default for 9 columns
 
         val jun1 = state.days.find { it.date == LocalDate.parse("2026-06-01") }!!
         assertEquals(77f, jun1.solidHigh)

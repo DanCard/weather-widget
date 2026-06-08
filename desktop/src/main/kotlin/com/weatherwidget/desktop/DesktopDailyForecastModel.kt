@@ -54,10 +54,10 @@ data class DesktopDailyViewState(
 )
 
 object DesktopDailyForecastModel {
-    private const val CELL_WIDTH_DP = 70
+    private const val CELL_WIDTH_DP = 60
     private const val CELL_HEIGHT_DP = 90
     private const val ICON_WIDTH_THRESHOLD_DP = 130
-    private const val MAX_DESKTOP_DAILY_COLUMNS = 8
+    private const val MAX_DESKTOP_DAILY_COLUMNS = 9
 
     fun dimensions(widthDp: Int, heightDp: Int): DesktopWidgetDimensions {
         val cols = ((widthDp + 15).toFloat() / CELL_WIDTH_DP).roundToInt()
