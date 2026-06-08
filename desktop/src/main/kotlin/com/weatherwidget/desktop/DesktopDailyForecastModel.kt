@@ -148,11 +148,17 @@ object DesktopDailyForecastModel {
                 forecastLow = snapshot?.lowTemp ?: forecast?.lowTemp
             }
             isToday -> {
-                val current = currentTemp
-                solidHigh = listOfNotNull(actual?.highTemp, current).maxOrNull()
-                solidLow = actual?.lowTemp ?: current
-                forecastHigh = forecast?.highTemp
-                forecastLow = forecast?.lowTemp
+                val todayValues = com.weatherwidget.shared.util.DailyDayValueResolver.resolveTodayLineValues(
+                    actualHigh = actual?.highTemp,
+                    actualLow = actual?.lowTemp,
+                    forecastHigh = forecast?.highTemp,
+                    forecastLow = forecast?.lowTemp,
+                    currentTemp = currentTemp,
+                )
+                solidHigh = todayValues.solidHigh
+                solidLow = todayValues.solidLow
+                forecastHigh = todayValues.forecastHigh
+                forecastLow = todayValues.forecastLow
             }
             else -> {
                 solidHigh = forecast?.highTemp
