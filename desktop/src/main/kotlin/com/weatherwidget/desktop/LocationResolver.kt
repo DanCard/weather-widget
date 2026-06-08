@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.remote.GeocodeResult
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.remote.NominatimApi
+import com.weatherwidget.data.model.ResolvedLocation
 import kotlin.math.roundToInt
 
 class LocationResolver(
@@ -102,28 +103,19 @@ class LocationResolver(
         )
 }
 
-data class ResolvedLocation(
-    val lat: Double,
-    val lon: Double,
-    val label: String,
-    val source: String,
-    val detail: String? = null,
-    val isFresh: Boolean = true,
-) {
-    fun toConfig(): DesktopConfig {
-        val isUs = (lat in 24.0..50.0 && lon in -125.0..-66.0) || // CONUS
-                   (lat in 51.0..72.0 && lon in -180.0..-130.0) || // Alaska
-                   (lat in 18.0..23.0 && lon in -161.0..-154.0) || // Hawaii
-                   (lat in 17.0..19.0 && lon in -68.0..-65.0)      // Puerto Rico
-        
-        return DesktopConfig(
-            lat = lat,
-            lon = lon,
-            label = label,
-            source = source,
-            weatherSource = if (isUs) "NWS" else "OPEN_METEO"
-        )
-    }
+fun ResolvedLocation.toConfig(): DesktopConfig {
+    val isUs = (lat in 24.0..50.0 && lon in -125.0..-66.0) || // CONUS
+               (lat in 51.0..72.0 && lon in -180.0..-130.0) || // Alaska
+               (lat in 18.0..23.0 && lon in -161.0..-154.0) || // Hawaii
+               (lat in 17.0..19.0 && lon in -68.0..-65.0)      // Puerto Rico
+    
+    return DesktopConfig(
+        lat = lat,
+        lon = lon,
+        label = label,
+        source = source,
+        weatherSource = if (isUs) "NWS" else "OPEN_METEO"
+    )
 }
 
 private fun Double.formatCoord(): String = "%.4f".format(this)

@@ -66,6 +66,9 @@ class ConfigActivity : AppCompatActivity() {
         val useGpsButton = findViewById<Button>(R.id.use_gps_button)
         val useZipButton = findViewById<Button>(R.id.use_zip_button)
         val sourceSpinner = findViewById<Spinner>(R.id.source_spinner)
+        val latInput = findViewById<EditText>(R.id.lat_input)
+        val lonInput = findViewById<EditText>(R.id.lon_input)
+        val useCoordinatesButton = findViewById<Button>(R.id.use_coordinates_button)
 
         // Setup Source Spinner
         val sources = WeatherSource.entries.filter { it != WeatherSource.GENERIC_GAP && it != WeatherSource.OPEN_WEATHER_MAP }
@@ -84,6 +87,17 @@ class ConfigActivity : AppCompatActivity() {
                 saveZipCodeLocation(zipCode)
             } else {
                 Toast.makeText(this, "Please enter a valid 5-digit ZIP code", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        useCoordinatesButton.setOnClickListener {
+            val lat = latInput.text.toString().toDoubleOrNull()
+            val lon = lonInput.text.toString().toDoubleOrNull()
+            if (lat != null && lat in -90.0..90.0 && lon != null && lon in -180.0..180.0) {
+                saveSelectedSource()
+                saveLocation(lat, lon)
+            } else {
+                Toast.makeText(this, "Please enter valid coordinates (-90 to 90 lat, -180 to 180 lon)", Toast.LENGTH_SHORT).show()
             }
         }
     }
