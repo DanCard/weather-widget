@@ -1,24 +1,14 @@
 package com.weatherwidget.util
 
-import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.roundToInt
+import com.weatherwidget.shared.util.TempUtils as SharedTempUtils
 
 object TempUtils {
     /**
      * Consistently formats a temperature value for display.
-     * Shows 1 decimal place if the value is not close to an integer.
-     * Uses a consistent 0.01 threshold for "closeness" to ensure high-precision
-     * blended values are preserved while official integer forecasts remain clean.
+     * Delegates to shared [SharedTempUtils.formatTemp].
      */
     fun formatTemp(v: Float?): String? {
-        if (v == null) return null
-        val rounded = v.roundToInt()
-        val result = if (abs(v - rounded) < 0.01f) {
-            "$rounded°"
-        } else {
-            String.format(Locale.getDefault(), "%.1f°", v)
-        }
+        val result = SharedTempUtils.formatTemp(v)
         android.util.Log.d("TempUtils", "formatTemp: in=$v out=$result")
         return result
     }
@@ -27,8 +17,6 @@ object TempUtils {
      * Calculates a simple squared Euclidean distance for sorting nearby locations.
      */
     fun distanceSq(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val dLat = lat1 - lat2
-        val dLon = lon1 - lon2
-        return dLat * dLat + dLon * dLon
+        return SharedTempUtils.distanceSq(lat1, lon1, lat2, lon2)
     }
 }

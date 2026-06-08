@@ -265,10 +265,5 @@ private fun labelSizeFor(dayWidth: Float): Int =
 private fun formatTemp(v: Float?, isActualData: Boolean): String {
     if (v == null) return ""
     if (!isActualData) return "${v.roundToInt()}°"
-    val rounded = v.roundToInt()
-    return if (kotlin.math.abs(v - rounded) < 0.01f) {
-        "$rounded°"
-    } else {
-        String.format(java.util.Locale.getDefault(), "%.1f°", v)
-    }
+    return com.weatherwidget.shared.util.TempUtils.formatTemp(v) ?: ""
 }
