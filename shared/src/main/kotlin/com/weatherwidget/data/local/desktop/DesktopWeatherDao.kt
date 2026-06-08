@@ -442,7 +442,17 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     fun getHourlyWithHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, maxAgeMs: Long): List<HourlyForecast> {
         val current = getLatestHourly(locationLat, locationLon, source, maxAgeMs).filter { it.dateTime in startMs..endMs }
         val history = getHourlyHistory(locationLat, locationLon, source, startMs, endMs)
-        return HourlyForecastStitcher.stitch(current, history)
+        val stitched = HourlyForecastStitcher.stitch(current, history)
+        val repairedCloudCoverCount = current.count { row ->
+            row.cloudCover == null && stitched.firstOrNull { it.dateTime == row.dateTime }?.cloudCover != null
+        }
+        if (repairedCloudCoverCount > 0) {
+            Log.i(
+                "DesktopWeatherDao",
+                "getHourlyWithHistory: repairedCloudCover=$repairedCloudCoverCount current=${current.size} history=${history.size} stitched=${stitched.size}",
+            )
+        }
+        return stitched
     }
 
     fun getDailyForecasts(locationLat: Double, locationLon: Double, source: String): List<DailyForecast> {

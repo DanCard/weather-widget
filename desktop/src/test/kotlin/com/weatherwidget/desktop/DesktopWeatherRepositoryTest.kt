@@ -90,4 +90,52 @@ class DesktopWeatherRepositoryTest {
             throw e
         }
     }
+
+    @Test
+    fun `loadCached fills missing cloud cover from hourly history`() = runTest {
+        val baseTime = System.currentTimeMillis()
+        val now = (baseTime / 3600_000L) * 3600_000L
+
+        val liveRows = listOf(
+            HourlyForecast(
+                dateTime = now - 3600_000L,
+                temperature = 70f,
+                condition = "Clear",
+                cloudCover = null,
+                source = "NWS",
+                fetchedAt = now,
+            ),
+            HourlyForecast(
+                dateTime = now + 3600_000L,
+                temperature = 72f,
+                condition = "Sunny",
+                cloudCover = 14,
+                source = "NWS",
+                fetchedAt = now,
+            ),
+        )
+        val historyRows = listOf(
+            HourlyForecast(
+                dateTime = now - 3600_000L,
+                temperature = 68f,
+                condition = "Cloudy",
+                cloudCover = 82,
+                source = "NWS",
+                fetchedAt = now - 10_000L,
+            ),
+        )
+
+        dao.upsertHourlyForecasts(37.4220, -122.0841, "NWS", liveRows)
+        dao.upsertHourlyForecastHistory(37.4220, -122.0841, "NWS", now - 4 * 3600_000L, historyRows)
+
+        val result = repository.loadCached()
+        assertNotNull(result)
+
+        val merged = result!!.hourly.associateBy { it.dateTime }
+        val repaired = merged[now - 3600_000L]!!
+        assertEquals(82, repaired.cloudCover)
+        assertEquals(70f, repaired.temperature, 0.0f)
+        assertEquals("Clear", repaired.condition)
+        assertEquals(14, merged[now + 3600_000L]!!.cloudCover)
+    }
 }
