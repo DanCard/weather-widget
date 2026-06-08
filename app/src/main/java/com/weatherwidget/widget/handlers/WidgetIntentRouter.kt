@@ -756,6 +756,8 @@ suspend fun handleResize(
             now = now,
         )
 
+        val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(ctCurrentTemps, displaySource)
+
         val smoothedForecasts = computeSmoothedForecasts(
             hourlyForecasts, displaySource
         )
@@ -772,8 +774,8 @@ suspend fun handleResize(
                 dailyActualsBySource = finalDailyActuals,
             ),
             observationData = ObservationData(
-                lastObservedTemp = graphStyleObs?.temperature,
-                observedAt = graphStyleObs?.observedAt,
+                lastObservedTemp = observation?.temperature,
+                observedAt = observation?.observedAt,
                 smoothedForecasts = smoothedForecasts,
             ),
             now = LocalDateTime.now(),
