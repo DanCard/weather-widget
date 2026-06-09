@@ -132,6 +132,7 @@ private fun runApp() = application {
         var settingsVisible by remember { mutableStateOf(false) }
         var statsVisible by remember { mutableStateOf(false) }
         var observationsVisible by remember { mutableStateOf(false) }
+        var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
         val desktopClients = remember { DesktopClients() }
         val locationResolver = remember {
@@ -294,6 +295,7 @@ private fun runApp() = application {
                 weatherDao = weatherDao,
                 repository = repository,
                 config = currentConfig,
+                showRequestId = obsShowRequestId,
                 onClose = { observationsVisible = false },
                 onConfigUpdate = { newConfig ->
                     saveConfigAndNotify(newConfig)
@@ -353,6 +355,7 @@ private fun runApp() = application {
                     },
                     onOpenObservations = {
                         observationsVisible = true
+                        obsShowRequestId++
                     },
                     onRefreshData = {
                         repository?.let { forecast = it.refresh() }
@@ -433,6 +436,7 @@ private fun runApp() = application {
                     },
                     onOpenObservations = {
                         observationsVisible = true
+                        obsShowRequestId++
                     }
                 )
             }

@@ -35,6 +35,7 @@ internal fun ObservationsWindow(
     weatherDao: DesktopWeatherDao,
     repository: DesktopWeatherRepository,
     config: DesktopConfig,
+    showRequestId: Int = 0,
     onClose: () -> Unit,
     onConfigUpdate: (DesktopConfig) -> Unit,
 ) {
@@ -69,6 +70,20 @@ internal fun ObservationsWindow(
         state = state,
         title = "Weather Observations & Logs",
     ) {
+        // Bring to front on every new show request (incremented showRequestId)
+        LaunchedEffect(showRequestId) {
+            if (state.isMinimized) {
+                state.isMinimized = false
+            }
+            if (window is java.awt.Frame) {
+                val frameState = window.extendedState
+                if ((frameState and java.awt.Frame.ICONIFIED) != 0) {
+                    window.extendedState = java.awt.Frame.NORMAL
+                }
+            }
+            window.toFront()
+            window.requestFocus()
+        }
         var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.weatherSource)) }
         var observations by remember { mutableStateOf<List<DesktopObservationEntity>>(emptyList()) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
