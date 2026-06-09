@@ -156,5 +156,6 @@
     <string name="save_location">Save Location</string>
     <string name="default_location_title">Default Location</string>
     <string name="location_saved_success">Location updated for all widgets</string>
+    <string name="location_updated_from_gps">Location updated from GPS</string>
     <string name="invalid_coordinates_range">Please enter valid coordinates (-90 to 90 lat, -180 to 180 lon)</string>
 </resources>

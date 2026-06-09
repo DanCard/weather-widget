@@ -21,6 +21,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
@@ -208,16 +210,55 @@ class ConfigActivity : AppCompatActivity() {
 
         saveSelectedSource()
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-            if (location != null) {
-                saveLocation(location.latitude, location.longitude)
-            } else {
+
+        // Actively request a fresh fix. `lastLocation` returns only a cached value that is
+        // frequently null (after reboot, or when no app has requested location recently), which
+        // previously caused a silent fallback to the default coordinates (Google HQ). That is why
+        // widgets ended up "stuck" at the default even with location permission granted.
+        // `getCurrentLocation` computes a new fix from GPS/network, falling back to the cached
+        // `lastLocation` and only then to the hard default.
+        val cancellationToken = CancellationTokenSource()
+        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
+            .addOnSuccessListener { location ->
+                if (location != null) {
+                    saveLocation(location.latitude, location.longitude)
+                } else {
+                    fallBackToLastLocation(fusedLocationClient)
+                }
+            }
+            .addOnFailureListener {
+                fallBackToLastLocation(fusedLocationClient)
+            }
+    }
+
+    /**
+     * Last-resort location resolution: try the cached fix, then the hard default. Only reached when
+     * an active [FusedLocationProviderClient.getCurrentLocation] request yields nothing.
+     */
+    private fun fallBackToLastLocation(
+        fusedLocationClient: com.google.android.gms.location.FusedLocationProviderClient,
+    ) {
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            saveLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON)
+            return
+        }
+        fusedLocationClient.lastLocation
+            .addOnSuccessListener { cached ->
+                if (cached != null) {
+                    saveLocation(cached.latitude, cached.longitude)
+                } else {
+                    Toast.makeText(this, "Could not get current location. Using default.", Toast.LENGTH_SHORT).show()
+                    saveLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON)
+                }
+            }
+            .addOnFailureListener {
                 Toast.makeText(this, "Could not get current location. Using default.", Toast.LENGTH_SHORT).show()
                 saveLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON)
             }
-        }.addOnFailureListener {
-            Toast.makeText(this, "Error getting location", Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun saveZipCodeLocation(zipCode: String) {

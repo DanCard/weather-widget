@@ -7,16 +7,27 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.weatherwidget.R
+import com.weatherwidget.data.repository.SharedLocationResolver
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 import androidx.appcompat.app.AlertDialog
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+
+    @Inject
+    lateinit var sharedLocationResolver: SharedLocationResolver
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,6 +137,7 @@ class MainActivity : AppCompatActivity() {
 
                 if (fineLocationGranted) {
                     checkAndRequestBackgroundLocation()
+                    maybeAutoHealLocationFromGps()
                 }
                 updatePermissionVisibility()
             }
@@ -138,5 +150,41 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updatePermissionVisibility()
+        maybeAutoHealLocationFromGps()
+    }
+
+    /**
+     * Self-heals widgets that are stuck at the hard default location (the symptom of the old
+     * `lastLocation`-returns-null bug). When fine-location permission is granted and every widget is
+     * still at the default, actively resolve a fresh GPS fix here in the foreground (where GPS is
+     * reliable) and apply it to all widgets. No-ops once a real location is set, so it never
+     * overwrites a location the user chose deliberately.
+     */
+    private fun maybeAutoHealLocationFromGps() {
+        val fineLocationGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!fineLocationGranted) return
+        if (!LocationUpdater.allWidgetsAtDefault(this)) return
+
+        val client = LocationServices.getFusedLocationProviderClient(this)
+        val cancellationToken = CancellationTokenSource()
+        client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
+            .addOnSuccessListener { location ->
+                if (location == null) return@addOnSuccessListener
+                // Re-check: the user may have set a location between request and callback.
+                if (!LocationUpdater.allWidgetsAtDefault(this)) return@addOnSuccessListener
+                val lat = location.latitude
+                val lon = location.longitude
+                lifecycleScope.launch {
+                    val label = try {
+                        sharedLocationResolver.fromCoordinates(lat, lon).label
+                    } catch (e: Exception) {
+                        String.format("%.4f, %.4f", lat, lon)
+                    }
+                    LocationUpdater.applyToAllWidgets(this@MainActivity, lat, lon, label)
+                    Toast.makeText(this@MainActivity, getString(R.string.location_updated_from_gps), Toast.LENGTH_SHORT).show()
+                }
+            }
     }
 }

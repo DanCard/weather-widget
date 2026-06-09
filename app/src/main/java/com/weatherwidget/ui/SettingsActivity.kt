@@ -464,39 +464,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun saveLocationGlobally(lat: Double, lon: Double, label: String, widgetIds: IntArray) {
-        // 1. Update all widgets
-        val widgetPrefs = SharedPreferencesUtil.getPrefs(this, ConfigActivity.PREFS_NAME)
-        val editor = widgetPrefs.edit()
-        for (widgetId in widgetIds) {
-            editor.putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", lat.toFloat())
-            editor.putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", lon.toFloat())
-        }
-        editor.apply()
-
-        // 2. Update default POI in weather_prefs
-        val weatherPrefs = SharedPreferencesUtil.getPrefs(this, "weather_prefs")
-        val historicalPois = weatherPrefs.getString("historical_pois", null)
-        val newPoi = "$label|$lat|$lon"
-        val updatedPois = if (historicalPois.isNullOrBlank()) {
-            newPoi
-        } else {
-            val pois = historicalPois.split(";").toMutableList()
-            pois.removeAll { it.contains("|$lat|$lon") || it.startsWith("$label|") }
-            pois.add(newPoi)
-            pois.takeLast(5).joinToString(";")
-        }
-        weatherPrefs.edit().putString("historical_pois", updatedPois).apply()
-
-        // 3. Trigger widgets update
-        val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-            .setInputData(
-                Data.Builder()
-                    .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
-                    .build()
-            )
-            .build()
-        WorkManager.getInstance(this).enqueue(workRequest)
-
+        LocationUpdater.applyToAllWidgets(this, lat, lon, label)
         Toast.makeText(this, getString(R.string.location_saved_success), Toast.LENGTH_SHORT).show()
     }
 }

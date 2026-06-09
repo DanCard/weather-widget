@@ -103,10 +103,6 @@ class WeatherWidgetWorker
 
             return try {
                 val startMs = SystemClock.elapsedRealtime()
-                val location =
-                    weatherRepository.getLatestLocation()
-                        ?: (DEFAULT_LAT to DEFAULT_LON)
-                Log.d(TAG, "doWork: Location = $location")
 
                 // Build per-source fetch context up front so the repository can decide which
                 // sources are due according to ForecastFetchPolicy (charging/screen/active-aware).
@@ -114,6 +110,19 @@ class WeatherWidgetWorker
                 val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
                 val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
                 val stateManager = WidgetStateManager(context)
+
+                // The widget's CONFIGURED location (set via GPS/zip in ConfigActivity or Settings)
+                // must drive the fetch. Previously we used getLatestLocation() = the location of the
+                // most recent weather row, which decoupled the fetch from the configured location:
+                // once the table seeded to the default, every refresh re-fetched the default and the
+                // configured location (used only for rendering) was never honored — pinning the
+                // widget to the wrong place permanently.
+                val configuredLocation = appWidgetIds.toList().firstNotNullOfOrNull { id -> stateManager.getWidgetLocation(id) }
+                val location =
+                    configuredLocation
+                        ?: weatherRepository.getLatestLocation()
+                        ?: (DEFAULT_LAT to DEFAULT_LON)
+                Log.d(TAG, "doWork: Location = $location (configured=${configuredLocation != null})")
                 val activeSourceList = appWidgetIds.map { id ->
                     stateManager.getCurrentDisplaySource(id).id
                 }.distinct()
