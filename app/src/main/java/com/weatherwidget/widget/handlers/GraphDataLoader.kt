@@ -58,6 +58,8 @@ object GraphDataLoader {
             hourlyDao.getHourlyForecastsBySource(centerStartMs, centerEndMs, lat, lon, source.id)
         } else {
             hourlyDao.getHourlyForecasts(centerStartMs, centerEndMs, lat, lon)
+        }.filter {
+            Math.abs(it.locationLat - lat) < 0.0001 && Math.abs(it.locationLon - lon) < 0.0001
         }
         val currentRows = if (window.nowStart == null || window.nowEnd == null) {
             centerRows
@@ -69,6 +71,8 @@ object GraphDataLoader {
                 hourlyDao.getHourlyForecastsBySource(nowStartMs, nowEndMs, lat, lon, source.id)
             } else {
                 hourlyDao.getHourlyForecasts(nowStartMs, nowEndMs, lat, lon)
+            }.filter {
+                Math.abs(it.locationLat - lat) < 0.0001 && Math.abs(it.locationLon - lon) < 0.0001
             }
 
             (centerRows + nowRows)
@@ -138,6 +142,8 @@ object GraphDataLoader {
             window.end.atZone(zoneId).toInstant().toEpochMilli(),
             lat,
             lon,
-        )
+        ).filter {
+            Math.abs(it.locationLat - lat) < 0.0001 && Math.abs(it.locationLon - lon) < 0.0001
+        }
     }
 }

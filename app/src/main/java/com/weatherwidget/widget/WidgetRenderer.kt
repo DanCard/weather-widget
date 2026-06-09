@@ -107,16 +107,32 @@ object WidgetRenderer {
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
         val centerTime = now.plusHours(hourlyOffset.toLong())
 
+        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
         val locationLat =
-            weatherList.firstOrNull()?.locationLat
+            configuredLocation?.first
+                ?: weatherList.firstOrNull()?.locationLat
                 ?: hourlyForecasts.firstOrNull()?.locationLat
                 ?: currentTemps.firstOrNull()?.locationLat
                 ?: WeatherWidgetWorker.DEFAULT_LAT
         val locationLon =
-            weatherList.firstOrNull()?.locationLon
+            configuredLocation?.second
+                ?: weatherList.firstOrNull()?.locationLon
                 ?: hourlyForecasts.firstOrNull()?.locationLon
                 ?: currentTemps.firstOrNull()?.locationLon
                 ?: WeatherWidgetWorker.DEFAULT_LON
+
+        // 1. Pick the single coordinate pair in the hourly data that is closest to our target location.
+        // This avoids mixing data from multiple Mountain View markers (e.g. 37.422 vs 37.4168)
+        // which would otherwise cause the smoothing and interpolation to jitter.
+        val bestHourlyMatch = hourlyForecasts
+            .asSequence()
+            .map { it.locationLat to it.locationLon }
+            .distinct()
+            .minByOrNull { (lat, lon) -> Math.abs(lat - locationLat) + Math.abs(lon - locationLon) }
+
+        val unifiedHourlyForecasts = if (bestHourlyMatch != null) {
+            hourlyForecasts.filter { it.locationLat == bestHourlyMatch.first && it.locationLon == bestHourlyMatch.second }
+        } else hourlyForecasts
 
         // Filter hourly forecasts to the NOW-centered window for current temp resolution.
         // This ensures the current temp display is always based on forecasts around NOW,
@@ -125,10 +141,8 @@ object WidgetRenderer {
         val nowZoneId = ZoneId.systemDefault()
         val nowMinEpoch = nowResolutionWindow.start.atZone(nowZoneId).toInstant().toEpochMilli()
         val nowMaxEpoch = nowResolutionWindow.end.atZone(nowZoneId).toInstant().toEpochMilli()
-        val nowCenteredHourlyForecasts = hourlyForecasts.filter { row ->
-            Math.abs(row.locationLat - locationLat) <= LocationMatch.TOLERANCE_DEG &&
-                Math.abs(row.locationLon - locationLon) <= LocationMatch.TOLERANCE_DEG &&
-                row.dateTime in nowMinEpoch..nowMaxEpoch
+        val nowCenteredHourlyForecasts = unifiedHourlyForecasts.filter { row ->
+            row.dateTime in nowMinEpoch..nowMaxEpoch
         }
 
         val graphStyleObs =
@@ -191,7 +205,7 @@ object WidgetRenderer {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
-                    hourlyForecasts = hourlyForecasts,
+                    hourlyForecasts = unifiedHourlyForecasts,
                     currentTempHourlyForecasts = nowCenteredHourlyForecasts,
                     centerTime = centerTime,
                     displaySource = displaySource,
@@ -208,7 +222,7 @@ object WidgetRenderer {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
-                    hourlyForecasts = hourlyForecasts,
+                    hourlyForecasts = unifiedHourlyForecasts,
                     centerTime = centerTime,
                     precipProbability = targetPrecip,
                     lastObservedTemp = observation?.temperature,
@@ -222,7 +236,7 @@ object WidgetRenderer {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
-                    hourlyForecasts = hourlyForecasts,
+                    hourlyForecasts = unifiedHourlyForecasts,
                     centerTime = centerTime,
                     displaySource = displaySource,
                     precipProbability = targetPrecip,
@@ -240,7 +254,7 @@ object WidgetRenderer {
                     weatherData = WeatherData(
                         weatherList = weatherList,
                         forecastSnapshots = forecastSnapshots,
-                        hourlyForecasts = hourlyForecasts,
+                        hourlyForecasts = unifiedHourlyForecasts,
                         currentTemps = currentTemps,
                         dailyActualsBySource = dailyActualsBySource,
                     ),
@@ -268,7 +282,7 @@ object WidgetRenderer {
                 "widget" to appWidgetId,
                 "view" to effectiveViewMode,
                 "storedView" to viewMode,
-                "hourlyCount" to hourlyForecasts.size,
+                "hourlyCount" to unifiedHourlyForecasts.size,
                 "forecastCount" to weatherList.size,
                 "totalMs" to totalMs,
             ),

@@ -104,15 +104,25 @@ object CurrentTemperatureResolver {
         currentLon: Double,
         smoothedForecasts: Map<Long, Float>? = null,
     ): CurrentTemperatureResolution {
+        val window = buildCurrentTempResolutionWindow(now)
+        val zoneId = ZoneId.systemDefault()
+        val minMs = window.start.atZone(zoneId).toInstant().toEpochMilli()
+        val maxMs = window.end.atZone(zoneId).toInstant().toEpochMilli()
+
+        // Consistency: Even if the caller passed a 7-day list (fallback), we MUST resolve and smooth
+        // against a fixed-size window to ensure the delta doesn't jump between view modes.
+        val strictHourlyForecasts = hourlyForecasts.filter { it.dateTime in minMs..maxMs }
+
         appLog(
             "CURR_TEMP_RESOLVE",
             "resolve:start now=$now source=${displaySource.id} hourlyCount=${hourlyForecasts.size} " +
+                "strictCount=${strictHourlyForecasts.size} window=${window.start.toLocalTime()}..${window.end.toLocalTime()} " +
                 "obsTemp=$lastObservedTemp obsAt=$observedAt " +
-                "lat=$currentLat lon=$currentLon hasStored=${storedDeltaState != null}",
+                "hasStored=${storedDeltaState != null}",
         )
         val estimatedTemp =
             resolveStrictForecastTemperature(
-                hourlyForecasts = hourlyForecasts,
+                hourlyForecasts = strictHourlyForecasts,
                 targetTime = now,
                 source = displaySource,
                 smoothedForecasts = smoothedForecasts,
@@ -163,7 +173,7 @@ object CurrentTemperatureResolver {
             )
             val estimatedAtObsTime =
                 resolveStrictForecastTemperature(
-                    hourlyForecasts = hourlyForecasts,
+                    hourlyForecasts = strictHourlyForecasts,
                     targetTime = obsTime,
                     source = displaySource,
                     smoothedForecasts = smoothedForecasts,
@@ -195,7 +205,7 @@ object CurrentTemperatureResolver {
             }
         }
 
-        val isStaleEstimate = isStaleHourlyData(now, displaySource, hourlyForecasts)
+        val isStaleEstimate = isStaleHourlyData(now, displaySource, strictHourlyForecasts)
         val displayTemp =
             if (estimatedTemp != null && appliedDelta != null) {
                 estimatedTemp + appliedDelta
