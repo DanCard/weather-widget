@@ -259,7 +259,7 @@ afterEvaluate {
     ) {
         val taskSuffix = if (forceExecution) "Fresh" else ""
 
-        tasks.register<Test>("test${bucketName}DebugUnitTest${taskSuffix}") {
+        tasks.register<Test>("test${bucketName}DebugUnitTest$taskSuffix") {
             group = "verification"
             description =
                 if (forceExecution) {
