@@ -4,6 +4,7 @@ import android.util.Log
 import com.weatherwidget.data.local.DailyExtremeEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.toDailyExtreme
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
@@ -159,21 +160,29 @@ object ObservationResolver {
     ): DailyActualsBySource {
         val local = ZoneId.systemDefault()
         return extremes
-            .filter { it.locationLat == lat && it.locationLon == lon }
+            .filter {
+                Math.abs(it.locationLat - lat) <= LocationMatch.TOLERANCE_DEG &&
+                    Math.abs(it.locationLon - lon) <= LocationMatch.TOLERANCE_DEG
+            }
             .groupBy { it.source }
             .mapValues { (_, sourceEntities) ->
-                sourceExtremesToDailyActualMap(sourceEntities, local)
+                sourceExtremesToDailyActualMap(sourceEntities, lat, lon, local)
             }
     }
 
     private fun sourceExtremesToDailyActualMap(
         entities: List<DailyExtremeEntity>,
+        lat: Double,
+        lon: Double,
         local: ZoneId,
     ): DailyActualMap {
-        return entities.associate { entity ->
-            val extreme = entity.toDailyExtreme()
-            extreme.toLocalDate() to extreme
-        }
+        return entities
+            .groupBy { it.toDailyExtreme().toLocalDate() }
+            .mapValues { (_, dateEntities) ->
+                dateEntities.minBy {
+                    com.weatherwidget.shared.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
+                }.toDailyExtreme()
+            }
     }
 
     /**

@@ -10,6 +10,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
@@ -125,8 +126,8 @@ object WidgetRenderer {
         val nowMinEpoch = nowResolutionWindow.start.atZone(nowZoneId).toInstant().toEpochMilli()
         val nowMaxEpoch = nowResolutionWindow.end.atZone(nowZoneId).toInstant().toEpochMilli()
         val nowCenteredHourlyForecasts = hourlyForecasts.filter { row ->
-            row.locationLat == locationLat &&
-                row.locationLon == locationLon &&
+            Math.abs(row.locationLat - locationLat) <= LocationMatch.TOLERANCE_DEG &&
+                Math.abs(row.locationLon - locationLon) <= LocationMatch.TOLERANCE_DEG &&
                 row.dateTime in nowMinEpoch..nowMaxEpoch
         }
 
