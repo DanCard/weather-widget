@@ -296,7 +296,7 @@ internal object DailyForecastRainLabelRenderer {
         // Past days show observed amounts, not probability-weighted forecasts.
         // Skip probability and distance scaling so actuals render at base size.
         val combinedScale = if (day.isPast) {
-            1.0f
+            0.85f
         } else {
             val probFraction = (probability ?: 0).toFloat() / 100f
             val probScale = HeaderPrecipCalculator.getPrecipScaleFactor(probability ?: 0)
