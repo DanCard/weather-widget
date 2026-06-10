@@ -281,33 +281,55 @@ class WeatherWidgetWorker
                 val endTimeMs = now.plusHours(168).atZone(zoneId).toInstant().toEpochMilli()
                 Log.d(TAG, "fetchHourlyForecasts: range=${now.minusHours(72)} to ${now.plusHours(168)} (ms=$startTimeMs to $endTimeMs)")
                 val current = hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
+                // The proximity query may return rows from multiple nearby locations (e.g. 37.422 and
+                // 37.4168). Pin to the single closest location so the stitched list is single-location,
+                // matching the strict filter WidgetRenderer applies downstream.
+                val bestLat: Double
+                val bestLon: Double
+                val bestPair = current.asSequence()
+                    .map { it.locationLat to it.locationLon }
+                    .distinct()
+                    .minByOrNull { (rowLat, rowLon) ->
+                        Math.abs(rowLat - lat) + Math.abs(rowLon - lon)
+                    }
+                if (bestPair != null) {
+                    bestLat = bestPair.first
+                    bestLon = bestPair.second
+                } else {
+                    bestLat = lat
+                    bestLon = lon
+                }
+                val filteredCurrent = if (bestPair != null) {
+                    current.filter { it.locationLat == bestLat && it.locationLon == bestLon }
+                } else current
                 val history = historyDao.getHistoryInRangeForBucketWindowAllSources(
                     startDateTime = startTimeMs,
                     endDateTime = endTimeMs,
                     bucketStart = Long.MIN_VALUE,
                     bucketEnd = Long.MAX_VALUE,
-                    lat = lat,
-                    lon = lon,
-                ).map {
-                    HourlyForecastEntity(
-                        dateTime = it.dateTime,
-                        locationLat = it.locationLat,
-                        locationLon = it.locationLon,
-                        temperature = it.temperature,
-                        condition = it.condition,
-                        source = it.source,
-                        precipProbability = it.precipProbability,
-                        cloudCover = it.cloudCover,
-                        precipAmountMm = it.precipAmountMm,
-                        fetchedAt = it.fetchedAt,
-                    )
-                }
-                val stitched = (history + current)
-                    .associateBy { it.dateTime }
+                    lat = bestLat,
+                    lon = bestLon,
+                ).filter { it.locationLat == bestLat && it.locationLon == bestLon }
+                    .map {
+                        HourlyForecastEntity(
+                            dateTime = it.dateTime,
+                            locationLat = it.locationLat,
+                            locationLon = it.locationLon,
+                            temperature = it.temperature,
+                            condition = it.condition,
+                            source = it.source,
+                            precipProbability = it.precipProbability,
+                            cloudCover = it.cloudCover,
+                            precipAmountMm = it.precipAmountMm,
+                            fetchedAt = it.fetchedAt,
+                        )
+                    }
+                val stitched = (history + filteredCurrent)
+                    .associateBy { Pair(it.dateTime, it.source) }
                     .values
                     .sortedBy { it.dateTime }
-                if (stitched.size != current.size) {
-                    Log.i(TAG, "fetchHourlyForecasts: stitched ${stitched.size - current.size} missing rows from history")
+                if (stitched.size != filteredCurrent.size) {
+                    Log.i(TAG, "fetchHourlyForecasts: stitched ${stitched.size - filteredCurrent.size} missing rows from history (bestLoc=$bestLat,$bestLon)")
                 }
                 stitched
             } catch (e: Exception) {
