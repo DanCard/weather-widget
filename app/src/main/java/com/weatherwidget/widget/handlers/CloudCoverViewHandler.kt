@@ -49,6 +49,7 @@ object CloudCoverViewHandler {
     internal fun smoothingIterationsFor(zoom: com.weatherwidget.widget.ZoomLevel): Int =
         when (zoom) {
             com.weatherwidget.widget.ZoomLevel.WIDE -> zoom.smoothIterations
+            com.weatherwidget.widget.ZoomLevel.THREE_DAY -> zoom.smoothIterations
             com.weatherwidget.widget.ZoomLevel.NARROW -> (zoom.smoothIterations - 1).coerceAtLeast(0)
         }
 

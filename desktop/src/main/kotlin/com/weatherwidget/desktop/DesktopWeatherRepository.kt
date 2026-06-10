@@ -74,12 +74,15 @@ class DesktopWeatherRepository(
 
     suspend fun loadCached(now: Long = System.currentTimeMillis()): ForecastResult? = withContext(Dispatchers.IO) {
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
-        val stitchedStart = now - (72 * 3600 * 1000L)
+        // Cover the widest zoom-out (6 days back) so the continuous-zoom graph never truncates history.
+        val stitchedStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
         val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, stitchedStart, now + (168 * 3600 * 1000L), maxAgeMs)
         val daily = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
         
-        // Fetch observations for the past 48 hours to populate the actual line
-        val obsStart = now - (48 * 3600 * 1000L)
+        // Cover the widest zoom-out (6 days back) so the actual line spans the whole window,
+        // matching the hourly read above. Observations exist ~7-14 days back (NWS HISTORY_DAYS=7,
+        // 30-day retention); only the read window was capping the actual line at 2 days.
+        val obsStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
         val obsEnd = now + (2 * 3600 * 1000L) // Include some cushion
         val observations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
             .map { it.toReading() }
@@ -120,12 +123,13 @@ class DesktopWeatherRepository(
         // One-time backfill if history is empty (e.g. fresh install)
         if (!hasAttemptedBackfill) {
             hasAttemptedBackfill = true
-            val historyStart = now - (72 * 3600 * 1000L)
+            val historyStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
             val historyCount = weatherDao.getHourlyHistoryCount(latitude, longitude, weatherSource, historyStart, now)
             if (historyCount < 24) {
                 Log.i("DesktopWeatherRepository", "History sparse ($historyCount rows), triggering one-time backfill from Open-Meteo")
                 try {
-                    val historyResult = weatherService.fetchHistory(3)
+                    // 7 past_days covers the widest zoom-out (6 days back) with a day of margin.
+                    val historyResult = weatherService.fetchHistory(7)
                     if (historyResult.hourly.isNotEmpty()) {
                         // Use bucket 0 for the one-time backfill snapshots to distinguish from regular 4h snapshots.
                         // Store as GENERIC_GAP so it serves as a fallback without masking NWS retrieval bugs.

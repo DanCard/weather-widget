@@ -11,6 +11,8 @@ import com.weatherwidget.data.model.HourlyForecast
 import java.time.LocalDate
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.roundToInt
 import java.time.format.TextStyle as JavaTextStyle
 
 /**
@@ -19,11 +21,65 @@ import java.time.format.TextStyle as JavaTextStyle
  */
 internal object DesktopGraphUtils {
 
-    const val WIDE_BACK_HOURS = 12
-    const val WIDE_FORWARD_HOURS = 12
-    const val WIDE_LABEL_INTERVAL = 4
-    const val NARROW_WIDE_LABEL_INTERVAL = 6
-    const val NARROW_WIDTH_PX = 420f
+    // --- Continuous zoom span model -------------------------------------------------------------
+    // zoomFactor z in [0,1]: 0 = most zoomed-in (tight, ~±2h), 1 = most zoomed-out (history-leaning
+    // 6 days back / 1 day forward). Spans interpolate geometrically because they cover orders of
+    // magnitude; forward grows slower than back, so wider views lean into history.
+    const val MIN_BACK_HOURS = 2
+    const val MAX_BACK_HOURS = 144   // 6 days of history at full zoom-out
+    const val MIN_FORWARD_HOURS = 2
+    const val MAX_FORWARD_HOURS = 24 // 1 day forward at full zoom-out
+    // Default lands ~12h back, close to the legacy WIDE view, so existing users barely notice.
+    const val DEFAULT_ZOOM_FACTOR = 0.42f
+
+    fun backHoursFor(zoomFactor: Float): Int = geomInterp(MIN_BACK_HOURS, MAX_BACK_HOURS, zoomFactor)
+
+    fun forwardHoursFor(zoomFactor: Float): Int = geomInterp(MIN_FORWARD_HOURS, MAX_FORWARD_HOURS, zoomFactor)
+
+    private fun geomInterp(min: Int, max: Int, z: Float): Int {
+        val zc = z.coerceIn(0f, 1f)
+        return (min * (max.toFloat() / min).pow(zc)).roundToInt().coerceIn(min, max)
+    }
+
+    /** Clock-hour label cadence (must divide 24, since labels gate on `localHour % interval`). */
+    fun labelIntervalFor(totalSpanHours: Int): Int = when {
+        totalSpanHours <= 6 -> 1
+        totalSpanHours <= 14 -> 2
+        totalSpanHours <= 28 -> 4
+        totalSpanHours <= 56 -> 6
+        totalSpanHours <= 96 -> 12
+        else -> 24
+    }
+
+    /** Curve smoothing scales up with span: tight views stay crisp, wide views read as a trend. */
+    fun smoothIterationsFor(totalSpanHours: Int): Int = when {
+        totalSpanHours <= 6 -> 1
+        totalSpanHours <= 36 -> 3
+        else -> 4
+    }
+
+    /** Maps a legacy persisted zoom string to a continuous factor (one-time migration on read). */
+    fun zoomFactorFromLegacy(level: String?): Float = if (level == "NARROW") 0f else DEFAULT_ZOOM_FACTOR
+
+    // --- Pan / zoom input math ------------------------------------------------------------------
+    /** Mouse-wheel zoom step: one notch (scrollDelta.y ≈ ±1) moves the zoom factor ~0.08 of its range. */
+    const val ZOOM_SENSITIVITY = 0.08f
+
+    /**
+     * Converts a horizontal drag (pixels) into a signed offset change in hours. Dragging right
+     * (positive px) reveals earlier times, so the hourly offset decreases — hence the negative sign.
+     */
+    fun panDeltaHours(dragAmountPx: Float, widthPx: Float, spanHours: Int): Float =
+        if (widthPx <= 0f) 0f else -dragAmountPx * (spanHours.toFloat() / widthPx)
+
+    /**
+     * Sub-hour pixel offset that slides the curve smoothly between whole-hour data steps. The data
+     * window sits on `round(dragHours)`; this residual fills the fractional part. Across a half-hour
+     * boundary the residual flips sign by exactly the per-hour step the data jumps, so the slide stays
+     * continuous. [pixelsPerHour] = graphWidth / spanHours in that graph's mapping units.
+     */
+    fun dragResidualPx(dragHours: Float, pixelsPerHour: Float): Float =
+        -(dragHours - dragHours.roundToInt()) * pixelsPerHour
 
     /** Catmull-Rom tangent computation for smooth curve interpolation. */
     fun computeTangents(coords: List<Offset>): List<Offset> {

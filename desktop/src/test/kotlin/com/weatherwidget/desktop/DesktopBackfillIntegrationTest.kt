@@ -62,7 +62,7 @@ class DesktopBackfillIntegrationTest {
             HourlyForecast(baseHour, 68f, "Cloudy", cloudCover = 85, source = "OPEN_METEO"),
             HourlyForecast(baseHour + 3600_000L, 69f, "Cloudy", cloudCover = 90, source = "OPEN_METEO")
         )
-        coEvery { weatherService.fetchHistory(3) } returns ForecastResult(
+        coEvery { weatherService.fetchHistory(7) } returns ForecastResult(
             hourly = backfillHourly
         )
 
@@ -70,7 +70,7 @@ class DesktopBackfillIntegrationTest {
         repository.refresh()
 
         // 4. Verify fetchHistory was called
-        coVerify(exactly = 1) { weatherService.fetchHistory(3) }
+        coVerify(exactly = 1) { weatherService.fetchHistory(7) }
 
         // 5. Load cached and verify stitching
         val result = repository.loadCached()
@@ -133,17 +133,17 @@ class DesktopBackfillIntegrationTest {
         )
 
         // 2. Mock fetchHistory to return empty (simulating failure or no data)
-        coEvery { weatherService.fetchHistory(3) } returns ForecastResult(hourly = emptyList())
+        coEvery { weatherService.fetchHistory(7) } returns ForecastResult(hourly = emptyList())
 
         // 3. First refresh
         repository.refresh()
-        coVerify(exactly = 1) { weatherService.fetchHistory(3) }
+        coVerify(exactly = 1) { weatherService.fetchHistory(7) }
 
         // 4. Second refresh in the same session (repository instance)
         repository.refresh()
         
         // Still exactly 1 call because of hasAttemptedBackfill flag
-        coVerify(exactly = 1) { weatherService.fetchHistory(3) }
+        coVerify(exactly = 1) { weatherService.fetchHistory(7) }
     }
 
     @Test
@@ -165,7 +165,7 @@ class DesktopBackfillIntegrationTest {
         val backfillHourly = listOf(
             HourlyForecast(baseHour, 68f, "Cloudy", cloudCover = 85, source = "OPEN_METEO")
         )
-        coEvery { weatherService.fetchHistory(3) } returns ForecastResult(
+        coEvery { weatherService.fetchHistory(7) } returns ForecastResult(
             hourly = backfillHourly
         )
 

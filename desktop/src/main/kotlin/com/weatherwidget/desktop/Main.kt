@@ -587,6 +587,25 @@ internal fun WidgetPopup(
                     val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
                     if (isHourly) {
                         Box(modifier = Modifier.fillMaxWidth().weight(1f).testTag("hourly_temperature_surface")) {
+                            // Shared scroll-zoom + drag-pan handlers for all three hourly graphs.
+                            val handleZoomScroll: (Float, Int) -> Unit = { deltaZoom, cursorOffset ->
+                                val newFactor = (config.zoomFactor + deltaZoom).coerceIn(0f, 1f)
+                                if (newFactor != config.zoomFactor) {
+                                    // Zooming in re-centers on the cursor; zooming out keeps the current center.
+                                    val newOffset = if (deltaZoom < 0f) {
+                                        cursorOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
+                                    } else {
+                                        config.hourlyOffset
+                                    }
+                                    onUpdateConfig(config.copy(zoomFactor = newFactor, hourlyOffset = newOffset))
+                                }
+                            }
+                            val handlePan: (Int) -> Unit = { deltaHours ->
+                                val newOffset = (config.hourlyOffset + deltaHours).coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
+                                if (newOffset != config.hourlyOffset) {
+                                    onUpdateConfig(config.copy(hourlyOffset = newOffset))
+                                }
+                            }
                             if (config.viewMode == "CLOUD_COVER") {
                                 CloudCoverGraph(
                                     hourly = snapshot.hourly,
@@ -595,11 +614,13 @@ internal fun WidgetPopup(
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
                                     centerOffsetHours = config.hourlyOffset,
-                                    zoomLevel = config.zoomLevel,
+                                    zoomFactor = config.zoomFactor,
                                     scale = uiScale,
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
-                                    }
+                                    },
+                                    onZoomScroll = handleZoomScroll,
+                                    onPan = handlePan,
                                 )
                             } else if (config.viewMode == "PRECIPITATION") {
                                 PrecipitationGraph(
@@ -610,11 +631,13 @@ internal fun WidgetPopup(
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
                                     centerOffsetHours = config.hourlyOffset,
-                                    zoomLevel = config.zoomLevel,
+                                    zoomFactor = config.zoomFactor,
                                     scale = uiScale,
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
-                                    }
+                                    },
+                                    onZoomScroll = handleZoomScroll,
+                                    onPan = handlePan,
                                 )
                             } else {
                                 TemperatureGraph(
@@ -627,25 +650,32 @@ internal fun WidgetPopup(
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
                                     centerOffsetHours = config.hourlyOffset,
-                                    zoomLevel = config.zoomLevel,
+                                    zoomFactor = config.zoomFactor,
                                     scale = uiScale,
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
                                     },
-                                     onToggleZoom = { clickedOffset ->
-                                         if (config.zoomLevel == "WIDE") {
-                                             // Zoom in: frame the clicked time ±2h (NARROW centers on hourlyOffset).
-                                             onUpdateConfig(
-                                                 config.copy(
-                                                     zoomLevel = "NARROW",
-                                                     hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
-                                                 )
-                                             )
-                                         } else {
-                                             // Zoom out: recenter on now (Android wide view re-centers on now).
-                                             onUpdateConfig(config.copy(zoomLevel = "WIDE", hourlyOffset = 0))
-                                         }
-                                     }
+                                    onToggleZoom = { clickedOffset ->
+                                        if (config.zoomFactor <= 0.05f) {
+                                            // Already tight: zoom back out to the default span, recentered on now.
+                                            onUpdateConfig(
+                                                config.copy(
+                                                    zoomFactor = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
+                                                    hourlyOffset = 0,
+                                                )
+                                            )
+                                        } else {
+                                            // Zoom all the way in on the tapped hour.
+                                            onUpdateConfig(
+                                                config.copy(
+                                                    zoomFactor = 0f,
+                                                    hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
+                                                )
+                                            )
+                                        }
+                                    },
+                                    onZoomScroll = handleZoomScroll,
+                                    onPan = handlePan,
                                 )
                             }
                             NavArrow(

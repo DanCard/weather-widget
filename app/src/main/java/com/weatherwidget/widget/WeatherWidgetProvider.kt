@@ -967,16 +967,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
          * @return the offset to center on when zooming into/out of this zone
          */
         fun zoneIndexToOffset(zoneIndex: Int, currentHourlyOffset: Int, zoom: ZoomLevel = ZoomLevel.WIDE): Int {
-            return if (zoom == ZoomLevel.WIDE) {
-                // 13 zones covering 24 hours. Index 6 is the visual center (offset 0).
-                // Each zone represents ~2 hours. 2 * (6 - 6) = 0.
-                currentHourlyOffset + 2 * (zoneIndex - 6)
-            } else {
-                // 13 zones covering 4 hours. Index 6 is the visual center (offset 0).
-                // Each zone is 1/3h. 4/12 * (index - 6) = (index - 6) / 3.
-                val offsetFloat = (zoneIndex - 6f) / 3f
-                currentHourlyOffset + offsetFloat.roundToInt()
-            }
+            // 13 zones span the full rendered window (back+forward hours). Zone 6 is the visual
+            // (pixel) center, which for an asymmetric window sits (forward-back)/2 hours off the
+            // window center. This generalizes the old symmetric WIDE (2h/zone) and NARROW
+            // (1/3h/zone) cases and handles history-leaning levels like THREE_DAY (48 back/24 fwd:
+            // zone 0 -> -48h, zone 12 -> +24h).
+            val perZoneHours = (zoom.backHours + zoom.forwardHours) / 12f
+            val asymmetryShift = (zoom.forwardHours - zoom.backHours) / 2f
+            return currentHourlyOffset + (perZoneHours * (zoneIndex - 6) + asymmetryShift).roundToInt()
         }
         private const val TAG = "WeatherWidgetProvider"
 

@@ -68,4 +68,15 @@ class WeatherWidgetProviderRobolectricTest {
         assertEquals(0, WeatherWidgetProvider.zoneIndexToOffset(6, 0))
         assertEquals(-2, WeatherWidgetProvider.zoneIndexToOffset(5, 0))
     }
+
+    @Test
+    fun `zoneIndexToOffset maps THREE_DAY asymmetric window`() {
+        // THREE_DAY spans 48h back / 24h forward (72h). The visual-center zone (6) sits at
+        // (24-48)/2 = -12h, and the edges land exactly on the window bounds.
+        assertEquals(-48, WeatherWidgetProvider.zoneIndexToOffset(0, 0, ZoomLevel.THREE_DAY))
+        assertEquals(-12, WeatherWidgetProvider.zoneIndexToOffset(6, 0, ZoomLevel.THREE_DAY))
+        assertEquals(24, WeatherWidgetProvider.zoneIndexToOffset(12, 0, ZoomLevel.THREE_DAY))
+        // Base offset is added through.
+        assertEquals(-38, WeatherWidgetProvider.zoneIndexToOffset(0, 10, ZoomLevel.THREE_DAY))
+    }
 }

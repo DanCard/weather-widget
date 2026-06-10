@@ -231,6 +231,7 @@ internal fun buildHourDataResult(
         val showLabel =
             when (zoom) {
                 ZoomLevel.WIDE -> hourIndex % labelInterval == 0
+                ZoomLevel.THREE_DAY -> hourIndex % labelInterval == 0
                 ZoomLevel.NARROW -> true
             }
 

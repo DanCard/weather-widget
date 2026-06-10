@@ -86,12 +86,16 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `cycleZoomLevel toggles NARROW back to WIDE`() {
-        stateManager.cycleZoomLevel(testWidgetId)
+    fun `cycleZoomLevel advances NARROW to THREE_DAY then back to WIDE`() {
+        // 3-state cycle: WIDE -> NARROW -> THREE_DAY -> WIDE.
+        stateManager.cycleZoomLevel(testWidgetId) // -> NARROW
 
-        val result = stateManager.cycleZoomLevel(testWidgetId)
+        val second = stateManager.cycleZoomLevel(testWidgetId)
+        assertEquals(ZoomLevel.THREE_DAY, second)
+        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
 
-        assertEquals(ZoomLevel.WIDE, result)
+        val third = stateManager.cycleZoomLevel(testWidgetId)
+        assertEquals(ZoomLevel.WIDE, third)
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
 

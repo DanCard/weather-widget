@@ -27,6 +27,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.input.pointer.pointerInput
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -67,13 +68,8 @@ private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionR
 private const val COLD_THRESHOLD = 50f
 private const val MILD_TEMP = 70f
 private const val HOT_THRESHOLD = 90f
-private const val WIDE_BACK_HOURS = DesktopGraphUtils.WIDE_BACK_HOURS
-private const val WIDE_FORWARD_HOURS = DesktopGraphUtils.WIDE_FORWARD_HOURS
-private const val ACTUALS_CONTEXT_LOOKBACK_HOURS = 72L
+private const val ACTUALS_CONTEXT_LOOKBACK_HOURS = 144L
 private const val ACTUALS_CONTEXT_LOOKAHEAD_HOURS = 60L
-private const val WIDE_LABEL_INTERVAL = DesktopGraphUtils.WIDE_LABEL_INTERVAL
-private const val NARROW_WIDE_LABEL_INTERVAL = DesktopGraphUtils.NARROW_WIDE_LABEL_INTERVAL
-private const val NARROW_WIDTH_PX = DesktopGraphUtils.NARROW_WIDTH_PX
 private const val AGE_LABEL_MAX_HOURS_SPAN = 12L
 
 /**
@@ -126,18 +122,24 @@ fun TemperatureGraph(
     longitude: Double = 0.0,
     modifier: Modifier = Modifier,
     centerOffsetHours: Int = 0,
-    zoomLevel: String = "WIDE",
+    zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
     scale: Float = 1f,
     onViewModeChange: (String) -> Unit = {},
     onToggleZoom: (Int) -> Unit = {},
+    onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
+    onPan: (deltaHours: Int) -> Unit = {},
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
-    val center = now + centerOffsetHours * 3_600_000L
-    
-    val backHours = if (zoomLevel == "NARROW") 2 else WIDE_BACK_HOURS
-    val forwardHours = if (zoomLevel == "NARROW") 2 else WIDE_FORWARD_HOURS
-    
+    // Live, uncommitted horizontal pan (hours). Whole-hour part shifts the data window; the fractional
+    // part becomes a sub-hour pixel slide in xAtTime. Committed to config once, on drag release.
+    val dragHours = remember { mutableStateOf(0f) }
+    val center = now + (centerOffsetHours + dragHours.value.roundToInt()) * 3_600_000L
+
+    val backHours = DesktopGraphUtils.backHoursFor(zoomFactor)
+    val forwardHours = DesktopGraphUtils.forwardHoursFor(zoomFactor)
+    val totalSpanHours = backHours + forwardHours
+
     val zoneId = ZoneId.systemDefault()
     val window = remember(center, backHours, forwardHours, zoneId) {
         temperatureGraphHourWindow(center, backHours, forwardHours, zoneId)
@@ -156,29 +158,39 @@ fun TemperatureGraph(
     // clock-hour labels in WIDE, which left every label without its day-night icon.
     val painters: List<Painter> = points.map { painterResource(WeatherIcon.getIconResource(it.condition)) }
 
-    val smoothIterations = if (zoomLevel == "NARROW") 1 else 3
+    val smoothIterations = DesktopGraphUtils.smoothIterationsFor(totalSpanHours)
 
     if (points.size < 2) return
 
     Canvas(
-        modifier = modifier.pointerInput(points, zoomLevel, scale, start, cutoff) {
-            detectTapGestures { offset ->
-                if (offset.y >= size.height - 44.dp.toPx() * scale) {
-                    // Bottom strip: switch the view to the tapped hour's condition home view.
-                    val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
-                    val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
-                    val clickedPoint = points[index]
-                    val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
-                    val targetView = WeatherIcon.resolveIconHome(iconRes)
-                    onViewModeChange(targetView)
-                } else {
-                    // Graph body: toggle zoom (WIDE ↔ NARROW) — the in/out "zoom" interaction.
-                    val clickedTimeMs = start + (offset.x / size.width.toFloat()) * (cutoff - start)
-                    val clickedOffset = ((clickedTimeMs - now) / 3_600_000f).roundToInt()
-                    onToggleZoom(clickedOffset)
+        modifier = modifier
+            .hourlyPanZoomInput(
+                start = start,
+                cutoff = cutoff,
+                nowMs = now,
+                spanHours = totalSpanHours,
+                dragHours = dragHours,
+                onZoomScroll = onZoomScroll,
+                onPanCommit = onPan,
+            )
+            .pointerInput(points, zoomFactor, scale, start, cutoff) {
+                detectTapGestures { offset ->
+                    if (offset.y >= size.height - 44.dp.toPx() * scale) {
+                        // Bottom strip: switch the view to the tapped hour's condition home view.
+                        val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
+                        val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
+                        val clickedPoint = points[index]
+                        val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
+                        val targetView = WeatherIcon.resolveIconHome(iconRes)
+                        onViewModeChange(targetView)
+                    } else {
+                        // Graph body: quick zoom in/out toggle centered on the tapped hour.
+                        val clickedTimeMs = start + (offset.x / size.width.toFloat()) * (cutoff - start)
+                        val clickedOffset = ((clickedTimeMs - now) / 3_600_000f).roundToInt()
+                        onToggleZoom(clickedOffset)
+                    }
                 }
             }
-        }
     ) {
         val windowStart = start
         val windowEnd = cutoff
@@ -256,7 +268,9 @@ fun TemperatureGraph(
         val dataStart = points.first().dateTime
         val dataEnd = points.last().dateTime
         val dataSpan = (dataEnd - dataStart).coerceAtLeast(1L).toFloat()
-        fun xAtTime(t: Long): Float = ((t - dataStart).toFloat() / dataSpan * w).coerceIn(0f, w)
+        // Sub-hour drag slide: data steps on whole hours (via the window), this fills the fraction.
+        val dragResidualPx = DesktopGraphUtils.dragResidualPx(dragHours.value, w * 3_600_000f / dataSpan)
+        fun xAtTime(t: Long): Float = (((t - dataStart).toFloat() / dataSpan * w) + dragResidualPx).coerceIn(-w, 2 * w)
         fun xAt(i: Int): Float = xAtTime(points[i].dateTime)
         fun yAt(t: Float): Float = top + graphHeight * (1f - (t - minTemp) / range)
 
@@ -304,7 +318,7 @@ fun TemperatureGraph(
                     path = segmentPath,
                     color = segmentColor,
                     style = Stroke(
-                        width = 3f * scale,
+                        width = 1.5f * scale,
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx() * scale, 4.dp.toPx() * scale))
                     )
                 )
@@ -534,11 +548,7 @@ fun TemperatureGraph(
         )
 
         // Bottom strip: weather icons + hour labels
-        val labelInterval = if (zoomLevel == "NARROW") {
-            1
-        } else {
-            if (w <= NARROW_WIDTH_PX) NARROW_WIDE_LABEL_INTERVAL else WIDE_LABEL_INTERVAL
-        }
+        val labelInterval = DesktopGraphUtils.labelIntervalFor(totalSpanHours)
         for (i in points.indices) {
             val p = points[i]
             val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
@@ -786,7 +796,7 @@ private fun DrawScope.drawActualLine(coords: List<Offset>, scale: Float) {
     drawPath(
         buildCurve(coords),
         color = COLOR_ACTUAL,
-        style = Stroke(width = 3f * scale, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        style = Stroke(width = 1.5f * scale, cap = StrokeCap.Round, join = StrokeJoin.Round),
     )
 }
 

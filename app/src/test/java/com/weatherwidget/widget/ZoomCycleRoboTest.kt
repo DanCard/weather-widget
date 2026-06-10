@@ -49,14 +49,24 @@ class ZoomCycleRoboTest {
     }
 
     @Test
-    fun cycleZoom_wideThenNarrowThenWide() {
+    fun cycleZoom_wideThenNarrowThenThreeDayThenWide() {
         val afterFirst = stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomLevel.NARROW, afterFirst)
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
 
         val afterSecond = stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.WIDE, afterSecond)
+        assertEquals(ZoomLevel.THREE_DAY, afterSecond)
+        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
+
+        val afterThird = stateManager.cycleZoomLevel(testWidgetId)
+        assertEquals(ZoomLevel.WIDE, afterThird)
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+    }
+
+    @Test
+    fun threeDayZoom_hasHistoryLeaningSpan() {
+        assertEquals(48L, ZoomLevel.THREE_DAY.backHours)
+        assertEquals(24L, ZoomLevel.THREE_DAY.forwardHours)
     }
 
     @Test
@@ -120,6 +130,13 @@ class ZoomCycleRoboTest {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
             } catch (_: Exception) {}
         }
+        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
+
+        runBlocking {
+            try {
+                WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
+            } catch (_: Exception) {}
+        }
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
 
@@ -162,7 +179,8 @@ class ZoomCycleRoboTest {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 0)
             } catch (_: Exception) {}
         }
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        // Cycle from NARROW now advances to THREE_DAY (WIDE -> NARROW -> THREE_DAY -> WIDE).
+        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
         assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
     }
 
@@ -282,7 +300,8 @@ class ZoomCycleRoboTest {
             } catch (_: Exception) {}
         }
 
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        // Cycle from NARROW now advances to THREE_DAY; the NARROW-zone offset extra (-2) is still applied.
+        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
         assertEquals(-2, stateManager.getHourlyOffset(testWidgetId))
     }
 }

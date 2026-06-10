@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -49,11 +50,6 @@ private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionR
     return Color(argb)
 }
 
-private const val WIDE_BACK_HOURS = DesktopGraphUtils.WIDE_BACK_HOURS
-private const val WIDE_FORWARD_HOURS = DesktopGraphUtils.WIDE_FORWARD_HOURS
-private const val WIDE_LABEL_INTERVAL = DesktopGraphUtils.WIDE_LABEL_INTERVAL
-private const val NARROW_WIDE_LABEL_INTERVAL = DesktopGraphUtils.NARROW_WIDE_LABEL_INTERVAL
-private const val NARROW_WIDTH_PX = DesktopGraphUtils.NARROW_WIDTH_PX
 
 @Composable
 fun PrecipitationGraph(
@@ -64,21 +60,25 @@ fun PrecipitationGraph(
     longitude: Double = 0.0,
     modifier: Modifier = Modifier,
     centerOffsetHours: Int = 0,
-    zoomLevel: String = "WIDE",
+    zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
     scale: Float = 1f,
     onViewModeChange: (String) -> Unit = {},
+    onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
+    onPan: (deltaHours: Int) -> Unit = {},
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
-    val center = now + centerOffsetHours * 3_600_000L
-    
-    val backHours = if (zoomLevel == "NARROW") 2 else WIDE_BACK_HOURS
-    val forwardHours = if (zoomLevel == "NARROW") 2 else WIDE_FORWARD_HOURS
-    
+    val dragHours = remember { mutableStateOf(0f) }
+    val center = now + (centerOffsetHours + dragHours.value.roundToInt()) * 3_600_000L
+
+    val backHours = DesktopGraphUtils.backHoursFor(zoomFactor)
+    val forwardHours = DesktopGraphUtils.forwardHoursFor(zoomFactor)
+    val totalSpanHours = backHours + forwardHours
+
     val start = center - backHours * 3_600_000L
     val cutoff = center + forwardHours * 3_600_000L
 
-    val points = remember(hourly, centerOffsetHours, zoomLevel) {
+    val points = remember(hourly, start, cutoff) {
         hourly.filter { it.dateTime in (start - 3_600_000L)..cutoff }
             .sortedBy { it.dateTime }
             .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
@@ -90,14 +90,24 @@ fun PrecipitationGraph(
         painters.add(if (i % iconSpacing == 0) painterResource(WeatherIcon.getIconResource(points[i].condition)) else null)
     }
 
-    val smoothIterations = if (zoomLevel == "NARROW") 1 else 3
+    val smoothIterations = DesktopGraphUtils.smoothIterationsFor(totalSpanHours)
 
     if (points.size < 2) return
 
     val watermarkPainter = painterResource("drawable/ic_weather_rain.xml")
 
     Canvas(
-        modifier = modifier.pointerInput(points, zoomLevel, scale) {
+        modifier = modifier
+            .hourlyPanZoomInput(
+                start = start,
+                cutoff = cutoff,
+                nowMs = now,
+                spanHours = totalSpanHours,
+                dragHours = dragHours,
+                onZoomScroll = onZoomScroll,
+                onPanCommit = onPan,
+            )
+            .pointerInput(points, zoomFactor, scale) {
             detectTapGestures { offset ->
                 if (offset.y >= size.height - 44.dp.toPx() * scale) {
                     val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
@@ -130,7 +140,8 @@ fun PrecipitationGraph(
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
         val stepWidth = w / (points.size - 1).coerceAtLeast(1)
 
-        fun xAtTime(t: Long): Float = ((t - windowStart).toFloat() / windowSpan * w).coerceIn(0f, w)
+        val dragResidualPx = DesktopGraphUtils.dragResidualPx(dragHours.value, w * 3_600_000f / windowSpan)
+        fun xAtTime(t: Long): Float = (((t - windowStart).toFloat() / windowSpan * w) + dragResidualPx).coerceIn(-w, 2 * w)
         fun xAt(i: Int): Float = xAtTime(points[i].dateTime)
         fun yAt(prob: Float): Float {
             val clamped = prob.coerceIn(0f, 100f)
@@ -168,7 +179,7 @@ fun PrecipitationGraph(
         drawPath(fillPath, brush = fillBrush)
 
         // Draw Curve Line
-        val curveStroke = if (zoomLevel == "NARROW") 2.dp.toPx() * scale else 3.dp.toPx() * scale
+        val curveStroke = if (totalSpanHours <= 8) 2.dp.toPx() * scale else 3.dp.toPx() * scale
         drawPath(
             path = buildCurve(coords),
             color = COLOR_PRECP_CURVE,
@@ -178,7 +189,7 @@ fun PrecipitationGraph(
         // Draw Day/Night boundary dividers at 8AM / 8PM
         val zoneId = ZoneId.systemDefault()
         val dayNightBoundaryXs = mutableListOf<Float>()
-        if (zoomLevel == "WIDE") {
+        if (totalSpanHours >= 12) {
             for (i in 1..points.lastIndex) {
                 val ldt1 = LocalDateTime.ofInstant(Instant.ofEpochMilli(points[i - 1].dateTime), zoneId)
                 val ldt2 = LocalDateTime.ofInstant(Instant.ofEpochMilli(points[i].dateTime), zoneId)
@@ -408,11 +419,7 @@ fun PrecipitationGraph(
         )
 
         // Draw Bottom Strip: icons + hour labels
-        val labelInterval = if (zoomLevel == "NARROW") {
-            1
-        } else {
-            if (w <= NARROW_WIDTH_PX) NARROW_WIDE_LABEL_INTERVAL else WIDE_LABEL_INTERVAL
-        }
+        val labelInterval = DesktopGraphUtils.labelIntervalFor(totalSpanHours)
         for (i in points.indices) {
             val p = points[i]
             val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()

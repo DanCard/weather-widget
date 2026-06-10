@@ -24,7 +24,9 @@ data class DesktopConfig(
     val visibleSources: List<String> = listOf("NWS", "OPEN_METEO", "SILURIAN"),
     val dateOffset: Int = 0,
     val hourlyOffset: Int = 0,
-    val zoomLevel: String = "WIDE",
+    // Continuous zoom: 0 = most zoomed-in (~±2h), 1 = most zoomed-out (6 days back / 1 day forward).
+    // Legacy "zoomLevel" string configs are ignored on read (ignoreUnknownKeys) and reset to default.
+    val zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
     val obsWindowX: Float? = null,
     val obsWindowY: Float? = null,
     val obsWindowWidth: Float? = null,
