@@ -126,6 +126,8 @@ object CloudCoverGraphRenderer {
         onWatermarkPlaced: ((WatermarkPlacementDebug) -> Unit)? = null,
         showErrorWatermark: Boolean = false,
         errorSourceLabel: String? = null,
+        errorCode: String? = null,
+        errorFailureTimeMs: Long? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -143,7 +145,7 @@ object CloudCoverGraphRenderer {
             }
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel)
+                GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
             }
             return bitmap
         }
@@ -609,7 +611,7 @@ object CloudCoverGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel)
+            GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
         }
 
         return bitmap

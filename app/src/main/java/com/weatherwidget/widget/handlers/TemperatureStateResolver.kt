@@ -250,6 +250,8 @@ internal object TemperatureStateResolver {
                     onFetchDotResolved = onFetchDotResolved,
                     showErrorWatermark = stateManager.isSourceErrored(displaySource),
                     errorSourceLabel = displaySource.displayName,
+                    errorCode = stateManager.getSourceLastErrorCode(displaySource),
+                    errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "renderGraph failed", e)

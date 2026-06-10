@@ -849,6 +849,8 @@ internal object GraphRenderUtils {
         height: Float,
         density: Float,
         sourceLabel: String? = null,
+        errorCode: String? = null,
+        failureTimeMs: Long? = null,
     ) {
         // A translucent "glass" pill near the top center, naming the failing source so the
         // user can tell which data feed is stale (e.g. "Silurian" vs "NWS"). Drawn last, on top.
@@ -859,7 +861,7 @@ internal object GraphRenderUtils {
         val textPaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#FFFF5A5A") // bright coral-red, full opacity
-            textSize = 12f * density
+            textSize = 15f * density
             textAlign = Paint.Align.CENTER
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
             if (android.os.Build.VERSION.SDK_INT >= 26) {
@@ -867,14 +869,35 @@ internal object GraphRenderUtils {
             }
         }
 
+        val codeStr = errorCode?.let { humanReadableErrorCode(it) }
+        val timeStr = failureTimeMs?.let { formatFailureTime(it) }
+        val codeLine = when {
+            codeStr != null && timeStr != null -> "$codeStr · $timeStr"
+            codeStr != null -> codeStr
+            timeStr != null -> timeStr
+            else -> null
+        }
+        val codePaint = if (codeLine != null) Paint().apply {
+            isAntiAlias = true
+            color = Color.parseColor("#B2FF5A5A") // coral-red at 70% opacity
+            textSize = 13f * density
+            textAlign = Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+        } else null
+
         val hPad = 12f * density
         val vPad = 6f * density
         val textWidth = textPaint.measureText(text)
         val fm = textPaint.fontMetrics
         val textHeight = fm.descent - fm.ascent
 
-        val pillWidth = (textWidth + hPad * 2f).coerceAtMost(width - 8f * density)
-        val pillHeight = textHeight + vPad * 2f
+        val codeWidth = codePaint?.measureText(codeLine) ?: 0f
+        val codeFm = codePaint?.fontMetrics
+        val codeHeight = if (codeFm != null) codeFm.descent - codeFm.ascent else 0f
+        val codeGap = if (codeLine != null) 2f * density else 0f
+
+        val pillWidth = (maxOf(textWidth, codeWidth) + hPad * 2f).coerceAtMost(width - 8f * density)
+        val pillHeight = textHeight + codeHeight + codeGap + vPad * 2f
         val centerX = width / 2f
         val pillTop = 8f * density
         val pillRect = RectF(
@@ -898,8 +921,49 @@ internal object GraphRenderUtils {
         canvas.drawRoundRect(pillRect, radius, radius, bgPaint)
         canvas.drawRoundRect(pillRect, radius, radius, borderPaint)
 
-        val baselineY = pillRect.centerY() - (fm.ascent + fm.descent) / 2f
-        canvas.drawText(text, centerX, baselineY, textPaint)
+        val contentTop = pillRect.top + vPad
+        val mainBaselineY = contentTop - fm.ascent
+        canvas.drawText(text, centerX, mainBaselineY, textPaint)
+
+        if (codeLine != null && codePaint != null && codeFm != null) {
+            val codeBaselineY = mainBaselineY + fm.descent + codeGap - codeFm.ascent
+            canvas.drawText(codeLine, centerX, codeBaselineY, codePaint)
+        }
+    }
+
+    private fun formatFailureTime(epochMs: Long): String {
+        val cal = java.util.Calendar.getInstance()
+        val nowDay = cal.get(java.util.Calendar.DAY_OF_YEAR)
+        val nowYear = cal.get(java.util.Calendar.YEAR)
+        cal.timeInMillis = epochMs
+        val failDay = cal.get(java.util.Calendar.DAY_OF_YEAR)
+        val failYear = cal.get(java.util.Calendar.YEAR)
+        val fmt = if (failYear == nowYear && failDay == nowDay) {
+            java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+        } else {
+            java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault())
+        }
+        return fmt.format(java.util.Date(epochMs))
+    }
+
+    private fun humanReadableErrorCode(code: String): String = when (code) {
+        "HTTP_400" -> "400 Bad Request"
+        "HTTP_401" -> "401 Unauthorized"
+        "HTTP_403" -> "403 Forbidden"
+        "HTTP_404" -> "404 Not Found"
+        "HTTP_422" -> "422 Unprocessable"
+        "HTTP_429" -> "429 Rate Limited"
+        "ACCESS_ERROR" -> "Access Error"
+        "DNS_ERROR" -> "DNS Error"
+        "CONN_REFUSED" -> "Connection Refused"
+        "TIMEOUT" -> "Timed Out"
+        "SSL_ERROR" -> "SSL Error"
+        "SOCKET_ERROR" -> "Socket Error"
+        else -> when {
+            code.startsWith("HTTP_5") -> "${code.removePrefix("HTTP_")} Server Error"
+            code.startsWith("HTTP_") -> "HTTP ${code.removePrefix("HTTP_")}"
+            else -> code
+        }
     }
 }
 

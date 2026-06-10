@@ -304,6 +304,8 @@ object DailyForecastGraphRenderer {
         headerData: HeaderRenderData? = null,
         showErrorWatermark: Boolean = false,
         errorSourceLabel: String? = null,
+        errorCode: String? = null,
+        errorFailureTimeMs: Long? = null,
         onHeaderDrawn: ((HeaderDrawnDebug) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
@@ -314,7 +316,7 @@ object DailyForecastGraphRenderer {
             Log.w(TAG, "renderGraph: empty days list, returning blank bitmap (${widthPx}x${heightPx})")
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel)
+                GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
             }
             return bitmap
         }
@@ -355,7 +357,7 @@ object DailyForecastGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel)
+            GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
         }
 
         return bitmap

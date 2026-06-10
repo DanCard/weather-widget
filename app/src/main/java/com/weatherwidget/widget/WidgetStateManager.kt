@@ -61,6 +61,8 @@ class WidgetStateManager
             // so a single transient blip never triggers it. Reset to 0 on any success.
             const val SOURCE_FAILURE_WATERMARK_THRESHOLD = 3
             private const val KEY_SOURCE_FAILURE_COUNT_PREFIX = "source_fail_count_"
+            private const val KEY_SOURCE_FAILURE_CODE_PREFIX = "source_fail_code_"
+            private const val KEY_SOURCE_FAILURE_TIME_PREFIX = "source_fail_time_"
             @Volatile
             private var prefsNameOverride: String? = null
             private const val KEY_DATE_OFFSET_PREFIX = "widget_date_offset_"
@@ -761,13 +763,27 @@ class WidgetStateManager
         }
 
         fun recordSourceFetchSuccess(source: WeatherSource) {
-            prefs.edit().putInt("$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}", 0).apply()
+            prefs.edit()
+                .putInt("$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}", 0)
+                .remove("$KEY_SOURCE_FAILURE_CODE_PREFIX${source.id}")
+                .remove("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}")
+                .apply()
         }
 
-        fun recordSourceFetchFailure(source: WeatherSource) {
+        fun recordSourceFetchFailure(source: WeatherSource, errorCode: String? = null) {
             val next = getSourceFailureCount(source) + 1
-            prefs.edit().putInt("$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}", next).apply()
+            prefs.edit()
+                .putInt("$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}", next)
+                .putLong("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}", System.currentTimeMillis())
+                .also { editor -> errorCode?.let { editor.putString("$KEY_SOURCE_FAILURE_CODE_PREFIX${source.id}", it) } }
+                .apply()
         }
+
+        fun getSourceLastErrorCode(source: WeatherSource): String? =
+            prefs.getString("$KEY_SOURCE_FAILURE_CODE_PREFIX${source.id}", null)
+
+        fun getSourceLastFailureTime(source: WeatherSource): Long? =
+            prefs.getLong("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}", -1L).takeIf { it > 0 }
 
 
         private fun deltaStateSuffix(

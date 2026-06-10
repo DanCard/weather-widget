@@ -35,8 +35,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import com.weatherwidget.network.FallbackDns
 import io.ktor.client.*
-import io.ktor.client.engine.android.*
+import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
@@ -68,8 +69,20 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideHttpClient(json: Json, apiUsageDao: ApiUsageDao): HttpClient =
-        HttpClient(Android) {
+    fun provideHttpClient(
+        json: Json,
+        apiUsageDao: ApiUsageDao,
+        @ApplicationContext context: Context,
+    ): HttpClient {
+        val fallbackDns = FallbackDns(
+            context.getSharedPreferences(FallbackDns.PREFS_NAME, Context.MODE_PRIVATE)
+        )
+        return HttpClient(OkHttp) {
+            engine {
+                config {
+                    dns(fallbackDns)
+                }
+            }
             install(ContentNegotiation) {
                 json(json)
             }
@@ -98,6 +111,7 @@ object AppModule {
                 execute(request)
             }
         }
+    }
 
     @Provides
     @Singleton

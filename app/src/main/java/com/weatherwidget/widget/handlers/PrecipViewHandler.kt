@@ -346,6 +346,8 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                 onDebugLog = { renderLogs.add(it) },
                 showErrorWatermark = stateManager.isSourceErrored(displaySource),
                 errorSourceLabel = displaySource.displayName,
+                errorCode = stateManager.getSourceLastErrorCode(displaySource),
+                errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
             )
             renderLogs.forEach { appLogDao.log("PrecipGraph", it) }
             renderMs = SystemClock.elapsedRealtime() - renderStartMs

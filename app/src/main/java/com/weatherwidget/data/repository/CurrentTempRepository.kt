@@ -183,12 +183,13 @@ class CurrentTempRepository
                             throw e
                         } catch (exception: ApiAccessException) {
                             val sourceDurationMs = SystemClock.elapsedRealtime() - sourceStartMs
-                            widgetStateManager.recordSourceFetchFailure(targetSource)
+                            widgetStateManager.recordSourceFetchFailure(targetSource, extractCurrentErrorCode(exception))
                             logCurrentFetchFailure(targetSource, exception)
                             logCurrentSourceResult(reason, targetSource, null, exception, durationMs = sourceDurationMs)
                         } catch (exception: Exception) {
                             val sourceDurationMs = SystemClock.elapsedRealtime() - sourceStartMs
-                            widgetStateManager.recordSourceFetchFailure(targetSource)
+                            val errorCode = extractCurrentErrorCode(exception)
+                            widgetStateManager.recordSourceFetchFailure(targetSource, errorCode)
                             logCurrentFetchFailure(targetSource, exception)
                             logCurrentSourceResult(reason, targetSource, null, exception, durationMs = sourceDurationMs)
                         }
@@ -427,6 +428,22 @@ class CurrentTempRepository
                 }
             }
             return points.distinctBy { "${it.first},${it.second}" }
+        }
+
+        private fun extractCurrentErrorCode(exception: Exception): String = when (exception) {
+            is ApiAccessException -> exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
+            is ClientRequestException -> "HTTP_${exception.response.status.value}"
+            else -> {
+                val name = exception.javaClass.simpleName
+                when {
+                    name.contains("UnknownHost") || name.contains("UnresolvedAddress") -> "DNS_ERROR"
+                    name.contains("ConnectException") || name.contains("ConnectionRefused") -> "CONN_REFUSED"
+                    name.contains("Timeout") || name.contains("SocketTimeout") -> "TIMEOUT"
+                    name.contains("SSL") || name.contains("TLS") -> "SSL_ERROR"
+                    name.contains("SocketException") -> "SOCKET_ERROR"
+                    else -> name.take(20).ifBlank { "ERROR" }
+                }
+            }
         }
 
         private suspend fun logCurrentFetchFailure(source: WeatherSource, exception: Exception) {

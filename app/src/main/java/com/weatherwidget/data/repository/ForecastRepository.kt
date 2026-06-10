@@ -437,6 +437,22 @@ class ForecastRepository
             }
         }
 
+        private fun extractErrorCode(exception: Exception): String = when (exception) {
+            is ApiAccessException -> exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
+            is ClientRequestException -> "HTTP_${exception.response.status.value}"
+            else -> {
+                val name = exception.javaClass.simpleName
+                when {
+                    name.contains("UnknownHost") || name.contains("UnresolvedAddress") -> "DNS_ERROR"
+                    name.contains("ConnectException") || name.contains("ConnectionRefused") -> "CONN_REFUSED"
+                    name.contains("Timeout") || name.contains("SocketTimeout") -> "TIMEOUT"
+                    name.contains("SSL") || name.contains("TLS") -> "SSL_ERROR"
+                    name.contains("SocketException") -> "SOCKET_ERROR"
+                    else -> name.take(20).ifBlank { "ERROR" }
+                }
+            }
+        }
+
         private fun extractHttpErrorDetail(body: String?, fallbackMessage: String?): String {
             val bodyText = body?.trim().orEmpty()
             val messageMatch = Regex("\"message\"\\s*:\\s*\"([^\"]+)\"").find(bodyText)?.groupValues?.getOrNull(1)
@@ -458,7 +474,7 @@ class ForecastRepository
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (exception: Exception) {
-                widgetStateManager.recordSourceFetchFailure(source)
+                widgetStateManager.recordSourceFetchFailure(source, errorCode = extractErrorCode(exception))
                 logFetchFailure(tag, source, exception)
                 null
             }
