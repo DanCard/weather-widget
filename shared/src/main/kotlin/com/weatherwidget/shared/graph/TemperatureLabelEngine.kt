@@ -480,6 +480,11 @@ object TemperatureLabelEngine {
             is ExactFitBlockerResult.NaturalFits -> return ExactFitOutcome.NATURAL_FITS
             is ExactFitBlockerResult.LabelOrIconBlocked -> return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
             is ExactFitBlockerResult.CurveOnly -> {
+                // Forecast curve often dips below the actual valley; prefer above rather than
+                // pushing the label further into the below-space.
+                if (candidate.role == TemperatureRole.ACTUAL_LOW && !placeAbove) {
+                    return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
+                }
                 val extra = if (placeAbove) {
                     blockerResult.baseBounds.bottom - blockerResult.intrusion.minY + CURVE_AVOIDANCE_CLEAR_PX - allowedDipPx
                 } else {
