@@ -316,7 +316,7 @@ object TemperatureLabelResolver {
             TemperatureRole.ACTUAL_LOW -> false
             TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH -> isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_HIGH")
             TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW -> isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_LOW")
-            TemperatureRole.LOCAL, TemperatureRole.END, TemperatureRole.ACTUAL_END -> {
+            TemperatureRole.LOCAL, TemperatureRole.END, TemperatureRole.ACTUAL_END, TemperatureRole.START -> {
                 val candidates = listOf(
                     extrema.dailyHighIndex, extrema.dailyLowIndex,
                     extrema.forecastHighIndex, extrema.forecastLowIndex,
