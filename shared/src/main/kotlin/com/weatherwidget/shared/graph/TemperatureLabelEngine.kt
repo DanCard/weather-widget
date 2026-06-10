@@ -485,6 +485,10 @@ object TemperatureLabelEngine {
                 if (candidate.role == TemperatureRole.ACTUAL_LOW && !placeAbove) {
                     return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
                 }
+                // Actual curve rises from the start point into the above-space; prefer below.
+                if (candidate.role == TemperatureRole.START && placeAbove) {
+                    return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
+                }
                 val extra = if (placeAbove) {
                     blockerResult.baseBounds.bottom - blockerResult.intrusion.minY + CURVE_AVOIDANCE_CLEAR_PX - allowedDipPx
                 } else {
