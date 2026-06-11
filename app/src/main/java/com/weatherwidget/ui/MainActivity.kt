@@ -16,6 +16,8 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.weatherwidget.R
+import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.SharedLocationResolver
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -29,12 +31,44 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var sharedLocationResolver: SharedLocationResolver
 
+    @Inject
+    lateinit var appLogDao: AppLogDao
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Diagnostic: MainActivity should normally only open from the launcher icon. On Samsung,
+        // tapping a widget "dead zone" (no PendingIntent) sometimes makes One UI Home fall back to
+        // launching this LAUNCHER activity. The tap never reaches our widget code, so the only place
+        // to observe it is here. Log launch provenance so the next stray launch can be confirmed by
+        // correlating MAIN_LAUNCH against the widget CLICK_* rows in app_logs.
+        logLaunchProvenance("onCreate", savedInstanceState == null)
         setContentView(R.layout.activity_main)
 
         setupViews()
         updatePermissionVisibility()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        logLaunchProvenance("onNewIntent", freshCreate = false)
+    }
+
+    private fun logLaunchProvenance(reason: String, freshCreate: Boolean) {
+        val launchIntent = intent
+        val message = buildString {
+            append("reason=$reason")
+            append(" referrer=${referrer?.toString()}")
+            append(" action=${launchIntent?.action}")
+            append(" categories=${launchIntent?.categories}")
+            append(" flags=0x${Integer.toHexString(launchIntent?.flags ?: 0)}")
+            append(" component=${launchIntent?.component?.flattenToShortString()}")
+            append(" extras=${launchIntent?.extras?.keySet()}")
+            append(" freshCreate=$freshCreate taskId=$taskId")
+        }
+        lifecycleScope.launch {
+            appLogDao.log("MAIN_LAUNCH", message, "INFO")
+        }
     }
 
     private fun setupViews() {

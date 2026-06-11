@@ -434,3 +434,28 @@ internal fun setupGraphSelectorShortcut(
         views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
     }
 }
+
+/**
+ * Backstop click handler on the widget root. On Samsung (One UI Home), a tap that lands on a region
+ * with no PendingIntent falls through to launching the app's LAUNCHER activity (MainActivity), which
+ * we don't want. Binding a harmless toast broadcast to [R.id.widget_root] absorbs those "dead zone"
+ * taps so the launcher never takes over. RemoteViews dispatches a click to the deepest view that has
+ * a PendingIntent, so every real touch zone still wins — only unclaimed taps reach the root.
+ * Must be set on every render (RemoteViews are rebuilt each update).
+ */
+internal fun setupDeadZoneCatchAll(
+    context: Context,
+    views: RemoteViews,
+    appWidgetId: Int,
+) {
+    val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        action = WidgetActions.ACTION_SHOW_TOAST
+        putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "Dead zone tapped")
+        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+    }
+    val pendingIntent = PendingIntent.getBroadcast(
+        context, WidgetRequestCodes.deadZone(appWidgetId), toastIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+}

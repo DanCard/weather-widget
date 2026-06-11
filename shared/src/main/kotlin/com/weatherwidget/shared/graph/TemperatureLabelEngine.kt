@@ -90,6 +90,30 @@ object TemperatureLabelEngine {
         return forced
     }
 
+    // At the graph's LEFT EDGE the START (forecast) label and the nearest actual extreme label often
+    // sit at nearly the same x but on opposite sides of their lines, which can invert their reading
+    // order (cooler forecast above warmer actual). Order this start pair by temperature: warmer
+    // above, cooler below. Scoped to the left edge (the actual label must be within
+    // LEFT_EDGE_START_WINDOW of START) so the rest of the tuned placement logic is untouched.
+    // Returns index -> placeAbove overrides for exactly the two paired labels.
+    private const val LEFT_EDGE_START_WINDOW = 8
+
+    private val LEFT_EDGE_ACTUAL_ROLES = setOf(
+        TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_END,
+    )
+
+    private fun computeLeftEdgeStartOrdering(candidates: List<TempLabelCandidate>): Map<Int, Boolean> {
+        val start = candidates.firstOrNull { it.role == TemperatureRole.START } ?: return emptyMap()
+        val actual = candidates
+            .filter { it.role in LEFT_EDGE_ACTUAL_ROLES && it.index != start.index && abs(it.index - start.index) <= LEFT_EDGE_START_WINDOW }
+            .minByOrNull { abs(it.index - start.index) } ?: return emptyMap()
+        val startVal = start.labelTemps[start.index]
+        val actualVal = actual.labelTemps[actual.index]
+        if (TemperatureLabelResolver.formatTemp(startVal) == TemperatureLabelResolver.formatTemp(actualVal)) return emptyMap()
+        val startAbove = startVal > actualVal
+        return mapOf(start.index to startAbove, actual.index to !startAbove)
+    }
+
     fun computePlacements(
         hours: List<HourData>,
         widthPx: Int,
@@ -123,6 +147,7 @@ object TemperatureLabelEngine {
         TemperatureLabelResolver.sortLabelCandidates(candidates)
 
         val forcedAboveLows = computeForcedAboveLowIndices(candidates)
+        val leftEdgeOrder = computeLeftEdgeStartOrdering(candidates)
         val drawnLabelMetas = mutableListOf<PlacedLabelMeta>()
         val resultPlacements = mutableListOf<PlacedLabel>()
 
@@ -153,6 +178,7 @@ object TemperatureLabelEngine {
                 candidate.role == TemperatureRole.START ||
                 candidate.role == TemperatureRole.END
             val preferAbove = when {
+                idx in leftEdgeOrder -> leftEdgeOrder.getValue(idx)
                 forceAbove -> true
                 valueBasedRoles -> prefersAbovePlacement(candidate)
                 else -> !geometry.isValley

@@ -79,6 +79,7 @@ object TemperatureViewHandler {
         )
 
         val views = RemoteViews(context.packageName, com.weatherwidget.R.layout.widget_weather)
+        setupDeadZoneCatchAll(context, views, appWidgetId)
         TemperatureViewBinder.bind(
             context = context,
             views = views,
