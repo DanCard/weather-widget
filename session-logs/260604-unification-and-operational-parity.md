@@ -9,7 +9,7 @@ This session focused on achieving full operational and architectural parity betw
 3. "Do the desktop app and android calculate current temp the same?"
 4. "Can we de duplicate the code?"
 5. "nws blending: have the desktop app duplicate what the android app does."
-6. "I started the desktop app through: scripts/build-exe-and-restart.sh but it didn't start. Review logs and logging if that helps"
+6. "I started the desktop app through: scripts/build-start.sh but it didn't start. Review logs and logging if that helps"
 7. "Operational Differences: ... Which better way for operational? Android or desktop. I'm thinking Android. What do you think?"
 8. "Make a plan for refactor desktop app to duplicate the Android repository model"
 9. "For desktop assume for logic purposes that the screen is always on. On android we check if screen is on to save on battery, which isn't a factor for desktop."

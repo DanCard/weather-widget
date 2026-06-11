@@ -110,8 +110,11 @@ object TemperatureLabelResolver {
         val labelTemps = extrema.labelTemps
         val actualLabelTemps = extrema.actualLabelTemps
 
-        val redundantPairWindow = computeRedundantPairWindow(hours, widthPx)
-        Log.d(TAG, "RedundancyWindow: window=$redundantPairWindow widthPx=$widthPx hours=${hours.size}")
+        // Boundary labels (START/END) are positional anchors, so "nearby" for them is a visual
+        // (zoom-aware) pixel budget. Extrema-vs-extrema redundancy (forecast-vs-actual high/low) is
+        // about the SAME semantic quantity and keeps the legacy index window inside the check.
+        val boundaryRedundancyWindow = computeRedundantPairWindow(hours, widthPx)
+        Log.d(TAG, "RedundancyWindow: boundary=$boundaryRedundancyWindow widthPx=$widthPx hours=${hours.size}")
 
         val potentialAnchors = buildPotentialAnchors(extrema, hours.size)
         extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
@@ -183,7 +186,7 @@ object TemperatureLabelResolver {
             }
             fetchResult.overriddenRole?.let { role = it }
 
-            if (checkRedundantPairSuppression(idx, role, extrema, suppressedIndices, labelTemps, actualLabelTemps, redundantPairWindow)) {
+            if (checkRedundantPairSuppression(idx, role, extrema, suppressedIndices, labelTemps, actualLabelTemps, boundaryRedundancyWindow)) {
                 if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
                     Log.d(TAG, "LabelSuppressed: role=$role idx=$idx reason=REDUNDANT")
                 }
@@ -218,8 +221,50 @@ object TemperatureLabelResolver {
         }
 
         addCoincidentActualHigh(specialCandidates, suppressedIndices, extrema, hours, labelTemps, actualLabelTemps)
+        addForecastMidpointLabel(specialCandidates, effectiveActualEndIndex, hours, labelTemps)
 
         return specialCandidates
+    }
+
+    // Minimum forecast-region length (in indices ≈ hours) before its bare middle is worth a label.
+    // 3 means a region of ≥4 points (e.g. a 3-hour forecast on a tight zoom) still gets a midpoint;
+    // smaller regions have no meaningful interior point distinct from the endpoints.
+    private const val MIN_FORECAST_MIDPOINT_SPAN = 3
+
+    // A monotonic forecast (e.g. a steady overnight decline) has no interior extremum, so the only
+    // label the engine emits in the future region is END — leaving the forecast line's middle bare.
+    // When the future region [transition .. lastIndex] carries no label strictly inside it, drop a
+    // single forecast-colored value label at its midpoint so the line always has a readable
+    // reference. No-op when the region is short or already has an interior label.
+    //
+    // Scoped to a genuine forecast sub-region: requires a transition boundary
+    // (effectiveActualEndIndex within the data). The whole-graph "only endpoints labeled" case is
+    // governed separately by the numColumns>=5 midpoint rule above, which a narrow widget opts out
+    // of — so this must not fire there.
+    private fun addForecastMidpointLabel(
+        specialCandidates: MutableList<TempLabelCandidate>,
+        effectiveActualEndIndex: Int,
+        hours: List<HourData>,
+        labelTemps: List<Float>,
+    ) {
+        val lastIndex = hours.lastIndex
+        val futureStart = effectiveActualEndIndex
+        if (futureStart !in 0 until lastIndex) return
+        if (lastIndex - futureStart < MIN_FORECAST_MIDPOINT_SPAN) return
+
+        // Any label strictly between the forecast boundary and the END endpoint already covers it.
+        val hasInteriorLabel = specialCandidates.any { it.index in (futureStart + 1) until lastIndex }
+        if (hasInteriorLabel) return
+
+        val mid = (futureStart + lastIndex) / 2
+        if (mid <= futureStart || mid >= lastIndex) return
+        if (specialCandidates.any { it.index == mid }) return
+        if (mid !in labelTemps.indices) return
+
+        Log.d(TAG, "LabelAccepted: role=LOCAL idx=$mid val=${labelTemps[mid]} reason=FORECAST_MIDPOINT futureStart=$futureStart lastIndex=$lastIndex")
+        specialCandidates.add(
+            TempLabelCandidate(mid, TemperatureRole.LOCAL, labelTemps, hours[mid].temperature, forceForecastSeries = true)
+        )
     }
 
     // The candidate pipeline above is index-keyed: each hour yields a single label, and when the
@@ -368,9 +413,12 @@ object TemperatureLabelResolver {
         suppressedIndices: Set<Int>,
         labelTemps: List<Float>,
         actualLabelTemps: List<Float>,
-        redundantPairWindow: Int,
+        boundaryWindow: Int,
     ): Boolean {
         val redundantValueThreshold = 2f
+        // Legacy index window for same-semantic extrema pairs (forecast vs actual high/low): these
+        // represent the same quantity, so a slightly wider, zoom-independent window is appropriate.
+        val extremaWindow = min(8, labelTemps.lastIndex / 5)
 
         return when (role) {
             // The observed high is always worth its own label, mirroring ACTUAL_LOW below. Even
@@ -383,8 +431,8 @@ object TemperatureLabelResolver {
             // LOW first), so never treat it as redundant against a nearby forecast/daily low — the
             // two are stacked and ordered by value at placement time instead.
             TemperatureRole.ACTUAL_LOW -> false
-            TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH -> isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_HIGH")
-            TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW -> isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_LOW")
+            TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH -> isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], extremaWindow, redundantValueThreshold, "ACTUAL_HIGH")
+            TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW -> isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], extremaWindow, redundantValueThreshold, "ACTUAL_LOW")
             TemperatureRole.LOCAL, TemperatureRole.END, TemperatureRole.ACTUAL_END, TemperatureRole.START -> {
                 val forecastCandidates = listOf(
                     extrema.dailyHighIndex, extrema.dailyLowIndex,
@@ -396,11 +444,11 @@ object TemperatureLabelResolver {
                 )
                 forecastCandidates.any { tIdx ->
                     tIdx >= 0 && tIdx != idx && tIdx !in suppressedIndices &&
-                        abs(idx - tIdx) <= redundantPairWindow &&
+                        abs(idx - tIdx) <= boundaryWindow &&
                         abs(labelTemps[idx] - labelTemps[tIdx]) < redundantValueThreshold
                 } || actualCandidates.any { tIdx ->
                     tIdx >= 0 && tIdx != idx && tIdx !in suppressedIndices &&
-                        abs(idx - tIdx) <= redundantPairWindow &&
+                        abs(idx - tIdx) <= boundaryWindow &&
                         abs(labelTemps[idx] - actualLabelTemps[tIdx]) < redundantValueThreshold
                 }
             }

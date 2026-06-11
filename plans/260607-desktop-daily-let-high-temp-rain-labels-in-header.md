@@ -89,7 +89,7 @@ allowance so they may extend a little above the canvas top into the header.
 ## Verification
 
 - Build + restart the repo distributable per CLAUDE.md:
-  `scripts/restart-desktop-distributable.sh` (or `scripts/build-exe-and-restart.sh`).
+  `scripts/restart-desktop-distributable.sh` (or `scripts/build-start.sh`).
 - Open the daily view; confirm the hottest day's high label (the reported
   "89°") now sits above its bar and pokes a little into the header band instead
   of covering the bar.

@@ -174,7 +174,7 @@ class DesktopUiTest {
     }
 
     @Test
-    fun testHourlyNavigationStepsBySixHours() {
+    fun testHourlyNavigationStepsByHalfTheVisibleSpan() {
         var updatedConfig: DesktopConfig? = null
         composeTestRule.setContent {
             WidgetPopup(
@@ -188,12 +188,15 @@ class DesktopUiTest {
             )
         }
 
+        // The arrow shifts by half the visible span (zoom-proportional), not a fixed step.
+        val expectedJump = DesktopGraphUtils.navJumpHours(stubConfig.zoomFactor)
+
         composeTestRule.onNodeWithTag("hourly_nav_right").performClick()
-        assertEquals(6, updatedConfig?.hourlyOffset)
+        assertEquals(expectedJump, updatedConfig?.hourlyOffset)
 
         updatedConfig = null
         composeTestRule.onNodeWithTag("hourly_nav_left").performClick()
-        assertEquals(-6, updatedConfig?.hourlyOffset)
+        assertEquals(-expectedJump, updatedConfig?.hourlyOffset)
     }
 
     @Test

@@ -178,7 +178,7 @@ The `:desktop` module is a Compose-for-Desktop tray app sharing `:shared` with A
   `scripts/desktop-app-launcher-and-autostart.sh`. The script launches
   `desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop`, rebuilding
   the distributable once if it is missing. This keeps daily use tied to the repo rather than the `.deb`.
-- **To test a new daily build now:** run `scripts/build-exe-and-restart.sh`. It builds first,
+- **To test a new daily build now:** run `scripts/build-start.sh`. It builds first,
   then stops any running desktop app, then starts the same repo autostart launcher used at login.
 - **For development only: `./gradlew :desktop:run`** (fast iteration, no distributable step). Not for
   daily autostart.

@@ -38,6 +38,17 @@ internal object DesktopGraphUtils {
 
     fun forwardHoursFor(zoomFactor: Float): Int = geomInterp(MIN_FORWARD_HOURS, MAX_FORWARD_HOURS, zoomFactor)
 
+    /** Total visible span (back + forward) for a zoom factor. */
+    fun totalSpanHoursFor(zoomFactor: Float): Int = backHoursFor(zoomFactor) + forwardHoursFor(zoomFactor)
+
+    /**
+     * How many hours a left/right nav-arrow press shifts the view: half the visible span, so the
+     * jump scales with zoom. A fixed step overshoots badly when zoomed in (a 6h jump on a ~4h tight
+     * view skips past everything you were looking at); half-a-span keeps ~half the prior window in
+     * frame at any zoom. At least 1h so the arrow always moves.
+     */
+    fun navJumpHours(zoomFactor: Float): Int = (totalSpanHoursFor(zoomFactor) / 2).coerceAtLeast(1)
+
     private fun geomInterp(min: Int, max: Int, z: Float): Int {
         val zc = z.coerceIn(0f, 1f)
         return (min * (max.toFloat() / min).pow(zc)).roundToInt().coerceIn(min, max)

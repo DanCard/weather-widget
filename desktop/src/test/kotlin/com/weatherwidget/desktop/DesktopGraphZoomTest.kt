@@ -82,6 +82,27 @@ class DesktopGraphZoomTest {
     }
 
     @Test
+    fun `nav jump is half the visible span and scales with zoom`() {
+        var z = 0f
+        while (z <= 1f) {
+            val span = DesktopGraphUtils.totalSpanHoursFor(z)
+            assertEquals("jump should be half the span at z=$z", (span / 2).coerceAtLeast(1), DesktopGraphUtils.navJumpHours(z))
+            z += 0.1f
+        }
+        // Zoomed in -> small jump (doesn't overshoot the window); zoomed out -> large jump.
+        assertTrue(
+            "nav jump must grow as the view zooms out",
+            DesktopGraphUtils.navJumpHours(1f) > DesktopGraphUtils.navJumpHours(0f),
+        )
+    }
+
+    @Test
+    fun `nav jump never stalls at the tightest zoom`() {
+        // Even at the smallest span the arrow must move at least an hour.
+        assertTrue(DesktopGraphUtils.navJumpHours(0f) >= 1)
+    }
+
+    @Test
     fun `pan drag direction and magnitude`() {
         // Drag right (positive px) reveals earlier time -> the hourly offset decreases.
         assertTrue(DesktopGraphUtils.panDeltaHours(100f, 800f, 24) < 0f)

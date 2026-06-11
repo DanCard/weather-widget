@@ -79,7 +79,7 @@ beyond the loaded data window (~144h back / 168h forward) shows empty edges, sam
 - Compile + full `:desktop:test` (gesture wiring itself is not unit-tested, consistent with existing UI code).
 
 ## Verification (end-to-end)
-1. `scripts/build-exe-and-restart.sh` (rebuild + restart; project convention).
+1. `scripts/build-start.sh` (rebuild + restart; project convention).
 2. Temperature graph: click-hold and drag left/right — the curve slides **smoothly** (no per-hour
    chunking) and the view stays put on release (persists across restart). Tap still toggles zoom; the
    bottom-strip tap still changes view.

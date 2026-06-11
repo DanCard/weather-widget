@@ -159,7 +159,7 @@ net-new coverage. Android's existing renderer tests still exercise the adapter p
 3. `./gradlew :app:assembleDebug` then `./gradlew :desktop:run` — visually confirm both platforms
    render an identical NOW indicator (full-size label, light shadow, below-first, suppress,
    0.5dp line) on the temperature hourly graph; spot-check precip/cloud now-lines are now thinner.
-4. Daily-build desktop check (optional): `scripts/build-exe-and-restart.sh` per `CLAUDE.md`.
+4. Daily-build desktop check (optional): `scripts/build-start.sh` per `CLAUDE.md`.
 
 ## Critical files
 

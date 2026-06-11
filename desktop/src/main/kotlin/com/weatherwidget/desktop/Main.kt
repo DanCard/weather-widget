@@ -66,7 +66,6 @@ import dorkbox.systemTray.MenuItem as TrayMenuItem
  */
 private const val APP_PACKAGE = "weather-widget-desktop"
 private const val TAG = "Main"
-private const val HOURLY_NAV_JUMP = 6
 private const val MIN_HOURLY_OFFSET = -720
 private const val MAX_HOURLY_OFFSET = 720
 
@@ -80,6 +79,9 @@ private fun offsetToDayCenter(clickedDate: LocalDate): Int =
         .toHours().toInt()
 
 fun main(args: Array<String>) {
+    // Surface shared-module diagnostics on the console (default JulSink drops DEBUG). First thing so
+    // even startup logging from :shared is visible.
+    Log.install(DesktopLogSink)
     val isUiMode = args.contains("--ui") || args.contains("ui") || args.contains("--show") || args.contains("show")
     if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
         if (isUiMode) {
@@ -683,14 +685,20 @@ internal fun WidgetPopup(
                                 enabled = config.hourlyOffset > MIN_HOURLY_OFFSET,
                                 testTag = "hourly_nav_left",
                             ) {
-                                onUpdateConfig(config.copy(hourlyOffset = (config.hourlyOffset - HOURLY_NAV_JUMP).coerceAtLeast(MIN_HOURLY_OFFSET)))
+                                val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
+                                val newOffset = (config.hourlyOffset - jump).coerceAtLeast(MIN_HOURLY_OFFSET)
+                                Log.d(TAG, "HourlyNav: left jump=${-jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
+                                onUpdateConfig(config.copy(hourlyOffset = newOffset))
                             }
                             NavArrow(
                                 alignment = Alignment.CenterEnd,
                                 enabled = config.hourlyOffset < MAX_HOURLY_OFFSET,
                                 testTag = "hourly_nav_right",
                             ) {
-                                onUpdateConfig(config.copy(hourlyOffset = (config.hourlyOffset + HOURLY_NAV_JUMP).coerceAtMost(MAX_HOURLY_OFFSET)))
+                                val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
+                                val newOffset = (config.hourlyOffset + jump).coerceAtMost(MAX_HOURLY_OFFSET)
+                                Log.d(TAG, "HourlyNav: right jump=+${jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
+                                onUpdateConfig(config.copy(hourlyOffset = newOffset))
                             }
                         }
                     } else {

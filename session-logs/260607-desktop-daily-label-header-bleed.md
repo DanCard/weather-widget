@@ -71,7 +71,7 @@ top and let labels ride up as far as they need.
 - Kept `top = 2f * scale` — bars still fill the full height.
 
 ## Verification
-- `scripts/build-exe-and-restart.sh`: **BUILD SUCCESSFUL**, distributable rebuilt,
+- `scripts/build-start.sh`: **BUILD SUCCESSFUL**, distributable rebuilt,
   incumbent instance stopped via `.quit` trigger, new instance started through the
   autostart launcher. Only compiler output was a pre-existing `painterResource`
   deprecation warning, unrelated to this change.

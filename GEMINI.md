@@ -55,7 +55,7 @@ The project requires Java 21. Ensure your environment is configured correctly be
 scripts/desktop-app-launcher-and-autostart.sh
 
 # Rebuild, stop running app, and restart the new repo distributable immediately
-scripts/build-exe-and-restart.sh
+scripts/build-start.sh
 
 # Fast restart of existing distributable (relaunch without rebuilding)
 scripts/fast-desktop-restart.sh

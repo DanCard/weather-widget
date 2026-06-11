@@ -37,4 +37,4 @@ This session focused on implementing the visual, layout, and interaction parity 
 ## Verification
 1. Compilation: Clean build and compilation via `./gradlew :desktop:compileKotlin` completed successfully.
 2. Unit and UI Tests: Ran all tests with `./gradlew test --no-build-cache` and verified that all 55 tests in `:desktop` and 52 tests in `:app` passed successfully.
-3. Executable Execution: Packaged and ran the updated app successfully using `scripts/build-exe-and-restart.sh`, verifying visual scaling, collision avoidance, and hover/click interactions.
+3. Executable Execution: Packaged and ran the updated app successfully using `scripts/build-start.sh`, verifying visual scaling, collision avoidance, and hover/click interactions.
