@@ -216,7 +216,14 @@ object TemperatureLabelEngine {
                 continue
             }
 
-            if (candidate.role in CURVE_AVOIDANCE_ROLES) {
+            // The left-edge START/actual pair is ordered by value (warmer above, cooler below) and
+            // sits flush against its own line start — there's no ambiguity about which line each
+            // belongs to (they're color-matched at the edge), so skip curve avoidance for them.
+            // Otherwise each lands on the side where its own line grazes the label box and gets
+            // bumped off-anchor, drawing an unwanted leader line.
+            val isLeftEdgePair = idx in leftEdgeOrder
+
+            if (candidate.role in CURVE_AVOIDANCE_ROLES && !isLeftEdgePair) {
                 placed = tryExactFitCurveAvoidance(
                     widthPx = widthPx,
                     heightPx = heightPx,
@@ -281,7 +288,7 @@ object TemperatureLabelEngine {
                     val curveAvoidanceEligible = candidate.role in CURVE_AVOIDANCE_ROLES
                     val curveIntrusion = if (curveAvoidanceEligible) combinedCurveIntrusion(actualVisiblePoints, forecastPoints, bounds) else CurveIntrusion.NONE
                     val allowFlippedAboveCurveGraze = flipDecided && placeAbove && curveAvoidanceEligible
-                    val overlapsCurve = curveAvoidanceEligible && !curveIntrusion.isEmpty && !allowFlippedAboveCurveGraze
+                    val overlapsCurve = curveAvoidanceEligible && !curveIntrusion.isEmpty && !allowFlippedAboveCurveGraze && !isLeftEdgePair
 
                     val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve
 
