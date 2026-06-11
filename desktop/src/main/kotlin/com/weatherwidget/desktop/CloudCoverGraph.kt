@@ -465,8 +465,6 @@ private fun DrawScope.drawDayLabels(
     }
 }
 
-private fun formatHourLabel(hour: Int): String = DesktopGraphUtils.formatHourLabel(hour)
-
 private fun computeTangents(coords: List<Offset>): List<Offset> = DesktopGraphUtils.computeTangents(coords)
 
 private fun buildCurve(coords: List<Offset>): Path = DesktopGraphUtils.buildCurve(coords)

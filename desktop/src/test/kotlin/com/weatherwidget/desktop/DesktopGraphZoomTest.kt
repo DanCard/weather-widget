@@ -138,6 +138,43 @@ class DesktopGraphZoomTest {
     }
 
     @Test
+    fun `footerLabels uses clock-hour cadence below the date threshold`() {
+        val utc = ZoneId.of("UTC")
+        val base = Instant.parse("2026-06-10T00:00:00Z").toEpochMilli()
+        val hourMs = 3_600_000L
+        // 24h span -> labelIntervalFor(24) == 4, so a label every 4th hour, time-of-day text.
+        val points = (0..24).map { i -> HourlyForecast(base + i * hourMs, 70f, "Clear") }
+
+        val labels = DesktopGraphUtils.footerLabels(points, totalSpanHours = 24, zone = utc)
+
+        assertEquals(listOf(0, 4, 8, 12, 16, 20, 24), labels.map { it.index })
+        assertEquals(
+            listOf("12a", "4a", "8a", "12p", "4p", "8p", "12a"),
+            labels.map { it.text },
+        )
+    }
+
+    @Test
+    fun `footerLabels uses one centered date per day above the threshold`() {
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.US)
+            val utc = ZoneId.of("UTC")
+            val base = Instant.parse("2026-06-10T00:00:00Z").toEpochMilli()
+            val hourMs = 3_600_000L
+            // 72h span -> date mode: Jun 10/11 land on local noon, Jun 12's lone 00:00 point is its rep.
+            val points = (0..48).map { i -> HourlyForecast(base + i * hourMs, 70f, "Clear") }
+
+            val labels = DesktopGraphUtils.footerLabels(points, totalSpanHours = 72, zone = utc)
+
+            assertEquals(listOf(12, 36, 48), labels.map { it.index })
+            assertEquals(listOf("Wed 10", "Thu 11", "Fri 12"), labels.map { it.text })
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
     fun `data step plus residual is perfectly linear in drag`() {
         // The on-screen slide = whole-hour data shift (-round(D)*pph) + sub-hour residual. The two
         // sum to exactly -D*pph for every D, which is what makes the drag continuous across hour
