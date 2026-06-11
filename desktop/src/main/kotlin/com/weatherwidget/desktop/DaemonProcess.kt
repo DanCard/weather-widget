@@ -118,6 +118,7 @@ fun runDaemon() {
                     val launchRefreshAction = determineLaunchRefreshAction(
                         cachePresent = cached != null,
                         lastObservationFetchMs = lastObservationFetch,
+                        lastForecastFetchMs = lastForecastFetch,
                         nowMs = now,
                     )
 

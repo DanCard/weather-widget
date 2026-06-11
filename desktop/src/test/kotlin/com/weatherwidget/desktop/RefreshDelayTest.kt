@@ -56,6 +56,7 @@ class RefreshDelayTest {
         val action = determineLaunchRefreshAction(
             cachePresent = false,
             lastObservationFetchMs = 900_000L,
+            lastForecastFetchMs = 900_000L,
             nowMs = 1_000_000L,
         )
 
@@ -63,10 +64,11 @@ class RefreshDelayTest {
     }
 
     @Test
-    fun `launch refresh skips network when cached observations are fresh`() {
+    fun `launch refresh skips network when cached forecast and observations are fresh`() {
         val action = determineLaunchRefreshAction(
             cachePresent = true,
             lastObservationFetchMs = 500_000L,
+            lastForecastFetchMs = 990_000L,
             nowMs = 1_000_000L,
         )
 
@@ -74,10 +76,11 @@ class RefreshDelayTest {
     }
 
     @Test
-    fun `launch refresh uses observations only when cached observations are stale`() {
+    fun `launch refresh uses observations only when observations stale but forecast fresh`() {
         val action = determineLaunchRefreshAction(
             cachePresent = true,
             lastObservationFetchMs = 300_000L,
+            lastForecastFetchMs = 990_000L,
             nowMs = 1_000_000L,
         )
 
@@ -89,10 +92,35 @@ class RefreshDelayTest {
         val action = determineLaunchRefreshAction(
             cachePresent = true,
             lastObservationFetchMs = null,
+            lastForecastFetchMs = 990_000L,
             nowMs = 1_000_000L,
         )
 
         assertEquals(LaunchRefreshAction.OBSERVATIONS, action)
+    }
+
+    @Test
+    fun `launch refresh pulls full forecast when cached forecast is stale even if observations are fresh`() {
+        val action = determineLaunchRefreshAction(
+            cachePresent = true,
+            lastObservationFetchMs = 9_900_000L, // 100s old: fresh
+            lastForecastFetchMs = 1_000_000L,    // ~2.5h old: stale (> 60 min)
+            nowMs = 10_000_000L,
+        )
+
+        assertEquals(LaunchRefreshAction.FULL_FORECAST, action)
+    }
+
+    @Test
+    fun `launch refresh pulls full forecast when cached forecast fetch is unknown`() {
+        val action = determineLaunchRefreshAction(
+            cachePresent = true,
+            lastObservationFetchMs = 990_000L,
+            lastForecastFetchMs = null,
+            nowMs = 1_000_000L,
+        )
+
+        assertEquals(LaunchRefreshAction.FULL_FORECAST, action)
     }
 
     @Test

@@ -24,6 +24,12 @@ val appLaunchId: String = UUID.randomUUID().toString()
 fun appDataDir(): Path = DesktopDbPaths.defaultDbPath().parent
 
 const val FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000L
+// A launch must re-pull the forecast once the cached forecast is older than this. Aligns with the
+// AC active-source forecast interval (DesktopFetchStrategy.AC_ACTIVE_FORECAST_MINUTES). Without this,
+// a daemon that restarts more often than the periodic forecast loop's first delay (which waits a full
+// interval before its first fetch) would refresh observations forever but never re-pull the forecast,
+// freezing the multi-day daily columns at whatever coverage the last full fetch had.
+const val FORECAST_FRESHNESS_THRESHOLD_MS = 60 * 60 * 1000L
 const val CURRENT_TEMP_UI_INTERVAL_MS = 2 * 60 * 1000L
 const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 
@@ -36,9 +42,15 @@ enum class LaunchRefreshAction {
 fun determineLaunchRefreshAction(
     cachePresent: Boolean,
     lastObservationFetchMs: Long?,
+    lastForecastFetchMs: Long?,
     nowMs: Long = System.currentTimeMillis(),
 ): LaunchRefreshAction {
     if (!cachePresent) return LaunchRefreshAction.FULL_FORECAST
+    // A stale forecast takes priority: a full forecast fetch also refreshes observations, so it
+    // supersedes an observations-only refresh.
+    val forecastIsStale = lastForecastFetchMs == null ||
+        (nowMs - lastForecastFetchMs) >= FORECAST_FRESHNESS_THRESHOLD_MS
+    if (forecastIsStale) return LaunchRefreshAction.FULL_FORECAST
     val observationsAreFresh = lastObservationFetchMs != null &&
         (nowMs - lastObservationFetchMs) < FRESHNESS_THRESHOLD_MS
     return if (observationsAreFresh) LaunchRefreshAction.NONE else LaunchRefreshAction.OBSERVATIONS
