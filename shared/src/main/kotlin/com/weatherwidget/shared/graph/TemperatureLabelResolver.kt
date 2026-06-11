@@ -220,7 +220,8 @@ object TemperatureLabelResolver {
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
 
-        addCoincidentActualHigh(specialCandidates, suppressedIndices, extrema, hours, labelTemps, actualLabelTemps)
+        addCoincidentActuals(specialCandidates, suppressedIndices, extrema.actualDailyHighIndices, TemperatureRole.ACTUAL_HIGH, FORECAST_HIGH_ROLES, hours, labelTemps, actualLabelTemps, "COINCIDENT_WITH_FORECAST_HIGH")
+        addCoincidentActuals(specialCandidates, suppressedIndices, extrema.actualDailyLowIndices, TemperatureRole.ACTUAL_LOW, FORECAST_LOW_ROLES, hours, labelTemps, actualLabelTemps, "COINCIDENT_WITH_FORECAST_LOW")
         addForecastMidpointLabel(specialCandidates, effectiveActualEndIndex, hours, labelTemps)
 
         return specialCandidates
@@ -267,39 +268,48 @@ object TemperatureLabelResolver {
         )
     }
 
-    // The candidate pipeline above is index-keyed: each hour yields a single label, and when the
-    // observed high lands on the SAME hour as the forecast/daily high, resolveExtremaRole returns
-    // the forecast-valued HIGH and the observed peak goes unlabeled. Add a distinct ACTUAL_HIGH at
-    // that hour when the observed value differs enough to read differently, so the forecast and
-    // actual highs are both labeled (placement anchors ACTUAL_HIGH to the observed point and stacks
-    // the two by value). No-op when the actual high already has its own (distinct-index) label or
-    // when the two values round to the same text.
+    // The candidate pipeline above is index-keyed: each hour yields a single label, and when an
+    // observed extreme lands on the SAME hour as the global daily high/low, resolveExtremaRole
+    // returns the forecast-valued HIGH/LOW first (those cases precede the actual-membership cases)
+    // and the observed peak/valley goes unlabeled. Add a distinct ACTUAL_HIGH/ACTUAL_LOW at that
+    // hour when the observed value differs enough to read differently, so forecast and actual are
+    // both labeled (placement anchors the actual label to the observed point and stacks the two by
+    // value). No-op when the actual extreme already has its own (distinct-index) label or when the
+    // two values round to the same text. Iterates the per-day extrema so every day's coincident
+    // case is covered, not just the global one.
     private val FORECAST_HIGH_ROLES = setOf(
         TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH,
     )
+    private val FORECAST_LOW_ROLES = setOf(
+        TemperatureRole.LOW, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW,
+    )
 
-    private fun addCoincidentActualHigh(
+    private fun addCoincidentActuals(
         specialCandidates: MutableList<TempLabelCandidate>,
         suppressedIndices: Set<Int>,
-        extrema: TemperatureExtrema.ExtremaIndices,
+        actualIndices: List<Int>,
+        actualRole: TemperatureRole,
+        forecastRoles: Set<TemperatureRole>,
         hours: List<HourData>,
         labelTemps: List<Float>,
         actualLabelTemps: List<Float>,
+        reason: String,
     ) {
-        val idx = extrema.actualHighIndex
-        if (idx < 0 || idx in suppressedIndices) return
-        if (idx !in actualLabelTemps.indices || idx !in labelTemps.indices) return
-        if (specialCandidates.any { it.index == idx && it.role == TemperatureRole.ACTUAL_HIGH }) return
-        if (specialCandidates.none { it.index == idx && it.role in FORECAST_HIGH_ROLES }) return
+        for (idx in actualIndices) {
+            if (idx < 0 || idx in suppressedIndices) continue
+            if (idx !in actualLabelTemps.indices || idx !in labelTemps.indices) continue
+            if (specialCandidates.any { it.index == idx && it.role == actualRole }) continue
+            if (specialCandidates.none { it.index == idx && it.role in forecastRoles }) continue
 
-        val actualVal = actualLabelTemps[idx]
-        val forecastVal = labelTemps[idx]
-        if (formatTemp(actualVal) == formatTemp(forecastVal)) return
+            val actualVal = actualLabelTemps[idx]
+            val forecastVal = labelTemps[idx]
+            if (formatTemp(actualVal) == formatTemp(forecastVal)) continue
 
-        Log.d(TAG, "LabelAccepted: role=ACTUAL_HIGH idx=$idx val=$actualVal reason=COINCIDENT_WITH_FORECAST_HIGH")
-        specialCandidates.add(
-            TempLabelCandidate(idx, TemperatureRole.ACTUAL_HIGH, actualLabelTemps, hours[idx].temperature, forceForecastSeries = false)
-        )
+            Log.d(TAG, "LabelAccepted: role=$actualRole idx=$idx val=$actualVal reason=$reason")
+            specialCandidates.add(
+                TempLabelCandidate(idx, actualRole, actualLabelTemps, hours[idx].temperature, forceForecastSeries = false)
+            )
+        }
     }
 
     private fun resolveExtremaRole(
@@ -311,8 +321,8 @@ object TemperatureLabelResolver {
         extrema.dailyLowIndex -> TemperatureRole.LOW
         0 -> TemperatureRole.START
         hours.lastIndex -> TemperatureRole.END
-        extrema.actualHighIndex -> TemperatureRole.ACTUAL_HIGH
-        extrema.actualLowIndex -> TemperatureRole.ACTUAL_LOW
+        in extrema.actualDailyHighIndices -> TemperatureRole.ACTUAL_HIGH
+        in extrema.actualDailyLowIndices -> TemperatureRole.ACTUAL_LOW
         extrema.forecastHighIndex -> TemperatureRole.FORECAST_HIGH
         extrema.forecastLowIndex -> TemperatureRole.FORECAST_LOW
         extrema.pastForecastHighIndex -> TemperatureRole.PAST_FORECAST_HIGH
@@ -328,8 +338,8 @@ object TemperatureLabelResolver {
         val anchors = mutableListOf<Pair<Int, TemperatureRole>>()
         if (extrema.dailyHighIndex >= 0) anchors.add(extrema.dailyHighIndex to TemperatureRole.HIGH)
         if (extrema.dailyLowIndex >= 0) anchors.add(extrema.dailyLowIndex to TemperatureRole.LOW)
-        if (extrema.actualHighIndex >= 0) anchors.add(extrema.actualHighIndex to TemperatureRole.ACTUAL_HIGH)
-        if (extrema.actualLowIndex >= 0) anchors.add(extrema.actualLowIndex to TemperatureRole.ACTUAL_LOW)
+        extrema.actualDailyHighIndices.forEach { if (it >= 0) anchors.add(it to TemperatureRole.ACTUAL_HIGH) }
+        extrema.actualDailyLowIndices.forEach { if (it >= 0) anchors.add(it to TemperatureRole.ACTUAL_LOW) }
         if (extrema.forecastHighIndex >= 0) anchors.add(extrema.forecastHighIndex to TemperatureRole.FORECAST_HIGH)
         if (extrema.forecastLowIndex >= 0) anchors.add(extrema.forecastLowIndex to TemperatureRole.FORECAST_LOW)
         if (extrema.pastForecastHighIndex >= 0) anchors.add(extrema.pastForecastHighIndex to TemperatureRole.PAST_FORECAST_HIGH)

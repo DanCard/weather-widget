@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import kotlin.math.cos
 
 class TemperatureLabelSuppressionTest {
 
@@ -420,5 +421,97 @@ class TemperatureLabelSuppressionTest {
         println("Candidates: ${candidates.map { "${it.role} idx=${it.index} val=${it.labelTemps[it.index]} raw=${it.rawTemperature}" }}")
         assertTrue("LOW should be accepted at index 10", candidates.any { it.index == 10 && it.role == TemperatureRole.LOW })
         assertTrue("ACTUAL_LOW at index 8 should be retained, not suppressed", candidates.any { it.index == 8 && it.role == TemperatureRole.ACTUAL_LOW })
+    }
+
+    // A 48h, fully-observed two-day region with one valley (4am) and one peak (4pm) per day.
+    // Day 0 is colder/cooler than day 1, and the forecast runs 3° warmer than the actuals, so each
+    // day's actual extreme reads as a distinct value. This exercises both paths: the per-day
+    // membership path (day 1's extreme, at a plain interior index) and the coincident injection
+    // (day 0's extreme, which also happens to be the global daily forecast low/high index).
+    private fun twoDayObservedHours(): List<HourData> {
+        val start = LocalDateTime.of(2026, 6, 10, 0, 0)
+        return (0 until 48).map { i ->
+            val dt = start.plusHours(i.toLong())
+            val hourOfDay = i % 24
+            val dailyMin = if (i < 24) 50.0 else 58.0
+            val theta = (hourOfDay - 4) / 24.0 * 2 * Math.PI
+            val actual = (dailyMin + 10.0 * (1 - cos(theta))).toFloat() // min at 4am, peak at 4pm
+            HourData(
+                dateTime = dt,
+                temperature = actual + 3f,
+                label = "${dt.hour}h",
+                isActual = true,
+                actualTemperature = actual,
+            )
+        }
+    }
+
+    @Test
+    fun `each day in a multi-day actual region gets its own actual low label`() {
+        val hours = twoDayObservedHours()
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 47, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 47,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 600,
+        )
+
+        // Regression: previously only the single globally-coldest valley got an ACTUAL_LOW; the
+        // second day's actual low (idx 28) went unlabeled.
+        assertTrue("day 0 actual low should be labeled at idx 4", candidates.any { it.index == 4 && it.role == TemperatureRole.ACTUAL_LOW })
+        assertTrue("day 1 actual low should be labeled at idx 28", candidates.any { it.index == 28 && it.role == TemperatureRole.ACTUAL_LOW })
+    }
+
+    @Test
+    fun `each day in a multi-day actual region gets its own actual high label`() {
+        val hours = twoDayObservedHours()
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 47, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 47,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 600,
+        )
+
+        assertTrue("day 0 actual high should be labeled at idx 16", candidates.any { it.index == 16 && it.role == TemperatureRole.ACTUAL_HIGH })
+        assertTrue("day 1 actual high should be labeled at idx 40", candidates.any { it.index == 40 && it.role == TemperatureRole.ACTUAL_HIGH })
+    }
+
+    @Test
+    fun `per-day actual low on a day-boundary slope is not labeled`() {
+        val start = LocalDateTime.of(2026, 6, 10, 0, 0)
+        // One overnight valley that straddles midnight: the actual series is a V with its bottom at
+        // idx 27 (just after the Tue->Wed boundary at idx 24). Tue's calendar-day minimum is therefore
+        // a still-descending slope point at idx 23, NOT a real valley — it must not get its own label
+        // (the genuine valley is owned by Wed at idx 27). Forecast runs 3° warmer than the actuals.
+        val hours = (0 until 48).map { i ->
+            val dt = start.plusHours(i.toLong())
+            val actual = 55f + kotlin.math.abs(i - 27) * 0.8f
+            HourData(
+                dateTime = dt,
+                temperature = actual + 3f,
+                label = "${dt.hour}h",
+                isActual = true,
+                actualTemperature = actual,
+            )
+        }
+
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 47, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 47,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 600,
+        )
+
+        assertTrue("the real overnight valley at idx 27 should be labeled", candidates.any { it.index == 27 && it.role == TemperatureRole.ACTUAL_LOW })
+        assertFalse("the day-boundary slope point at idx 23 should NOT get an actual-low label", candidates.any { it.index == 23 && it.role == TemperatureRole.ACTUAL_LOW })
     }
 }

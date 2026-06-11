@@ -16,6 +16,8 @@ object TemperatureExtrema {
         val dailyLowIndex: Int,
         val actualHighIndex: Int,
         val actualLowIndex: Int,
+        val actualDailyHighIndices: List<Int>,
+        val actualDailyLowIndices: List<Int>,
         val forecastHighIndex: Int,
         val forecastLowIndex: Int,
         val pastForecastHighIndex: Int,
@@ -52,9 +54,37 @@ object TemperatureExtrema {
         val actualHighIndex = actualIndices.maxByOrNull { actualLabelTemps[it] } ?: -1
         val actualLowIndex = actualIndices.minByOrNull { actualLabelTemps[it] } ?: -1
 
+        // Per-day actual extrema: in a multi-day view the actual region spans several days, each
+        // with its own valley/peak. The single global high/low above only labels the warmest/coldest
+        // day, leaving every other day's actual extreme unlabeled (the forecast curve gets per-day
+        // labels for free via significantLocalExtrema; this brings the actual series to parity).
+        //
+        // Keep only genuine turning points: an overnight valley straddles midnight, so the day on the
+        // "wrong" side of the boundary has its min/max land on a still-monotonic slope point at the
+        // day edge (e.g. Tue's "low" is just the descent into Wed's post-midnight valley). Labeling
+        // that slope point is redundant next to the real adjacent-day extreme, so drop it.
+        // The actual-region's own end (the observation cutoff / NOW) is exempt: an extreme there is a
+        // real observed boundary value (e.g. temp still climbing to NOW), not a midnight artifact, so
+        // we only require the neighbor that exists within the observed data.
+        fun isActualLocalMin(i: Int): Boolean {
+            if (i <= 0 || i > actualEndIndex) return false
+            val rightOk = i >= actualEndIndex || actualLabelTemps[i] <= actualLabelTemps[i + 1]
+            return actualLabelTemps[i] <= actualLabelTemps[i - 1] && rightOk
+        }
+        fun isActualLocalMax(i: Int): Boolean {
+            if (i <= 0 || i > actualEndIndex) return false
+            val rightOk = i >= actualEndIndex || actualLabelTemps[i] >= actualLabelTemps[i + 1]
+            return actualLabelTemps[i] >= actualLabelTemps[i - 1] && rightOk
+        }
+        val actualByDay = actualIndices.groupBy { hours[it].dateTime.toLocalDate() }
+        val actualDailyHighIndices = actualByDay.values.mapNotNull { d -> d.maxByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMax(it) }.sorted()
+        val actualDailyLowIndices = actualByDay.values.mapNotNull { d -> d.minByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMin(it) }.sorted()
+
         Log.d(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +
                 "lowIdx=$actualLowIndex lowTemp=${if (actualLowIndex >= 0) actualLabelTemps[actualLowIndex] else "N/A"} " +
                 "actualIndicesRange=${actualIndices.firstOrNull()}..${actualIndices.lastOrNull()}")
+        Log.d(TAG, "ACTUAL_DAILY highIdxs=$actualDailyHighIndices highTemps=${actualDailyHighIndices.map { actualLabelTemps[it] }} " +
+                "lowIdxs=$actualDailyLowIndices lowTemps=${actualDailyLowIndices.map { actualLabelTemps[it] }}")
 
         val forecastStartIndex = if (transitionX != null) effectiveActualEndIndex else 0
         val forecastIndices = (forecastStartIndex..hours.lastIndex).filter { it in labelTemps.indices }
@@ -91,6 +121,7 @@ object TemperatureExtrema {
             labelTemps, actualLabelTemps,
             dailyHighIndex, dailyLowIndex,
             actualHighIndex, actualLowIndex,
+            actualDailyHighIndices, actualDailyLowIndices,
             forecastHighIndex, forecastLowIndex,
             pastForecastHighIndex, pastForecastLowIndex,
             actualEndIndex,
