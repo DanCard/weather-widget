@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -8,12 +9,13 @@ import java.time.LocalDateTime
 class TemperatureLabelSuppressionTest {
 
     @Test
-    fun `ACTUAL_HIGH is suppressed when redundant near HIGH`() {
+    fun `ACTUAL_HIGH is retained when near HIGH`() {
         val start = LocalDateTime.of(2026, 4, 8, 10, 0)
-        
+
         // Setup: HIGH is at index 4 (70.0f)
         // ACTUAL_HIGH is at index 3 (70.2f)
-        // Distance is 1, value diff is 0.2f. Should be suppressed.
+        // Distance is 1, value diff is 0.2f. The observed high is always worth its own label,
+        // so both should be retained (the user wants forecast vs actual side by side).
         val hours = (0 until 24).map { offset ->
             val dt = start.plusHours(offset.toLong())
             HourData(
@@ -34,18 +36,18 @@ class TemperatureLabelSuppressionTest {
             observedAt = null
         )
 
-        // Verify HIGH (at index 4) is accepted, but ACTUAL_HIGH (at index 3) is NOT.
+        // Verify both HIGH (at index 4) and ACTUAL_HIGH (at index 3) are accepted.
         assertTrue("HIGH should be accepted at index 4", candidates.any { it.index == 4 && it.role == TemperatureRole.HIGH })
-        assertFalse("ACTUAL_HIGH at index 3 should be suppressed", candidates.any { it.index == 3 && it.role == TemperatureRole.ACTUAL_HIGH })
+        assertTrue("ACTUAL_HIGH at index 3 should be retained, not suppressed", candidates.any { it.index == 3 && it.role == TemperatureRole.ACTUAL_HIGH })
     }
 
     @Test
-    fun `ACTUAL_HIGH is suppressed when redundant near global HIGH`() {
+    fun `ACTUAL_HIGH is retained when near global HIGH`() {
         val start = LocalDateTime.of(2026, 4, 8, 10, 0)
-        
+
         // Setup: ACTUAL_HIGH is at index 2 (75.0f)
-        // FORECAST_HIGH is at index 3 (75.1f)
-        // Distance is 1, value diff is 0.1f. Should be suppressed.
+        // HIGH (global, on the forecast curve) is at index 3 (75.1f)
+        // Distance is 1, value diff is 0.1f. The observed high is always retained.
         val hours = (0 until 24).map { offset ->
             val dt = start.plusHours(offset.toLong())
             HourData(
@@ -67,7 +69,7 @@ class TemperatureLabelSuppressionTest {
         )
 
         assertTrue("HIGH should be accepted at index 3", candidates.any { it.index == 3 && it.role == TemperatureRole.HIGH })
-        assertFalse("ACTUAL_HIGH at index 2 should be suppressed by HIGH at index 3", candidates.any { it.index == 2 && it.role == TemperatureRole.ACTUAL_HIGH })
+        assertTrue("ACTUAL_HIGH at index 2 should be retained near HIGH at index 3", candidates.any { it.index == 2 && it.role == TemperatureRole.ACTUAL_HIGH })
     }
 
     @Test
@@ -144,6 +146,69 @@ class TemperatureLabelSuppressionTest {
 
         assertTrue("ACTUAL_HIGH should be accepted at index 4", candidates.any { it.index == 4 && it.role == TemperatureRole.ACTUAL_HIGH })
         assertFalse("PAST_FORECAST_HIGH at index 3 should be suppressed by ACTUAL_HIGH at index 4", candidates.any { it.index == 3 && it.role == TemperatureRole.PAST_FORECAST_HIGH })
+    }
+
+    @Test
+    fun `coincident actual high gets its own label distinct from the forecast high`() {
+        val start = LocalDateTime.of(2026, 4, 8, 10, 0)
+
+        // Forecast and observed both peak on the SAME hour (index 5) but with different values:
+        // forecast 88.0, observed 90.0. Both highs should be labeled (the index-keyed pipeline
+        // would otherwise emit only the forecast-valued HIGH and hide the observed peak).
+        val hours = (0 until 24).map { offset ->
+            val dt = start.plusHours(offset.toLong())
+            HourData(
+                dateTime = dt,
+                temperature = if (offset == 5) 88.0f else 60.0f,
+                label = "${dt.hour}h",
+                isActual = offset <= 10,
+                actualTemperature = if (offset == 5) 90.0f else 60.0f,
+            )
+        }
+
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 23,
+            transitionX = null,
+            observedAt = null
+        )
+
+        assertTrue("HIGH (forecast 88) should be labeled at index 5", candidates.any { it.index == 5 && it.role == TemperatureRole.HIGH })
+        val actualHigh = candidates.find { it.index == 5 && it.role == TemperatureRole.ACTUAL_HIGH }
+        assertTrue("ACTUAL_HIGH (observed 90) should also be labeled at index 5", actualHigh != null)
+        assertEquals("ACTUAL_HIGH should carry the observed value", 90.0f, actualHigh!!.labelTemps[actualHigh.index], 0.01f)
+    }
+
+    @Test
+    fun `coincident actual high is not duplicated when it equals the forecast high`() {
+        val start = LocalDateTime.of(2026, 4, 8, 10, 0)
+
+        // Forecast and observed peak on the same hour with the SAME value -> a second label would
+        // be pure noise, so only the single HIGH should be emitted.
+        val hours = (0 until 24).map { offset ->
+            val dt = start.plusHours(offset.toLong())
+            HourData(
+                dateTime = dt,
+                temperature = if (offset == 5) 88.0f else 60.0f,
+                label = "${dt.hour}h",
+                isActual = offset <= 10,
+                actualTemperature = if (offset == 5) 88.0f else 60.0f,
+            )
+        }
+
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 23,
+            transitionX = null,
+            observedAt = null
+        )
+
+        assertTrue("HIGH should be labeled at index 5", candidates.any { it.index == 5 && it.role == TemperatureRole.HIGH })
+        assertTrue("No extra ACTUAL_HIGH when the values match", candidates.none { it.index == 5 && it.role == TemperatureRole.ACTUAL_HIGH })
     }
 
     @Test

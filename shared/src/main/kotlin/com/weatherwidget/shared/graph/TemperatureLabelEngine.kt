@@ -166,6 +166,29 @@ object TemperatureLabelEngine {
             var forceStep = 0
             var flipDecided = false
 
+            // The observed high is the topmost point of its (jagged) line, so it should always sit
+            // ABOVE that line — not flip below into a pocket when the high-resolution actual curve
+            // spikes past the hourly anchor. Place it above the actual line's local peak under the
+            // label, clamping into the header band if there is no room. Above the global observed
+            // peak there is only headroom, so this never collides with meaningful data.
+            if (candidate.role == TemperatureRole.ACTUAL_HIGH) {
+                placeActualHighAboveCurve(
+                    heightPx = heightPx,
+                    density = density,
+                    actualVisiblePoints = actualVisiblePoints,
+                    candidate = candidate,
+                    geometry = geometry,
+                    gapDp = gapDp,
+                    labelAscent = labelAscent,
+                    labelDescent = labelDescent,
+                    drawnLabelMetas = drawnLabelMetas,
+                    idx = idx,
+                    temps = temps,
+                    resultPlacements = resultPlacements,
+                )
+                continue
+            }
+
             if (candidate.role in CURVE_AVOIDANCE_ROLES) {
                 placed = tryExactFitCurveAvoidance(
                     widthPx = widthPx,
@@ -341,6 +364,75 @@ object TemperatureLabelEngine {
         }
 
         return resultPlacements
+    }
+
+    // Places the observed-high label above the actual line's local peak. Scans the high-resolution
+    // actual curve across the label's x-span for the highest point (smallest y) so the label clears
+    // the jagged spike rather than overlapping it, then sits one gap above. Clamps to the top edge
+    // (spilling into the header band) when the peak is too close to the top to leave a full gap.
+    private fun placeActualHighAboveCurve(
+        heightPx: Int,
+        density: Float,
+        actualVisiblePoints: List<Pair<Float, Float>>,
+        candidate: TempLabelCandidate,
+        geometry: ResolvedLabelGeometry,
+        gapDp: GraphLabelPlacementUtils.LabelGapDp,
+        labelAscent: Float,
+        labelDescent: Float,
+        drawnLabelMetas: MutableList<PlacedLabelMeta>,
+        idx: Int,
+        temps: List<Float>,
+        resultPlacements: MutableList<PlacedLabel>,
+    ) {
+        val halfWidth = geometry.textWidth / 2f
+        val left = geometry.clampedX - halfWidth
+        val right = geometry.clampedX + halfWidth
+
+        // Highest visible actual point beneath the label (fall back to the hourly anchor).
+        var curveTopY = geometry.sy
+        for ((px, py) in actualVisiblePoints) {
+            if (px in left..right && py < curveTopY) curveTopY = py
+        }
+
+        val gapAbovePx = gapDp.aboveDp * density
+        val placement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+            pointY = curveTopY,
+            placeAbove = true,
+            gapPx = gapAbovePx,
+            textAscent = labelAscent,
+            textDescent = labelDescent,
+        )
+        var top = placement.top
+        var bottom = placement.bottom
+        var baselineY = placement.baselineY
+        if (top < 0f) {
+            val shift = -top
+            top += shift
+            bottom += shift
+            baselineY += shift
+        }
+        val bounds = GraphRect(left, top, right, bottom)
+        val drawLeader = geometry.sy - bottom > labelDescent
+
+        resultPlacements.add(
+            PlacedLabel(
+                index = idx,
+                role = candidate.role,
+                text = geometry.label,
+                x = geometry.clampedX,
+                baselineY = baselineY,
+                placedAbove = true,
+                drawLeaderLine = drawLeader,
+                leaderFromY = geometry.sy,
+                leaderToY = bottom,
+                isFuture = geometry.isFuture,
+                rawTemperature = candidate.rawTemperature,
+                displayTemperature = temps[idx],
+                reason = "aboveActualCurve",
+                displacementSteps = 0,
+            )
+        )
+        drawnLabelMetas.add(PlacedLabelMeta(bounds, isValleyBelow = false, role = candidate.role, temperature = temps[idx]))
     }
 
     private fun tryExactFitCurveAvoidance(

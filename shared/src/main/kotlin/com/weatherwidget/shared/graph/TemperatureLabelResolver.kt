@@ -185,7 +185,45 @@ object TemperatureLabelResolver {
             }
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
+
+        addCoincidentActualHigh(specialCandidates, suppressedIndices, extrema, hours, labelTemps, actualLabelTemps)
+
         return specialCandidates
+    }
+
+    // The candidate pipeline above is index-keyed: each hour yields a single label, and when the
+    // observed high lands on the SAME hour as the forecast/daily high, resolveExtremaRole returns
+    // the forecast-valued HIGH and the observed peak goes unlabeled. Add a distinct ACTUAL_HIGH at
+    // that hour when the observed value differs enough to read differently, so the forecast and
+    // actual highs are both labeled (placement anchors ACTUAL_HIGH to the observed point and stacks
+    // the two by value). No-op when the actual high already has its own (distinct-index) label or
+    // when the two values round to the same text.
+    private val FORECAST_HIGH_ROLES = setOf(
+        TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH,
+    )
+
+    private fun addCoincidentActualHigh(
+        specialCandidates: MutableList<TempLabelCandidate>,
+        suppressedIndices: Set<Int>,
+        extrema: TemperatureExtrema.ExtremaIndices,
+        hours: List<HourData>,
+        labelTemps: List<Float>,
+        actualLabelTemps: List<Float>,
+    ) {
+        val idx = extrema.actualHighIndex
+        if (idx < 0 || idx in suppressedIndices) return
+        if (idx !in actualLabelTemps.indices || idx !in labelTemps.indices) return
+        if (specialCandidates.any { it.index == idx && it.role == TemperatureRole.ACTUAL_HIGH }) return
+        if (specialCandidates.none { it.index == idx && it.role in FORECAST_HIGH_ROLES }) return
+
+        val actualVal = actualLabelTemps[idx]
+        val forecastVal = labelTemps[idx]
+        if (formatTemp(actualVal) == formatTemp(forecastVal)) return
+
+        Log.d(TAG, "LabelAccepted: role=ACTUAL_HIGH idx=$idx val=$actualVal reason=COINCIDENT_WITH_FORECAST_HIGH")
+        specialCandidates.add(
+            TempLabelCandidate(idx, TemperatureRole.ACTUAL_HIGH, actualLabelTemps, hours[idx].temperature, forceForecastSeries = false)
+        )
     }
 
     private fun resolveExtremaRole(
@@ -303,12 +341,12 @@ object TemperatureLabelResolver {
         val redundantPairWindow = min(8, labelTemps.lastIndex / 5)
         val redundantValueThreshold = 2f
 
-        // Relaxed thresholds for actuals to ensure they show up even when close to forecast extrema
-        val actualRedundantWindow = min(4, labelTemps.lastIndex / 10)
-        val actualRedundantThreshold = 1.0f
-
         return when (role) {
-            TemperatureRole.ACTUAL_HIGH -> isRedundantNear(idx, role, extrema.dailyHighIndex, suppressedIndices, actualLabelTemps[idx], labelTemps[extrema.dailyHighIndex], actualRedundantWindow, actualRedundantThreshold, "HIGH")
+            // The observed high is always worth its own label, mirroring ACTUAL_LOW below. Even
+            // when the observed peak lands within a degree of the forecast/daily high, the two are
+            // distinct data points the user wants to compare side by side, so never treat the actual
+            // high as redundant — placement stacks/orders the two nearby labels by value instead.
+            TemperatureRole.ACTUAL_HIGH -> false
             // The observed low is always worth its own label. It only resolves at an index distinct
             // from the daily low (when the global min IS an actual point, resolveExtremaRole returns
             // LOW first), so never treat it as redundant against a nearby forecast/daily low — the
