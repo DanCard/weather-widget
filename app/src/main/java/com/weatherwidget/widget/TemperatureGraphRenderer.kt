@@ -381,10 +381,10 @@ object TemperatureGraphRenderer {
                     drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
                     if (!hour.isRainy && !hour.isMixed) {
                         drawable.setTint(when {
-                            hour.isNight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_NIGHT)
-                            hour.isTwilight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_TWILIGHT)
-                            hour.isSunny -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_SUNNY)
-                            else -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_DEFAULT)
+                            hour.isNight -> HourlyGraphDefaults.ICON_TINT_NIGHT
+                            hour.isTwilight -> HourlyGraphDefaults.ICON_TINT_TWILIGHT
+                            hour.isSunny -> HourlyGraphDefaults.ICON_TINT_SUNNY
+                            else -> HourlyGraphDefaults.ICON_TINT_DEFAULT
                         })
                     }
                     drawable.draw(ctx.canvas)
@@ -784,6 +784,12 @@ object TemperatureGraphRenderer {
             ),
         )
 
+        // Draw Now Line early so it's behind all labels and curves (lowest z-order)
+        GraphRenderUtils.drawNowLine(
+            canvas, if (update.nowIndicatorVisible) update.nowX else null, ctx.graphTop, ctx.graphHeight,
+            paints.currentTimePaint
+        )
+
         drawFillAndCurves(ctx, update.expectedFillPath, hours)
         timings.mark("curves")
 
@@ -800,9 +806,16 @@ object TemperatureGraphRenderer {
         ctx.drawnLabelBounds.addAll(fetchDotBounds)
 
         GraphRenderUtils.drawNowIndicator(
-            canvas, if (update.nowIndicatorVisible) update.nowX else null, ctx.graphTop, ctx.graphHeight,
-            paints.currentTimePaint, paints.nowLabelTextPaint, ctx.drawnLabelBounds + drawnIconBounds
-        ) { dpToPx(context, it) }
+            canvas = canvas,
+            nowX = if (update.nowIndicatorVisible) update.nowX else null,
+            graphTop = ctx.graphTop,
+            graphHeight = ctx.graphHeight,
+            currentTimePaint = paints.currentTimePaint,
+            nowLabelTextPaint = paints.nowLabelTextPaint,
+            drawnBounds = ctx.drawnLabelBounds + drawnIconBounds,
+            drawLine = false,
+            dpToPx = { dpToPx(context, it) }
+        )
         timings.mark("decorations")
 
         timings.log(widthPx, heightPx, hours.size, TAG)

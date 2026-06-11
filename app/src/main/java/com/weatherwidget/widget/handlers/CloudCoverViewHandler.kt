@@ -479,7 +479,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             if (zoom == com.weatherwidget.widget.ZoomLevel.WIDE &&
                 com.weatherwidget.widget.GraphRenderUtils.isNarrowWidget(numColumns)
             ) {
-                com.weatherwidget.widget.HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
+                com.weatherwidget.shared.graph.HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
             } else {
                 zoom.labelInterval
             }

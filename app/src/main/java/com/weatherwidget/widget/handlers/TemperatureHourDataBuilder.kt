@@ -16,7 +16,7 @@ import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.GraphRenderUtils
-import com.weatherwidget.widget.HourlyGraphDefaults
+import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.shared.graph.HourData

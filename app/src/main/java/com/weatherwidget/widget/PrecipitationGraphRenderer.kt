@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import com.weatherwidget.shared.graph.GraphLabelPlacementUtils
 import com.weatherwidget.shared.graph.TemperatureRole
+import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context
@@ -899,6 +900,15 @@ object PrecipitationGraphRenderer {
             Color.parseColor(COLOR_CURVE_FILL_TOP), Color.parseColor(COLOR_CURVE_FILL_BOTTOM), Shader.TileMode.CLAMP,
         )
 
+        // --- Draw current-time line early so it's behind labels and curves (lowest z-order) ---
+        GraphRenderUtils.drawNowLine(
+            canvas = canvas,
+            nowX = layout.nowX,
+            graphTop = layout.graphTop,
+            graphHeight = layout.graphHeight,
+            currentTimePaint = paints.currentTimePaint
+        )
+
         val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(layout.points, layout.graphBottom)
         canvas.drawPath(fillPath, paints.gradientPaint)
         canvas.drawPath(curvePath, paints.curvePaint)
@@ -928,10 +938,10 @@ object PrecipitationGraphRenderer {
             drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
             if (!hour.isRainy && !hour.isMixed) {
                 val iconTint = when {
-                    hour.isNight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_NIGHT)
-                    hour.isTwilight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_TWILIGHT)
-                    hour.isSunny -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_SUNNY)
-                    else -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_DEFAULT)
+                    hour.isNight -> HourlyGraphDefaults.ICON_TINT_NIGHT
+                    hour.isTwilight -> HourlyGraphDefaults.ICON_TINT_TWILIGHT
+                    hour.isSunny -> HourlyGraphDefaults.ICON_TINT_SUNNY
+                    else -> HourlyGraphDefaults.ICON_TINT_DEFAULT
                 }
                 drawable.setTint(iconTint)
             }
@@ -968,9 +978,6 @@ object PrecipitationGraphRenderer {
                 layout.actualRainAmountPlacements.map { it.bounds.toRectF() }
             ).toMutableList()
 
-        val lineHeight = layout.graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
-        val lineTop = layout.graphTop + (layout.graphHeight - lineHeight) / 2f
-        val lineBottom = lineTop + lineHeight
         // Day/night dividers span the full plot height so the day vs night regions read clearly;
         // drawn before the NOW line so NOW stays visually dominant where they coincide.
         for (boundaryX in layout.dayNightBoundaryXs) {
@@ -978,9 +985,6 @@ object PrecipitationGraphRenderer {
                 floatArrayOf(boundaryX, layout.graphTop, boundaryX, layout.graphBottom),
                 paints.dayNightDividerPaint,
             )
-        }
-        layout.nowX?.let { nowX ->
-            canvas.drawLines(floatArrayOf(nowX, lineTop, nowX, lineBottom), paints.currentTimePaint)
         }
         layout.nowLabelPlacement?.let { placement ->
             canvas.drawText(NOW_LABEL_TEXT, placement.x, placement.baselineY, paints.nowLabelTextPaint)

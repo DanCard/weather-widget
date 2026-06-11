@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import com.weatherwidget.shared.graph.GraphLabelPlacementUtils
 import com.weatherwidget.shared.graph.TemperatureRole
+import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context
@@ -216,21 +217,30 @@ object CloudCoverGraphRenderer {
         }
 
         val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(points, graphBottom)
-        canvas.drawPath(fillPath, paints.gradientPaint)
-        canvas.drawPath(curvePath, paints.curvePaint)
 
-        // --- Hour labels and icons ---
-        val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
-        val drawnIconBounds = mutableListOf<RectF>()
-
+        // Draw Now Line early so it's behind all labels and curves (lowest z-order)
         val nowX = GraphRenderUtils.computeNowX(
             items = hours,
             points = points,
             currentTime = currentTime,
             hourWidth = hourWidth,
             isCurrentHour = { it.isCurrentHour },
-            dateTimeOf = { it.dateTime },
+            dateTimeOf = { it.dateTime }
         )
+        GraphRenderUtils.drawNowLine(
+            canvas = canvas,
+            nowX = nowX,
+            graphTop = graphTop,
+            graphHeight = graphHeight,
+            currentTimePaint = paints.currentTimePaint,
+        )
+
+        canvas.drawPath(fillPath, paints.gradientPaint)
+        canvas.drawPath(curvePath, paints.curvePaint)
+
+        // --- Hour labels and icons ---
+        val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
+        val drawnIconBounds = mutableListOf<RectF>()
 
         GraphRenderUtils.drawHourLabels(
             canvas = canvas,
@@ -260,10 +270,10 @@ object CloudCoverGraphRenderer {
 
             if (!hour.isRainy && !hour.isMixed) {
                 val iconTint = when {
-                    hour.isNight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_NIGHT)
-                    hour.isTwilight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_TWILIGHT)
-                    hour.isSunny -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_SUNNY)
-                    else -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_DEFAULT)
+                    hour.isNight -> HourlyGraphDefaults.ICON_TINT_NIGHT
+                    hour.isTwilight -> HourlyGraphDefaults.ICON_TINT_TWILIGHT
+                    hour.isSunny -> HourlyGraphDefaults.ICON_TINT_SUNNY
+                    else -> HourlyGraphDefaults.ICON_TINT_DEFAULT
                 }
                 drawable.setTint(iconTint)
             }
@@ -534,6 +544,7 @@ object CloudCoverGraphRenderer {
             currentTimePaint = paints.currentTimePaint,
             nowLabelTextPaint = paints.nowLabelTextPaint,
             dpToPx = { dpToPx(context, it) },
+            drawLine = false,
         )
 
         // --- Cloud icon in emptiest region ---

@@ -6,6 +6,7 @@ import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.TypedValue
+import com.weatherwidget.shared.graph.HourlyGraphDefaults
 
 object CloudCoverGraphStyle {
 
@@ -48,44 +49,44 @@ object CloudCoverGraphStyle {
         }
 
         val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_CURRENT_TIME)
+            color = HourlyGraphDefaults.COLOR_CURRENT_TIME
             strokeWidth = dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_STROKE_DP * labelScale)
             style = Paint.Style.STROKE
             pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP * labelScale), dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP * labelScale)), 0f)
         }
 
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_HOUR_LABEL)
+            color = HourlyGraphDefaults.COLOR_HOUR_LABEL
             textSize = dpToPx(context, HourlyGraphDefaults.HOUR_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
-            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP * labelScale), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP * labelScale), HourlyGraphDefaults.COLOR_SHADOW_LIGHT)
         }
 
         val percentLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_PERCENT_LABEL)
+            color = HourlyGraphDefaults.COLOR_PERCENT_LABEL
             textSize = dpToPx(context, HourlyGraphDefaults.PERCENT_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_STRONG_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP * labelScale), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_DARK))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_STRONG_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP * labelScale), HourlyGraphDefaults.COLOR_SHADOW_DARK)
         }
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_NOW_LABEL)
+            color = HourlyGraphDefaults.COLOR_NOW_LABEL
             textSize = dpToPx(context, HourlyGraphDefaults.NOW_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP * labelScale), 0f, 0f, Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP * labelScale), 0f, 0f, HourlyGraphDefaults.COLOR_SHADOW_LIGHT)
         }
 
         val dayLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_DAY_LABEL)
+            color = HourlyGraphDefaults.COLOR_DAY_LABEL
             textSize = dpToPx(context, HourlyGraphDefaults.DAY_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
 
         val todayDayLabelPaint = Paint(dayLabelTextPaint).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_TODAY_LABEL)
+            color = HourlyGraphDefaults.COLOR_TODAY_LABEL
         }
 
         val paints = PaintSet(

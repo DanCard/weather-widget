@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.shared.graph.*
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -178,6 +179,26 @@ fun PrecipitationGraph(
         )
         drawPath(fillPath, brush = fillBrush)
 
+        val markerX = xAtTime(now)
+
+        // Draw Now vertical dashed guide line - EARLY for lowest z-order
+        if (now in windowStart..windowEnd) {
+            val lineHeight = graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
+            val lineTop = graphTop + (graphHeight - lineHeight) / 2f
+            val lineBottom = lineTop + lineHeight
+
+            drawLine(
+                color = Color(HourlyGraphDefaults.COLOR_CURRENT_TIME),
+                start = Offset(markerX, lineTop),
+                end = Offset(markerX, lineBottom),
+                strokeWidth = HourlyGraphDefaults.CURRENT_TIME_STROKE_DP.dp.toPx() * scale,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(
+                    HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP.dp.toPx() * scale,
+                    HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP.dp.toPx() * scale
+                ))
+            )
+        }
+
         // Draw Curve Line
         val curveStroke = if (totalSpanHours <= 8) 2.dp.toPx() * scale else 3.dp.toPx() * scale
         drawPath(
@@ -188,7 +209,6 @@ fun PrecipitationGraph(
 
         // Draw Day/Night boundary dividers at 8AM / 8PM
         val zoneId = ZoneId.systemDefault()
-        val dayNightBoundaryXs = mutableListOf<Float>()
         if (totalSpanHours >= 12) {
             for (i in 1..points.lastIndex) {
                 val ldt1 = LocalDateTime.ofInstant(Instant.ofEpochMilli(points[i - 1].dateTime), zoneId)
@@ -197,7 +217,6 @@ fun PrecipitationGraph(
                 val isDay2 = ldt2.hour in 8 until 20
                 if (isDay1 != isDay2) {
                     val boundaryX = stepWidth * i
-                    dayNightBoundaryXs.add(boundaryX)
                     drawLine(
                         color = COLOR_DAY_NIGHT_DIVIDER,
                         start = Offset(boundaryX, graphTop),
@@ -209,24 +228,20 @@ fun PrecipitationGraph(
             }
         }
 
-        // Draw Now vertical dashed guide line
-        val nowIdx = points.indexOfByClosestTime(now)
-        val markerProb = smoothedProbs[nowIdx]
-        val markerX = xAtTime(now)
-        val markerY = yAt(markerProb)
+        // --- NOW Indicator - Late Pass (Label and target circles) ---
         if (now in windowStart..windowEnd) {
-            drawLine(
-                color = Color.White.copy(alpha = 0.36f),
-                start = Offset(markerX, graphTop),
-                end = Offset(markerX, graphBottom),
-                strokeWidth = 1.dp.toPx() * scale,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx() * scale, 3.dp.toPx() * scale))
-            )
+            val nowIdx = points.indexOfByClosestTime(now)
+            val markerProb = smoothedProbs[nowIdx]
+            val markerY = yAt(markerProb)
+
             drawCircle(color = Color.White, radius = 4.5f * scale, center = Offset(markerX, markerY))
             drawCircle(color = COLOR_PRECP_CURVE, radius = 2.5f * scale, center = Offset(markerX, markerY))
             
             // NOW Label
-            val nowLayout = textMeasurer.measure("NOW", TextStyle(fontSize = (8 * scale).sp, color = Color.White.copy(alpha = 0.6f)))
+            val nowLayout = textMeasurer.measure("NOW", TextStyle(
+                fontSize = (HourlyGraphDefaults.NOW_LABEL_TEXT_SIZE_DP * 0.5f * scale).sp, // smaller on precip graph
+                color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL)
+            ))
             drawText(nowLayout, topLeft = Offset(markerX - nowLayout.size.width / 2f, graphTop + 2.dp.toPx() * scale))
         }
 

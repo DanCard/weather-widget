@@ -5,6 +5,7 @@ import android.graphics.*
 import android.graphics.Typeface
 import android.util.Log
 import android.util.TypedValue
+import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.util.WeatherConditionColors
 import java.time.Duration
 import kotlin.math.round
@@ -143,17 +144,17 @@ object TemperatureGraphStyle {
         }
 
         val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_CURRENT_TIME)
+            color = HourlyGraphDefaults.COLOR_CURRENT_TIME
             strokeWidth = dpToPx(context, STROKE_LEADER_LINE_DP)
             style = Paint.Style.STROKE
             pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP), dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP)), 0f)
         }
 
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_HOUR_LABEL)
+            color = HourlyGraphDefaults.COLOR_HOUR_LABEL
             textSize = dpToPx(context, TEMP_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
-            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_LIGHT)
         }
 
         val actualTempLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -161,7 +162,7 @@ object TemperatureGraphStyle {
             textSize = dpToPx(context, TEMP_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_STRONG_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_DARK))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_STRONG_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
         }
 
         val forecastTempLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -169,26 +170,26 @@ object TemperatureGraphStyle {
             textSize = dpToPx(context, TEMP_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_STRONG_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_DARK))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_STRONG_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
         }
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_NOW_LABEL)
+            color = HourlyGraphDefaults.COLOR_NOW_LABEL
             textSize = dpToPx(context, NOW_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, 0f, Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, 0f, HourlyGraphDefaults.COLOR_SHADOW_LIGHT)
         }
 
         val dayLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_DAY_LABEL)
+            color = HourlyGraphDefaults.COLOR_DAY_LABEL
             textSize = dpToPx(context, DAY_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
 
         val todayDayLabelPaint = Paint(dayLabelTextPaint).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_TODAY_LABEL)
+            color = HourlyGraphDefaults.COLOR_TODAY_LABEL
         }
 
         val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -198,7 +199,7 @@ object TemperatureGraphStyle {
         }
 
         val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT)
+            color = HourlyGraphDefaults.COLOR_SHADOW_LIGHT
             style = Paint.Style.STROKE
             strokeWidth = dpToPx(context, OUTER_RING_STROKE_DP * labelScale)
         }
@@ -207,14 +208,14 @@ object TemperatureGraphStyle {
             color = COLOR_ACTUAL_LINE
             textSize = dpToPx(context, VALUE_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.LEFT
-            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_DARK))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
         }
 
         val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_ACTUAL_LINE
             textSize = dpToPx(context, STALENESS_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
-            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_DARK))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
         }
 
         val actualLeaderLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

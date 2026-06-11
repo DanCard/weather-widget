@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.util.Log
+import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -366,6 +367,20 @@ internal object GraphRenderUtils {
         return null
     }
 
+    fun drawNowLine(
+        canvas: Canvas,
+        nowX: Float?,
+        graphTop: Float,
+        graphHeight: Float,
+        currentTimePaint: Paint,
+    ) {
+        if (nowX == null) return
+        val lineHeight = graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
+        val lineTop = graphTop + (graphHeight - lineHeight) / 2f
+        val lineBottom = lineTop + lineHeight
+        canvas.drawLines(floatArrayOf(nowX, lineTop, nowX, lineBottom), currentTimePaint)
+    }
+
     fun drawNowIndicator(
         canvas: Canvas,
         nowX: Float?,
@@ -374,14 +389,14 @@ internal object GraphRenderUtils {
         currentTimePaint: Paint,
         nowLabelTextPaint: Paint,
         drawnBounds: List<RectF> = emptyList(),
+        drawLine: Boolean = true,
         dpToPx: (Float) -> Float,
     ) {
         if (nowX == null) return
 
-        val lineHeight = graphHeight * 0.6f
-        val lineTop = graphTop + (graphHeight - lineHeight) / 2f
-        val lineBottom = lineTop + lineHeight
-        canvas.drawLines(floatArrayOf(nowX, lineTop, nowX, lineBottom), currentTimePaint)
+        if (drawLine) {
+            drawNowLine(canvas, nowX, graphTop, graphHeight, currentTimePaint)
+        }
 
         val text = "NOW"
         val textWidth = nowLabelTextPaint.measureText(text)

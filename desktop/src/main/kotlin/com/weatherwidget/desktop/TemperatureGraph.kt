@@ -349,6 +349,24 @@ fun TemperatureGraph(
 
         val markerX = xAtTime(now)
 
+        // NOW Indicator - Line (drawn early so it's behind labels)
+        if (now in windowStart..windowEnd) {
+            val lineHeight = graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
+            val lineTop = top + (graphHeight - lineHeight) / 2f
+            val lineBottom = lineTop + lineHeight
+
+            drawLine(
+                color = Color(HourlyGraphDefaults.COLOR_CURRENT_TIME),
+                start = Offset(markerX, lineTop),
+                end = Offset(markerX, lineBottom),
+                strokeWidth = HourlyGraphDefaults.CURRENT_TIME_STROKE_DP.dp.toPx() * scale,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(
+                    HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP.dp.toPx() * scale,
+                    HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP.dp.toPx() * scale
+                ))
+            )
+        }
+
         // Peak labels (Hi / Lo / Now) anchored to forecast extremes
         val highIdx = forecastTemps.indexOf(fMax)
         val lowIdx = forecastTemps.indexOf(fMin)
@@ -618,26 +636,17 @@ fun TemperatureGraph(
             drawCircle(color = tempToColor(fetchDotPoint.actualTemp!!), radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
         }
 
-        // NOW indicator (dashed line, target circles, and "NOW" label)
+        // NOW indicator - Label (drawn late to be on top)
         if (now in windowStart..windowEnd) {
-            val lineHeight = graphHeight * 0.6f
+            val lineHeight = graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
             val lineTop = top + (graphHeight - lineHeight) / 2f
             val lineBottom = lineTop + lineHeight
             
-            // 1. Draw the vertical line
-            drawLine(
-                color = Color.White.copy(alpha = 0.8f),
-                start = Offset(markerX, lineTop),
-                end = Offset(markerX, lineBottom),
-                strokeWidth = 1.5.dp.toPx() * scale,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx() * scale, 3.dp.toPx() * scale))
-            )
-            
             // 2. Draw the "NOW" label text
             val nowLabelStyle = TextStyle(
-                fontSize = (11 * scale).sp,
+                fontSize = (HourlyGraphDefaults.NOW_LABEL_TEXT_SIZE_DP * 0.7f * scale).sp, // slightly smaller on desktop
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                color = Color.White
+                color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL)
             )
             val nowLabelLayout = textMeasurer.measure("NOW", nowLabelStyle)
             val nowLabelWidth = nowLabelLayout.size.width.toFloat()
