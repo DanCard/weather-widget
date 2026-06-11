@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -351,14 +352,12 @@ fun TemperatureGraph(
 
         // NOW Indicator - Line (drawn early so it's behind labels)
         if (now in windowStart..windowEnd) {
-            val lineHeight = graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
-            val lineTop = top + (graphHeight - lineHeight) / 2f
-            val lineBottom = lineTop + lineHeight
+            val nowLine = NowIndicatorGeometry.computeNowLine(top, graphHeight)
 
             drawLine(
                 color = Color(HourlyGraphDefaults.COLOR_CURRENT_TIME),
-                start = Offset(markerX, lineTop),
-                end = Offset(markerX, lineBottom),
+                start = Offset(markerX, nowLine.lineTop),
+                end = Offset(markerX, nowLine.lineBottom),
                 strokeWidth = HourlyGraphDefaults.CURRENT_TIME_STROKE_DP.dp.toPx() * scale,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(
                     HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP.dp.toPx() * scale,
@@ -636,44 +635,39 @@ fun TemperatureGraph(
             drawCircle(color = tempToColor(fetchDotPoint.actualTemp!!), radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
         }
 
-        // NOW indicator - Label (drawn late to be on top)
+        // NOW indicator - Label (drawn late to be on top). Full-size + light shadow + below-first
+        // placement + suppress-on-double-collision, all matching Android via NowIndicatorGeometry.
         if (now in windowStart..windowEnd) {
-            val lineHeight = graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
-            val lineTop = top + (graphHeight - lineHeight) / 2f
-            val lineBottom = lineTop + lineHeight
-            
-            // 2. Draw the "NOW" label text
             val nowLabelStyle = TextStyle(
-                fontSize = (HourlyGraphDefaults.NOW_LABEL_TEXT_SIZE_DP * 0.7f * scale).sp, // slightly smaller on desktop
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL)
+                // Smaller than the 14sp temperature value labels, matching Android's NOW-vs-temp ratio.
+                fontSize = (14f * HourlyGraphDefaults.NOW_LABEL_TO_TEMP_RATIO * scale).sp,
+                color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL),
+                shadow = Shadow(
+                    color = Color(HourlyGraphDefaults.COLOR_SHADOW_LIGHT),
+                    offset = Offset(0f, 0f),
+                    blurRadius = HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP.dp.toPx() * scale,
+                ),
             )
             val nowLabelLayout = textMeasurer.measure("NOW", nowLabelStyle)
             val nowLabelWidth = nowLabelLayout.size.width.toFloat()
             val nowLabelHeight = nowLabelLayout.size.height.toFloat()
-            
-            val topCandidate = lineTop - nowLabelHeight - 2.dp.toPx() * scale
-            val bottomCandidate = lineBottom + 2.dp.toPx() * scale
-            
-            var finalNowRect: Rect? = null
-            for (candidateTop in listOf(topCandidate, bottomCandidate)) {
-                val rect = Rect(
-                    offset = Offset(markerX - nowLabelWidth / 2f, candidateTop),
-                    size = Size(nowLabelWidth, nowLabelHeight)
-                )
-                val padding = 4.dp.toPx() * scale
-                if (drawnLabels.none { it.overlaps(rect.inflate(padding)) }) {
-                    finalNowRect = rect
-                    break
-                }
-            }
-            val nowRect = finalNowRect ?: Rect(
-                offset = Offset(markerX - nowLabelWidth / 2f, topCandidate),
-                size = Size(nowLabelWidth, nowLabelHeight)
-            )
-            drawText(nowLabelLayout, topLeft = nowRect.topLeft)
-            drawnLabels.add(nowRect)
 
+            // Compose drawText is top-left anchored, so treat the measured box's bottom as the
+            // baseline: fontAscent = -height, fontDescent = 0 -> box.top is the top-left y.
+            val placement = NowIndicatorGeometry.computeNowLabel(
+                nowX = markerX,
+                graphTop = top,
+                graphHeight = graphHeight,
+                labelWidth = nowLabelWidth,
+                fontAscent = -nowLabelHeight,
+                fontDescent = 0f,
+                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                dpToPx = { it.dp.toPx() * scale },
+            )
+            placement?.let {
+                drawText(nowLabelLayout, topLeft = Offset(it.box.left, it.box.top))
+                drawnLabels.add(Rect(Offset(it.box.left, it.box.top), Size(nowLabelWidth, nowLabelHeight)))
+            }
         }
     }
 }

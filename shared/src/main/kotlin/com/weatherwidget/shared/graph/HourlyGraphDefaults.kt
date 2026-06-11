@@ -28,14 +28,21 @@ object HourlyGraphDefaults {
 
     const val HOUR_LABEL_TEXT_SIZE_DP = 23.0f
     const val NOW_LABEL_TEXT_SIZE_DP = 15.5f
+    // The "NOW" label is intentionally smaller than the temperature value labels. On Android that's
+    // NOW_LABEL_TEXT_SIZE_DP (15.5) against 23dp temp labels (~0.67x). Platforms whose temp labels
+    // use a different absolute size (desktop value labels = 14sp) multiply that size by this ratio
+    // to reproduce the same smaller-than-temp relationship.
+    const val NOW_LABEL_TO_TEMP_RATIO = NOW_LABEL_TEXT_SIZE_DP / 23f
     const val DAY_LABEL_TEXT_SIZE_DP = 23.0f
     const val PERCENT_LABEL_TEXT_SIZE_DP = 23.0f
 
     const val CURVE_STROKE_TALL_DP = 2.5f
     const val CURVE_STROKE_SHORT_DP = 3f
-    const val CURRENT_TIME_STROKE_DP = 1.0f
+    const val CURRENT_TIME_STROKE_DP = 0.5f
     const val CURRENT_TIME_DASH_ON_DP = 4f
     const val CURRENT_TIME_DASH_OFF_DP = 3f
+    // Gap (dp) between the NOW line's end and the "NOW" label, applied above or below.
+    const val NOW_LABEL_LINE_GAP_DP = 2f
     const val TALL_GRAPH_HEIGHT_DP = 160
 
     const val MAX_LABEL_CANDIDATES = 5

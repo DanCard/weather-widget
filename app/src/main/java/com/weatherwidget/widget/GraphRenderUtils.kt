@@ -7,7 +7,9 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.util.Log
+import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
+import com.weatherwidget.shared.graph.NowIndicatorGeometry
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -324,6 +326,8 @@ internal object GraphRenderUtils {
 
     data class NowLabelResult(val labelY: Float, val bounds: RectF)
 
+    private fun GraphRect.toRectF(): RectF = RectF(left, top, right, bottom)
+
     data class DayLabelPlacement(
         val side: String,
         val text: String,
@@ -345,26 +349,19 @@ internal object GraphRenderUtils {
         drawnBounds: List<RectF> = emptyList(),
         dpToPx: (Float) -> Float,
     ): NowLabelResult? {
-        val lineHeight = graphHeight * 0.6f
-        val lineTop = graphTop + (graphHeight - lineHeight) / 2f
-        val lineBottom = lineTop + lineHeight
-
-        val labelYTop = lineTop - dpToPx(2f)
-        val labelYBottom = lineBottom - fontAscent + dpToPx(2f)
-
-        for (labelY in listOf(labelYBottom, labelYTop)) {
-            val textBounds = RectF(
-                nowX - textWidth / 2f,
-                labelY + fontAscent,
-                nowX + textWidth / 2f,
-                labelY + fontDescent
-            )
-            val hasCollision = drawnBounds.any { RectF.intersects(it, textBounds) }
-            if (!hasCollision) {
-                return NowLabelResult(labelY, textBounds)
-            }
-        }
-        return null
+        // Geometry lives in shared NowIndicatorGeometry so Android and desktop stay in lockstep;
+        // this adapter converts RectF<->GraphRect and exposes the Android baseline (labelY).
+        val placement = NowIndicatorGeometry.computeNowLabel(
+            nowX = nowX,
+            graphTop = graphTop,
+            graphHeight = graphHeight,
+            labelWidth = textWidth,
+            fontAscent = fontAscent,
+            fontDescent = fontDescent,
+            drawnBounds = drawnBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+            dpToPx = dpToPx,
+        ) ?: return null
+        return NowLabelResult(placement.baselineY, placement.box.toRectF())
     }
 
     fun drawNowLine(
@@ -375,10 +372,8 @@ internal object GraphRenderUtils {
         currentTimePaint: Paint,
     ) {
         if (nowX == null) return
-        val lineHeight = graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
-        val lineTop = graphTop + (graphHeight - lineHeight) / 2f
-        val lineBottom = lineTop + lineHeight
-        canvas.drawLines(floatArrayOf(nowX, lineTop, nowX, lineBottom), currentTimePaint)
+        val line = NowIndicatorGeometry.computeNowLine(graphTop, graphHeight)
+        canvas.drawLines(floatArrayOf(nowX, line.lineTop, nowX, line.lineBottom), currentTimePaint)
     }
 
     fun drawNowIndicator(
