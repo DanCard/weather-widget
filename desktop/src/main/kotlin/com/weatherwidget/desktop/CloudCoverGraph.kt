@@ -363,27 +363,26 @@ fun CloudCoverGraph(
             )
         }
 
-        // Draw Day Labels at bottom
-        drawDayLabels(
-            leftDate = Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault()).toLocalDate(),
-            rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
-            textMeasurer = textMeasurer,
-            occupied = drawnLabels,
-            scale = scale,
-        )
+        // Multi-day spans label the footer with dates instead of times; suppress the redundant
+        // interior edge day-labels then (parity with the temperature graph).
+        if (!DesktopGraphUtils.isDateMode(totalSpanHours)) {
+            drawDayLabels(
+                leftDate = Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault()).toLocalDate(),
+                rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
+                textMeasurer = textMeasurer,
+                occupied = drawnLabels,
+                scale = scale,
+            )
+        }
 
-        // Draw Bottom Strip: icons + hour labels
-        val labelInterval = DesktopGraphUtils.labelIntervalFor(totalSpanHours)
-        for (i in points.indices) {
+        // Draw Bottom Strip: icons + hour (or per-day date) labels. Label decision is shared via
+        // DesktopGraphUtils.footerLabels; this loop only positions and paints.
+        for (label in DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault())) {
+            val i = label.index
             val p = points[i]
             val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-            if (localZdt.hour % labelInterval != 0) continue
             val x = xAt(i)
-            
-            val time = Instant.ofEpochMilli(p.dateTime)
-                .atZone(ZoneId.systemDefault())
-                .toLocalTime()
-            val timeStr = formatHourLabel(time.hour)
+            val timeStr = label.text
             
             val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = (9 * scale).sp, color = Color.Gray))
             val textW = textLayout.size.width.toFloat()

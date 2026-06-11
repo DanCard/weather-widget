@@ -58,13 +58,10 @@ object CurrentTemperatureResolver {
         hourlyForecasts: List<HourlyForecast>,
         displaySourceId: String,
         smoothIterations: Int = HEADER_SMOOTH_ITERATIONS,
+        now: Long = System.currentTimeMillis(),
     ): Map<Long, Float> {
         val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
-            .mapValues { entry ->
-                entry.value.find { it.source == displaySourceId }
-                    ?: entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                    ?: entry.value.firstOrNull()
-            }
+            .mapValues { (dateTimeMs, rows) -> pickBestForecast(rows, displaySourceId, dateTimeMs, now) }
         val sortedTimes = forecastsByTime.keys.sorted()
         val rawTemps = sortedTimes.map { forecastsByTime[it]!!.temperature }
         val smoothedTemps = TemperatureInterpolator.smoothValuesPreservingAllExtrema(
@@ -74,6 +71,21 @@ object CurrentTemperatureResolver {
         return sortedTimes.mapIndexed { index, time ->
             time to smoothedTemps[index]
         }.toMap()
+    }
+
+    private fun pickBestForecast(
+        rows: List<HourlyForecast>,
+        sourceId: String,
+        dateTimeMs: Long,
+        nowMs: Long,
+    ): HourlyForecast? {
+        val candidates = when {
+            rows.any { it.source == sourceId } -> rows.filter { it.source == sourceId }
+            rows.any { it.source == WeatherSource.GENERIC_GAP.id } -> rows.filter { it.source == WeatherSource.GENERIC_GAP.id }
+            else -> rows
+        }
+        return if (dateTimeMs < nowMs) candidates.minByOrNull { it.fetchedAt }
+               else candidates.maxByOrNull { it.fetchedAt }
     }
 
     private fun debugLog(message: String) {
@@ -314,13 +326,10 @@ object CurrentTemperatureResolver {
         val targetHourMs = targetHour.atZone(zoneId).toInstant().toEpochMilli()
         val nextHourMs = nextHour.atZone(zoneId).toInstant().toEpochMilli()
 
+        val nowMs = targetTime.atZone(zoneId).toInstant().toEpochMilli()
         val sourceScopedForecasts =
             hourlyForecasts.groupBy { it.dateTime }
-                .mapValues { entry ->
-                    entry.value.find { it.source == source.id }
-                        ?: entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                        ?: entry.value.firstOrNull()
-                }
+                .mapValues { (dateTimeMs, rows) -> pickBestForecast(rows, source.id, dateTimeMs, nowMs) }
 
         val currentHourForecast = sourceScopedForecasts[targetHourMs]
         val nextHourForecast = sourceScopedForecasts[nextHourMs]

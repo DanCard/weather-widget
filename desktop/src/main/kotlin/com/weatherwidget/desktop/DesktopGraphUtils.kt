@@ -8,7 +8,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.pow
@@ -40,6 +42,13 @@ internal object DesktopGraphUtils {
         val zc = z.coerceIn(0f, 1f)
         return (min * (max.toFloat() / min).pow(zc)).roundToInt().coerceIn(min, max)
     }
+
+    /**
+     * Once the visible span crosses ~2 days, the bottom strip switches from time-of-day labels
+     * ("12a/12p") to one date label per day — bare clock labels can't tell you which day a region
+     * belongs to. Tunable; lower = dates kick in sooner.
+     */
+    const val DATE_LABEL_SPAN_THRESHOLD_HOURS = 48
 
     /** Clock-hour label cadence (must divide 24, since labels gate on `localHour % interval`). */
     fun labelIntervalFor(totalSpanHours: Int): Int = when {
@@ -142,6 +151,59 @@ internal object DesktopGraphUtils {
         }
         val suffix = if (hour < 12) "a" else "p"
         return "$hour12$suffix"
+    }
+
+    /** Compact multi-day footer label: weekday + day-of-month, e.g. 2026-06-11 -> "Wed 11". */
+    fun formatDateLabel(date: LocalDate): String =
+        date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault()) + " " + date.dayOfMonth
+
+    /**
+     * In date mode, one footer label is drawn per visible day, centered under that day. For each
+     * local date present in [points] this picks the index whose local time is closest to noon
+     * (12:00), so the label sits in the middle of the day's data and partial first/last days still
+     * get a (nearest-available) label. Pure, for unit testing.
+     */
+    fun representativeIndicesByDay(points: List<HourlyForecast>, zone: ZoneId): Set<Int> {
+        if (points.isEmpty()) return emptySet()
+        return points.indices
+            .groupBy { i -> Instant.ofEpochMilli(points[i].dateTime).atZone(zone).toLocalDate() }
+            .values
+            .map { idxs ->
+                idxs.minByOrNull { i ->
+                    val ldt = Instant.ofEpochMilli(points[i].dateTime).atZone(zone).toLocalDateTime()
+                    abs((ldt.hour * 60 + ldt.minute) - 12 * 60)
+                }!!
+            }
+            .toSet()
+    }
+
+    /** Whether the visible span is wide enough that the footer labels its points with dates. */
+    fun isDateMode(totalSpanHours: Int): Boolean = totalSpanHours > DATE_LABEL_SPAN_THRESHOLD_HOURS
+
+    /** A point that gets a footer label: its index in the point list and the text to draw. */
+    data class FooterLabel(val index: Int, val text: String)
+
+    /**
+     * The full footer-label decision for the bottom strip, shared by the temperature, cloud-cover
+     * and precipitation graphs: *which* points get a label and *what* text they show. Below the
+     * date threshold this is the clock-hour cadence ("12a"/"12p" every [labelIntervalFor] hours);
+     * above it, one date per visible day centered on local noon ("Wed 11"). Returned sorted by
+     * index. Pure — the draw loops only position and paint what this returns.
+     */
+    fun footerLabels(points: List<HourlyForecast>, totalSpanHours: Int, zone: ZoneId): List<FooterLabel> {
+        if (points.isEmpty()) return emptyList()
+        return if (isDateMode(totalSpanHours)) {
+            representativeIndicesByDay(points, zone).sorted().map { i ->
+                val date = Instant.ofEpochMilli(points[i].dateTime).atZone(zone).toLocalDate()
+                FooterLabel(i, formatDateLabel(date))
+            }
+        } else {
+            val interval = labelIntervalFor(totalSpanHours)
+            points.indices.mapNotNull { i ->
+                val hour = Instant.ofEpochMilli(points[i].dateTime).atZone(zone).toLocalDateTime().hour
+                if (hour % interval == 0) FooterLabel(i, formatHourLabel(hour)) else null
+            }
+        }
     }
 
     /** Finds the index of the hourly forecast closest to [targetTime]. */

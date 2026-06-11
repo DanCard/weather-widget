@@ -75,7 +75,7 @@ object ActualTemperatureSeriesBuilder {
         smoothedForecasts: Map<Long, Float>? = null,
         onBlendDebug: ((() -> String) -> Unit)? = null,
     ): ActualTemperatureSeriesResult {
-        val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySourceId)
+        val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySourceId, now.atZone(zoneId).toInstant().toEpochMilli())
         val truncated = centerTime.truncatedTo(ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
         val startHour = alignedCenter.minusHours(backHours)
@@ -444,13 +444,20 @@ object ActualTemperatureSeriesBuilder {
     private fun resolveForecastsByTime(
         hourlyForecasts: List<HourlyForecast>,
         displaySourceId: String,
+        nowMs: Long,
     ): Map<Long, HourlyForecast> =
         hourlyForecasts
             .groupBy { it.dateTime }
             .mapNotNull { (time, rows) ->
-                val selected = rows.find { it.source == displaySourceId }
-                    ?: rows.find { it.source == GENERIC_GAP_SOURCE }
-                    ?: rows.firstOrNull()
+                val candidates = when {
+                    rows.any { it.source == displaySourceId } -> rows.filter { it.source == displaySourceId }
+                    rows.any { it.source == GENERIC_GAP_SOURCE } -> rows.filter { it.source == GENERIC_GAP_SOURCE }
+                    else -> rows
+                }
+                // GPS drift causes same source+timestamp rows at different lat/lon. Prefer earliest
+                // fetchedAt for past hours (original forecast) and latest for future hours.
+                val selected = if (time < nowMs) candidates.minByOrNull { it.fetchedAt }
+                               else candidates.maxByOrNull { it.fetchedAt }
                 selected?.let { time to it }
             }
             .toMap()

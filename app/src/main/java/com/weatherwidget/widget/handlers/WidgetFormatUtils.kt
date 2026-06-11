@@ -1,6 +1,9 @@
 package com.weatherwidget.widget.handlers
 
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.format.TextStyle
+import java.util.Locale
 
 /**
  * Split an hour label into its numeric part and meridiem suffix, e.g. 3pm -> ("3", "p"),
@@ -19,6 +22,15 @@ internal fun formatHourLabelParts(time: LocalDateTime): Pair<String, String> {
 
 internal fun formatHourLabel(time: LocalDateTime): String =
     formatHourLabelParts(time).let { (hour, meridiem) -> hour + meridiem }
+
+/**
+ * Compact date label used on the hourly graph footer when zoomed out to multiple days, where a
+ * bare time-of-day ("12a") can't tell you which day a region belongs to. Weekday + day-of-month,
+ * e.g. 2026-06-11 -> "Wed 11". The renderer ([GraphRenderUtils.drawHourLabels]) draws this string
+ * whole next to the day's weather icon, so the lack of an a/p suffix is fine.
+ */
+internal fun formatDateLabel(date: LocalDate): String =
+    date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()) + " " + date.dayOfMonth
 
 /**
  * Format a list of LocalDateTimes (hour-aligned) into a compact human-readable description

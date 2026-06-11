@@ -539,26 +539,26 @@ fun TemperatureGraph(
             }
         }
 
-        drawDayLabels(
-            leftDate = Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault()).toLocalDate(),
-            rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
-            textMeasurer = textMeasurer,
-            occupied = drawnLabels,
-            scale = scale,
-        )
+        // Wide multi-day spans label the footer with dates instead of times; the interior edge
+        // day-of-week labels are then redundant, so only draw them at narrower (time-label) zooms.
+        if (!DesktopGraphUtils.isDateMode(totalSpanHours)) {
+            drawDayLabels(
+                leftDate = Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault()).toLocalDate(),
+                rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
+                textMeasurer = textMeasurer,
+                occupied = drawnLabels,
+                scale = scale,
+            )
+        }
 
-        // Bottom strip: weather icons + hour labels
-        val labelInterval = DesktopGraphUtils.labelIntervalFor(totalSpanHours)
-        for (i in points.indices) {
+        // Bottom strip: weather icons + hour (or per-day date) labels. Which points get a label
+        // and the time-vs-date text are decided by DesktopGraphUtils.footerLabels; we only paint.
+        for (label in DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault())) {
+            val i = label.index
             val p = points[i]
             val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-            if (localZdt.hour % labelInterval != 0) continue
             val x = xAt(i)
-            
-            val time = Instant.ofEpochMilli(p.dateTime)
-                .atZone(ZoneId.systemDefault())
-                .toLocalTime()
-            val timeStr = formatHourLabel(time.hour)
+            val timeStr = label.text
             
             val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = hourLabelFontSize, color = Color.Gray))
             val textW = textLayout.size.width.toFloat()

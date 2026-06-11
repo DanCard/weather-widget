@@ -118,6 +118,29 @@ internal fun buildHourDataList(
         smoothedForecasts = smoothedForecasts,
     ).hours
 
+/**
+ * Epoch-millis of the per-day "centered" hour used for date footer labels at multi-day (THREE_DAY)
+ * zoom: for each local date in `[start, end]` the local-noon hour, clamped into the window so the
+ * partial first/last days still get a label at the nearest visible edge. One entry per visible day,
+ * matching the hour grid that [buildHourDataResult] walks (its hours are top-of-hour and these
+ * representatives are too). Pure, for unit testing.
+ */
+internal fun dateLabelMillis(start: LocalDateTime, end: LocalDateTime, zone: ZoneId): Set<Long> =
+    buildSet {
+        var date = start.toLocalDate()
+        val lastDate = end.toLocalDate()
+        while (!date.isAfter(lastDate)) {
+            val noon = date.atTime(12, 0)
+            val rep = when {
+                noon.isBefore(start) -> start
+                noon.isAfter(end) -> end
+                else -> noon
+            }
+            add(rep.atZone(zone).toInstant().toEpochMilli())
+            date = date.plusDays(1)
+        }
+    }
+
 internal fun buildHourDataResult(
     hourlyForecasts: List<HourlyForecastEntity>,
     centerTime: LocalDateTime,
@@ -215,6 +238,13 @@ internal fun buildHourDataResult(
             zoom.labelInterval
         }
 
+    // At THREE_DAY zoom the window spans multiple days, where bare "12a/12p" footer labels can't
+    // tell you which day a region is. Switch to one date label per day, centered under that day:
+    // for each visible local date pick the in-window hour closest to local noon (clamped to the
+    // window edges so partial first/last days still get a label). Near zooms keep time-of-day.
+    val dateMode = zoom == ZoomLevel.THREE_DAY
+    val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
+
     var currentHour = startHour
     var hourIndex = 0
 
@@ -229,7 +259,9 @@ internal fun buildHourDataResult(
 
         val isCurrentHour = currentHour == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val showLabel =
-            when (zoom) {
+            if (dateMode) {
+                hourMs in dateLabelMillis
+            } else when (zoom) {
                 ZoomLevel.WIDE -> hourIndex % labelInterval == 0
                 ZoomLevel.THREE_DAY -> hourIndex % labelInterval == 0
                 ZoomLevel.NARROW -> true
@@ -260,7 +292,7 @@ internal fun buildHourDataResult(
             HourData(
                 dateTime = currentHour,
                 temperature = smoothedForecasts?.get(hourMs) ?: forecast?.temperature ?: Float.NaN,
-                label = formatHourLabel(currentHour),
+                label = if (dateMode) formatDateLabel(currentHour.toLocalDate()) else formatHourLabel(currentHour),
                 iconRes = iconRes,
                 isNight = isNight,
                 isTwilight = isTwilight,
