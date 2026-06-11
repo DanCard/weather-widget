@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.graph
 
 import com.weatherwidget.shared.util.Log
+import java.time.Duration
 import java.time.LocalDateTime
 import kotlin.math.abs
 import kotlin.math.min
@@ -27,6 +28,32 @@ object TemperatureLabelResolver {
     private const val MAX_TEMP_LABEL_CANDIDATES = 6
     private val DENSE_TEMP_DIFF_THRESHOLDS = listOf(3, 4, 5)
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 2.5f
+
+    // Two same-ish-valued labels read as a redundant pair only when they sit close together ON
+    // SCREEN. Index distance is a poor proxy because pixels-per-hour changes with zoom: 3 hours is
+    // ~85px on a zoomed-in day view but only ~24px on a 3-day view. So derive the index window from
+    // an on-screen pixel budget whenever the pixel width is known, and fall back to the legacy
+    // index heuristic for callers without geometry (direct unit tests).
+    private const val REDUNDANT_PAIR_PX = 64f
+    private const val REDUNDANT_PAIR_WINDOW_CAP = 8
+
+    /**
+     * Index window within which a nearby labeled extremum can mark this candidate redundant.
+     * Zoom-aware when [widthPx] > 0 (converts [REDUNDANT_PAIR_PX] through the view's px-per-hour);
+     * otherwise the historical `min(cap, lastIndex/5)` heuristic.
+     */
+    private fun computeRedundantPairWindow(hours: List<HourData>, widthPx: Int): Int {
+        val lastIndex = hours.lastIndex
+        if (lastIndex <= 0) return 0
+        val legacy = min(REDUNDANT_PAIR_WINDOW_CAP, lastIndex / 5)
+        if (widthPx <= 0) return legacy
+        val spanHours = Duration.between(hours.first().dateTime, hours.last().dateTime).toMinutes() / 60f
+        if (spanHours <= 0f) return legacy
+        val pxPerHour = widthPx / spanHours
+        val hoursPerIndex = spanHours / lastIndex
+        val windowIndices = (REDUNDANT_PAIR_PX / pxPerHour) / hoursPerIndex
+        return windowIndices.roundToInt().coerceIn(1, REDUNDANT_PAIR_WINDOW_CAP)
+    }
 
     val ESSENTIAL_LABEL_ROLES: Set<TemperatureRole> = setOf(
         TemperatureRole.LOW,
@@ -78,9 +105,13 @@ object TemperatureLabelResolver {
         transitionX: Float?,
         observedAt: Long?,
         numColumns: Int = 0,
+        widthPx: Int = 0,
     ): List<TempLabelCandidate> {
         val labelTemps = extrema.labelTemps
         val actualLabelTemps = extrema.actualLabelTemps
+
+        val redundantPairWindow = computeRedundantPairWindow(hours, widthPx)
+        Log.d(TAG, "RedundancyWindow: window=$redundantPairWindow widthPx=$widthPx hours=${hours.size}")
 
         val potentialAnchors = buildPotentialAnchors(extrema, hours.size)
         extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
@@ -152,7 +183,7 @@ object TemperatureLabelResolver {
             }
             fetchResult.overriddenRole?.let { role = it }
 
-            if (checkRedundantPairSuppression(idx, role, extrema, suppressedIndices, labelTemps, actualLabelTemps)) {
+            if (checkRedundantPairSuppression(idx, role, extrema, suppressedIndices, labelTemps, actualLabelTemps, redundantPairWindow)) {
                 if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
                     Log.d(TAG, "LabelSuppressed: role=$role idx=$idx reason=REDUNDANT")
                 }
@@ -337,8 +368,8 @@ object TemperatureLabelResolver {
         suppressedIndices: Set<Int>,
         labelTemps: List<Float>,
         actualLabelTemps: List<Float>,
+        redundantPairWindow: Int,
     ): Boolean {
-        val redundantPairWindow = min(8, labelTemps.lastIndex / 5)
         val redundantValueThreshold = 2f
 
         return when (role) {

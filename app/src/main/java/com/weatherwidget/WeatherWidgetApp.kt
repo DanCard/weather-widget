@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.util.AndroidLogSink
 import com.weatherwidget.util.CrashReporter
 import com.weatherwidget.widget.OpportunisticUpdateJobService
 import androidx.hilt.work.HiltWorkerFactory
@@ -28,6 +29,10 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        // Route shared-module logging to logcat before anything else runs, so even startup-time
+        // diagnostics from :shared (e.g. TemperatureLabelResolver's label-placement breadcrumbs) are
+        // visible on-device. Without this they sink into java.util.logging and never reach logcat.
+        com.weatherwidget.shared.util.Log.install(AndroidLogSink)
         installCrashLogger()
         processStartElapsedRealtime = SystemClock.elapsedRealtime()
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {

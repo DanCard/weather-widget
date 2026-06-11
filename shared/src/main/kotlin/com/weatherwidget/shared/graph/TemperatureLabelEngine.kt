@@ -117,6 +117,7 @@ object TemperatureLabelEngine {
             transitionX = transitionX,
             observedAt = observedAt,
             numColumns = numColumns,
+            widthPx = widthPx,
         ).toMutableList()
 
         TemperatureLabelResolver.sortLabelCandidates(candidates)
