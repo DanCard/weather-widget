@@ -249,7 +249,9 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource)
 
 @Composable
 private fun GraphCard(title: String, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+    // Match Android's bg_graph_card fill (#222226) so the shared #333 gridlines read as the same
+    // subtle "half-faded" grid (the grid is one step lighter than the card, not lighter-on-lighter).
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF222226))) {
         Column(Modifier.padding(8.dp)) {
             Text(title, fontSize = 12.sp, color = Color.Gray)
             Spacer(Modifier.height(4.dp))
@@ -328,7 +330,7 @@ private fun DrawScope.drawEvolution(
 
     val axis = NiceAxisScale.compute(allTemps.minOrNull() ?: 0f, allTemps.maxOrNull() ?: 100f)
     val l = layout()
-    val timeAxis = TimeAxis((nws + meteo).map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(l.width))
+    val timeAxis = TimeAxis((nws + meteo).map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(l.width, spacingPx = 46f, maxDivisions = 20))
 
     drawGridAndAxes(l, axis, timeAxis, tm, isError = false)
     drawSeriesCurve(nws.mapNotNull { p -> tempFor(p)?.let { it to p.fetchedAt } }, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.NWS_COLOR))
@@ -359,7 +361,7 @@ private fun DrawScope.drawError(
     val yBound = maxOf(3f, ceil(errors.maxOf { abs(it.error) }) + 1f)
     val axis = NiceAxisScale.computeSymmetric(yBound, minRange = 6f)
     val l = layout()
-    val timeAxis = TimeAxis(errors.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(l.width))
+    val timeAxis = TimeAxis(errors.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(l.width, spacingPx = 46f, maxDivisions = 20))
 
     drawGridAndAxes(l, axis, timeAxis, tm, isError = true)
 

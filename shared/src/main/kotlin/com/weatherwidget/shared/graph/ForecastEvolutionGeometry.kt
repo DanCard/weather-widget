@@ -107,10 +107,11 @@ object ForecastEvolutionGeometry {
 
     /**
      * How many time-axis divisions fit a graph of [graphWidthPx], allowing ~[spacingPx] per slanted
-     * label. Clamped to a sane range so narrow graphs stay readable and wide ones don't over-crowd.
+     * label, clamped to `[2, maxDivisions]`. Defaults match the Android widget; desktop passes a
+     * tighter [spacingPx] and larger [maxDivisions] for denser labels on its bigger window.
      */
-    fun tickDivisionsForWidth(graphWidthPx: Float, spacingPx: Float = 78f): Int =
-        (graphWidthPx / spacingPx).roundToInt().coerceIn(2, 12)
+    fun tickDivisionsForWidth(graphWidthPx: Float, spacingPx: Float = 78f, maxDivisions: Int = 12): Int =
+        (graphWidthPx / spacingPx).roundToInt().coerceIn(2, maxDivisions)
 
     fun formatTimeLabel(timestampMillis: Long, minTime: Long, maxTime: Long): String {
         val zone = ZoneId.systemDefault()
