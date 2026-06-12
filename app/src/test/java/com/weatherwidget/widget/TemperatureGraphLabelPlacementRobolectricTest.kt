@@ -951,6 +951,60 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     }
 
     @Test
+    fun `forecast low flips above the curve when it would collide with the fetch dot value label`() {
+        // End-to-end guard that render() routes the fetch-dot bounds into the label engine as HARD
+        // obstacles (the Samsung/desktop "631°" bug). The actual low coincides with the fetch dot so
+        // its ACTUAL_LOW is suppressed (reason=FETCH_DOT) and the pink number is the dot value label.
+        // The adjacent forecast LOW must flip ABOVE the curve rather than draw on top of that label.
+        val placements = mutableListOf<LabelPlacementDebug>()
+        var fetchDotDebug: FetchDotDebug? = null
+        val start = LocalDateTime.of(2026, 4, 8, 0, 0)
+
+        // Forecast dips to a UNIQUE minimum 63° at idx 3 -> forecast LOW. The observed line bottoms
+        // out at 61° at the same idx 3 = the fetch dot, so the forecast LOW (63°) and the pink dot
+        // value label (61°) land at the same x and collide head-on (the "631°" overlap).
+        val forecastTemps = listOf(75f, 70f, 66f, 63f, 66f, 70f, 73f, 75f)
+        val actualTemps = listOf<Float?>(75f, 69f, 64f, 61f, null, null, null, null)
+        val hours = forecastTemps.indices.map { i ->
+            HourData(
+                dateTime = start.plusHours(i.toLong()),
+                temperature = forecastTemps[i],
+                actualTemperature = actualTemps[i],
+                isActual = actualTemps[i] != null,
+                label = "${start.plusHours(i.toLong()).hour}h",
+            )
+        }
+        val observedAtMs = start.plusHours(3).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 700,
+            heightPx = 220, // short, so the below-slot is tight against the dot value label
+            currentTime = start.plusHours(3),
+            observedAt = observedAtMs,
+            lastObservedTemp = 61f,
+            onLabelPlaced = { placements.add(it) },
+            onFetchDotResolved = { fetchDotDebug = it },
+        )
+
+        // The actual low at the dot is suppressed; the pink number is the fetch-dot value label.
+        assertNull(
+            "ACTUAL_LOW should be suppressed at the fetch dot. placements=$placements",
+            placements.find { it.role == TemperatureRole.ACTUAL_LOW },
+        )
+        val forecastLow = placements.find {
+            (it.role == TemperatureRole.LOW || it.role == TemperatureRole.FORECAST_LOW) && it.temperature == 63f
+        }
+        assertNotNull("Expected a forecast LOW (63°) label. placements=$placements", forecastLow)
+        assertTrue(
+            "Forecast LOW must flip ABOVE the curve to clear the fetch-dot value label " +
+                "(reason=${forecastLow!!.reason}, y=${forecastLow.y}, fetchY=${fetchDotDebug?.fetchY}). placements=$placements",
+            forecastLow.placedAbove,
+        )
+    }
+
+    @Test
     fun `actual low label stays below dip even with significant icon overlap`() {
         val start = LocalDateTime.of(2026, 4, 19, 10, 0)
         
