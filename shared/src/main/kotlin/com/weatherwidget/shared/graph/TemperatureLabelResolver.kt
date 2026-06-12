@@ -271,6 +271,22 @@ object TemperatureLabelResolver {
         if (specialCandidates.any { it.index == mid }) return
         if (mid !in labelTemps.indices) return
 
+        // Don't repeat a value the forecast line already shows. The midpoint exists to give a NEW
+        // readable reference for an otherwise-bare region; on a flat plateau its value equals the
+        // global HIGH/LOW (or a region-boundary label) already on screen, so it would render as a
+        // duplicate number (the Samsung "two 88°" bug). Not distance-gated: a duplicate anywhere on
+        // the forecast line defeats the purpose of a reference label, however far away it sits.
+        val midText = formatTemp(labelTemps[mid])
+        val alreadyOnForecastLine = specialCandidates.any { c ->
+            c.role in FORECAST_VALUE_ROLES &&
+                c.index in labelTemps.indices &&
+                formatTemp(labelTemps[c.index]) == midText
+        }
+        if (alreadyOnForecastLine) {
+            Log.d(TAG, "MidpointSuppressed: idx=$mid val=${labelTemps[mid]} duplicates existing forecast label text=$midText")
+            return
+        }
+
         Log.d(TAG, "LabelAccepted: role=LOCAL idx=$mid val=${labelTemps[mid]} reason=FORECAST_MIDPOINT futureStart=$futureStart lastIndex=$lastIndex")
         specialCandidates.add(
             TempLabelCandidate(mid, TemperatureRole.LOCAL, labelTemps, hours[mid].temperature, forceForecastSeries = true)
@@ -289,6 +305,16 @@ object TemperatureLabelResolver {
     // Roles whose label shows the OBSERVED (actual) value rather than the forecast value.
     private val ACTUAL_DISPLAY_ROLES = setOf(
         TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_END,
+    )
+
+    // Roles whose label text is drawn from the forecast series (labelTemps), used to detect a
+    // synthetic midpoint that merely repeats a value already shown on the forecast line. Excludes the
+    // ACTUAL_* roles, which read actualLabelTemps (a different, differently-colored series).
+    private val FORECAST_VALUE_ROLES = setOf(
+        TemperatureRole.HIGH, TemperatureRole.LOW,
+        TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
+        TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
+        TemperatureRole.START, TemperatureRole.END, TemperatureRole.LOCAL,
     )
 
     private val FORECAST_HIGH_ROLES = setOf(

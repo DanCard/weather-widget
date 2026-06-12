@@ -399,6 +399,67 @@ class TemperatureLabelSuppressionTest {
     }
 
     @Test
+    fun `forecast plateau equal to the daily high gets no duplicate midpoint label`() {
+        // Reproduces the live Samsung (SM-F936U1) bug: the forecast curve is a flat 88° plateau that
+        // declines only at the very end (88..88, 86, 85). The geometric midpoint of the future region
+        // lands on the plateau, so its value (88) equals the global HIGH already labeled at idx 0 —
+        // without the value-redundancy guard the line renders two "88°" labels.
+        val start = LocalDateTime.of(2026, 6, 12, 14, 0)
+        val forecastTemps = (0 until 18).map { offset ->
+            when (offset) {
+                16 -> 86.0f
+                17 -> 85.0f
+                else -> 88.0f // flat plateau across past-forecast + most of the future region
+            }
+        }
+        val hours = forecastTemps.mapIndexed { offset, t ->
+            val dt = start.plusHours(offset.toLong())
+            HourData(
+                dateTime = dt,
+                temperature = t,
+                label = "${dt.hour}h",
+                isActual = offset <= 14,
+                // Observed line runs well below the forecast plateau, so no actual point reads "88".
+                actualTemperature = if (offset <= 14) 81.0f else t,
+            )
+        }
+
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 248f, 14, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 14,
+            transitionX = 248f,
+            observedAt = null,
+            widthPx = 567,
+        )
+
+        // The daily HIGH (88) is still labeled once.
+        assertTrue(
+            "daily HIGH at 88 should be labeled, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.role == TemperatureRole.HIGH && TemperatureLabelResolver.formatTemp(it.labelTemps[it.index]) == "88" },
+        )
+        // No synthetic forecast midpoint is injected inside the future region (idx 15..16).
+        assertFalse(
+            "no synthetic midpoint on a plateau that repeats the daily high, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.role == TemperatureRole.LOCAL && it.forceForecastSeries && it.index in 15..16 },
+        )
+        // And crucially: exactly one forecast-line label reads "88" — no duplicate.
+        val eightyEightLabels = candidates.filter {
+            it.role in setOf(
+                TemperatureRole.HIGH, TemperatureRole.LOW,
+                TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
+                TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
+                TemperatureRole.START, TemperatureRole.END, TemperatureRole.LOCAL,
+            ) && TemperatureLabelResolver.formatTemp(it.labelTemps[it.index]) == "88"
+        }
+        assertEquals(
+            "exactly one forecast label should read 88, got ${eightyEightLabels.map { it.role to it.index }}",
+            1, eightyEightLabels.size,
+        )
+    }
+
+    @Test
     fun `ACTUAL_LOW is retained when near daily low`() {
         val start = LocalDateTime.of(2026, 4, 8, 10, 0)
 
