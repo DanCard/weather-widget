@@ -1,4 +1,4 @@
-package com.weatherwidget.widget
+package com.weatherwidget.shared.graph
 
 import kotlin.math.abs
 import kotlin.math.ceil

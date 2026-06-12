@@ -25,7 +25,7 @@ class ForecastEvolutionRendererTest {
         lowTemp: Float?,
         source: WeatherSource = WeatherSource.NWS,
         daysAhead: Int = 3,
-    ) = ForecastEvolutionRenderer.EvolutionPoint(
+    ) = EvolutionPoint(
         forecastDate = "2026-05-01",
         fetchedAt = fetchedAt,
         daysAhead = daysAhead,

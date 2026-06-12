@@ -133,6 +133,7 @@ private fun runApp() = application {
         var pickerVisible by remember { mutableStateOf(config == null) }
         var settingsVisible by remember { mutableStateOf(false) }
         var statsVisible by remember { mutableStateOf(false) }
+        var historyVisible by remember { mutableStateOf(false) }
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
@@ -177,7 +178,7 @@ private fun runApp() = application {
         }
 
         // Exit on close logic:
-        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || observationsVisible || appLogsVisible
+        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || historyVisible || observationsVisible || appLogsVisible
         LaunchedEffect(anyWindowOpen) {
             if (!anyWindowOpen) {
                 Log.i(TAG, "All windows closed. Ephemeral UI process exiting...")
@@ -289,6 +290,15 @@ private fun runApp() = application {
                 weatherDao = weatherDao,
                 config = currentConfig,
                 onClose = { statsVisible = false },
+            )
+        }
+
+        if (historyVisible && currentConfig != null) {
+            ForecastHistoryWindow(
+                weatherDao = weatherDao,
+                config = currentConfig,
+                onClose = { historyVisible = false },
+                onConfigUpdate = { newConfig -> saveConfigAndNotify(newConfig) },
             )
         }
 
@@ -439,6 +449,9 @@ private fun runApp() = application {
                     onOpenObservations = {
                         observationsVisible = true
                         obsShowRequestId++
+                    },
+                    onOpenHistory = {
+                        historyVisible = true
                     }
                 )
             }
@@ -559,6 +572,7 @@ internal fun WidgetPopup(
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenObservations: () -> Unit,
+    onOpenHistory: () -> Unit = {},
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
       // One shared scale for header + graph so everything grows together with the window.
@@ -578,6 +592,7 @@ internal fun WidgetPopup(
                         onUpdateConfig = onUpdateConfig,
                         onOpenSettings = onOpenSettings,
                         onOpenObservations = onOpenObservations,
+                        onOpenHistory = onOpenHistory,
                         onUpdateLocation = onUpdateLocation,
                         showWeatherSummary = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION",
                         headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
@@ -804,6 +819,7 @@ private fun WidgetHeader(
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenObservations: () -> Unit,
+    onOpenHistory: () -> Unit = {},
     onUpdateLocation: () -> Unit,
     showWeatherSummary: Boolean = true,
     headerTime: LocalDateTime = LocalDateTime.now(),
@@ -928,6 +944,16 @@ private fun WidgetHeader(
                             modifier = Modifier.clickable {
                                 onUpdateConfig(config.copy(viewMode = "DAILY"))
                             }.testTag("switch_to_daily")
+                        )
+                        // 📈 Forecast history (how each day's forecast evolved) — mirrors Android's
+                        // chart icon right of the home icon on the hourly graph.
+                        Text(
+                            text = "📈",
+                            fontSize = (13 * scale).sp,
+                            color = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.clickable {
+                                onOpenHistory()
+                            }.testTag("open_forecast_history")
                         )
                     }
                 } else {

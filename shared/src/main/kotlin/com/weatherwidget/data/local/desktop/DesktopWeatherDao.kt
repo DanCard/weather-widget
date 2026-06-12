@@ -781,6 +781,39 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
+    /**
+     * All stored forecast snapshots for a single target day (every source, every fetch), used by the
+     * forecast-history screen to plot how the prediction evolved. Mirrors Android
+     * `ForecastDao.getForecastEvolution`: ordered by when the forecast was made, then batch/fetch time.
+     */
+    fun getForecastEvolution(targetDate: Long, locationLat: Double, locationLon: Double): List<DesktopForecastRow> {
+        val result = mutableListOf<DesktopForecastRow>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT targetDate, forecastDate, source, highTemp, lowTemp, fetchedAt FROM forecasts
+                WHERE targetDate = ? AND ${LocationMatch.JDBC_WHERE}
+                ORDER BY forecastDate ASC, batchFetchedAt ASC, fetchedAt ASC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setLong(1, targetDate)
+                stmt.setDouble(2, locationLat)
+                stmt.setDouble(3, locationLon)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(DesktopForecastRow(
+                        targetDate = rs.getLong("targetDate"),
+                        forecastDate = rs.getLong("forecastDate"),
+                        source = rs.getString("source"),
+                        highTemp = rs.getNullableFloat("highTemp"),
+                        lowTemp = rs.getNullableFloat("lowTemp"),
+                        fetchedAt = rs.getLong("fetchedAt"),
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
     // Helper extensions for nullable types with JDBC
     private fun PreparedStatement.setNullableInt(index: Int, value: Int?) {
         if (value == null) setNull(index, Types.INTEGER) else setInt(index, value)

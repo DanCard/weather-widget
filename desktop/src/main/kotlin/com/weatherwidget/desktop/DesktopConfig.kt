@@ -31,6 +31,10 @@ data class DesktopConfig(
     val obsWindowY: Float? = null,
     val obsWindowWidth: Float? = null,
     val obsWindowHeight: Float? = null,
+    val historyWindowX: Float? = null,
+    val historyWindowY: Float? = null,
+    val historyWindowWidth: Float? = null,
+    val historyWindowHeight: Float? = null,
 )
 
 class DesktopConfigStore(

@@ -10,30 +10,30 @@ import android.graphics.Path
 import android.graphics.Typeface
 import android.util.TypedValue
 import com.weatherwidget.data.model.WeatherSource
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import com.weatherwidget.shared.graph.AxisScale
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ErrorSample
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.EvolutionPoint
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ForecastSample
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.TimeAxis
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.bucketize
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.collectTemps
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.formatAxisLabel
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.formatErrorLabel
+import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.formatTempLabel
+import com.weatherwidget.shared.graph.NiceAxisScale
 import kotlin.math.abs
 import kotlin.math.ceil
-import kotlin.math.roundToInt
 
+/**
+ * Android `Canvas` renderer for the forecast-evolution history graph. All geometry/data-prep and
+ * the visual constants live in [ForecastEvolutionGeometry] / [com.weatherwidget.shared.graph.ForecastEvolutionStyle]
+ * (shared with the desktop Compose renderer); this object only turns those primitives into a Bitmap.
+ *
+ * [EvolutionPoint] is re-exported as `ForecastEvolutionRenderer.EvolutionPoint` (typealias below) so
+ * existing call sites keep compiling.
+ */
 object ForecastEvolutionRenderer {
-    private const val SNAPSHOT_BUCKET_HOURS = 4L
-    private const val MILLIS_PER_HOUR = 60L * 60L * 1000L
-
-    private val TIME_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
-    private val DATETIME_FORMATTER = DateTimeFormatter.ofPattern("M/d h a", Locale.getDefault())
-
-    data class EvolutionPoint(
-        val forecastDate: String,
-        val fetchedAt: Long,
-        val daysAhead: Int,
-        val highTemp: Float?,
-        val lowTemp: Float?,
-        val source: WeatherSource,
-    )
-
     fun renderHighGraph(
         context: Context,
         nwsPoints: List<EvolutionPoint>,
@@ -115,7 +115,7 @@ object ForecastEvolutionRenderer {
         val dp = { dp: Float -> dpToPx(context, dp) }
 
         val allPoints = nwsSeries + meteoSeries
-        val timeAxis = TimeAxis(allPoints.map { it.fetchedAt }, layout)
+        val timeAxis = TimeAxis(allPoints.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(layout.graphWidth))
 
         drawGridAndAxes(canvas, layout, axisScale, timeAxis, paints, dp, isError = false)
 
@@ -153,11 +153,7 @@ object ForecastEvolutionRenderer {
         val allSeries = nwsSeries + meteoSeries
         if (allSeries.isEmpty()) return bitmap
 
-        val errorSamples = allSeries.mapNotNull { point ->
-            tempFor(point)?.let { temp ->
-                ErrorSample(error = temp - baseline, daysAhead = point.daysAhead, fetchedAt = point.fetchedAt, source = point.source)
-            }
-        }
+        val errorSamples = ForecastEvolutionGeometry.errorSamples(allSeries, ::tempFor, baseline)
         if (errorSamples.isEmpty()) return bitmap
 
         val maxAbsError = errorSamples.maxOf { abs(it.error) }
@@ -168,7 +164,7 @@ object ForecastEvolutionRenderer {
         val paints = EvolutionGraphStyle.getPaints(context)
         val dp = { dp: Float -> dpToPx(context, dp) }
 
-        val timeAxis = TimeAxis(errorSamples.map { it.fetchedAt }, layout)
+        val timeAxis = TimeAxis(errorSamples.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(layout.graphWidth))
 
         drawGridAndAxes(canvas, layout, axisScale, timeAxis, paints, dp, isError = true)
 
@@ -319,22 +315,6 @@ object ForecastEvolutionRenderer {
         return bitmap
     }
 
-    private class TimeAxis(
-        timestamps: List<Long>,
-        layout: GraphLayout,
-    ) {
-        val minTime: Long = timestamps.minOrNull() ?: 0L
-        val maxTime: Long = timestamps.maxOrNull() ?: 0L
-        val isSingleTime: Boolean = minTime == maxTime
-        val ticks: List<Long> = buildTimeTicks(minTime, maxTime)
-
-        fun xForTime(timeMs: Long, layout: GraphLayout): Float =
-            if (isSingleTime) layout.graphLeft + layout.graphWidth / 2f
-            else layout.graphLeft + layout.graphWidth * (timeMs - minTime).toFloat() / (maxTime - minTime).toFloat()
-
-        fun formatLabel(tickMs: Long): String = formatTimeLabel(tickMs, minTime, maxTime)
-    }
-
     private data class GraphLayout(
         val graphLeft: Float,
         val graphRight: Float,
@@ -371,10 +351,16 @@ object ForecastEvolutionRenderer {
             canvas.drawText(label, layout.graphLeft - dp(EvolutionGraphStyle.LABEL_GAP_DP), y + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), paints.yLabel)
         }
 
+        // Slanted x-axis time labels (right-anchored at the tick) so denser labels never overlap.
+        val slantPaint = Paint(paints.xLabel).apply { textAlign = Paint.Align.RIGHT }
+        val labelBaseline = layout.graphBottom + dp(EvolutionGraphStyle.LABEL_GAP_DP) + dp(8f)
         for (tick in timeAxis.ticks) {
-            val x = timeAxis.xForTime(tick, layout)
-            canvas.drawText(timeAxis.formatLabel(tick), x, layout.graphBottom + dp(EvolutionGraphStyle.PADDING_BOTTOM_DP) - dp(8f), paints.xLabel)
+            val x = timeAxis.xForTime(tick, layout.graphLeft, layout.graphWidth)
             canvas.drawLine(x, layout.graphTop, x, layout.graphBottom, paints.gridLine)
+            canvas.save()
+            canvas.rotate(EvolutionGraphStyle.X_LABEL_SLANT_DEG, x, labelBaseline)
+            canvas.drawText(timeAxis.formatLabel(tick), x, labelBaseline, slantPaint)
+            canvas.restore()
         }
     }
 
@@ -398,7 +384,7 @@ object ForecastEvolutionRenderer {
 
         for (point in sorted) {
             val temp = tempFor(point) ?: continue
-            val x = timeAxis.xForTime(point.fetchedAt, layout)
+            val x = timeAxis.xForTime(point.fetchedAt, layout.graphLeft, layout.graphWidth)
             val y = axisScale.valueToY(temp, layout.graphTop, layout.graphHeight)
             if (!started) {
                 path.moveTo(x, y)
@@ -414,7 +400,7 @@ object ForecastEvolutionRenderer {
 
         for (point in sorted) {
             val temp = tempFor(point) ?: continue
-            val x = timeAxis.xForTime(point.fetchedAt, layout)
+            val x = timeAxis.xForTime(point.fetchedAt, layout.graphLeft, layout.graphWidth)
             val y = axisScale.valueToY(temp, layout.graphTop, layout.graphHeight)
             canvas.drawCircle(x, y, dp(EvolutionGraphStyle.DATA_POINT_RADIUS_DP), pointPaint)
         }
@@ -438,7 +424,7 @@ object ForecastEvolutionRenderer {
         var started = false
 
         for (sample in sorted) {
-            val x = timeAxis.xForTime(sample.fetchedAt, layout)
+            val x = timeAxis.xForTime(sample.fetchedAt, layout.graphLeft, layout.graphWidth)
             val y = axisScale.valueToY(sample.error, layout.graphTop, layout.graphHeight)
             if (!started) {
                 path.moveTo(x, y)
@@ -453,7 +439,7 @@ object ForecastEvolutionRenderer {
         canvas.drawPath(path, curvePaint)
 
         for (sample in sorted) {
-            val x = timeAxis.xForTime(sample.fetchedAt, layout)
+            val x = timeAxis.xForTime(sample.fetchedAt, layout.graphLeft, layout.graphWidth)
             val y = axisScale.valueToY(sample.error, layout.graphTop, layout.graphHeight)
             canvas.drawCircle(x, y, dp(EvolutionGraphStyle.DATA_POINT_RADIUS_DP), pointPaint)
         }
@@ -475,73 +461,9 @@ object ForecastEvolutionRenderer {
         canvas.drawText(labelText, layout.graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), y + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), labelPaint)
     }
 
-    private fun bucketize(
-        points: List<EvolutionPoint>,
-        tempFor: (EvolutionPoint) -> Float?,
-    ): List<EvolutionPoint> {
-        val bucketMillis = SNAPSHOT_BUCKET_HOURS * MILLIS_PER_HOUR
-        return points
-            .filter { tempFor(it) != null }
-            .groupBy { it.fetchedAt / bucketMillis }
-            .mapNotNull { (_, bucketPoints) -> bucketPoints.maxByOrNull { it.fetchedAt } }
-    }
-
-    private fun collectTemps(
-        points: List<EvolutionPoint>,
-        tempFor: (EvolutionPoint) -> Float?,
-        actualValue: Float?,
-        appActualValue: Float?,
-    ): List<Float> {
-        val temps = mutableListOf<Float>()
-        points.forEach { tempFor(it)?.let { t -> temps.add(t) } }
-        actualValue?.let { temps.add(it) }
-        appActualValue?.let { temps.add(it) }
-        return temps
-    }
-
-    private fun buildTimeTicks(minTime: Long, maxTime: Long): List<Long> {
-        if (minTime == maxTime) return listOf(minTime)
-        val divisions = 4
-        return (0..divisions).map { idx ->
-            minTime + ((maxTime - minTime) * idx / divisions)
-        }
-    }
-
-    private fun formatTimeLabel(timestampMillis: Long, minTime: Long, maxTime: Long): String {
-        val zone = ZoneId.systemDefault()
-        val instant = Instant.ofEpochMilli(timestampMillis)
-        val minDate = Instant.ofEpochMilli(minTime).atZone(zone).toLocalDate()
-        val maxDate = Instant.ofEpochMilli(maxTime).atZone(zone).toLocalDate()
-        val formatter = if (minDate == maxDate) TIME_FORMATTER else DATETIME_FORMATTER
-        return formatter.format(instant.atZone(zone))
-    }
-
-    private fun formatAxisLabel(value: Float): String {
-        val rounded = floatRoundToInt(value)
-        return if (abs(value - rounded) < 0.01f) "${rounded}°"
-        else String.format("%.1f°", value)
-    }
-
-    private fun formatErrorLabel(value: Float): String {
-        val rounded = floatRoundToInt(value)
-        val roundedStr = if (abs(value - rounded) < 0.01f) "${abs(rounded)}" 
-        else String.format("%.1f", abs(value))
-        return when {
-            value > 0.05f -> "+${roundedStr}°"
-            value < -0.05f -> "-${roundedStr}°"
-            else -> "0°"
-        }
-    }
-
-    private fun formatTempLabel(value: Float): String =
-        com.weatherwidget.util.TempUtils.formatTemp(value) ?: ""
-
     private fun dpToPx(context: Context, dp: Float): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)
-
-    private fun floatRoundToInt(v: Float): Int = v.roundToInt()
-
-    private data class ForecastSample(val temp: Float, val daysAhead: Int, val source: WeatherSource)
-
-    private data class ErrorSample(val error: Float, val daysAhead: Int, val fetchedAt: Long, val source: WeatherSource)
 }
+
+/** Back-compat alias so existing `ForecastEvolutionRenderer.EvolutionPoint` call sites keep working. */
+typealias EvolutionPoint = ForecastEvolutionGeometry.EvolutionPoint

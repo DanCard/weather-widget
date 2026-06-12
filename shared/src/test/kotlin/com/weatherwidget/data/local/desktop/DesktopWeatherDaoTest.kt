@@ -88,6 +88,31 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `getForecastEvolution returns every snapshot for the target date, filtered by location`() {
+        val lat = 40.0
+        val lon = -75.0
+        val date = java.time.LocalDate.parse("2026-06-20")
+        val epoch = date.toEpochDay() * 86_400_000L
+
+        // Two NWS snapshots (distinct fetchedAt) plus one Open-Meteo snapshot for the target day.
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-20", 80f, 60f, "Sunny")))
+        Thread.sleep(5)
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-20", 83f, 61f, "Sunny")))
+        dao.upsertForecasts(lat, lon, "OPEN_METEO", listOf(DailyForecast("2026-06-20", 81f, 62f, "Cloudy")))
+
+        // Noise that must be excluded: a different target day, and a far-away location.
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-21", 70f, 50f, "Rain")))
+        dao.upsertForecasts(10.0, 10.0, "NWS", listOf(DailyForecast("2026-06-20", 99f, 88f, "Hot")))
+
+        val evolution = dao.getForecastEvolution(epoch, lat, lon)
+
+        assertEquals(3, evolution.size)
+        assertTrue(evolution.all { it.targetDate == epoch })
+        assertTrue(evolution.none { it.highTemp == 70f || it.highTemp == 99f })
+        assertEquals(setOf("NWS", "OPEN_METEO"), evolution.map { it.source }.toSet())
+    }
+
+    @Test
     fun `test observation round-trip`() {
         val lat = 40.0
         val lon = -75.0

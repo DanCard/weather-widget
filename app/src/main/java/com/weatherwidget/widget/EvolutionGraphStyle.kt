@@ -6,35 +6,43 @@ import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.TypedValue
+import com.weatherwidget.shared.graph.ForecastEvolutionStyle
 
+/**
+ * Android `Paint` factory for the forecast-evolution graph. Visual constants (colors, dp metrics)
+ * live in the shared [ForecastEvolutionStyle] so the desktop Compose renderer matches exactly; this
+ * object only turns them into cached Android `Paint`s.
+ */
 object EvolutionGraphStyle {
-    const val NWS_COLOR = "#5AC8FA"
-    const val METEO_COLOR = "#34C759"
-    const val API_ACTUAL_COLOR = "#FF9F0A"
-    const val APP_ACTUAL_COLOR = "#FF3B30"
-    const val LABEL_COLOR = "#AAAAAA"
-    const val GRID_COLOR = "#333333"
+    // Re-exposed for existing call sites; single source of truth is ForecastEvolutionStyle.
+    val NWS_COLOR get() = ForecastEvolutionStyle.NWS_COLOR
+    val METEO_COLOR get() = ForecastEvolutionStyle.METEO_COLOR
+    val API_ACTUAL_COLOR get() = ForecastEvolutionStyle.API_ACTUAL_COLOR
+    val APP_ACTUAL_COLOR get() = ForecastEvolutionStyle.APP_ACTUAL_COLOR
+    val LABEL_COLOR get() = ForecastEvolutionStyle.LABEL_COLOR
+    val GRID_COLOR get() = ForecastEvolutionStyle.GRID_COLOR
 
-    const val CURVE_STROKE_DP = 2.5f
-    const val DATA_POINT_RADIUS_DP = 3f
-    const val GRID_STROKE_DP = 1f
-    const val API_ACTUAL_STROKE_DP = 1.5f
-    const val APP_ACTUAL_STROKE_DP = 2f
-    const val ZERO_LINE_STROKE_DP = 2f
-    const val DASH_ON_DP = 6f
-    const val DASH_OFF_DP = 4f
-    const val Y_LABEL_SIZE_DP = 13f
-    const val X_LABEL_SIZE_DP = 13f
-    const val API_ACTUAL_LABEL_SIZE_DP = 13f
-    const val APP_ACTUAL_LABEL_SIZE_DP = 14.5f
-    const val ZERO_LABEL_SIZE_DP = 13f
+    val CURVE_STROKE_DP get() = ForecastEvolutionStyle.CURVE_STROKE_DP
+    val DATA_POINT_RADIUS_DP get() = ForecastEvolutionStyle.DATA_POINT_RADIUS_DP
+    val GRID_STROKE_DP get() = ForecastEvolutionStyle.GRID_STROKE_DP
+    val API_ACTUAL_STROKE_DP get() = ForecastEvolutionStyle.API_ACTUAL_STROKE_DP
+    val APP_ACTUAL_STROKE_DP get() = ForecastEvolutionStyle.APP_ACTUAL_STROKE_DP
+    val ZERO_LINE_STROKE_DP get() = ForecastEvolutionStyle.ZERO_LINE_STROKE_DP
+    val DASH_ON_DP get() = ForecastEvolutionStyle.DASH_ON_DP
+    val DASH_OFF_DP get() = ForecastEvolutionStyle.DASH_OFF_DP
+    val Y_LABEL_SIZE_DP get() = ForecastEvolutionStyle.Y_LABEL_SIZE_DP
+    val X_LABEL_SIZE_DP get() = ForecastEvolutionStyle.X_LABEL_SIZE_DP
+    val API_ACTUAL_LABEL_SIZE_DP get() = ForecastEvolutionStyle.API_ACTUAL_LABEL_SIZE_DP
+    val APP_ACTUAL_LABEL_SIZE_DP get() = ForecastEvolutionStyle.APP_ACTUAL_LABEL_SIZE_DP
+    val ZERO_LABEL_SIZE_DP get() = ForecastEvolutionStyle.ZERO_LABEL_SIZE_DP
 
-    const val PADDING_LEFT_DP = 40f
-    const val PADDING_RIGHT_DP = 16f
-    const val PADDING_TOP_DP = 24f
-    const val PADDING_BOTTOM_DP = 32f
-    const val LABEL_GAP_DP = 6f
-    const val LABEL_VERTICAL_CENTER_DP = 4f
+    val PADDING_LEFT_DP get() = ForecastEvolutionStyle.PADDING_LEFT_DP
+    val PADDING_RIGHT_DP get() = ForecastEvolutionStyle.PADDING_RIGHT_DP
+    val PADDING_TOP_DP get() = ForecastEvolutionStyle.PADDING_TOP_DP
+    val PADDING_BOTTOM_DP get() = ForecastEvolutionStyle.PADDING_BOTTOM_DP
+    val LABEL_GAP_DP get() = ForecastEvolutionStyle.LABEL_GAP_DP
+    val LABEL_VERTICAL_CENTER_DP get() = ForecastEvolutionStyle.LABEL_VERTICAL_CENTER_DP
+    val X_LABEL_SLANT_DEG get() = ForecastEvolutionStyle.X_LABEL_SLANT_DEG
 
     data class PaintSet(
         val density: Float,

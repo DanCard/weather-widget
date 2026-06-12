@@ -27,6 +27,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.stats.AccuracyCalculator
+import com.weatherwidget.widget.EvolutionPoint
 import com.weatherwidget.widget.ForecastEvolutionRenderer
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -345,7 +346,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             snapshots.map { snapshot ->
                 val forecastDate = LocalDate.ofEpochDay(snapshot.forecastDate / WidgetConstants.MS_IN_A_DAY)
                 val daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, date).toInt()
-                ForecastEvolutionRenderer.EvolutionPoint(
+                EvolutionPoint(
                     forecastDate = forecastDate.toString(),
                     fetchedAt = snapshot.fetchedAt,
                     daysAhead = daysAhead,
