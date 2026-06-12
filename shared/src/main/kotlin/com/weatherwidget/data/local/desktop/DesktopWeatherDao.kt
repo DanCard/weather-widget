@@ -535,6 +535,48 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     ))
                 }
             }
+
+            // Repair degenerate (high == low) days. Late in the day NWS stops reporting a low for
+            // today, so NwsDailyMapper collapses it to low = high (`temps.second ?: high`). That
+            // latest "forecast" is no longer a genuine range, so fall back to the most recent stored
+            // forecast for the same target day that still had a real high/low spread — the last
+            // genuine historical forecast. (Runs in a separate pass so the read ResultSet above is
+            // already closed before issuing these lookups on the same connection.)
+            for (i in result.indices) {
+                val day = result[i]
+                if (day.highTemp != day.lowTemp) continue
+                val targetEpoch = LocalDate.parse(day.date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                val genuineSql = """
+                    SELECT highTemp, lowTemp, condition, nativeDailyIconToken,
+                           precipProbability, precipAmountMm, isClimateNormal
+                    FROM forecasts
+                    WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ?
+                        AND highTemp IS NOT NULL AND lowTemp IS NOT NULL AND highTemp <> lowTemp
+                    ORDER BY batchFetchedAt DESC, fetchedAt DESC
+                    LIMIT 1
+                """.trimIndent()
+                val genuine = conn.prepareStatement(genuineSql).use { stmt ->
+                    stmt.setDouble(1, locationLat)
+                    stmt.setDouble(2, locationLon)
+                    stmt.setString(3, source)
+                    stmt.setLong(4, targetEpoch)
+                    val rs = stmt.executeQuery()
+                    if (rs.next()) {
+                        day.copy(
+                            highTemp = rs.getFloat("highTemp"),
+                            lowTemp = rs.getFloat("lowTemp"),
+                            condition = rs.getString("condition"),
+                            iconToken = rs.getString("nativeDailyIconToken"),
+                            precipProbability = rs.getNullableInt("precipProbability"),
+                            precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                            isClimateNormal = rs.getInt("isClimateNormal") == 1,
+                        )
+                    } else {
+                        null
+                    }
+                }
+                if (genuine != null) result[i] = genuine
+            }
         }
         return result
     }

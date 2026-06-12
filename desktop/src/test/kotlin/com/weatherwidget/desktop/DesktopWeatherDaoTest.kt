@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.model.DailyForecast
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -9,6 +10,8 @@ import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 class DesktopWeatherDaoTest {
 
@@ -65,5 +68,61 @@ class DesktopWeatherDaoTest {
         assertEquals(1000L, dao.getLastSuccessfulFetch("NWS"))
         assertEquals(2000L, dao.getLastSuccessfulFetch("OPEN_METEO"))
         assertNull(dao.getLastSuccessfulFetch("SILURIAN"))
+    }
+
+    @Test
+    fun `getDailyForecasts repairs degenerate today using last genuine forecast`() {
+        val lat = 37.0
+        val lon = -122.0
+        val source = "NWS"
+        val today = LocalDate.now(ZoneOffset.UTC).toString()
+        val tomorrow = LocalDate.now(ZoneOffset.UTC).plusDays(1).toString()
+
+        // An earlier, genuine forecast for today (real high/low spread) plus a future day.
+        dao.upsertForecasts(lat, lon, source, listOf(
+            DailyForecast(date = today, highTemp = 91f, lowTemp = 62f, condition = "Sunny"),
+            DailyForecast(date = tomorrow, highTemp = 87f, lowTemp = 60f, condition = "Sunny"),
+        ))
+        // Age that batch so the degenerate fetch below becomes the latest batch.
+        setForecastBatchStamp(1000L)
+
+        // The latest fetch collapsed today's forecast to high == low (the NWS late-day bug).
+        dao.upsertForecasts(lat, lon, source, listOf(
+            DailyForecast(date = today, highTemp = 92f, lowTemp = 92f, condition = "Sunny"),
+            DailyForecast(date = tomorrow, highTemp = 87f, lowTemp = 60f, condition = "Sunny"),
+        ))
+
+        val days = dao.getDailyForecasts(lat, lon, source).associateBy { it.date }
+        // Today is repaired to the last genuine historical forecast, not the degenerate latest.
+        assertEquals(91f, days.getValue(today).highTemp)
+        assertEquals(62f, days.getValue(today).lowTemp)
+        // The genuine future day is untouched.
+        assertEquals(87f, days.getValue(tomorrow).highTemp)
+        assertEquals(60f, days.getValue(tomorrow).lowTemp)
+    }
+
+    @Test
+    fun `getDailyForecasts keeps degenerate day when no genuine forecast exists`() {
+        val lat = 37.0
+        val lon = -122.0
+        val source = "NWS"
+        val today = LocalDate.now(ZoneOffset.UTC).toString()
+
+        dao.upsertForecasts(lat, lon, source, listOf(
+            DailyForecast(date = today, highTemp = 92f, lowTemp = 92f, condition = "Sunny"),
+        ))
+
+        val day = dao.getDailyForecasts(lat, lon, source).single()
+        assertEquals(92f, day.highTemp)
+        assertEquals(92f, day.lowTemp)
+    }
+
+    /** Force every stored forecast row to a fixed batch/fetched stamp so a later insert outranks it. */
+    private fun setForecastBatchStamp(value: Long) {
+        database.getConnection().use { conn ->
+            conn.createStatement().use { stmt ->
+                stmt.execute("UPDATE forecasts SET batchFetchedAt = $value, fetchedAt = $value")
+            }
+        }
     }
 }
