@@ -33,6 +33,16 @@ const val FORECAST_FRESHNESS_THRESHOLD_MS = 60 * 60 * 1000L
 const val CURRENT_TEMP_UI_INTERVAL_MS = 2 * 60 * 1000L
 const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 
+// Resume-from-suspend detection. The fetch loops sleep on coroutine `delay()`, which schedules
+// against CLOCK_MONOTONIC and freezes during suspend, so they do NOT fire on wake. We detect resume
+// and kick one immediate catch-up refresh. Two detectors race; [RESUME_DEBOUNCE_MS] collapses them
+// into a single fetch per wake.
+const val HEARTBEAT_INTERVAL_MS = 30_000L
+// A heartbeat tick whose wall-clock gap exceeds interval + slack (~90s) means we were suspended.
+// Mirrors ~/bin/sys-logging.sh's RESUME_DETECT_THRESHOLD_MS (75s) time-jump heuristic.
+const val SUSPEND_JUMP_SLACK_MS = 60_000L
+const val RESUME_DEBOUNCE_MS = 2 * 60 * 1000L
+
 enum class LaunchRefreshAction {
     FULL_FORECAST,
     OBSERVATIONS,
@@ -55,6 +65,22 @@ fun determineLaunchRefreshAction(
         (nowMs - lastObservationFetchMs) < FRESHNESS_THRESHOLD_MS
     return if (observationsAreFresh) LaunchRefreshAction.NONE else LaunchRefreshAction.OBSERVATIONS
 }
+
+/**
+ * True when a logind `PrepareForSleep` D-Bus signal line indicates the machine is *waking*
+ * (`false` = resuming; `true` = about to sleep). Matches `gdbus monitor` output lines such as
+ * `/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (false)`.
+ */
+fun isResumeSignalLine(line: String): Boolean =
+    line.contains("PrepareForSleep") && line.contains("false")
+
+/**
+ * True when a heartbeat tick's wall-clock gap is far larger than the scheduled interval, which only
+ * happens when the process was frozen by a system suspend (coroutine `delay()` runs on the monotonic
+ * clock and cannot itself produce such a jump).
+ */
+fun isSuspendJump(expectedElapsedMs: Long, actualElapsedMs: Long, slackMs: Long): Boolean =
+    actualElapsedMs > expectedElapsedMs + slackMs
 
 fun isPackaged(): Boolean = System.getProperty("jpackage.app-path") != null
 

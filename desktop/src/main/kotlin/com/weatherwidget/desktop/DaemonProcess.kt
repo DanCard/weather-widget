@@ -53,12 +53,14 @@ fun runDaemon() {
     val configState = MutableStateFlow<DesktopConfig?>(currentConfig)
 
     var uiProcess: Process? = null
+    var logindMonitor: Process? = null
 
     val daemonScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     var fetchJob: Job? = null
     var weatherService: DesktopWeatherService? = null
     var repo: DesktopWeatherRepository? = null
+    var lastResumeKickMs = 0L
 
     fun quit(killUi: Boolean = true) {
         Log.i(TAG, "Quitting daemon (killUi=$killUi)...")
@@ -66,6 +68,8 @@ fun runDaemon() {
         if (killUi) {
             uiProcess?.destroy()
         }
+        // Unblock the gdbus reader (coroutine cancellation can't interrupt its blocking read).
+        runCatching { logindMonitor?.destroy() }
         daemonScope.cancel()
 
         kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
@@ -88,6 +92,106 @@ fun runDaemon() {
         }.collect {}
     }
 
+    // Shared by daemon startup and resume-from-suspend: load the cache, then fetch exactly what is
+    // stale per determineLaunchRefreshAction (full forecast > 1h old, observations > 10m old, else
+    // nothing). [reason] is for log provenance only.
+    suspend fun runLaunchRefresh(activeRepo: DesktopWeatherRepository, config: DesktopConfig, reason: String) {
+        try {
+            Log.i(TAG, "[$reason] Loading cached data...")
+            val cached = activeRepo.loadCached()
+            Log.i(TAG, "Cached data loaded. Null? ${cached == null}")
+            if (cached != null) {
+                forecastState.value = cached
+                val lastFetch = weatherDao.getLastSuccessfulFetch(config.weatherSource)
+                dataStatusState.value = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
+                Log.i(TAG, "DataStatus updated to Live (cached). lastFetch: $lastFetch")
+            }
+
+            val now = System.currentTimeMillis()
+            val lastForecastFetch = weatherDao.getLastSuccessfulFetch(config.weatherSource)
+            val lastObservationFetch = weatherDao.getLastSuccessfulObservationFetch(config.weatherSource)
+            val launchRefreshAction = determineLaunchRefreshAction(
+                cachePresent = cached != null,
+                lastObservationFetchMs = lastObservationFetch,
+                lastForecastFetchMs = lastForecastFetch,
+                nowMs = now,
+            )
+
+            Log.i(TAG, "[$reason] Launch refresh action: $launchRefreshAction. lastForecastFetch: $lastForecastFetch lastObservationFetch: $lastObservationFetch")
+
+            weatherDao.log(
+                tag = "LAUNCH_REFRESH_CHECK",
+                message = "reason=$reason source=${config.weatherSource} cachePresent=${cached != null} action=$launchRefreshAction " +
+                    "lastForecastFetch=$lastForecastFetch forecastAgeMs=${lastForecastFetch?.let { now - it }} " +
+                    "lastObservationFetch=$lastObservationFetch observationAgeMs=${lastObservationFetch?.let { now - it }}",
+                level = "INFO"
+            )
+
+            if (launchRefreshAction != LaunchRefreshAction.NONE) {
+                try {
+                    val result = when (launchRefreshAction) {
+                        LaunchRefreshAction.FULL_FORECAST -> {
+                            Log.i(TAG, "Refreshing full forecast from network...")
+                            activeRepo.refresh()
+                        }
+                        LaunchRefreshAction.OBSERVATIONS -> {
+                            Log.i(TAG, "Refreshing current observations from network...")
+                            activeRepo.refreshObservations()
+                        }
+                        LaunchRefreshAction.NONE -> forecastState.value
+                    }
+                    forecastState.value = result
+                    dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
+                    Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
+                } catch (e: CancellationException) {
+                    Log.i(TAG, "Refresh cancelled.")
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Refresh failed: ${e.message}")
+                    e.printStackTrace()
+                    val isOffline = isOfflineException(e)
+                    val failReason = if (isOffline) "offline" else "source_error"
+                    weatherDao.log("REFRESH_FAIL", "$reason fetch: $failReason ${e.message}", "WARN")
+                    val lastSuccess = weatherDao.getLastSuccessfulFetch(config.weatherSource)
+                    dataStatusState.value = deriveDataStatus(
+                        cachePresent = forecastState.value != null,
+                        lastFetchMs = lastSuccess,
+                        refreshFailed = true,
+                        failureIsOffline = isOffline,
+                    )
+                    Log.i(TAG, "DataStatus updated to: ${dataStatusState.value}")
+                }
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "[$reason] Initialization failure: ${e.message}")
+            e.printStackTrace()
+            dataStatusState.value = DataStatus.Error("Initialization failed: ${e.message}")
+        }
+    }
+
+    // Called on resume-from-suspend (logind signal or heartbeat). Debounced so the two detectors
+    // observing the same wake produce a single catch-up fetch. All outcomes write a durable
+    // RESUME_DETECT row to app_logs (queryable), not just the ephemeral console Log, so a wake that
+    // fired but did nothing (debounced / repo-not-ready) is still diagnosable after the fact.
+    fun kickResumeRefresh(reason: String) {
+        val now = System.currentTimeMillis()
+        val activeRepo = repo
+        val activeConfig = currentConfig
+        if (activeRepo == null || activeConfig == null) {
+            weatherDao.log("RESUME_DETECT", "kick ($reason) skipped: no active repo/config yet", "WARN")
+            return
+        }
+        if (now - lastResumeKickMs < RESUME_DEBOUNCE_MS) {
+            weatherDao.log("RESUME_DETECT", "kick ($reason) ignored: debounced (${now - lastResumeKickMs}ms since last kick)", "INFO")
+            return
+        }
+        lastResumeKickMs = now
+        weatherDao.log("RESUME_DETECT", "resume detected ($reason) — kicking catch-up refresh", "INFO")
+        Log.i(TAG, "Resume detected ($reason) — kicking catch-up refresh.")
+        daemonScope.launch { runLaunchRefresh(activeRepo, activeConfig, "resume:$reason") }
+    }
+
     fun startFetchLoops() {
         fetchJob?.cancel()
         runCatching { weatherService?.close() }
@@ -101,78 +205,7 @@ fun runDaemon() {
         fetchJob = daemonScope.launch {
             // 1. Startup refresh
             launch {
-                try {
-                    Log.i(TAG, "Loading cached data...")
-                    val cached = newRepo.loadCached()
-                    Log.i(TAG, "Cached data loaded. Null? ${cached == null}")
-                    if (cached != null) {
-                        forecastState.value = cached
-                        val lastFetch = weatherDao.getLastSuccessfulFetch(config.weatherSource)
-                        dataStatusState.value = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
-                        Log.i(TAG, "DataStatus updated to Live (cached). lastFetch: $lastFetch")
-                    }
-
-                    val now = System.currentTimeMillis()
-                    val lastForecastFetch = weatherDao.getLastSuccessfulFetch(config.weatherSource)
-                    val lastObservationFetch = weatherDao.getLastSuccessfulObservationFetch(config.weatherSource)
-                    val launchRefreshAction = determineLaunchRefreshAction(
-                        cachePresent = cached != null,
-                        lastObservationFetchMs = lastObservationFetch,
-                        lastForecastFetchMs = lastForecastFetch,
-                        nowMs = now,
-                    )
-
-                    Log.i(TAG, "Launch refresh action: $launchRefreshAction. lastForecastFetch: $lastForecastFetch lastObservationFetch: $lastObservationFetch")
-
-                    weatherDao.log(
-                        tag = "LAUNCH_REFRESH_CHECK",
-                        message = "source=${config.weatherSource} cachePresent=${cached != null} action=$launchRefreshAction " +
-                            "lastForecastFetch=$lastForecastFetch forecastAgeMs=${lastForecastFetch?.let { now - it }} " +
-                            "lastObservationFetch=$lastObservationFetch observationAgeMs=${lastObservationFetch?.let { now - it }}",
-                        level = "INFO"
-                    )
-
-                    if (launchRefreshAction != LaunchRefreshAction.NONE) {
-                        try {
-                            val result = when (launchRefreshAction) {
-                                LaunchRefreshAction.FULL_FORECAST -> {
-                                    Log.i(TAG, "Refreshing full forecast from network...")
-                                    newRepo.refresh()
-                                }
-                                LaunchRefreshAction.OBSERVATIONS -> {
-                                    Log.i(TAG, "Refreshing current observations from network...")
-                                    newRepo.refreshObservations()
-                                }
-                                LaunchRefreshAction.NONE -> forecastState.value
-                            }
-                            forecastState.value = result
-                            dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
-                            Log.i(TAG, "Launch refresh successful. DataStatus updated to Live.")
-                        } catch (e: CancellationException) {
-                            Log.i(TAG, "Refresh cancelled.")
-                            throw e
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Refresh failed: ${e.message}")
-                            e.printStackTrace()
-                            val isOffline = isOfflineException(e)
-                            val reason = if (isOffline) "offline" else "source_error"
-                            weatherDao.log("REFRESH_FAIL", "launch fetch: $reason ${e.message}", "WARN")
-                            val lastSuccess = weatherDao.getLastSuccessfulFetch(config.weatherSource)
-                            dataStatusState.value = deriveDataStatus(
-                                cachePresent = forecastState.value != null,
-                                lastFetchMs = lastSuccess,
-                                refreshFailed = true,
-                                failureIsOffline = isOffline,
-                            )
-                            Log.i(TAG, "DataStatus updated to: ${dataStatusState.value}")
-                        }
-                    }
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    Log.e(TAG, "Initialization failure: ${e.message}")
-                    e.printStackTrace()
-                    dataStatusState.value = DataStatus.Error("Initialization failed: ${e.message}")
-                }
+                runLaunchRefresh(newRepo, config, "startup")
             }
 
             // 3a. Current-temp UI loop
@@ -428,6 +461,52 @@ fun runDaemon() {
                 Log.i(TAG, "Instance re-check: a newer instance is active (mine=$appLaunchId). Exiting.")
                 quit(killUi = false)
             }
+        }
+    }
+
+    // Resume-from-suspend detection. The fetch loops sleep on coroutine delay() (monotonic clock,
+    // frozen during suspend) so they do not fire on wake; without a kick, current temp stays stale
+    // for up to the remaining interval (4–8h on battery). Two best-effort detectors race:
+
+    // Primary (interrupt-driven): logind emits PrepareForSleep(false) on wake. If gdbus is missing or
+    // the stream dies we log once and lean on the heartbeat fallback below.
+    daemonScope.launch(Dispatchers.IO) {
+        try {
+            val proc = ProcessBuilder(
+                "gdbus", "monitor", "--system",
+                "--dest", "org.freedesktop.login1",
+                "--object-path", "/org/freedesktop/login1",
+            ).redirectErrorStream(true).start()
+            logindMonitor = proc
+            weatherDao.log("RESUME_DETECT", "gdbus logind monitor started (pid=${proc.pid()})", "INFO")
+            proc.inputStream.bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    if (isResumeSignalLine(line)) kickResumeRefresh("logind")
+                }
+            }
+            // Stream ending unexpectedly means the primary detector is dead; heartbeat still covers us.
+            weatherDao.log("RESUME_DETECT", "gdbus logind monitor stream ended — heartbeat fallback only", "WARN")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            weatherDao.log("RESUME_DETECT", "gdbus logind monitor unavailable (${e.message}) — heartbeat fallback only", "WARN")
+        }
+    }
+
+    // Fallback (universal): a wall-clock jump far larger than the heartbeat interval can only mean we
+    // were suspended. Mirrors the time-jump heuristic in ~/bin/sys-logging.sh.
+    daemonScope.launch(Dispatchers.IO) {
+        var expected = System.currentTimeMillis()
+        while (true) {
+            delay(HEARTBEAT_INTERVAL_MS)
+            val now = System.currentTimeMillis()
+            val gapMs = now - expected
+            if (isSuspendJump(HEARTBEAT_INTERVAL_MS, gapMs, SUSPEND_JUMP_SLACK_MS)) {
+                // gap in the reason distinguishes a real multi-hour suspend from a brief scheduler /
+                // GC stall that tripped the threshold (a false positive shows a small gap).
+                kickResumeRefresh("heartbeat gap=${gapMs / 1000}s")
+            }
+            expected = now
         }
     }
 

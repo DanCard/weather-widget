@@ -124,6 +124,41 @@ class RefreshDelayTest {
     }
 
     @Test
+    fun `resume signal line recognizes logind wake`() {
+        assertTrue(
+            isResumeSignalLine(
+                "/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (false)"
+            )
+        )
+    }
+
+    @Test
+    fun `resume signal line ignores the sleep-imminent signal`() {
+        assertFalse(
+            isResumeSignalLine(
+                "/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (true)"
+            )
+        )
+    }
+
+    @Test
+    fun `resume signal line ignores unrelated dbus traffic`() {
+        assertFalse(isResumeSignalLine("/org/freedesktop/login1: some.other.Signal (false)"))
+    }
+
+    @Test
+    fun `suspend jump detected when wall-clock gap far exceeds the heartbeat`() {
+        // 6h elapsed against a 30s heartbeat => suspended.
+        assertTrue(isSuspendJump(HEARTBEAT_INTERVAL_MS, 6 * 60 * 60 * 1000L, SUSPEND_JUMP_SLACK_MS))
+    }
+
+    @Test
+    fun `suspend jump not detected for normal scheduling jitter`() {
+        // Heartbeat ran a few seconds late: well within slack, not a suspend.
+        assertFalse(isSuspendJump(HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS + 5_000L, SUSPEND_JUMP_SLACK_MS))
+    }
+
+    @Test
     fun `observations only refresh skips unsupported current-only sources`() = runTest {
         val service = DesktopWeatherService(
             latitude = 37.4220,
