@@ -116,7 +116,7 @@ largely fine — this plan is about **scale, NOW, fetch-dot, hour axis, and the 
   *logic* (NOW label bounds, `formatAgeLabel`, fetch-dot layout, hour spacing) into the Compose
   `DrawScope`; keep using the already-shared `ActualTemperatureSeriesBuilder`.
 - Multiple adb devices attached — always `-s emulator-5554`; never `connectedDebugAndroidTest`.
-- After each compiling change: `scripts/build-start.sh`, screenshot via
+- After each compiling change: `scripts/buildStart.sh`, screenshot via
   `import -window <id>`, compare to emulator (`adb -s emulator-5554 exec-out screencap`, PNG→JPG).
 
 ## Out of scope

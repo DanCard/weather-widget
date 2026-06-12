@@ -119,7 +119,7 @@ the app runs).
 
 ## Verification
 1. `./gradlew :desktop:test` — all green (new + existing).
-2. `./gradlew :desktop:compileKotlin`, then `scripts/build-start.sh`; surface the popup
+2. `./gradlew :desktop:compileKotlin`, then `scripts/buildStart.sh`; surface the popup
    (`.show`) and screenshot via `xdotool`/`import` (window "Weather Widget"), convert to JPG.
 3. Zoomed-in temperature view: pink actual line starts at the **left edge**; forecast fills to the
    **right edge** (already fixed); staleness label pink above the dot (already fixed).

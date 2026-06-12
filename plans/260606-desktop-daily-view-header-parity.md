@@ -168,7 +168,7 @@ Removing the header's location label and 🌡 icon strands two features — re-h
 - Keep existing `daily_forecast_surface` test tag coverage.
 
 ### 6. Build, run, screenshot-verify
-- `scripts/build-start.sh` (builds, stops running app, relaunches autostart), or for
+- `scripts/buildStart.sh` (builds, stops running app, relaunches autostart), or for
   fast iteration `./gradlew :desktop:run`.
 - Per `feedback_auto_restart_desktop`: after a compiling change, just run
   `restart-desktop-distributable.sh` — no need to ask.

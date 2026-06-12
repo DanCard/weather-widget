@@ -75,7 +75,7 @@ all stay enforced.
 3. `./gradlew installDebug`; screenshot the emulator hourly graph (`adb -s emulator-5554 exec-out
    screencap`): 84° / 91° (and 63° / 67.6°) sit flush with no leader lines. Confirm via logcat that
    their `LabelPlacementDebug` shows `displacementSteps=0` and no `curveFit`.
-4. `scripts/build-start.sh` (desktop) — the desktop 91° still sits flush.
+4. `scripts/buildStart.sh` (desktop) — the desktop 91° still sits flush.
 
 ## Notes
 - Scope is the one role predicate at line 270 + removing the subsumed helper; START/END/ACTUAL_END,

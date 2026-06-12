@@ -78,7 +78,7 @@ Then replace `actualVisiblePoints` with `avoidanceActualPoints` at the two avoid
 1. `./gradlew :shared:test` — new test green, `TemperatureLabelCollisionOrderTest` /
    `TemperatureValleyBelowCascadeTest` unchanged.
 2. `./gradlew :app:testDebugUnitTest --tests "*TemperatureGraphLabelPlacement*"` — no regressions.
-3. Rebuild + restart desktop (`scripts/build-start.sh`), open popup (`touch
+3. Rebuild + restart desktop (`scripts/buildStart.sh`), open popup (`touch
    ~/.local/share/weather-widget/.show`), screenshot the Thursday valley: the "60.6°" ACTUAL_LOW now
    sits below the pink valley with no leader line. Confirm via the desktop log that
    `ACTUAL_LOW idx=… placeAbove=false` and `intrusion=none`.

@@ -84,7 +84,7 @@ DAO currently deletes by timestamp (retention) but has no clear-all; skip unless
 
 ## Verification
 
-1. Build + restart: `./scripts/build-start.sh`.
+1. Build + restart: `./scripts/buildStart.sh`.
 2. Open Settings → click **Refresh Data**: button disables + shows progress, then re-enables; the
    open popup updates. Confirm a fresh fetch with
    `python3 scripts/backup_databases.py` then check a new `forecasts.batchFetchedAt` and a fresh

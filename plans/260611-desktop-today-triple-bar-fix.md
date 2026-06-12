@@ -79,7 +79,7 @@ No renderer change needed: `drawRangeLine` already early-returns when `low == nu
 ## Verification
 1. **Unit:** `./gradlew :shared:test --tests "*DailyDayValueResolverTest"` (and
    `:desktop:test` stays green).
-2. **End-to-end:** rebuild + restart with `scripts/build-start.sh`, then capture the window
+2. **End-to-end:** rebuild + restart with `scripts/buildStart.sh`, then capture the window
    and confirm the amber dot is gone from today's column while the bright-yellow snapshot bar
    and pink observed bar remain:
    ```

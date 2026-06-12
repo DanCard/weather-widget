@@ -109,7 +109,7 @@ desktop (Compose `DrawScope`) draw from the same geometry.
   assert chronological order + location-box filtering, mirroring `ForecastSnapshotDaoTest`).
 - `./gradlew :app:testDebugUnitTest --tests "*NiceAxisScale*" --tests "*ForecastSnapshot*" --tests
   "*ForecastHistory*"` — confirm the Android refactor didn't regress.
-- `./gradlew :desktop:compileKotlin` then `scripts/build-start.sh` (rebuild distributable + restart,
+- `./gradlew :desktop:compileKotlin` then `scripts/buildStart.sh` (rebuild distributable + restart,
   per CLAUDE.md). In the running app: open the hourly view → click the new 📈 icon → window opens;
   verify Evolution/Error toggle, prev/next-day nav (and 30-day back disable), source cycling, the
   accuracy summary, and the freshness line. Cross-check a past day's graph shape against the same day

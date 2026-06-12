@@ -76,7 +76,7 @@ in miniature — leave it unless a <2° case is reported.
 ## Verification
 
 1. `./gradlew :shared:test` — new test green, no regressions.
-2. Rebuild + restart desktop (`scripts/build-start.sh`), open popup
+2. Rebuild + restart desktop (`scripts/buildStart.sh`), open popup
    (`touch ~/.local/share/weather-widget/.show`), screenshot the full hourly graph: the Wed forecast
    high (orange peak under 92.8°) and the Wed→Thu / Thu→Fri forecast lows are now labeled. Confirm in
    the desktop log that `LabelAccepted: role=LOCAL idx=…` now appears for those indices and the

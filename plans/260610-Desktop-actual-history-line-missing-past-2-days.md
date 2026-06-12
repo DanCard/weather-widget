@@ -40,7 +40,7 @@ all unaffected.
 
 ## Verification
 
-1. Build + restart: `scripts/build-start.sh` (project convention — rebuilds, stops, relaunches).
+1. Build + restart: `scripts/buildStart.sh` (project convention — rebuilds, stops, relaunches).
 2. Open the temperature graph and scroll-wheel out toward the 6-day view. Confirm the **actual line
    now extends across the full window** (no longer truncating at ~2 days), and switch to
    precipitation/cloud to confirm they also show their full-span actual data.

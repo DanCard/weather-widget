@@ -217,7 +217,7 @@ Final: **app unit ✅, desktop ✅, emulator 57/57 ✅.**
 - `./gradlew :app:testDebugUnitTest` — ✅
 - `./gradlew :desktop:test` — ✅ (incl. new `DesktopGraphZoomTest`, backfill, repository, UI)
 - `./scripts/emulator-tests.sh -q` — ✅ **57/57** (emulator-only; physical phones untouched)
-- Desktop app rebuilt via `scripts/build-start.sh` and confirmed running (daemon + UI procs)
+- Desktop app rebuilt via `scripts/buildStart.sh` and confirmed running (daemon + UI procs)
   after each visible change; line-thickness verified via screenshot.
 
 ## Open items

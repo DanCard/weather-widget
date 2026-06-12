@@ -87,7 +87,7 @@ expected.
   nearly-full while fixing narrow. If they want wider fill, lower the ratio, not the absolute mins.
 - Reuse the already-shared `ActualTemperatureSeriesBuilder`; port scaling logic from
   `GraphLayout.computeScaling` (android module, not shareable as-is — mirror the constants).
-- After each compiling change: `scripts/build-start.sh`, screenshot via
+- After each compiling change: `scripts/buildStart.sh`, screenshot via
   `import -window <id>`, compare to Samsung (`adb -s RFCT71FR9NT` via on-device-file pull — `exec-out`
   corrupts the PNG with a multi-display warning) and emulator (`-s emulator-5554`).
 

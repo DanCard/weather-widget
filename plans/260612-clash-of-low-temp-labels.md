@@ -123,7 +123,7 @@ the same rect temperature labels already partially avoided via `ctx.drawnLabelBo
    (`adb exec-out screencap -p > /tmp/s.png && convert /tmp/s.png /tmp/s.jpg`) and confirm the
    forecast LOW (63°) sits above the curve, pink fetch-dot value (61°) below — no "631°".
    Confirm via `adb logcat | grep LabelPlacementDebug` that the LOW logs `placedAbove=true`.
-4. Desktop: `scripts/build-start.sh` to rebuild + relaunch; open the popup, confirm the white
+4. Desktop: `scripts/buildStart.sh` to rebuild + relaunch; open the popup, confirm the white
    forecast LOW (62°) sits above the curve, separated from the pink 61.2° value label.
 
 ## Notes

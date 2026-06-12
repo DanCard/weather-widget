@@ -34,6 +34,6 @@ This session focused on extracting the complex temperature graph label-placement
 - **Desktop Module Tests**: All Compose-specific desktop tests completed successfully.
 
 ### 2. Desktop Execution and System Logs
-- Built the desktop distributable package and executed the autostart wrapper via `scripts/build-start.sh`.
+- Built the desktop distributable package and executed the autostart wrapper via `scripts/buildStart.sh`.
 - Analyzed `autostart-*.log` and confirmed the headless `WeatherDaemon` successfully bound to the Unix socket (`weather.sock`), parsed config data, loaded cached weather models, and spawned the UI child process.
 - Touched the `.show` trigger file to verify that the UI window successfully composed and registered state events without any exceptions.
