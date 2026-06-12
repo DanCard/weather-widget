@@ -372,6 +372,10 @@ fun TemperatureGraph(
         val endIdx = points.lastIndex
 
         val drawnLabels = mutableListOf<Rect>()
+        // Fetch-dot value/age rects, treated as HARD obstacles by the label engine so a colliding
+        // label (e.g. a valley forecast LOW) flips above the curve instead of drawing over the pink
+        // dot value. See plans/samsung-clash-of-labels-*.md.
+        val fetchDotHardBounds = mutableListOf<Rect>()
 
         // Fetch dot and value/age labels
         val tMs = transitionMs
@@ -413,6 +417,7 @@ fun TemperatureGraph(
             
             drawText(valueTextLayout, topLeft = rect.topLeft)
             drawnLabels.add(rect)
+            fetchDotHardBounds.add(rect)
             
             // Staleness age label (mirrors Android: any non-negative age, but only in a ≤12h window
             // so it shows in the zoomed-in view and hides in the wide 24h view). Drawn in the actual
@@ -453,6 +458,7 @@ fun TemperatureGraph(
 
                 drawText(ageTextLayout, topLeft = finalAgeRect.topLeft)
                 drawnLabels.add(finalAgeRect)
+                fetchDotHardBounds.add(finalAgeRect)
             }
         }
 
@@ -520,7 +526,8 @@ fun TemperatureGraph(
             numColumns = points.size,
             tempToY = { yAt(it) },
             metrics = metricsAdapter,
-            drawnIconBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) }
+            drawnIconBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+            reservedHardBounds = fetchDotHardBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
         )
 
         for (label in placements) {

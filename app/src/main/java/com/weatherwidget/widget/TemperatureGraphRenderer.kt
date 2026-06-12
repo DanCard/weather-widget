@@ -398,6 +398,7 @@ object TemperatureGraphRenderer {
         ctx: RenderContext,
         hours: List<HourData>,
         drawnIconBounds: List<RectF>,
+        fetchDotBounds: List<RectF>,
         numColumns: Int,
     ) {
         val paint = ctx.paints.actualTempLabelTextPaint
@@ -411,6 +412,9 @@ object TemperatureGraphRenderer {
         }
 
         val neutralIconBounds = drawnIconBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
+        // Fetch-dot value/age/ring rects are HARD obstacles so the engine flips a colliding label
+        // (e.g. a valley forecast LOW) above the curve instead of drawing it over the pink dot value.
+        val fetchDotHardBounds = fetchDotBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
 
         val placements = TemperatureLabelEngine.computePlacements(
             hours = hours,
@@ -429,7 +433,8 @@ object TemperatureGraphRenderer {
             numColumns = numColumns,
             tempToY = { ctx.tempToY(it) },
             metrics = textMetrics,
-            drawnIconBounds = neutralIconBounds
+            drawnIconBounds = neutralIconBounds,
+            reservedHardBounds = fetchDotHardBounds
         )
 
         for (p in placements) {
@@ -798,7 +803,7 @@ object TemperatureGraphRenderer {
 
         val fetchDotPreBounds = computeFetchDotBounds(ctx, hours)
         ctx.drawnLabelBounds.addAll(fetchDotPreBounds)
-        placeTemperatureLabels(ctx, hours, drawnIconBounds, numColumns)
+        placeTemperatureLabels(ctx, hours, drawnIconBounds, fetchDotPreBounds, numColumns)
         placeDayLabels(ctx, hours, drawnIconBounds)
         timings.mark("labels")
 

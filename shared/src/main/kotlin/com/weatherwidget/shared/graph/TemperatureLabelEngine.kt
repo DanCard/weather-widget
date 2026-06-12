@@ -132,6 +132,11 @@ object TemperatureLabelEngine {
         tempToY: (Float) -> Float,
         metrics: LabelTextMetrics,
         drawnIconBounds: List<GraphRect> = emptyList(),
+        // Bounds (fetch-dot value/age labels) treated as HARD obstacles: a candidate overlapping
+        // one is always a real collision — never softened by minor-overlap allowance — so e.g. a
+        // valley forecast LOW landing on the fetch-dot's pink actual-temp label flips above the
+        // curve instead of drawing on top of it. See plans/samsung-clash-of-labels-*.md.
+        reservedHardBounds: List<GraphRect> = emptyList(),
     ): List<PlacedLabel> {
         val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, transitionX, effectiveActualEndIndex, fetchTime)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
@@ -238,6 +243,7 @@ object TemperatureLabelEngine {
                     labelDescent = labelDescent,
                     drawnLabelMetas = drawnLabelMetas,
                     drawnIconBounds = drawnIconBounds,
+                    reservedHardBounds = reservedHardBounds,
                     idx = idx,
                     temps = temps,
                     resultPlacements = resultPlacements,
@@ -290,7 +296,10 @@ object TemperatureLabelEngine {
                     val allowFlippedAboveCurveGraze = flipDecided && placeAbove && curveAvoidanceEligible
                     val overlapsCurve = curveAvoidanceEligible && !curveIntrusion.isEmpty && !allowFlippedAboveCurveGraze && !isLeftEdgePair
 
-                    val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve
+                    // Hard obstacles (fetch-dot value/age labels) are never softened by minor-overlap.
+                    val overlapsHard = reservedHardBounds.any { it.intersects(bounds) }
+
+                    val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve || overlapsHard
 
                     if (hasCollision && !placeAbove && geometry.isValley && step == 0 && !flipDecided) {
                         val outcome = tryValleyBelowCascade(
@@ -301,6 +310,7 @@ object TemperatureLabelEngine {
                             verticalPlacement = verticalPlacement,
                             drawnLabelMetas = drawnLabelMetas,
                             drawnIconBounds = drawnIconBounds,
+                            reservedHardBounds = reservedHardBounds,
                             labelHeight = labelHeight,
                         )
                         when (outcome) {
@@ -483,6 +493,7 @@ object TemperatureLabelEngine {
         labelDescent: Float,
         drawnLabelMetas: MutableList<PlacedLabelMeta>,
         drawnIconBounds: List<GraphRect>,
+        reservedHardBounds: List<GraphRect>,
         idx: Int,
         temps: List<Float>,
         resultPlacements: MutableList<PlacedLabel>,
@@ -503,6 +514,7 @@ object TemperatureLabelEngine {
                 labelDescent = labelDescent,
                 drawnLabelMetas = drawnLabelMetas,
                 drawnIconBounds = drawnIconBounds,
+                reservedHardBounds = reservedHardBounds,
                 idx = idx,
                 temps = temps,
                 allowedDipPx = allowedDipPx,
@@ -540,6 +552,7 @@ object TemperatureLabelEngine {
         labelDescent: Float,
         drawnLabelMetas: List<PlacedLabelMeta>,
         drawnIconBounds: List<GraphRect>,
+        reservedHardBounds: List<GraphRect>,
         idx: Int,
     ): ExactFitBlockerResult {
         val baseGapPx = if (placeAbove) gapDp.aboveDp * density else gapDp.belowDp * density
@@ -554,6 +567,7 @@ object TemperatureLabelEngine {
         val intrusion = combinedCurveIntrusion(actualVisiblePoints, forecastPoints, baseBounds)
         val baseOverlapsLabel = drawnLabelMetas.any { it.bounds.intersects(baseBounds) }
         val baseOverlapsIcon = drawnIconBounds.any { it.intersects(baseBounds) }
+        val baseOverlapsHard = reservedHardBounds.any { it.intersects(baseBounds) }
 
         val labelHeight = labelDescent - labelAscent
         val drawnLabelBoundsList = drawnLabelMetas.map { it.bounds }
@@ -562,10 +576,12 @@ object TemperatureLabelEngine {
         val iconOverlapRatio = if (!placeAbove && geometry.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
         val allowMinorLabelOverlap = baseOverlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlapPx, labelHeight)
         val allowMinorIconOverlap = baseOverlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlapPx <= labelHeight * iconOverlapRatio
-        val effectiveLabelBlocker = baseOverlapsLabel && !allowMinorLabelOverlap
+        // Hard obstacles (fetch-dot value/age labels) are never softened: a hit blocks this
+        // direction outright, so the caller tries the opposite side (flip above the curve).
+        val effectiveLabelBlocker = (baseOverlapsLabel && !allowMinorLabelOverlap) || baseOverlapsHard
         val effectiveIconBlocker = baseOverlapsIcon && !allowMinorIconOverlap
 
-        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", geometry.sy)} baseBounds=(${baseBounds.left},${baseBounds.top},${baseBounds.right},${baseBounds.bottom}) intrusion=${if (intrusion.isEmpty) "none" else "minY=${String.format("%.1f", intrusion.minY)} maxY=${String.format("%.1f", intrusion.maxY)}"} labelBlocker=$effectiveLabelBlocker iconBlocker=$effectiveIconBlocker allowedDip=${String.format("%.1f", CURVE_AVOIDANCE_ALLOWED_DIP_DP * density)}")
+        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", geometry.sy)} baseBounds=(${baseBounds.left},${baseBounds.top},${baseBounds.right},${baseBounds.bottom}) intrusion=${if (intrusion.isEmpty) "none" else "minY=${String.format("%.1f", intrusion.minY)} maxY=${String.format("%.1f", intrusion.maxY)}"} labelBlocker=$effectiveLabelBlocker iconBlocker=$effectiveIconBlocker hardBlocker=$baseOverlapsHard allowedDip=${String.format("%.1f", CURVE_AVOIDANCE_ALLOWED_DIP_DP * density)}")
 
         if (intrusion.isEmpty && !effectiveLabelBlocker && !effectiveIconBlocker) {
             return ExactFitBlockerResult.NaturalFits
@@ -590,6 +606,7 @@ object TemperatureLabelEngine {
         labelDescent: Float,
         drawnLabelMetas: MutableList<PlacedLabelMeta>,
         drawnIconBounds: List<GraphRect>,
+        reservedHardBounds: List<GraphRect>,
         idx: Int,
         temps: List<Float>,
         allowedDipPx: Float,
@@ -600,7 +617,8 @@ object TemperatureLabelEngine {
             actualVisiblePoints = actualVisiblePoints, forecastPoints = forecastPoints,
             candidate = candidate, geometry = geometry, placeAbove = placeAbove,
             gapDp = gapDp, labelAscent = labelAscent, labelDescent = labelDescent,
-            drawnLabelMetas = drawnLabelMetas, drawnIconBounds = drawnIconBounds, idx = idx
+            drawnLabelMetas = drawnLabelMetas, drawnIconBounds = drawnIconBounds,
+            reservedHardBounds = reservedHardBounds, idx = idx
         )
         when (blockerResult) {
             is ExactFitBlockerResult.NaturalFits -> return ExactFitOutcome.NATURAL_FITS
@@ -637,8 +655,9 @@ object TemperatureLabelEngine {
                 }
                 val overlapsLabel = drawnLabelMetas.any { it.bounds.intersects(newBounds) }
                 val overlapsIcon = drawnIconBounds.any { it.intersects(newBounds) }
-                if (overlapsLabel || overlapsIcon) {
-                    Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon")
+                val overlapsHard = reservedHardBounds.any { it.intersects(newBounds) }
+                if (overlapsLabel || overlapsIcon || overlapsHard) {
+                    Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon overlapsHard=$overlapsHard")
                     return ExactFitOutcome.GAVE_UP
                 }
                 val residual = combinedCurveIntrusion(actualVisiblePoints, forecastPoints, newBounds)
@@ -696,6 +715,7 @@ object TemperatureLabelEngine {
         verticalPlacement: GraphLabelPlacementUtils.LabelVerticalPlacement,
         drawnLabelMetas: List<PlacedLabelMeta>,
         drawnIconBounds: List<GraphRect>,
+        reservedHardBounds: List<GraphRect>,
         labelHeight: Float,
     ): ValleyCascadeOutcome {
         val centerX = geometry.clampedX
@@ -720,7 +740,8 @@ object TemperatureLabelEngine {
 
             val overlapsLabel = drawnBoundsList.any { it.intersects(shiftedBounds) }
             val overlapsIcon = drawnIconBounds.any { it.intersects(shiftedBounds) }
-            if (!overlapsLabel && !overlapsIcon) {
+            val overlapsHard = reservedHardBounds.any { it.intersects(shiftedBounds) }
+            if (!overlapsLabel && !overlapsIcon && !overlapsHard) {
                 return ValleyCascadeOutcome.Below(
                     CascadeResult(
                         x = shiftedX,
@@ -732,8 +753,12 @@ object TemperatureLabelEngine {
             }
         }
 
+        // The centered below-fallbacks below would sit on the hard bound; only take them when the
+        // centered slot is clear of hard obstacles, otherwise fall through so the label flips above.
+        val centeredOverlapsHard = reservedHardBounds.any { it.intersects(centeredBounds) }
+
         val overlapRatio = verticalOverlap / labelHeight
-        if (overlapRatio <= GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO) {
+        if (!centeredOverlapsHard && overlapRatio <= GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO) {
             if (shouldLogPlacement(candidate.role)) {
                 Log.d(TAG, "LabelCascade: role=${candidate.role} option2-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO}")
             }
@@ -756,7 +781,7 @@ object TemperatureLabelEngine {
                 }
                 return ValleyCascadeOutcome.FlipAbove
             }
-            if (overlapRatio <= GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO) {
+            if (!centeredOverlapsHard && overlapRatio <= GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO) {
                 if (shouldLogPlacement(candidate.role)) {
                     Log.d(TAG, "LabelCascade: role=${candidate.role} option1-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO} collidingRole=${collidingMeta.role}")
                 }
