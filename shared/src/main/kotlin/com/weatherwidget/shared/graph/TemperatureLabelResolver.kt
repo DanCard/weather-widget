@@ -127,6 +127,14 @@ object TemperatureLabelResolver {
         }.toSet()
         Log.d(TAG, "Explicit: $explicitAnchors")
 
+        // Actual-series anchors display the OBSERVED value, not the forecast value this thinning
+        // compares on. They must stay drawn but must not declutter a nearby forecast/LOCAL extreme
+        // (forecast vs actual are different series the user compares side by side). resolveExtremaRole's
+        // priority order naturally excludes indices that are also a forecast global extreme.
+        val actualDisplayingAnchors = deduplicatedIndices.filter {
+            resolveExtremaRole(it, extrema, hours) in ACTUAL_DISPLAY_ROLES
+        }.toSet()
+
         val filteredIndices = GraphLabelPlacementUtils.filterDenseLabelCandidates(
             items = labelTemps,
             candidates = deduplicatedIndices.toList(),
@@ -138,6 +146,7 @@ object TemperatureLabelResolver {
             logTag = TAG,
             protectedIndices = deduplicatedIndices.filter { it in extrema.significantLocalExtrema && it > effectiveActualEndIndex }.toSet(),
             immovableIndices = explicitAnchors,
+            nonAbsorbingAnchors = actualDisplayingAnchors,
         )
         Log.d(TAG, "Filtered: $filteredIndices")
 
@@ -277,6 +286,11 @@ object TemperatureLabelResolver {
     // value). No-op when the actual extreme already has its own (distinct-index) label or when the
     // two values round to the same text. Iterates the per-day extrema so every day's coincident
     // case is covered, not just the global one.
+    // Roles whose label shows the OBSERVED (actual) value rather than the forecast value.
+    private val ACTUAL_DISPLAY_ROLES = setOf(
+        TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_END,
+    )
+
     private val FORECAST_HIGH_ROLES = setOf(
         TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH,
     )

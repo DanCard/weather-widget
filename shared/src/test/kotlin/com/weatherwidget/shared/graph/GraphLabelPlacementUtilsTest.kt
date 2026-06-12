@@ -87,6 +87,46 @@ class GraphLabelPlacementUtilsTest {
     }
 
     @Test
+    fun `non-absorbing anchor does not declutter a nearby similar-value candidate`() {
+        // idx2 (valley, 63) sits within the window and declutter threshold of the immovable anchor
+        // idx4 (66). It models a forecast valley next to an actual-series anchor that displays a
+        // different value: the anchor must stay drawn but must NOT remove the forecast valley.
+        val labelSignal = listOf(80, 66, 63, 64, 66, 50)
+        val candidates = listOf(0, 2, 4, 5)
+
+        // Default: the immovable anchor idx4 absorbs idx2 (the cross-series bug).
+        val absorbed = GraphLabelPlacementUtils.filterDenseLabelCandidates(
+            items = labelSignal,
+            candidates = candidates,
+            globalMaxIdx = 0,
+            globalMinIdx = 5,
+            maxCandidates = 6,
+            diffThresholds = listOf(3, 4, 5),
+            valueFunction = { it },
+            logTag = "TempLabelResolver",
+            immovableIndices = setOf(0, 4, 5),
+        )
+        assertTrue("control: idx2 should be absorbed by idx4. result=$absorbed", 2 !in absorbed)
+        assertTrue(4 in absorbed)
+
+        // With idx4 marked non-absorbing, idx2 survives while idx4 stays retained.
+        val retained = GraphLabelPlacementUtils.filterDenseLabelCandidates(
+            items = labelSignal,
+            candidates = candidates,
+            globalMaxIdx = 0,
+            globalMinIdx = 5,
+            maxCandidates = 6,
+            diffThresholds = listOf(3, 4, 5),
+            valueFunction = { it },
+            logTag = "TempLabelResolver",
+            immovableIndices = setOf(0, 4, 5),
+            nonAbsorbingAnchors = setOf(4),
+        )
+        assertTrue("idx2 must survive when idx4 is non-absorbing. result=$retained", 2 in retained)
+        assertTrue("idx4 must remain retained. result=$retained", 4 in retained)
+    }
+
+    @Test
     fun `left edge label is suppressed when nearby candidate has a similar value`() {
         val labelSignal = listOf(25, 18, 23, 22, 35, 53, 19, 43)
         val candidates = listOf(0, 2, 5, 6, 7)

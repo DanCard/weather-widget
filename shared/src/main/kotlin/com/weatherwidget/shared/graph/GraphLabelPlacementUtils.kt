@@ -45,6 +45,10 @@ object GraphLabelPlacementUtils {
         protectedIndices: Set<Int> = emptySet(),
         nearbyWindow: Int = NEARBY_LABEL_WINDOW,
         immovableIndices: Set<Int> = emptySet(),
+        // Indices that are retained (never removed) but must NOT absorb/remove other candidates.
+        // Used for actual-series anchors: they display a different series than the forecast value
+        // this thinning compares on, so they must not declutter a nearby forecast/LOCAL extreme.
+        nonAbsorbingAnchors: Set<Int> = emptySet(),
     ): List<Int> {
         val retained = candidates.distinct().sorted().toMutableList()
         val immovableAnchors = buildSet {
@@ -103,6 +107,7 @@ object GraphLabelPlacementUtils {
                 
                 val competingRetained =
                     nearbyRetained.firstOrNull { otherIdx ->
+                        if (otherIdx in nonAbsorbingAnchors) return@firstOrNull false
                         val otherItem = items.getOrNull(otherIdx) ?: return@firstOrNull false
                         val otherValue = valueFunction(otherItem)
                         val otherPriVal = (if (otherIdx in immovableAnchors || otherIdx in softProtectedAnchors) 0 else 10) + 
