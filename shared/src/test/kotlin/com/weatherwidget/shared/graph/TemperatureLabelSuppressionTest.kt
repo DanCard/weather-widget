@@ -520,4 +520,65 @@ class TemperatureLabelSuppressionTest {
         assertTrue("the real overnight valley at idx 27 should be labeled", candidates.any { it.index == 27 && it.role == TemperatureRole.ACTUAL_LOW })
         assertFalse("the day-boundary slope point at idx 23 should NOT get an actual-low label", candidates.any { it.index == 23 && it.role == TemperatureRole.ACTUAL_LOW })
     }
+
+    // Like the smooth-V case above, but the ACTUAL series is JAGGED: a 1-sample notch makes the
+    // pre-midnight shoulder a genuine local min, so the immediate-neighbour isActualLocalMin guard
+    // no longer drops it (this is the real on-device failure: emulator idx 162 = 66.9°). The forecast
+    // (label) series stays smooth, so the shoulder is not a significant LOCAL extremum either — its
+    // only label would be the spurious per-day ACTUAL_LOW. The same-type-without-separator pass in
+    // TemperatureExtrema must drop it while keeping both real overnight valleys (idx 27, idx 51),
+    // which are separated by afternoon highs.
+    private fun jaggedMidnightStraddleHours(): List<HourData> {
+        val start = LocalDateTime.of(2026, 6, 10, 0, 0)
+        // Control points (idx -> base temp): afternoon highs at 12/36/60, overnight valleys just
+        // after the midnight boundaries at idx 27 (day1) and idx 51 (day2). Monotonic in between.
+        val controls = listOf(0 to 64f, 12 to 88f, 27 to 60f, 36 to 90f, 51 to 61f, 60 to 89f, 71 to 70f)
+        fun base(i: Int): Float {
+            val hi = controls.indexOfFirst { it.first >= i }.coerceAtLeast(1)
+            val (x0, y0) = controls[hi - 1]
+            val (x1, y1) = controls[hi]
+            return y0 + (y1 - y0) * (i - x0).toFloat() / (x1 - x0)
+        }
+        val actualArr = FloatArray(72) { base(it) }
+        // Jagged notch: dip day0's last pre-midnight point just below both neighbours so it reads as
+        // a real local min (the genuine valley is idx 27, owned by day1 after the calendar boundary).
+        actualArr[23] = minOf(actualArr[22], actualArr[24]) - 0.5f
+        return (0 until 72).map { i ->
+            val dt = start.plusHours(i.toLong())
+            HourData(
+                dateTime = dt,
+                temperature = base(i) + 3f, // forecast/label series stays smooth (no notch)
+                label = "${dt.hour}h",
+                isActual = true,
+                actualTemperature = actualArr[i],
+            )
+        }
+    }
+
+    @Test
+    fun `jagged midnight-straddle shoulder is not labeled as an actual low`() {
+        val hours = jaggedMidnightStraddleHours()
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 71, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 71,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 600,
+        )
+
+        assertFalse(
+            "the jagged pre-midnight shoulder at idx 23 must NOT get an actual-low label",
+            candidates.any { it.index == 23 && it.role == TemperatureRole.ACTUAL_LOW }
+        )
+        assertTrue(
+            "the real day1 overnight valley at idx 27 should be labeled",
+            candidates.any { it.index == 27 && it.role == TemperatureRole.ACTUAL_LOW }
+        )
+        assertTrue(
+            "the separated day2 overnight valley at idx 51 should be retained",
+            candidates.any { it.index == 51 && it.role == TemperatureRole.ACTUAL_LOW }
+        )
+    }
 }

@@ -100,8 +100,41 @@ object TemperatureExtrema {
         }
 
         val actualByDay = actualIndices.groupBy { hours[it].dateTime.toLocalDate() }
-        val actualDailyHighIndices = actualByDay.values.mapNotNull { d -> d.maxByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMax(it) && dayHighReached(it) }.sorted()
-        val actualDailyLowIndices = actualByDay.values.mapNotNull { d -> d.minByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMin(it) }.sorted()
+        val rawDailyHighIndices = actualByDay.values.mapNotNull { d -> d.maxByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMax(it) && dayHighReached(it) }.sorted()
+        val rawDailyLowIndices = actualByDay.values.mapNotNull { d -> d.minByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMin(it) }.sorted()
+
+        // Drop midnight-straddle "shoulder" extrema. A genuine diurnal cycle always separates two
+        // successive actual lows with an actual high (and two highs with a low), so walking the
+        // per-day extrema in index order, two SAME-TYPE neighbours with no opposite-type extreme
+        // between them are one overnight valley/afternoon peak split across a calendar boundary:
+        // one day's min/max landed on a slope shoulder at the day edge while the real turning point
+        // is owned by the adjacent day. Keep only the genuinely deeper low / higher high. This is
+        // robust to jagged observation data, where isActualLocalMin/Max (immediate-neighbour only)
+        // is fooled by a 1-sample wiggle on the descent. See per_day_actual_extrema_labels memory.
+        val shoulderDrops = mutableSetOf<Int>()
+        val mergedExtrema = (rawDailyHighIndices.map { it to true } + rawDailyLowIndices.map { it to false })
+            .sortedBy { it.first }
+        var keptExtreme: Pair<Int, Boolean>? = null
+        for (cur in mergedExtrema) {
+            val kept = keptExtreme
+            if (kept != null && kept.second == cur.second) {
+                val keepCur = if (cur.second) actualLabelTemps[cur.first] >= actualLabelTemps[kept.first]
+                              else actualLabelTemps[cur.first] <= actualLabelTemps[kept.first]
+                if (keepCur) {
+                    shoulderDrops.add(kept.first)
+                    keptExtreme = cur
+                } else {
+                    shoulderDrops.add(cur.first)
+                }
+            } else {
+                keptExtreme = cur
+            }
+        }
+        val actualDailyHighIndices = rawDailyHighIndices.filterNot { it in shoulderDrops }
+        val actualDailyLowIndices = rawDailyLowIndices.filterNot { it in shoulderDrops }
+        if (shoulderDrops.isNotEmpty()) {
+            Log.d(TAG, "SHOULDER_DROPPED idxs=${shoulderDrops.sorted()} temps=${shoulderDrops.sorted().map { actualLabelTemps[it] }}")
+        }
 
         Log.d(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +
                 "lowIdx=$actualLowIndex lowTemp=${if (actualLowIndex >= 0) actualLabelTemps[actualLowIndex] else "N/A"} " +
