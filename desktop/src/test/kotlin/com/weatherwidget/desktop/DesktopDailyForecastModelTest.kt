@@ -76,6 +76,33 @@ class DesktopDailyForecastModelTest {
     }
 
     @Test
+    fun `today thermostat tracks high-water mark via ghostHigh`() {
+        // Evening case: the day already peaked above the current reading, so the solid mercury
+        // sits at the current temp while the ghost preserves the day's high.
+        val now = LocalDateTime.parse("2026-06-03T20:00:00")
+        val state = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = ForecastResult(
+                currentTemp = 72.4f,
+                currentCondition = "Sunny",
+                daily = listOf(DailyForecast("2026-06-03", 97f, 60f, "Sunny")),
+                dailyActuals = mapOf(
+                    "2026-06-03" to extreme("2026-06-03", 97.7f, 60.3f, "Sunny"),
+                ),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        )
+
+        val today = state.days.find { it.date == LocalDate.parse("2026-06-03") }!!
+        assertTrue(today.isToday)
+        // Mercury sits at the current temp...
+        assertEquals(72.4f, today.solidHigh)
+        // ...while the ghost preserves the day's observed peak.
+        assertEquals(97.7f, today.ghostHigh)
+    }
+
+    @Test
     fun `isIconWidth detection works`() {
         val narrow = DesktopDailyForecastModel.dimensions(120, 100)
         assertTrue(narrow.isIconWidth)

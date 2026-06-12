@@ -15,6 +15,8 @@ object DailyDayValueResolver {
         val forecastHigh: Float?,
         /** The API daily forecast low (dashed line). */
         val forecastLow: Float?,
+        /** The faint high-water mark (peak observed so far) — the ghost line reaches up to this. */
+        val ghostHigh: Float?,
     )
 
     /**
@@ -23,6 +25,7 @@ object DailyDayValueResolver {
      * Correct formula (from Android DailyActualsEstimator):
      * - solidHigh = currentTemp ?: actualHigh — shows real-time temp, falls back to peak
      * - solidLow = min(actualLow, currentTemp) — if current dropped below stored low, reflect that
+     * - ghostHigh = actualHigh — the high-water mark the ghost line reaches up to
      *
      * @param actualHigh Observed daily high so far (from DailyExtreme)
      * @param actualLow Observed daily low so far (from DailyExtreme)
@@ -44,6 +47,7 @@ object DailyDayValueResolver {
             solidLow = solidLow,
             forecastHigh = forecastHigh,
             forecastLow = forecastLow,
+            ghostHigh = actualHigh,
         )
     }
 }

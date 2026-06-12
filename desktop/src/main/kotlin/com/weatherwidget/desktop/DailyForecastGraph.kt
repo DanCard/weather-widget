@@ -28,6 +28,9 @@ private val COLOR_OBSERVED = Color(com.weatherwidget.shared.util.WeatherColors.O
 private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
 private val COLOR_GAP_FALLBACK = Color(0xFF34C759)
 private const val GHOST_BAR_ALPHA = 0.3f
+// Mirrors Android's BULB_RADIUS_SCALE/BULB_VERTICAL_CENTER_FRACTION (DailyForecastGraphRenderer).
+private const val BULB_RADIUS_SCALE = 1.2f
+private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
 
 @Composable
 fun DailyForecastGraph(
@@ -57,6 +60,7 @@ fun DailyForecastGraph(
                 it.solidLow,
                 it.forecastHigh,
                 it.forecastLow,
+                it.ghostHigh,
                 it.snapshotHigh,
                 it.snapshotLow,
             )
@@ -109,9 +113,25 @@ fun DailyForecastGraph(
                     sCondColor
                 }
 
-                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, barWidth)
                 drawRangeLine(centerX + tripleOffset, day.forecastHigh, day.forecastLow, ::yAt, baseColor, thinWidth)
                 drawRangeLine(centerX - tripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, snapshotColor, thinWidth)
+                // The thermostat: solid red "mercury" (current temp), a faint ghost reaching up to
+                // the day's high-water mark, and a round bulb at the low end. Drawn last so the
+                // mercury and bulb sit on top of the forecast/snapshot bars.
+                val solidHigh = day.solidHigh
+                val ghostHigh = day.ghostHigh
+                if (ghostHigh != null && solidHigh != null && ghostHigh > solidHigh) {
+                    drawRangeLine(centerX, ghostHigh, solidHigh, ::yAt, COLOR_OBSERVED.copy(alpha = GHOST_BAR_ALPHA), barWidth)
+                }
+                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, barWidth)
+                day.solidLow?.let { low ->
+                    val bulbRadius = barWidth * BULB_RADIUS_SCALE
+                    drawCircle(
+                        color = COLOR_OBSERVED,
+                        radius = bulbRadius,
+                        center = Offset(centerX, yAt(low) + bulbRadius * BULB_VERTICAL_CENTER_FRACTION),
+                    )
+                }
             } else if (day.isPast) {
                 drawRangeLine(
                     centerX = centerX + tripleOffset,
@@ -131,7 +151,7 @@ fun DailyForecastGraph(
                 }
             }
 
-            val highForLabel = listOfNotNull(day.solidHigh, day.forecastHigh, day.snapshotHigh).maxOrNull()
+            val highForLabel = listOfNotNull(day.solidHigh, day.forecastHigh, day.ghostHigh, day.snapshotHigh).maxOrNull()
             val lowForLabel = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
             if (highForLabel != null) {
                 val highY = yAt(highForLabel)

@@ -34,6 +34,8 @@ data class DesktopDailyDay(
     val solidLow: Float?,
     val forecastHigh: Float?,
     val forecastLow: Float?,
+    /** Today-only faint high-water mark (peak observed so far); ghost line reaches up to this. */
+    val ghostHigh: Float?,
     val snapshotHigh: Float?,
     val snapshotLow: Float?,
     val iconCondition: String?,
@@ -143,6 +145,8 @@ object DesktopDailyForecastModel {
         val solidLow: Float?
         val forecastHigh: Float?
         val forecastLow: Float?
+        // Ghost (high-water mark) is a today-only affordance, matching Android.
+        var ghostHigh: Float? = null
 
         when {
             isPast -> {
@@ -163,6 +167,7 @@ object DesktopDailyForecastModel {
                 solidLow = todayValues.solidLow
                 forecastHigh = todayValues.forecastHigh
                 forecastLow = todayValues.forecastLow
+                ghostHigh = todayValues.ghostHigh
             }
             else -> {
                 solidHigh = forecast?.highTemp
@@ -212,6 +217,7 @@ object DesktopDailyForecastModel {
             solidLow = solidLow,
             forecastHigh = forecastHigh,
             forecastLow = forecastLow,
+            ghostHigh = ghostHigh,
             snapshotHigh = snapshot?.highTemp,
             snapshotLow = snapshot?.lowTemp,
             iconCondition = forecast?.condition ?: actual?.condition ?: snapshot?.condition,
