@@ -9,6 +9,12 @@ import kotlin.math.min
 object TemperatureExtrema {
     private const val TAG = "TempExtrema"
 
+    // How much warmer the rest of "today" must be forecast to get before the current (incomplete)
+    // day's observed maximum is treated as not-yet-the-daily-high (so it isn't labeled as such). Set
+    // above a normal forecast-vs-actual peak gap (a few degrees, which still gets both labels) so
+    // only a clearly-unreached high — a morning bump well below the afternoon forecast — is dropped.
+    private const val INCOMPLETE_DAY_HIGH_MARGIN_DEGREES = 5f
+
     data class ExtremaIndices(
         val labelTemps: List<Float>,
         val actualLabelTemps: List<Float>,
@@ -76,8 +82,25 @@ object TemperatureExtrema {
             val rightOk = i >= actualEndIndex || actualLabelTemps[i] >= actualLabelTemps[i + 1]
             return actualLabelTemps[i] >= actualLabelTemps[i - 1] && rightOk
         }
+        // The current (incomplete) day's observed maximum is NOT its daily high if the day hasn't
+        // peaked yet — e.g. mid-morning "now" with the afternoon still ahead. Labeling that morning
+        // bump as the day's actual high is misleading. Treat the day's high as "reached" only when the
+        // forecast for the remainder of that same day does not exceed the observed max so far. Past
+        // (completed) days are always real. Only applies when there is a NOW boundary (transitionX).
+        val currentDay = if (transitionX != null && actualEndIndex in hours.indices) hours[actualEndIndex].dateTime.toLocalDate() else null
+        fun dayHighReached(hi: Int): Boolean {
+            val date = hours[hi].dateTime.toLocalDate()
+            if (date != currentDay) return true
+            val observedMax = actualLabelTemps[hi]
+            val forecastRemainingMax = (actualEndIndex + 1..hours.lastIndex)
+                .filter { it in labelTemps.indices && hours[it].dateTime.toLocalDate() == date }
+                .maxOfOrNull { labelTemps[it] }
+            // Not reached if the rest of today is forecast to climb meaningfully above the observed max.
+            return forecastRemainingMax == null || forecastRemainingMax <= observedMax + INCOMPLETE_DAY_HIGH_MARGIN_DEGREES
+        }
+
         val actualByDay = actualIndices.groupBy { hours[it].dateTime.toLocalDate() }
-        val actualDailyHighIndices = actualByDay.values.mapNotNull { d -> d.maxByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMax(it) }.sorted()
+        val actualDailyHighIndices = actualByDay.values.mapNotNull { d -> d.maxByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMax(it) && dayHighReached(it) }.sorted()
         val actualDailyLowIndices = actualByDay.values.mapNotNull { d -> d.minByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMin(it) }.sorted()
 
         Log.d(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +

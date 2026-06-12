@@ -75,8 +75,11 @@ class TemperatureLabelSuppressionTest {
 
     @Test
     fun `FORECAST_HIGH is suppressed when redundant near ACTUAL_HIGH`() {
-        val start = LocalDateTime.of(2026, 4, 8, 10, 0)
-        
+        // Start late so the observation cutoff (index 2) is the last hour of its day: the actual-high
+        // day is then COMPLETE (no higher same-day forecast remains), so the incomplete-day rule does
+        // not drop the ACTUAL_HIGH, and the global HIGH (index 9, 80°) falls on the next day.
+        val start = LocalDateTime.of(2026, 4, 8, 21, 0)
+
         // Setup:
         // Global HIGH is at index 9 (80.0f)
         // ACTUAL_HIGH is at index 2 (75.0f)
@@ -114,8 +117,11 @@ class TemperatureLabelSuppressionTest {
 
     @Test
     fun `PAST_FORECAST_HIGH is suppressed when redundant near ACTUAL_HIGH`() {
-        val start = LocalDateTime.of(2026, 4, 8, 10, 0)
-        
+        // Start late so the observation cutoff (index 5) is the last hour of its day: the actual-high
+        // day is then COMPLETE (no higher same-day forecast remains), so the incomplete-day rule does
+        // not drop the ACTUAL_HIGH, and the global HIGH (index 9, 80°) falls on the next day.
+        val start = LocalDateTime.of(2026, 4, 8, 18, 0)
+
         // Setup:
         // Global HIGH is at index 9 (80.0f)
         // ACTUAL_HIGH is at index 4 (75.0f)
