@@ -114,37 +114,16 @@ object TemperatureLabelEngine {
         return mapOf(start.index to startAbove, actual.index to !startAbove)
     }
 
-    private val FORECAST_HIGH_ROLES = setOf(
-        TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH,
+    // Forecast-series labels avoid only the FORECAST curve, never the actual curve. A forecast
+    // extreme nested under a much taller/deeper actual curve must sit flush on its OWN forecast peak
+    // or valley; treating the towering actual curve as an obstacle drives the label far off-anchor
+    // with a long, unhelpful leader line. (ACTUAL_LOW is handled the same way via its own carve-out;
+    // ACTUAL_HIGH uses placeActualHighAboveCurve; START/END/ACTUAL_END keep full avoidance.)
+    private val FORECAST_ONLY_AVOIDANCE_ROLES = setOf(
+        TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.LOCAL,
+        TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
+        TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
     )
-    private val FORECAST_LOW_ROLES = setOf(
-        TemperatureRole.LOW, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW,
-    )
-
-    // When a forecast extreme shares its hour with a MORE-extreme labeled actual extreme (the
-    // resolver injects a coincident ACTUAL_HIGH/ACTUAL_LOW at the same index), the forecast peak is
-    // nested inside the taller/deeper actual curve. Curve-avoidance then drives the forecast label
-    // up/down alongside the actual curve, producing a long leader line that still grazes it. Keep
-    // the conventional side for the forecast label (high above its peak, low below its valley) but
-    // exempt it from curve avoidance, so it sits flush against its OWN line instead — mirroring how
-    // placeActualHighAboveCurve anchors the actual flush atop its peak. Returns the affected indices.
-    private fun computeCoincidentForecastExemptIndices(candidates: List<TempLabelCandidate>): Set<Int> {
-        val actualHighs = candidates.filter { it.role == TemperatureRole.ACTUAL_HIGH }
-        val actualLows = candidates.filter { it.role == TemperatureRole.ACTUAL_LOW }
-        if (actualHighs.isEmpty() && actualLows.isEmpty()) return emptySet()
-        val result = mutableSetOf<Int>()
-        for (c in candidates) {
-            val cVal = c.labelTemps[c.index]
-            when (c.role) {
-                in FORECAST_HIGH_ROLES ->
-                    if (actualHighs.any { it.index == c.index && it.labelTemps[it.index] > cVal }) result.add(c.index)
-                in FORECAST_LOW_ROLES ->
-                    if (actualLows.any { it.index == c.index && it.labelTemps[it.index] < cVal }) result.add(c.index)
-                else -> {}
-            }
-        }
-        return result
-    }
 
     fun computePlacements(
         hours: List<HourData>,
@@ -185,7 +164,6 @@ object TemperatureLabelEngine {
 
         val forcedAboveLows = computeForcedAboveLowIndices(candidates)
         val leftEdgeOrder = computeLeftEdgeStartOrdering(candidates)
-        val coincidentForecastExempt = computeCoincidentForecastExemptIndices(candidates)
         val drawnLabelMetas = mutableListOf<PlacedLabelMeta>()
         val resultPlacements = mutableListOf<PlacedLabel>()
 
@@ -254,20 +232,21 @@ object TemperatureLabelEngine {
                 continue
             }
 
-            // Curve-avoidance is skipped for labels that intentionally sit flush against their OWN
-            // line, where grazing it is expected rather than a bug:
-            //  - the left-edge START/actual pair (color-matched at the edge, ordered by value), and
-            //  - a forecast extreme nested inside a more-extreme coincident actual (sits flush on
-            //    its own peak's conventional side). Otherwise each gets bumped off-anchor with a
-            //    long unwanted leader line that still grazes the towering actual curve.
-            val isCurveAvoidanceExempt = idx in leftEdgeOrder || idx in coincidentForecastExempt
+            // The left-edge START/actual pair sits flush against its own line start (color-matched,
+            // ordered by value), so skip curve avoidance entirely for it.
+            val isCurveAvoidanceExempt = idx in leftEdgeOrder
 
-            // ACTUAL_LOW labels the actual valley; the observed line's own sub-hourly/smoothed dip a
-            // few px below the labeled minimum is not an obstacle (it labels that line). Avoid only
-            // the forecast curve for it, so a far-away forecast leaves the below-slot clear and the
-            // label sits below its valley instead of flipping above (the original ACTUAL_LOW
-            // below-block then fires only on real forecast intrusion, as its comment intends).
-            val avoidanceActualPoints = if (candidate.role == TemperatureRole.ACTUAL_LOW) emptyList() else actualVisiblePoints
+            // Forecast-series labels (and ACTUAL_LOW) avoid only the FORECAST curve, never the actual
+            // curve: a forecast extreme nested under a much taller/deeper actual curve must sit flush
+            // on its own forecast peak/valley rather than being driven off-anchor with a long leader
+            // line. ACTUAL_LOW additionally ignores its own observed line's sub-hourly graze below
+            // the labeled minimum. START/END/ACTUAL_END keep full avoidance.
+            val avoidanceActualPoints =
+                if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role in FORECAST_ONLY_AVOIDANCE_ROLES) {
+                    emptyList()
+                } else {
+                    actualVisiblePoints
+                }
 
             if (candidate.role in CURVE_AVOIDANCE_ROLES && !isCurveAvoidanceExempt) {
                 placed = tryExactFitCurveAvoidance(

@@ -148,4 +148,55 @@ class TemperatureCoincidentForecastInnerSideTest {
             forecastLow.drawLeaderLine,
         )
     }
+
+    // The Android case: at high point density the coincident actual extreme lands a few indices away
+    // from the forecast extreme (not the same index). Forecast-only curve avoidance must still place
+    // the forecast label flush with no leader line, regardless of that index gap.
+
+    @Test
+    fun `forecast high nested under a taller actual high at a different nearby index has no leader`() {
+        // Forecast peaks at idx 6 (91°); the observed line peaks higher and a couple indices earlier
+        // at idx 4 (97°). The actual curve still towers over the forecast peak at idx 6.
+        val forecast = listOf(80f, 83f, 86f, 88f, 90f, 90.5f, 91f, 90.5f, 90f, 88f, 86f, 83f)
+        val actual = listOf<Float?>(85f, 90f, 94f, 96f, 97f, 96f, 95f, 93f, 91f, 89f, 87f, 84f)
+        val hours = buildHours(forecast, actual)
+        val observedAt = hours.last().dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        val placements = runEngineTest(hours, widthPx = 700, heightPx = 400, observedAt = observedAt)
+
+        val forecastHigh = placements.find {
+            (it.role == TemperatureRole.HIGH || it.role == TemperatureRole.FORECAST_HIGH) && it.displayTemperature == 91f
+        }
+        assertNotNull("Forecast HIGH (91°) should be labeled. placements=$placements", forecastHigh)
+        assertTrue("Forecast HIGH stays above its own peak (reason=${forecastHigh!!.reason})", forecastHigh.placedAbove)
+        assertFalse(
+            "Forecast HIGH must NOT draw a leader line despite the non-coincident taller actual " +
+                "(reason=${forecastHigh.reason}, steps=${forecastHigh.displacementSteps})",
+            forecastHigh.drawLeaderLine,
+        )
+        assertEquals("No displacement expected", 0, forecastHigh.displacementSteps)
+    }
+
+    @Test
+    fun `forecast low nested above a deeper actual low at a different nearby index has no leader`() {
+        // Forecast valleys at idx 6 (59°); the observed line dips deeper a couple indices earlier at
+        // idx 4 (52°), still below the forecast valley at idx 6.
+        val forecast = listOf(70f, 67f, 64f, 62f, 60f, 59.5f, 59f, 59.5f, 60f, 62f, 64f, 67f)
+        val actual = listOf<Float?>(66f, 60f, 56f, 53f, 52f, 53f, 54f, 55f, 56f, 58f, 60f, 63f)
+        val hours = buildHours(forecast, actual)
+        val observedAt = hours.last().dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        val placements = runEngineTest(hours, widthPx = 700, heightPx = 400, observedAt = observedAt)
+
+        val forecastLow = placements.find {
+            (it.role == TemperatureRole.LOW || it.role == TemperatureRole.FORECAST_LOW) && it.displayTemperature == 59f
+        }
+        assertNotNull("Forecast LOW (59°) should be labeled. placements=$placements", forecastLow)
+        assertFalse("Forecast LOW stays below its own valley (reason=${forecastLow!!.reason})", forecastLow.placedAbove)
+        assertFalse(
+            "Forecast LOW must NOT draw a leader line despite the non-coincident deeper actual " +
+                "(reason=${forecastLow.reason}, steps=${forecastLow.displacementSteps})",
+            forecastLow.drawLeaderLine,
+        )
+    }
 }
