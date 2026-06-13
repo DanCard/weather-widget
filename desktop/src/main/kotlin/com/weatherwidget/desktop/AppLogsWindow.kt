@@ -12,6 +12,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopLogEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import kotlinx.coroutines.Dispatchers
@@ -32,7 +36,15 @@ internal fun AppLogsWindow(
     Window(
         onCloseRequest = onClose,
         state = state,
-        title = "App Logs"
+        title = "App Logs",
+        onKeyEvent = { keyEvent ->
+            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+                onClose()
+                true
+            } else {
+                false
+            }
+        }
     ) {
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var filterQuery by remember { mutableStateOf("") }

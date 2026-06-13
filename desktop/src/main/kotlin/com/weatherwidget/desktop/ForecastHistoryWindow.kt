@@ -25,6 +25,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.AxisScale
@@ -107,7 +111,19 @@ internal fun ForecastHistoryWindow(
         }
     }
 
-    Window(onCloseRequest = onClose, state = state, title = "Forecast History") {
+    Window(
+        onCloseRequest = onClose,
+        state = state,
+        title = "Forecast History",
+        onKeyEvent = { keyEvent ->
+            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+                onClose()
+                true
+            } else {
+                false
+            }
+        }
+    ) {
         val visibleSources = remember(config.visibleSources) {
             config.visibleSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
         }

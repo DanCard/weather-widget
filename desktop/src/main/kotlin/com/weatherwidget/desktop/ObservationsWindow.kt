@@ -27,6 +27,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopLogEntity
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
@@ -105,6 +109,14 @@ internal fun ObservationsWindow(
         onCloseRequest = onClose,
         state = state,
         title = "Weather Observations & Logs",
+        onKeyEvent = { keyEvent ->
+            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+                onClose()
+                true
+            } else {
+                false
+            }
+        }
     ) {
         // Bring to front on every new show request (incremented showRequestId)
         LaunchedEffect(showRequestId) {

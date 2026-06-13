@@ -21,6 +21,12 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
+import java.awt.event.WindowFocusListener
+import java.awt.event.WindowEvent
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DataStatus
@@ -126,6 +132,7 @@ private fun runApp() = application {
         // Edge-triggered show counter: a boolean can't re-fire an effect when it's already
         // true, so bump this on every show request to reliably raise an already-open window.
         var showRequestId by remember { mutableStateOf(0) }
+        var lastFocusLostTime by remember { mutableStateOf(0L) }
         
         LaunchedEffect(config) {
             Log.i(TAG, "config loaded: config != null is ${config != null}")
@@ -262,7 +269,14 @@ private fun runApp() = application {
                             if (name == UI_SHOW_TRIGGER) {
                                 Log.i(TAG, "WatchService: .ui-show trigger detected. Bumping showRequestId.")
                                 runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
-                                SwingUtilities.invokeLater { requestShowPopup() }
+                                SwingUtilities.invokeLater {
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastFocusLostTime < 300) {
+                                        Log.i(TAG, "Ignoring show request because focus was lost recently (likely a toggle click).")
+                                    } else {
+                                        requestShowPopup()
+                                    }
+                                }
                             }
                         }
                         if (!key.reset()) break
@@ -333,6 +347,14 @@ private fun runApp() = application {
                 state = pickerState,
                 title = "Set Weather Location",
                 icon = appIcon,
+                onKeyEvent = { keyEvent ->
+                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+                        pickerVisible = false
+                        true
+                    } else {
+                        false
+                    }
+                }
             ) {
                 LocationPicker(locationResolver, allowAutoSelect = config == null) { resolved ->
                     val saved = resolved.toConfig()
@@ -354,6 +376,14 @@ private fun runApp() = application {
                 state = settingsState,
                 title = "Weather Settings",
                 icon = appIcon,
+                onKeyEvent = { keyEvent ->
+                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+                        settingsVisible = false
+                        true
+                    } else {
+                        false
+                    }
+                }
             ) {
                 SettingsWindow(
                     config = config!!,
@@ -412,9 +442,34 @@ private fun runApp() = application {
                 state = windowState,
                 title = "Weather Widget",
                 icon = appIcon,
+                onKeyEvent = { keyEvent ->
+                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+                        popupVisible = false
+                        true
+                    } else {
+                        false
+                    }
+                }
             ) {
                 LaunchedEffect(Unit) {
                     Log.i(TAG, "Window composed/visible now")
+                }
+                DisposableEffect(window) {
+                    val focusListener = object : WindowFocusListener {
+                        override fun windowGainedFocus(e: WindowEvent?) {}
+                        override fun windowLostFocus(e: WindowEvent?) {
+                            val opposite = e?.oppositeWindow
+                            if (opposite == null) {
+                                Log.i(TAG, "Popup lost focus to external window. Closing popup.")
+                                lastFocusLostTime = System.currentTimeMillis()
+                                popupVisible = false
+                            }
+                        }
+                    }
+                    window.addWindowFocusListener(focusListener)
+                    onDispose {
+                        window.removeWindowFocusListener(focusListener)
+                    }
                 }
                 // Raise an already-open (possibly buried) window on every show request.
                 // FrameWindowScope exposes the underlying AWT ComposeWindow as `window`.

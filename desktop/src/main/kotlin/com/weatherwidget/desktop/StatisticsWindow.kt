@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.shared.stats.AccuracyPure
 import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
@@ -33,7 +37,19 @@ internal fun StatisticsWindow(
         width = 460.dp,
         height = 620.dp,
     )
-    Window(onCloseRequest = onClose, state = state, title = "Forecast Accuracy") {
+    Window(
+        onCloseRequest = onClose,
+        state = state,
+        title = "Forecast Accuracy",
+        onKeyEvent = { keyEvent ->
+            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+                onClose()
+                true
+            } else {
+                false
+            }
+        }
+    ) {
         val source = config.weatherSource
         var loading by remember { mutableStateOf(true) }
         var stats by remember { mutableStateOf<AccuracyPure.AccuracyStatistics?>(null) }
