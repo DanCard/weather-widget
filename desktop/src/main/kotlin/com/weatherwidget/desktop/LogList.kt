@@ -30,7 +30,7 @@ internal fun LogList(logs: List<DesktopLogEntity>, modifier: Modifier = Modifier
                         timeFormatter.format(Instant.ofEpochMilli(log.timestamp)),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = ObsStyle.accent
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -45,14 +45,14 @@ internal fun LogList(logs: List<DesktopLogEntity>, modifier: Modifier = Modifier
                     )
                 }
                 Text(log.message, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
-                HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = ObsStyle.divider)
             }
         }
 
         if (logs.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No logs found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No logs found", color = ObsStyle.textSecondary)
                 }
             }
         }

@@ -30,7 +30,7 @@ class TemperatureTrayPainter(
 
         val tempText = temperature?.let { formatTrayTemperature(it) } ?: "--"
 
-        val textColor = tempToColor(temperature ?: 70f)
+        val textColor = trayTempToColor(temperature ?: 70f)
         val textWeight = FontWeight.Bold
 
         val fontSize = resolveFontSize(tempText, textColor)
@@ -72,17 +72,19 @@ class TemperatureTrayPainter(
         return candidates.last().sp
     }
 
-    private fun tempToColor(temp: Float): Color {
-        val colorCold = Color(0xFF007AFF) // Deeper blue for better contrast
-        val colorMild = Color(0xFFE8A24E)
-        val colorHot = Color(0xFFFF3B30)  // Vivid red
+}
 
-        return when {
-            temp <= 50f -> colorCold
-            temp >= 90f -> colorHot
-            temp <= 70f -> lerp(colorCold, colorMild, (temp - 50f) / 20f)
-            else -> lerp(colorMild, colorHot, (temp - 70f) / 20f)
-        }
+/** Temp→color tuned for text legibility on dark backgrounds (tray icon, observations list). */
+internal fun trayTempToColor(temp: Float): Color {
+    val colorCold = Color(0xFF007AFF) // Deeper blue for better contrast
+    val colorMild = Color(0xFFE8A24E)
+    val colorHot = Color(0xFFFF3B30)  // Vivid red
+
+    return when {
+        temp <= 50f -> colorCold
+        temp >= 90f -> colorHot
+        temp <= 70f -> lerp(colorCold, colorMild, (temp - 50f) / 20f)
+        else -> lerp(colorMild, colorHot, (temp - 70f) / 20f)
     }
 }
 

@@ -2,7 +2,12 @@ package com.weatherwidget.ui
 
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -454,32 +459,86 @@ class WeatherObservationsActivity : AppCompatActivity() {
             holder.itemView.setOnClickListener { onItemClick(item) }
             holder.stationName.text = item.stationName
             val distanceStr = if (item.distanceKm > 0) String.format(" • %.1f mi", item.distanceKm * 0.621371f) else ""
-            holder.stationIdTime.text = "${item.stationId}$distanceStr"
-            
-            holder.stationTypeBadge.text = "Station type: ${item.stationType}"
-            if (item.stationType == "OFFICIAL") {
-                holder.stationTypeBadge.setBackgroundResource(R.drawable.rounded_button_blue)
-            } else {
-                holder.stationTypeBadge.setBackgroundResource(R.drawable.rounded_button_gray)
-            }
+            holder.stationIdTime.text = "${item.stationId}$distanceStr • "
 
-            holder.observationTime.text = "Station Reported: ${timeFormatter.format(Instant.ofEpochMilli(item.timestamp))}"
-            holder.fetchTime.text = "App Fetched: ${timeFormatter.format(Instant.ofEpochMilli(item.fetchedAt))}"
-            
+            holder.stationTypeBadge.text = item.stationType
+            holder.stationTypeBadge.setTextColor(
+                if (item.stationType == "OFFICIAL") COLOR_TYPE_OFFICIAL else COLOR_TYPE_PERSONAL
+            )
+
+            holder.observationFetchTimes.text = buildTimesLine(
+                timeFormatter.format(Instant.ofEpochMilli(item.timestamp)),
+                timeFormatter.format(Instant.ofEpochMilli(item.fetchedAt))
+            )
+
             holder.temperature.text = String.format("%.1f°", item.temperature)
+            holder.temperature.setTextColor(obsTempToColor(item.temperature.toFloat()))
             holder.condition.text = item.condition
         }
 
         override fun getItemCount() = items.size
 
+        // "Reported"/"Fetched" captions stay small and grey; the time values are the scan
+        // target, so they render half again larger with the amber/blue staleness hues.
+        private fun buildTimesLine(reported: String, fetched: String): CharSequence {
+            val builder = SpannableStringBuilder()
+            fun appendSpan(text: String, color: Int, sizeSp: Int?) {
+                val start = builder.length
+                builder.append(text)
+                builder.setSpan(ForegroundColorSpan(color), start, builder.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                if (sizeSp != null) {
+                    builder.setSpan(AbsoluteSizeSpan(sizeSp, true), start, builder.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+            appendSpan("Reported ", COLOR_TEXT_SECONDARY, null)
+            appendSpan(reported, COLOR_TIME_REPORTED, TIME_VALUE_SP)
+            appendSpan(" • Fetched ", COLOR_TEXT_SECONDARY, null)
+            appendSpan(fetched, COLOR_TIME_FETCHED, TIME_VALUE_SP)
+            return builder
+        }
+
         class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
             val stationName: TextView = view.findViewById(R.id.station_name)
             val stationIdTime: TextView = view.findViewById(R.id.station_id_time)
             val stationTypeBadge: TextView = view.findViewById(R.id.station_type_badge)
-            val observationTime: TextView = view.findViewById(R.id.observation_time)
-            val fetchTime: TextView = view.findViewById(R.id.fetch_time)
+            val observationFetchTimes: TextView = view.findViewById(R.id.observation_fetch_times)
             val temperature: TextView = view.findViewById(R.id.temperature)
             val condition: TextView = view.findViewById(R.id.condition)
+        }
+
+        companion object {
+            private const val TIME_VALUE_SP = 21
+            private val COLOR_TEXT_SECONDARY = Color.parseColor("#AAAAAA")
+            private val COLOR_TIME_REPORTED = Color.parseColor("#E8A24E")
+            private val COLOR_TIME_FETCHED = Color.parseColor("#4FC3F7")
+            private val COLOR_TYPE_OFFICIAL = Color.parseColor("#2BFF88")
+            private val COLOR_TYPE_PERSONAL = Color.parseColor("#B0B0B8")
+
+            private val COLOR_TEMP_COLD = Color.parseColor("#007AFF")
+            private val COLOR_TEMP_MILD = Color.parseColor("#E8A24E")
+            private val COLOR_TEMP_HOT = Color.parseColor("#FF3B30")
+
+            /**
+             * Temp→color tuned for text on near-black cards — mirrors the desktop app's
+             * trayTempToColor (deeper blue than TemperatureGraphStyle's gradient, which
+             * washes out at text sizes on dark backgrounds).
+             */
+            internal fun obsTempToColor(temp: Float): Int {
+                fun blend(c1: Int, c2: Int, fraction: Float): Int {
+                    val f = fraction.coerceIn(0f, 1f)
+                    return Color.rgb(
+                        (Color.red(c1) * (1 - f) + Color.red(c2) * f).toInt(),
+                        (Color.green(c1) * (1 - f) + Color.green(c2) * f).toInt(),
+                        (Color.blue(c1) * (1 - f) + Color.blue(c2) * f).toInt()
+                    )
+                }
+                return when {
+                    temp <= 50f -> COLOR_TEMP_COLD
+                    temp >= 90f -> COLOR_TEMP_HOT
+                    temp <= 70f -> blend(COLOR_TEMP_COLD, COLOR_TEMP_MILD, (temp - 50f) / 20f)
+                    else -> blend(COLOR_TEMP_MILD, COLOR_TEMP_HOT, (temp - 70f) / 20f)
+                }
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,11 +10,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
@@ -29,6 +35,20 @@ import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+/** Shared palette for the Observations & Logs window (pure-black "OLED" look). */
+internal object ObsStyle {
+    val background = Color.Black
+    val cardFill = Color(0xFF121214)
+    val cardBorder = Color(0xFF2A2A2E)
+    val textSecondary = Color(0xFFAAAAAA)
+    val accent = Color(0xFF4FC3F7)
+    val typeOfficial = Color(0xFF2BFF88) // bright green — distinct from the blue accent
+    val typePersonal = Color(0xFFB0B0B8)
+    val divider = Color(0xFF222226)
+    val timeReported = Color(0xFFE8A24E) // amber — matches the mild band of the temp gradient
+    val timeFetched = accent
+}
 
 @Composable
 internal fun ObservationsWindow(
@@ -120,7 +140,11 @@ internal fun ObservationsWindow(
         }
 
         MaterialTheme(colorScheme = darkColorScheme()) {
-            Surface(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = ObsStyle.background,
+                contentColor = Color.White
+            ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Header
                     Row(
@@ -142,6 +166,10 @@ internal fun ObservationsWindow(
                                     val nextIndex = (currentIndex + 1) % visibleSources.size
                                     currentSource = visibleSources[nextIndex]
                                 },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF0D2B45),
+                                    contentColor = ObsStyle.accent
+                                ),
                                 modifier = Modifier.padding(horizontal = 4.dp)
                             ) {
                                 Text(currentSource.shortDisplayName)
@@ -172,11 +200,31 @@ internal fun ObservationsWindow(
 
                     // Content
                     var selectedTab by remember { mutableStateOf(0) }
-                    TabRow(selectedTabIndex = selectedTab) {
-                        Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }) {
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = ObsStyle.background,
+                        contentColor = Color.White,
+                        indicator = { tabPositions ->
+                            TabRowDefaults.SecondaryIndicator(
+                                Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                                color = ObsStyle.accent
+                            )
+                        }
+                    ) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            selectedContentColor = ObsStyle.accent,
+                            unselectedContentColor = ObsStyle.textSecondary
+                        ) {
                             Text("Observations", modifier = Modifier.padding(12.dp))
                         }
-                        Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }) {
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            selectedContentColor = ObsStyle.accent,
+                            unselectedContentColor = ObsStyle.textSecondary
+                        ) {
                             Text("Fetch Logs", modifier = Modifier.padding(12.dp))
                         }
                     }
@@ -198,53 +246,70 @@ internal fun ObservationsWindow(
 private fun ObservationList(observations: List<DesktopObservationEntity>) {
     val timeFormatter = remember { DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault()) }
     
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(6.dp)) {
         items(observations) { obs ->
             Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = ObsStyle.cardFill),
+                border = BorderStroke(1.dp, ObsStyle.cardBorder)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(obs.stationName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            val distanceStr = if (obs.distanceKm > 0) String.format("%.1f mi", obs.distanceKm * 0.621371f) else "Local"
-                            Text("${obs.stationId} • $distanceStr", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            obs.stationName,
+                            fontSize = 16.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (obs.condition.isNotBlank()) {
+                            Text(
+                                obs.condition,
+                                fontSize = 13.sp,
+                                color = ObsStyle.textSecondary,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
                         }
                         Text(
                             String.format("%.1f°", obs.temperature),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = trayTempToColor(obs.temperature)
                         )
                     }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(obs.condition, style = MaterialTheme.typography.bodyMedium)
-                        Badge(
-                            containerColor = if (obs.stationType == "OFFICIAL") Color(0xFF2196F3) else Color.Gray,
-                            contentColor = Color.White
-                        ) {
-                            Text(obs.stationType, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontSize = 10.sp)
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val distanceStr = if (obs.distanceKm > 0) String.format("%.1f mi", obs.distanceKm * 0.621371f) else "Local"
+                        Text("${obs.stationId} • $distanceStr • ", fontSize = 14.sp, color = ObsStyle.textSecondary)
+                        Text(
+                            obs.stationType,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (obs.stationType == "OFFICIAL") ObsStyle.typeOfficial else ObsStyle.typePersonal
+                        )
                     }
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
                     Text(
-                        "Reported: ${timeFormatter.format(Instant.ofEpochMilli(obs.timestamp))} • Fetched: ${timeFormatter.format(Instant.ofEpochMilli(obs.fetchedAt))}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = ObsStyle.textSecondary)) { append("Reported ") }
+                            withStyle(SpanStyle(color = ObsStyle.timeReported, fontSize = 21.sp)) {
+                                append(timeFormatter.format(Instant.ofEpochMilli(obs.timestamp)))
+                            }
+                            withStyle(SpanStyle(color = ObsStyle.textSecondary)) { append(" • Fetched ") }
+                            withStyle(SpanStyle(color = ObsStyle.timeFetched, fontSize = 21.sp)) {
+                                append(timeFormatter.format(Instant.ofEpochMilli(obs.fetchedAt)))
+                            }
+                        },
+                        fontSize = 14.sp
                     )
                 }
             }
         }
-        
+
         if (observations.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No recent observations found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No recent observations found", color = ObsStyle.textSecondary)
                 }
             }
         }
