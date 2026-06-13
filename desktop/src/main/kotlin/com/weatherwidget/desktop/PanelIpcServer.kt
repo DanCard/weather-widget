@@ -54,10 +54,16 @@ class PanelIpcServer(private val appDataDir: Path) {
     fun update(forecast: ForecastResult?, dataStatus: DataStatus, config: DesktopConfig?) {
         val temp = forecast?.currentTemp
         val body = if (temp != null) String.format(Locale.US, "%.1f°", temp) else "--"
-        
+
         val isStale = dataStatus is DataStatus.Stale
-        val color = if (isStale || temp == null) "#888888" else "#FFD500"
-        
+        val color = if (isStale || temp == null) STALE_COLOR else LIVE_COLOR
+
+        // Mirror the popup header (Main.kt): show the measured-vs-forecast offset, formatted "%+.1f"
+        // (no degree symbol), only when it is non-trivial. Always orange, like the header.
+        val deltaText = forecast?.appliedDelta
+            ?.takeIf { kotlin.math.abs(it) >= 0.1f }
+            ?.let { String.format(Locale.US, "%+.1f", it) }
+
         // Tooltip detail matches the legacy python script logic
         val detail = if (forecast != null) {
             val obsAt = forecast.currentObservedAt
@@ -77,14 +83,8 @@ class PanelIpcServer(private val appDataDir: Path) {
         val tooltip = "Weather Widget — $detail $ageStr"
         val showTrigger = appDataDir.resolve(".show").toAbsolutePath().toString()
         val clickCmd = "touch $showTrigger"
-        
-        val markup = """
-            <txt><span font='Sans Bold 20' foreground='$color' line_height='0.6'>$body</span></txt>
-            <tool>$tooltip</tool>
-            <txtclick>$clickCmd</txtclick>
-        """.trimIndent()
 
-        currentMarkup.set(markup)
+        currentMarkup.set(buildPanelMarkup(body, color, deltaText, tooltip, clickCmd))
     }
 
     private fun formatRelativeTime(epochMs: Long): String {
@@ -100,5 +100,31 @@ class PanelIpcServer(private val appDataDir: Path) {
 
     companion object {
         private const val TAG = "PanelIpcServer"
+
+        const val LIVE_COLOR = "#FFD500"   // high-contrast yellow, matches the tray icon
+        const val STALE_COLOR = "#888888"  // grayed when data is stale / missing
+        const val DELTA_COLOR = "#FF6B35"  // orange, matches the popup header delta
+
+        /**
+         * Builds the genmon Pango markup. Pure (no I/O) so the delta logic is unit-testable.
+         * When [deltaText] is non-null a second smaller orange span is appended next to the
+         * temperature; the click handler MUST be <txtclick> (fires on the text, not an <img>).
+         */
+        internal fun buildPanelMarkup(
+            body: String,
+            color: String,
+            deltaText: String?,
+            tooltip: String,
+            clickCmd: String,
+        ): String {
+            val deltaSpan = if (deltaText != null) {
+                "<span font='Sans Bold 20' foreground='$DELTA_COLOR' line_height='0.6'> $deltaText</span>"
+            } else ""
+            return """
+                <txt><span font='Sans Bold 22' foreground='$color' line_height='0.6'>$body</span>$deltaSpan</txt>
+                <tool>$tooltip</tool>
+                <txtclick>$clickCmd</txtclick>
+            """.trimIndent()
+        }
     }
 }
