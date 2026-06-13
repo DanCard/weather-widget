@@ -30,6 +30,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
+import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
@@ -701,23 +702,19 @@ internal fun WidgetPopup(
                                         onUpdateConfig(config.copy(viewMode = targetView))
                                     },
                                     onToggleZoom = { clickedOffset ->
-                                        if (config.zoomFactor <= 0.05f) {
-                                            // Already tight: zoom back out to the default span, recentered on now.
-                                            onUpdateConfig(
-                                                config.copy(
-                                                    zoomFactor = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
-                                                    hourlyOffset = 0,
-                                                )
+                                        // Cycle the shared 3 stages (WIDE→NARROW→THREE_DAY→WIDE), matching
+                                        // Android, and re-center on the tapped hour. The wheel may have
+                                        // moved us off a stage, so snap to the nearest one before advancing.
+                                        val current = ZoomStage.nearestByTotalSpan(
+                                            DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor)
+                                        )
+                                        val next = current.next()
+                                        onUpdateConfig(
+                                            config.copy(
+                                                zoomFactor = DesktopGraphUtils.zoomFactorForStage(next),
+                                                hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
                                             )
-                                        } else {
-                                            // Zoom all the way in on the tapped hour.
-                                            onUpdateConfig(
-                                                config.copy(
-                                                    zoomFactor = 0f,
-                                                    hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
-                                                )
-                                            )
-                                        }
+                                        )
                                     },
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,

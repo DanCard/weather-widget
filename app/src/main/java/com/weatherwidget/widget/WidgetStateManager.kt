@@ -25,17 +25,9 @@ enum class ViewMode {
         get() = this in listOf(TEMPERATURE, PRECIPITATION, CLOUD_COVER)
 }
 
-enum class ZoomLevel(
-    val backHours: Long,
-    val forwardHours: Long,
-    val navJump: Int,
-    val labelInterval: Int,
-    val smoothIterations: Int,
-) {
-    WIDE(backHours = 12, forwardHours = 12, navJump = 6, labelInterval = 4, smoothIterations = 3),
-    NARROW(backHours = 2, forwardHours = 2, navJump = 2, labelInterval = 1, smoothIterations = 1),
-    THREE_DAY(backHours = 48, forwardHours = 24, navJump = 12, labelInterval = 12, smoothIterations = 3),
-}
+// The zoom-stage table now lives in :shared so Android and desktop share one definition.
+// Aliased to the historical name so existing widget code/tests keep referring to ZoomLevel.
+typealias ZoomLevel = com.weatherwidget.shared.graph.ZoomStage
 
 @Singleton
 class WidgetStateManager
@@ -579,12 +571,7 @@ class WidgetStateManager
         }
 
         fun cycleZoomLevel(widgetId: Int): ZoomLevel {
-            val current = getZoomLevel(widgetId)
-            val next = when (current) {
-                ZoomLevel.WIDE -> ZoomLevel.NARROW
-                ZoomLevel.NARROW -> ZoomLevel.THREE_DAY
-                ZoomLevel.THREE_DAY -> ZoomLevel.WIDE
-            }
+            val next = getZoomLevel(widgetId).next()
             setZoomLevel(widgetId, next)
             return next
         }

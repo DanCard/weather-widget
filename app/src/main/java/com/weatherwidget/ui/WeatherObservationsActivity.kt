@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.method.ScrollingMovementMethod
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.ForegroundColorSpan
 import android.util.Log
@@ -106,6 +107,11 @@ class WeatherObservationsActivity : AppCompatActivity() {
         findViewById<View>(R.id.back_button).setOnClickListener { finish() }
         findViewById<TextView>(R.id.title).setOnClickListener { finish() }
         findViewById<Button>(R.id.close_button).setOnClickListener { finish() }
+
+        // The fetch-logs panel is a fixed-height TextView with android:scrollbars="vertical".
+        // That attribute only draws the scrollbar track; a movement method is what actually
+        // lets the user drag-scroll through clipped log lines.
+        findViewById<TextView>(R.id.fetch_logs).movementMethod = ScrollingMovementMethod.getInstance()
 
         findViewById<TextView>(R.id.api_source_button).setOnClickListener {
             cycleSource()

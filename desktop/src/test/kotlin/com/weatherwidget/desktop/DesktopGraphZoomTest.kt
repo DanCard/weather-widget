@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.graph.ZoomStage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -192,6 +193,39 @@ class DesktopGraphZoomTest {
             assertEquals(listOf("Wed 10", "Thu 11", "Fri 12"), labels.map { it.text })
         } finally {
             Locale.setDefault(original)
+        }
+    }
+
+    // --- Shared 3-stage zoom (click cycle) ----------------------------------------------------
+
+    @Test
+    fun `each stage maps to its canonical zoom factor`() {
+        // NARROW is the tightest (factor 0); WIDE lands on the existing default; THREE_DAY is wide.
+        assertEquals(0f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW), 0.001f)
+        assertEquals(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR, DesktopGraphUtils.zoomFactorForStage(ZoomStage.WIDE), 0.02f)
+        assertEquals(0.74f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.THREE_DAY), 0.02f)
+    }
+
+    @Test
+    fun `stage factor reproduces the stage back-hours`() {
+        // The factor is the inverse of the back-hours curve, so round-tripping recovers each span.
+        for (stage in ZoomStage.entries) {
+            assertEquals(
+                "back hours for $stage",
+                stage.backHours.toInt(),
+                DesktopGraphUtils.backHoursFor(DesktopGraphUtils.zoomFactorForStage(stage)),
+            )
+        }
+    }
+
+    @Test
+    fun `clicking from each stage factor advances exactly one stage`() {
+        // Reproduces the Main onToggleZoom snap-then-next: nearest stage to the current span, then next().
+        for (stage in ZoomStage.entries) {
+            val factor = DesktopGraphUtils.zoomFactorForStage(stage)
+            val landed = ZoomStage.nearestByTotalSpan(DesktopGraphUtils.totalSpanHoursFor(factor))
+            assertEquals("snapping $stage's factor lands back on $stage", stage, landed)
+            assertEquals("cycle advances one stage from $stage", stage.next(), landed.next())
         }
     }
 

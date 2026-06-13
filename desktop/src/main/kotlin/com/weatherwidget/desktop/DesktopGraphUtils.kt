@@ -8,11 +8,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.graph.ZoomStage
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import java.time.format.TextStyle as JavaTextStyle
@@ -53,6 +55,17 @@ internal object DesktopGraphUtils {
         val zc = z.coerceIn(0f, 1f)
         return (min * (max.toFloat() / min).pow(zc)).roundToInt().coerceIn(min, max)
     }
+
+    /**
+     * The continuous [zoomFactor] that best reproduces a discrete [ZoomStage] — the inverse of the
+     * back-hours [geomInterp]. Lets the desktop click snap onto a shared stage while the wheel keeps
+     * driving the factor continuously. We invert against *back* hours only: one factor can't satisfy
+     * both spans for the asymmetric THREE_DAY stage, and history-leaning back-span is what the stages
+     * are really about. Yields NARROW→0.0, WIDE→~0.42 (≈[DEFAULT_ZOOM_FACTOR]), THREE_DAY→~0.74.
+     */
+    fun zoomFactorForStage(stage: ZoomStage): Float =
+        (ln(stage.backHours.toFloat() / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS.toFloat() / MIN_BACK_HOURS))
+            .coerceIn(0f, 1f)
 
     /**
      * Once the visible span crosses ~2 days, the bottom strip switches from time-of-day labels
