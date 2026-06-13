@@ -369,6 +369,36 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
+    /**
+     * Like [getRecentLogs] but restricts to the given tags in SQL, so the [limit] counts only
+     * matching rows. The verbose current-temp tags (e.g. CurrentTempResolver, ~21k rows) otherwise
+     * swamp any all-tag fetch then in-memory filter, starving the result to near-zero rows.
+     */
+    fun getRecentLogsByTags(tags: List<String>, limit: Int = 100): List<DesktopLogEntity> {
+        if (tags.isEmpty()) return emptyList()
+        val placeholders = tags.joinToString(",") { "?" }
+        val result = mutableListOf<DesktopLogEntity>()
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT timestamp, level, tag, message FROM app_logs " +
+                    "WHERE tag IN ($placeholders) ORDER BY timestamp DESC LIMIT ?"
+            ).use { stmt ->
+                tags.forEachIndexed { i, t -> stmt.setString(i + 1, t) }
+                stmt.setInt(tags.size + 1, limit)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(DesktopLogEntity(
+                        timestamp = rs.getLong("timestamp"),
+                        level = rs.getString("level"),
+                        tag = rs.getString("tag"),
+                        message = rs.getString("message"),
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
     fun getLatestHourly(locationLat: Double, locationLon: Double, source: String, maxAgeMs: Long): List<HourlyForecast> {
         val now = System.currentTimeMillis()
         val minFetchedAt = now - maxAgeMs

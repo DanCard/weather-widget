@@ -154,6 +154,31 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `test getRecentLogsByTags filters by tag and caps matching rows`() {
+        // A flood of an unrelated verbose tag (mirrors CurrentTempResolver swamping app_logs)
+        // interleaved with a few fetch rows.
+        repeat(20) { dao.log("CurrentTempResolver", "noise $it") }
+        dao.log("OBS_REFRESH", "obs=500 extremes=5")
+        dao.log("REFRESH", "hourly=120 daily=7")
+        dao.log("REFRESH_FAIL", "offline", level = "WARN")
+        repeat(20) { dao.log("CurrentTempResolver", "more noise $it") }
+
+        // All-tag read is dominated by noise — the fetch rows are buried (the original bug).
+        assertEquals(0, dao.getRecentLogs(5).count { it.tag in setOf("OBS_REFRESH", "REFRESH", "REFRESH_FAIL") })
+
+        // Tag-filtered read returns only the requested tags, regardless of noise volume.
+        val fetches = dao.getRecentLogsByTags(listOf("OBS_REFRESH", "REFRESH", "REFRESH_FAIL"), 100)
+        assertEquals(setOf("OBS_REFRESH", "REFRESH", "REFRESH_FAIL"), fetches.map { it.tag }.toSet())
+        assertEquals(3, fetches.size)
+
+        // The limit counts only matching rows, not the noise.
+        assertEquals(2, dao.getRecentLogsByTags(listOf("CurrentTempResolver"), 2).size)
+
+        // Empty tag list returns nothing.
+        assertEquals(0, dao.getRecentLogsByTags(emptyList(), 100).size)
+    }
+
+    @Test
     fun `test station cache round-trip`() {
         val stations = listOf(
             NwsApi.StationInfo("KNUQ", "Moffett", 37.4, -122.0, NwsApi.StationType.OFFICIAL),

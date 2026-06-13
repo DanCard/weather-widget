@@ -7,7 +7,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -48,6 +50,20 @@ internal object ObsStyle {
     val divider = Color(0xFF222226)
     val timeReported = Color(0xFFE8A24E) // amber — matches the mild band of the temp gradient
     val timeFetched = accent
+}
+
+/**
+ * Which fetch-related log tags the "Fetch Logs" tab shows. Filtering happens in SQL
+ * (see [DesktopWeatherDao.getRecentLogsByTags]) so the row cap counts displayed rows, not the
+ * verbose current-temp tags that dominate app_logs.
+ */
+private enum class LogFilter(val label: String, val tags: List<String>) {
+    FETCHES("Fetches", listOf("OBS_REFRESH", "REFRESH", "REFRESH_FAIL")),
+    OBSERVATIONS("Observations", listOf("OBS_REFRESH", "REFRESH_FAIL")),
+    ALL(
+        "All activity",
+        listOf("OBS_REFRESH", "REFRESH", "REFRESH_FAIL", "LAUNCH_REFRESH_CHECK", "RESUME_DETECT"),
+    ),
 }
 
 @Composable
@@ -108,6 +124,8 @@ internal fun ObservationsWindow(
         var observations by remember { mutableStateOf<List<DesktopObservationEntity>>(emptyList()) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var isRefreshing by remember { mutableStateOf(false) }
+        var selectedTab by remember { mutableStateOf(0) }
+        var logFilter by remember { mutableStateOf(LogFilter.FETCHES) }
         val scope = rememberCoroutineScope()
 
         val loadData = {
@@ -124,9 +142,10 @@ internal fun ObservationsWindow(
                     .groupBy { it.stationId }
                     .map { it.value.first() }
                     .sortedBy { it.distanceKm }
-                
-                val recentLogs = weatherDao.getRecentLogs(100)
-                    .filter { it.tag == "REFRESH" || it.tag == "REFRESH_FAIL" }
+
+                // Filter by tag in SQL so the cap counts fetch rows, not the verbose current-temp
+                // tags (CurrentTempResolver etc.) that otherwise swamp app_logs.
+                val recentLogs = weatherDao.getRecentLogsByTags(logFilter.tags, 100)
 
                 withContext(Dispatchers.Main) {
                     observations = obs
@@ -135,7 +154,7 @@ internal fun ObservationsWindow(
             }
         }
 
-        LaunchedEffect(currentSource) {
+        LaunchedEffect(currentSource, logFilter) {
             loadData()
         }
 
@@ -176,6 +195,41 @@ internal fun ObservationsWindow(
                             }
                         }
 
+                        // Fetch Logs tag filter — a small icon that opens a menu of LogFilter sets.
+                        if (selectedTab == 1) {
+                            var filterMenuOpen by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { filterMenuOpen = true }) {
+                                    Icon(Icons.Default.FilterList, contentDescription = "Filter logs")
+                                }
+                                DropdownMenu(
+                                    expanded = filterMenuOpen,
+                                    onDismissRequest = { filterMenuOpen = false }
+                                ) {
+                                    LogFilter.entries.forEach { filter ->
+                                        DropdownMenuItem(
+                                            text = { Text(filter.label) },
+                                            leadingIcon = {
+                                                if (filter == logFilter) {
+                                                    Icon(
+                                                        Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        tint = ObsStyle.accent
+                                                    )
+                                                } else {
+                                                    Spacer(Modifier.width(24.dp))
+                                                }
+                                            },
+                                            onClick = {
+                                                logFilter = filter
+                                                filterMenuOpen = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         IconButton(
                             onClick = {
                                 scope.launch {
@@ -199,7 +253,6 @@ internal fun ObservationsWindow(
                     }
 
                     // Content
-                    var selectedTab by remember { mutableStateOf(0) }
                     TabRow(
                         selectedTabIndex = selectedTab,
                         containerColor = ObsStyle.background,
