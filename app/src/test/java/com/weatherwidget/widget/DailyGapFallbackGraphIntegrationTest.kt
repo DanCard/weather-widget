@@ -4,6 +4,7 @@ import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.util.WeatherConditionColors
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.widget.handlers.DailyViewLogic
 import kotlinx.coroutines.runBlocking
@@ -185,7 +186,9 @@ class DailyGapFallbackGraphIntegrationTest {
         }
 
         val todayBar = drawnBars.single { it.date == today && it.barType == "TODAY" }
-        assertEquals(-52378, todayBar.color)
+        // Today actual bar uses the observed color; assert against the constant so future OBSERVED
+        // tweaks don't break this (was a hardcoded -52378 = old #FF3366).
+        assertEquals(WeatherConditionColors.OBSERVED, todayBar.color)
     }
 
     @Test

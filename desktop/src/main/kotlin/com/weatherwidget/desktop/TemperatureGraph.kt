@@ -418,14 +418,7 @@ fun TemperatureGraph(
                 else -> Rect(Offset(aboveX.coerceIn(0f, w - valueWidth), aboveY), Size(valueWidth, valueHeight))
             }
             
-            drawShadowedText(
-                textMeasurer,
-                tempText,
-                TEMP_VALUE_LABEL_SP * scale,
-                valueTextLayout,
-                rect.topLeft,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-            )
+            drawShadowedText(textMeasurer, valueTextLayout, rect.topLeft, scale)
             drawnLabels.add(rect)
             fetchDotHardBounds.add(rect)
             
@@ -560,7 +553,7 @@ fun TemperatureGraph(
                 size = Size(textWidth, textHeight)
             )
 
-            drawShadowedText(textMeasurer, label.text, TEMP_VALUE_LABEL_SP * scale, textLayout, labelRect.topLeft)
+            drawShadowedText(textMeasurer, textLayout, labelRect.topLeft, scale)
             drawnLabels.add(labelRect)
 
             if (label.drawLeaderLine) {

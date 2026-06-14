@@ -73,8 +73,9 @@ object DailyForecastGraphRenderer {
     private const val PAST_TEMP_SCALE = 0.9f
     private const val LABEL_SHADOW_RADIUS_DP = 2.5f
     private const val LABEL_SHADOW_DY_DP = 1.0f
-    // Stroke width as a fraction of font size for the black outline pass (mirrors desktop OUTLINE_STROKE_FRACTION).
-    private const val OUTLINE_STROKE_FRACTION = 0.32f
+    // Thin black outline stroke (fraction of font size) for HISTORY temp labels only, so they stay
+    // legible over same-colored bars. Much thinner than the reverted heavy outline; gated to past days.
+    private const val LABEL_OUTLINE_STROKE_FRACTION = 0.12f
     private const val HEADER_RAIN_OVERLAP_TOLERANCE_DP = 4f
 
     private data class PaintCache(
@@ -554,9 +555,11 @@ object DailyForecastGraphRenderer {
                 layout.dayLabelHeight / DAY_LABEL_SIZE_MULTIPLIER,
                 true
             ),
-            tempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight, shadowRadius = shadowRadius, shadowDy = shadowDy),
-            pastTempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight * PAST_TEMP_SCALE, shadowRadius = shadowRadius, shadowDy = shadowDy),
-            todayTempTextPaint = createTextPaint(COLOR_TODAY_TEXT, layout.tempLabelHeight, true, shadowRadius = shadowRadius, shadowDy = shadowDy),
+            // Temp labels carry no blur: history labels get a thin black outline (drawTempLabel
+            // drawOutline=true), today/future labels get no shadow at all.
+            tempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight),
+            pastTempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight * PAST_TEMP_SCALE),
+            todayTempTextPaint = createTextPaint(COLOR_TODAY_TEXT, layout.tempLabelHeight, true),
             rainTextPaint = createTextPaint(COLOR_FORECAST, (RAIN_TEXT_SIZE_DP * scaleFactor * labelScale).dp(layout.density), shadowRadius = shadowRadius, shadowDy = shadowDy),
         )
 
@@ -688,7 +691,7 @@ object DailyForecastGraphRenderer {
                 day.isPast -> paints.pastTempTextPaint
                 else -> paints.tempTextPaint
             }
-            drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint)
+            drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint, drawOutline = day.isPast)
 
         }
 
@@ -816,16 +819,17 @@ object DailyForecastGraphRenderer {
                 DualHighLabel.showBoth(actualHigh, forecastHigh, actualBaseline, forecastBaseline, twoLabelHeight)
 
             if (showBoth) {
+                // Dual highs only render for past days, so both labels are history → outlined.
                 val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
                 drawTempLabel(canvas, formatTempLabel(actualHigh, true), centerX, actualBaseline, basePaint,
-                    extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED)
+                    extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true)
                 drawTempLabel(canvas, formatTempLabel(forecastHigh, true), centerX + layout.forecastBarOffset, forecastBaseline,
-                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor)
+                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor, drawOutline = true)
             } else {
                 val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
                 val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
                 val labelY = if (day.isToday) layout.tempToY(day.effectiveHigh() ?: day.solidLineHigh) else y
-                drawTempLabel(canvas, highLabel, centerX, labelY - labelOffset, basePaint)
+                drawTempLabel(canvas, highLabel, centerX, labelY - labelOffset, basePaint, drawOutline = day.isPast)
             }
         }
     }
@@ -834,6 +838,8 @@ object DailyForecastGraphRenderer {
      * Draws a centered temp label. [extraScale] shrinks the font (e.g. 0.92 for past-day dual highs);
      * wide 3+ digit temps (100°, 97.7°) shrink a further 5%. [colorOverride] recolors a copy of [base]
      * (thermostat / forecast color). The common full-size/no-recolor case reuses [base] without allocating.
+     * When [drawOutline] is true (history labels), a thin black stroke is drawn behind the fill to keep
+     * the label legible over a same-colored bar.
      */
     private fun drawTempLabel(
         canvas: Canvas,
@@ -843,19 +849,22 @@ object DailyForecastGraphRenderer {
         base: Paint,
         extraScale: Float = 1f,
         colorOverride: Int? = null,
+        drawOutline: Boolean = false,
     ) {
         val scale = extraScale * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
         val paint = if (colorOverride == null && scale == 1f) base else Paint(base).apply {
             if (colorOverride != null) color = colorOverride
             textSize = base.textSize * scale
         }
-        val outlinePaint = Paint(paint).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = paint.textSize * OUTLINE_STROKE_FRACTION
-            color = 0xFF000000.toInt()
-            clearShadowLayer()
+        if (drawOutline) {
+            val outlinePaint = Paint(paint).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = paint.textSize * LABEL_OUTLINE_STROKE_FRACTION
+                color = 0xFF000000.toInt()
+                clearShadowLayer()
+            }
+            canvas.drawText(text, centerX, baselineY, outlinePaint)
         }
-        canvas.drawText(text, centerX, baselineY, outlinePaint)
         canvas.drawText(text, centerX, baselineY, paint)
     }
 

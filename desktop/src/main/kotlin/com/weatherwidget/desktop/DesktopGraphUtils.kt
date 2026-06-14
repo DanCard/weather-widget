@@ -5,15 +5,17 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.ZoomStage
 import java.time.Instant
 import java.time.LocalDate
@@ -251,33 +253,54 @@ internal object DesktopGraphUtils {
     }
 }
 
-// Outline thickness as a fraction of font size; thick enough to read over a same-colored curve.
-private const val OUTLINE_STROKE_FRACTION = 0.32f
+/**
+ * Android-matched temperature-label drop shadow: a solid-black Compose [Shadow] mirroring Android's
+ * `setShadowLayer(radius=TEMP_LABEL_SHADOW_RADIUS_DP, dy=TEMP_LABEL_SHADOW_DY_DP, COLOR_SHADOW_SOLID)`.
+ * Softer than the old glyph-outline stroke, which read too strong on desktop.
+ */
+internal fun DrawScope.tempLabelShadow(scale: Float): Shadow = Shadow(
+    color = Color(HourlyGraphDefaults.COLOR_SHADOW_SOLID),
+    offset = Offset(0f, HourlyGraphDefaults.TEMP_LABEL_SHADOW_DY_DP.dp.toPx() * scale),
+    blurRadius = HourlyGraphDefaults.TEMP_LABEL_SHADOW_RADIUS_DP.dp.toPx() * scale,
+)
 
 /**
- * Draws [real] with a true black OUTLINE: a black copy of the same text rendered as a path stroke
- * (`drawStyle = Stroke`) at the same position, then the real fill text on top. The stroke traces
- * each glyph's actual outline, so the black wraps every letter evenly on all sides — much stronger
- * and cleaner than blurred Shadow / scaled-bigger / bold-halo copies. This is the same label-shadow
- * algorithm used by the daily forecast history high-temp labels. Pass [fontWeight] so the outline
- * matches a bold fill (e.g. the now/current temperature value).
+ * Draws [real] with the Android-matched soft drop shadow ([tempLabelShadow]). Re-measures [real]'s
+ * own style with the shadow added, so its size / color / font weight are preserved. This is the
+ * desktop port of the daily-history high-temp label shadow, using Android's blur rather than a hard
+ * glyph outline. Used by both the daily forecast and hourly temperature graphs.
  */
 internal fun DrawScope.drawShadowedText(
     measurer: TextMeasurer,
-    text: String,
-    fontSize: Float,
     real: TextLayoutResult,
     topLeft: Offset,
-    fontWeight: FontWeight? = null,
+    scale: Float,
 ) {
+    val shadowed = measurer.measure(
+        real.layoutInput.text,
+        real.layoutInput.style.copy(shadow = tempLabelShadow(scale)),
+    )
+    drawText(shadowed, topLeft = topLeft)
+}
+
+// Thin black outline stroke (fraction of font size) for daily HISTORY temp labels. Larger than
+// Android's 0.12 because desktop labels are smaller (14sp), so the same fraction read too faint here.
+private const val OUTLINE_STROKE_FRACTION = 0.18f
+
+/**
+ * Draws [real] with a thin black glyph OUTLINE (a stroked copy under the fill), keeping the label
+ * crisp over a same-colored bar. Used for daily-view history labels only; today/future use plain
+ * [drawText] and the hourly graph uses the softer [drawShadowedText] blur.
+ */
+internal fun DrawScope.drawOutlinedText(
+    measurer: TextMeasurer,
+    real: TextLayoutResult,
+    topLeft: Offset,
+) {
+    val strokeWidth = real.layoutInput.style.fontSize.toPx() * OUTLINE_STROKE_FRACTION
     val outline = measurer.measure(
-        text,
-        TextStyle(
-            fontSize = fontSize.sp,
-            color = Color.Black,
-            fontWeight = fontWeight,
-            drawStyle = Stroke(width = fontSize * OUTLINE_STROKE_FRACTION),
-        ),
+        real.layoutInput.text,
+        real.layoutInput.style.copy(color = Color.Black, drawStyle = Stroke(width = strokeWidth)),
     )
     drawText(outline, topLeft = topLeft)
     drawText(real, topLeft = topLeft)
