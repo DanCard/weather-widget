@@ -36,7 +36,7 @@ object DailyForecastGraphRenderer {
 
     private val COLOR_FORECAST = 0xFF5AC8FA.toInt()
     private val COLOR_TODAY_HIGHLIGHT = 0xFFFFFF00.toInt()
-    private val COLOR_OBSERVED_RED = 0xFFFF3366.toInt()
+    private val COLOR_OBSERVED_RED = WeatherConditionColors.OBSERVED
     private val COLOR_LABEL_GRAY = 0xFFAAAAAA.toInt()
     private val COLOR_TODAY_TEXT = 0xFFFFEACC.toInt()
     private val COLOR_WHITE = 0xFFFFFFFF.toInt()
@@ -71,9 +71,10 @@ object DailyForecastGraphRenderer {
     private const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f
     private const val FORECAST_BAR_OFFSET_SCALE = 0.7f
     private const val PAST_TEMP_SCALE = 0.9f
-    // Fuller dark halo (was 1.5) so colored history labels stay legible over a same-colored bar.
     private const val LABEL_SHADOW_RADIUS_DP = 2.5f
     private const val LABEL_SHADOW_DY_DP = 1.0f
+    // Stroke width as a fraction of font size for the black outline pass (mirrors desktop OUTLINE_STROKE_FRACTION).
+    private const val OUTLINE_STROKE_FRACTION = 0.32f
     private const val HEADER_RAIN_OVERLAP_TOLERANCE_DP = 4f
 
     private data class PaintCache(
@@ -848,6 +849,13 @@ object DailyForecastGraphRenderer {
             if (colorOverride != null) color = colorOverride
             textSize = base.textSize * scale
         }
+        val outlinePaint = Paint(paint).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = paint.textSize * OUTLINE_STROKE_FRACTION
+            color = 0xFF000000.toInt()
+            clearShadowLayer()
+        }
+        canvas.drawText(text, centerX, baselineY, outlinePaint)
         canvas.drawText(text, centerX, baselineY, paint)
     }
 
