@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.BuildConfig
 import com.weatherwidget.widget.handlers.HeaderConstants
+import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.util.WeatherConditionColors
 import com.weatherwidget.util.WeatherIconMapper
 import kotlin.math.abs
@@ -70,7 +71,8 @@ object DailyForecastGraphRenderer {
     private const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f
     private const val FORECAST_BAR_OFFSET_SCALE = 0.7f
     private const val PAST_TEMP_SCALE = 0.9f
-    private const val LABEL_SHADOW_RADIUS_DP = 1.5f
+    // Fuller dark halo (was 1.5) so colored history labels stay legible over a same-colored bar.
+    private const val LABEL_SHADOW_RADIUS_DP = 2.5f
     private const val LABEL_SHADOW_DY_DP = 1.0f
     private const val HEADER_RAIN_OVERLAP_TOLERANCE_DP = 4f
 
@@ -685,7 +687,7 @@ object DailyForecastGraphRenderer {
                 day.isPast -> paints.pastTempTextPaint
                 else -> paints.tempTextPaint
             }
-            canvas.drawText(lowLabelText, centerX, lowTempY, tempPaint)
+            drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint)
 
         }
 
@@ -788,22 +790,65 @@ object DailyForecastGraphRenderer {
         }
 
         if (day.solidLineHigh != null) {
-            val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
-            val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
-            val y = highY ?: lowY?.let { it - layout.minBarHeightPx } ?: run {
-                Log.w(TAG, "drawDayBars: both highY and lowY null for high label date=${day.date}; falling back to graphTop")
-                layout.graphTop
-            }
-            val labelY = if (day.isToday) {
-                layout.tempToY(day.effectiveHigh() ?: day.solidLineHigh)
-            } else y
-            val tempPaint = when {
+            val labelOffset = (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density)
+            val basePaint = when {
                 day.isToday -> paints.todayTempTextPaint
                 day.isPast -> paints.pastTempTextPaint
                 else -> paints.tempTextPaint
             }
-            canvas.drawText(highLabel, centerX, labelY - (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density), tempPaint)
+            val y = highY ?: lowY?.let { it - layout.minBarHeightPx } ?: run {
+                Log.w(TAG, "drawDayBars: both highY and lowY null for high label date=${day.date}; falling back to graphTop")
+                layout.graphTop
+            }
+
+            // Past days: when the forecast high missed the actual by enough AND there's room, label
+            // BOTH — actual in the thermostat color, forecast in the forecast-bar color (DualHighLabel).
+            val actualHigh = day.solidLineHigh
+            val forecastHigh = if (day.isPast) day.dashedLineHigh else null
+            val actualBaseline = y - labelOffset
+            val forecastBaseline = forecastHigh?.let { layout.tempToY(it) - labelOffset }
+            // Label height for the room test; fontMetrics is null under stubbed-Paint unit tests,
+            // so fall back to textSize there. Only needed when a forecast label is in play.
+            val twoLabelHeight = (basePaint.fontMetrics?.let { it.descent - it.ascent } ?: basePaint.textSize) *
+                DualHighLabel.TWO_LABEL_FONT_SCALE
+            val showBoth = forecastHigh != null && forecastBaseline != null &&
+                DualHighLabel.showBoth(actualHigh, forecastHigh, actualBaseline, forecastBaseline, twoLabelHeight)
+
+            if (showBoth) {
+                val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
+                drawTempLabel(canvas, formatTempLabel(actualHigh, true), centerX, actualBaseline, basePaint,
+                    extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED)
+                drawTempLabel(canvas, formatTempLabel(forecastHigh, true), centerX + layout.forecastBarOffset, forecastBaseline,
+                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor)
+            } else {
+                val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
+                val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
+                val labelY = if (day.isToday) layout.tempToY(day.effectiveHigh() ?: day.solidLineHigh) else y
+                drawTempLabel(canvas, highLabel, centerX, labelY - labelOffset, basePaint)
+            }
         }
+    }
+
+    /**
+     * Draws a centered temp label. [extraScale] shrinks the font (e.g. 0.92 for past-day dual highs);
+     * wide 3+ digit temps (100°, 97.7°) shrink a further 5%. [colorOverride] recolors a copy of [base]
+     * (thermostat / forecast color). The common full-size/no-recolor case reuses [base] without allocating.
+     */
+    private fun drawTempLabel(
+        canvas: Canvas,
+        text: String,
+        centerX: Float,
+        baselineY: Float,
+        base: Paint,
+        extraScale: Float = 1f,
+        colorOverride: Int? = null,
+    ) {
+        val scale = extraScale * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
+        val paint = if (colorOverride == null && scale == 1f) base else Paint(base).apply {
+            if (colorOverride != null) color = colorOverride
+            textSize = base.textSize * scale
+        }
+        canvas.drawText(text, centerX, baselineY, paint)
     }
 
     private fun drawTodayTripleBar(

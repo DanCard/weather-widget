@@ -11,14 +11,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.weatherwidget.shared.graph.DualHighLabel
 import kotlin.math.roundToInt
 
 private val COLOR_FORECAST_SUNNY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_SUNNY)
@@ -138,7 +142,8 @@ fun DailyForecastGraph(
                     high = day.forecastHigh,
                     low = day.forecastLow,
                     yAt = ::yAt,
-                    color = Color.Yellow,
+                    // Adaptive forecast color (amber/gray/blue) to match Android's forecast overlay.
+                    color = forecastColor(day),
                     width = thinWidth,
                 )
                 drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, barWidth * 0.72f)
@@ -151,29 +156,69 @@ fun DailyForecastGraph(
                 }
             }
 
-            val highForLabel = listOfNotNull(day.solidHigh, day.forecastHigh, day.ghostHigh, day.snapshotHigh).maxOrNull()
             val lowForLabel = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
-            if (highForLabel != null) {
-                val highY = yAt(highForLabel)
-                val highText = textMeasurer.measure(
-                    formatTemp(highForLabel, day.isToday || day.isPast),
-                    TextStyle(fontSize = (12f * scale).sp, color = if (day.isToday) Color.Yellow else Color.White)
-                )
-                // Sit above the bar top; for the hottest bar this rides up past the canvas top into
-                // the header (a little overlap is welcome) rather than dropping onto the bar.
-                val highLabelY = (highY - highText.size.height - 3f * scale).coerceAtLeast(-headerBleed)
-                drawText(highText, topLeft = Offset(centerX - highText.size.width / 2f, highLabelY))
+
+            // Past days: label BOTH the actual high (thermostat pink) and the forecast high (yellow,
+            // matching the forecast bar) when they differ enough and there's room (DualHighLabel);
+            // otherwise fall through to the single high label below.
+            val highForLabel = listOfNotNull(day.solidHigh, day.forecastHigh, day.ghostHigh, day.snapshotHigh).maxOrNull()
+            val pastActualHigh = if (day.isPast) day.solidHigh else null
+            val pastForecastHigh = if (day.isPast) day.forecastHigh else null
+            val dualBase = 12f * scale * DualHighLabel.TWO_LABEL_FONT_SCALE
+            val showDualHighs = if (pastActualHigh != null && pastForecastHigh != null) {
+                val aText = formatTemp(pastActualHigh, true)
+                val fText = formatTemp(pastForecastHigh, true)
+                val aH = textMeasurer.measure(aText, TextStyle(fontSize = tempFontSize(aText, dualBase).sp)).size.height.toFloat()
+                val fH = textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBase).sp)).size.height.toFloat()
+                val aTop = (yAt(pastActualHigh) - aH - 3f * scale).coerceAtLeast(-headerBleed)
+                val fTop = (yAt(pastForecastHigh) - fH - 3f * scale).coerceAtLeast(-headerBleed)
+                DualHighLabel.showBoth(pastActualHigh, pastForecastHigh, aTop, fTop, maxOf(aH, fH))
+            } else false
+
+            if (showDualHighs && pastActualHigh != null && pastForecastHigh != null) {
+                val aText = formatTemp(pastActualHigh, true)
+                val aSize = tempFontSize(aText, dualBase)
+                val aLayout = textMeasurer.measure(aText, TextStyle(fontSize = aSize.sp, color = COLOR_OBSERVED))
+                val aY = (yAt(pastActualHigh) - aLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                drawShadowedText(textMeasurer, aText, aSize, aLayout, Offset(centerX - aLayout.size.width / 2f, aY))
+
+                val fText = formatTemp(pastForecastHigh, true)
+                val fSize = tempFontSize(fText, dualBase)
+                val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
+                val fY = (yAt(pastForecastHigh) - fLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                drawShadowedText(textMeasurer, fText, fSize, fLayout, Offset(centerX + tripleOffset - fLayout.size.width / 2f, fY))
+            } else {
+                // Single label mirrors Android's effectiveHigh(): today shows the high-water max,
+                // past/future show the actual/forecast value (day.solidHigh) — so a past day shows
+                // the ACTUAL high, not the forecast. Falls back to forecast only if no actual.
+                val singleHigh = if (day.isToday)
+                    listOfNotNull(day.solidHigh, day.forecastHigh, day.ghostHigh, day.snapshotHigh).maxOrNull()
+                else day.solidHigh ?: day.forecastHigh ?: day.snapshotHigh ?: day.ghostHigh
+                if (singleHigh != null) {
+                    val highLabelText = formatTemp(singleHigh, day.isToday || day.isPast)
+                    val highSize = tempFontSize(highLabelText, 12f * scale)
+                    val highText = textMeasurer.measure(
+                        highLabelText,
+                        TextStyle(fontSize = highSize.sp, color = if (day.isToday) Color.Yellow else Color.White)
+                    )
+                    // Sit above the bar top; for the hottest bar this rides up past the canvas top into
+                    // the header (a little overlap is welcome) rather than dropping onto the bar.
+                    val highLabelY = (yAt(singleHigh) - highText.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                    drawShadowedText(textMeasurer, highLabelText, highSize, highText, Offset(centerX - highText.size.width / 2f, highLabelY))
+                }
             }
             if (lowForLabel != null) {
                 val lowY = yAt(lowForLabel)
+                val lowLabelText = formatTemp(lowForLabel, day.isToday || day.isPast)
+                val lowSize = tempFontSize(lowLabelText, 11f * scale)
                 val lowText = textMeasurer.measure(
-                    formatTemp(lowForLabel, day.isToday || day.isPast),
-                    TextStyle(fontSize = (11f * scale).sp, color = Color.White.copy(alpha = 0.78f))
+                    lowLabelText,
+                    TextStyle(fontSize = lowSize.sp, color = Color.White.copy(alpha = 0.78f))
                 )
                 // Low label sits below the bar; icon below the label. Both clamp to stay above the
                 // day-name row, so for cold days they overlap the bar bottom rather than clip.
                 val lowLabelY = (lowY + 4f * scale).coerceAtMost(iconFloorTop - lowText.size.height - 2f * scale)
-                drawText(lowText, topLeft = Offset(centerX - lowText.size.width / 2f, lowLabelY))
+                drawShadowedText(textMeasurer, lowLabelText, lowSize, lowText, Offset(centerX - lowText.size.width / 2f, lowLabelY))
 
                 val iconTop = (lowLabelY + lowText.size.height + 2f * scale).coerceAtMost(iconFloorTop)
                 translate(centerX - iconSize / 2f, iconTop) {
@@ -293,4 +338,37 @@ private fun formatTemp(v: Float?, isActualData: Boolean): String {
     if (v == null) return ""
     if (!isActualData) return "${v.roundToInt()}°"
     return com.weatherwidget.shared.util.TempUtils.formatTemp(v) ?: ""
+}
+
+/** Temp-label font size: wide 3+ digit temps (100°, 97.7°) draw a further 5% smaller. */
+private fun tempFontSize(text: String, base: Float): Float =
+    base * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
+
+/** Outline stroke width as a fraction of font size (total stroke; ~half shows outside the glyph). */
+private const val OUTLINE_STROKE_FRACTION = 0.32f
+
+/**
+ * Draws [real] with a true black OUTLINE: a black copy of the same text rendered as a path stroke
+ * (`drawStyle = Stroke`) at the same position, then the real fill text on top. The stroke traces
+ * each glyph's actual outline, so the black wraps every letter evenly on all sides — much stronger
+ * and cleaner than blurred Shadow / scaled-bigger / bold-halo copies. Keeps temp labels legible over
+ * a same-colored bar. Outline thickness scales with font size via [OUTLINE_STROKE_FRACTION].
+ */
+private fun DrawScope.drawShadowedText(
+    measurer: TextMeasurer,
+    text: String,
+    fontSize: Float,
+    real: TextLayoutResult,
+    topLeft: Offset,
+) {
+    val outline = measurer.measure(
+        text,
+        TextStyle(
+            fontSize = fontSize.sp,
+            color = Color.Black,
+            drawStyle = Stroke(width = fontSize * OUTLINE_STROKE_FRACTION),
+        ),
+    )
+    drawText(outline, topLeft = topLeft)
+    drawText(real, topLeft = topLeft)
 }

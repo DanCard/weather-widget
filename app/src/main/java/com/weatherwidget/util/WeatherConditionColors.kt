@@ -27,7 +27,7 @@ object WeatherConditionColors {
     val FORECAST_RAINY = Color.parseColor("#5A8FBF")    // Steel blue
     val FORECAST_NIGHT = Color.parseColor("#BBBBBB")    // Muted silver
     val FORECAST_TWILIGHT = Color.parseColor("#FFA726") // Warm amber for sunrise/sunset hours
-    val OBSERVED = Color.parseColor("#FF3366")           // Hot pink
+    val OBSERVED = Color.parseColor("#FF5588")           // Bright rose-pink
 
     /** Maps weather condition flags to a forecast color. Priority: rainy > night > twilight+sunny > mixed > sunny > cloudy. */
     fun forecastColor(isSunny: Boolean, isRainy: Boolean, isMixed: Boolean, isNight: Boolean, isTwilight: Boolean = false): Int {
