@@ -113,6 +113,31 @@ class TemperatureActualLowOwnCurveGrazeTest {
     }
 
     @Test
+    fun `actual low stays below with no leader when the forecast only shallowly grazes below the valley`() {
+        // Forecast gently descends across the window, grazing a half-degree below the actual valley
+        // (67 at idx 6 -> forecast 66.5) — a shallow overlap into the below-box. It is monotonic, so
+        // there is no competing same-index forecast valley and no sharp-V smoothing overshoot.
+        // Partial forecast-curve overlap is acceptable for ACTUAL_LOW, so the label must stay flush
+        // below its valley with NO leader line rather than flip above and be pushed off-anchor.
+        val actual = listOf(90f, 86f, 80f, 74f, 70f, 68f, 67f, 68f, 70f, 74f, 80f, 86f, 90f)
+        val forecast = listOf(72f, 71f, 70f, 69f, 68f, 67f, 66.5f, 66f, 65f, 64f, 63f, 62f, 61f)
+        val placements = run(forecast, actual)
+
+        val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
+        assertNotNull("ACTUAL_LOW (67°) should be labeled. placements=$placements", actualLow)
+        assertFalse(
+            "ACTUAL_LOW must stay below for a shallow forecast graze " +
+                "(reason=${actualLow!!.reason}, placedAbove=${actualLow.placedAbove})",
+            actualLow.placedAbove,
+        )
+        assertFalse(
+            "ACTUAL_LOW must draw no leader line for a shallow forecast graze " +
+                "(reason=${actualLow.reason}, displacementSteps=${actualLow.displacementSteps})",
+            actualLow.drawLeaderLine,
+        )
+    }
+
+    @Test
     fun `actual low still flips above when the forecast curve dips below the valley`() {
         // Forecast dips to 60 around the actual valley (67) — genuinely below it — so the ACTUAL_LOW
         // below-box is occupied by the forecast curve and the label must flip above (preserved).

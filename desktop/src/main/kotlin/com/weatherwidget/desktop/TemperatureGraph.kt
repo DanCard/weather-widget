@@ -72,6 +72,9 @@ private const val HOT_THRESHOLD = 90f
 private const val ACTUALS_CONTEXT_LOOKBACK_HOURS = 144L
 private const val ACTUALS_CONTEXT_LOOKAHEAD_HOURS = 60L
 private const val AGE_LABEL_MAX_HOURS_SPAN = 12L
+// Temperature value labels (on-curve highs/lows + now/current temp) are 10% larger than the 14sp
+// time/axis labels for readability. Hour-of-day and day labels keep 14sp.
+private const val TEMP_VALUE_LABEL_SP = 15.4f // 14sp + 10%
 
 /**
  * Fetch-dot staleness age, mirroring Android's `TemperatureGraphStyle.formatAgeLabel`: show the age
@@ -393,7 +396,7 @@ fun TemperatureGraph(
             val tempText = if (tempVal % 1.0f == 0f) "${tempVal.roundToInt()}°" else String.format(Locale.US, "%.1f°", tempVal)
             val valueTextLayout = textMeasurer.measure(
                 tempText,
-                TextStyle(fontSize = (14 * scale).sp, color = COLOR_ACTUAL, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp, color = COLOR_ACTUAL, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             )
             val valueWidth = valueTextLayout.size.width.toFloat()
             val valueHeight = valueTextLayout.size.height.toFloat()
@@ -415,7 +418,14 @@ fun TemperatureGraph(
                 else -> Rect(Offset(aboveX.coerceIn(0f, w - valueWidth), aboveY), Size(valueWidth, valueHeight))
             }
             
-            drawText(valueTextLayout, topLeft = rect.topLeft)
+            drawShadowedText(
+                textMeasurer,
+                tempText,
+                TEMP_VALUE_LABEL_SP * scale,
+                valueTextLayout,
+                rect.topLeft,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            )
             drawnLabels.add(rect)
             fetchDotHardBounds.add(rect)
             
@@ -498,7 +508,7 @@ fun TemperatureGraph(
             LocalDateTime.ofInstant(Instant.ofEpochMilli(it), zoneId)
         }
 
-        val textStyle = TextStyle(fontSize = (14 * scale).sp)
+        val textStyle = TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp)
         val textHeight = textMeasurer.measure("80°", textStyle).size.height.toFloat()
         val metricsAdapter = object : LabelTextMetrics {
             override val ascent: Float = -textHeight
@@ -540,7 +550,7 @@ fun TemperatureGraph(
                 TemperatureRole.START, TemperatureRole.END -> Color.White.copy(alpha = 0.6f)
                 else -> Color.White
             }
-            val textLayout = textMeasurer.measure(label.text, TextStyle(fontSize = (14 * scale).sp, color = color))
+            val textLayout = textMeasurer.measure(label.text, TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp, color = color))
             val textWidth = textLayout.size.width.toFloat()
             val textHeight = textLayout.size.height.toFloat()
 
@@ -550,7 +560,7 @@ fun TemperatureGraph(
                 size = Size(textWidth, textHeight)
             )
 
-            drawText(textLayout, topLeft = labelRect.topLeft)
+            drawShadowedText(textMeasurer, label.text, TEMP_VALUE_LABEL_SP * scale, textLayout, labelRect.topLeft)
             drawnLabels.add(labelRect)
 
             if (label.drawLeaderLine) {
@@ -646,7 +656,8 @@ fun TemperatureGraph(
         // placement + suppress-on-double-collision, all matching Android via NowIndicatorGeometry.
         if (now in windowStart..windowEnd) {
             val nowLabelStyle = TextStyle(
-                // Smaller than the 14sp temperature value labels, matching Android's NOW-vs-temp ratio.
+                // The "NOW" label keeps the original 14sp base (it is not a temperature value, so it is
+                // excluded from the +10% temp-label bump); the ratio matches Android's NOW-vs-temp size.
                 fontSize = (14f * HourlyGraphDefaults.NOW_LABEL_TO_TEMP_RATIO * scale).sp,
                 color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL),
                 shadow = Shadow(

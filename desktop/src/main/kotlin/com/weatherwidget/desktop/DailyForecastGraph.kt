@@ -343,32 +343,3 @@ private fun formatTemp(v: Float?, isActualData: Boolean): String {
 /** Temp-label font size: wide 3+ digit temps (100°, 97.7°) draw a further 5% smaller. */
 private fun tempFontSize(text: String, base: Float): Float =
     base * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
-
-/** Outline stroke width as a fraction of font size (total stroke; ~half shows outside the glyph). */
-private const val OUTLINE_STROKE_FRACTION = 0.32f
-
-/**
- * Draws [real] with a true black OUTLINE: a black copy of the same text rendered as a path stroke
- * (`drawStyle = Stroke`) at the same position, then the real fill text on top. The stroke traces
- * each glyph's actual outline, so the black wraps every letter evenly on all sides — much stronger
- * and cleaner than blurred Shadow / scaled-bigger / bold-halo copies. Keeps temp labels legible over
- * a same-colored bar. Outline thickness scales with font size via [OUTLINE_STROKE_FRACTION].
- */
-private fun DrawScope.drawShadowedText(
-    measurer: TextMeasurer,
-    text: String,
-    fontSize: Float,
-    real: TextLayoutResult,
-    topLeft: Offset,
-) {
-    val outline = measurer.measure(
-        text,
-        TextStyle(
-            fontSize = fontSize.sp,
-            color = Color.Black,
-            drawStyle = Stroke(width = fontSize * OUTLINE_STROKE_FRACTION),
-        ),
-    )
-    drawText(outline, topLeft = topLeft)
-    drawText(real, topLeft = topLeft)
-}

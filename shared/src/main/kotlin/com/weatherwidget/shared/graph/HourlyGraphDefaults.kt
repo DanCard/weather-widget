@@ -25,6 +25,10 @@ object HourlyGraphDefaults {
     const val COLOR_CURRENT_TIME: Int = 0xFFFF9F0A.toInt()
     const val COLOR_SHADOW_LIGHT: Int = 0x44000000.toInt()
     const val COLOR_SHADOW_DARK: Int = 0x88000000.toInt()
+    // Solid-black drop shadow for temperature VALUE labels (now/current temp + on-curve highs/lows).
+    // Mirrors the daily-history high-temp label shadow so temps stay legible where they overlap the
+    // forecast curve or the NOW line. Stronger than the dark/light shadows above.
+    const val COLOR_SHADOW_SOLID: Int = 0xFF000000.toInt()
 
     const val HOUR_LABEL_TEXT_SIZE_DP = 23.0f
     const val NOW_LABEL_TEXT_SIZE_DP = 15.5f
@@ -59,6 +63,9 @@ object HourlyGraphDefaults {
     const val SHADOW_RADIUS_LIGHT_DP = 1f
     const val SHADOW_DY_DP = 0.5f
     const val SHADOW_RADIUS_STRONG_DP = 2f
+    // Temperature value-label shadow geometry (matches DailyForecastGraphRenderer's label shadow).
+    const val TEMP_LABEL_SHADOW_RADIUS_DP = 2.5f
+    const val TEMP_LABEL_SHADOW_DY_DP = 1.0f
 
     const val SOFT_DIP_WINDOW_SIZE = 5
     const val TRENDING_THRESHOLD_PX = 0.5f

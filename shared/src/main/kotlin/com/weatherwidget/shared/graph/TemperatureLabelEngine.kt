@@ -30,6 +30,16 @@ object TemperatureLabelEngine {
     private const val CURVE_AVOIDANCE_ALLOWED_DIP_DP = 5f
     private const val MAX_LEADER_DISPLACEMENT_STEPS = 3
 
+    // ACTUAL_LOW tolerates more forecast-curve overlap than other roles: a low label belongs
+    // below its valley, and a shallow forecast dip under that valley is acceptable partial
+    // overlap rather than a reason to push the label off-anchor with a long leader line.
+    // Expressed as a fraction of label height so the tolerance scales with the glyphs.
+    private const val ACTUAL_LOW_FORECAST_OVERLAP_RATIO = 0.5f
+
+    private fun allowedDipPxFor(role: TemperatureRole, density: Float, labelHeight: Float): Float =
+        if (role == TemperatureRole.ACTUAL_LOW) labelHeight * ACTUAL_LOW_FORECAST_OVERLAP_RATIO
+        else CURVE_AVOIDANCE_ALLOWED_DIP_DP * density
+
     private val CURVE_AVOIDANCE_ROLES: Set<TemperatureRole> = setOf(
         TemperatureRole.ACTUAL_END,
         TemperatureRole.ACTUAL_HIGH,
@@ -273,6 +283,7 @@ object TemperatureLabelEngine {
 
             val gapAbovePx = gapDp.aboveDp * density
             val gapBelowPx = gapDp.belowDp * density
+            val allowedCurveDipPx = allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
 
             outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
                 for (placeAbove in directions) {
@@ -313,8 +324,17 @@ object TemperatureLabelEngine {
 
                     val curveAvoidanceEligible = candidate.role in CURVE_AVOIDANCE_ROLES
                     val curveIntrusion = if (curveAvoidanceEligible) combinedCurveIntrusion(avoidanceActualPoints, forecastPoints, bounds) else CurveIntrusion.NONE
+                    // ACTUAL_LOW tolerates a shallow forecast-curve dip as partial overlap (keeps the
+                    // label flush instead of displacing it with a leader line); other roles do not.
+                    val curveDipDepth = when {
+                        curveIntrusion.isEmpty -> 0f
+                        placeAbove -> bounds.bottom - curveIntrusion.minY
+                        else -> curveIntrusion.maxY - bounds.top
+                    }
+                    val curveWithinDip = candidate.role == TemperatureRole.ACTUAL_LOW &&
+                        !curveIntrusion.isEmpty && curveDipDepth <= allowedCurveDipPx
                     val allowFlippedAboveCurveGraze = flipDecided && placeAbove && curveAvoidanceEligible
-                    val overlapsCurve = curveAvoidanceEligible && !curveIntrusion.isEmpty && !allowFlippedAboveCurveGraze && !isCurveAvoidanceExempt
+                    val overlapsCurve = curveAvoidanceEligible && !curveIntrusion.isEmpty && !allowFlippedAboveCurveGraze && !isCurveAvoidanceExempt && !curveWithinDip
 
                     // Hard obstacles (fetch-dot value/age labels) are never softened by minor-overlap.
                     val overlapsHard = reservedHardBounds.any { it.intersects(bounds) }
@@ -518,7 +538,7 @@ object TemperatureLabelEngine {
         temps: List<Float>,
         resultPlacements: MutableList<PlacedLabel>,
     ): Boolean {
-        val allowedDipPx = CURVE_AVOIDANCE_ALLOWED_DIP_DP * density
+        val allowedDipPx = allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
         for (placeAbove in directions) {
             val outcome = tryExactFitForDirection(
                 widthPx = widthPx,
@@ -644,10 +664,17 @@ object TemperatureLabelEngine {
             is ExactFitBlockerResult.NaturalFits -> return ExactFitOutcome.NATURAL_FITS
             is ExactFitBlockerResult.LabelOrIconBlocked -> return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
             is ExactFitBlockerResult.CurveOnly -> {
-                // Forecast curve often dips below the actual valley; prefer above rather than
-                // pushing the label further into the below-space.
+                // Forecast curve often dips below the actual valley. A shallow dip is acceptable
+                // partial overlap: keep the low label flush below its valley (handled by the main
+                // step loop) instead of flipping it above with a long leader line. Only a deep dip
+                // warrants flipping above.
                 if (candidate.role == TemperatureRole.ACTUAL_LOW && !placeAbove) {
-                    return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
+                    val dipDepth = blockerResult.intrusion.maxY - blockerResult.baseBounds.top
+                    return if (dipDepth > allowedDipPx) {
+                        ExactFitOutcome.LABEL_OR_ICON_BLOCKED
+                    } else {
+                        ExactFitOutcome.GAVE_UP
+                    }
                 }
                 // Actual curve rises from the start point into the above-space; prefer below.
                 if (candidate.role == TemperatureRole.START && placeAbove) {

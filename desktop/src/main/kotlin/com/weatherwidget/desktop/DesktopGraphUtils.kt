@@ -3,9 +3,15 @@ package com.weatherwidget.desktop
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.shared.graph.ZoomStage
@@ -243,4 +249,36 @@ internal object DesktopGraphUtils {
         }
         return closestIdx
     }
+}
+
+// Outline thickness as a fraction of font size; thick enough to read over a same-colored curve.
+private const val OUTLINE_STROKE_FRACTION = 0.32f
+
+/**
+ * Draws [real] with a true black OUTLINE: a black copy of the same text rendered as a path stroke
+ * (`drawStyle = Stroke`) at the same position, then the real fill text on top. The stroke traces
+ * each glyph's actual outline, so the black wraps every letter evenly on all sides — much stronger
+ * and cleaner than blurred Shadow / scaled-bigger / bold-halo copies. This is the same label-shadow
+ * algorithm used by the daily forecast history high-temp labels. Pass [fontWeight] so the outline
+ * matches a bold fill (e.g. the now/current temperature value).
+ */
+internal fun DrawScope.drawShadowedText(
+    measurer: TextMeasurer,
+    text: String,
+    fontSize: Float,
+    real: TextLayoutResult,
+    topLeft: Offset,
+    fontWeight: FontWeight? = null,
+) {
+    val outline = measurer.measure(
+        text,
+        TextStyle(
+            fontSize = fontSize.sp,
+            color = Color.Black,
+            fontWeight = fontWeight,
+            drawStyle = Stroke(width = fontSize * OUTLINE_STROKE_FRACTION),
+        ),
+    )
+    drawText(outline, topLeft = topLeft)
+    drawText(real, topLeft = topLeft)
 }
