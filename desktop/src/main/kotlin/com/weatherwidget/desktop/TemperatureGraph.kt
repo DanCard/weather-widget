@@ -9,10 +9,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -253,17 +251,12 @@ fun TemperatureGraph(
         val n = points.size
 
         // Bottom strip (hour labels + day-night icons): size the reserve to the actual label so it
-        // sits tight against the canvas bottom instead of floating with dead space above it.
-        val hourLabelFontSize = (12f * scale).sp
-        val hourIconPx = 12.dp.toPx() * scale
-        val hourLabelH = textMeasurer.measure("12p", TextStyle(fontSize = hourLabelFontSize)).size.height.toFloat()
-        val bottomBandH = maxOf(hourLabelH, hourIconPx)
-        val bottomMargin = 0f * scale
-        // Curve runs high to the top; bottom reserve clears the full hour band (+gap) so the trough
-        // doesn't overlap the hour labels. Top still allows a little overlap (peak label on top).
+        // sits tight against the canvas bottom (shared with the precip/cloud graphs via hourlyFooter).
+        val footer = hourlyFooter(textMeasurer, scale)
+        // Curve runs high to the top; the footer band (+gap) clears the trough off the hour labels.
+        // Top still allows a little overlap (peak label on top).
         val top = 2f * scale
-        val bottomReserve = bottomMargin + bottomBandH + 8f * scale
-        val graphHeight = (h - top - bottomReserve).coerceAtLeast(1f)
+        val graphHeight = (footer.graphBottom(h, scale) - top).coerceAtLeast(1f)
 
         // Map by the actual data span (first..last point) rather than the window, so the rightmost
         // hourly point lands on the right edge and the curve fills the full width (matches Android's
@@ -332,7 +325,7 @@ fun TemperatureGraph(
         // 2. Ghost Line (Shifted forecast curve representing expected path)
         val transitionX = lastActualPoint?.let { xAtTime(it.timeMs) }
         if (transitionX != null && abs(appliedDelta) >= 0.1f) {
-            clipRect(left = transitionX, top = 0f, right = w, bottom = h - bottomReserve) {
+            clipRect(left = transitionX, top = 0f, right = w, bottom = footer.graphBottom(h, scale)) {
                 val expectedPath = buildCurve(expectedCoords)
                 drawPath(
                     path = expectedPath,
@@ -353,20 +346,9 @@ fun TemperatureGraph(
 
         val markerX = xAtTime(now)
 
-        // NOW Indicator - Line (drawn early so it's behind labels)
+        // NOW Indicator - Line (drawn early so it's behind labels; shared helper).
         if (now in windowStart..windowEnd) {
-            val nowLine = NowIndicatorGeometry.computeNowLine(top, graphHeight)
-
-            drawLine(
-                color = Color(HourlyGraphDefaults.COLOR_CURRENT_TIME),
-                start = Offset(markerX, nowLine.lineTop),
-                end = Offset(markerX, nowLine.lineBottom),
-                strokeWidth = HourlyGraphDefaults.CURRENT_TIME_STROKE_DP.dp.toPx() * scale,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(
-                    HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP.dp.toPx() * scale,
-                    HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP.dp.toPx() * scale
-                ))
-            )
+            drawNowLine(markerX, top, graphHeight, scale)
         }
 
         // Peak labels (Hi / Lo / Now) anchored to forecast extremes
@@ -453,7 +435,7 @@ fun TemperatureGraph(
                 val finalAgeRect = if (collisionAbove) {
                     val belowY = fetchDotY + dotRadius + padding
                     val belowRect = Rect(Offset(fetchDotX - ageWidth / 2f, belowY), Size(ageWidth, ageHeight))
-                    val collisionBelow = drawnLabels.any { it.overlaps(belowRect.inflate(2.dp.toPx() * scale)) } || (belowY + ageHeight > h - bottomReserve)
+                    val collisionBelow = drawnLabels.any { it.overlaps(belowRect.inflate(2.dp.toPx() * scale)) } || (belowY + ageHeight > footer.graphBottom(h, scale))
                     if (collisionBelow) aboveRect else belowRect
                 } else {
                     aboveRect
@@ -578,63 +560,8 @@ fun TemperatureGraph(
             )
         }
 
-        // Bottom strip: weather icons + hour (or per-day date) labels. Which points get a label
-        // and the time-vs-date text are decided by DesktopGraphUtils.footerLabels; we only paint.
-        for (label in DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault())) {
-            val i = label.index
-            val p = points[i]
-            val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-            val x = xAt(i)
-            val timeStr = label.text
-            
-            val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = hourLabelFontSize, color = Color.Gray))
-            val textW = textLayout.size.width.toFloat()
-            val textH = textLayout.size.height.toFloat()
-
-            val yOffset = h - bottomMargin - bottomBandH / 2f
-            val textY = yOffset - textH / 2f
-
-            val isLast = i == points.lastIndex || (x + (textW + 14.dp.toPx() * scale) / 2f > w)
-
-            if (!isLast) {
-                val iconSize = hourIconPx
-                val gap = 2.dp.toPx() * scale
-                val totalW = textW + gap + iconSize
-
-                // Clamp the whole label+icon group to the left edge together, so the icon position is
-                // derived from the same clamped x as the text (otherwise they collide at the edge).
-                val startX = (x - totalW / 2f).coerceAtLeast(4f * scale)
-                val textTopLeft = Offset(startX, textY)
-                drawText(textLayout, topLeft = textTopLeft)
-
-                val iconLeft = startX + textW + gap
-                val iconTop = yOffset - iconSize / 2f
-
-                painters[i].let { painter ->
-                    val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
-                    val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
-                        isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
-                    )
-                    val filter = if (!flags.isRainy && !flags.isMixed) {
-                        val tint = when {
-                            flags.isNight -> Color(0xFFBBBBBB)
-                            flags.isTwilight -> Color(0xFFFFA726)
-                            flags.isSunny -> Color(0xFFFFD60A)
-                            else -> Color(0xFFBBBBBB)
-                        }
-                        ColorFilter.tint(tint)
-                    } else {
-                        null
-                    }
-                    translate(iconLeft, iconTop) {
-                        with(painter) { draw(size = Size(iconSize, iconSize), colorFilter = filter) }
-                    }
-                }
-            } else {
-                val textTopLeft = Offset(x - textW / 2f, textY)
-                drawText(textLayout, topLeft = textTopLeft)
-            }
-        }
+        // Bottom strip (hour/date labels + weather icons) — shared with the precip/cloud graphs.
+        drawHourlyFooterStrip(points, painters, totalSpanHours, latitude, longitude, footer, w, h, textMeasurer, scale, ::xAt)
 
         // Draw fetch dot (circle rings) if it exists
         if (fetchDotXVal != null && fetchDotYVal != null && fetchDotPoint != null) {
@@ -645,40 +572,9 @@ fun TemperatureGraph(
             drawCircle(color = tempToColor(fetchDotPoint.actualTemp!!), radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
         }
 
-        // NOW indicator - Label (drawn late to be on top). Full-size + light shadow + below-first
-        // placement + suppress-on-double-collision, all matching Android via NowIndicatorGeometry.
+        // NOW label drawn last (on top), collision-aware against the placed labels (shared helper).
         if (now in windowStart..windowEnd) {
-            val nowLabelStyle = TextStyle(
-                // The "NOW" label keeps the original 14sp base (it is not a temperature value, so it is
-                // excluded from the +10% temp-label bump); the ratio matches Android's NOW-vs-temp size.
-                fontSize = (14f * HourlyGraphDefaults.NOW_LABEL_TO_TEMP_RATIO * scale).sp,
-                color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL),
-                shadow = Shadow(
-                    color = Color(HourlyGraphDefaults.COLOR_SHADOW_LIGHT),
-                    offset = Offset(0f, 0f),
-                    blurRadius = HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP.dp.toPx() * scale,
-                ),
-            )
-            val nowLabelLayout = textMeasurer.measure("NOW", nowLabelStyle)
-            val nowLabelWidth = nowLabelLayout.size.width.toFloat()
-            val nowLabelHeight = nowLabelLayout.size.height.toFloat()
-
-            // Compose drawText is top-left anchored, so treat the measured box's bottom as the
-            // baseline: fontAscent = -height, fontDescent = 0 -> box.top is the top-left y.
-            val placement = NowIndicatorGeometry.computeNowLabel(
-                nowX = markerX,
-                graphTop = top,
-                graphHeight = graphHeight,
-                labelWidth = nowLabelWidth,
-                fontAscent = -nowLabelHeight,
-                fontDescent = 0f,
-                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
-                dpToPx = { it.dp.toPx() * scale },
-            )
-            placement?.let {
-                drawText(nowLabelLayout, topLeft = Offset(it.box.left, it.box.top))
-                drawnLabels.add(Rect(Offset(it.box.left, it.box.top), Size(nowLabelWidth, nowLabelHeight)))
-            }
+            drawNowLabel(markerX, top, graphHeight, scale, textMeasurer, drawnLabels)
         }
     }
 }

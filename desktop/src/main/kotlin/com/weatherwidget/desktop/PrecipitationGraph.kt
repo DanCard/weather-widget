@@ -459,8 +459,6 @@ private fun buildCurve(coords: List<Offset>): Path = DesktopGraphUtils.buildCurv
 
 private fun computeTangents(coords: List<Offset>): List<Offset> = DesktopGraphUtils.computeTangents(coords)
 
-private fun List<HourlyForecast>.indexOfByClosestTime(targetTime: Long): Int = DesktopGraphUtils.run { indexOfByClosestTime(targetTime) }
-
 private data class RainPeriod(
     val startIndex: Int,
     val endIndex: Int,
