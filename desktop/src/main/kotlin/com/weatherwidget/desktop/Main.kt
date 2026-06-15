@@ -1055,14 +1055,14 @@ private fun DailyForecastTextMode(
                 val high = listOfNotNull(day.solidHigh, day.forecastHigh, day.snapshotHigh).maxOrNull()
                 val low = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
                 Text(
-                    text = high?.roundToInt()?.let { "$it°" } ?: "--",
+                    text = com.weatherwidget.shared.util.TempUtils.formatTemp(high) ?: "--",
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White,
                     maxLines = 1,
                 )
                 if (state.dimensions.cols >= 2) {
                     Text(
-                        text = low?.roundToInt()?.let { "$it°" } ?: "--",
+                        text = com.weatherwidget.shared.util.TempUtils.formatTemp(low) ?: "--",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.62f),
                         maxLines = 1,

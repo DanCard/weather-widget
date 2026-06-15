@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -85,6 +86,11 @@ class DesktopWeatherService(
 
     suspend fun fetchHistory(historyDays: Int): ForecastResult {
         return openMeteo.getForecast(latitude, longitude, days = 1, historyDays = historyDays)
+    }
+
+    /** Open-Meteo archive (ERA5) daily highs/lows over [startDate, endDate], for climate normals. */
+    suspend fun fetchHistoricalDailyTemps(startDate: String, endDate: String): List<DailyForecast> {
+        return openMeteo.getHistoricalDailyTemps(latitude, longitude, startDate, endDate)
     }
 
     private suspend fun fetchNwsForecast(): ForecastResult = coroutineScope {

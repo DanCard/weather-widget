@@ -2,7 +2,6 @@ package com.weatherwidget.data.repository
 
 import android.content.Context
 import android.util.Log
-import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ClimateNormalEntity
@@ -32,6 +31,7 @@ import com.weatherwidget.widget.ForecastFetchContext
 import com.weatherwidget.widget.ForecastFetchPolicy
 import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetConstants
+import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.plugins.ClientRequestException
@@ -47,7 +47,6 @@ import java.time.MonthDay
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
@@ -726,13 +725,13 @@ class ForecastRepository
          * and expanded back to per-day values by interpolating between month midpoints.
          */
         suspend fun getHistoricalNormalsByMonthDay(latitude: Double, longitude: Double): Map<MonthDay, Pair<Float, Float>> {
-            val locationKey = "${(latitude * 10).roundToInt() / 10.0}_${(longitude * 10).roundToInt() / 10.0}"
+            val locationKey = ClimateNormals.locationKey(latitude, longitude)
             val cachedNormals = climateNormalDao.getNormalsForLocation(locationKey)
 
             if (cachedNormals.isNotEmpty()) {
                 val monthlyHigh = cachedNormals.associate { it.monthDay.take(2).toInt() to it.highTemp }
                 val monthlyLow = cachedNormals.associate { it.monthDay.take(2).toInt() to it.lowTemp }
-                return expandMonthlyToDaily(monthlyHigh, monthlyLow)
+                return ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
             }
 
             if (!widgetStateManager.isSourceVisible(WeatherSource.OPEN_METEO)) {
@@ -740,22 +739,9 @@ class ForecastRepository
                 return emptyMap()
             }
 
-            // Average a rolling 20-year window ending at the most recent complete year into 12
-            // monthly means. Rolling (vs a fixed reference period) so it includes the latest
-            // years and reflects the current climate, advancing automatically each year. Runs a
-            // touch warmer than published 1991-2020 normals because of climate warming.
-            val endYear = LocalDate.now().year - 1
-            val startYear = endYear - 19
-            val dailyTemps = openMeteoApi.getHistoricalDailyTemps(latitude, longitude, "$startYear-01-01", "$endYear-12-31")
-            val byMonth = dailyTemps.groupBy { LocalDate.parse(it.date).monthValue }
-            val monthlyHigh = mutableMapOf<Int, Float>()
-            val monthlyLow = mutableMapOf<Int, Float>()
-            for ((month, rows) in byMonth) {
-                val highs = rows.map { it.highTemp }.filter { !it.isNaN() }
-                val lows = rows.map { it.lowTemp }.filter { !it.isNaN() }
-                if (highs.isNotEmpty()) monthlyHigh[month] = roundToTenth(highs.average())
-                if (lows.isNotEmpty()) monthlyLow[month] = roundToTenth(lows.average())
-            }
+            val (startDate, endDate) = ClimateNormals.rollingWindow()
+            val dailyTemps = openMeteoApi.getHistoricalDailyTemps(latitude, longitude, startDate, endDate)
+            val (monthlyHigh, monthlyLow) = ClimateNormals.monthlyMeans(dailyTemps)
 
             if (monthlyHigh.isEmpty() || monthlyLow.isEmpty()) {
                 appLogDao.log("CLIMATE_FETCH_EMPTY", "lat=$latitude lon=$longitude rows=${dailyTemps.size}")
@@ -776,56 +762,7 @@ class ForecastRepository
                 },
             )
 
-            return expandMonthlyToDaily(monthlyHigh, monthlyLow)
-        }
-
-        private fun roundToTenth(value: Double): Float = (value * 10).roundToInt() / 10f
-
-        /**
-         * Expands 12 monthly means (keyed by month 1..12) into a value for every calendar
-         * day by linear interpolation. Each month's mean is anchored at the 15th; days
-         * between anchors are interpolated, wrapping across the Dec↔Jan boundary. Iterates a
-         * leap year so Feb 29 is covered.
-         */
-        @VisibleForTesting
-        internal fun expandMonthlyToDaily(
-            monthlyHigh: Map<Int, Float>,
-            monthlyLow: Map<Int, Float>,
-        ): Map<MonthDay, Pair<Float, Float>> {
-            if (monthlyHigh.isEmpty() || monthlyLow.isEmpty()) return emptyMap()
-
-            val baseYear = 2020 // leap year so Feb 29 is covered
-            val avgHigh = monthlyHigh.values.average().toFloat()
-            val avgLow = monthlyLow.values.average().toFloat()
-
-            data class Anchor(val date: LocalDate, val high: Float, val low: Float)
-            fun anchorFor(year: Int, month: Int) =
-                Anchor(LocalDate.of(year, month, 15), monthlyHigh[month] ?: avgHigh, monthlyLow[month] ?: avgLow)
-
-            // Wrap-around neighbors ensure every day of baseYear sits between two anchors.
-            val anchors = buildList {
-                add(anchorFor(baseYear - 1, 12))
-                for (m in 1..12) add(anchorFor(baseYear, m))
-                add(anchorFor(baseYear + 1, 1))
-            }.sortedBy { it.date }
-
-            val result = mutableMapOf<MonthDay, Pair<Float, Float>>()
-            var date = LocalDate.of(baseYear, 1, 1)
-            val end = LocalDate.of(baseYear, 12, 31)
-            while (!date.isAfter(end)) {
-                val prev = anchors.last { !it.date.isAfter(date) }
-                val next = anchors.first { !it.date.isBefore(date) }
-                if (prev.date == next.date) {
-                    result[MonthDay.from(date)] = prev.high to prev.low
-                } else {
-                    val span = ChronoUnit.DAYS.between(prev.date, next.date).toFloat()
-                    val pos = ChronoUnit.DAYS.between(prev.date, date).toFloat() / span
-                    result[MonthDay.from(date)] =
-                        (prev.high + (next.high - prev.high) * pos) to (prev.low + (next.low - prev.low) * pos)
-                }
-                date = date.plusDays(1)
-            }
-            return result
+            return ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
         }
 
         private suspend fun saveHourlyEntities(entities: List<HourlyForecastEntity>) {

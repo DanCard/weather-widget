@@ -283,6 +283,65 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     }
 
     /**
+     * Replaces this location's cached climate normals with 12 monthly-mean rows (keyed "MM-15").
+     * Clears other locations first so the cache holds one location at a time (matches Android).
+     */
+    fun upsertClimateNormals(locationKey: String, monthlyHigh: Map<Int, Float>, monthlyLow: Map<Int, Float>) {
+        db.getConnection().use { conn ->
+            conn.autoCommit = false
+            try {
+                conn.prepareStatement("DELETE FROM climate_normals WHERE locationKey != ?").use { stmt ->
+                    stmt.setString(1, locationKey)
+                    stmt.executeUpdate()
+                }
+                val now = System.currentTimeMillis()
+                conn.prepareStatement(
+                    """
+                    INSERT OR REPLACE INTO climate_normals (monthDay, locationKey, highTemp, lowTemp, fetchedAt)
+                    VALUES (?, ?, ?, ?, ?)
+                    """.trimIndent()
+                ).use { stmt ->
+                    for (month in 1..12) {
+                        val high = monthlyHigh[month] ?: continue
+                        val low = monthlyLow[month] ?: continue
+                        stmt.setString(1, "${month.toString().padStart(2, '0')}-15")
+                        stmt.setString(2, locationKey)
+                        stmt.setFloat(3, high)
+                        stmt.setFloat(4, low)
+                        stmt.setLong(5, now)
+                        stmt.addBatch()
+                    }
+                    stmt.executeBatch()
+                }
+                conn.commit()
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            } finally {
+                conn.autoCommit = true
+            }
+        }
+    }
+
+    /** Reads this location's 12 cached monthly normals as (month -> high, month -> low); empty if none. */
+    fun getClimateNormals(locationKey: String): Pair<Map<Int, Float>, Map<Int, Float>> {
+        val monthlyHigh = mutableMapOf<Int, Float>()
+        val monthlyLow = mutableMapOf<Int, Float>()
+        db.getConnection().use { conn ->
+            conn.prepareStatement("SELECT monthDay, highTemp, lowTemp FROM climate_normals WHERE locationKey = ?").use { stmt ->
+                stmt.setString(1, locationKey)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    val month = rs.getString("monthDay").take(2).toInt()
+                    monthlyHigh[month] = rs.getFloat("highTemp")
+                    monthlyLow[month] = rs.getFloat("lowTemp")
+                }
+            }
+        }
+        return monthlyHigh to monthlyLow
+    }
+
+    /**
      * Appends an app-log row. Best-effort: a logging failure must never break a fetch, so any error
      * is reported to the console logger and swallowed (this is the persistence backstop, not the
      * primary log path).

@@ -156,6 +156,19 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     )
                 """.trimIndent())
 
+                // Climate normals — 12 monthly-average rows per location (mirrors the Android
+                // climate_normals table). highTemp/lowTemp are REAL so one-decimal normals survive.
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS climate_normals (
+                        monthDay TEXT NOT NULL,
+                        locationKey TEXT NOT NULL,
+                        highTemp REAL NOT NULL,
+                        lowTemp REAL NOT NULL,
+                        fetchedAt INTEGER NOT NULL,
+                        PRIMARY KEY (monthDay, locationKey)
+                    )
+                """.trimIndent())
+
                 // Migration / Versioning
                 val rs = stmt.executeQuery("PRAGMA user_version")
                 val currentVersion = if (rs.next()) rs.getInt(1) else 0

@@ -170,8 +170,8 @@ fun DailyForecastGraph(
             fun dualBaseFor(temp: Float, otherTemp: Float): Float =
                 if (temp < otherTemp) dualBase * LOWER_DUAL_LABEL_FONT_BOOST else dualBase
             val showDualHighs = if (pastActualHigh != null && pastForecastHigh != null) {
-                val aText = formatTemp(pastActualHigh, true)
-                val fText = formatTemp(pastForecastHigh, true)
+                val aText = formatTemp(pastActualHigh)
+                val fText = formatTemp(pastForecastHigh)
                 val aH = textMeasurer.measure(aText, TextStyle(fontSize = tempFontSize(aText, dualBaseFor(pastActualHigh, pastForecastHigh)).sp)).size.height.toFloat()
                 val fH = textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBaseFor(pastForecastHigh, pastActualHigh)).sp)).size.height.toFloat()
                 val aTop = (yAt(pastActualHigh) - aH - 3f * scale).coerceAtLeast(-headerBleed)
@@ -180,13 +180,13 @@ fun DailyForecastGraph(
             } else false
 
             if (showDualHighs && pastActualHigh != null && pastForecastHigh != null) {
-                val aText = formatTemp(pastActualHigh, true)
+                val aText = formatTemp(pastActualHigh)
                 val aSize = tempFontSize(aText, dualBaseFor(pastActualHigh, pastForecastHigh))
                 val aLayout = textMeasurer.measure(aText, TextStyle(fontSize = aSize.sp, color = COLOR_OBSERVED))
                 val aY = (yAt(pastActualHigh) - aLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
                 drawOutlinedText(textMeasurer, aLayout, Offset(centerX - aLayout.size.width / 2f, aY))
 
-                val fText = formatTemp(pastForecastHigh, true)
+                val fText = formatTemp(pastForecastHigh)
                 val fSize = tempFontSize(fText, dualBaseFor(pastForecastHigh, pastActualHigh))
                 val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
                 val fY = (yAt(pastForecastHigh) - fLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
@@ -205,7 +205,7 @@ fun DailyForecastGraph(
                     )
                 else day.solidHigh ?: day.forecastHigh ?: day.snapshotHigh ?: day.ghostHigh
                 if (singleHigh != null) {
-                    val highLabelText = formatTemp(singleHigh, day.isToday || day.isPast)
+                    val highLabelText = formatTemp(singleHigh)
                     val highSize = tempFontSize(highLabelText, 12f * scale)
                     val highText = textMeasurer.measure(
                         highLabelText,
@@ -223,7 +223,7 @@ fun DailyForecastGraph(
             }
             if (lowForLabel != null) {
                 val lowY = yAt(lowForLabel)
-                val lowLabelText = formatTemp(lowForLabel, day.isToday || day.isPast)
+                val lowLabelText = formatTemp(lowForLabel)
                 val lowSize = tempFontSize(lowLabelText, 11f * scale)
                 val lowText = textMeasurer.measure(
                     lowLabelText,
@@ -350,9 +350,11 @@ private fun labelSizeFor(dayWidth: Float): Int =
         else -> 10
     }
 
-private fun formatTemp(v: Float?, isActualData: Boolean): String {
+// Show the tenth for any non-integer value (".0" suppressed by TempUtils.formatTemp), for
+// forecasts/future and actuals alike — matches the Android daily view. NWS integer forecasts
+// stay clean; climate normals and decimal sources reveal their tenth.
+private fun formatTemp(v: Float?): String {
     if (v == null) return ""
-    if (!isActualData) return "${v.roundToInt()}°"
     return com.weatherwidget.shared.util.TempUtils.formatTemp(v) ?: ""
 }
 

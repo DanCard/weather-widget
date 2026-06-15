@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.SpatialInterpolator
@@ -13,6 +14,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.MonthDay
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 
@@ -109,7 +111,7 @@ class DesktopWeatherRepository(
             currentCondition = latestObs?.condition ?: hourly.firstOrNull()?.condition,
             currentObservedAt = newestObs?.timestamp,
             appliedDelta = appliedDelta,
-            daily = daily,
+            daily = appendClimateNormalGaps(daily, now),
             hourly = hourly,
             dailyActuals = actuals,
             dailySnapshots = snapshots,
@@ -159,6 +161,10 @@ class DesktopWeatherRepository(
         // Snapshot for history (Tier 1 simplification: 4h buckets)
         val snapshotBucket = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
         weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, snapshotBucket, result.hourly)
+
+        // Best-effort: ensure climate normals are cached for the future-day fallback. One network
+        // fetch per location, then served from cache; never fails the main refresh.
+        ensureClimateNormals()
 
         // Cleanup old data (> 30 days)
         weatherDao.cleanup(now - (30L * 24 * 3600 * 1000))
@@ -240,9 +246,73 @@ class DesktopWeatherRepository(
         return weatherDao.getDailyForecastSnapshots(start, end, latitude, longitude, weatherSource)
     }
 
+    /**
+     * Best-effort climate-normals fetch+cache (the future-day fallback). Skips the network if this
+     * location is already cached, so it's cheap to call unconditionally on every launch/resume —
+     * it must NOT be gated behind forecast staleness or a fresh-forecast launch would never populate
+     * normals. Compute is shared with Android via [ClimateNormals].
+     */
+    /** @return true only if normals were just (re)fetched and cached, so callers can reload state. */
+    suspend fun ensureClimateNormals(): Boolean {
+        try {
+            val key = ClimateNormals.locationKey(latitude, longitude)
+            val (cachedHigh, _) = weatherDao.getClimateNormals(key)
+            if (cachedHigh.isNotEmpty()) return false
+
+            val (startDate, endDate) = ClimateNormals.rollingWindow()
+            val dailyTemps = weatherService.fetchHistoricalDailyTemps(startDate, endDate)
+            val (monthlyHigh, monthlyLow) = ClimateNormals.monthlyMeans(dailyTemps)
+            if (monthlyHigh.isEmpty() || monthlyLow.isEmpty()) {
+                weatherDao.log("CLIMATE_FETCH_EMPTY", "rows=${dailyTemps.size}", "WARN")
+                return false
+            }
+            weatherDao.upsertClimateNormals(key, monthlyHigh, monthlyLow)
+            weatherDao.log("CLIMATE_CACHED", "key=$key months=${monthlyHigh.size}")
+            return true
+        } catch (e: Exception) {
+            Log.e("DesktopWeatherRepository", "Climate normals fetch failed: $e")
+            return false
+        }
+    }
+
+    /**
+     * Appends climate-normal gap rows (isClimateNormal=true) for future dates not already covered by
+     * a real forecast, out to [GAP_HORIZON_DAYS]. Read-only (cached normals); no network. The daily
+     * model already renders such rows as a green fallback bar, so no model/graph change is needed.
+     */
+    private fun appendClimateNormalGaps(daily: List<DailyForecast>, now: Long): List<DailyForecast> {
+        val (monthlyHigh, monthlyLow) = weatherDao.getClimateNormals(ClimateNormals.locationKey(latitude, longitude))
+        if (monthlyHigh.isEmpty() || monthlyLow.isEmpty()) return daily
+
+        val normals = ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
+        val existing = daily.map { LocalDate.parse(it.date) }.toSet()
+        val today = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
+        val gaps = mutableListOf<DailyForecast>()
+        var date = today
+        val end = today.plusDays(GAP_HORIZON_DAYS)
+        while (!date.isAfter(end)) {
+            if (date !in existing) {
+                normals[MonthDay.from(date)]?.let { (high, low) ->
+                    gaps.add(
+                        DailyForecast(
+                            date = date.toString(),
+                            highTemp = high,
+                            lowTemp = low,
+                            condition = "Historical Avg",
+                            isClimateNormal = true,
+                        ),
+                    )
+                }
+            }
+            date = date.plusDays(1)
+        }
+        return if (gaps.isEmpty()) daily else daily + gaps
+    }
+
     companion object {
         private const val HISTORY_WINDOW_DAYS = 7L
         private const val ACTUALS_HISTORY_DAYS = 31L
         private const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L
+        private const val GAP_HORIZON_DAYS = 16L
     }
 }

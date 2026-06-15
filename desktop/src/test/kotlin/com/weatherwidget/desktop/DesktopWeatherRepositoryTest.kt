@@ -3,15 +3,20 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
+import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.util.ClimateNormals
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.LocalDate
 
 class DesktopWeatherRepositoryTest {
 
@@ -137,5 +142,35 @@ class DesktopWeatherRepositoryTest {
         assertEquals(70f, repaired.temperature, 0.0f)
         assertEquals("Clear", repaired.condition)
         assertEquals(14, merged[now + 3600_000L]!!.cloudCover)
+    }
+
+    @Test
+    fun `loadCached fills future gap days with climate normals`() = runTest {
+        val today = LocalDate.now()
+
+        // Real forecast covers only today..today+2.
+        val realForecast = (0..2).map { offset ->
+            val d = today.plusDays(offset.toLong())
+            DailyForecast(date = d.toString(), highTemp = 70f + offset, lowTemp = 50f + offset, condition = "Clear")
+        }
+        dao.upsertForecasts(37.4220, -122.0841, "NWS", realForecast)
+
+        // Cached climate normals (distinct per month so values are recognizable).
+        val monthlyHigh = (1..12).associateWith { (it * 5 + 40).toFloat() }
+        val monthlyLow = (1..12).associateWith { (it * 5 + 20).toFloat() }
+        dao.upsertClimateNormals(ClimateNormals.locationKey(37.4220, -122.0841), monthlyHigh, monthlyLow)
+
+        val daily = repository.loadCached()!!.daily
+        val byDate = daily.associateBy { LocalDate.parse(it.date) }
+
+        // Real forecast days are untouched (not climate normals).
+        assertFalse(byDate[today]!!.isClimateNormal)
+        assertFalse(byDate[today.plusDays(2)]!!.isClimateNormal)
+        // The gap beyond real coverage is filled with climate normals...
+        val gapDay = today.plusDays(6)
+        assertTrue("expected a climate-normal row at $gapDay", byDate[gapDay]?.isClimateNormal == true)
+        // ...and its value matches the expanded monthly normal for that calendar day.
+        val expected = ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)[java.time.MonthDay.from(gapDay)]!!
+        assertEquals(expected.first, byDate[gapDay]!!.highTemp, 0.001f)
     }
 }

@@ -162,6 +162,21 @@ fun runDaemon() {
                     Log.i(TAG, "DataStatus updated to: ${dataStatusState.value}")
                 }
             }
+
+            // Best-effort, action-independent: populate climate normals for the future-day fallback.
+            // Cheap (DB-read early-return) once cached, so safe to run on every launch/resume even
+            // when the forecast wasn't stale enough to trigger a full refresh.
+            try {
+                if (activeRepo.ensureClimateNormals()) {
+                    // Newly populated → reload so future-day gap bars appear without waiting for the
+                    // next refresh cycle.
+                    activeRepo.loadCached()?.let { forecastState.value = it }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "[$reason] ensureClimateNormals failed: ${e.message}")
+            }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "[$reason] Initialization failure: ${e.message}")
