@@ -8,12 +8,16 @@ import androidx.room.Query
 
 @Entity(tableName = "climate_normals", primaryKeys = ["monthDay", "locationKey"])
 data class ClimateNormalEntity(
-    /** "MM-dd" format, e.g. "01-15" for January 15. */
+    /**
+     * "MM-dd" format. Stored as a mid-month anchor ("MM-15", e.g. "06-15"): one row
+     * per month holds that month's mean, expanded to per-day values by interpolation
+     * when read.
+     */
     val monthDay: String,
     /** Rounded lat/lon key, e.g. "37.4_-122.1". */
     val locationKey: String,
-    val highTemp: Int,
-    val lowTemp: Int,
+    val highTemp: Float,
+    val lowTemp: Float,
     val fetchedAt: Long = System.currentTimeMillis(),
 )
 

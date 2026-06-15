@@ -100,4 +100,35 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate46To47_recreatesClimateNormalsWithRealColumns_andWipesStaleRows() {
+        // Seed a v46 database with one (Int-typed) climate normal row.
+        helper.createDatabase(testDb, 46).apply {
+            execSQL(
+                "INSERT INTO climate_normals (monthDay, locationKey, highTemp, lowTemp, fetchedAt) " +
+                    "VALUES ('06-15', '37.4_-122.1', 90, 60, 1000)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 47, true, WeatherDatabase.MIGRATION_46_47)
+
+        // Stale (wrong) normals were wiped so corrected values refetch.
+        db.query("SELECT COUNT(*) FROM climate_normals").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
+        }
+        // Columns now accept fractional (REAL) values.
+        db.execSQL(
+            "INSERT INTO climate_normals (monthDay, locationKey, highTemp, lowTemp, fetchedAt) " +
+                "VALUES ('06-15', '37.4_-122.1', 76.3, 54.1, 2000)",
+        )
+        db.query("SELECT highTemp, lowTemp FROM climate_normals WHERE monthDay = '06-15'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(76.3f, c.getFloat(0), 0.01f)
+            assertEquals(54.1f, c.getFloat(1), 0.01f)
+        }
+        db.close()
+    }
 }

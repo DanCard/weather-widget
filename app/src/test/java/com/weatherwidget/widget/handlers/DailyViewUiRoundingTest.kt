@@ -33,7 +33,7 @@ class DailyViewUiRoundingTest {
     )
 
     @Test
-    fun `UI preserves today and history actual decimals but rounds tomorrow forecast`() {
+    fun `UI shows the tenth for today history and future forecast alike`() {
         val now = LocalDateTime.now()
         val displaySource = WeatherSource.OPEN_METEO
         val yesterday = today.minusDays(1)
@@ -70,10 +70,10 @@ class DailyViewUiRoundingTest {
         assertEquals("Today high should show decimal in UI", "72.4°", todayData.highLabel)
         assertEquals("Today low should show decimal in UI", "50.6°", todayData.lowLabel)
 
-        // 3. Verify Tomorrow (Should be ROUNDED)
+        // 3. Verify Tomorrow forecast (now also shows the tenth)
         val tomorrowData = textDays.find { it.dateStr == tomorrowStr }!!
-        assertEquals("Tomorrow high should be rounded in UI", "72°", tomorrowData.highLabel)
-        assertEquals("Tomorrow low should be rounded in UI", "51°", tomorrowData.lowLabel)
+        assertEquals("Tomorrow high should show decimal in UI", "72.4°", tomorrowData.highLabel)
+        assertEquals("Tomorrow low should show decimal in UI", "50.6°", tomorrowData.lowLabel)
     }
 
     private fun createForecast(date: String, high: Float, low: Float): ForecastEntity {

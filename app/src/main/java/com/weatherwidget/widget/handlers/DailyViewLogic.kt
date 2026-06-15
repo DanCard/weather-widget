@@ -86,7 +86,7 @@ object DailyViewLogic {
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
         dailyActuals: DailyActualMap = emptyMap(),
-        climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
+        climateNormals: Map<java.time.MonthDay, Pair<Float, Float>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
         observedAt: Long? = null,
@@ -168,9 +168,9 @@ object DailyViewLogic {
             
             // Round future days to integers to maintain UI consistency.
             // Today and historical days are permitted to show decimals for precision.
-            val formatTemp = if (isToday || isPast) { v: Float? -> com.weatherwidget.util.TempUtils.formatTemp(v) } else { v: Float? -> 
-                v?.roundToInt()?.let { "$it°" } 
-            }
+            // Show the tenth for any non-integer value (whole degrees stay clean via the
+            // ".0" suppression in TempUtils.formatTemp), for today/past and future alike.
+            val formatTemp = { v: Float? -> com.weatherwidget.util.TempUtils.formatTemp(v) }
             
             var highLabel: String? = formatTemp(weather?.highTemp)
             var lowLabel: String? = formatTemp(weather?.lowTemp)
@@ -204,8 +204,8 @@ object DailyViewLogic {
                 if (!isTerminalLowOnlyNwsFuture && (highLabel == null || lowLabel == null)) {
                     val normal = climateNormals[java.time.MonthDay.from(date)]
                     if (normal != null) {
-                        highLabel = formatTemp(normal.first.toFloat())
-                        lowLabel = formatTemp(normal.second.toFloat())
+                        highLabel = formatTemp(normal.first)
+                        lowLabel = formatTemp(normal.second)
                     }
                 }
             }
@@ -303,7 +303,7 @@ object DailyViewLogic {
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
         dailyActuals: DailyActualMap = emptyMap(),
-        climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
+        climateNormals: Map<java.time.MonthDay, Pair<Float, Float>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
         observedAt: Long? = null,
@@ -436,8 +436,8 @@ object DailyViewLogic {
                 if (!isTerminalLowOnlyNwsFuture && (finalHigh == null || finalLow == null)) {
                     val normal = climateNormals[java.time.MonthDay.from(date)]
                     if (normal != null) {
-                        finalHigh = normal.first.toFloat()
-                        finalLow = normal.second.toFloat()
+                        finalHigh = normal.first
+                        finalLow = normal.second
                         isClimateOverlay = true
                     }
                 }

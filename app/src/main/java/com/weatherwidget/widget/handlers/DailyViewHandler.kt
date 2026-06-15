@@ -93,7 +93,7 @@ object DailyViewHandler : WidgetViewHandler {
         val hourlyForecasts: List<HourlyForecastEntity>,
         val currentTemps: List<ObservationEntity>,
         val dailyActuals: DailyActualMap,
-        val climateNormals: Map<java.time.MonthDay, Pair<Int, Int>>,
+        val climateNormals: Map<java.time.MonthDay, Pair<Float, Float>>,
         val numColumns: Int,
         val numRows: Int,
         val dateOffset: Int,

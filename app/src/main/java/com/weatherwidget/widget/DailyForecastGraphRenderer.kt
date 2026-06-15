@@ -688,8 +688,7 @@ object DailyForecastGraphRenderer {
             val isLowest = lowTemp <= layout.minTemp + 0.01f
             val hasNightRain = day.rainData.nightRainLabelText != null
             val forceInteger = isLowest && hasNightRain
-            val isActualData = (day.isToday || day.isPast) && !forceInteger
-            val lowLabelText = formatTempLabel(lowTemp, isActualData)
+            val lowLabelText = formatTempLabel(lowTemp, forceInteger = forceInteger)
 
             val tempPaint = when {
                 day.isToday -> paints.todayTempTextPaint
@@ -826,13 +825,13 @@ object DailyForecastGraphRenderer {
             if (showBoth) {
                 // Dual highs only render for past days, so both labels are history → outlined.
                 val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-                drawTempLabel(canvas, formatTempLabel(actualHigh, true), centerX, actualBaseline, basePaint,
+                drawTempLabel(canvas, formatTempLabel(actualHigh), centerX, actualBaseline, basePaint,
                     extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true)
-                drawTempLabel(canvas, formatTempLabel(forecastHigh, true), centerX + layout.forecastBarOffset, forecastBaseline,
+                drawTempLabel(canvas, formatTempLabel(forecastHigh), centerX + layout.forecastBarOffset, forecastBaseline,
                     basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor, drawOutline = true)
             } else {
                 val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
-                val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
+                val highLabel = formatTempLabel(displayHigh)
                 val labelY = if (day.isToday) layout.tempToY(day.effectiveHigh() ?: day.solidLineHigh) else y
                 // History and today get the thin outline (today's headline sits over the triple bars);
                 // future days stay plain.
@@ -1115,8 +1114,11 @@ object DailyForecastGraphRenderer {
         return hY to clampMinBarHeight(hY, lY, minBarHeight)
     }
 
-    internal fun formatTempLabel(actual: Float, isActualData: Boolean): String {
-        if (!isActualData) return "${actual.roundToInt()}°"
-        return com.weatherwidget.util.TempUtils.formatTemp(actual) ?: ""
+    // Show the tenth (e.g. "77.5°") for any non-integer value, suppressing the ".0" case
+    // so whole-degree sources (NWS integer forecasts) stay clean. forceInteger overrides
+    // this for the low label when a night-rain label sits alongside it (collision avoidance).
+    internal fun formatTempLabel(value: Float, forceInteger: Boolean = false): String {
+        if (forceInteger) return "${value.roundToInt()}°"
+        return com.weatherwidget.util.TempUtils.formatTemp(value) ?: ""
     }
 }

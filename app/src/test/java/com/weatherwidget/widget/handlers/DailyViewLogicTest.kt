@@ -167,7 +167,7 @@ class DailyViewLogicTest {
         
         // Normals available for future
         val climateNormals = mapOf(
-            java.time.MonthDay.from(future) to Pair(75, 60)
+            java.time.MonthDay.from(future) to Pair(75f, 60f)
         )
 
         val result = DailyViewLogic.prepareGraphDays(
@@ -208,7 +208,7 @@ class DailyViewLogicTest {
             pastWed to extreme(pastWed, 72.9f, 56.5f),
         )
         val climateNormals = mapOf(
-            java.time.MonthDay.from(pastWed) to Pair(58, 48),  // bait: would be the bad fallback
+            java.time.MonthDay.from(pastWed) to Pair(58f, 48f),  // bait: would be the bad fallback
         )
 
         val result = DailyViewLogic.prepareGraphDays(
@@ -249,7 +249,7 @@ class DailyViewLogicTest {
         val snapshot = createWeather(date = pastWedStr, highTemp = 72f, lowTemp = 53f)
         val forecastSnapshots = mapOf(pastWed to listOf(snapshot))
         val climateNormals = mapOf(
-            java.time.MonthDay.from(pastWed) to Pair(58, 48),  // bait: must NOT be used
+            java.time.MonthDay.from(pastWed) to Pair(58f, 48f),  // bait: must NOT be used
         )
 
         val result = DailyViewLogic.prepareGraphDays(
@@ -400,7 +400,7 @@ class DailyViewLogicTest {
         
         // Normals available for future
         val climateNormals = mapOf(
-            java.time.MonthDay.from(future) to Pair(80, 65)
+            java.time.MonthDay.from(future) to Pair(80f, 65f)
         )
 
         val result = DailyViewLogic.prepareTextDays(
@@ -512,7 +512,7 @@ class DailyViewLogicTest {
             ),
         )
         val climateNormals = mapOf(
-            java.time.MonthDay.from(future) to Pair(80, 65),
+            java.time.MonthDay.from(future) to Pair(80f, 65f),
         )
 
         val result = DailyViewLogic.prepareTextDays(
@@ -550,7 +550,7 @@ class DailyViewLogicTest {
             lastFuture to createWeather(lastFuture.format(DateTimeFormatter.ISO_LOCAL_DATE)),
         )
         val climateNormals = mapOf(
-            java.time.MonthDay.from(earlierFuture) to Pair(78, 60),
+            java.time.MonthDay.from(earlierFuture) to Pair(78f, 60f),
         )
 
         val result = DailyViewLogic.prepareTextDays(
@@ -585,7 +585,7 @@ class DailyViewLogicTest {
             ),
         )
         val climateNormals = mapOf(
-            java.time.MonthDay.from(future) to Pair(77, 58),
+            java.time.MonthDay.from(future) to Pair(77f, 58f),
         )
 
         val result = DailyViewLogic.prepareGraphDays(

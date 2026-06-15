@@ -11,21 +11,21 @@ import kotlin.math.roundToInt
 class DailyForecastGraphRendererTest {
 
     @Test
-    fun `formatTempLabel rounds to integer when not actual data`() {
+    fun `formatTempLabel rounds to integer when forceInteger`() {
         val renderer = DailyForecastGraphRenderer
-        assertEquals("49°", renderer.formatTempLabel(48.6f, isActualData = false))
+        assertEquals("49°", renderer.formatTempLabel(48.6f, forceInteger = true))
     }
 
     @Test
-    fun `formatTempLabel preserves decimal for actual data with fractional part`() {
+    fun `formatTempLabel preserves decimal for fractional part by default`() {
         val renderer = DailyForecastGraphRenderer
-        assertEquals("48.6°", renderer.formatTempLabel(48.6f, isActualData = true))
+        assertEquals("48.6°", renderer.formatTempLabel(48.6f))
     }
 
     @Test
-    fun `formatTempLabel avoids decimal for actual data with whole number`() {
+    fun `formatTempLabel suppresses the point-zero case`() {
         val renderer = DailyForecastGraphRenderer
-        assertEquals("49°", renderer.formatTempLabel(49.0f, isActualData = true))
+        assertEquals("49°", renderer.formatTempLabel(49.0f))
     }
 
     @Test

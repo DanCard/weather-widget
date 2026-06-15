@@ -1009,8 +1009,8 @@ class DailyViewHandlerTest {
             applied.findViewById<TextView>(id)?.text?.toString()
         }
         
-        // In text mode, forecast temperatures are rounded to the nearest integer
-        assertTrue("Evening highTexts $highTexts should contain 63° for Today's 62.9° forecast", highTexts.contains("63°"))
+        // Forecast temperatures show the tenth (".0" suppressed) like actuals.
+        assertTrue("Evening highTexts $highTexts should contain 62.9° for Today's 62.9° forecast", highTexts.contains("62.9°"))
     }
 
     @Test
