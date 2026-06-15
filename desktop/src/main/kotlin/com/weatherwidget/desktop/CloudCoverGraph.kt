@@ -12,9 +12,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -80,11 +78,7 @@ fun CloudCoverGraph(
             .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
     }
 
-    val iconSpacing = if (points.size > 24) 4 else if (points.size > 12) 3 else 2
-    val painters = mutableListOf<Painter?>()
-    for (i in points.indices) {
-        painters.add(if (i % iconSpacing == 0) painterResource(WeatherIcon.getIconResource(points[i].condition)) else null)
-    }
+    val painters: List<Painter> = points.map { painterResource(WeatherIcon.getIconResource(it.condition)) }
 
     val smoothIterations = DesktopGraphUtils.smoothIterationsFor(totalSpanHours)
 
@@ -129,9 +123,10 @@ fun CloudCoverGraph(
         val h = size.height
 
         val graphTop = 38.dp.toPx() * scale
-        val footerIconSize = 18.dp.toPx() * scale
-        val bottomInset = 4.dp.toPx() * scale
-        val graphBottom = h - footerIconSize - bottomInset
+        // Footer band sized to the actual label so hour labels sit flush at the bottom (shared with
+        // the temperature/precip graphs via hourlyFooter).
+        val footer = hourlyFooter(textMeasurer, scale)
+        val graphBottom = footer.graphBottom(h, scale)
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
         // Map by the actual data span (first..last point) rather than the window, so the rightmost
@@ -182,22 +177,9 @@ fun CloudCoverGraph(
 
         val markerX = xAtTime(now)
 
-        // Draw Now vertical dashed guide line - EARLY for lowest z-order
+        // Draw Now vertical dashed guide line - EARLY for lowest z-order (shared helper).
         if (now in windowStart..windowEnd) {
-            val lineHeight = graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
-            val lineTop = graphTop + (graphHeight - lineHeight) / 2f
-            val lineBottom = lineTop + lineHeight
-
-            drawLine(
-                color = Color(HourlyGraphDefaults.COLOR_CURRENT_TIME),
-                start = Offset(markerX, lineTop),
-                end = Offset(markerX, lineBottom),
-                strokeWidth = HourlyGraphDefaults.CURRENT_TIME_STROKE_DP.dp.toPx() * scale,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(
-                    HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP.dp.toPx() * scale,
-                    HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP.dp.toPx() * scale
-                ))
-            )
+            drawNowLine(markerX, graphTop, graphHeight, scale)
         }
 
         // Draw Curve Line
@@ -207,23 +189,6 @@ fun CloudCoverGraph(
             color = COLOR_CLOUD_CURVE,
             style = Stroke(width = curveStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
-
-        // --- NOW Indicator - Late Pass (Label and target circles) ---
-        if (now in windowStart..windowEnd) {
-            val nowIdx = points.indexOfByClosestTime(now)
-            val markerCloud = smoothedClouds[nowIdx]
-            val markerY = yAt(markerCloud)
-
-            drawCircle(color = Color.White, radius = 4.5f * scale, center = Offset(markerX, markerY))
-            drawCircle(color = COLOR_CLOUD_CURVE, radius = 2.5f * scale, center = Offset(markerX, markerY))
-
-            // NOW Label
-            val nowLayout = textMeasurer.measure("NOW", TextStyle(
-                fontSize = (HourlyGraphDefaults.NOW_LABEL_TEXT_SIZE_DP * 0.5f * scale).sp,
-                color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL)
-            ))
-            drawText(nowLayout, topLeft = Offset(markerX - nowLayout.size.width / 2f, graphTop + 2.dp.toPx() * scale))
-        }
 
         // Extrema Label Placement
         val labelSignal = smoothedClouds.map { it.roundToInt().coerceIn(0, 100) }
@@ -403,60 +368,12 @@ fun CloudCoverGraph(
             )
         }
 
-        // Draw Bottom Strip: icons + hour (or per-day date) labels. Label decision is shared via
-        // DesktopGraphUtils.footerLabels; this loop only positions and paints.
-        for (label in DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault())) {
-            val i = label.index
-            val p = points[i]
-            val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-            val x = xAt(i)
-            val timeStr = label.text
-            
-            val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = (9 * scale).sp, color = Color.Gray))
-            val textW = textLayout.size.width.toFloat()
-            val textH = textLayout.size.height.toFloat()
-            
-            val yOffset = h - 22f * scale
-            val textY = yOffset - textH / 2f
-            
-            val isLast = i == points.lastIndex || (x + (textW + 14.dp.toPx() * scale) / 2f > w)
-            
-            if (!isLast && painters[i] != null) {
-                val iconSize = 12.dp.toPx() * scale
-                val gap = 2.dp.toPx() * scale
-                val totalW = textW + gap + iconSize
-                
-                val startX = x - totalW / 2f
-                val textTopLeft = Offset(startX.coerceAtLeast(4f * scale), textY)
-                drawText(textLayout, topLeft = textTopLeft)
-                
-                val iconLeft = startX + textW + gap
-                val iconTop = yOffset - iconSize / 2f
-                
-                painters[i]?.let { painter ->
-                    val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
-                    val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
-                        isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
-                    )
-                    val filter = if (!flags.isRainy && !flags.isMixed) {
-                        val tint = when {
-                            flags.isNight -> Color(0xFFBBBBBB)
-                            flags.isTwilight -> Color(0xFFFFA726)
-                            flags.isSunny -> Color(0xFFFFD60A)
-                            else -> Color(0xFFBBBBBB)
-                        }
-                        ColorFilter.tint(tint)
-                    } else {
-                        null
-                    }
-                    translate(iconLeft, iconTop) {
-                        with(painter) { draw(size = Size(iconSize, iconSize), colorFilter = filter) }
-                    }
-                }
-            } else {
-                val textTopLeft = Offset(x - textW / 2f, textY)
-                drawText(textLayout, topLeft = textTopLeft)
-            }
+        // Bottom strip (hour/date labels + weather icons) — shared with the temperature/precip graphs.
+        drawHourlyFooterStrip(points, painters, totalSpanHours, latitude, longitude, footer, w, h, textMeasurer, scale, ::xAt)
+
+        // NOW label drawn last (on top), collision-aware against the placed labels.
+        if (now in windowStart..windowEnd) {
+            drawNowLabel(markerX, graphTop, graphHeight, scale, textMeasurer, drawnLabels)
         }
     }
 }
@@ -496,5 +413,3 @@ private fun DrawScope.drawDayLabels(
 private fun computeTangents(coords: List<Offset>): List<Offset> = DesktopGraphUtils.computeTangents(coords)
 
 private fun buildCurve(coords: List<Offset>): Path = DesktopGraphUtils.buildCurve(coords)
-
-private fun List<HourlyForecast>.indexOfByClosestTime(targetTime: Long): Int = DesktopGraphUtils.run { indexOfByClosestTime(targetTime) }

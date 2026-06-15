@@ -75,13 +75,35 @@ private const val MIN_HOURLY_OFFSET = -720
 private const val MAX_HOURLY_OFFSET = 720
 
 /**
- * Hours from now to **noon** of [clickedDate]. The hourly graphs render a ±12h WIDE window around
- * `now + hourlyOffset`, so anchoring on the clicked day's midday makes that window span the clicked
- * day midnight→midnight instead of straddling noon-of-prev-day → noon-of-clicked-day.
+ * Hours from now to **noon** of [clickedDate]. The hourly graphs render a window around
+ * `now + hourlyOffset`; at the default WIDE zoom that's ~12h back / 6h forward, so anchoring on the
+ * clicked day's midday frames the clicked day (roughly midnight→evening) rather than straddling
+ * noon-of-prev-day → noon-of-clicked-day.
  */
 private fun offsetToDayCenter(clickedDate: LocalDate): Int =
     java.time.Duration.between(LocalDateTime.now(), clickedDate.atStartOfDay().plusHours(12))
         .toHours().toInt()
+
+/**
+ * Config for opening the hourly view focused on [clickedDate]: centers on the day's noon and
+ * **resets the zoom to the default WIDE view**, deliberately ignoring whatever zoom the hourly graph
+ * was last left at, so a clicked day always opens at a consistent day-scale framing.
+ */
+internal fun dayClickConfig(
+    config: DesktopConfig,
+    clickedDate: LocalDate,
+    days: List<DesktopDailyDay>,
+): DesktopConfig {
+    val hours = offsetToDayCenter(clickedDate)
+    val clickedIcon = days.find { it.date == clickedDate }?.iconCondition
+    val targetView = clickedIcon
+        ?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: "HOURLY"
+    return config.copy(
+        viewMode = targetView,
+        hourlyOffset = hours,
+        zoomFactor = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
+    )
+}
 
 fun main(args: Array<String>) {
     // Surface shared-module diagnostics on the console (default JulSink drops DEBUG). First thing so
@@ -827,11 +849,7 @@ internal fun WidgetPopup(
                                     modifier = Modifier.fillMaxSize().then(dailyInput),
                                     scale = uiScale,
                                     onDayClick = { clickedDate ->
-                                        val hours = offsetToDayCenter(clickedDate)
-                                        val clickedDay = dailyState.days.find { it.date == clickedDate }
-                                        val clickedIcon = clickedDay?.iconCondition
-                                        val targetView = clickedIcon?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: "HOURLY"
-                                        onUpdateConfig(config.copy(viewMode = targetView, hourlyOffset = hours))
+                                        onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days))
                                     }
                                 )
                             } else {
@@ -839,11 +857,7 @@ internal fun WidgetPopup(
                                     state = dailyState,
                                     modifier = Modifier.fillMaxSize().then(dailyInput),
                                     onDayClick = { clickedDate ->
-                                        val hours = offsetToDayCenter(clickedDate)
-                                        val clickedDay = dailyState.days.find { it.date == clickedDate }
-                                        val clickedIcon = clickedDay?.iconCondition
-                                        val targetView = clickedIcon?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: "HOURLY"
-                                        onUpdateConfig(config.copy(viewMode = targetView, hourlyOffset = hours))
+                                        onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days))
                                     }
                                 )
                             }

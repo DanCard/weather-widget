@@ -12,10 +12,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -88,11 +86,7 @@ fun PrecipitationGraph(
             .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
     }
 
-    val iconSpacing = if (points.size > 24) 4 else if (points.size > 12) 3 else 2
-    val painters = mutableListOf<Painter?>()
-    for (i in points.indices) {
-        painters.add(if (i % iconSpacing == 0) painterResource(WeatherIcon.getIconResource(points[i].condition)) else null)
-    }
+    val painters: List<Painter> = points.map { painterResource(WeatherIcon.getIconResource(it.condition)) }
 
     val smoothIterations = DesktopGraphUtils.smoothIterationsFor(totalSpanHours)
 
@@ -137,15 +131,10 @@ fun PrecipitationGraph(
         val h = size.height
 
         val graphTop = 38.dp.toPx() * scale
-        // Bottom strip (hour labels + day-night icons): size the reserve to the actual label so it
-        // sits tight against the canvas bottom instead of floating with dead space above it. Mirrors
-        // the temperature graph's measured-band footer (parity).
-        val hourLabelFontSize = (12f * scale).sp
-        val hourIconPx = 12.dp.toPx() * scale
-        val hourLabelH = textMeasurer.measure("12p", TextStyle(fontSize = hourLabelFontSize)).size.height.toFloat()
-        val bottomBandH = maxOf(hourLabelH, hourIconPx)
-        val bottomMargin = 0f * scale
-        val graphBottom = h - (bottomMargin + bottomBandH + 8f * scale)
+        // Footer band sized to the actual label so hour labels sit flush at the bottom (shared with
+        // the temperature/cloud graphs via hourlyFooter).
+        val footer = hourlyFooter(textMeasurer, scale)
+        val graphBottom = footer.graphBottom(h, scale)
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
         val stepWidth = w / (points.size - 1).coerceAtLeast(1)
 
@@ -197,21 +186,9 @@ fun PrecipitationGraph(
 
         val markerX = xAtTime(now)
 
-        // Draw Now vertical dashed guide line - EARLY for lowest z-order. Routed through the shared
-        // NowIndicatorGeometry so the line matches Android / the temperature graph exactly.
+        // Draw Now vertical dashed guide line - EARLY for lowest z-order (shared helper).
         if (now in windowStart..windowEnd) {
-            val nowLine = NowIndicatorGeometry.computeNowLine(graphTop, graphHeight)
-
-            drawLine(
-                color = Color(HourlyGraphDefaults.COLOR_CURRENT_TIME),
-                start = Offset(markerX, nowLine.lineTop),
-                end = Offset(markerX, nowLine.lineBottom),
-                strokeWidth = HourlyGraphDefaults.CURRENT_TIME_STROKE_DP.dp.toPx() * scale,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(
-                    HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP.dp.toPx() * scale,
-                    HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP.dp.toPx() * scale
-                ))
-            )
+            drawNowLine(markerX, graphTop, graphHeight, scale)
         }
 
         // Draw Curve Line
@@ -436,94 +413,12 @@ fun PrecipitationGraph(
             )
         }
 
-        // Draw Bottom Strip: icons + hour (or per-day date) labels. Label decision is shared via
-        // DesktopGraphUtils.footerLabels; this loop only positions and paints.
-        for (label in DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault())) {
-            val i = label.index
-            val p = points[i]
-            val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-            val x = xAt(i)
-            val timeStr = label.text
-            
-            val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = hourLabelFontSize, color = Color.Gray))
-            val textW = textLayout.size.width.toFloat()
-            val textH = textLayout.size.height.toFloat()
+        // Bottom strip (hour/date labels + weather icons) — shared with the temperature/cloud graphs.
+        drawHourlyFooterStrip(points, painters, totalSpanHours, latitude, longitude, footer, w, h, textMeasurer, scale, ::xAt)
 
-            val yOffset = h - bottomMargin - bottomBandH / 2f
-            val textY = yOffset - textH / 2f
-            
-            val isLast = i == points.lastIndex || (x + (textW + 14.dp.toPx() * scale) / 2f > w)
-            
-            if (!isLast && painters[i] != null) {
-                val iconSize = 12.dp.toPx() * scale
-                val gap = 2.dp.toPx() * scale
-                val totalW = textW + gap + iconSize
-                
-                val startX = x - totalW / 2f
-                val textTopLeft = Offset(startX.coerceAtLeast(4f * scale), textY)
-                drawText(textLayout, topLeft = textTopLeft)
-                
-                val iconLeft = startX + textW + gap
-                val iconTop = yOffset - iconSize / 2f
-                
-                painters[i]?.let { painter ->
-                    val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
-                    val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
-                        isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
-                    )
-                    val filter = if (!flags.isRainy && !flags.isMixed) {
-                        val tint = when {
-                            flags.isNight -> Color(0xFFBBBBBB)
-                            flags.isTwilight -> Color(0xFFFFA726)
-                            flags.isSunny -> Color(0xFFFFD60A)
-                            else -> Color(0xFFBBBBBB)
-                        }
-                        ColorFilter.tint(tint)
-                    } else {
-                        null
-                    }
-                    translate(iconLeft, iconTop) {
-                        with(painter) { draw(size = Size(iconSize, iconSize), colorFilter = filter) }
-                    }
-                }
-            } else {
-                val textTopLeft = Offset(x - textW / 2f, textY)
-                drawText(textLayout, topLeft = textTopLeft)
-            }
-        }
-
-        // NOW indicator - Label (drawn last to be on top). Full-size + light shadow + below-first
-        // collision-aware placement, all matching Android / the temperature graph via
-        // NowIndicatorGeometry (replaces the old half-size top-pinned label + target circles).
+        // NOW label drawn last (on top), collision-aware against the placed labels.
         if (now in windowStart..windowEnd) {
-            val nowLabelStyle = TextStyle(
-                fontSize = (14f * HourlyGraphDefaults.NOW_LABEL_TO_TEMP_RATIO * scale).sp,
-                color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL),
-                shadow = Shadow(
-                    color = Color(HourlyGraphDefaults.COLOR_SHADOW_LIGHT),
-                    offset = Offset(0f, 0f),
-                    blurRadius = HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP.dp.toPx() * scale,
-                ),
-            )
-            val nowLabelLayout = textMeasurer.measure("NOW", nowLabelStyle)
-            val nowLabelWidth = nowLabelLayout.size.width.toFloat()
-            val nowLabelHeight = nowLabelLayout.size.height.toFloat()
-
-            // Compose drawText is top-left anchored, so treat the measured box's bottom as the
-            // baseline: fontAscent = -height, fontDescent = 0 -> box.top is the top-left y.
-            val placement = NowIndicatorGeometry.computeNowLabel(
-                nowX = markerX,
-                graphTop = graphTop,
-                graphHeight = graphHeight,
-                labelWidth = nowLabelWidth,
-                fontAscent = -nowLabelHeight,
-                fontDescent = 0f,
-                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
-                dpToPx = { it.dp.toPx() * scale },
-            )
-            placement?.let {
-                drawText(nowLabelLayout, topLeft = Offset(it.box.left, it.box.top))
-            }
+            drawNowLabel(markerX, graphTop, graphHeight, scale, textMeasurer, drawnLabels)
         }
     }
 }

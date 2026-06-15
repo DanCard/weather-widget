@@ -495,4 +495,20 @@ class DesktopUiTest {
             java.nio.file.Files.deleteIfExists(tempDbPath)
         }
     }
+
+    @Test
+    fun testDayClickResetsZoomToDefault() {
+        val clickedDate = java.time.LocalDate.now().plusDays(1)
+        // Empty day list -> targetView falls back to "HOURLY"; the zoom reset is independent of it.
+        val fromTightZoom = dayClickConfig(stubConfig.copy(zoomFactor = 0f), clickedDate, emptyList())
+        val fromWideZoom = dayClickConfig(stubConfig.copy(zoomFactor = 1f), clickedDate, emptyList())
+
+        // Prior zoom is ignored: both extremes snap back to the default WIDE view.
+        assertEquals(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR, fromTightZoom.zoomFactor)
+        assertEquals(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR, fromWideZoom.zoomFactor)
+
+        // The view re-centers on the clicked day (tomorrow's noon is ~24-48h ahead) and opens hourly.
+        assertEquals("HOURLY", fromTightZoom.viewMode)
+        assertEquals(true, fromTightZoom.hourlyOffset in 12..48)
+    }
 }
