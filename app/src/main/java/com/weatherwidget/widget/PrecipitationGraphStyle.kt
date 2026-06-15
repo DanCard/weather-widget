@@ -5,7 +5,6 @@ import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.util.TypedValue
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 
 object PrecipitationGraphStyle {
@@ -65,17 +64,6 @@ object PrecipitationGraphStyle {
                 strokeJoin = Paint.Join.ROUND
             }
 
-            val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.FILL
-            }
-
-            val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = HourlyGraphDefaults.COLOR_CURRENT_TIME
-                strokeWidth = dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_STROKE_DP * labelScale)
-                style = Paint.Style.STROKE
-                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP * labelScale), dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP * labelScale)), 0f)
-            }
-
             val dayNightDividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor(COLOR_DAY_NIGHT_DIVIDER)
                 strokeWidth = dpToPx(context, DAY_NIGHT_DIVIDER_STROKE_DP * labelScale)
@@ -89,39 +77,14 @@ object PrecipitationGraphStyle {
                 )
             }
 
-            val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = HourlyGraphDefaults.COLOR_HOUR_LABEL
-                textSize = dpToPx(context, HourlyGraphDefaults.HOUR_LABEL_TEXT_SIZE_DP * labelScale)
-                textAlign = Paint.Align.CENTER
-                setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP * labelScale), HourlyGraphDefaults.COLOR_SHADOW_LIGHT)
-            }
-
-            val percentLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = HourlyGraphDefaults.COLOR_PERCENT_LABEL
-                textSize = dpToPx(context, HourlyGraphDefaults.PERCENT_LABEL_TEXT_SIZE_DP * labelScale)
-                textAlign = Paint.Align.CENTER
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-                setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_STRONG_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP * labelScale), HourlyGraphDefaults.COLOR_SHADOW_DARK)
-            }
-
-            val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = HourlyGraphDefaults.COLOR_NOW_LABEL
-                textSize = dpToPx(context, HourlyGraphDefaults.NOW_LABEL_TEXT_SIZE_DP * labelScale)
-                textAlign = Paint.Align.CENTER
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-                setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP * labelScale), 0f, 0f, HourlyGraphDefaults.COLOR_SHADOW_LIGHT)
-            }
-
-            val dayLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = HourlyGraphDefaults.COLOR_DAY_LABEL
-                textSize = dpToPx(context, HourlyGraphDefaults.DAY_LABEL_TEXT_SIZE_DP * labelScale)
-                textAlign = Paint.Align.CENTER
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            }
-
-            val todayDayLabelPaint = Paint(dayLabelTextPaint).apply {
-                color = HourlyGraphDefaults.COLOR_TODAY_LABEL
-            }
+            // Shared footer/axis/now furniture (identical to CloudCoverGraphStyle).
+            val gradientPaint = HourlyGraphPaints.gradientFill()
+            val currentTimePaint = HourlyGraphPaints.currentTime(context, labelScale)
+            val hourLabelTextPaint = HourlyGraphPaints.hourLabel(context, labelScale)
+            val percentLabelPaint = HourlyGraphPaints.percentLabel(context, labelScale)
+            val nowLabelTextPaint = HourlyGraphPaints.nowLabel(context, labelScale)
+            val dayLabelTextPaint = HourlyGraphPaints.dayLabel(context, labelScale)
+            val todayDayLabelPaint = HourlyGraphPaints.todayDayLabel(dayLabelTextPaint)
 
             val rainAmountPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor(COLOR_RAIN_AMOUNT)
@@ -155,6 +118,5 @@ object PrecipitationGraphStyle {
         }
     }
 
-    internal fun dpToPx(context: Context, dp: Float): Float =
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)
+    internal fun dpToPx(context: Context, dp: Float): Float = HourlyGraphPaints.dpToPx(context, dp)
 }
