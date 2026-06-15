@@ -23,6 +23,9 @@ data class DesktopConfig(
     val apiKeys: Map<String, String> = emptyMap(),
     val visibleSources: List<String> = listOf("NWS", "OPEN_METEO", "SILURIAN"),
     val dateOffset: Int = 0,
+    // Daily-view scroll-wheel zoom: extra history days prepended on the left (today + future stay
+    // anchored on the right). 0 = default view (~1 history day). encodeDefaults=false omits the 0.
+    val dailyExtraHistory: Int = 0,
     val hourlyOffset: Int = 0,
     // Continuous zoom: 0 = most zoomed-in (~±2h), 1 = most zoomed-out (6 days back / 1 day forward).
     // Legacy "zoomLevel" string configs are ignored on read (ignoreUnknownKeys) and reset to default.

@@ -142,6 +142,9 @@ private fun runApp() = application {
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
+        // Registered by WidgetPopup for whichever view is active (daily/hourly); the popup Window forwards
+        // ←/→ here. Returns true when the key was consumed (so Escape/default handling stays intact).
+        var arrowKeyHandler by remember { mutableStateOf<((left: Boolean) -> Boolean)?>(null) }
         val desktopClients = remember { DesktopClients() }
         val locationResolver = remember {
             val sharedLocationResolver = com.weatherwidget.data.repository.SharedLocationResolver(
@@ -434,11 +437,13 @@ private fun runApp() = application {
                 title = "Weather Widget",
                 icon = appIcon,
                 onKeyEvent = { keyEvent ->
-                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
-                        popupVisible = false
-                        true
-                    } else {
+                    if (keyEvent.type != KeyEventType.KeyDown) {
                         false
+                    } else when (keyEvent.key) {
+                        Key.Escape -> { popupVisible = false; true }
+                        Key.DirectionLeft -> arrowKeyHandler?.invoke(true) ?: false
+                        Key.DirectionRight -> arrowKeyHandler?.invoke(false) ?: false
+                        else -> false
                     }
                 }
             ) {
@@ -481,7 +486,8 @@ private fun runApp() = application {
                     },
                     onOpenHistory = {
                         historyVisible = true
-                    }
+                    },
+                    onRegisterArrowKeyHandler = { arrowKeyHandler = it },
                 )
             }
         }
@@ -602,6 +608,7 @@ internal fun WidgetPopup(
     onOpenSettings: () -> Unit,
     onOpenObservations: () -> Unit,
     onOpenHistory: () -> Unit = {},
+    onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
       // One shared scale for header + graph so everything grows together with the window.
@@ -650,6 +657,17 @@ internal fun WidgetPopup(
                                 val newOffset = (config.hourlyOffset + deltaHours).coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
                                 if (newOffset != config.hourlyOffset) {
                                     onUpdateConfig(config.copy(hourlyOffset = newOffset))
+                                }
+                            }
+                            // ←/→ pan the hourly window by the same nav-jump the arrow buttons use.
+                            SideEffect {
+                                onRegisterArrowKeyHandler { left ->
+                                    val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
+                                    if (left && config.hourlyOffset > MIN_HOURLY_OFFSET) {
+                                        handlePan(-jump); true
+                                    } else if (!left && config.hourlyOffset < MAX_HOURLY_OFFSET) {
+                                        handlePan(jump); true
+                                    } else false
                                 }
                             }
                             if (config.viewMode == "CLOUD_COVER") {
@@ -753,16 +771,60 @@ internal fun WidgetPopup(
                                 dimensions = dimensions,
                             )
 
-                            LaunchedEffect(dailyState.clampedDateOffset) {
-                                if (dailyState.clampedDateOffset != config.dateOffset) {
-                                    onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset))
+                            // Sync both clamped values in one write so a simultaneous offset+zoom clamp
+                            // doesn't clobber each other (two separate copy() calls off the same config would).
+                            LaunchedEffect(dailyState.clampedDateOffset, dailyState.clampedExtraHistory) {
+                                if (dailyState.clampedDateOffset != config.dateOffset ||
+                                    dailyState.clampedExtraHistory != config.dailyExtraHistory) {
+                                    onUpdateConfig(config.copy(
+                                        dateOffset = dailyState.clampedDateOffset,
+                                        dailyExtraHistory = dailyState.clampedExtraHistory,
+                                    ))
+                                }
+                            }
+
+                            // Snap-step horizontal drag → day offset; direction-gated by the same bounds
+                            // the nav arrows use. A fast flick may emit >1 step; over-panning a column or
+                            // two is harmless (model tolerates empty edge columns) and self-heals next gesture.
+                            val handleDailyPan: (Int) -> Unit = { steps ->
+                                val blocked = (steps < 0 && !dailyState.canNavigateLeft) ||
+                                    (steps > 0 && !dailyState.canNavigateRight)
+                                if (!blocked) {
+                                    val target = dailyState.clampedDateOffset + steps
+                                    if (target != config.dateOffset) onUpdateConfig(config.copy(dateOffset = target))
+                                }
+                            }
+                            // Scroll-wheel zoom → extra history days; clamped to model-computed bounds.
+                            val handleDailyZoom: (Int) -> Unit = { delta ->
+                                val blocked = (delta > 0 && !dailyState.canZoomOut) ||
+                                    (delta < 0 && !dailyState.canZoomIn)
+                                if (!blocked) {
+                                    val target = (dailyState.clampedExtraHistory + delta).coerceAtLeast(0)
+                                    if (target != config.dailyExtraHistory) {
+                                        onUpdateConfig(config.copy(dailyExtraHistory = target))
+                                    }
+                                }
+                            }
+                            val dailyInput = Modifier.dailyPanZoomInput(
+                                columnCount = dailyState.days.size,
+                                onPanDays = handleDailyPan,
+                                onZoomScroll = handleDailyZoom,
+                            )
+                            // ←/→ step one day, gated by the same data bounds as the nav arrows.
+                            SideEffect {
+                                onRegisterArrowKeyHandler { left ->
+                                    if (left && dailyState.canNavigateLeft) {
+                                        handleDailyPan(-1); true
+                                    } else if (!left && dailyState.canNavigateRight) {
+                                        handleDailyPan(1); true
+                                    } else false
                                 }
                             }
 
                             if (dailyState.dimensions.useGraph) {
                                 DailyForecastGraph(
                                     state = dailyState,
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier.fillMaxSize().then(dailyInput),
                                     scale = uiScale,
                                     onDayClick = { clickedDate ->
                                         val hours = offsetToDayCenter(clickedDate)
@@ -775,7 +837,7 @@ internal fun WidgetPopup(
                             } else {
                                 DailyForecastTextMode(
                                     state = dailyState,
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier.fillMaxSize().then(dailyInput),
                                     onDayClick = { clickedDate ->
                                         val hours = offsetToDayCenter(clickedDate)
                                         val clickedDay = dailyState.days.find { it.date == clickedDate }

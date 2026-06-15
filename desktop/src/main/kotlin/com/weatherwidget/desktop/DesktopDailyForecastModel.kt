@@ -56,6 +56,12 @@ data class DesktopDailyViewState(
     val canNavigateRight: Boolean,
     val skipYesterday: Boolean,
     val clampedDateOffset: Int,
+    /** Scroll-zoom: extra history days actually shown after clamping to available data + the cap. */
+    val clampedExtraHistory: Int,
+    /** True when more history can be revealed by zooming out (data + cap permitting). */
+    val canZoomOut: Boolean,
+    /** True when zoomed out past the default (clampedExtraHistory > 0), so zoom-in can trim history. */
+    val canZoomIn: Boolean,
 )
 
 object DesktopDailyForecastModel {
@@ -63,6 +69,12 @@ object DesktopDailyForecastModel {
     private const val CELL_HEIGHT_DP = 90
     private const val ICON_WIDTH_THRESHOLD_DP = 130
     private const val MAX_DESKTOP_DAILY_COLUMNS = 9
+    /**
+     * Upper bound on how many extra history days scroll-zoom may prepend on the left. History is the
+     * user's priority for zoom-out, so this is generous; the true limit is usually the available data.
+     * Tunable — raise/lower if columns feel too cramped at full zoom-out.
+     */
+    private const val DAILY_MAX_EXTRA_HISTORY = 14
 
     fun dimensions(widthDp: Int, heightDp: Int): DesktopWidgetDimensions {
         val cols = ((widthDp + 15).toFloat() / CELL_WIDTH_DP).roundToInt()
@@ -96,7 +108,16 @@ object DesktopDailyForecastModel {
         val actualsByDate = forecast.dailyActuals.mapKeys { LocalDate.parse(it.key) }
         val snapshotsByDate = forecast.dailySnapshots.mapKeys { LocalDate.parse(it.key) }
 
-        val days = NavigationUtils.getDayOffsets(dimensions.cols, skipHistory).map { dayOffset ->
+        // Scroll-wheel zoom (history-biased): prepend extra history days on the LEFT while today + the
+        // future stay anchored on the right. The extra is clamped to available history and the cap; when
+        // > 0 it shows history even if skipHistory dropped yesterday (zoom-out intent wins).
+        val baseOffsets = NavigationUtils.getDayOffsets(dimensions.cols, skipHistory)
+        val maxExtra = maxExtraHistory(centerDate, baseOffsets.first(), availableDates)
+        val extraHistory = config.dailyExtraHistory.coerceIn(0, maxExtra)
+        val historyOffsets = (1..extraHistory).map { baseOffsets.first() - it }.reversed()
+        val allOffsets = historyOffsets + baseOffsets
+
+        val days = allOffsets.map { dayOffset ->
             val date = centerDate.plusDays(dayOffset)
             buildDay(
                 date = date,
@@ -118,7 +139,25 @@ object DesktopDailyForecastModel {
             canNavigateRight = canNavigate(today, offset + 1, dimensions.cols, skipYesterday, availableDates, left = false),
             skipYesterday = skipYesterday,
             clampedDateOffset = offset,
+            clampedExtraHistory = extraHistory,
+            canZoomOut = extraHistory < maxExtra,
+            canZoomIn = extraHistory > 0,
         )
+    }
+
+    /**
+     * Max extra history days zoom-out may prepend: the number of days of available history to the left
+     * of the current first column, capped at [DAILY_MAX_EXTRA_HISTORY]. Zero when no data is available.
+     */
+    private fun maxExtraHistory(
+        centerDate: LocalDate,
+        firstBaseOffset: Long,
+        availableDates: Set<LocalDate>,
+    ): Int {
+        val minDate = availableDates.minOrNull() ?: return 0
+        val firstBaseDate = centerDate.plusDays(firstBaseOffset)
+        val availableHistory = ChronoUnit.DAYS.between(minDate, firstBaseDate).toInt().coerceAtLeast(0)
+        return availableHistory.coerceAtMost(DAILY_MAX_EXTRA_HISTORY)
     }
 
     private fun buildDay(

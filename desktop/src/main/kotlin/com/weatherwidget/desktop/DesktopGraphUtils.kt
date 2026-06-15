@@ -114,6 +114,15 @@ internal object DesktopGraphUtils {
         if (widthPx <= 0f) 0f else -dragAmountPx * (spanHours.toFloat() / widthPx)
 
     /**
+     * Daily snap-step pan: how many whole days an accumulated horizontal drag should step. Dragging
+     * right (positive px) reveals earlier days, so the day offset decreases — hence the negative sign.
+     * Truncates toward zero, so a partial column doesn't step until a full [dayWidthPx] is crossed.
+     * The caller removes the consumed columns via `accum += result * dayWidthPx`.
+     */
+    fun panDeltaDays(accumPx: Float, dayWidthPx: Float): Int =
+        if (dayWidthPx <= 0f) 0 else -(accumPx / dayWidthPx).toInt()
+
+    /**
      * Sub-hour pixel offset that slides the curve smoothly between whole-hour data steps. The data
      * window sits on `round(dragHours)`; this residual fills the fractional part. Across a half-hour
      * boundary the residual flips sign by exactly the per-hour step the data jumps, so the slide stays

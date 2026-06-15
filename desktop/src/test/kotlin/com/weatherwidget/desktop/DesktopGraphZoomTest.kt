@@ -114,6 +114,42 @@ class DesktopGraphZoomTest {
     }
 
     @Test
+    fun `daily snap-step pans whole columns in the right direction`() {
+        val dayWidth = 50f
+        // Drag right (positive px) reveals earlier days -> the day offset decreases (negative).
+        assertEquals(-1, DesktopGraphUtils.panDeltaDays(60f, dayWidth))
+        // Partial column does not step yet (truncates toward zero).
+        assertEquals(0, DesktopGraphUtils.panDeltaDays(40f, dayWidth))
+        assertEquals(0, DesktopGraphUtils.panDeltaDays(-49f, dayWidth))
+        // Multiple columns in one fast flick.
+        assertEquals(-2, DesktopGraphUtils.panDeltaDays(125f, dayWidth))
+        // Drag left (negative px) reveals later days -> the day offset increases (positive).
+        assertEquals(1, DesktopGraphUtils.panDeltaDays(-55f, dayWidth))
+        // Zero-width guard before the canvas is measured.
+        assertEquals(0, DesktopGraphUtils.panDeltaDays(120f, 0f))
+    }
+
+    @Test
+    fun `daily snap-step accumulator stays linear across columns`() {
+        // The modifier removes consumed columns via `accum += steps * dayWidth`; after stepping, the
+        // leftover accumulation must be the sub-column remainder so the next column lands correctly.
+        val dayWidth = 50f
+        var accum = 0f
+        // Drag 130px right in one go: steps -2, remainder 30px still pending.
+        accum += 130f
+        val steps = DesktopGraphUtils.panDeltaDays(accum, dayWidth)
+        accum += steps * dayWidth
+        assertEquals(-2, steps)
+        assertEquals(30f, accum, 0.001f)
+        // 20px more crosses the third column boundary.
+        accum += 20f
+        val steps2 = DesktopGraphUtils.panDeltaDays(accum, dayWidth)
+        accum += steps2 * dayWidth
+        assertEquals(-1, steps2)
+        assertEquals(0f, accum, 0.001f)
+    }
+
+    @Test
     fun `drag residual is zero at whole hours`() {
         assertEquals(0f, DesktopGraphUtils.dragResidualPx(0f, 40f), 0.001f)
         assertEquals(0f, DesktopGraphUtils.dragResidualPx(3f, 40f), 0.001f)
