@@ -9,6 +9,8 @@ import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
@@ -117,6 +119,73 @@ class DesktopWeatherRepository(
             dailySnapshots = snapshots,
             rawObservations = observations,
         )
+    }
+
+    // Deepest history (in days back) already pulled this session. Seeded at the ~7 days the launch
+    // backfill / normal refresh cover, so a default-zoom popup never triggers a fetch. Reset for free
+    // on location/source change — the repository is re-`remember`ed with new keys in Main.kt.
+    @Volatile private var deepestHistoryDaysFetched = BASELINE_HISTORY_DAYS
+    private val historyFetchMutex = Mutex()
+
+    /**
+     * Pulls older hourly history on demand when the user zooms/pans the graph past what's cached.
+     * [neededBackHours] is how far back from now the visible window now reaches. Idempotent and
+     * guarded: returns false immediately when the requested depth is already covered, so rapid wheel
+     * events don't spam the network. Returns true only when new data was fetched and persisted — the
+     * caller then reloads the cache so the graph picks it up. Best-effort: logs and returns false on
+     * failure, leaving existing data intact.
+     *
+     * Open-Meteo `past_days` supplies the temperature/forecast curve for any source (stored under
+     * GENERIC_GAP as a non-masking fallback, exactly like the one-time launch backfill). For NWS we
+     * additionally widen the station-observation window so the authoritative pink actual line extends
+     * too — same station set, just a longer window per call.
+     */
+    /** Days of `past_days` needed to cover [neededBackHours] of visible history, plus a day of margin. */
+    private fun neededHistoryDays(neededBackHours: Int): Int =
+        (kotlin.math.ceil(neededBackHours / 24.0).toInt() + 1).coerceIn(1, MAX_HISTORY_DAYS)
+
+    /**
+     * Cheap, no-network check of whether [ensureHistory] would actually fetch at this depth. Lets the
+     * UI show the "fetching" toast only when a real pull is about to happen, not on every zoom tick.
+     */
+    fun needsDeeperHistory(neededBackHours: Int): Boolean =
+        neededHistoryDays(neededBackHours) > deepestHistoryDaysFetched
+
+    suspend fun ensureHistory(neededBackHours: Int): Boolean = withContext(Dispatchers.IO) {
+        val neededDays = neededHistoryDays(neededBackHours)
+        if (neededDays <= deepestHistoryDaysFetched) return@withContext false
+        historyFetchMutex.withLock {
+            // Re-check under the lock: a concurrent call may have already deepened coverage.
+            if (neededDays <= deepestHistoryDaysFetched) return@withLock false
+            var fetchedAny = false
+            try {
+                val historyResult = weatherService.fetchHistory(neededDays)
+                if (historyResult.hourly.isNotEmpty()) {
+                    weatherDao.upsertHourlyForecastHistory(
+                        latitude, longitude, WeatherSource.GENERIC_GAP.id, 0L, historyResult.hourly,
+                    )
+                    fetchedAny = true
+                }
+            } catch (e: Exception) {
+                Log.e("DesktopWeatherRepository", "On-demand Open-Meteo history fetch failed: $e")
+            }
+            if (weatherSource == "NWS") {
+                try {
+                    val obs = weatherService.fetchObservationHistory(neededDays.toLong())
+                    if (obs.isNotEmpty()) {
+                        weatherDao.upsertObservations(obs.map { it.toEntity(System.currentTimeMillis()) })
+                        fetchedAny = true
+                    }
+                } catch (e: Exception) {
+                    Log.e("DesktopWeatherRepository", "On-demand NWS observation history fetch failed: $e")
+                }
+            }
+            if (fetchedAny) {
+                deepestHistoryDaysFetched = neededDays
+                Log.i("DesktopWeatherRepository", "ensureHistory deepened to ${neededDays}d back (source=$weatherSource)")
+            }
+            fetchedAny
+        }
     }
 
     private var hasAttemptedBackfill = false
@@ -314,5 +383,9 @@ class DesktopWeatherRepository(
         private const val ACTUALS_HISTORY_DAYS = 31L
         private const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L
         private const val GAP_HORIZON_DAYS = 16L
+        // The launch backfill / normal refresh always cover ~7 days back, so on-demand history starts
+        // from here and only deepens. Capped at the 30-day DB retention (cleanup deletes past that).
+        private const val BASELINE_HISTORY_DAYS = 7
+        private const val MAX_HISTORY_DAYS = 30
     }
 }

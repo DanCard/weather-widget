@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -182,6 +183,9 @@ private fun runApp() = application {
 
         var forecast by remember { mutableStateOf<ForecastResult?>(null) }
         var dataStatus by remember { mutableStateOf<DataStatus>(DataStatus.Loading) }
+        // Transient "Fetching older data…" banner shown while an on-demand deep-history pull runs.
+        var historyFetchToast by remember { mutableStateOf<String?>(null) }
+        val uiScope = rememberCoroutineScope()
         val currentConfig = config
 
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.apiKeys) {
@@ -204,6 +208,40 @@ private fun runApp() = application {
                     val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
                     java.nio.file.Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
                 }
+            }
+        }
+
+        // On-demand deep-history pull: fired by WidgetPopup when the hourly graph is zoomed/panned
+        // past cached data. Runs in this UI process's own repository (no daemon IPC); on success it
+        // reloads the cache so the graph extends. The in-flight flag + repository's own depth guard
+        // keep rapid zoom ticks from stacking fetches; needsDeeperHistory avoids flashing the toast
+        // when the requested span is already covered.
+        var historyFetchInFlight by remember { mutableStateOf(false) }
+        val onNeedHistory: (Int) -> Unit = remember(repository) {
+            fn@{ neededBackHours: Int ->
+                val repo = repository ?: return@fn
+                if (historyFetchInFlight || !repo.needsDeeperHistory(neededBackHours)) return@fn
+                historyFetchInFlight = true
+                historyFetchToast = "Fetching older data…"
+                uiScope.launch {
+                    try {
+                        val fetched = repo.ensureHistory(neededBackHours)
+                        if (fetched) repo.loadCached()?.let { forecast = it }
+                        historyFetchToast = if (fetched) null else "Couldn't load older data"
+                    } catch (e: Exception) {
+                        Log.e(TAG, "On-demand history fetch failed: ${e.message}")
+                        historyFetchToast = "Couldn't load older data"
+                    } finally {
+                        historyFetchInFlight = false
+                    }
+                }
+            }
+        }
+        // Auto-dismiss the failure message after a few seconds (success clears the toast immediately).
+        LaunchedEffect(historyFetchToast) {
+            if (historyFetchToast == "Couldn't load older data") {
+                kotlinx.coroutines.delay(3000)
+                historyFetchToast = null
             }
         }
 
@@ -510,6 +548,8 @@ private fun runApp() = application {
                         historyVisible = true
                     },
                     onRegisterArrowKeyHandler = { arrowKeyHandler = it },
+                    onNeedHistory = onNeedHistory,
+                    historyFetchToast = historyFetchToast,
                 )
             }
         }
@@ -631,6 +671,8 @@ internal fun WidgetPopup(
     onOpenObservations: () -> Unit,
     onOpenHistory: () -> Unit = {},
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
+    onNeedHistory: (Int) -> Unit = {},
+    historyFetchToast: String? = null,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
       // One shared scale for header + graph so everything grows together with the window.
@@ -691,6 +733,14 @@ internal fun WidgetPopup(
                                         handlePan(jump); true
                                     } else false
                                 }
+                            }
+                            // Whenever zoom or pan changes, ask for deeper history if the left edge of the
+                            // visible window now reaches further back than what's cached. The offset is
+                            // negative when panned into the past, so subtracting it extends the reach.
+                            LaunchedEffect(config.zoomFactor, config.hourlyOffset) {
+                                val earliestVisibleHoursBack =
+                                    DesktopGraphUtils.backHoursFor(config.zoomFactor) - config.hourlyOffset
+                                onNeedHistory(earliestVisibleHoursBack)
                             }
                             if (config.viewMode == "CLOUD_COVER") {
                                 CloudCoverGraph(
@@ -779,6 +829,22 @@ internal fun WidgetPopup(
                                 val newOffset = (config.hourlyOffset + jump).coerceAtMost(MAX_HOURLY_OFFSET)
                                 Log.d(TAG, "HourlyNav: right jump=+${jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
                                 onUpdateConfig(config.copy(hourlyOffset = newOffset))
+                            }
+                            // Transient banner while an on-demand deep-history pull is in flight (or
+                            // briefly on failure). Drawn last so it floats over the graph + arrows.
+                            historyFetchToast?.let { msg ->
+                                Surface(
+                                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.Black.copy(alpha = 0.72f),
+                                ) {
+                                    Text(
+                                        text = msg,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        color = Color.White,
+                                        fontSize = (12f * uiScale).sp,
+                                    )
+                                }
                             }
                         }
                     } else {

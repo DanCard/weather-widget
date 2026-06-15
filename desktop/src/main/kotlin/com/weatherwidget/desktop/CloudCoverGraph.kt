@@ -23,9 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.shared.graph.*
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
 import kotlin.math.roundToInt
 
 private val COLOR_CLOUD_CURVE = Color(0xFFAAAAAA)
@@ -89,27 +86,16 @@ fun CloudCoverGraph(
         val visibleMax = smoothedClouds.maxOrNull()?.coerceIn(0f, 100f) ?: 0f
         val topScale = (visibleMax + 12f).coerceIn(85f, 100f)
 
-        val w = size.width
-        val h = size.height
-
-        val graphTop = 38.dp.toPx() * scale
-        // Footer band sized to the actual label so hour labels sit flush at the bottom (shared with
-        // the temperature/precip graphs via hourlyFooter).
-        val footer = hourlyFooter(textMeasurer, scale)
-        val graphBottom = footer.graphBottom(h, scale)
-        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
-
-        // Map by the actual data span (first..last point) rather than the window, so the rightmost
-        // hourly point lands on the right edge and the curve fills the full width (matches the
-        // temperature/precip graphs; fixes the gap on the far right when data stops short of
-        // windowEnd). NOW/labels route through xAtTime, so they stay aligned; windowStart/windowEnd
-        // remain the visibility gate below.
-        val dataStart = points.first().dateTime
-        val dataEnd = points.last().dateTime
-        val dataSpan = (dataEnd - dataStart).coerceAtLeast(1L).toFloat()
-        val dragResidualPx = DesktopGraphUtils.dragResidualPx(dragHours.value, w * 3_600_000f / dataSpan)
-        fun xAtTime(t: Long): Float = (((t - dataStart).toFloat() / dataSpan * w) + dragResidualPx).coerceIn(-w, 2 * w)
-        fun xAt(i: Int): Float = xAtTime(points[i].dateTime)
+        // Plot bounds + x-axis mapping shared with the precip/temperature graphs.
+        val geo = hourlyGraphCanvasGeometry(points, textMeasurer, scale, dragHours.value)
+        val w = geo.w
+        val h = geo.h
+        val graphTop = geo.graphTop
+        val graphBottom = geo.graphBottom
+        val graphHeight = geo.graphHeight
+        val footer = geo.footer
+        val xAtTime = geo.xAtTime
+        val xAt = geo.xAt
         fun yAt(cover: Float): Float {
             val clamped = cover.coerceIn(0f, 100f)
             return graphBottom - graphHeight * (clamped / topScale)
@@ -249,7 +235,7 @@ fun CloudCoverGraph(
             windowStart = windowStart,
             windowEnd = windowEnd,
             drawnLabels = drawnLabels,
-            xAt = ::xAt,
+            xAt = xAt,
         )
     }
 }

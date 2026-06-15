@@ -46,14 +46,18 @@ internal object DesktopGraphUtils {
 
     // --- Continuous zoom span model -------------------------------------------------------------
     // zoomFactor z in [0,1]: 0 = most zoomed-in (tight, ~±2h), 1 = most zoomed-out (history-leaning
-    // 6 days back / 1 day forward). Spans interpolate geometrically because they cover orders of
-    // magnitude; forward grows slower than back, so wider views lean into history.
+    // 30 days back / 7 days forward). Spans interpolate geometrically because they cover orders of
+    // magnitude; forward grows slower than back, so wider views lean into history. History beyond the
+    // ~7 days fetched on launch is pulled on demand when the user zooms/pans into it (see
+    // DesktopWeatherRepository.ensureHistory).
     const val MIN_BACK_HOURS = 2
-    const val MAX_BACK_HOURS = 144   // 6 days of history at full zoom-out
+    const val MAX_BACK_HOURS = 720   // 30 days of history at full zoom-out
     const val MIN_FORWARD_HOURS = 2
-    const val MAX_FORWARD_HOURS = 24 // 1 day forward at full zoom-out
-    // Default lands ~12h back, close to the legacy WIDE view, so existing users barely notice.
-    const val DEFAULT_ZOOM_FACTOR = 0.42f
+    const val MAX_FORWARD_HOURS = 168 // 7 days forward at full zoom-out
+    // Default lands ~12h back (the legacy WIDE span) so opening the popup feels unchanged. Derived
+    // from the geometric curve: z = ln(12 / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS / MIN_BACK_HOURS).
+    // Must be recomputed whenever MAX_BACK_HOURS changes, since that rescales the whole zoom curve.
+    const val DEFAULT_ZOOM_FACTOR = 0.304f
 
     fun backHoursFor(zoomFactor: Float): Int = geomInterp(MIN_BACK_HOURS, MAX_BACK_HOURS, zoomFactor)
 
@@ -80,7 +84,7 @@ internal object DesktopGraphUtils {
      * back-hours [geomInterp]. Lets the desktop click snap onto a shared stage while the wheel keeps
      * driving the factor continuously. We invert against *back* hours only: one factor can't satisfy
      * both spans for the asymmetric THREE_DAY stage, and history-leaning back-span is what the stages
-     * are really about. Yields NARROW→0.0, WIDE→~0.42 (≈[DEFAULT_ZOOM_FACTOR]), THREE_DAY→~0.74.
+     * are really about. Yields NARROW→0.0, WIDE→~0.30 (≈[DEFAULT_ZOOM_FACTOR]), THREE_DAY→~0.54.
      */
     fun zoomFactorForStage(stage: ZoomStage): Float =
         (ln(stage.backHours.toFloat() / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS.toFloat() / MIN_BACK_HOURS))
@@ -326,6 +330,51 @@ internal fun DrawScope.hourlyFooter(textMeasurer: TextMeasurer, scale: Float): H
     val iconPx = 12.dp.toPx() * scale
     val labelH = textMeasurer.measure("12p", TextStyle(fontSize = labelFontSize)).size.height.toFloat()
     return HourlyFooter(labelFontSize, iconPx, maxOf(labelH, iconPx), 0f * scale)
+}
+
+/**
+ * The plot bounds and x-axis mapping shared by the cloud-cover and precipitation graphs (the
+ * temperature graph computes the same geometry too). Only the per-graph y-mapping (`yAt`, which
+ * scales by cloud `topScale` vs precip `yScaleMax`) and the `coords` it produces differ, so those
+ * stay at each call site.
+ *
+ * [xAtTime]/[xAt] map by the actual data span (first..last point) rather than the window, so the
+ * rightmost hourly point lands on the right edge and the curve fills the full width. NOW and labels
+ * route through [xAtTime] too, so they stay aligned; the window stays the visibility gate at the
+ * call site.
+ */
+internal class HourlyGraphCanvasGeometry(
+    val w: Float,
+    val h: Float,
+    val graphTop: Float,
+    val graphBottom: Float,
+    val graphHeight: Float,
+    val footer: HourlyFooter,
+    val xAtTime: (Long) -> Float,
+    val xAt: (Int) -> Float,
+)
+
+internal fun DrawScope.hourlyGraphCanvasGeometry(
+    points: List<HourlyForecast>,
+    textMeasurer: TextMeasurer,
+    scale: Float,
+    dragHours: Float,
+): HourlyGraphCanvasGeometry {
+    val w = size.width
+    val h = size.height
+    val graphTop = 38.dp.toPx() * scale
+    val footer = hourlyFooter(textMeasurer, scale)
+    val graphBottom = footer.graphBottom(h, scale)
+    val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
+
+    val dataStart = points.first().dateTime
+    val dataEnd = points.last().dateTime
+    val dataSpan = (dataEnd - dataStart).coerceAtLeast(1L).toFloat()
+    val dragResidualPx = DesktopGraphUtils.dragResidualPx(dragHours, w * 3_600_000f / dataSpan)
+    val xAtTime: (Long) -> Float = { t -> (((t - dataStart).toFloat() / dataSpan * w) + dragResidualPx).coerceIn(-w, 2 * w) }
+    val xAt: (Int) -> Float = { i -> xAtTime(points[i].dateTime) }
+
+    return HourlyGraphCanvasGeometry(w, h, graphTop, graphBottom, graphHeight, footer, xAtTime, xAt)
 }
 
 /**

@@ -150,6 +150,29 @@ class DesktopWeatherService(
         return openMeteo.getForecast(latitude, longitude, days = 1, historyDays = historyDays)
     }
 
+    /**
+     * On-demand deep history of NWS station observations for the graph's pink actual line, used when
+     * the user zooms/pans the hourly graph past the [HISTORY_DAYS] window the normal forecast fetch
+     * covers. Resolves the same observation stations as [fetchNwsForecast] and only widens the
+     * historical window — the station set (≤ [MAX_OBSERVATION_STATIONS]) and the number of API calls
+     * are unchanged; each station call simply returns more rows. Returns the flattened station
+     * readings (latest + historical) for persistence. Best-effort: empty list on any failure, so a
+     * deep zoom while NWS is down degrades to the Open-Meteo fallback curve rather than crashing.
+     */
+    suspend fun fetchObservationHistory(historyDays: Long): List<ObservationReading> = coroutineScope {
+        val grid = bestEffort("gridpoint for obs history") { nwsApi.getGridPoint(latitude, longitude) }
+            ?: return@coroutineScope emptyList<ObservationReading>()
+        val stations = bestEffort("observation stations for obs history") {
+            grid.observationStationsUrl?.let { url -> getCachedOrFetchStations(url) }
+        } ?: emptyList()
+        fetchObservationBundles(stations, historyDays).flatMap { bundle ->
+            buildList {
+                bundle.latest?.let { add(it.toReading(bundle.station)) }
+                bundle.historical.forEach { add(it.toReading(bundle.station)) }
+            }
+        }
+    }
+
     /** Open-Meteo archive (ERA5) daily highs/lows over [startDate, endDate], for climate normals. */
     suspend fun fetchHistoricalDailyTemps(startDate: String, endDate: String): List<DailyForecast> {
         return openMeteo.getHistoricalDailyTemps(latitude, longitude, startDate, endDate)
@@ -279,9 +302,12 @@ class DesktopWeatherService(
         return fetched
     }
 
-    private suspend fun fetchObservationBundles(stations: List<NwsApi.StationInfo>): List<ObservationBundle> = coroutineScope {
+    private suspend fun fetchObservationBundles(
+        stations: List<NwsApi.StationInfo>,
+        historyDays: Long = HISTORY_DAYS,
+    ): List<ObservationBundle> = coroutineScope {
         val end = Instant.now().truncatedTo(ChronoUnit.SECONDS)
-        val start = end.minus(HISTORY_DAYS, ChronoUnit.DAYS)
+        val start = end.minus(historyDays, ChronoUnit.DAYS)
         
         val deferreds = stations.take(MAX_OBSERVATION_STATIONS).map { station ->
             async {

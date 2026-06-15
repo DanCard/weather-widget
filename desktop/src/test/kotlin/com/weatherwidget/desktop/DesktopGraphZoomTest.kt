@@ -27,9 +27,9 @@ class DesktopGraphZoomTest {
     }
 
     @Test
-    fun `max zoom-out is 6 days back and 1 day forward`() {
-        assertEquals(144, DesktopGraphUtils.backHoursFor(1f))
-        assertEquals(24, DesktopGraphUtils.forwardHoursFor(1f))
+    fun `max zoom-out is 30 days back and 7 days forward`() {
+        assertEquals(720, DesktopGraphUtils.backHoursFor(1f))
+        assertEquals(168, DesktopGraphUtils.forwardHoursFor(1f))
     }
 
     @Test
@@ -237,9 +237,11 @@ class DesktopGraphZoomTest {
     @Test
     fun `each stage maps to its canonical zoom factor`() {
         // NARROW is the tightest (factor 0); WIDE lands on the existing default; THREE_DAY is wide.
+        // Canonical factors shifted when MAX_BACK_HOURS grew to 720 (the curve rescaled): WIDE's 12h
+        // back now sits at ~0.304 and THREE_DAY's 48h back at ~0.540.
         assertEquals(0f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW), 0.001f)
         assertEquals(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR, DesktopGraphUtils.zoomFactorForStage(ZoomStage.WIDE), 0.02f)
-        assertEquals(0.74f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.THREE_DAY), 0.02f)
+        assertEquals(0.54f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.THREE_DAY), 0.02f)
     }
 
     @Test
