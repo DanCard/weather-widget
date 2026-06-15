@@ -192,11 +192,17 @@ fun DailyForecastGraph(
                 val fY = (yAt(pastForecastHigh) - fLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
                 drawOutlinedText(textMeasurer, fLayout, Offset(centerX + tripleOffset - fLayout.size.width / 2f, fY))
             } else {
-                // Single label mirrors Android's effectiveHigh(): today shows the high-water max,
-                // past/future show the actual/forecast value (day.solidHigh) — so a past day shows
-                // the ACTUAL high, not the forecast. Falls back to forecast only if no actual.
+                // Single label uses the shared effectiveHigh() so the headline rule matches Android
+                // exactly: today = max(observed, live-forecast, ghost) — deliberately EXCLUDING the
+                // 24h-prior snapshot (a comparison overlay, not the headline). Past/future show the
+                // actual/forecast value (day.solidHigh); falls back to forecast only if no actual.
                 val singleHigh = if (day.isToday)
-                    listOfNotNull(day.solidHigh, day.forecastHigh, day.ghostHigh, day.snapshotHigh).maxOrNull()
+                    com.weatherwidget.shared.util.DailyDayValueResolver.effectiveHighForLabel(
+                        isToday = true,
+                        solidHigh = day.solidHigh,
+                        forecastHigh = day.forecastHigh,
+                        ghostHigh = day.ghostHigh,
+                    )
                 else day.solidHigh ?: day.forecastHigh ?: day.snapshotHigh ?: day.ghostHigh
                 if (singleHigh != null) {
                     val highLabelText = formatTemp(singleHigh, day.isToday || day.isPast)
@@ -209,8 +215,9 @@ fun DailyForecastGraph(
                     // the header (a little overlap is welcome) rather than dropping onto the bar.
                     val highLabelY = (yAt(singleHigh) - highText.size.height - 3f * scale).coerceAtLeast(-headerBleed)
                     val highTopLeft = Offset(centerX - highText.size.width / 2f, highLabelY)
-                    // History gets the thin outline; today/future get no shadow.
-                    if (day.isPast) drawOutlinedText(textMeasurer, highText, highTopLeft)
+                    // History and today get the thin outline (today's headline sits over the triple
+                    // bars, like history's dual labels); future days stay plain.
+                    if (day.isPast || day.isToday) drawOutlinedText(textMeasurer, highText, highTopLeft)
                     else drawText(highText, topLeft = highTopLeft)
                 }
             }

@@ -50,4 +50,24 @@ object DailyDayValueResolver {
             ghostHigh = actualHigh,
         )
     }
+
+    /**
+     * The "headline" high used for a column's single high label, matching Android's
+     * `effectiveHigh()`.
+     *
+     * Today = `max(observed, live-forecast, ghost high-water mark)`. This deliberately
+     * **excludes** the 24h-prior snapshot — that bar is a comparison overlay, not the
+     * headline, so it must not drive the prominent today number (see
+     * [selectPriorDaySnapshot][DailySnapshotSelector.selectPriorDaySnapshot]).
+     *
+     * Other days = the observed high.
+     */
+    fun effectiveHighForLabel(
+        isToday: Boolean,
+        solidHigh: Float?,
+        forecastHigh: Float?,
+        ghostHigh: Float?,
+    ): Float? =
+        if (!isToday) solidHigh
+        else listOfNotNull(solidHigh, forecastHigh, ghostHigh).maxOrNull()
 }

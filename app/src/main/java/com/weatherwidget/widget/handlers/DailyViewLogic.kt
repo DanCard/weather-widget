@@ -390,14 +390,13 @@ object DailyViewLogic {
                     }
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
-                val yesterdaySameTime = now.minusHours(24)
                 val snapshotCandidates = forecasts
                     .filter { it.source == displaySource.id }
                     .filter { it.highTemp != null && it.lowTemp != null }
-                val snapshot = snapshotCandidates
-                    .filter { LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it.fetchedAt), java.time.ZoneId.systemDefault()).isBefore(yesterdaySameTime) }
-                    .maxByOrNull { it.fetchedAt }
-                    ?: snapshotCandidates.minByOrNull { it.fetchedAt }
+                val nowMillis = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val snapshot = com.weatherwidget.shared.util.DailySnapshotSelector.selectPriorDaySnapshot(
+                    snapshotCandidates, nowMillis, { it.fetchedAt },
+                )
 
                 snapshotIconRes = snapshot?.let { w ->
                     DailyForecastIconResolver.resolveIcon(

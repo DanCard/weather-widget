@@ -193,10 +193,13 @@ object DailyForecastGraphRenderer {
         val daysFromToday: Int = 0,
     )
 
-    private fun DayData.effectiveHigh(): Float? {
-        if (!isToday) return solidLineHigh
-        return listOfNotNull(solidLineHigh, dashedLineHigh, ghostLineHigh).maxOrNull()
-    }
+    private fun DayData.effectiveHigh(): Float? =
+        com.weatherwidget.shared.util.DailyDayValueResolver.effectiveHighForLabel(
+            isToday = isToday,
+            solidHigh = solidLineHigh,
+            forecastHigh = dashedLineHigh,
+            ghostHigh = ghostLineHigh,
+        )
 
     data class LayoutInfo(
         val widthPx: Int,
@@ -559,7 +562,9 @@ object DailyForecastGraphRenderer {
             // drawOutline=true), today/future labels get no shadow at all.
             tempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight),
             pastTempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight * PAST_TEMP_SCALE),
-            todayTempTextPaint = createTextPaint(COLOR_TODAY_TEXT, layout.tempLabelHeight, true),
+            // Today temp labels are NOT bold (matches desktop's default weight); they stand out via
+            // the COLOR_TODAY_TEXT highlight + outline, not weight.
+            todayTempTextPaint = createTextPaint(COLOR_TODAY_TEXT, layout.tempLabelHeight),
             rainTextPaint = createTextPaint(COLOR_FORECAST, (RAIN_TEXT_SIZE_DP * scaleFactor * labelScale).dp(layout.density), shadowRadius = shadowRadius, shadowDy = shadowDy),
         )
 
@@ -829,7 +834,9 @@ object DailyForecastGraphRenderer {
                 val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
                 val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
                 val labelY = if (day.isToday) layout.tempToY(day.effectiveHigh() ?: day.solidLineHigh) else y
-                drawTempLabel(canvas, highLabel, centerX, labelY - labelOffset, basePaint, drawOutline = day.isPast)
+                // History and today get the thin outline (today's headline sits over the triple bars);
+                // future days stay plain.
+                drawTempLabel(canvas, highLabel, centerX, labelY - labelOffset, basePaint, drawOutline = day.isPast || day.isToday)
             }
         }
     }

@@ -134,12 +134,21 @@ object DesktopDailyForecastModel {
     ): DesktopDailyDay {
         val isToday = date == today
         val isPast = date.isBefore(today)
+        // Past-day overlay wants the most-recent snapshot (matches Android's past-day logic).
         val snapshot = snapshots
             .filter { it.highTemp != null && it.lowTemp != null && it.highTemp != it.lowTemp }
             .maxByOrNull { it.fetchedAt }
             ?: snapshots
                 .filter { it.highTemp != null || it.lowTemp != null }
                 .maxByOrNull { it.fetchedAt }
+
+        // Today's left bar wants the forecast "as of ~24h ago" — shared with Android.
+        val nowMillis = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val todaySnapshot = com.weatherwidget.shared.util.DailySnapshotSelector.selectPriorDaySnapshot(
+            snapshots.filter { it.highTemp != null && it.lowTemp != null },
+            nowMillis, { it.fetchedAt },
+        )
+        val displaySnapshot = if (isToday) todaySnapshot else snapshot
 
         val solidHigh: Float?
         val solidLow: Float?
@@ -212,15 +221,15 @@ object DesktopDailyForecastModel {
             label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
             forecast = forecast,
             actual = actual,
-            snapshot = snapshot,
+            snapshot = displaySnapshot,
             solidHigh = solidHigh,
             solidLow = solidLow,
             forecastHigh = forecastHigh,
             forecastLow = forecastLow,
             ghostHigh = ghostHigh,
-            snapshotHigh = snapshot?.highTemp,
-            snapshotLow = snapshot?.lowTemp,
-            iconCondition = forecast?.condition ?: actual?.condition ?: snapshot?.condition,
+            snapshotHigh = displaySnapshot?.highTemp,
+            snapshotLow = displaySnapshot?.lowTemp,
+            iconCondition = forecast?.condition ?: actual?.condition ?: displaySnapshot?.condition,
             isToday = isToday,
             isPast = isPast,
             cloudCoverRatio = resolveNoonCloudCoverRatio(date, hourly),
