@@ -31,6 +31,7 @@ import com.weatherwidget.widget.ForecastFetchContext
 import com.weatherwidget.widget.ForecastFetchPolicy
 import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetConstants
+import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -844,35 +845,34 @@ class ForecastRepository
             longitude: Double,
             sourceId: String
         ) {
+            // The past-hours -> observation mapping (and its measured-precip provenance gate) is
+            // shared with the desktop service via HistoricalActualsBackfill so the two platforms
+            // cannot drift. Precip is kept only for sources whose past hours are genuine actuals
+            // (a real history/reanalysis product); forecast-only sources have it nulled so their
+            // own past forecast is not presented as a measurement.
             val now = System.currentTimeMillis()
-            val fetchedAt = System.currentTimeMillis()
-            // Only persist past-day precip as a measured "actual" for sources whose backfilled
-            // past hours are genuine actuals — a real history product (obs / history endpoint /
-            // reanalysis archive) or, for Tomorrow.io, a fetch window capped at <24h so its past
-            // hours are recent nowcast/analysis rather than stale forecast. Forecast-only sources
-            // (Visual Crossing, OpenWeatherMap) would otherwise present their own past forecast as
-            // a measurement — the same provenance bug we removed for NWS. Temperature backfill is
-            // still kept; only measured precip is gated.
-            val keepMeasuredPrecip = WeatherSource.fromId(sourceId).providesHistoricalActuals
-
-            val historicalObs = hourlyData
-                .filter { it.dateTime <= now }
-                .map { hour ->
-                    ObservationEntity(
-                        stationId = "${sourceId}_MAIN",
-                        stationName = "$sourceId: History Backfill",
-                        timestamp = hour.dateTime,
-                        temperature = hour.temperature,
-                        condition = hour.condition,
-                        locationLat = latitude,
-                        locationLon = longitude,
-                        distanceKm = 0.0f,
-                        stationType = "OFFICIAL",
-                        fetchedAt = fetchedAt,
-                        api = sourceId,
-                        precipAmountMm = if (keepMeasuredPrecip) hour.precipAmountMm else null
-                    )
-                }
+            val historicalObs = HistoricalActualsBackfill.build(
+                hourly = hourlyData,
+                latitude = latitude,
+                longitude = longitude,
+                sourceId = sourceId,
+                nowMs = now,
+            ).map { reading ->
+                ObservationEntity(
+                    stationId = reading.stationId,
+                    stationName = reading.stationName,
+                    timestamp = reading.timestamp,
+                    temperature = reading.temperature,
+                    condition = reading.condition,
+                    locationLat = reading.locationLat,
+                    locationLon = reading.locationLon,
+                    distanceKm = reading.distanceKm,
+                    stationType = reading.stationType,
+                    fetchedAt = reading.fetchedAt,
+                    api = reading.api,
+                    precipAmountMm = reading.precipAmountMm,
+                )
+            }
 
             if (historicalObs.isNotEmpty()) {
                 observationDao.insertAll(historicalObs)

@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.*
+import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.SpatialInterpolator
@@ -50,13 +51,21 @@ class DesktopWeatherService(
         }
     }
 
+    // Build-time keys (from local.properties / env, baked in via DesktopApiKeys) provide the default,
+    // and a key entered in desktop Settings (config.apiKeys) overrides it — same precedence as
+    // Android's `widgetStateManager.getApiKey(...) ?: BuildConfig.<SOURCE>_API_KEY`. Blank config
+    // values are ignored so they can't wipe a baked-in key. These keys are never written back to
+    // config.json (the store only persists config.apiKeys).
+    private val effectiveKeys: Map<String, String> =
+        DesktopApiKeys.DEFAULTS + apiKeys.filterValues { it.isNotBlank() }
+
     private val openMeteo = OpenMeteoApi(httpClient, json)
     private val nwsApi = NwsApi(httpClient, json)
-    private val tomorrowIo = TomorrowIoApi(httpClient, json) { apiKeys[WeatherSource.TOMORROW_IO.id] }
-    private val weatherApi = WeatherApi(httpClient, json) { apiKeys[WeatherSource.WEATHER_API.id] }
-    private val visualCrossing = VisualCrossingApi(httpClient, json) { apiKeys[WeatherSource.VISUAL_CROSSING.id] }
-    private val silurian = SilurianApi(httpClient, json) { apiKeys[WeatherSource.SILURIAN.id] }
-    private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { apiKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
+    private val tomorrowIo = TomorrowIoApi(httpClient, json) { effectiveKeys[WeatherSource.TOMORROW_IO.id] }
+    private val weatherApi = WeatherApi(httpClient, json) { effectiveKeys[WeatherSource.WEATHER_API.id] }
+    private val visualCrossing = VisualCrossingApi(httpClient, json) { effectiveKeys[WeatherSource.VISUAL_CROSSING.id] }
+    private val silurian = SilurianApi(httpClient, json) { effectiveKeys[WeatherSource.SILURIAN.id] }
+    private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { effectiveKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
 
     constructor(config: DesktopConfig?) : this(
         latitude = config?.lat ?: FALLBACK_LATITUDE,
@@ -68,21 +77,74 @@ class DesktopWeatherService(
     suspend fun fetchForecast(): ForecastResult = runCatching {
         when (weatherSource) {
             "NWS" -> fetchNwsForecast()
-            WeatherSource.TOMORROW_IO.id -> tomorrowIo.getForecast(latitude, longitude)
-            WeatherSource.WEATHER_API.id -> weatherApi.getForecast(latitude, longitude)
-            WeatherSource.VISUAL_CROSSING.id -> visualCrossing.getForecast(latitude, longitude)
-            WeatherSource.SILURIAN.id -> silurian.getForecast(latitude, longitude)
-            WeatherSource.OPEN_WEATHER_MAP.id -> openWeatherMap.getForecast(latitude, longitude)
-            else -> openMeteo.getForecast(latitude, longitude)
+            WeatherSource.TOMORROW_IO.id -> withHistoricalActuals(tomorrowIo.getForecast(latitude, longitude), WeatherSource.TOMORROW_IO.id)
+            WeatherSource.WEATHER_API.id -> withHistoricalActuals(weatherApi.getForecast(latitude, longitude), WeatherSource.WEATHER_API.id)
+            WeatherSource.VISUAL_CROSSING.id -> withHistoricalActuals(visualCrossing.getForecast(latitude, longitude), WeatherSource.VISUAL_CROSSING.id)
+            WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
+            WeatherSource.OPEN_WEATHER_MAP.id -> withHistoricalActuals(openWeatherMap.getForecast(latitude, longitude), WeatherSource.OPEN_WEATHER_MAP.id)
+            else -> fetchOpenMeteoForecastWithActuals()
         }
     }.getOrElse { e ->
-        // If NWS fails (e.g. out of US) or any source fails, fall back to Open-Meteo.
-        if (weatherSource != WeatherSource.OPEN_METEO.id) {
-            openMeteo.getForecast(latitude, longitude)
-        } else {
-            throw e
+        if (e is CancellationException) throw e
+        when (weatherSource) {
+            // NWS has no coverage outside the US, so Open-Meteo is the intended substitute there.
+            // This is the one legitimate cross-source fallback — but log it so it is never silent.
+            "NWS" -> {
+                weatherDao?.log("SOURCE_FALLBACK", "NWS unavailable, substituting Open-Meteo: ${e.message}", "WARN")
+                fetchOpenMeteoForecastWithActuals()
+            }
+            // Open-Meteo itself has nowhere to fall back to.
+            WeatherSource.OPEN_METEO.id -> throw e
+            // Any other explicitly-selected source: do NOT silently relabel Open-Meteo data as that
+            // source (that masks a missing key / outage and shows the wrong provider's numbers).
+            // Surface the failure instead — the refresh loop logs REFRESH_FAIL and updates DataStatus.
+            else -> {
+                val hasKey = effectiveKeys[weatherSource]?.isNotBlank() == true
+                val hint = if (!hasKey && WeatherSource.fromId(weatherSource) != WeatherSource.OPEN_METEO) {
+                    " (no API key configured for $weatherSource — set it in local.properties or Settings)"
+                } else ""
+                weatherDao?.log("SOURCE_ERROR", "$weatherSource fetch failed; not masquerading as Open-Meteo$hint: ${e.message}", "WARN")
+                throw e
+            }
         }
     }
+
+    /**
+     * Backfills the historical-actuals observations that drive the graph's pink actual line for any
+     * non-NWS source. These sources have no station observations of their own, so without this their
+     * past hours are never filed as observations and the actual line stays empty (the bug NWS never
+     * had). The shared helper re-files the past slice of the source's hourly list as observation
+     * rows — matching Android, which routes every source through saveHistoricalActuals. NWS is the
+     * one exception: it supplies real station readings in fetchNwsForecast and must not be backfilled.
+     */
+    private fun withHistoricalActuals(result: ForecastResult, sourceId: String): ForecastResult =
+        result.copy(
+            rawObservations = HistoricalActualsBackfill.build(
+                hourly = result.hourly,
+                latitude = latitude,
+                longitude = longitude,
+                sourceId = sourceId,
+                nowMs = System.currentTimeMillis(),
+            ),
+        )
+
+    /**
+     * Open-Meteo forecast plus the historical-actuals backfill. Open-Meteo additionally needs
+     * [ACTUALS_HISTORY_DAYS] of `past_days` so its hourly list actually contains the past hours the
+     * backfill re-files (other sources return their recent past inline).
+     *
+     * The backfill is labeled with the service's display [weatherSource], not OPEN_METEO: this method
+     * is also the failure fallback for every other source (see fetchForecast's getOrElse), and
+     * refresh() stores the fetched forecast under the display source. Labeling the actuals the same
+     * way keeps them matched to the (display-labeled) forecast so the actual line still renders when a
+     * source falls back to Open-Meteo. When Open-Meteo is itself the active source the two ids are
+     * identical, so this is a no-op there.
+     */
+    private suspend fun fetchOpenMeteoForecastWithActuals(): ForecastResult =
+        withHistoricalActuals(
+            openMeteo.getForecast(latitude, longitude, historyDays = ACTUALS_HISTORY_DAYS),
+            weatherSource,
+        )
 
     suspend fun fetchHistory(historyDays: Int): ForecastResult {
         return openMeteo.getForecast(latitude, longitude, days = 1, historyDays = historyDays)
@@ -387,6 +449,10 @@ class DesktopWeatherService(
 
         // How far back to pull observations for the actuals / accuracy pipeline.
         const val HISTORY_DAYS = 7L
+
+        // past_days window for the Open-Meteo actuals backfill — matches the graph's 6-day
+        // full zoom-out so the actual line spans the same range as the forecast line.
+        const val ACTUALS_HISTORY_DAYS = 7
 
         private const val TAG = "DesktopWeatherService"
         private const val MAX_OBSERVATION_STATIONS = 5

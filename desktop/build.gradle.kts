@@ -1,4 +1,5 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -9,6 +10,55 @@ plugins {
 
 kotlin {
     jvmToolchain(21)
+}
+
+// --- Build-time API keys (parity with Android's BuildConfig) ---
+// The desktop app, like Android, reads source API keys from local.properties (falling back to env
+// vars) and bakes them into the binary. Without this the keyed sources (Silurian, WeatherAPI, OWM,
+// Visual Crossing, Tomorrow.io) have no key on desktop and silently fall back to Open-Meteo.
+// A key typed into the desktop Settings (config.apiKeys) still takes precedence at runtime.
+run {
+    val localProps = Properties().apply {
+        rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    fun keyFor(name: String): String = localProps.getProperty(name) ?: System.getenv(name) ?: ""
+    // Map of WeatherSource.id -> local.properties / env var name.
+    val keySpecs = listOf(
+        "WEATHER_API" to "WEATHER_API_KEY",
+        "SILURIAN" to "SILURIAN_API_KEY",
+        "OPEN_WEATHER_MAP" to "OPEN_WEATHER_MAP_API_KEY",
+        "VISUAL_CROSSING" to "VISUAL_CROSSING_API_KEY",
+        "TOMORROW_IO" to "TOMORROW_IO_API_KEY",
+    )
+    val generatedDir = layout.buildDirectory.dir("generated/apikeys/kotlin")
+    val generateApiKeys = tasks.register("generateDesktopApiKeys") {
+        val resolved = keySpecs.map { (id, prop) -> id to keyFor(prop) }
+        resolved.forEach { (id, value) -> inputs.property(id, value) }
+        val outDir = generatedDir
+        outputs.dir(outDir)
+        doLast {
+            val pkgDir = outDir.get().asFile.resolve("com/weatherwidget/desktop").apply { mkdirs() }
+            fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
+            val entries = resolved
+                .filter { it.second.isNotBlank() }
+                .joinToString("\n") { (id, value) -> "        \"$id\" to \"${esc(value)}\"," }
+            pkgDir.resolve("DesktopApiKeys.kt").writeText(
+                """
+                |package com.weatherwidget.desktop
+                |
+                |// GENERATED — do not edit. See desktop/build.gradle.kts (generateDesktopApiKeys).
+                |// Build-time API keys from local.properties / env, mirroring Android's BuildConfig keys.
+                |internal object DesktopApiKeys {
+                |    val DEFAULTS: Map<String, String> = mapOf(
+                |$entries
+                |    )
+                |}
+                |""".trimMargin()
+            )
+        }
+    }
+    kotlin.sourceSets.named("main") { kotlin.srcDir(generatedDir) }
+    tasks.named("compileKotlin") { dependsOn(generateApiKeys) }
 }
 
 dependencies {
