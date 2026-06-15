@@ -11,6 +11,7 @@ coroutines = "1.7.3"
 serialization = "1.7.3"
 sqliteJdbc = "3.53.1.0"
 ktlint = "12.1.0"
+cpd = "3.5"
 coreKtx = "1.12.0"
 appcompat = "1.6.1"
 playServicesLocation = "21.1.0"
@@ -93,5 +94,6 @@ compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose" 
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
+cpd = { id = "de.aaschmid.cpd", version.ref = "cpd" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }

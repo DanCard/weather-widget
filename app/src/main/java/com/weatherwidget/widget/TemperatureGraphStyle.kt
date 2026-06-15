@@ -5,10 +5,12 @@ import android.graphics.*
 import android.graphics.Typeface
 import android.util.Log
 import android.util.TypedValue
+import com.weatherwidget.shared.graph.FetchDotLabel
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
+import com.weatherwidget.shared.graph.TemperatureColorModel
+import com.weatherwidget.shared.graph.TemperatureLabelResolver
 import com.weatherwidget.util.WeatherConditionColors
 import java.time.Duration
-import kotlin.math.round
 
 object TemperatureGraphStyle {
     private const val TAG = "TempGraphStyle"
@@ -38,46 +40,20 @@ object TemperatureGraphStyle {
     const val STROKE_ACTUAL_DP = 1f
     const val STROKE_FORECAST_DP = 1.2f
     const val STROKE_LEADER_LINE_DP = 0.5f
-    const val AGE_LABEL_MAX_HOURS_SPAN = 12L
+    const val AGE_LABEL_MAX_HOURS_SPAN = FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN
     const val DEFAULT_FONT_DESCENT_RATIO = 0.2f
 
-    // Temperature-to-color thresholds
-    private const val COLD_THRESHOLD = 50f
-    private const val MILD_TEMP = 70f
-    private const val HOT_THRESHOLD = 90f
-
-    private val COLOR_COLD = Color.parseColor("#5AC8FA") // Blue
-    private val COLOR_MILD = Color.parseColor("#E8A24E") // Golden amber
-    private val COLOR_HOT = Color.parseColor("#FF6B35") // Warm orange
     val COLOR_ACTUAL_LINE = WeatherConditionColors.OBSERVED  // Hot pink #FF3366
     val COLOR_ACTUAL_LABEL = WeatherConditionColors.OBSERVED
     val COLOR_FORECAST_LABEL = Color.parseColor("#C5DCFF")
 
-    fun tempToColor(temp: Float): Int {
-        return when {
-            temp <= COLD_THRESHOLD -> COLOR_COLD
-            temp >= HOT_THRESHOLD -> COLOR_HOT
-            temp <= MILD_TEMP -> blendColors(COLOR_COLD, COLOR_MILD, (temp - COLD_THRESHOLD) / (MILD_TEMP - COLD_THRESHOLD))
-            else -> blendColors(COLOR_MILD, COLOR_HOT, (temp - MILD_TEMP) / (HOT_THRESHOLD - MILD_TEMP))
-        }
-    }
+    // Temperature→color thresholds, colors, and blending live in the shared [TemperatureColorModel]
+    // so the desktop graph produces identical pixels for the same temperature.
+    fun tempToColor(temp: Float): Int = TemperatureColorModel.tempToColorArgb(temp)
 
-    private fun blendColors(c1: Int, c2: Int, fraction: Float): Int {
-        val f = fraction.coerceIn(0f, 1f)
-        val r = (Color.red(c1) * (1 - f) + Color.red(c2) * f).toInt()
-        val g = (Color.green(c1) * (1 - f) + Color.green(c2) * f).toInt()
-        val b = (Color.blue(c1) * (1 - f) + Color.blue(c2) * f).toInt()
-        return Color.rgb(r, g, b)
-    }
-
-    fun formatTemp(value: Float): String {
-        val rounded = round(value * 10f) / 10f
-        return if (rounded % 1f == 0f) {
-            String.format("%.0f", rounded)
-        } else {
-            String.format("%.1f", rounded)
-        }
-    }
+    // Graph temperature formatting (no degree symbol; callers append "°") is the same contract as
+    // the shared label resolver — delegate so there's a single source of truth.
+    fun formatTemp(value: Float): String = TemperatureLabelResolver.formatTemp(value)
 
     fun formatColorHex(color: Int): String {
         return String.format("#%06X", (0xFFFFFF and color))
@@ -88,8 +64,7 @@ object TemperatureGraphStyle {
             Log.w(TAG, "formatAgeLabel: negative ageMinutes=$ageMinutes, possible clock skew")
             return null
         }
-        if (hoursSpanHours > AGE_LABEL_MAX_HOURS_SPAN) return null
-        return if (ageMinutes >= 60) "${ageMinutes / 60}h${if (ageMinutes % 60 > 0) " ${ageMinutes % 60}m" else ""}" else "${ageMinutes}m"
+        return FetchDotLabel.formatAgeLabel(ageMinutes, hoursSpanHours, AGE_LABEL_MAX_HOURS_SPAN)
     }
 
     fun withAlpha(color: Int, alpha: Int): Int {
@@ -274,7 +249,7 @@ object TemperatureGraphStyle {
         val stops = mutableListOf<Pair<Float, Int>>()
         stops.add(0f to tempToColor(maxTemp))
         stops.add(1f to tempToColor(minTemp))
-        for (t in listOf(HOT_THRESHOLD, MILD_TEMP, COLD_THRESHOLD)) {
+        for (t in TemperatureColorModel.THRESHOLDS) {
             if (t > minTemp && t < maxTemp) {
                 stops.add(tempToPos(t) to tempToColor(t))
             }

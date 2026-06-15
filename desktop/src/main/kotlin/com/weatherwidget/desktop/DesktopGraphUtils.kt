@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.graph.CurveMath
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.NowIndicatorGeometry
@@ -141,42 +142,13 @@ internal object DesktopGraphUtils {
     fun dragResidualPx(dragHours: Float, pixelsPerHour: Float): Float =
         -(dragHours - dragHours.roundToInt()) * pixelsPerHour
 
-    /** Catmull-Rom tangent computation for smooth curve interpolation. */
-    fun computeTangents(coords: List<Offset>): List<Offset> {
-        if (coords.size < 2) return coords.map { Offset.Zero }
-        return coords.indices.map { i ->
-            when (i) {
-                0 -> Offset(
-                    (coords[1].x - coords[0].x) * 0.5f,
-                    (coords[1].y - coords[0].y) * 0.5f
-                )
-                coords.size - 1 -> Offset(
-                    (coords[i].x - coords[i - 1].x) * 0.5f,
-                    (coords[i].y - coords[i - 1].y) * 0.5f
-                )
-                else -> {
-                    val dxPrev = coords[i].x - coords[i - 1].x
-                    val dxNext = coords[i + 1].x - coords[i].x
-                    val dx = (dxPrev + dxNext) * 0.5f
-                    var dy = (coords[i + 1].y - coords[i - 1].y) * 0.5f
-
-                    val delta1 = coords[i].y - coords[i - 1].y
-                    val delta2 = coords[i + 1].y - coords[i].y
-                    if (delta1 == 0f || delta2 == 0f || (delta1 > 0 && delta2 < 0) || (delta1 < 0 && delta2 > 0)) {
-                        dy = 0f
-                    }
-
-                    val maxSafeDx = dxPrev.coerceAtMost(dxNext) * 1.5f
-                    if (dx > maxSafeDx && maxSafeDx > 0) {
-                        val scale = maxSafeDx / dx
-                        Offset(maxSafeDx, dy * scale)
-                    } else {
-                        Offset(dx, dy)
-                    }
-                }
-            }
-        }
-    }
+    /**
+     * Catmull-Rom tangent computation for smooth curve interpolation. Delegates to the shared
+     * [CurveMath] (which works on plain `(x, y)` pairs) so Android and desktop share the same math;
+     * only the `Offset`↔`Pair` mapping happens here.
+     */
+    fun computeTangents(coords: List<Offset>): List<Offset> =
+        CurveMath.computeTangents(coords.map { it.x to it.y }).map { Offset(it.first, it.second) }
 
     /** Builds a cubic Bezier path through coords using Catmull-Rom tangents. */
     fun buildCurve(coords: List<Offset>): Path = Path().apply {

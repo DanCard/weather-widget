@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -54,9 +53,6 @@ import java.time.format.TextStyle as JavaTextStyle
  * OBSERVED color) and future hours show a dashed forecast line. Without observations the full curve
  * is drawn solid.
  */
-private val COLOR_COLD = Color(0xFF5AC8FA)
-private val COLOR_MILD = Color(0xFFE8A24E)
-private val COLOR_HOT = Color(0xFFFF6B35)
 private val COLOR_ACTUAL = Color(0xFFFF3366) // matches Android TemperatureGraphStyle.OBSERVED
 
 private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
@@ -64,12 +60,8 @@ private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionR
     return Color(argb)
 }
 
-private const val COLD_THRESHOLD = 50f
-private const val MILD_TEMP = 70f
-private const val HOT_THRESHOLD = 90f
 private const val ACTUALS_CONTEXT_LOOKBACK_HOURS = 144L
 private const val ACTUALS_CONTEXT_LOOKAHEAD_HOURS = 60L
-private const val AGE_LABEL_MAX_HOURS_SPAN = 12L
 // Temperature value labels (on-curve highs/lows + now/current temp) are 10% larger than the 14sp
 // time/axis labels for readability. Hour-of-day and day labels keep 14sp.
 private const val TEMP_VALUE_LABEL_SP = 15.4f // 14sp + 10%
@@ -80,15 +72,8 @@ private const val TEMP_VALUE_LABEL_SP = 15.4f // 14sp + 10%
  * freshness is meaningful — so it appears in the zoomed-in view and hides in the wide 24h view.
  * Returns null when it should not be drawn. Format matches Android: "17m", "1h 5m".
  */
-private fun formatAgeLabel(ageMinutes: Long, spanHours: Long): String? {
-    if (ageMinutes < 0) return null
-    if (spanHours > AGE_LABEL_MAX_HOURS_SPAN) return null
-    return if (ageMinutes >= 60) {
-        "${ageMinutes / 60}h${if (ageMinutes % 60 > 0) " ${ageMinutes % 60}m" else ""}"
-    } else {
-        "${ageMinutes}m"
-    }
-}
+private fun formatAgeLabel(ageMinutes: Long, spanHours: Long): String? =
+    FetchDotLabel.formatAgeLabel(ageMinutes, spanHours)
 
 internal data class HourWindow(val startMs: Long, val endMs: Long)
 
@@ -106,12 +91,9 @@ internal fun temperatureGraphHourWindow(
     return HourWindow(startMs, endMs)
 }
 
-private fun tempToColor(temp: Float): Color = when {
-    temp <= COLD_THRESHOLD -> COLOR_COLD
-    temp >= HOT_THRESHOLD -> COLOR_HOT
-    temp <= MILD_TEMP -> lerp(COLOR_COLD, COLOR_MILD, (temp - COLD_THRESHOLD) / (MILD_TEMP - COLD_THRESHOLD))
-    else -> lerp(COLOR_MILD, COLOR_HOT, (temp - MILD_TEMP) / (HOT_THRESHOLD - MILD_TEMP))
-}
+// Delegates to the shared [TemperatureColorModel] (integer-RGB blend) so desktop produces the same
+// pixels as the Android widget for any temperature. Previously blended via Compose lerp().
+private fun tempToColor(temp: Float): Color = Color(TemperatureColorModel.tempToColorArgb(temp))
 
 @Composable
 fun TemperatureGraph(
@@ -375,7 +357,8 @@ fun TemperatureGraph(
             fetchDotYVal = fetchDotY
             
             val tempVal = fetchDotPoint.actualTemp!!
-            val tempText = if (tempVal % 1.0f == 0f) "${tempVal.roundToInt()}°" else String.format(Locale.US, "%.1f°", tempVal)
+            // Same formatting as Android's fetch-dot (TemperatureGraphStyle.formatTemp + "°").
+            val tempText = TemperatureLabelResolver.formatTemp(tempVal) + "°"
             val valueTextLayout = textMeasurer.measure(
                 tempText,
                 TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp, color = COLOR_ACTUAL, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
@@ -651,7 +634,7 @@ private fun buildColorStops(minTemp: Float, maxTemp: Float, range: Float): Array
     return buildList {
         add(0f to tempToColor(maxTemp))
         add(1f to tempToColor(minTemp))
-        for (t in listOf(HOT_THRESHOLD, MILD_TEMP, COLD_THRESHOLD)) {
+        for (t in TemperatureColorModel.THRESHOLDS) {
             if (t > minTemp && t < maxTemp) add(posOf(t) to tempToColor(t))
         }
     }.sortedBy { it.first }.distinctBy { (it.first * 1000).toInt() }.toTypedArray()

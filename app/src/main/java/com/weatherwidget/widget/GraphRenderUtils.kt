@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.util.Log
+import com.weatherwidget.shared.graph.CurveMath
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.NowIndicatorGeometry
@@ -100,57 +101,10 @@ internal object GraphRenderUtils {
     /**
      * Computes monotone-aware tangents for a set of points.
      * These tangents ensure the cubic spline doesn't overshoot at peaks/valleys.
+     * Delegates to the shared [CurveMath] so Android and desktop use identical curve math.
      */
-    fun computeTangents(points: List<Pair<Float, Float>>): List<Pair<Float, Float>> {
-        if (points.size < 2) return points.map { 0f to 0f }
-        
-        return points.indices.map { i ->
-            when (i) {
-                0 ->
-                    Pair(
-                        (points[1].first - points[0].first) * 0.5f,
-                        (points[1].second - points[0].second) * 0.5f,
-                    )
-
-                points.size - 1 ->
-                    Pair(
-                        (points[i].first - points[i - 1].first) * 0.5f,
-                        (points[i].second - points[i - 1].second) * 0.5f,
-                    )
-
-                else -> {
-                    val dxPrev = points[i].first - points[i - 1].first
-                    val dxNext = points[i + 1].first - points[i].first
-                    
-                    val dx = (dxPrev + dxNext) * 0.5f
-                    var dy = (points[i + 1].second - points[i - 1].second) * 0.5f
-
-                    // Monotone-aware tangents: Zero out Y tangent if at a plateau or extremum
-                    val yPrev = points[i - 1].second
-                    val yCurr = points[i].second
-                    val yNext = points[i + 1].second
-
-                    val delta1 = yCurr - yPrev
-                    val delta2 = yNext - yCurr
-
-                    // If either side is flat, or if it's a peak/valley (signs differ), force tangent to 0
-                    if (delta1 == 0f || delta2 == 0f || (delta1 > 0 && delta2 < 0) || (delta1 < 0 && delta2 > 0)) {
-                        dy = 0f
-                    }
-
-                    // For non-uniform spacing (like sub-hourly observations), prevent the tangent
-                    // from overshooting the segment distance, which causes loopbacks and wild swoops.
-                    val maxSafeDx = dxPrev.coerceAtMost(dxNext) * 1.5f
-                    if (dx > maxSafeDx && maxSafeDx > 0) {
-                        val scale = maxSafeDx / dx
-                        Pair(maxSafeDx, dy * scale)
-                    } else {
-                        Pair(dx, dy)
-                    }
-                }
-            }
-        }
-    }
+    fun computeTangents(points: List<Pair<Float, Float>>): List<Pair<Float, Float>> =
+        CurveMath.computeTangents(points)
 
     /**
      * Evaluates the Y value of a monotone-aware cubic spline at a given fraction [0..1]

@@ -1028,12 +1028,15 @@ private fun WidgetHeader(
                                 onUpdateConfig(config.copy(viewMode = nextView))
                             }.testTag("graph_selector")
                         )
-                        // Station observations button
-                        Text(
-                            text = "🌡️",
-                            fontSize = (13 * scale).sp,
-                            color = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.clickable {
+                        // Station observations button — ports Android's ic_thermometer drawable
+                        // (drawable/ic_thermometer.xml, tinted dim white like TemperatureTouchTargets'
+                        // 0xAAFFFFFF) instead of the 🌡️ emoji, so it no longer collides with the graph
+                        // selector's HOURLY (🌡️) cycle hint.
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
+                            contentDescription = "Weather station observations",
+                            tint = Color.White.copy(alpha = 0.67f),
+                            modifier = Modifier.size((15 * scale).dp).clickable {
                                 onOpenObservations()
                             }.testTag("open_observations_header")
                         )
