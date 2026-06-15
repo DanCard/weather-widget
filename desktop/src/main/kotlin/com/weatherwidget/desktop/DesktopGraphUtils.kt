@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.TextLayoutResult
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.shared.graph.CurveMath
+import com.weatherwidget.shared.graph.ForecastEvolutionStyle
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.NowIndicatorGeometry
@@ -32,10 +34,12 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import java.time.format.TextStyle as JavaTextStyle
 
 /**
@@ -396,13 +400,36 @@ internal fun DrawScope.drawHourlyFooterStrip(
     scale: Float,
     xAt: (Int) -> Float,
 ) {
-    for (label in DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault())) {
+    val labelStyle = TextStyle(fontSize = footer.labelFontSize, color = Color.Gray)
+    val measured = DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault())
+        .map { it to textMeasurer.measure(it.text, labelStyle) }
+
+    // In multi-day date mode the one-label-per-day strip crowds at wide zoom (e.g. a 30-day zoom-out
+    // packs ~30 "Wed 11" labels). When the labels plus their weather icons would collide, drop the
+    // icons and slant the dates like the forecast-history x-axis so they stay readable. Clock-hour
+    // mode (≤2-day spans) keeps its horizontal labels + icons untouched.
+    if (DesktopGraphUtils.isDateMode(totalSpanHours) && footerLabelsWouldOverlap(measured, footer, scale, xAt)) {
+        // Each label is right-anchored at its tick and rotated like the forecast-history x-axis. That
+        // rotation swings the label's lower-left corner ~width*sin(slant) BELOW the pivot, so the
+        // pivot baseline must sit that far above the canvas bottom or the text clips off-screen.
+        val slantRad = abs(ForecastEvolutionStyle.X_LABEL_SLANT_DEG) * (PI.toFloat() / 180f)
+        val maxDownSwing = measured.maxOf { it.second.size.width } * sin(slantRad)
+        val baseline = heightPx - maxDownSwing - footer.margin - 2.dp.toPx() * scale
+        for ((label, layout) in measured) {
+            val x = xAt(label.index)
+            rotate(ForecastEvolutionStyle.X_LABEL_SLANT_DEG, pivot = Offset(x, baseline)) {
+                drawText(layout, topLeft = Offset(x - layout.size.width, baseline - layout.size.height))
+            }
+        }
+        return
+    }
+
+    for ((label, textLayout) in measured) {
         val i = label.index
         val p = points[i]
         val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
         val x = xAt(i)
 
-        val textLayout = textMeasurer.measure(label.text, TextStyle(fontSize = footer.labelFontSize, color = Color.Gray))
         val textW = textLayout.size.width.toFloat()
         val textH = textLayout.size.height.toFloat()
 
@@ -448,6 +475,31 @@ internal fun DrawScope.drawHourlyFooterStrip(
             drawText(textLayout, topLeft = Offset(x - textW / 2f, textY))
         }
     }
+}
+
+/**
+ * Whether the horizontal date-label strip (each label centered on its day, with its weather icon
+ * beside it) would collide. Compares each label's full footprint — text + gap + icon — against the
+ * spacing between adjacent day positions. True triggers the slanted, icon-less fallback.
+ */
+private fun DrawScope.footerLabelsWouldOverlap(
+    measured: List<Pair<DesktopGraphUtils.FooterLabel, TextLayoutResult>>,
+    footer: HourlyFooter,
+    scale: Float,
+    xAt: (Int) -> Float,
+): Boolean {
+    if (measured.size < 2) return false
+    val gap = 2.dp.toPx() * scale
+    val pad = 4.dp.toPx() * scale
+    val entries = measured
+        .map { (label, layout) -> xAt(label.index) to (layout.size.width + gap + footer.iconPx) }
+        .sortedBy { it.first }
+    for (k in 0 until entries.size - 1) {
+        val (x1, fp1) = entries[k]
+        val (x2, fp2) = entries[k + 1]
+        if (x2 - x1 < (fp1 + fp2) / 2f + pad) return true
+    }
+    return false
 }
 
 /** Draws the dashed vertical NOW line (drawn early, behind labels). [markerX] = xAtTime(now). */

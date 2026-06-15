@@ -57,8 +57,13 @@ private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionR
     return Color(argb)
 }
 
+// Floors for the actual-line blend context window. The effective window scales with the visible
+// back/forward span (see the build() call) so the pink actual line reaches the left edge at any
+// zoom — these are just the minimums that preserved the pre-30-day-zoom behavior at near zoom.
 private const val ACTUALS_CONTEXT_LOOKBACK_HOURS = 144L
 private const val ACTUALS_CONTEXT_LOOKAHEAD_HOURS = 60L
+// Small margin past the visible edges so the actual line interpolates cleanly to the corners.
+private const val ACTUALS_CONTEXT_EDGE_PAD_HOURS = 12L
 // Temperature value labels (on-curve highs/lows + now/current temp) are 10% larger than the 14sp
 // time/axis labels for readability. Hour-of-day and day labels keep 14sp.
 private const val TEMP_VALUE_LABEL_SP = 15.4f // 14sp + 10%
@@ -186,8 +191,11 @@ fun TemperatureGraph(
             userLon = longitude,
             backHours = backHours.toLong(),
             forwardHours = forwardHours.toLong(),
-            contextLookbackHours = ACTUALS_CONTEXT_LOOKBACK_HOURS,
-            contextLookaheadHours = ACTUALS_CONTEXT_LOOKAHEAD_HOURS,
+            // Scale the blend context with the visible span (zoom now reaches 30 days back) so the
+            // actual line spans the whole window, not just the legacy 6-day context. Floors keep
+            // near-zoom behavior identical.
+            contextLookbackHours = maxOf(ACTUALS_CONTEXT_LOOKBACK_HOURS, backHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
+            contextLookaheadHours = maxOf(ACTUALS_CONTEXT_LOOKAHEAD_HOURS, forwardHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
             now = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId),
             zoneId = zoneId,
             smoothedForecasts = null,
