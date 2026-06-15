@@ -32,7 +32,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import java.time.format.TextStyle as JavaTextStyle
 
@@ -147,18 +146,6 @@ fun CloudCoverGraph(
 
         val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(smoothedClouds[i])) }
 
-        fun getCurveYAtX(x: Float): Float {
-            if (coords.isEmpty()) return 0f
-            if (x <= coords.first().x) return coords.first().y
-            if (x >= coords.last().x) return coords.last().y
-            val nextIdx = coords.indexOfFirst { it.x > x }
-            if (nextIdx == -1 || nextIdx == 0) return coords.last().y
-            val before = coords[nextIdx - 1]
-            val after = coords[nextIdx]
-            val t = (x - before.x) / (after.x - before.x)
-            return before.y + (after.y - before.y) * t
-        }
-
         // Draw Fill Path
         val fillPath = Path().apply {
             if (coords.isNotEmpty()) {
@@ -190,115 +177,27 @@ fun CloudCoverGraph(
             style = Stroke(width = curveStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
 
-        // Extrema Label Placement
+        // Value (%) labels (peak / dip / start / end) via the shared ValueLabelEngine — the same
+        // engine used by the precip graph and the Android renderers. Compose draws top-left anchored,
+        // so we treat the measured box bottom as the baseline (ascent = -height, descent = 0).
         val labelSignal = smoothedClouds.map { it.roundToInt().coerceIn(0, 100) }
-        val globalMaxVal = labelSignal.maxOrNull() ?: -1
-        val globalMinVal = labelSignal.minOrNull() ?: -1
-
-        val globalMaxIdx = labelSignal.indexOfFirst { it == globalMaxVal }
-        val globalMinIdx = labelSignal.indexOfFirst { it == globalMinVal }
-
-        // Find soft dips
-        val softDipCandidates = mutableListOf<Int>()
-        var jIdx = 0
-        while (jIdx < labelSignal.size) {
-            val prob = labelSignal[jIdx]
-            if (prob <= 0 || prob > 85) {
-                jIdx++
-                continue
-            }
-            var runEnd = jIdx
-            while (runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] == prob) {
-                runEnd++
-            }
-            val left = (jIdx - 4).coerceAtLeast(0)
-            val right = (runEnd + 4).coerceAtMost(labelSignal.lastIndex)
-            if (left < jIdx && right > runEnd) {
-                val leftMax = (left until jIdx).maxOfOrNull { labelSignal[it] } ?: prob
-                val rightMax = ((runEnd + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
-                if (leftMax >= prob + 15 && rightMax >= prob + 15) {
-                    softDipCandidates.add(jIdx + (runEnd - jIdx) / 2)
-                }
-            }
-            jIdx = runEnd + 1
-        }
-
-        val candidates = mutableListOf<Int>()
-        if (globalMaxIdx >= 0) candidates.add(globalMaxIdx)
-        if (globalMinIdx >= 0 && globalMinIdx != globalMaxIdx) candidates.add(globalMinIdx)
-        if (0 !in candidates) candidates.add(0)
-        if (points.lastIndex !in candidates && points.isNotEmpty()) candidates.add(points.lastIndex)
-        candidates.addAll(softDipCandidates)
-        candidates.sortBy { it }
-
-        // Filter dense labels roughly
-        val finalCandidates = candidates.distinct()
-
+        val labelStyle = TextStyle(fontSize = (11 * scale).sp, color = Color.White)
+        val labelHeight = textMeasurer.measure("0%", labelStyle).size.height.toFloat()
+        val placements = ValueLabelEngine.computePlacements(
+            labelSignal = labelSignal,
+            points = coords.map { ValueLabelEngine.GraphPoint(it.x, it.y) },
+            geometry = ValueLabelEngine.Geometry(graphTop, graphBottom, graphHeight, w, h),
+            config = ValueLabelEngine.Config.cloud(),
+            measureText = { textMeasurer.measure(it, labelStyle).size.width.toFloat() },
+            textAscent = -labelHeight,
+            textDescent = 0f,
+            dpToPx = { it.dp.toPx() * scale },
+        )
         val drawnLabels = mutableListOf<Rect>()
-        for (index in finalCandidates) {
-            if (index !in labelSignal.indices) continue
-            val cloudPct = labelSignal[index]
-            val labelText = "$cloudPct%"
-            
-            val textLayout = textMeasurer.measure(labelText, TextStyle(fontSize = (11 * scale).sp, color = Color.White))
-            val textWidth = textLayout.size.width.toFloat()
-            val textHeight = textLayout.size.height.toFloat()
-            
-            val centerX = coords[index].x
-            val pointY = coords[index].y
-
-            val isPeak = index == globalMaxIdx || (index > 0 && index < labelSignal.lastIndex &&
-                labelSignal[index] > labelSignal[index - 1] && labelSignal[index] > labelSignal[index + 1])
-            val isEndLabelCandidate = index == points.lastIndex
-            val isRisingAtEnd = isEndLabelCandidate && index > 0 && coords[index].y < coords[index - 1].y - 2f * scale
-            val isFallingFromLeftEdge = index == 0 && points.size > 1 && coords[1].y > coords[0].y + 2f * scale
-            val preferAbove = isPeak || isRisingAtEnd || isFallingFromLeftEdge
-
-            val attempts = if (preferAbove) listOf(true, false) else listOf(false, true)
-            var placed = false
-
-            for (placeAbove in attempts) {
-                val gapPx = 6.dp.toPx() * scale
-                val textTop = if (placeAbove) {
-                    val curveMinY = minOf(getCurveYAtX(centerX - textWidth / 2f), pointY, getCurveYAtX(centerX + textWidth / 2f))
-                    curveMinY - gapPx - textHeight
-                } else {
-                    val curveMaxY = maxOf(getCurveYAtX(centerX - textWidth / 2f), pointY, getCurveYAtX(centerX + textWidth / 2f))
-                    curveMaxY + gapPx
-                }
-
-                val x = centerX.coerceIn(textWidth / 2f, w - textWidth / 2f)
-                val bounds = Rect(offset = Offset(x - textWidth / 2f, textTop), size = Size(textWidth, textHeight))
-
-                // An above-placed label sits above its curve anchor, so it can't intrude into the
-                // footer band (which is below graphBottom); only below-placed labels need the
-                // safeBottom buffer. Without this split, a low edge value (curve near the bottom)
-                // had BOTH attempts rejected and the label vanished.
-                val bottomLimit = if (placeAbove) graphBottom else graphBottom - 10.dp.toPx() * scale
-                if (bounds.top < 0f || bounds.bottom > bottomLimit) continue
-
-                val overlaps = drawnLabels.any { it.overlaps(bounds.inflate(4.dp.toPx() * scale)) }
-                if (!overlaps) {
-                    drawText(textLayout, topLeft = bounds.topLeft)
-                    drawnLabels.add(bounds)
-                    placed = true
-                    
-                    // Draw leader line if shifted significantly
-                    val baselineTop = if (placeAbove) pointY - gapPx - textHeight else pointY + gapPx
-                    val shift = abs(textTop - baselineTop)
-                    if (shift > 1.5f * scale) {
-                        val leaderLineStart = Offset(centerX, pointY)
-                        val leaderLineEnd = if (placeAbove) Offset(centerX, textTop + textHeight) else Offset(centerX, textTop)
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.35f),
-                            start = leaderLineStart,
-                            end = leaderLineEnd,
-                            strokeWidth = 0.5.dp.toPx() * scale
-                        )
-                    }
-                    break
-                }
-            }
+        for (p in placements) {
+            val r = Rect(p.box.left, p.box.top, p.box.right, p.box.bottom)
+            drawText(textMeasurer.measure(p.text, labelStyle), topLeft = r.topLeft)
+            drawnLabels.add(r)
         }
 
         // Draw Cloud Watermark in emptiest region

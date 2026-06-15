@@ -1,8 +1,8 @@
 package com.weatherwidget.widget
 
-import com.weatherwidget.shared.graph.GraphLabelPlacementUtils
-import com.weatherwidget.shared.graph.TemperatureRole
+import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
+import com.weatherwidget.shared.graph.ValueLabelEngine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context
@@ -19,18 +19,15 @@ import kotlin.math.roundToInt
 object CloudCoverGraphRenderer {
 
     private const val TAG = "CloudCoverGraph"
-    private const val MAX_CLOUD_PERCENT_LABEL_CANDIDATES = HourlyGraphDefaults.MAX_LABEL_CANDIDATES
-    private val DENSE_LABEL_DIFF_THRESHOLDS = HourlyGraphDefaults.DENSE_LABEL_DIFF_THRESHOLDS
+    // Retained for shouldAllowBottomOverflow (unit-tested); candidate/placement tuning now lives in
+    // the shared ValueLabelEngine.Config.cloud().
     private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 55
-    private const val LOW_CLOUD_BELOW_OVERFLOW_DP = 10f
 
     private const val GRAPH_TOP_PADDING_DP = 38f
     private const val GRAPH_BOTTOM_PADDING_DP = 3f
     private const val TOP_SCALE_HEADROOM_PERCENT = 12f
     private const val MIN_DYNAMIC_TOP_SCALE_PERCENT = 85f
     private const val MAX_DYNAMIC_TOP_SCALE_PERCENT = 100f
-    private const val SOFT_DIP_MAX_PERCENT = 85
-    private const val SOFT_DIP_MIN_DIFF = 15
     private const val WATERMARK_WINDOW_DIVISOR = 5
     private const val WATERMARK_WINDOW_MIN = 3
     private const val WATERMARK_WINDOW_MAX = 6
@@ -280,224 +277,35 @@ object CloudCoverGraphRenderer {
             drawable.draw(canvas)
         }
 
-        // --- Percentage labels at key points (simplified: extrema + edges) ---
+        // --- Percentage labels (peak / dip / start / end) via the shared ValueLabelEngine ---
         val labelSignal = smoothedValues.map { it.roundToInt().coerceIn(0, 100) }
         val drawnLabelBounds = mutableListOf<RectF>()
-        // Find local maxima and minima
-        val localMaxima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = true)
-        val localMinima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = false)
-
-        val globalMaxVal = labelSignal.maxOrNull() ?: -1
-        val globalMinVal = labelSignal.minOrNull() ?: -1
-        
-        // Pick the plateau center if it exists, otherwise first occurrence.
-        val globalMaxIdx = localMaxima.firstOrNull { labelSignal[it] == globalMaxVal }
-            ?: labelSignal.indexOfFirst { it == globalMaxVal }
-        val globalMinIdx = localMinima.firstOrNull { labelSignal[it] == globalMinVal }
-            ?: labelSignal.indexOfFirst { it == globalMinVal }
-
-        // Soft dip candidates (mandatory)
-        val softDipCandidates = mutableListOf<Int>()
-        var jIdx = 0
-        while (jIdx < labelSignal.size) {
-            val prob = labelSignal[jIdx]
-            if (prob <= 0 || prob > SOFT_DIP_MAX_PERCENT) { // Dips are only relevant if not already fully overcast/clear
-                jIdx++
-                continue
-            }
-
-            // Start of a potential plateau
-            var runEnd = jIdx
-            while (runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] == prob) {
-                runEnd++
-            }
-
-            val left = (jIdx - HourlyGraphDefaults.SOFT_DIP_WINDOW_SIZE).coerceAtLeast(0)
-            val right = (runEnd + HourlyGraphDefaults.SOFT_DIP_WINDOW_SIZE).coerceAtMost(labelSignal.lastIndex)
-
-            if (left < jIdx && right > runEnd) {
-                val leftMax = (left until jIdx).maxOfOrNull { labelSignal[it] } ?: prob
-                val rightMax = ((runEnd + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
-
-                if (leftMax >= prob + SOFT_DIP_MIN_DIFF && rightMax >= prob + SOFT_DIP_MIN_DIFF) {
-                    // This plateau is a "soft dip". Add the center.
-                    softDipCandidates.add(jIdx + (runEnd - jIdx) / 2)
-                }
-            }
-            jIdx = runEnd + 1
-        }
-
-        val candidates = mutableListOf<Int>()
-        if (globalMaxIdx >= 0) candidates.add(globalMaxIdx)
-        if (globalMinIdx >= 0 && globalMinIdx != globalMaxIdx) candidates.add(globalMinIdx)
-        // Edges
-        if (0 !in candidates) candidates.add(0)
-        if (hours.lastIndex !in candidates && hours.isNotEmpty()) candidates.add(hours.lastIndex)
-        // Local extrema
-        candidates.addAll(localMaxima)
-        candidates.addAll(localMinima)
-        // Soft dips
-        candidates.addAll(softDipCandidates)
-
-        val protectedIndices = buildSet {
-            addAll(softDipCandidates)
-        }
-
-        candidates.sortBy { it }
-        val filteredCandidates = GraphLabelPlacementUtils.filterDenseLabelCandidates(
-            items = labelSignal,
-            candidates = candidates,
-            globalMaxIdx = globalMaxIdx,
-            globalMinIdx = globalMinIdx,
-            maxCandidates = MAX_CLOUD_PERCENT_LABEL_CANDIDATES,
-            diffThresholds = DENSE_LABEL_DIFF_THRESHOLDS,
-            valueFunction = { it },
-            logTag = TAG,
-            protectedIndices = protectedIndices,
-            nearbyWindow = HourlyGraphDefaults.LABEL_FILTER_NEARBY_WINDOW,
-        )
-        val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
-            items = labelSignal,
-            candidates = filteredCandidates,
-            globalMaxIdx = globalMaxIdx,
-            globalMinIdx = globalMinIdx,
-            valueFunction = { it },
-        )
-
-        val finalCandidates =
-            if (numColumns >= 5 && filteredCandidates.size == 2 && filteredCandidates.containsAll(listOf(0, hours.lastIndex))) {
-                val midIndex = hours.lastIndex / 2
-                if (midIndex != 0 && midIndex != hours.lastIndex) {
-                    (filteredCandidates + midIndex).sorted()
-                } else {
-                    filteredCandidates
-                }
-            } else {
-                filteredCandidates
-            }
-
-        for (index in finalCandidates) {
-            if (index !in labelSignal.indices) continue
-            if (index == 0 && suppressLeftEdgeLabel) {
-                Log.d(TAG, "labelSkipped: idx=0 reason=nearby_lower_valley")
-                continue
-            }
-            val cloudPct = labelSignal[index]
-            val labelText = "$cloudPct%"
-            val fontMetrics = paints.percentLabelPaint.fontMetrics
-            val textAscent = if (fontMetrics != null && fontMetrics.ascent != 0f) fontMetrics.ascent else -paints.percentLabelPaint.textSize
-            val textDescent = if (fontMetrics != null && fontMetrics.descent != 0f) fontMetrics.descent else paints.percentLabelPaint.textSize * 0.15f
-            val textWidth = paints.percentLabelPaint.measureText(labelText)
-            val centerX = points[index].first
-            val y = points[index].second
-
-            val isPeak = index == globalMaxIdx || (index > 0 && index < labelSignal.lastIndex &&
-                labelSignal[index] > labelSignal[index - 1] && labelSignal[index] > labelSignal[index + 1])
-            val isEndLabelCandidate = index == hours.lastIndex
-            val isRisingAtEnd = isEndLabelCandidate &&
-                index > 0 &&
-                points[index].second < points[index - 1].second - HourlyGraphDefaults.TRENDING_THRESHOLD_PX
-            val isFallingFromLeftEdge =
-                index == 0 &&
-                    points.size > 1 &&
-                    points[1].second > points[0].second + HourlyGraphDefaults.TRENDING_THRESHOLD_PX
-            val preferAbove = isPeak || isRisingAtEnd || isFallingFromLeftEdge
-
-            val attempts = if (preferAbove) {
-                listOf(true, false)
-            } else {
-                listOf(false, true)
-            }
-            val hourLabel = hours[index].label
-
-            Log.d(
-                TAG,
-                "labelCandidate: idx=$index hour=$hourLabel value=$cloudPct% isPeak=$isPeak " +
-                    "isGlobalMax=${index == globalMaxIdx} isGlobalMin=${index == globalMinIdx} " +
-                    "isEndLabelCandidate=$isEndLabelCandidate isRisingAtEnd=$isRisingAtEnd " +
-                    "preferAbove=$preferAbove order=${attempts.joinToString("->") { if (it) "above" else "below" }}",
+        val cloudLabelFm = paints.percentLabelPaint.fontMetrics
+        val cloudLabelAscent = if (cloudLabelFm != null && cloudLabelFm.ascent != 0f) cloudLabelFm.ascent else -paints.percentLabelPaint.textSize
+        val cloudLabelDescent = if (cloudLabelFm != null && cloudLabelFm.descent != 0f) cloudLabelFm.descent else paints.percentLabelPaint.textSize * 0.15f
+        ValueLabelEngine.computePlacements(
+            labelSignal = labelSignal,
+            points = points.map { ValueLabelEngine.GraphPoint(it.first, it.second) },
+            geometry = ValueLabelEngine.Geometry(graphTop, graphBottom, graphHeight, widthPx.toFloat(), heightPx.toFloat()),
+            config = ValueLabelEngine.Config.cloud(),
+            measureText = { paints.percentLabelPaint.measureText(it) },
+            textAscent = cloudLabelAscent,
+            textDescent = cloudLabelDescent,
+            dpToPx = { dpToPx(context, it) },
+            drawnIconBounds = drawnIconBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+            numColumns = numColumns,
+        ).forEach { p ->
+            canvas.drawText(p.text, p.centerX, p.baselineY, paints.percentLabelPaint)
+            drawnLabelBounds.add(RectF(p.box.left, p.box.top, p.box.right, p.box.bottom))
+            onLabelPlaced?.invoke(
+                LabelPlacementDebug(
+                    index = p.index,
+                    cloudCover = labelSignal[p.index],
+                    placedAbove = p.placedAbove,
+                    isGlobalMax = p.isGlobalMax,
+                    isGlobalMin = p.isGlobalMin,
+                ),
             )
-
-            for ((attemptIndex, placeAbove) in attempts.withIndex()) {
-                val isFallbackAttempt = attemptIndex > 0
-                val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = isFallbackAttempt)
-                val gapPx = if (placeAbove) dpToPx(context, gapDp.aboveDp) else dpToPx(context, gapDp.belowDp)
-                val x = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                val verticalPlacement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-                    pointY = y,
-                    placeAbove = placeAbove,
-                    gapPx = gapPx,
-                    textAscent = textAscent,
-                    textDescent = textDescent,
-                )
-                val baselineY = verticalPlacement.baselineY
-                val bounds = RectF(
-                    x - textWidth / 2f, verticalPlacement.top,
-                    x + textWidth / 2f, verticalPlacement.bottom,
-                )
-
-                val safeBottom = graphBottom - dpToPx(context, HourlyGraphDefaults.LABEL_SAFE_BOTTOM_INSET_DP)
-                val lowCloudBelowOverflowPx = dpToPx(context, LOW_CLOUD_BELOW_OVERFLOW_DP)
-                val allowBottomOverflow =
-                    shouldAllowBottomOverflow(
-                        cloudPct = cloudPct,
-                        placeAbove = placeAbove,
-                        isFallbackAttempt = isFallbackAttempt,
-                    )
-                val exceedsTop = bounds.top < 0f
-                val actualExceedsBottom =
-                    if (allowBottomOverflow) {
-                        bounds.bottom > heightPx
-                    } else {
-                        bounds.bottom > safeBottom
-                    }
-                if (exceedsTop || actualExceedsBottom) {
-                    Log.d(
-                        TAG,
-                        "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} " +
-                            "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} reason=out_of_bounds " +
-                            "exceedsTop=$exceedsTop exceedsBottom=$actualExceedsBottom " +
-                            "allowBottomOverflow=$allowBottomOverflow safeBottom=$safeBottom " +
-                            "bounds=$bounds",
-                    )
-                    continue
-                }
-                val overlapsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
-                val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
-                println("DBG_CLOUD idx=$index pct=$cloudPct above=$placeAbove fallback=$isFallbackAttempt pointY=$y labelBounds=$bounds graphBottom=$graphBottom heightPx=$heightPx icons=$drawnIconBounds overlapsIcon=$overlapsIcon")
-                val allowIconOverlap =
-                    shouldAllowIconOverlap(
-                        cloudPct = cloudPct,
-                        placeAbove = placeAbove,
-                        isFallbackAttempt = isFallbackAttempt,
-                    )
-                if (overlapsLabel || (overlapsIcon && !allowIconOverlap)) {
-                    val reason = if (overlapsLabel) "overlap_label" else "overlap_icon"
-                    Log.d(
-                        TAG,
-                        "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} " +
-                            "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} reason=$reason " +
-                            "overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon allowIconOverlap=$allowIconOverlap bounds=$bounds",
-                    )
-                    continue
-                }
-
-                canvas.drawText(labelText, x, baselineY, paints.percentLabelPaint)
-                drawnLabelBounds.add(bounds)
-                Log.d(
-                    TAG,
-                    "labelPlaced: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} " +
-                        "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} x=$x y=$baselineY",
-                )
-                onLabelPlaced?.invoke(LabelPlacementDebug(
-                    index = index,
-                    cloudCover = cloudPct,
-                    placedAbove = placeAbove,
-                    isGlobalMax = index == globalMaxIdx,
-                    isGlobalMin = index == globalMinIdx,
-                ))
-                break
-            }
         }
 
         // --- Day labels ---

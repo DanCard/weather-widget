@@ -151,6 +151,34 @@ object GraphLabelPlacementUtils {
         return retained
     }
 
+    /**
+     * Finds indices of local maxima (or minima) in an integer signal, handling flat plateaus by
+     * returning the plateau midpoint. Pure; shared by the hourly value-label engine and the Android
+     * graph renderers (which delegate here).
+     */
+    fun findLocalExtremaIndices(values: List<Int>, isMax: Boolean): Set<Int> {
+        if (values.size < 3) return emptySet()
+        val extrema = mutableSetOf<Int>()
+        var i = 1
+        while (i < values.lastIndex) {
+            val current = values[i]
+            val prev = values[i - 1]
+            val isPotential = if (isMax) current > prev else current < prev
+            if (isPotential) {
+                var j = i
+                while (j < values.lastIndex && values[j + 1] == current) j++
+                if (j < values.lastIndex) {
+                    val next = values[j + 1]
+                    val isExtremum = if (isMax) next < current else next > current
+                    if (isExtremum) extrema.add(i + (j - i) / 2)
+                }
+                i = j
+            }
+            i++
+        }
+        return extrema
+    }
+
     fun <T> candidateKind(
         index: Int,
         items: List<T>,
