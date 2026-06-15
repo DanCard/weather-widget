@@ -1037,22 +1037,24 @@ private fun WidgetHeader(
                                 onOpenObservations()
                             }.testTag("open_observations_header")
                         )
-                        // 🏠 Home/Daily view mode
-                        Text(
-                            text = "🏠",
-                            fontSize = (13 * scale).sp,
-                            color = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.clickable {
+                        // Home/Daily view mode — ports Android's ic_home line icon
+                        // (drawable/ic_home.xml) instead of the 🏠 emoji for parity.
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource("drawable/ic_home.xml"),
+                            contentDescription = "Daily view",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size((15 * scale).dp).clickable {
                                 onUpdateConfig(config.copy(viewMode = "DAILY"))
                             }.testTag("switch_to_daily")
                         )
-                        // 📈 Forecast history (how each day's forecast evolved) — mirrors Android's
-                        // chart icon right of the home icon on the hourly graph.
-                        Text(
-                            text = "📈",
-                            fontSize = (13 * scale).sp,
-                            color = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.clickable {
+                        // Forecast history (how each day's forecast evolved) — ports Android's
+                        // rising line-chart icon (drawable/ic_forecast_history_line.xml),
+                        // shown right of the home icon on the hourly graph.
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource("drawable/ic_forecast_history_line.xml"),
+                            contentDescription = "Forecast history",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size((15 * scale).dp).clickable {
                                 onOpenHistory()
                             }.testTag("open_forecast_history")
                         )

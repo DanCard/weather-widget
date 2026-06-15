@@ -270,8 +270,12 @@ fun CloudCoverGraph(
                 val x = centerX.coerceIn(textWidth / 2f, w - textWidth / 2f)
                 val bounds = Rect(offset = Offset(x - textWidth / 2f, textTop), size = Size(textWidth, textHeight))
 
-                val safeBottom = graphBottom - 10.dp.toPx() * scale
-                if (bounds.top < 0f || bounds.bottom > safeBottom) continue
+                // An above-placed label sits above its curve anchor, so it can't intrude into the
+                // footer band (which is below graphBottom); only below-placed labels need the
+                // safeBottom buffer. Without this split, a low edge value (curve near the bottom)
+                // had BOTH attempts rejected and the label vanished.
+                val bottomLimit = if (placeAbove) graphBottom else graphBottom - 10.dp.toPx() * scale
+                if (bounds.top < 0f || bounds.bottom > bottomLimit) continue
 
                 val overlaps = drawnLabels.any { it.overlaps(bounds.inflate(4.dp.toPx() * scale)) }
                 if (!overlaps) {
