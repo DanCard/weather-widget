@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -44,7 +45,9 @@ private val COLOR_PRECP_FILL_START = Color(0xFF5AC8FA).copy(alpha = 0.27f)
 private val COLOR_PRECP_FILL_END = Color.Transparent
 private val COLOR_RAIN_AMOUNT = Color(0xFFFFFFFF)
 private val COLOR_ACTUAL_RAIN_AMOUNT = Color(0xFFFF9F0A)
-private val COLOR_DAY_NIGHT_DIVIDER = Color.White.copy(alpha = 0.4f)
+// Kept subtle on desktop (Compose renders crisper than Android, where the same line is barely
+// visible); Android uses #66FFFFFF (~0.4 alpha) and is untouched.
+private val COLOR_DAY_NIGHT_DIVIDER = Color.White.copy(alpha = 0.2f)
 
 private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
     val argb = com.weatherwidget.shared.util.WeatherColors.forecastColor(flags.isSunny, flags.isRainy, flags.isMixed, flags.isNight, flags.isTwilight)
@@ -135,9 +138,15 @@ fun PrecipitationGraph(
         val h = size.height
 
         val graphTop = 38.dp.toPx() * scale
-        val footerIconSize = 18.dp.toPx() * scale
-        val bottomInset = 4.dp.toPx() * scale
-        val graphBottom = h - footerIconSize - bottomInset
+        // Bottom strip (hour labels + day-night icons): size the reserve to the actual label so it
+        // sits tight against the canvas bottom instead of floating with dead space above it. Mirrors
+        // the temperature graph's measured-band footer (parity).
+        val hourLabelFontSize = (12f * scale).sp
+        val hourIconPx = 12.dp.toPx() * scale
+        val hourLabelH = textMeasurer.measure("12p", TextStyle(fontSize = hourLabelFontSize)).size.height.toFloat()
+        val bottomBandH = maxOf(hourLabelH, hourIconPx)
+        val bottomMargin = 0f * scale
+        val graphBottom = h - (bottomMargin + bottomBandH + 8f * scale)
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
         val stepWidth = w / (points.size - 1).coerceAtLeast(1)
 
@@ -181,16 +190,15 @@ fun PrecipitationGraph(
 
         val markerX = xAtTime(now)
 
-        // Draw Now vertical dashed guide line - EARLY for lowest z-order
+        // Draw Now vertical dashed guide line - EARLY for lowest z-order. Routed through the shared
+        // NowIndicatorGeometry so the line matches Android / the temperature graph exactly.
         if (now in windowStart..windowEnd) {
-            val lineHeight = graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
-            val lineTop = graphTop + (graphHeight - lineHeight) / 2f
-            val lineBottom = lineTop + lineHeight
+            val nowLine = NowIndicatorGeometry.computeNowLine(graphTop, graphHeight)
 
             drawLine(
                 color = Color(HourlyGraphDefaults.COLOR_CURRENT_TIME),
-                start = Offset(markerX, lineTop),
-                end = Offset(markerX, lineBottom),
+                start = Offset(markerX, nowLine.lineTop),
+                end = Offset(markerX, nowLine.lineBottom),
                 strokeWidth = HourlyGraphDefaults.CURRENT_TIME_STROKE_DP.dp.toPx() * scale,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(
                     HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP.dp.toPx() * scale,
@@ -216,7 +224,9 @@ fun PrecipitationGraph(
                 val isDay1 = ldt1.hour in 8 until 20
                 val isDay2 = ldt2.hour in 8 until 20
                 if (isDay1 != isDay2) {
-                    val boundaryX = stepWidth * i
+                    // Use the same time->x mapping as the curve/labels (xAt) so the divider stays
+                    // locked to the curve under drag/zoom instead of drifting (stepWidth was index-only).
+                    val boundaryX = xAt(i)
                     drawLine(
                         color = COLOR_DAY_NIGHT_DIVIDER,
                         start = Offset(boundaryX, graphTop),
@@ -226,23 +236,6 @@ fun PrecipitationGraph(
                     )
                 }
             }
-        }
-
-        // --- NOW Indicator - Late Pass (Label and target circles) ---
-        if (now in windowStart..windowEnd) {
-            val nowIdx = points.indexOfByClosestTime(now)
-            val markerProb = smoothedProbs[nowIdx]
-            val markerY = yAt(markerProb)
-
-            drawCircle(color = Color.White, radius = 4.5f * scale, center = Offset(markerX, markerY))
-            drawCircle(color = COLOR_PRECP_CURVE, radius = 2.5f * scale, center = Offset(markerX, markerY))
-            
-            // NOW Label
-            val nowLayout = textMeasurer.measure("NOW", TextStyle(
-                fontSize = (HourlyGraphDefaults.NOW_LABEL_TEXT_SIZE_DP * 0.5f * scale).sp, // smaller on precip graph
-                color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL)
-            ))
-            drawText(nowLayout, topLeft = Offset(markerX - nowLayout.size.width / 2f, graphTop + 2.dp.toPx() * scale))
         }
 
         // Extrema Label Placement
@@ -445,11 +438,11 @@ fun PrecipitationGraph(
             val x = xAt(i)
             val timeStr = label.text
             
-            val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = (9 * scale).sp, color = Color.Gray))
+            val textLayout = textMeasurer.measure(timeStr, TextStyle(fontSize = hourLabelFontSize, color = Color.Gray))
             val textW = textLayout.size.width.toFloat()
             val textH = textLayout.size.height.toFloat()
-            
-            val yOffset = h - 22f * scale
+
+            val yOffset = h - bottomMargin - bottomBandH / 2f
             val textY = yOffset - textH / 2f
             
             val isLast = i == points.lastIndex || (x + (textW + 14.dp.toPx() * scale) / 2f > w)
@@ -489,6 +482,40 @@ fun PrecipitationGraph(
             } else {
                 val textTopLeft = Offset(x - textW / 2f, textY)
                 drawText(textLayout, topLeft = textTopLeft)
+            }
+        }
+
+        // NOW indicator - Label (drawn last to be on top). Full-size + light shadow + below-first
+        // collision-aware placement, all matching Android / the temperature graph via
+        // NowIndicatorGeometry (replaces the old half-size top-pinned label + target circles).
+        if (now in windowStart..windowEnd) {
+            val nowLabelStyle = TextStyle(
+                fontSize = (14f * HourlyGraphDefaults.NOW_LABEL_TO_TEMP_RATIO * scale).sp,
+                color = Color(HourlyGraphDefaults.COLOR_NOW_LABEL),
+                shadow = Shadow(
+                    color = Color(HourlyGraphDefaults.COLOR_SHADOW_LIGHT),
+                    offset = Offset(0f, 0f),
+                    blurRadius = HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP.dp.toPx() * scale,
+                ),
+            )
+            val nowLabelLayout = textMeasurer.measure("NOW", nowLabelStyle)
+            val nowLabelWidth = nowLabelLayout.size.width.toFloat()
+            val nowLabelHeight = nowLabelLayout.size.height.toFloat()
+
+            // Compose drawText is top-left anchored, so treat the measured box's bottom as the
+            // baseline: fontAscent = -height, fontDescent = 0 -> box.top is the top-left y.
+            val placement = NowIndicatorGeometry.computeNowLabel(
+                nowX = markerX,
+                graphTop = graphTop,
+                graphHeight = graphHeight,
+                labelWidth = nowLabelWidth,
+                fontAscent = -nowLabelHeight,
+                fontDescent = 0f,
+                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                dpToPx = { it.dp.toPx() * scale },
+            )
+            placement?.let {
+                drawText(nowLabelLayout, topLeft = Offset(it.box.left, it.box.top))
             }
         }
     }
