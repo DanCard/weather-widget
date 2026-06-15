@@ -1,11 +1,7 @@
 package com.weatherwidget.desktop
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -30,12 +26,9 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.graph.*
 import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.util.Locale
 import kotlin.math.roundToInt
-import java.time.format.TextStyle as JavaTextStyle
 
 private val COLOR_PRECP_CURVE = Color(0xFF5AC8FA)
 private val COLOR_PRECP_FILL_START = Color(0xFF5AC8FA).copy(alpha = 0.27f)
@@ -68,54 +61,32 @@ fun PrecipitationGraph(
     onPan: (deltaHours: Int) -> Unit = {},
 ) {
     val textMeasurer = rememberTextMeasurer()
-    val now = System.currentTimeMillis()
-    val dragHours = remember { mutableStateOf(0f) }
-    val center = now + (centerOffsetHours + dragHours.value.roundToInt()) * 3_600_000L
-
-    val backHours = DesktopGraphUtils.backHoursFor(zoomFactor)
-    val forwardHours = DesktopGraphUtils.forwardHoursFor(zoomFactor)
-    val totalSpanHours = backHours + forwardHours
-
-    val start = center - backHours * 3_600_000L
-    val cutoff = center + forwardHours * 3_600_000L
-
-    val points = remember(hourly, start, cutoff) {
-        hourly.filter { it.dateTime in (start - 3_600_000L)..cutoff }
-            .sortedBy { it.dateTime }
-            .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
-    }
-
-    val painters: List<Painter> = points.map { painterResource(WeatherIcon.getIconResource(it.condition)) }
-
-    val smoothIterations = DesktopGraphUtils.smoothIterationsFor(totalSpanHours)
-
-    if (points.size < 2) return
+    val setup = rememberHourlyGraphSetup(hourly, centerOffsetHours, zoomFactor) ?: return
+    val now = setup.now
+    val dragHours = setup.dragHours
+    val totalSpanHours = setup.totalSpanHours
+    val start = setup.start
+    val cutoff = setup.cutoff
+    val points = setup.points
+    val painters = setup.painters
+    val smoothIterations = setup.smoothIterations
 
     val watermarkPainter = painterResource("drawable/ic_weather_rain.xml")
 
     Canvas(
-        modifier = modifier
-            .hourlyPanZoomInput(
-                start = start,
-                cutoff = cutoff,
-                nowMs = now,
-                spanHours = totalSpanHours,
-                dragHours = dragHours,
-                onZoomScroll = onZoomScroll,
-                onPanCommit = onPan,
-            )
-            .pointerInput(points, zoomFactor, scale) {
-            detectTapGestures { offset ->
-                if (offset.y >= size.height - 44.dp.toPx() * scale) {
-                    val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
-                    val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
-                    val clickedPoint = points[index]
-                    val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
-                    val targetView = WeatherIcon.resolveIconHome(iconRes)
-                    onViewModeChange(targetView)
-                }
-            }
-        }
+        modifier = modifier.hourlyGraphFooterTapInput(
+            start = start,
+            cutoff = cutoff,
+            nowMs = now,
+            spanHours = totalSpanHours,
+            dragHours = dragHours,
+            points = points,
+            zoomFactor = zoomFactor,
+            scale = scale,
+            onViewModeChange = onViewModeChange,
+            onZoomScroll = onZoomScroll,
+            onPan = onPan,
+        )
     ) {
         val windowStart = start
         val windowEnd = cutoff
@@ -306,57 +277,27 @@ fun PrecipitationGraph(
             if (watermarkPlaced) break
         }
 
-        // Multi-day spans label the footer with dates instead of times; suppress the redundant
-        // interior edge day-labels then (parity with the temperature graph).
-        if (!DesktopGraphUtils.isDateMode(totalSpanHours)) {
-            drawDayLabels(
-                leftDate = Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault()).toLocalDate(),
-                rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
-                textMeasurer = textMeasurer,
-                occupied = drawnLabels,
-                scale = scale,
-            )
-        }
-
-        // Bottom strip (hour/date labels + weather icons) — shared with the temperature/cloud graphs.
-        drawHourlyFooterStrip(points, painters, totalSpanHours, latitude, longitude, footer, w, h, textMeasurer, scale, ::xAt)
-
-        // NOW label drawn last (on top), collision-aware against the placed labels.
-        if (now in windowStart..windowEnd) {
-            drawNowLabel(markerX, graphTop, graphHeight, scale, textMeasurer, drawnLabels)
-        }
-    }
-}
-
-private fun DrawScope.drawDayLabels(
-    leftDate: LocalDate,
-    rightDate: LocalDate,
-    textMeasurer: androidx.compose.ui.text.TextMeasurer,
-    occupied: MutableList<Rect>,
-    scale: Float,
-) {
-    val today = LocalDate.now()
-    val dates = listOf(0f to leftDate, size.width to rightDate)
-    dates.forEach { (edgeX, date) ->
-        val isToday = date == today
-        val color = if (isToday) Color.Yellow.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.45f)
-        val text = date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
-        val layout = textMeasurer.measure(text, TextStyle(fontSize = (10 * scale).sp, color = color))
-        val x = edgeX.coerceIn(layout.size.width / 2f, size.width - layout.size.width / 2f)
-        val candidates = listOf(8f * scale, size.height * 0.48f, size.height - 48f * scale)
-        val y = candidates.firstOrNull { top ->
-            val rect = Rect(
-                offset = Offset(x - layout.size.width / 2f, top),
-                size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
-            )
-            occupied.none { it.overlaps(rect.inflate(4f * scale)) }
-        } ?: candidates.last()
-        val rect = Rect(
-            offset = Offset(x - layout.size.width / 2f, y),
-            size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
+        // Shared tail: edge day labels (suppressed in date mode) + footer strip + NOW label on top.
+        drawDayLabelsFooterAndNow(
+            points = points,
+            painters = painters,
+            totalSpanHours = totalSpanHours,
+            latitude = latitude,
+            longitude = longitude,
+            footer = footer,
+            widthPx = w,
+            heightPx = h,
+            textMeasurer = textMeasurer,
+            scale = scale,
+            now = now,
+            markerX = markerX,
+            graphTop = graphTop,
+            graphHeight = graphHeight,
+            windowStart = windowStart,
+            windowEnd = windowEnd,
+            drawnLabels = drawnLabels,
+            xAt = ::xAt,
         )
-        drawText(layout, topLeft = rect.topLeft)
-        occupied.add(rect)
     }
 }
 

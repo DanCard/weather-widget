@@ -32,14 +32,11 @@ import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.graph.*
 import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import java.time.format.TextStyle as JavaTextStyle
 
 /**
  * Smooth hourly temperature curve for the desktop popup.
@@ -540,6 +537,7 @@ fun TemperatureGraph(
                 textMeasurer = textMeasurer,
                 occupied = drawnLabels,
                 scale = scale,
+                dayLabelFontSp = 14f,
             )
         }
 
@@ -559,38 +557,6 @@ fun TemperatureGraph(
         if (now in windowStart..windowEnd) {
             drawNowLabel(markerX, top, graphHeight, scale, textMeasurer, drawnLabels)
         }
-    }
-}
-
-private fun DrawScope.drawDayLabels(
-    leftDate: LocalDate,
-    rightDate: LocalDate,
-    textMeasurer: androidx.compose.ui.text.TextMeasurer,
-    occupied: MutableList<Rect>,
-    scale: Float,
-) {
-    val today = LocalDate.now()
-    val dates = listOf(0f to leftDate, size.width to rightDate)
-    dates.forEach { (edgeX, date) ->
-        val isToday = date == today
-        val color = if (isToday) Color.Yellow.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.45f)
-        val text = date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
-        val layout = textMeasurer.measure(text, TextStyle(fontSize = (14 * scale).sp, color = color))
-        val x = edgeX.coerceIn(layout.size.width / 2f, size.width - layout.size.width / 2f)
-        val candidates = listOf(8f * scale, size.height * 0.48f, size.height - 48f * scale)
-        val y = candidates.firstOrNull { top ->
-            val rect = Rect(
-                offset = Offset(x - layout.size.width / 2f, top),
-                size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
-            )
-            occupied.none { it.overlaps(rect.inflate(4f * scale)) }
-        } ?: candidates.last()
-        val rect = Rect(
-            offset = Offset(x - layout.size.width / 2f, y),
-            size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
-        )
-        drawText(layout, topLeft = rect.topLeft)
-        occupied.add(rect)
     }
 }
 

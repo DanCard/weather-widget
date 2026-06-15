@@ -458,3 +458,88 @@ internal fun DrawScope.drawNowLabel(
         drawnLabels.add(Rect(Offset(it.box.left, it.box.top), Size(labelW, labelH)))
     }
 }
+
+/**
+ * Draws the left/right edge day-of-week labels ("Mon"/"Tue"), today highlighted. Collision-aware
+ * against [occupied] (it tries top / mid / lower-third and appends the chosen box). Shared by all
+ * three hourly graphs; the temperature graph uses a larger [dayLabelFontSp] (14) than the cloud/
+ * precip graphs (10), so the font size is a parameter.
+ */
+internal fun DrawScope.drawDayLabels(
+    leftDate: LocalDate,
+    rightDate: LocalDate,
+    textMeasurer: TextMeasurer,
+    occupied: MutableList<Rect>,
+    scale: Float,
+    dayLabelFontSp: Float,
+) {
+    val today = LocalDate.now()
+    val dates = listOf(0f to leftDate, size.width to rightDate)
+    dates.forEach { (edgeX, date) ->
+        val isToday = date == today
+        val color = if (isToday) Color.Yellow.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.45f)
+        val text = date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
+        val layout = textMeasurer.measure(text, TextStyle(fontSize = (dayLabelFontSp * scale).sp, color = color))
+        val x = edgeX.coerceIn(layout.size.width / 2f, size.width - layout.size.width / 2f)
+        val candidates = listOf(8f * scale, size.height * 0.48f, size.height - 48f * scale)
+        val y = candidates.firstOrNull { top ->
+            val rect = Rect(
+                offset = Offset(x - layout.size.width / 2f, top),
+                size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
+            )
+            occupied.none { it.overlaps(rect.inflate(4f * scale)) }
+        } ?: candidates.last()
+        val rect = Rect(
+            offset = Offset(x - layout.size.width / 2f, y),
+            size = Size(layout.size.width.toFloat(), layout.size.height.toFloat()),
+        )
+        drawText(layout, topLeft = rect.topLeft)
+        occupied.add(rect)
+    }
+}
+
+/**
+ * The byte-identical tail block shared by the cloud-cover and precipitation graphs: edge day labels
+ * (suppressed in multi-day date mode), the bottom hour/date + icon strip, and the NOW label drawn
+ * last (on top), collision-aware against [drawnLabels].
+ *
+ * The temperature graph intentionally does NOT use this — it interleaves its fetch-dot rings between
+ * the footer strip and the NOW label, so combining would reorder its drawing.
+ */
+internal fun DrawScope.drawDayLabelsFooterAndNow(
+    points: List<HourlyForecast>,
+    painters: List<Painter?>,
+    totalSpanHours: Int,
+    latitude: Double,
+    longitude: Double,
+    footer: HourlyFooter,
+    widthPx: Float,
+    heightPx: Float,
+    textMeasurer: TextMeasurer,
+    scale: Float,
+    now: Long,
+    markerX: Float,
+    graphTop: Float,
+    graphHeight: Float,
+    windowStart: Long,
+    windowEnd: Long,
+    drawnLabels: MutableList<Rect>,
+    xAt: (Int) -> Float,
+) {
+    // Multi-day spans label the footer with dates instead of times; suppress the redundant interior
+    // edge day-labels then (parity with the temperature graph).
+    if (!DesktopGraphUtils.isDateMode(totalSpanHours)) {
+        drawDayLabels(
+            leftDate = Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault()).toLocalDate(),
+            rightDate = Instant.ofEpochMilli(windowEnd).atZone(ZoneId.systemDefault()).toLocalDate(),
+            textMeasurer = textMeasurer,
+            occupied = drawnLabels,
+            scale = scale,
+            dayLabelFontSp = 10f,
+        )
+    }
+    drawHourlyFooterStrip(points, painters, totalSpanHours, latitude, longitude, footer, widthPx, heightPx, textMeasurer, scale, xAt)
+    if (now in windowStart..windowEnd) {
+        drawNowLabel(markerX, graphTop, graphHeight, scale, textMeasurer, drawnLabels)
+    }
+}
