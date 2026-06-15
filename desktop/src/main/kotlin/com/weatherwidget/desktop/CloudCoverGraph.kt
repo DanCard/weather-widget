@@ -118,7 +118,6 @@ fun CloudCoverGraph(
     ) {
         val windowStart = start
         val windowEnd = cutoff
-        val windowSpan = (windowEnd - windowStart).coerceAtLeast(1L).toFloat()
 
         val rawCloudValues = points.map { it.cloudCover?.toFloat() ?: 0f }
         val smoothedClouds = com.weatherwidget.shared.util.TemperatureInterpolator.smoothValuesPreservingAllExtrema(rawCloudValues, smoothIterations)
@@ -135,8 +134,16 @@ fun CloudCoverGraph(
         val graphBottom = h - footerIconSize - bottomInset
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
-        val dragResidualPx = DesktopGraphUtils.dragResidualPx(dragHours.value, w * 3_600_000f / windowSpan)
-        fun xAtTime(t: Long): Float = (((t - windowStart).toFloat() / windowSpan * w) + dragResidualPx).coerceIn(-w, 2 * w)
+        // Map by the actual data span (first..last point) rather than the window, so the rightmost
+        // hourly point lands on the right edge and the curve fills the full width (matches the
+        // temperature/precip graphs; fixes the gap on the far right when data stops short of
+        // windowEnd). NOW/labels route through xAtTime, so they stay aligned; windowStart/windowEnd
+        // remain the visibility gate below.
+        val dataStart = points.first().dateTime
+        val dataEnd = points.last().dateTime
+        val dataSpan = (dataEnd - dataStart).coerceAtLeast(1L).toFloat()
+        val dragResidualPx = DesktopGraphUtils.dragResidualPx(dragHours.value, w * 3_600_000f / dataSpan)
+        fun xAtTime(t: Long): Float = (((t - dataStart).toFloat() / dataSpan * w) + dragResidualPx).coerceIn(-w, 2 * w)
         fun xAt(i: Int): Float = xAtTime(points[i].dateTime)
         fun yAt(cover: Float): Float {
             val clamped = cover.coerceIn(0f, 100f)
