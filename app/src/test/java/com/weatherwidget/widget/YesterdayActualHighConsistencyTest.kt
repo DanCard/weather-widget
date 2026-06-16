@@ -121,7 +121,7 @@ class YesterdayActualHighConsistencyTest {
 
     @Test
     fun `yesterday actual high in daily view matches hourly graph peak`() = runTest {
-        val now = LocalDateTime.of(2026, 5, 17, 10, 0)
+        val now = LocalDate.now().atTime(10, 0)
         val today = now.toLocalDate()
         val yesterday = today.minusDays(1)
         val yesterdayStart = yesterday.atStartOfDay(ZoneId.systemDefault())

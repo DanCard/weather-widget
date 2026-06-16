@@ -164,7 +164,7 @@
     <string name="feedback_and_bug_reports_description">Encountered an issue or want to suggest an improvement? Submit a detailed bug report with optional system diagnostics.</string>
     <string name="submit_bug_report">Submit Bug Report</string>
     <string name="bug_report_title">Submit Bug Report</string>
-    <string name="bug_report_description_hint">Describe the bug (what happened and what you expected to see)...</string>
+    <string name="bug_report_description_hint">Describe the bug (what happened and what you expected). Attach a screenshot if it\'s a visual issue!</string>
     <string name="bug_report_include_logs">Include diagnostic app logs (recent events)</string>
     <string name="bug_report_include_metadata">Include widget configuration &amp; DB stats</string>
     <string name="bug_report_diagnostics_preview">Diagnostics Preview</string>

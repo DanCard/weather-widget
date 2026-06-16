@@ -221,6 +221,7 @@ class BugReportActivity : AppCompatActivity() {
 
             // Build full Markdown report
             val fullReport = buildString {
+                append("> **[TIP]** Please attach a screenshot of the widget if you are reporting a visual issue!\n\n")
                 append("# Weather Widget Bug Report\n\n")
                 append("## Description of the Bug\n")
                 append(description)

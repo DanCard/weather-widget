@@ -60,6 +60,7 @@ class CurrentTempUnificationIntegrationTest {
         every { stateManager.getCurrentTempDeltaState(appWidgetId, any()) } returns null
         every { stateManager.getZoomLevel(appWidgetId) } returns com.weatherwidget.widget.ZoomLevel.WIDE
         every { stateManager.getHourlyOffset(appWidgetId) } returns 0
+        every { stateManager.getSingleDayDate(any()) } returns null
 
         val appLogDao = mockk<AppLogDao>(relaxed = true)
         
@@ -156,6 +157,7 @@ class CurrentTempUnificationIntegrationTest {
         val stateManager = mockk<WidgetStateManager>(relaxed = true)
         every { stateManager.getCurrentTempDeltaState(appWidgetId, any()) } returns null
         every { stateManager.getZoomLevel(appWidgetId) } returns com.weatherwidget.widget.ZoomLevel.WIDE
+        every { stateManager.getSingleDayDate(any()) } returns null
         
         val appLogDao = mockk<AppLogDao>(relaxed = true)
 

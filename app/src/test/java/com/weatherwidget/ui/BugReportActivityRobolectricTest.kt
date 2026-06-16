@@ -158,6 +158,7 @@ class BugReportActivityRobolectricTest {
             assertEquals("Weather widget bug report", targetIntent?.getStringExtra(Intent.EXTRA_SUBJECT))
             
             val bodyText = targetIntent?.getStringExtra(Intent.EXTRA_TEXT) ?: ""
+            assertTrue("Body should contain screenshot tip", bodyText.contains("Please attach a screenshot"))
             assertTrue("Body should contain description", bodyText.contains("App crashes when rotating device."))
             assertTrue("Body should contain App version details", bodyText.contains("## Application Version"))
         }
