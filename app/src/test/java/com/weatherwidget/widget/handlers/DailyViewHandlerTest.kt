@@ -245,7 +245,7 @@ class DailyViewHandlerTest {
         assertEquals(65f, todayData.solidLineLow!!, 0.1f)
         assertEquals(80f, todayData.dashedLineHigh!!, 0.1f)
         assertEquals(60f, todayData.dashedLineLow!!, 0.1f)
-        assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
+        assertEquals(65f, todayData.bottomStackLow!!, 0.1f)
     }
 
     @Test
@@ -306,7 +306,7 @@ class DailyViewHandlerTest {
         assertEquals(75f, todayData.solidLineLow!!, 0.1f)
         assertEquals(80f, todayData.dashedLineHigh!!, 0.1f)
         assertEquals(60f, todayData.dashedLineLow!!, 0.1f)
-        assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
+        assertEquals(75f, todayData.bottomStackLow!!, 0.1f)
     }
 
     @Test
@@ -448,7 +448,7 @@ class DailyViewHandlerTest {
         assertEquals(80f, todayData.dashedLineHigh!!, 0.1f)
         assertEquals(65f, todayData.dashedLineLow!!, 0.1f)
 
-        assertEquals(65f, todayData.bottomStackLow!!, 0.1f)
+        assertEquals(67f, todayData.bottomStackLow!!, 0.1f)
     }
 
     @Test

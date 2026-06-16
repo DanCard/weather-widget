@@ -8,10 +8,8 @@ import android.location.Geocoder
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
-import android.widget.Spinner
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -26,7 +24,6 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.DeviceUtils
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -71,7 +68,6 @@ class ConfigActivity : AppCompatActivity() {
         val zipCodeInput = findViewById<EditText>(R.id.zip_code_input)
         val useGpsButton = findViewById<Button>(R.id.use_gps_button)
         val useZipButton = findViewById<Button>(R.id.use_zip_button)
-        val sourceSpinner = findViewById<Spinner>(R.id.source_spinner)
         val latInput = findViewById<EditText>(R.id.lat_input)
         val lonInput = findViewById<EditText>(R.id.lon_input)
         val useCoordinatesButton = findViewById<Button>(R.id.use_coordinates_button)
@@ -82,12 +78,6 @@ class ConfigActivity : AppCompatActivity() {
             coordinatesSection.visibility = View.GONE
         }
 
-        // Setup Source Spinner
-        val sources = WeatherSource.entries.filter { it != WeatherSource.GENERIC_GAP && it != WeatherSource.OPEN_WEATHER_MAP }
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, sources.map { it.displayName })
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        sourceSpinner.adapter = adapter
-
         useGpsButton.setOnClickListener {
             checkAndRequestLocationPermissions()
         }
@@ -95,7 +85,6 @@ class ConfigActivity : AppCompatActivity() {
         useZipButton.setOnClickListener {
             val zipCode = zipCodeInput.text.toString()
             if (zipCode.length == 5) {
-                saveSelectedSource()
                 saveZipCodeLocation(zipCode)
             } else {
                 Toast.makeText(this, "Please enter a valid 5-digit ZIP code", Toast.LENGTH_SHORT).show()
@@ -106,7 +95,6 @@ class ConfigActivity : AppCompatActivity() {
             val lat = latInput.text.toString().toDoubleOrNull()
             val lon = lonInput.text.toString().toDoubleOrNull()
             if (lat != null && lat in -90.0..90.0 && lon != null && lon in -180.0..180.0) {
-                saveSelectedSource()
                 lifecycleScope.launch {
                     try {
                         val resolved = sharedLocationResolver.fromCoordinates(lat, lon)
@@ -123,12 +111,7 @@ class ConfigActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveSelectedSource() {
-        val sourceSpinner = findViewById<Spinner>(R.id.source_spinner)
-        val sources = WeatherSource.entries.filter { it != WeatherSource.GENERIC_GAP && it != WeatherSource.OPEN_WEATHER_MAP }
-        val selectedSource = sources[sourceSpinner.selectedItemPosition]
-        widgetStateManager.setCurrentDisplaySource(appWidgetId, selectedSource)
-    }
+
 
     private fun checkAndRequestLocationPermissions() {
         val fineLocationGranted = ContextCompat.checkSelfPermission(
@@ -208,7 +191,6 @@ class ConfigActivity : AppCompatActivity() {
             return
         }
 
-        saveSelectedSource()
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         // Actively request a fresh fix. `lastLocation` returns only a cached value that is
