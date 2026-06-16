@@ -73,6 +73,11 @@
             android:exported="false"
             android:label="@string/bug_report_title" />
 
+        <activity
+            android:name=".ui.IconGalleryActivity"
+            android:exported="false"
+            android:label="@string/icon_preview_title" />
+
         <receiver
             android:name=".widget.WeatherWidgetProvider"
             android:exported="true">

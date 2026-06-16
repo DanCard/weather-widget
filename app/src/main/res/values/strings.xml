@@ -175,4 +175,5 @@
     <string name="bug_report_send">Send Bug Report</string>
     <string name="bug_report_error_empty_description">Please write a brief description of the issue before sending.</string>
     <string name="bug_report_collecting_diagnostics">Collecting diagnostic data...</string>
+    <string name="view_icon_gallery">View Icon Gallery</string>
 </resources>

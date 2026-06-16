@@ -130,6 +130,7 @@
                 android:orientation="vertical"
                 android:padding="16dp" />
 
+            <!-- Icon Gallery Section -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -156,14 +157,13 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <com.google.android.flexbox.FlexboxLayout
-                    android:id="@+id/icon_gallery_container"
+                <Button
+                    android:id="@+id/view_icon_gallery_button"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:alignItems="flex_start"
-                    app:flexWrap="wrap"
-                    app:justifyContent="flex_start">
-                </com.google.android.flexbox.FlexboxLayout>
+                    android:background="@drawable/rounded_button_blue"
+                    android:text="@string/view_icon_gallery"
+                    android:textColor="#FFFFFF" />
             </LinearLayout>
 
             <!-- Default Location Section -->
