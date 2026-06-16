@@ -129,6 +129,13 @@ fun main(args: Array<String>) {
     }
 }
 
+/** Oldest timestamp present in a loaded forecast (oldest observation or hourly point), or null. */
+private fun oldestLoadedMs(f: ForecastResult): Long? =
+    listOfNotNull(
+        f.rawObservations.minOfOrNull { it.timestamp },
+        f.hourly.minOfOrNull { it.dateTime },
+    ).minOrNull()
+
 private fun runApp() = application {
     // Rename the AWT Event Dispatch Thread (which handles Compose UI) to be equally descriptive.
     SwingUtilities.invokeLater {
@@ -222,12 +229,19 @@ private fun runApp() = application {
                 val repo = repository ?: return@fn
                 if (historyFetchInFlight || !repo.needsDeeperHistory(neededBackHours)) return@fn
                 historyFetchInFlight = true
+                val oldestBefore = forecast?.let { oldestLoadedMs(it) }
                 historyFetchToast = "Fetching older data…"
                 uiScope.launch {
                     try {
                         val fetched = repo.ensureHistory(neededBackHours)
                         if (fetched) repo.loadCached()?.let { forecast = it }
-                        historyFetchToast = if (fetched) null else "Couldn't load older data"
+                        // The DB already holds all retained history (loadCached reads the full window),
+                        // and an on-demand fetch can only add RECENT obs (NWS serves ~7 days), never
+                        // older. So if the oldest loaded point didn't move further back, there is
+                        // genuinely no older data — tell the user that instead of implying a fetch.
+                        val oldestAfter = forecast?.let { oldestLoadedMs(it) }
+                        val extended = oldestAfter != null && oldestBefore != null && oldestAfter < oldestBefore
+                        historyFetchToast = if (extended) null else "Reached end of stored history"
                     } catch (e: Exception) {
                         Log.e(TAG, "On-demand history fetch failed: ${e.message}")
                         historyFetchToast = "Couldn't load older data"
@@ -237,9 +251,10 @@ private fun runApp() = application {
                 }
             }
         }
-        // Auto-dismiss the failure message after a few seconds (success clears the toast immediately).
+        // Auto-dismiss the transient end-of-history / failure messages (a successful extend clears the
+        // toast immediately).
         LaunchedEffect(historyFetchToast) {
-            if (historyFetchToast == "Couldn't load older data") {
+            if (historyFetchToast == "Couldn't load older data" || historyFetchToast == "Reached end of stored history") {
                 kotlinx.coroutines.delay(3000)
                 historyFetchToast = null
             }

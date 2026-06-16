@@ -481,8 +481,13 @@ object TemperatureLabelResolver {
             // LOW first), so never treat it as redundant against a nearby forecast/daily low — the
             // two are stacked and ordered by value at placement time instead.
             TemperatureRole.ACTUAL_LOW -> false
-            TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH -> isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], extremaWindow, redundantValueThreshold, "ACTUAL_HIGH")
-            TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW -> isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], extremaWindow, redundantValueThreshold, "ACTUAL_LOW")
+            // Guard the actual index: with no actual data in view (forecast-only widget, or panned
+            // into a forecast gap) actualHighIndex/actualLowIndex is -1, so there is nothing for the
+            // forecast high/low to be redundant against — keep the label (and avoid an OOB access).
+            TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH ->
+                extrema.actualHighIndex >= 0 && isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], extremaWindow, redundantValueThreshold, "ACTUAL_HIGH")
+            TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW ->
+                extrema.actualLowIndex >= 0 && isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], extremaWindow, redundantValueThreshold, "ACTUAL_LOW")
             TemperatureRole.LOCAL, TemperatureRole.END, TemperatureRole.ACTUAL_END, TemperatureRole.START -> {
                 val forecastCandidates = listOf(
                     extrema.dailyHighIndex, extrema.dailyLowIndex,
