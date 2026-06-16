@@ -68,6 +68,11 @@
             android:exported="false"
             android:label="@string/privacy_policy_title" />
 
+        <activity
+            android:name=".ui.BugReportActivity"
+            android:exported="false"
+            android:label="@string/bug_report_title" />
+
         <receiver
             android:name=".widget.WeatherWidgetProvider"
             android:exported="true">

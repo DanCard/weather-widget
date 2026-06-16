@@ -127,6 +127,12 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        val submitBugReportButton = findViewById<Button>(R.id.submit_bug_report_button)
+        submitBugReportButton.setOnClickListener {
+            val intent = Intent(this, BugReportActivity::class.java)
+            startActivity(intent)
+        }
+
         // Back button
         findViewById<android.widget.ImageButton>(R.id.back_button).setOnClickListener {
             finish()

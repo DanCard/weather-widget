@@ -158,4 +158,21 @@
     <string name="location_saved_success">Location updated for all widgets</string>
     <string name="location_updated_from_gps">Location updated from GPS</string>
     <string name="invalid_coordinates_range">Please enter valid coordinates (-90 to 90 lat, -180 to 180 lon)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">Feedback &amp; Bug Reports</string>
+    <string name="feedback_and_bug_reports_description">Encountered an issue or want to suggest an improvement? Submit a detailed bug report with optional system diagnostics.</string>
+    <string name="submit_bug_report">Submit Bug Report</string>
+    <string name="bug_report_title">Submit Bug Report</string>
+    <string name="bug_report_description_hint">Describe the bug (what happened and what you expected to see)...</string>
+    <string name="bug_report_include_logs">Include diagnostic app logs (recent events)</string>
+    <string name="bug_report_include_metadata">Include widget configuration &amp; DB stats</string>
+    <string name="bug_report_diagnostics_preview">Diagnostics Preview</string>
+    <string name="bug_report_device_info">Device Info</string>
+    <string name="bug_report_db_stats">Database Stats</string>
+    <string name="bug_report_active_widgets">Active Widgets</string>
+    <string name="bug_report_location_info">Location Setting</string>
+    <string name="bug_report_send">Send Bug Report</string>
+    <string name="bug_report_error_empty_description">Please write a brief description of the issue before sending.</string>
+    <string name="bug_report_collecting_diagnostics">Collecting diagnostic data...</string>
 </resources>
