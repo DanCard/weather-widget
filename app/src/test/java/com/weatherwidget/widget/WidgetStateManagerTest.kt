@@ -47,6 +47,37 @@ class WidgetStateManagerTest {
     }
 
     @Test
+    fun `history view center is frozen at the nav anchor across passing time`() {
+        val w = testWidgetId
+        // Far enough back that the WIDE window (+-12h) excludes the now point -> history view.
+        stateManager.setHourlyOffset(w, -48)
+
+        val t1 = java.time.LocalDateTime.of(2026, 6, 16, 10, 0)
+        val t2 = t1.plusHours(3)
+        val c1 = stateManager.resolveHourlyCenterTime(w, t1, ZoomLevel.WIDE)
+        val c2 = stateManager.resolveHourlyCenterTime(w, t2, ZoomLevel.WIDE)
+
+        // A later `now` (a periodic refresh) must NOT advance a history view.
+        assertEquals(c1, c2)
+    }
+
+    @Test
+    fun `live view center tracks now so the current view keeps advancing`() {
+        val w = testWidgetId
+        // Offset within +-12h keeps the now/fetch-dot point in the WIDE window -> live view.
+        stateManager.setHourlyOffset(w, 0)
+
+        val t1 = java.time.LocalDateTime.of(2026, 6, 16, 10, 0)
+        val t2 = t1.plusHours(3)
+        val c1 = stateManager.resolveHourlyCenterTime(w, t1, ZoomLevel.WIDE)
+        val c2 = stateManager.resolveHourlyCenterTime(w, t2, ZoomLevel.WIDE)
+
+        assertEquals(t1, c1)
+        assertEquals(t2, c2)
+        assertNotEquals(c1, c2)
+    }
+
+    @Test
     fun `toggleViewMode from PRECIPITATION to DAILY does not reset hourly offset`() {
         val w = testWidgetId
         stateManager.setViewMode(w, ViewMode.PRECIPITATION)

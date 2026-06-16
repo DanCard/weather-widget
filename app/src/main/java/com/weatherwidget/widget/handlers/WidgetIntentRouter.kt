@@ -804,7 +804,9 @@ suspend fun handleResize(
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
         val now = LocalDateTime.now()
-        val centerTime = now.plusHours(hourlyOffset.toLong())
+        // Pure history/future views render from their fixed nav anchor so refreshes don't drift them;
+        // live (now-in-window) views keep tracking `now`. Navigation is unaffected.
+        val centerTime = stateManager.resolveHourlyCenterTime(appWidgetId, now, zoom)
         android.util.Log.d(
             TAG,
             "refreshGraphView: widget=$appWidgetId view=${stateManager.getViewMode(appWidgetId)} " +

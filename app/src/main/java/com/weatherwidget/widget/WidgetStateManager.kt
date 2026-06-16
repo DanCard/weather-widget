@@ -88,6 +88,10 @@ class WidgetStateManager
             // clicked calendar day so its actual line is built day-bounded and its high/low match the
             // daily bar exactly. Stored as epoch-day; cleared on scroll/zoom/return-to-now.
             private const val KEY_SINGLE_DAY_EPOCH_PREFIX = "widget_single_day_epoch_"
+            // Absolute center time (epoch ms) captured each time the hourly view is navigated. History
+            // views (those whose window excludes "now") render from this fixed anchor so periodic UI
+            // refreshes don't drift them forward; only views that include the now/fetch-dot point advance.
+            private const val KEY_GRAPH_ANCHOR_MS_PREFIX = "widget_graph_anchor_ms_"
 
             private const val KEY_API_KEY_PREFIX = "api_key_"
 
@@ -373,6 +377,7 @@ class WidgetStateManager
                 .remove("$KEY_VIEW_MODE_PREFIX$widgetId")
                 .remove("$KEY_HOURLY_OFFSET_PREFIX$widgetId")
                 .remove("$KEY_SINGLE_DAY_EPOCH_PREFIX$widgetId")
+                .remove("$KEY_GRAPH_ANCHOR_MS_PREFIX$widgetId")
                 .remove("$KEY_RAIN_SHOWN_DATE_PREFIX$widgetId")
                 .remove("$KEY_ZOOM_LEVEL_PREFIX$widgetId")
                 .remove("$KEY_CURRENT_TEMP_DELTA_PREFIX$widgetId")
@@ -538,7 +543,45 @@ class WidgetStateManager
             offset: Int,
         ) {
             val clampedOffset = offset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
-            prefs.edit().putInt("$KEY_HOURLY_OFFSET_PREFIX$widgetId", clampedOffset).apply()
+            // Capture the absolute center the user just navigated to. History views render from this
+            // fixed anchor so automatic refreshes don't drift them forward (see resolveHourlyCenterTime).
+            // Every navigation flows through here, so the anchor is always fresh at the moment of a jump
+            // and the visible position is identical to the old now+offset behavior.
+            val anchorMs = java.time.LocalDateTime.now()
+                .plusHours(clampedOffset.toLong())
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+            prefs.edit()
+                .putInt("$KEY_HOURLY_OFFSET_PREFIX$widgetId", clampedOffset)
+                .putLong("$KEY_GRAPH_ANCHOR_MS_PREFIX$widgetId", anchorMs)
+                .apply()
+        }
+
+        private fun getGraphAnchorMs(widgetId: Int): Long? {
+            val ms = prefs.getLong("$KEY_GRAPH_ANCHOR_MS_PREFIX$widgetId", Long.MIN_VALUE)
+            return if (ms == Long.MIN_VALUE) null else ms
+        }
+
+        /**
+         * Center time for the hourly graph. A view that still includes the now/fetch-dot point tracks
+         * live `now` (so the current view keeps advancing); a pure history/future view (window excludes
+         * `now`) renders from the fixed anchor captured at navigation time, so periodic refreshes don't
+         * drift it. User navigation is unaffected — it rewrites the anchor on each jump.
+         */
+        fun resolveHourlyCenterTime(
+            widgetId: Int,
+            now: java.time.LocalDateTime,
+            zoom: ZoomLevel,
+        ): java.time.LocalDateTime {
+            val offset = getHourlyOffset(widgetId)
+            val liveCenter = now.plusHours(offset.toLong())
+            val includesNow = offset.toLong() in -zoom.forwardHours..zoom.backHours
+            if (includesNow) return liveCenter
+            val anchorMs = getGraphAnchorMs(widgetId) ?: return liveCenter
+            return java.time.Instant.ofEpochMilli(anchorMs)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
         }
 
         /** The pinned single-day date for the hourly view, or null for the normal rolling view. */

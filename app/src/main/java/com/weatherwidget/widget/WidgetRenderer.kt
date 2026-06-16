@@ -105,7 +105,9 @@ object WidgetRenderer {
         val zoom = stateManager.getZoomLevel(appWidgetId)
         val now = LocalDateTime.now()
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
-        val centerTime = now.plusHours(hourlyOffset.toLong())
+        // History views render from a fixed anchor so this automatic refresh doesn't drift them forward;
+        // only views that still include the now/fetch-dot point keep tracking live `now`.
+        val centerTime = stateManager.resolveHourlyCenterTime(appWidgetId, now, zoom)
 
         val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
         val locationLat =
