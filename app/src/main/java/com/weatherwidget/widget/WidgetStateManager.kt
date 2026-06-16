@@ -84,6 +84,10 @@ class WidgetStateManager
             private const val KEY_MISSING_DATA_REFRESH_PREFIX = "widget_missing_data_refresh_"
             private const val KEY_CURRENT_TEMP_FETCH_PREFIX = "current_temp_fetch_"
             private const val KEY_DAILY_COLUMN_COUNT_PREFIX = "widget_daily_col_count_"
+            // Set when a past day's daily bar is clicked into the hourly view: pins that view to the
+            // clicked calendar day so its actual line is built day-bounded and its high/low match the
+            // daily bar exactly. Stored as epoch-day; cleared on scroll/zoom/return-to-now.
+            private const val KEY_SINGLE_DAY_EPOCH_PREFIX = "widget_single_day_epoch_"
 
             private const val KEY_API_KEY_PREFIX = "api_key_"
 
@@ -368,6 +372,7 @@ class WidgetStateManager
                 .remove("$KEY_DISPLAY_SOURCE_PREFIX$widgetId")
                 .remove("$KEY_VIEW_MODE_PREFIX$widgetId")
                 .remove("$KEY_HOURLY_OFFSET_PREFIX$widgetId")
+                .remove("$KEY_SINGLE_DAY_EPOCH_PREFIX$widgetId")
                 .remove("$KEY_RAIN_SHOWN_DATE_PREFIX$widgetId")
                 .remove("$KEY_ZOOM_LEVEL_PREFIX$widgetId")
                 .remove("$KEY_CURRENT_TEMP_DELTA_PREFIX$widgetId")
@@ -536,10 +541,31 @@ class WidgetStateManager
             prefs.edit().putInt("$KEY_HOURLY_OFFSET_PREFIX$widgetId", clampedOffset).apply()
         }
 
+        /** The pinned single-day date for the hourly view, or null for the normal rolling view. */
+        fun getSingleDayDate(widgetId: Int): java.time.LocalDate? {
+            val epochDay = prefs.getLong("$KEY_SINGLE_DAY_EPOCH_PREFIX$widgetId", Long.MIN_VALUE)
+            return if (epochDay == Long.MIN_VALUE) null else java.time.LocalDate.ofEpochDay(epochDay)
+        }
+
+        /** Pin (non-null) or clear (null) the hourly view to a single calendar day. */
+        fun setSingleDayDate(
+            widgetId: Int,
+            date: java.time.LocalDate?,
+        ) {
+            val editor = prefs.edit()
+            if (date == null) {
+                editor.remove("$KEY_SINGLE_DAY_EPOCH_PREFIX$widgetId")
+            } else {
+                editor.putLong("$KEY_SINGLE_DAY_EPOCH_PREFIX$widgetId", date.toEpochDay())
+            }
+            editor.apply()
+        }
+
         fun navigateHourlyLeft(widgetId: Int): Int {
             val currentOffset = getHourlyOffset(widgetId)
             val jump = getNavJump(widgetId)
             val newOffset = (currentOffset - jump).coerceAtLeast(MIN_HOURLY_OFFSET)
+            setSingleDayDate(widgetId, null) // scrolling exits the pinned single-day view
             setHourlyOffset(widgetId, newOffset)
             return newOffset
         }
@@ -548,6 +574,7 @@ class WidgetStateManager
             val currentOffset = getHourlyOffset(widgetId)
             val jump = getNavJump(widgetId)
             val newOffset = (currentOffset + jump).coerceAtMost(MAX_HOURLY_OFFSET)
+            setSingleDayDate(widgetId, null) // scrolling exits the pinned single-day view
             setHourlyOffset(widgetId, newOffset)
             return newOffset
         }
@@ -572,6 +599,7 @@ class WidgetStateManager
 
         fun cycleZoomLevel(widgetId: Int): ZoomLevel {
             val next = getZoomLevel(widgetId).next()
+            setSingleDayDate(widgetId, null) // zooming exits the pinned single-day view
             setZoomLevel(widgetId, next)
             return next
         }

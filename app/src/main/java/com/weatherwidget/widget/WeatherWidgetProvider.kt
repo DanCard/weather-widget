@@ -577,7 +577,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             context.startActivity(settingsIntent)
         } else {
             val stateManager = stateManager(context)
-            Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${stateManager.getViewMode(appWidgetId)} currentStoredZoom=${stateManager.getZoomLevel(appWidgetId)}")
+            // Pin the hourly view to the clicked PAST day so its actual line is built day-bounded and
+            // its high/low match the daily bar exactly. Today/future bars keep the normal rolling view
+            // (their daily bar shows forecast, not actual, so there's nothing to match). Cleared on
+            // scroll/zoom by the state manager.
+            val clickedDate = try { LocalDate.parse(dateStr) } catch (_: Exception) { null }
+            val singleDay = clickedDate?.takeIf {
+                appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && it.isBefore(LocalDate.now())
+            }
+            stateManager.setSingleDayDate(appWidgetId, singleDay)
+            Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset singleDay=$singleDay currentStoredMode=${stateManager.getViewMode(appWidgetId)} currentStoredZoom=${stateManager.getZoomLevel(appWidgetId)}")
             if (targetMode == ViewMode.PRECIPITATION) {
                 stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
             }

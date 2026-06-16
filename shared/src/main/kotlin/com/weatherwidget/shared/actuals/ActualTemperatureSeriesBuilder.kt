@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -73,16 +74,25 @@ object ActualTemperatureSeriesBuilder {
         now: LocalDateTime = LocalDateTime.now(),
         zoneId: ZoneId = ZoneId.systemDefault(),
         smoothedForecasts: Map<Long, Float>? = null,
+        // When set, the actual line is built day-bounded: the blend window and its observation input are
+        // restricted to this calendar day, exactly like ActualsAggregator's per-day call. This makes the
+        // graph's actual high/low reproduce daily_extremes for that day (the 5-min dedup-thinning in
+        // blendObservationSeries lands identically only when fed the same obs set + window). The display
+        // grid is also bounded to the day so the shown series == the day.
+        singleDayDate: LocalDate? = null,
         onBlendDebug: ((() -> String) -> Unit)? = null,
     ): ActualTemperatureSeriesResult {
         val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySourceId, now.atZone(zoneId).toInstant().toEpochMilli())
         val truncated = centerTime.truncatedTo(ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startHour = alignedCenter.minusHours(backHours)
-        val endHour = alignedCenter.plusHours(forwardHours)
+        val startHour = if (singleDayDate != null) singleDayDate.atStartOfDay() else alignedCenter.minusHours(backHours)
+        val endHour = if (singleDayDate != null) singleDayDate.plusDays(1).atStartOfDay() else alignedCenter.plusHours(forwardHours)
         val startMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
-        val contextStartMs = alignedCenter.minusHours(contextLookbackHours).atZone(zoneId).toInstant().toEpochMilli()
-        val contextEndMs = alignedCenter.plusHours(contextLookaheadHours).atZone(zoneId).toInstant().toEpochMilli()
+        // Day-bounded blend window matches ActualsAggregator.blendDailyExtremesViaSeries [dayStart,dayEnd).
+        val contextStartMs = if (singleDayDate != null) startMs
+            else alignedCenter.minusHours(contextLookbackHours).atZone(zoneId).toInstant().toEpochMilli()
+        val contextEndMs = if (singleDayDate != null) endHour.atZone(zoneId).toInstant().toEpochMilli()
+            else alignedCenter.plusHours(contextLookaheadHours).atZone(zoneId).toInstant().toEpochMilli()
 
         val sourceActuals = observations.filter { matchesObservationSource(it, displaySourceId) }
         val selectedStationId =
@@ -98,7 +108,12 @@ object ActualTemperatureSeriesBuilder {
                 null
             }
         val blendInputActuals =
-            if (selectedStationId != null) {
+            if (singleDayDate != null) {
+                // Restrict candidateTimes to the day so blendObservationSeries' greedy 5-min dedup
+                // (which advances lastEmittedMs over the WHOLE input) thins identically to the daily
+                // aggregation. All stations, mirroring ActualsAggregator (no single-station selection).
+                sourceActuals.filter { it.timestamp >= contextStartMs && it.timestamp < contextEndMs }
+            } else if (selectedStationId != null) {
                 sourceActuals.filter { it.stationId == selectedStationId }
             } else {
                 sourceActuals

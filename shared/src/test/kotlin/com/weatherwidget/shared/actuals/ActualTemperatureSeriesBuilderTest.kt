@@ -76,6 +76,53 @@ class ActualTemperatureSeriesBuilderTest {
         assertEquals(80f, result.points.single { it.timeMs == epoch("2026-06-03T10:00:00") }.actualTemp!!, 0.001f)
     }
 
+    @Test
+    fun `single-day build reproduces daily aggregate high and low exactly`() {
+        // A full day of NWS observations across two stations, sub-hourly, with a sharp afternoon peak
+        // and an overnight trough at off-hour minutes (the kind the 5-min dedup-thinning can clip). The
+        // day-bounded build must reproduce ActualsAggregator's stored daily high/low for that day, so the
+        // hourly graph's labeled actual extrema match the daily bar regardless of how thinning lands.
+        val day = java.time.LocalDate.parse("2026-06-03")
+        val obs = listOf(
+            observation("S_NEAR", "2026-06-03T01:00:00", 60f, distanceKm = 2f),
+            observation("S_NEAR", "2026-06-03T05:53:00", 57.2f, distanceKm = 2f),
+            observation("S_NEAR", "2026-06-03T10:00:00", 66f, distanceKm = 2f),
+            observation("S_FAR", "2026-06-03T15:05:00", 74f, distanceKm = 12f),
+            observation("S_NEAR", "2026-06-03T15:07:00", 77.4f, distanceKm = 2f),
+            observation("S_NEAR", "2026-06-03T20:00:00", 68f, distanceKm = 2f),
+            observation("S_NEAR", "2026-06-03T23:30:00", 62f, distanceKm = 2f),
+        )
+        val forecasts = forecasts("2026-06-03T00:00:00", 24)
+
+        val daily = ActualsAggregator.aggregate(
+            observations = obs,
+            hourlyForecasts = forecasts,
+            locationLat = LAT,
+            locationLon = LON,
+            zoneId = zone,
+        ).single { it.source == WeatherSource.NWS.id }
+
+        val result = ActualTemperatureSeriesBuilder.build(
+            hourlyForecasts = forecasts,
+            observations = obs,
+            centerTime = day.atTime(12, 0),
+            displaySourceId = WeatherSource.NWS.id,
+            userLat = LAT,
+            userLon = LON,
+            backHours = 12,
+            forwardHours = 12,
+            contextLookbackHours = 72,
+            contextLookaheadHours = 60,
+            now = LocalDateTime.parse("2026-06-05T12:00:00"),
+            zoneId = zone,
+            singleDayDate = day,
+        )
+
+        val actualTemps = result.points.filter { it.isActual && it.actualTemp != null }.map { it.actualTemp!! }
+        assertEquals("graph high should equal daily_extremes high", daily.highTemp, actualTemps.max(), 0.001f)
+        assertEquals("graph low should equal daily_extremes low", daily.lowTemp, actualTemps.min(), 0.001f)
+    }
+
     private fun forecasts(start: String, count: Int, source: String = WeatherSource.NWS.id): List<HourlyForecast> {
         val startTime = LocalDateTime.parse(start)
         return (0..count).map { index ->
