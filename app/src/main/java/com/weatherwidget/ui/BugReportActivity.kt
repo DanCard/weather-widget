@@ -165,7 +165,7 @@ class BugReportActivity : AppCompatActivity() {
             append("\n")
 
             append("--- INCLUDED DATA ---\n")
-            append("System Logs (1000 lines): ${if (includeLogsCheckbox.isChecked) "Included" else "Excluded"}\n")
+            append("System Logs (300 lines): ${if (includeLogsCheckbox.isChecked) "Included" else "Excluded"}\n")
             append("Widget Config & Metadata: ${if (includeMetadataCheckbox.isChecked) "Included" else "Excluded"}\n")
         }
     }
@@ -201,12 +201,17 @@ class BugReportActivity : AppCompatActivity() {
 
             // Gather recent app logs if checked
             val logsText = if (includeLogsCheckbox.isChecked) {
-                val recentLogs = appLogDao.getRecentLogs(1000)
+                val recentLogs = appLogDao.getRecentLogs(300)
                 if (recentLogs.isEmpty()) {
                     "No recent logs found in database."
                 } else {
-                    recentLogs.joinToString("\n") { log ->
+                    val full = recentLogs.joinToString("\n") { log ->
                         "${log.getFormattedTime()} ${log.level}/${log.tag}: ${log.message}"
+                    }
+                    if (full.length > 100_000) {
+                        full.substring(0, 100_000) + "\n...(truncated for size)"
+                    } else {
+                        full
                     }
                 }
             } else {
@@ -230,7 +235,7 @@ class BugReportActivity : AppCompatActivity() {
                 append("```\n\n")
 
                 if (includeLogsCheckbox.isChecked) {
-                    append("## Application Logs (Recent 1000 Lines)\n")
+                    append("## Application Logs (Recent 300 Lines)\n")
                     append("```\n")
                     append(logsText)
                     append("\n```\n")
