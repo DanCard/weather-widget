@@ -139,5 +139,11 @@ windowing rework, not three patches. Captured in memory `desktop-zoom-curve-resc
   Generic contract), `TemperatureGraphRendererFetchDotTest` (passes after the `-1` guard).
 - Visual verification via forced wide-zoom screenshots (config zoomFactor edit → relaunch → restore).
 
-## Not committed
-All changes are uncommitted working-tree edits (last commit `f60f0dfd`). No commit was requested.
+## Commits
+Landed as a series of commits over the session:
+- `f47c1e3e` Extend desktop hourly graph to 30-day history, add on-demand fetch
+- `c8bf5584` Slant date labels at wide zoom, scale actual-line context with span
+- `95788a7c` Add diagnostic logging for actual line left-extent in desktop hourly graph
+- `f60f0dfd` Fix GENERIC_GAP future-only constraint and deduplicate renderers
+- `5a201c87` Fix OOB on forecast-only views and improve end-of-history UX
+- `fb4a8f2e` Add session log for 30-day history and generic gap work

@@ -12,9 +12,9 @@ detector, then work through the de-duplication batches it surfaces.
 Started from the user's question about whether desktop/Android/shared duplication is easy to spot and
 share. Confirmed the preconditions were already good (`:shared` is pure Kotlin/JVM, `:app → :shared ←
 :desktop`, an established "delegate" pattern). Added an automated copy-paste detector, then executed
-five de-duplication batches. Tracked progress via `./gradlew cpdCheck`.
+six de-duplication batches. Tracked progress via `./gradlew cpdCheck`.
 
-**Duplicate-block count across the session: 99 → 84.**
+**Duplicate-block count across the session: 99 → 80.**
 
 **Duplicate-block count across the session: 99 → 84.**
 
@@ -159,13 +159,39 @@ Added a plain-JUnit `dayLabelEndpoints` test. CPD 87 → 84. Residual cloud↔pr
 `installDebug` succeeded on both physical devices (Samsung Fold + Pixel 7 Pro); on-device screenshot
 skipped (Pixel screen was off/locked — did not wake the user's phone).
 
+## Batch 6 — App CloudCoverViewHandler ↔ PrecipViewHandler (`:app`, within-platform) — DONE (safe seams only)
+
+The riskiest pair (RemoteViews binders, sticky-visibility hazard). User chose "safe seams only".
+New `app/.../widget/handlers/HourlyGraphViewCommon.kt` (object) with:
+- `bindHourlyTextMode(views, forecasts, centerTime, numColumns, displaySource, valueText)` — the
+  byte-identical text-mode column binder; only the per-graph value string is a lambda (cloud
+  `cloudCover%`/`--%`, precip `precipProbability%`/`--%`). Consolidating the `setViewVisibility` calls
+  into one place *reduces* sticky-visibility drift risk.
+- `resolveHourPresentation(...)` → `HourPresentation` — the identical per-hour sun/icon/label block;
+  each builder keeps its own null-check and data-class construction (precip retains
+  `precipAmountMm`/`actualPrecipAmountMm`).
+- The shared `Quad` moved here. `formatHourLabel` reused from `handlers/WidgetFormatUtils.kt`.
+
+**Deferred (per "safe seams only"):** the 85-line graph-render orchestration — the two renderers have
+incompatible signatures (`missingHours/missingReason` vs `rainAmountWindowHours/rainLabelMode/
+onDebugLog`); unifying needs a sealed-class strategy in the sticky-visibility hot zone (high
+machinery, modest gain). Header-binding residuals also left.
+
+CPD 84 → 80. Verified: compile clean; the `reapply()` sticky-visibility guard
+(`CurrentTempTouchRoutingRoboTest`, 11) + 7 other handler suites green (64 total); new
+`HourlyGraphViewCommonRoboTest` (3); `installDebug` OK on emulator + Pixel; widget renders healthy on
+the emulator (couldn't force cloud-cover view via `ACTION_SET_VIEW` — wrong widget id; relied on the
+Robolectric coverage of the changed paths).
+
 ## Remaining de-duplication backlog
 
-- **Biggest, still parked:** app `CloudCoverViewHandler` ↔ `PrecipViewHandler` (85+47+22-line CPD hits)
-  — RemoteViews widget-binding with sticky-visibility hazards; warrants its own plan-mode pass.
-- The leftover cloud↔precip residuals in both the desktop graphs and the Android renderers are now
-  *structural* (composable/function signatures, data-class field lists, already-shared call sites) —
-  CPD will keep flagging them, but they're not deduplicatable without harming readability.
+- **Still parked (now the only big target):** the 85-line graph-render orchestration inside
+  `CloudCoverViewHandler` ↔ `PrecipViewHandler` — needs a sealed-class renderer strategy; deferred
+  for risk/ROI.
+- The leftover cloud↔precip residuals across the desktop graphs, the Android renderers, and these
+  handlers are now *structural* (composable/function signatures, data-class field lists, header-bind
+  orchestration, already-shared call sites) — CPD keeps flagging them, but they're not
+  deduplicatable without harming readability.
 
 ## Notes / no commits
 

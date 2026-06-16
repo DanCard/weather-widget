@@ -448,43 +448,23 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             val forecast = forecastsByTime[hourMs]
 
             if (forecast != null) {
-                val diffMinutes = java.time.Duration.between(currentHour, now).toMinutes()
-                val absDiff = kotlin.math.abs(diffMinutes)
-                val isClosest = absDiff <= 30
-                val showLabel = isClosest || (hourIndex % labelInterval == 0)
-                val sunInfo = SunPositionUtils.getSunInfo(currentHour, lat, lon)
-                val isNight = sunInfo.isNight
-                val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
-                val isSunBoundary = sunInfo.isSunBoundary
-                val iconRes = WeatherIconMapper.getIconResource(
-                    condition = forecast.condition,
-                    isNight = isNight,
-                    cloudCover = forecast.cloudCover,
-                    precipProbability = forecast.precipProbability,
-                    isTwilight = isTwilight,
-                    isSunBoundary = isSunBoundary,
+                val p = HourlyGraphViewCommon.resolveHourPresentation(
+                    currentHour, forecast, now, lat, lon, labelInterval, hourIndex,
                 )
-                val isSunny =
-                    WeatherIconMapper.isSunny(iconRes)
-                val isRainy =
-                    WeatherIconMapper.isPrecipitation(iconRes)
-                val isMixed =
-                    WeatherIconMapper.isMixed(iconRes)
-
                 hours.add(
                     PrecipitationGraphRenderer.PrecipHourData(
                         dateTime = currentHour,
                         precipProbability = forecast.precipProbability ?: 0,
-                        label = formatHourLabel(currentHour),
-                        iconRes = iconRes,
-                        isNight = isNight,
-                        isTwilight = isTwilight,
-                        isSunBoundary = isSunBoundary,
-                        isSunny = isSunny,
-                        isRainy = isRainy,
-                        isMixed = isMixed,
-                        isCurrentHour = isClosest,
-                        showLabel = showLabel,
+                        label = p.label,
+                        iconRes = p.iconRes,
+                        isNight = p.isNight,
+                        isTwilight = p.isTwilight,
+                        isSunBoundary = p.isSunBoundary,
+                        isSunny = p.isSunny,
+                        isRainy = p.isRainy,
+                        isMixed = p.isMixed,
+                        isCurrentHour = p.isCurrentHour,
+                        showLabel = p.showLabel,
                         precipAmountMm = forecast.precipAmountMm,
                         actualPrecipAmountMm =
                             if (currentHour.isBefore(now)) {
@@ -578,62 +558,8 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         numColumns: Int,
         displaySource: WeatherSource,
     ) {
-        val forecastsByTime =
-            hourlyForecasts.groupBy { it.dateTime }
-                .mapValues { entry ->
-                    entry.value.find { it.source == displaySource.id }
-                        ?: entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                        ?: entry.value.firstOrNull()
-                }
-
-        val timeOffsets =
-            when {
-                numColumns >= 6 -> listOf(0, 3, 6, 9, 12, 15)
-                numColumns == 5 -> listOf(0, 3, 6, 9, 12)
-                numColumns == 4 -> listOf(0, 3, 6, 9)
-                numColumns == 3 -> listOf(0, 3, 6)
-                numColumns == 2 -> listOf(0, 6)
-                else -> listOf(0)
-            }
-
-        val containerIds =
-            listOf(
-                R.id.day1_container to Quad(R.id.day1_label, R.id.day1_icon, R.id.day1_high, R.id.day1_low),
-                R.id.day2_container to Quad(R.id.day2_label, R.id.day2_icon, R.id.day2_high, R.id.day2_low),
-                R.id.day3_container to Quad(R.id.day3_label, R.id.day3_icon, R.id.day3_high, R.id.day3_low),
-                R.id.day4_container to Quad(R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low),
-                R.id.day5_container to Quad(R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low),
-                R.id.day6_container to Quad(R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low),
-            )
-
-        val zoneId = ZoneId.systemDefault()
-        containerIds.forEachIndexed { index, (containerId, ids) ->
-            if (index < timeOffsets.size) {
-                val offset = timeOffsets[index]
-                val targetTime = centerTime.plusHours(offset.toLong())
-                val hourMs = targetTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-                    .atZone(zoneId).toInstant().toEpochMilli()
-                val forecast = forecastsByTime[hourMs]
-
-                views.setViewVisibility(containerId, View.VISIBLE)
-
-                val label = if (offset == 0) "Now" else "+${offset}h"
-                views.setTextViewText(ids.first, label)
-                views.setViewVisibility(ids.second, View.GONE)
-
-                if (forecast != null) {
-                    val precip = forecast.precipProbability ?: 0
-                    views.setTextViewText(ids.third, "$precip%")
-                    views.setTextViewText(ids.fourth, "")
-                } else {
-                    views.setTextViewText(ids.third, "--%")
-                    views.setTextViewText(ids.fourth, "")
-                }
-            } else {
-                views.setViewVisibility(containerId, View.GONE)
-            }
-        }
+        HourlyGraphViewCommon.bindHourlyTextMode(
+            views, hourlyForecasts, centerTime, numColumns, displaySource,
+        ) { forecast -> if (forecast != null) "${forecast.precipProbability ?: 0}%" else "--%" }
     }
-
-    private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 }
