@@ -150,8 +150,8 @@ class BugReportActivityRobolectricTest {
 
             val targetIntent = nextIntent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
             assertNotNull("Chooser target intent should not be null", targetIntent)
-            assertEquals(Intent.ACTION_SEND, targetIntent?.action)
-            assertEquals("text/plain", targetIntent?.type)
+            assertEquals(Intent.ACTION_SENDTO, targetIntent?.action)
+            assertEquals("mailto:daniecarde55@gmail.com", targetIntent?.data?.toString())
             assertTrue("Subject should contain bug report", targetIntent?.getStringExtra(Intent.EXTRA_SUBJECT)?.contains("Bug Report") == true)
             
             val bodyText = targetIntent?.getStringExtra(Intent.EXTRA_TEXT) ?: ""

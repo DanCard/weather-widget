@@ -3,6 +3,7 @@ package com.weatherwidget.ui
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.appwidget.AppWidgetManager
 import android.os.BatteryManager
@@ -245,8 +246,8 @@ class BugReportActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 sendButton.isEnabled = true
 
-                val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
+                val sendIntent = Intent(Intent.ACTION_SENDTO).apply {
+                    data = Uri.parse("mailto:daniecarde55@gmail.com")
                     putExtra(Intent.EXTRA_SUBJECT, "Weather Widget Bug Report - ${Build.MANUFACTURER} ${Build.MODEL}")
                     putExtra(Intent.EXTRA_TEXT, fullReport)
                 }
