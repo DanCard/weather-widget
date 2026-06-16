@@ -151,7 +151,10 @@ class BugReportActivityRobolectricTest {
             val targetIntent = nextIntent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
             assertNotNull("Chooser target intent should not be null", targetIntent)
             assertEquals(Intent.ACTION_SENDTO, targetIntent?.action)
-            assertEquals("mailto:daniecarde55@gmail.com", targetIntent?.data?.toString())
+            assertEquals("mailto:", targetIntent?.data?.toString())
+            val emails = targetIntent?.getStringArrayExtra(Intent.EXTRA_EMAIL)
+            assertNotNull("Emails extra should not be null", emails)
+            assertEquals("daniecarde55@gmail.com", emails?.firstOrNull())
             assertEquals("Weather widget bug report", targetIntent?.getStringExtra(Intent.EXTRA_SUBJECT))
             
             val bodyText = targetIntent?.getStringExtra(Intent.EXTRA_TEXT) ?: ""

@@ -247,7 +247,8 @@ class BugReportActivity : AppCompatActivity() {
                 sendButton.isEnabled = true
 
                 val sendIntent = Intent(Intent.ACTION_SENDTO).apply {
-                    data = Uri.parse("mailto:daniecarde55@gmail.com")
+                    data = Uri.parse("mailto:")
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf("daniecarde55@gmail.com"))
                     putExtra(Intent.EXTRA_SUBJECT, "Weather widget bug report")
                     putExtra(Intent.EXTRA_TEXT, fullReport)
                 }
