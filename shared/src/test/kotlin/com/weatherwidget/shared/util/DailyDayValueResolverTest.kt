@@ -41,4 +41,108 @@ class DailyDayValueResolverTest {
             )
         )
     }
+
+    // ── High cutoff (5pm) ──────────────────────────────────────────────────
+
+    @Test
+    fun todayHighBeforeCutoffStillUsesForecast() {
+        // 10am: forecast 80 still wins even though the day has only reached 72 so far.
+        val high = DailyDayValueResolver.effectiveHighForLabel(
+            isToday = true, solidHigh = 70f, forecastHigh = 80f, ghostHigh = 72f, nowHour = 10,
+        )
+        assertEquals(80f, high)
+    }
+
+    @Test
+    fun todayHighAfterCutoffTracksActualNotForecast() {
+        // 6pm: the high is settled. Forecast over-predicted (80) but the day peaked at 76 → headline 76.
+        val high = DailyDayValueResolver.effectiveHighForLabel(
+            isToday = true, solidHigh = 74f, forecastHigh = 80f, ghostHigh = 76f, nowHour = 18,
+        )
+        assertEquals(76f, high)
+    }
+
+    @Test
+    fun todayHighAfterCutoffFallsBackToForecastWhenNoActual() {
+        // 6pm but no observations yet → never blank; fall back to the forecast-inclusive blend.
+        val high = DailyDayValueResolver.effectiveHighForLabel(
+            isToday = true, solidHigh = null, forecastHigh = 80f, ghostHigh = null, nowHour = 18,
+        )
+        assertEquals(80f, high)
+    }
+
+    @Test
+    fun todayHighExactlyAtCutoffHourTracksActual() {
+        // 5pm sharp (>= 17) already counts as settled.
+        val high = DailyDayValueResolver.effectiveHighForLabel(
+            isToday = true, solidHigh = 74f, forecastHigh = 80f, ghostHigh = 76f, nowHour = 17,
+        )
+        assertEquals(76f, high)
+    }
+
+    // ── Low cutoff (9am) ───────────────────────────────────────────────────
+
+    @Test
+    fun todayLowBeforeCutoffUsesMinOfActualAndForecast() {
+        // 7am: forecast low 45 still wins over the observed-so-far low of 48.
+        val low = DailyDayValueResolver.effectiveLowForLabel(
+            isToday = true, solidLow = 48f, forecastLow = 45f, nowHour = 7,
+        )
+        assertEquals(45f, low)
+    }
+
+    @Test
+    fun todayLowAfterCutoffTracksActualNotForecast() {
+        // 10am: overnight low is settled. Forecast under-predicted (45) but actual low was 48 → 48.
+        val low = DailyDayValueResolver.effectiveLowForLabel(
+            isToday = true, solidLow = 48f, forecastLow = 45f, nowHour = 10,
+        )
+        assertEquals(48f, low)
+    }
+
+    @Test
+    fun todayLowAfterCutoffFallsBackToForecastWhenNoActual() {
+        val low = DailyDayValueResolver.effectiveLowForLabel(
+            isToday = true, solidLow = null, forecastLow = 45f, nowHour = 10,
+        )
+        assertEquals(45f, low)
+    }
+
+    @Test
+    fun lowNullHourKeepsLegacyMinBehavior() {
+        val low = DailyDayValueResolver.effectiveLowForLabel(
+            isToday = true, solidLow = 48f, forecastLow = 45f, nowHour = null,
+        )
+        assertEquals(45f, low)
+    }
+
+    @Test
+    fun nonTodayLowReturnsObservedOnly() {
+        val low = DailyDayValueResolver.effectiveLowForLabel(
+            isToday = false, solidLow = 50f, forecastLow = 40f, nowHour = 12,
+        )
+        assertEquals(50f, low)
+    }
+
+    // ── Icon anchor (lowest drawn bar) ─────────────────────────────────────
+
+    @Test
+    fun iconAnchorTracksLowestBarNotPrintedValue() {
+        // Today: observed bar stops at 50 but the forecast comparison bar dips to 44 → icon at 44,
+        // independent of whatever the headline low number prints.
+        val anchor = DailyDayValueResolver.iconAnchorLow(solidLow = 50f, forecastLow = 44f, snapshotLow = 47f)
+        assertEquals(44f, anchor)
+    }
+
+    @Test
+    fun iconAnchorIgnoresNullBars() {
+        // Future/history with no snapshot bar: anchor is the min of the present bars.
+        val anchor = DailyDayValueResolver.iconAnchorLow(solidLow = 55f, forecastLow = null, snapshotLow = null)
+        assertEquals(55f, anchor)
+    }
+
+    @Test
+    fun iconAnchorAllNullReturnsNull() {
+        assertNull(DailyDayValueResolver.iconAnchorLow(solidLow = null, forecastLow = null, snapshotLow = null))
+    }
 }

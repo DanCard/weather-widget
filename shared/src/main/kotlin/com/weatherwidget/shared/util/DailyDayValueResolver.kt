@@ -6,6 +6,18 @@ package com.weatherwidget.shared.util
  */
 object DailyDayValueResolver {
 
+    /**
+     * After this local hour (9am) the day's overnight low is effectively settled, so the today
+     * column's low number tracks the observed actual instead of the forecast.
+     */
+    const val ACTUAL_LOW_CUTOFF_HOUR = 9
+
+    /**
+     * After this local hour (5pm = 17:00) the day's high is effectively settled, so the today
+     * column's high number tracks the observed actual instead of the forecast.
+     */
+    const val ACTUAL_HIGH_CUTOFF_HOUR = 17
+
     data class TodayLineValues(
         /** The "mercury level" high — current temp if available, otherwise observed high. */
         val solidHigh: Float?,
@@ -60,14 +72,72 @@ object DailyDayValueResolver {
      * headline, so it must not drive the prominent today number (see
      * [selectPriorDaySnapshot][DailySnapshotSelector.selectPriorDaySnapshot]).
      *
+     * Once the day's high is settled (local time past [ACTUAL_HIGH_CUTOFF_HOUR]) the number
+     * tracks the observed actual (`max(observed, ghost)`) and drops the forecast, so an
+     * over-prediction no longer keeps winning the headline. If no actual exists yet we fall
+     * back to the forecast-inclusive blend so the column is never blank. The forecast
+     * *comparison bar* itself is unaffected — only this number retargets.
+     *
      * Other days = the observed high.
+     *
+     * @param nowHour Local hour-of-day (0–23); null disables the cutoff (legacy behavior).
      */
     fun effectiveHighForLabel(
         isToday: Boolean,
         solidHigh: Float?,
         forecastHigh: Float?,
         ghostHigh: Float?,
-    ): Float? =
-        if (!isToday) solidHigh
+        nowHour: Int? = null,
+    ): Float? {
+        if (!isToday) return solidHigh
+        val actualHigh = listOfNotNull(solidHigh, ghostHigh).maxOrNull()
+        val highSettled = nowHour != null && nowHour >= ACTUAL_HIGH_CUTOFF_HOUR
+        return if (highSettled && actualHigh != null) actualHigh
         else listOfNotNull(solidHigh, forecastHigh, ghostHigh).maxOrNull()
+    }
+
+    /**
+     * The "headline" low used for the today column's single low number. Mirror of
+     * [effectiveHighForLabel].
+     *
+     * Before the cutoff = `min(observed low, forecast low)` (the forecast can still win when
+     * the predicted low has not been reached yet). Once the overnight low is settled (local
+     * time past [ACTUAL_LOW_CUTOFF_HOUR]) the number tracks the observed actual and drops the
+     * forecast; if no actual exists yet it falls back to the forecast-inclusive blend.
+     *
+     * Only used for today — non-today rows use their observed low directly.
+     *
+     * @param nowHour Local hour-of-day (0–23); null disables the cutoff (legacy behavior).
+     */
+    fun effectiveLowForLabel(
+        isToday: Boolean,
+        solidLow: Float?,
+        forecastLow: Float?,
+        nowHour: Int? = null,
+    ): Float? {
+        if (!isToday) return solidLow
+        val lowSettled = nowHour != null && nowHour >= ACTUAL_LOW_CUTOFF_HOUR
+        return if (lowSettled && solidLow != null) solidLow
+        else listOfNotNull(solidLow, forecastLow).minOrNull()
+    }
+
+    /**
+     * The vertical anchor for the weather icon + low label: the **lowest drawn bar bottom**
+     * for a column, so the icon always sits under the deepest bar regardless of which value the
+     * low *number* prints.
+     *
+     * This is deliberately separate from [effectiveLowForLabel] (the printed value): on today
+     * the observed bar may stop higher than the forecast/snapshot comparison bars, and on past
+     * days the forecast-overlay bar can dip below the observed bar — in both cases the icon must
+     * follow the geometry, not the headline number.
+     *
+     * @param solidLow Observed/primary bar bottom (today = observed mercury; past = actual; future = forecast).
+     * @param forecastLow Forecast comparison bar bottom (dashed overlay), or null when absent.
+     * @param snapshotLow 24h-prior snapshot bar bottom (today only), or null when absent.
+     */
+    fun iconAnchorLow(
+        solidLow: Float?,
+        forecastLow: Float?,
+        snapshotLow: Float?,
+    ): Float? = listOfNotNull(solidLow, forecastLow, snapshotLow).minOrNull()
 }

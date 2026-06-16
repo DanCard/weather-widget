@@ -191,6 +191,8 @@ object DailyForecastGraphRenderer {
         val ghostLineHigh: Float? = null,
         val cloudCoverRatioOverride: Float? = null,
         val daysFromToday: Int = 0,
+        /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
+        val nowHour: Int? = null,
     )
 
     private fun DayData.effectiveHigh(): Float? =
@@ -199,6 +201,7 @@ object DailyForecastGraphRenderer {
             solidHigh = solidLineHigh,
             forecastHigh = dashedLineHigh,
             ghostHigh = ghostLineHigh,
+            nowHour = nowHour,
         )
 
     data class LayoutInfo(
@@ -676,27 +679,33 @@ object DailyForecastGraphRenderer {
             ),
         )
 
-        val lowTemp = resolveBottomStackLow(day)
-        val lowY = lowTemp?.let { layout.tempToY(it) }
+        // Position the icon + low label under the LOWEST drawn bar (geometry), but print the
+        // gated/observed low VALUE. Decoupling these keeps the icon under the deepest bar even
+        // when the headline number tracks a higher actual (today) or the forecast overlay dips
+        // below the observed bar (history). See DailyDayValueResolver.iconAnchorLow.
+        val anchorLow = resolveIconAnchorLow(day)
+        val displayLow = resolveBottomStackLow(day)
+        val lowY = anchorLow?.let { layout.tempToY(it) }
 
         if (lowY != null) {
             val iconY = lowY + (ICON_BELOW_BAR_SPACING_DP).dp(layout.density)
             drawWeatherIcon(canvas, context, day, centerX, iconY, layout.iconSize)
 
-            val lowTempY = iconY + layout.iconSize + layout.tempLabelHeight + (TEMP_LABEL_SPACING_DP).dp(layout.density)
-            
-            val isLowest = lowTemp <= layout.minTemp + 0.01f
-            val hasNightRain = day.rainData.nightRainLabelText != null
-            val forceInteger = isLowest && hasNightRain
-            val lowLabelText = formatTempLabel(lowTemp, forceInteger = forceInteger)
+            if (displayLow != null) {
+                val lowTempY = iconY + layout.iconSize + layout.tempLabelHeight + (TEMP_LABEL_SPACING_DP).dp(layout.density)
 
-            val tempPaint = when {
-                day.isToday -> paints.todayTempTextPaint
-                day.isPast -> paints.pastTempTextPaint
-                else -> paints.tempTextPaint
+                val isLowest = displayLow <= layout.minTemp + 0.01f
+                val hasNightRain = day.rainData.nightRainLabelText != null
+                val forceInteger = isLowest && hasNightRain
+                val lowLabelText = formatTempLabel(displayLow, forceInteger = forceInteger)
+
+                val tempPaint = when {
+                    day.isToday -> paints.todayTempTextPaint
+                    day.isPast -> paints.pastTempTextPaint
+                    else -> paints.tempTextPaint
+                }
+                drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint, drawOutline = day.isPast)
             }
-            drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint, drawOutline = day.isPast)
-
         }
 
         DailyForecastRainLabelRenderer.drawDailyRainLabel(day, centerX, layout, paints, onRainLabelDrawn, canvas)
@@ -982,7 +991,7 @@ object DailyForecastGraphRenderer {
         day: DayData,
         layout: LayoutInfo,
     ): Float? {
-        val lowTemp = resolveBottomStackLow(day) ?: return null
+        val lowTemp = resolveIconAnchorLow(day) ?: return null
         val lowY = layout.tempToY(lowTemp)
         val iconY = lowY + (ICON_BELOW_BAR_SPACING_DP).dp(layout.density)
         return iconY + layout.iconSize + layout.tempLabelHeight + (TEMP_LABEL_SPACING_DP).dp(layout.density)
@@ -990,7 +999,16 @@ object DailyForecastGraphRenderer {
 
     // ── Utility ───────────────────────────────────────────────────────────
 
+    /** The printed low VALUE (gated effective low on today; observed/forecast otherwise). */
     internal fun resolveBottomStackLow(day: DayData): Float? = day.bottomStackLow ?: day.solidLineLow
+
+    /** The icon/low-label POSITION anchor: bottom of the lowest drawn bar for the column. */
+    internal fun resolveIconAnchorLow(day: DayData): Float? =
+        com.weatherwidget.shared.util.DailyDayValueResolver.iconAnchorLow(
+            solidLow = day.solidLineLow,
+            forecastLow = day.dashedLineLow,
+            snapshotLow = day.snapshotLow,
+        ) ?: day.bottomStackLow ?: day.solidLineLow
 
     private fun Float.dp(density: Float): Float = this * density
     private fun Int.dp(density: Float): Float = this.toFloat() * density

@@ -156,7 +156,20 @@ fun DailyForecastGraph(
                 }
             }
 
-            val lowForLabel = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
+            // Today uses the shared cutoff rule: after 9am the low number tracks the observed actual
+            // and drops the forecast/snapshot comparison lows (folded together here so the pre-cutoff
+            // value is unchanged), falling back to them only when no actual exists yet. Other days
+            // keep the plain min of all candidate lows.
+            val lowForLabel = if (day.isToday) {
+                com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
+                    isToday = true,
+                    solidLow = day.solidLow,
+                    forecastLow = listOfNotNull(day.forecastLow, day.snapshotLow).minOrNull(),
+                    nowHour = day.nowHour,
+                )
+            } else {
+                listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
+            }
 
             // Past days: label BOTH the actual high (thermostat pink) and the forecast high (yellow,
             // matching the forecast bar) when they differ enough and there's room (DualHighLabel);
@@ -202,6 +215,7 @@ fun DailyForecastGraph(
                         solidHigh = day.solidHigh,
                         forecastHigh = day.forecastHigh,
                         ghostHigh = day.ghostHigh,
+                        nowHour = day.nowHour,
                     )
                 else day.solidHigh ?: day.forecastHigh ?: day.snapshotHigh ?: day.ghostHigh
                 if (singleHigh != null) {
@@ -222,24 +236,32 @@ fun DailyForecastGraph(
                 }
             }
             if (lowForLabel != null) {
-                val lowY = yAt(lowForLabel)
                 val lowLabelText = formatTemp(lowForLabel)
                 val lowSize = tempFontSize(lowLabelText, 11f * scale)
                 val lowText = textMeasurer.measure(
                     lowLabelText,
                     TextStyle(fontSize = lowSize.sp, color = Color.White.copy(alpha = 0.78f))
                 )
-                // Low label sits below the bar; icon below the label. Both clamp to stay above the
-                // day-name row, so for cold days they overlap the bar bottom rather than clip.
-                val lowLabelY = (lowY + 4f * scale).coerceAtMost(iconFloorTop - lowText.size.height - 2f * scale)
-                val lowTopLeft = Offset(centerX - lowText.size.width / 2f, lowLabelY)
-                if (day.isPast) drawOutlinedText(textMeasurer, lowText, lowTopLeft)
-                else drawText(lowText, topLeft = lowTopLeft)
-
-                val iconTop = (lowLabelY + lowText.size.height + 2f * scale).coerceAtMost(iconFloorTop)
+                // Order matches Android: bar → weather icon → low label. The icon anchors under the
+                // LOWEST drawn bar (geometry, via the shared iconAnchorLow) rather than the printed
+                // value, so it stays beneath the deepest bar even when the number tracks a higher
+                // actual (today) or a forecast-overlay bar dips lower (history). Both clamp to stay
+                // above the day-name row, overlapping the bar bottom rather than clipping on cold days.
+                val anchorLow = com.weatherwidget.shared.util.DailyDayValueResolver.iconAnchorLow(
+                    solidLow = day.solidLow,
+                    forecastLow = day.forecastLow,
+                    snapshotLow = day.snapshotLow,
+                ) ?: lowForLabel
+                val iconTopMax = size.height - dayLabelBand - lowText.size.height - 2f * scale - iconSize - 2f * scale
+                val iconTop = (yAt(anchorLow) + 4f * scale).coerceAtMost(iconTopMax)
                 translate(centerX - iconSize / 2f, iconTop) {
                     with(painters[index]) { draw(Size(iconSize, iconSize)) }
                 }
+
+                val lowLabelY = iconTop + iconSize + 2f * scale
+                val lowTopLeft = Offset(centerX - lowText.size.width / 2f, lowLabelY)
+                if (day.isPast) drawOutlinedText(textMeasurer, lowText, lowTopLeft)
+                else drawText(lowText, topLeft = lowTopLeft)
             }
 
             val dayText = textMeasurer.measure(

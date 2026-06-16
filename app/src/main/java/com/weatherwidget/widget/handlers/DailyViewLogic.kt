@@ -422,7 +422,12 @@ object DailyViewLogic {
                 finalLow = tripleValues.solidLineLow ?: tripleValues.dashedLineLow
                 fHigh = tripleValues.dashedLineHigh
                 fLow = tripleValues.dashedLineLow
-                bottomStackLow = listOfNotNull(tripleValues.solidLineLow, tripleValues.dashedLineLow).minOrNull()
+                bottomStackLow = com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
+                    isToday = true,
+                    solidLow = tripleValues.solidLineLow,
+                    forecastLow = tripleValues.dashedLineLow,
+                    nowHour = now.hour,
+                )
                 snapshotHigh = tripleValues.snapshotHigh
                 snapshotLow = tripleValues.snapshotLow
                 snapshotIconRes = tripleValues.snapshotIconRes
@@ -580,6 +585,7 @@ object DailyViewLogic {
                     ghostLineHigh = trueActualHigh,
                     cloudCoverRatioOverride = cloudCoverRatioOverride,
                     daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
+                    nowHour = if (isToday) now.hour else null,
                 )
             )
             }

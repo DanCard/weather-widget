@@ -47,6 +47,8 @@ data class DesktopDailyDay(
     /** Nighttime rain label tucked between columns (observed amount or prob%). */
     val nightRainLabelText: String?,
     val isClimateNormal: Boolean,
+    /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
+    val nowHour: Int? = null,
 )
 
 data class DesktopDailyViewState(
@@ -275,6 +277,7 @@ object DesktopDailyForecastModel {
             dailyRainLabelText = dailyRainLabelText,
             nightRainLabelText = nightRainLabelText,
             isClimateNormal = forecast?.isClimateNormal == true,
+            nowHour = if (isToday) now.hour else null,
         )
     }
 
