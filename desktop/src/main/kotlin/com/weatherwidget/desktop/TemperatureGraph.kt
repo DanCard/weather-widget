@@ -31,6 +31,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.graph.*
+import com.weatherwidget.shared.util.Log
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -121,6 +122,8 @@ fun TemperatureGraph(
     // part becomes a sub-hour pixel slide in xAtTime. Committed to config once, on drag release.
     val dragHours = remember { mutableStateOf(0f) }
     val center = now + (centerOffsetHours + dragHours.value.roundToInt()) * 3_600_000L
+    // TEMP DIAGNOSTIC (actual line left-extent): gate the log so it fires once per meaningful change.
+    val lastActualDiagKey = remember { mutableStateOf("") }
 
     val backHours = DesktopGraphUtils.backHoursFor(zoomFactor)
     val forwardHours = DesktopGraphUtils.forwardHoursFor(zoomFactor)
@@ -200,6 +203,29 @@ fun TemperatureGraph(
             zoneId = zoneId,
             smoothedForecasts = null,
         )
+        // TEMP DIAGNOSTIC: where does the pink actual line start/end vs the visible window? Compares
+        // the first/last actual point to windowStart and the raw observation range, to chase the
+        // "actual line doesn't reach the left edge" report. Logs to the autostart log file.
+        run {
+            val actualPts = actualSeries.points.filter { it.isActual && it.actualTemp != null }
+            val firstActual = actualPts.firstOrNull()?.timeMs
+            val lastActual = actualPts.lastOrNull()?.timeMs
+            val key = "$start|$cutoff|${observations.size}|$firstActual|$lastActual"
+            if (key != lastActualDiagKey.value) {
+                lastActualDiagKey.value = key
+                val hrsBack = { ms: Long? -> ms?.let { (now - it) / 3_600_000L } }
+                val obsMin = observations.minByOrNull { it.timestamp }?.timestamp
+                val obsMax = observations.maxByOrNull { it.timestamp }?.timestamp
+                Log.i(
+                    "ActualLineDiag",
+                    "zoom=$zoomFactor backH=$backHours ctxLookbackH=${maxOf(ACTUALS_CONTEXT_LOOKBACK_HOURS, backHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS)} " +
+                        "winStartHrsBack=${hrsBack(start)} firstActualHrsBack=${hrsBack(firstActual)} lastActualHrsBack=${hrsBack(lastActual)} " +
+                        "leftGapHrs=${firstActual?.let { (it - start) / 3_600_000L }} actualPts=${actualPts.size} " +
+                        "obsCount=${observations.size} obsOldestHrsBack=${hrsBack(obsMin)} obsNewestHrsBack=${hrsBack(obsMax)} " +
+                        "totalSeriesPts=${actualSeries.points.size} firstPtHrsBack=${hrsBack(points.firstOrNull()?.dateTime)}",
+                )
+            }
+        }
         val transitionMs = currentObservedAt
             ?: actualSeries.points.lastOrNull { it.isObservedActual }?.timeMs
             ?: actualSeries.points.lastOrNull { it.isActual }?.timeMs
