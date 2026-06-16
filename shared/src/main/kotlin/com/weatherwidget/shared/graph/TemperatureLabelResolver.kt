@@ -359,10 +359,14 @@ object TemperatureLabelResolver {
     ): TemperatureRole = when (idx) {
         extrema.dailyHighIndex -> TemperatureRole.HIGH
         extrema.dailyLowIndex -> TemperatureRole.LOW
-        0 -> TemperatureRole.START
-        hours.lastIndex -> TemperatureRole.END
+        // Actual extrema win over the START/END boundary roles: when the observed high/low lands on
+        // the right-edge (NOW) or left-edge index, the label must show the observed value rather than
+        // the forecast endpoint. Kept BELOW HIGH/LOW so forecast global extrema still drive the
+        // dual-label injection in addCoincidentActuals.
         in extrema.actualDailyHighIndices -> TemperatureRole.ACTUAL_HIGH
         in extrema.actualDailyLowIndices -> TemperatureRole.ACTUAL_LOW
+        0 -> TemperatureRole.START
+        hours.lastIndex -> TemperatureRole.END
         extrema.forecastHighIndex -> TemperatureRole.FORECAST_HIGH
         extrema.forecastLowIndex -> TemperatureRole.FORECAST_LOW
         extrema.pastForecastHighIndex -> TemperatureRole.PAST_FORECAST_HIGH
@@ -395,9 +399,13 @@ object TemperatureLabelResolver {
         labelTemps: List<Float>,
         actualLabelTemps: List<Float>,
     ): Set<Int> {
+        // Actual extrema rank above START/END so a coincident-value boundary anchor cannot evict a
+        // nearby actual high/low from a shared value-slot. Mirrors resolveExtremaRole's ordering;
+        // kept below HIGH/LOW to preserve the forecast-extreme dual-label path.
         val rolePriority = listOf(
-            TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.START, TemperatureRole.END,
-            TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_END,
+            TemperatureRole.HIGH, TemperatureRole.LOW,
+            TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW,
+            TemperatureRole.START, TemperatureRole.END, TemperatureRole.ACTUAL_END,
             TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
             TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
             TemperatureRole.LOCAL
@@ -447,6 +455,13 @@ object TemperatureLabelResolver {
         hours: List<HourData>,
     ): SuppressionResult {
         if (idx != extrema.fetchIdx || observedAt == null) return SuppressionResult(false)
+        // An actual high/low keeps its own label even when the fetch dot lands on it: the observed
+        // extreme value is the whole point of the label, so the dot must not relabel it as a START/END
+        // boundary (which shows the forecast endpoint value) nor suppress it. Mirrors the HIGH/LOW
+        // exemption below; without this, a curve still cooling at NOW loses its absolute-low label.
+        if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.ACTUAL_LOW) {
+            return SuppressionResult(false)
+        }
         if (idx == 0 || idx == hours.lastIndex) {
             return SuppressionResult(false, overriddenRole = if (idx == 0) TemperatureRole.START else TemperatureRole.END)
         }
@@ -555,7 +570,11 @@ object TemperatureLabelResolver {
         // HIGH and LOW (global daily extrema) are the most important labels on the graph and
         // must never be dropped by edge-proximity decluttering — even if the daily high happens
         // to fall within the edgeWindow (e.g. the curve peaks at the right edge of the graph).
-        val extremaRoles = listOf(TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)
+        // The observed extrema (ACTUAL_HIGH/ACTUAL_LOW) are likewise always worth their own label
+        // (mirroring their redundancy- and fetch-dot exemptions): a curve still cooling toward NOW
+        // puts the absolute observed low a couple of points shy of the edge, where it must not be
+        // decluttered. Only the secondary forecast extrema remain subject to edge suppression.
+        val extremaRoles = listOf(TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)
         if (role !in extremaRoles) return false
         val edgeWindow = when {
             hours.lastIndex > 50 -> min(5, hours.lastIndex / 15)

@@ -16,7 +16,9 @@ six de-duplication batches. Tracked progress via `./gradlew cpdCheck`.
 
 **Duplicate-block count across the session: 99 → 80.**
 
-**Duplicate-block count across the session: 99 → 84.**
+Recurring discipline: extract genuine *logic* duplication; leave *structural* duplication (function/
+composable signatures, data-class field lists, already-shared call sites) alone — CPD counts textual
+blocks, not logic shared, so chasing the count to zero would trade readability for a number.
 
 ---
 
@@ -32,7 +34,7 @@ six de-duplication batches. Tracked progress via `./gradlew cpdCheck`.
 - Version catalog: added `cpd = "3.5"` version + `cpd = { id = "de.aaschmid.cpd", ... }` plugin.
 - **Baseline: 99 duplicate blocks.**
 
-## Batch 1 — Shared pure-math extractions (`:shared`)
+## Batch 1 — Shared pure-math extractions (`:shared`) — 99 → 98
 
 Cross-platform (Android + desktop both delegate). New files in `shared/src/main/.../shared/graph/`:
 
@@ -55,7 +57,7 @@ constants/blend (real values, no android stub).
 
 New shared tests: `TemperatureColorModelTest`, `FetchDotLabelTest`, `CurveMathTest`.
 
-## Batch 2 — App graph-style paints (`:app`, within-platform)
+## Batch 2 — App graph-style paints (`:app`, within-platform) — 99 → 98
 
 `android.graphics.Paint` can't live in `:shared`, so this is within-`:app` dedup.
 
@@ -65,9 +67,8 @@ New shared tests: `TemperatureColorModelTest`, `FetchDotLabelTest`, `CurveMathTe
   strategy (cloud = plain field, precip = `@Volatile` double-checked lock), cache key
   (`tallGraph: Boolean` vs `heightDp: Float`), and unique paints (cloud curve; precip divider +
   rain-amount). Residual CPD hit is only the inherent `PaintSet(...)` field-assignment boilerplate.
-- CPD 99 → 98.
 
-## Batch 3 — Desktop CloudCoverGraph ↔ PrecipitationGraph composables (`:desktop`, within-platform)
+## Batch 3 — Desktop CloudCoverGraph ↔ PrecipitationGraph composables (`:desktop`) — 98 → 89
 
 Planned in plan mode (Explore agent mapped shared-vs-unique). Three seams:
 
@@ -75,8 +76,7 @@ Planned in plan mode (Explore agent mapped shared-vs-unique). Three seams:
    all three graph files (identical except font size); extracted with a `dayLabelFontSp` param
    (cloud/precip 10f, temp 14f).
 2. **`Modifier.hourlyGraphFooterTapInput` → `HourlyGraphInput.kt`** — `hourlyPanZoomInput` + the
-   footer-tap handler, byte-identical for cloud + precip. (Temperature's tap toggles zoom — left
-   alone.)
+   footer-tap handler, byte-identical for cloud + precip. (Temperature's tap toggles zoom — left alone.)
 3. **`@Composable rememberHourlyGraphSetup` → `HourlyGraphInput.kt`** — returns a `HourlyGraphSetup`
    holder (now/dragHours/window/points/painters/smoothIterations); null when <2 points (caller
    `?: return`). Watermark + `rememberTextMeasurer()` stay at each call site.
@@ -85,88 +85,48 @@ Planned in plan mode (Explore agent mapped shared-vs-unique). Three seams:
 **KEY judgment call — TemperatureGraph EXCLUDED from the combined tail:** temp interleaves its
 fetch-dot rings BETWEEN the footer strip and the NOW label, so folding it into the combined helper
 would reorder drawing (the NOW label must stay on top). CPD flags textual similarity; it can't see
-draw-order semantics. Temp got only the shared `drawDayLabels`.
+draw-order semantics. Temp got only the shared `drawDayLabels`. Cleaned 7 orphaned imports per file.
 
-Cleaned 7 orphaned imports per refactored graph file. CPD 98 → 89; the big 57/37/30-line composable
-blocks gone.
+## Batch 4 — Desktop in-`DrawScope` coordinate setup (`yAt` residual) (`:desktop`) — 89 → 87
 
-## Batch 4 — Desktop in-`DrawScope` coordinate setup (`yAt` residual) — DONE
+The cloud↔precip residual (24/15/14-line blocks) was the in-`DrawScope` coordinate geometry:
+`w`/`h`/`graphTop`/`footer`/`graphBottom`/`graphHeight`/`dataStart`/`dataEnd`/`dataSpan`/
+`dragResidualPx`/`xAtTime`/`xAt` identical; only `yAt` (cloud `topScale` vs precip `yScaleMax`) and the
+`coords` line differ.
 
-The remaining cloud↔precip residual (24/15/14/11/8-line blocks) is the in-`DrawScope` coordinate
-geometry: `w`/`h`/`graphTop`/`footer`/`graphBottom`/`graphHeight`/`dataStart`/`dataEnd`/`dataSpan`/
-`dragResidualPx`/`xAtTime`/`xAt` are identical; only `yAt` (cloud `topScale` vs precip `yScaleMax`)
-and the `coords` line that calls it differ.
-
-**Plan:** add `DrawScope.hourlyGraphCanvasGeometry(points, textMeasurer, scale, dragHours)` to
-`DesktopGraphUtils.kt` returning a `HourlyGraphCanvasGeometry` holder (`w`, `h`, `graphTop`,
-`graphBottom`, `graphHeight`, `footer`, `xAtTime`, `xAt`). Each graph destructures the shared values,
-keeps its own local `yAt` + `coords`. `xAtTime`/`xAt` become val lambdas → the existing `::xAt`
-function-reference passed to the footer/tail helpers becomes plain `xAt`.
-
-**Done:** added `DrawScope.hourlyGraphCanvasGeometry(...)` → `HourlyGraphCanvasGeometry` holder to
+Added `DrawScope.hourlyGraphCanvasGeometry(...)` → `HourlyGraphCanvasGeometry` holder to
 `DesktopGraphUtils.kt`. Both graphs destructure it and keep their own local `yAt` + `coords` (precip
-also keeps its unique `stepWidth`). `xAt` flipped from a local `fun` to a `val` lambda, so the
-`::xAt` function-references passed to the footer/tail helpers became plain `xAt`. Removed 3 now-unused
-imports from CloudCoverGraph (Instant/ZoneId/LocalDateTime — precip still uses them).
+also keeps its unique `stepWidth`). `xAt` flipped from a local `fun` to a `val` lambda, so the `::xAt`
+function-references passed to the footer/tail helpers became plain `xAt`. Removed 3 now-unused imports
+from CloudCoverGraph.
 
-**Result:** CPD 89 → 87. The remaining cloud↔precip residuals are the un-deduplicatable `@Composable`
-signature (param list) and trivial `val x = geo.x` destructuring — CPD counts textual blocks, not
-logic shared, so the modest count drop understates the real win (the `xAtTime`/`dataSpan`/
-`dragResidualPx`/bounds geometry is now single-source). 49 desktop tests green; app rebuilt + restarted
-healthy (2 procs).
+**Note:** modest count drop because the largest remaining cloud↔precip block is now the
+un-deduplicatable `@Composable` signature — CPD counts textual blocks, not logic shared. The real win
+(the geometry math now single-source) doesn't show proportionally in the number.
 
----
-
-## Files touched this session
-
-**Tooling:** `build.gradle.kts`, `gradle/libs.versions.toml`
-
-**`:shared` (new):** `shared/graph/TemperatureColorModel.kt`, `FetchDotLabel.kt`, `CurveMath.kt`
-**`:shared` tests (new):** `TemperatureColorModelTest.kt`, `FetchDotLabelTest.kt`, `CurveMathTest.kt`
-
-**`:app`:** `widget/HourlyGraphPaints.kt` (new), `widget/TemperatureGraphStyle.kt`,
-`widget/GraphRenderUtils.kt`, `widget/CloudCoverGraphStyle.kt`, `widget/PrecipitationGraphStyle.kt`,
-`widget/CloudCoverGraphRenderer.kt`, `widget/PrecipitationGraphRenderer.kt`,
-`test/.../widget/TemperatureGraphStyleTest.kt`, `test/.../widget/GraphRenderUtilsTest.kt`
-
-**`:desktop`:** `DesktopGraphUtils.kt`, `HourlyGraphInput.kt`, `CloudCoverGraph.kt`,
-`PrecipitationGraph.kt`, `TemperatureGraph.kt`
-
----
-
-## Verification status
-
-- Batches 0–5: shared + app + desktop compile clean; new shared tests + Android renderer/style tests
-  + 49 desktop tests (`DesktopGraphZoomTest` 24, `DesktopUiTest` 20, `DesktopStartupTest` 5) all green.
-- Desktop app rebuilt + restarted via `scripts/buildStart.sh` after each desktop batch; healthy (2 procs).
-- Batch 5: `installDebug` OK on both physical devices; 44 renderer Robolectric tests green; on-device
-  screenshot skipped (Pixel locked).
-
-## Batch 5 — App CloudCoverGraphRenderer ↔ PrecipitationGraphRenderer (`:app`, within-platform) — DONE
+## Batch 5 — App CloudCoverGraphRenderer ↔ PrecipitationGraphRenderer (`:app`) — 87 → 84
 
 These were **already** mostly de-duplicated (real shared logic in `GraphRenderUtils.drawHourLabels`/
 `drawDayLabels`/`computeDayLabelPlacements` + `ValueLabelEngine`). CPD's remaining hits were mostly
-*structural* (data-class field lists, function-signature tails, already-shared call sites). Extracted
-the two genuine *logic* dups to `GraphRenderUtils`:
+*structural*. Extracted the two genuine *logic* dups to `GraphRenderUtils`:
 - `drawHourIcon(context, canvas, iconRes, iconRect, isRainy/isMixed/isNight/isTwilight/isSunny)` — the
   footer weather-icon draw+tint body. Each renderer keeps its own per-icon side-effect at the call
   site (cloud `drawnIconBounds.add`, precip `onHourIconDrawn`).
 - `dayLabelEndpoints(first, last, currentTime)` → `DayLabelEndpoints` (today/left/right date+text),
   destructured at the call sites.
 
-Added a plain-JUnit `dayLabelEndpoints` test. CPD 87 → 84. Residual cloud↔precip renderer pairs
-(14/14/11-line) are the structural ones, left intentionally. 44 renderer Robolectric tests green;
-`installDebug` succeeded on both physical devices (Samsung Fold + Pixel 7 Pro); on-device screenshot
-skipped (Pixel screen was off/locked — did not wake the user's phone).
+Added a plain-JUnit `dayLabelEndpoints` test. Residual cloud↔precip renderer pairs (14/14/11-line) are
+the structural ones, left intentionally.
 
-## Batch 6 — App CloudCoverViewHandler ↔ PrecipViewHandler (`:app`, within-platform) — DONE (safe seams only)
+## Batch 6 — App CloudCoverViewHandler ↔ PrecipViewHandler (`:app`) — 84 → 80 (safe seams only)
 
 The riskiest pair (RemoteViews binders, sticky-visibility hazard). User chose "safe seams only".
 New `app/.../widget/handlers/HourlyGraphViewCommon.kt` (object) with:
 - `bindHourlyTextMode(views, forecasts, centerTime, numColumns, displaySource, valueText)` — the
   byte-identical text-mode column binder; only the per-graph value string is a lambda (cloud
   `cloudCover%`/`--%`, precip `precipProbability%`/`--%`). Consolidating the `setViewVisibility` calls
-  into one place *reduces* sticky-visibility drift risk.
+  into one place *reduces* sticky-visibility drift risk (one source of truth for every container's
+  visibility).
 - `resolveHourPresentation(...)` → `HourPresentation` — the identical per-hour sun/icon/label block;
   each builder keeps its own null-check and data-class construction (precip retains
   `precipAmountMm`/`actualPrecipAmountMm`).
@@ -177,22 +137,56 @@ incompatible signatures (`missingHours/missingReason` vs `rainAmountWindowHours/
 onDebugLog`); unifying needs a sealed-class strategy in the sticky-visibility hot zone (high
 machinery, modest gain). Header-binding residuals also left.
 
-CPD 84 → 80. Verified: compile clean; the `reapply()` sticky-visibility guard
-(`CurrentTempTouchRoutingRoboTest`, 11) + 7 other handler suites green (64 total); new
-`HourlyGraphViewCommonRoboTest` (3); `installDebug` OK on emulator + Pixel; widget renders healthy on
-the emulator (couldn't force cloud-cover view via `ACTION_SET_VIEW` — wrong widget id; relied on the
-Robolectric coverage of the changed paths).
+---
+
+## Files touched this session
+
+**Tooling:** `build.gradle.kts`, `gradle/libs.versions.toml`
+
+**`:shared`:** (new) `shared/graph/TemperatureColorModel.kt`, `FetchDotLabel.kt`, `CurveMath.kt`;
+(new tests) `TemperatureColorModelTest.kt`, `FetchDotLabelTest.kt`, `CurveMathTest.kt`
+
+**`:app` main:** (new) `widget/HourlyGraphPaints.kt`, `widget/handlers/HourlyGraphViewCommon.kt`;
+(edited) `widget/TemperatureGraphStyle.kt`, `widget/GraphRenderUtils.kt`,
+`widget/CloudCoverGraphStyle.kt`, `widget/PrecipitationGraphStyle.kt`,
+`widget/CloudCoverGraphRenderer.kt`, `widget/PrecipitationGraphRenderer.kt`,
+`widget/handlers/CloudCoverViewHandler.kt`, `widget/handlers/PrecipViewHandler.kt`
+
+**`:app` tests:** (edited) `widget/TemperatureGraphStyleTest.kt`, `widget/GraphRenderUtilsTest.kt`;
+(new) `widget/handlers/HourlyGraphViewCommonRoboTest.kt`
+
+**`:desktop`:** `DesktopGraphUtils.kt`, `HourlyGraphInput.kt`, `CloudCoverGraph.kt`,
+`PrecipitationGraph.kt`, `TemperatureGraph.kt`
+
+---
+
+## Verification status (all green)
+
+- **Compile:** `:shared` + `:app` + `:desktop` all compile clean each batch.
+- **`:shared`:** `TemperatureColorModelTest`, `FetchDotLabelTest`, `CurveMathTest`.
+- **`:desktop`:** 49 tests — `DesktopGraphZoomTest` (24), `DesktopUiTest` (20, renders the graphs),
+  `DesktopStartupTest` (5). Rebuilt + restarted via `scripts/buildStart.sh` after each desktop batch;
+  healthy (2 procs).
+- **`:app`:** `TemperatureGraphStyleTest`, `GraphRenderUtilsTest`, 44 renderer Robolectric tests; the
+  `reapply()` sticky-visibility guard `CurrentTempTouchRoutingRoboTest` (11) + 7 other handler suites
+  (64 total); new `HourlyGraphViewCommonRoboTest` (3).
+- **On-device:** `installDebug` OK on emulator + physical devices (Samsung Fold, Pixel 7 Pro). Widget
+  renders healthy on the emulator. Could not force the cloud-cover view via `ACTION_SET_VIEW` (wrong
+  widget id) and did not wake the user's locked Pixel — so the cloud/precip-specific visual rests on
+  the Robolectric coverage of the exact changed paths, not a screenshot.
+
+---
 
 ## Remaining de-duplication backlog
 
-- **Still parked (now the only big target):** the 85-line graph-render orchestration inside
-  `CloudCoverViewHandler` ↔ `PrecipViewHandler` — needs a sealed-class renderer strategy; deferred
-  for risk/ROI.
-- The leftover cloud↔precip residuals across the desktop graphs, the Android renderers, and these
-  handlers are now *structural* (composable/function signatures, data-class field lists, header-bind
-  orchestration, already-shared call sites) — CPD keeps flagging them, but they're not
-  deduplicatable without harming readability.
+- **Still parked (the only big target left):** the 85-line graph-render orchestration inside
+  `CloudCoverViewHandler` ↔ `PrecipViewHandler` — needs a sealed-class renderer strategy in the
+  sticky-visibility hot zone; deferred for risk/ROI.
+- Everything else CPD still flags across the desktop graphs, Android renderers, and these handlers is
+  *structural* (composable/function signatures, data-class field lists, header-bind orchestration,
+  already-shared call sites) — not deduplicatable without harming readability.
 
 ## Notes / no commits
 
-No commits or pushes made this session (not requested). All changes are in the working tree.
+No commits or pushes made this session (not requested). All changes are in the working tree. The CPD
+detector (`./gradlew cpdCheck`, report-only) persists for ongoing tracking.

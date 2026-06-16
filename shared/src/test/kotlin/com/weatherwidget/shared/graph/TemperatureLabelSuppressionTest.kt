@@ -460,6 +460,147 @@ class TemperatureLabelSuppressionTest {
     }
 
     @Test
+    fun `actual low on the right-edge index wins over END`() {
+        // Reproduces the live emulator bug (2026-06-16): the observed line keeps cooling into the
+        // evening, so the absolute actual low lands on the last (right-edge / NOW) index — which is
+        // also the END boundary. resolveExtremaRole used to test hours.lastIndex (END) before the
+        // actual-extrema checks, so END won and the right-edge label showed the forecast endpoint
+        // value (70) instead of the observed low (59). The label appeared to "vanish" whenever the
+        // coldest observed point happened to land on the edge.
+        val start = LocalDateTime.of(2026, 4, 8, 0, 0) // midnight -> all 24 hours are one calendar day
+        // Forecast curve: low at idx 3 (54), high at idx 14 (79), END value 70 at idx 23.
+        val forecast = listOf(
+            60f, 58f, 56f, 54f, 57f, 60f, 63f, 66f, 69f, 72f, 74f, 76f,
+            77f, 78f, 79f, 78f, 77f, 76f, 75f, 74f, 73f, 72f, 71f, 70f,
+        )
+        // Observed line: peaks at idx 10 (72), then descends to its unique global minimum 59 at the
+        // right-edge index 23.
+        val actual = listOf(
+            62f, 63f, 64f, 65f, 66f, 67f, 68f, 69f, 70f, 71f, 72f, 71f,
+            70f, 69f, 68f, 67f, 66f, 65f, 64f, 63f, 62f, 61f, 60f, 59f,
+        )
+        val hours = (0 until 24).map { offset ->
+            val dt = start.plusHours(offset.toLong())
+            HourData(
+                dateTime = dt,
+                temperature = forecast[offset],
+                label = "${dt.hour}h",
+                isActual = true,
+                actualTemperature = actual[offset],
+            )
+        }
+
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 23,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 600,
+        )
+
+        val rightEdge = candidates.find { it.index == 23 }
+        assertEquals(
+            "right-edge label should be ACTUAL_LOW, not END, got ${candidates.map { it.role to it.index }}",
+            TemperatureRole.ACTUAL_LOW, rightEdge?.role,
+        )
+        assertEquals(
+            "right-edge label should carry the observed low (59), not the forecast endpoint (70)",
+            59.0f, rightEdge!!.labelTemps[rightEdge.index], 0.01f,
+        )
+    }
+
+    @Test
+    fun `actual low on the fetch-dot right edge wins over END`() {
+        // Current-day variant of the bug: the right-edge index is NOW, so the fetch dot lands on it.
+        // checkFetchDotSuppression used to relabel any edge fetch-dot index to START/END before the
+        // role mattered, clobbering the ACTUAL_LOW. The actual-extrema exemption must keep the observed
+        // low (59) instead of the forecast endpoint (70).
+        val start = LocalDateTime.of(2026, 4, 8, 0, 0)
+        val forecast = listOf(
+            60f, 58f, 56f, 54f, 57f, 60f, 63f, 66f, 69f, 72f, 74f, 76f,
+            77f, 78f, 79f, 78f, 77f, 76f, 75f, 74f, 73f, 72f, 71f, 70f,
+        )
+        val actual = listOf(
+            62f, 63f, 64f, 65f, 66f, 67f, 68f, 69f, 70f, 71f, 72f, 71f,
+            70f, 69f, 68f, 67f, 66f, 65f, 64f, 63f, 62f, 61f, 60f, 59f,
+        )
+        val hours = (0 until 24).map { offset ->
+            val dt = start.plusHours(offset.toLong())
+            HourData(
+                dateTime = dt,
+                temperature = forecast[offset],
+                label = "${dt.hour}h",
+                isActual = true,
+                actualTemperature = actual[offset],
+            )
+        }
+
+        // fetchTime = the last hour => fetchIdx lands on the right-edge index (23), the NOW dot.
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, hours.last().dateTime)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 23,
+            transitionX = null,
+            observedAt = 1_000L, // non-null => the fetch-dot path is active
+            widthPx = 600,
+        )
+
+        val rightEdge = candidates.find { it.index == 23 }
+        assertEquals(
+            "right-edge fetch-dot label should be ACTUAL_LOW, not END, got ${candidates.map { it.role to it.index }}",
+            TemperatureRole.ACTUAL_LOW, rightEdge?.role,
+        )
+        assertEquals(
+            "right-edge label should carry the observed low (59), not the forecast endpoint (70)",
+            59.0f, rightEdge!!.labelTemps[rightEdge.index], 0.01f,
+        )
+    }
+
+    @Test
+    fun `absolute actual low just inside the right edge is not endpoint-suppressed`() {
+        // Reproduces the live Samsung (SM-F936U1) case: the observed line cools toward NOW but the
+        // data carries a short forecast tail, so the absolute observed low (idx 57) lands a couple of
+        // points shy of the right edge (idx 59) — inside checkEndpointSuppression's edge window. It
+        // used to be decluttered away (LabelSuppressed reason=ENDPOINT). The absolute low must survive.
+        val start = LocalDateTime.of(2026, 6, 13, 0, 0)
+        val n = 60
+        val effEnd = 57 // observed 0..57; a 2-point forecast tail (58..59) follows
+        val hours = (0 until n).map { i ->
+            val dt = start.plusHours(i.toLong())
+            // Forecast arch peaks at idx 30; its daily low sits at the left, well away from idx 57.
+            val f = 78f - 0.3f * kotlin.math.abs(i - 30)
+            // Observed arch peaks at idx 20 and keeps descending, so its UNIQUE global minimum is the
+            // observation cutoff at idx 57 (the absolute observed low).
+            val a = if (i <= effEnd) 75f - 0.35f * kotlin.math.abs(i - 20) else f
+            HourData(
+                dateTime = dt,
+                temperature = f,
+                label = "${dt.hour}h",
+                isActual = i <= effEnd,
+                actualTemperature = a,
+            )
+        }
+
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 560f, effEnd, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = effEnd,
+            transitionX = 560f,
+            observedAt = null,
+            widthPx = 567,
+        )
+
+        assertTrue(
+            "the absolute observed low at idx 57 must be labeled, not edge-suppressed; got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 57 && it.role == TemperatureRole.ACTUAL_LOW },
+        )
+    }
+
+    @Test
     fun `ACTUAL_LOW is retained when near daily low`() {
         val start = LocalDateTime.of(2026, 4, 8, 10, 0)
 
