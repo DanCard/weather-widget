@@ -248,7 +248,7 @@ class BugReportActivity : AppCompatActivity() {
 
                 val sendIntent = Intent(Intent.ACTION_SENDTO).apply {
                     data = Uri.parse("mailto:daniecarde55@gmail.com")
-                    putExtra(Intent.EXTRA_SUBJECT, "Weather Widget Bug Report - ${Build.MANUFACTURER} ${Build.MODEL}")
+                    putExtra(Intent.EXTRA_SUBJECT, "Weather widget bug report")
                     putExtra(Intent.EXTRA_TEXT, fullReport)
                 }
 

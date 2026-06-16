@@ -152,7 +152,7 @@ class BugReportActivityRobolectricTest {
             assertNotNull("Chooser target intent should not be null", targetIntent)
             assertEquals(Intent.ACTION_SENDTO, targetIntent?.action)
             assertEquals("mailto:daniecarde55@gmail.com", targetIntent?.data?.toString())
-            assertTrue("Subject should contain bug report", targetIntent?.getStringExtra(Intent.EXTRA_SUBJECT)?.contains("Bug Report") == true)
+            assertEquals("Weather widget bug report", targetIntent?.getStringExtra(Intent.EXTRA_SUBJECT))
             
             val bodyText = targetIntent?.getStringExtra(Intent.EXTRA_TEXT) ?: ""
             assertTrue("Body should contain description", bodyText.contains("App crashes when rotating device."))
