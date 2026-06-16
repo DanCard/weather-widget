@@ -48,7 +48,14 @@ object TemperatureExtrema {
         val dailyLowIndex = labelTemps.indices.minByOrNull { labelTemps[it] } ?: -1
 
         val actualEndIndex = if (transitionX != null) effectiveActualEndIndex else hours.lastIndex
-        val actualIndices = (0..actualEndIndex).filter { it in actualLabelTemps.indices }
+        // Only points that genuinely have observed/carried actual data — NOT forecast-only points in
+        // a leading gap. When the graph is panned into history older than the oldest observation, the
+        // left of the window is forecast-only (isActual=false); without this gate those points fall
+        // back to their forecast temp (see actualLabelTemps) and a gap day's forecast peak gets tagged
+        // as that day's "actual high", drawing a pink ACTUAL label where no actual line exists. This
+        // matches the actual-line draw gate (which also keys off isActual), keeping label and line
+        // consistent. In the normal (un-panned) view every past point is actual/carried, so no change.
+        val actualIndices = (0..actualEndIndex).filter { it in actualLabelTemps.indices && hours[it].isActual }
         
         Log.d(TAG, "ACTUAL_END_INDEX: $actualEndIndex transitionX=$transitionX")
         Log.d(TAG, "LABEL_TEMPS: $labelTemps")

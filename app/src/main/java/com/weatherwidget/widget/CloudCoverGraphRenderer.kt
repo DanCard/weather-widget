@@ -11,8 +11,6 @@ import android.util.Log
 import com.weatherwidget.R
 import java.time.LocalDateTime
 import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -256,25 +254,12 @@ object CloudCoverGraphRenderer {
         ) { index, iconRect ->
             val hour = hours[index]
             val iconRes = hour.iconRes ?: return@drawHourLabels
-            val drawable = androidx.core.content.ContextCompat.getDrawable(context, iconRes) ?: return@drawHourLabels
-
             drawnIconBounds.add(iconRect)
-
-            drawable.setBounds(
-                iconRect.left.toInt(), iconRect.top.toInt(),
-                iconRect.right.toInt(), iconRect.bottom.toInt(),
+            GraphRenderUtils.drawHourIcon(
+                context, canvas, iconRes, iconRect,
+                isRainy = hour.isRainy, isMixed = hour.isMixed,
+                isNight = hour.isNight, isTwilight = hour.isTwilight, isSunny = hour.isSunny,
             )
-
-            if (!hour.isRainy && !hour.isMixed) {
-                val iconTint = when {
-                    hour.isNight -> HourlyGraphDefaults.ICON_TINT_NIGHT
-                    hour.isTwilight -> HourlyGraphDefaults.ICON_TINT_TWILIGHT
-                    hour.isSunny -> HourlyGraphDefaults.ICON_TINT_SUNNY
-                    else -> HourlyGraphDefaults.ICON_TINT_DEFAULT
-                }
-                drawable.setTint(iconTint)
-            }
-            drawable.draw(canvas)
         }
 
         // --- Percentage labels (peak / dip / start / end) via the shared ValueLabelEngine ---
@@ -309,11 +294,8 @@ object CloudCoverGraphRenderer {
         }
 
         // --- Day labels ---
-        val today = currentTime.toLocalDate()
-        val leftDate = hours.first().dateTime.toLocalDate()
-        val rightDate = hours.last().dateTime.toLocalDate()
-        val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+        val (today, leftDate, rightDate, leftText, rightText) =
+            GraphRenderUtils.dayLabelEndpoints(hours.first().dateTime, hours.last().dateTime, currentTime)
 
         val leftPaint = if (leftDate == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint
         val rightPaint = if (rightDate == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint

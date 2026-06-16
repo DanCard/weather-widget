@@ -20,6 +20,22 @@ class GraphRenderUtilsTest {
     }
 
     @Test
+    fun `dayLabelEndpoints derives today, edge dates and short day names`() {
+        val first = java.time.LocalDateTime.of(2026, 6, 15, 8, 0)   // Monday
+        val last = java.time.LocalDateTime.of(2026, 6, 16, 20, 0)   // Tuesday
+        val now = java.time.LocalDateTime.of(2026, 6, 16, 12, 0)    // Tuesday
+
+        val e = GraphRenderUtils.dayLabelEndpoints(first, last, now)
+
+        assertEquals(java.time.LocalDate.of(2026, 6, 16), e.today)
+        assertEquals(java.time.LocalDate.of(2026, 6, 15), e.leftDate)
+        assertEquals(java.time.LocalDate.of(2026, 6, 16), e.rightDate)
+        // Day-of-week short names (default locale); assert via the same API to stay locale-agnostic.
+        assertEquals(first.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()), e.leftText)
+        assertEquals(last.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()), e.rightText)
+    }
+
+    @Test
     fun `smoothValuesPreservingGlobalExtrema reapplies anchors each iteration`() {
         val values = listOf(0f, 100f, 0f, 0f, 0f)
 

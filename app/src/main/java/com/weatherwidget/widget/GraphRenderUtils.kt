@@ -14,6 +14,8 @@ import com.weatherwidget.shared.graph.NowIndicatorGeometry
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.roundToInt
 
 internal object GraphRenderUtils {
@@ -929,5 +931,64 @@ internal object GraphRenderUtils {
             else -> code
         }
     }
+
+    /**
+     * Draws a single footer weather icon at [iconRect] with the standard day/night/twilight/sunny
+     * tint (rainy/mixed icons keep their own colors). Shared by the cloud-cover and precipitation
+     * renderers, whose footer-icon draw bodies were identical apart from each one's own per-icon
+     * bookkeeping (which stays at the call site). The caller guarantees [iconRes] is non-null.
+     */
+    fun drawHourIcon(
+        context: Context,
+        canvas: Canvas,
+        iconRes: Int,
+        iconRect: RectF,
+        isRainy: Boolean,
+        isMixed: Boolean,
+        isNight: Boolean,
+        isTwilight: Boolean,
+        isSunny: Boolean,
+    ) {
+        val drawable = androidx.core.content.ContextCompat.getDrawable(context, iconRes) ?: return
+        drawable.setBounds(
+            iconRect.left.toInt(), iconRect.top.toInt(),
+            iconRect.right.toInt(), iconRect.bottom.toInt(),
+        )
+        if (!isRainy && !isMixed) {
+            val iconTint = when {
+                isNight -> HourlyGraphDefaults.ICON_TINT_NIGHT
+                isTwilight -> HourlyGraphDefaults.ICON_TINT_TWILIGHT
+                isSunny -> HourlyGraphDefaults.ICON_TINT_SUNNY
+                else -> HourlyGraphDefaults.ICON_TINT_DEFAULT
+            }
+            drawable.setTint(iconTint)
+        }
+        drawable.draw(canvas)
+    }
+
+    /**
+     * Footer day-of-week endpoint labels: today plus the left/right edge dates and their short day
+     * names. Identical setup in the cloud-cover and precipitation renderers (each then draws them
+     * its own way), so the derivation lives here.
+     */
+    data class DayLabelEndpoints(
+        val today: LocalDate,
+        val leftDate: LocalDate,
+        val rightDate: LocalDate,
+        val leftText: String,
+        val rightText: String,
+    )
+
+    fun dayLabelEndpoints(
+        firstDateTime: LocalDateTime,
+        lastDateTime: LocalDateTime,
+        currentTime: LocalDateTime,
+    ): DayLabelEndpoints = DayLabelEndpoints(
+        today = currentTime.toLocalDate(),
+        leftDate = firstDateTime.toLocalDate(),
+        rightDate = lastDateTime.toLocalDate(),
+        leftText = firstDateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+        rightText = lastDateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+    )
 }
 

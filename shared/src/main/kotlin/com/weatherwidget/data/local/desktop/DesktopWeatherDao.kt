@@ -491,22 +491,28 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
-    fun getHourlyHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): List<HourlyForecast> {
+    fun getHourlyHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
+            // GENERIC_GAP ('Generic') is a FUTURE-ONLY filler — it covers forecast hours beyond the
+            // selected API's horizon, and must NEVER stand in for history (its Open-Meteo decimals
+            // would masquerade as the real, whole-degree NWS forecast that once existed for past hours,
+            // or invent a forecast for hours we never actually forecast). So only admit Generic rows
+            // for future timestamps; the real source supplies all past/near hours.
             val sql = """
                 SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt, source
                 FROM hourly_forecast_history
-                WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR source = 'Generic') AND dateTime >= ? AND dateTime <= ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR (source = 'Generic' AND dateTime > ?)) AND dateTime >= ? AND dateTime <= ?
                 ORDER BY dateTime ASC, (source = ?) DESC, snapshotBucket DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, locationLat)
                 stmt.setDouble(2, locationLon)
                 stmt.setString(3, source)
-                stmt.setLong(4, startMs)
-                stmt.setLong(5, endMs)
-                stmt.setString(6, source)
+                stmt.setLong(4, nowMs)
+                stmt.setLong(5, startMs)
+                stmt.setLong(6, endMs)
+                stmt.setString(7, source)
                 val rs = stmt.executeQuery()
                 // One merged row per (dateTime, source). The query is ordered snapshotBucket DESC,
                 // so the freshest snapshot of an hour is seen first and supplies temperature and

@@ -122,8 +122,9 @@ fun TemperatureGraph(
     // part becomes a sub-hour pixel slide in xAtTime. Committed to config once, on drag release.
     val dragHours = remember { mutableStateOf(0f) }
     val center = now + (centerOffsetHours + dragHours.value.roundToInt()) * 3_600_000L
-    // TEMP DIAGNOSTIC (actual line left-extent): gate the log so it fires once per meaningful change.
+    // TEMP DIAGNOSTIC gating keys (see ActualLineDiag / GapLabelDiag below): fire once per change.
     val lastActualDiagKey = remember { mutableStateOf("") }
+    val lastGapLabelDiagKey = remember { mutableStateOf("") }
 
     val backHours = DesktopGraphUtils.backHoursFor(zoomFactor)
     val forwardHours = DesktopGraphUtils.forwardHoursFor(zoomFactor)
@@ -357,6 +358,34 @@ fun TemperatureGraph(
             drawActualLine(obsCoords, scale)
         }
 
+        // Caption for the no-actuals gap: when the window is panned/zoomed back further than any
+        // observation exists, the left region is forecast-only (the pink line can't reach the edge).
+        // Label it so the missing actual line reads as a data limit, not a glitch. Only shown when the
+        // gap is wide enough to fit the text, so it never appears in normal (un-panned) views.
+        run {
+            val firstActualMs = actualLinePoints.firstOrNull()?.timeMs
+            // Right edge of the gap: where the actual line begins, or — if no actuals are visible but
+            // the window reaches into the past — the present/right edge. Null in future-only views.
+            val gapRightMs = firstActualMs ?: if (start < now) minOf(now, cutoff) else null
+            if (gapRightMs != null && gapRightMs > start) {
+                val gapLeftX = xAtTime(start).coerceAtLeast(0f)
+                val gapRightX = xAtTime(gapRightMs)
+                val gapW = gapRightX - gapLeftX
+                val mainText = if (displaySourceId == "NWS") "No NWS station data" else "No observation data"
+                val subText = if (displaySourceId == "NWS") "(API limit)" else null
+                val mainLayout = textMeasurer.measure(mainText, TextStyle(fontSize = (12f * scale).sp, color = Color.White.copy(alpha = 0.55f)))
+                if (gapW > mainLayout.size.width + 20.dp.toPx() * scale) {
+                    val cx = gapLeftX + gapW / 2f
+                    val plotCenterY = top + graphHeight / 2f
+                    val subLayout = subText?.let { textMeasurer.measure(it, TextStyle(fontSize = (10f * scale).sp, color = Color.White.copy(alpha = 0.4f))) }
+                    val totalH = mainLayout.size.height + (subLayout?.size?.height ?: 0)
+                    val startY = plotCenterY - totalH / 2f
+                    drawText(mainLayout, topLeft = Offset(cx - mainLayout.size.width / 2f, startY))
+                    subLayout?.let { drawText(it, topLeft = Offset(cx - it.size.width / 2f, startY + mainLayout.size.height)) }
+                }
+            }
+        }
+
         val markerX = xAtTime(now)
 
         // NOW Indicator - Line (drawn early so it's behind labels; shared helper).
@@ -529,6 +558,20 @@ fun TemperatureGraph(
             reservedHardBounds = fetchDotHardBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
         )
 
+        // TEMP DIAGNOSTIC: dump every placed label's role/text/x% to chase pink (ACTUAL_*) labels
+        // appearing in the no-actual gap. effectiveActualEndIndex/transition mark where actuals end.
+        run {
+            val key = "$start|$cutoff|${placements.size}"
+            if (key != lastGapLabelDiagKey.value) {
+                lastGapLabelDiagKey.value = key
+                val dump = placements.sortedBy { it.x }.joinToString(" ") { "${it.role}:${it.text}@${(it.x / w * 100).toInt()}%" }
+                Log.i(
+                    "GapLabelDiag",
+                    "winStartHrsBack=${(now - start) / 3_600_000L} actualEndIdx=$effectiveActualEndIndex/${points.lastIndex} " +
+                        "transitionHrsBack=${transitionMs?.let { (now - it) / 3_600_000L }} firstActualHrsBack=${actualLinePoints.firstOrNull()?.let { (now - it.timeMs) / 3_600_000L }} | $dump",
+                )
+            }
+        }
         for (label in placements) {
             val color = when (label.role) {
                 TemperatureRole.HIGH, TemperatureRole.LOW -> Color.White

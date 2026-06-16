@@ -9,12 +9,21 @@ import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
 
+/**
+ * GENERIC_GAP ('Generic') is a FUTURE-ONLY forecast filler — it covers forecast hours beyond the
+ * selected API's horizon and must NEVER stand in for history (its Open-Meteo decimals would
+ * masquerade as the real, whole-degree NWS forecast, or invent a forecast for hours we never made).
+ *
+ * These tests pin that contract: refresh() does not backfill Open-Meteo into the past, and
+ * getHourlyHistory() excludes past Generic rows while still admitting future ones. (This class used
+ * to verify a one-time Open-Meteo history backfill — that behaviour was removed precisely because it
+ * violated the future-only rule.)
+ */
 class DesktopBackfillIntegrationTest {
 
     private lateinit var tempDbPath: Path
@@ -42,140 +51,59 @@ class DesktopBackfillIntegrationTest {
     }
 
     @Test
-    fun `fresh install triggers backfill and stitches gaps`() = runTest {
-        val now = System.currentTimeMillis()
-        val baseHour = (now / 3600_000L) * 3600_000L
-
-        // 1. Mock fetchForecast (Primary NWS data, cloudCover is null)
-        val liveHourly = listOf(
-            HourlyForecast(baseHour, 70f, "Clear", cloudCover = null, source = "NWS"),
-            HourlyForecast(baseHour + 3600_000L, 72f, "Clear", cloudCover = null, source = "NWS")
-        )
-        coEvery { weatherService.fetchForecast() } returns ForecastResult(
-            currentTemp = 70f,
-            hourly = liveHourly,
-            daily = emptyList()
-        )
-
-        // 2. Mock fetchHistory (Open-Meteo backfill data, cloudCover populated)
-        val backfillHourly = listOf(
-            HourlyForecast(baseHour, 68f, "Cloudy", cloudCover = 85, source = "OPEN_METEO"),
-            HourlyForecast(baseHour + 3600_000L, 69f, "Cloudy", cloudCover = 90, source = "OPEN_METEO")
-        )
-        coEvery { weatherService.fetchHistory(7) } returns ForecastResult(
-            hourly = backfillHourly
-        )
-
-        // 3. Trigger refresh
-        repository.refresh()
-
-        // 4. Verify fetchHistory was called
-        coVerify(exactly = 1) { weatherService.fetchHistory(7) }
-
-        // 5. Load cached and verify stitching
-        val result = repository.loadCached()
-        assertNotNull(result)
-        
-        result!!.hourly.forEach { h ->
-            println("DEBUG: hourly dateTime=${h.dateTime} temp=${h.temperature} cloudCover=${h.cloudCover} source=${h.source}")
-        }
-
-        val stitched = result.hourly.associateBy { it.dateTime }
-        
-        // Hour 0: NWS values win for temp/condition, but cloudCover is repaired from history
-        val h0 = stitched[baseHour]
-        assertNotNull(h0)
-        assertEquals(70f, h0!!.temperature)
-        assertEquals(85, h0.cloudCover)
-        
-        // Hour 1: same repair
-        val h1 = stitched[baseHour + 3600_000L]
-        assertNotNull(h1)
-        assertEquals(72f, h1!!.temperature)
-        assertEquals(90, h1.cloudCover)
-    }
-
-    @Test
-    fun `populated history skips backfill`() = runTest {
-        val now = System.currentTimeMillis()
-        val baseHour = (now / 3600_000L) * 3600_000L
-
-        // 1. Pre-seed database with enough history (> 24 hours)
-        val existingHistory = (0 until 30).map { i ->
-            HourlyForecast(baseHour - i * 3600_000L, 60f + i, "Clear", cloudCover = 50, source = "NWS")
-        }
-        dao.upsertHourlyForecastHistory(lat, lon, source, now - 4 * 3600_000L, existingHistory)
-
-        // 2. Mock fetchForecast
+    fun `refresh never backfills Open-Meteo into history`() = runTest {
+        val baseHour = (System.currentTimeMillis() / 3600_000L) * 3600_000L
         coEvery { weatherService.fetchForecast() } returns ForecastResult(
             currentTemp = 70f,
             hourly = listOf(HourlyForecast(baseHour, 70f, "Clear", source = "NWS")),
-            daily = emptyList()
+            daily = emptyList(),
         )
 
-        // 3. Trigger refresh
         repository.refresh()
 
-        // 4. Verify fetchHistory was NOT called
+        // History must come only from real accumulated snapshots — never an Open-Meteo past_days pull.
         coVerify(exactly = 0) { weatherService.fetchHistory(any()) }
     }
 
     @Test
-    fun `backfill occurs only once per session`() = runTest {
+    fun `getHourlyHistory excludes past Generic rows`() {
         val now = System.currentTimeMillis()
         val baseHour = (now / 3600_000L) * 3600_000L
+        val pastHour = baseHour - 48 * 3600_000L
 
-        // 1. Mock fetchForecast
-        coEvery { weatherService.fetchForecast() } returns ForecastResult(
-            currentTemp = 70f,
-            hourly = listOf(HourlyForecast(baseHour, 70f, "Clear", source = "NWS")),
-            daily = emptyList()
+        // A real NWS snapshot and an Open-Meteo Generic row for the SAME past hour.
+        dao.upsertHourlyForecastHistory(
+            lat, lon, "NWS", now - 4 * 3600_000L,
+            listOf(HourlyForecast(pastHour, 60f, "Clear", source = "NWS")),
+        )
+        dao.upsertHourlyForecastHistory(
+            lat, lon, WeatherSource.GENERIC_GAP.id, 0L,
+            listOf(HourlyForecast(pastHour, 61.6f, "Cloudy", cloudCover = 80, source = WeatherSource.GENERIC_GAP.id)),
         )
 
-        // 2. Mock fetchHistory to return empty (simulating failure or no data)
-        coEvery { weatherService.fetchHistory(7) } returns ForecastResult(hourly = emptyList())
+        val rows = dao.getHourlyHistory(lat, lon, "NWS", pastHour - 3600_000L, pastHour + 3600_000L, nowMs = now)
 
-        // 3. First refresh
-        repository.refresh()
-        coVerify(exactly = 1) { weatherService.fetchHistory(7) }
-
-        // 4. Second refresh in the same session (repository instance)
-        repository.refresh()
-        
-        // Still exactly 1 call because of hasAttemptedBackfill flag
-        coVerify(exactly = 1) { weatherService.fetchHistory(7) }
+        // Only the NWS row survives; the past Generic row (Open-Meteo decimals) is excluded.
+        assertEquals(1, rows.size)
+        assertEquals("NWS", rows[0].source)
+        assertEquals(60f, rows[0].temperature)
     }
 
     @Test
-    fun `refresh returns stitched data immediately`() = runTest {
+    fun `getHourlyHistory includes future Generic rows`() {
         val now = System.currentTimeMillis()
         val baseHour = (now / 3600_000L) * 3600_000L
+        val futureHour = baseHour + 48 * 3600_000L
 
-        // 1. Mock fetchForecast (Primary NWS data, cloudCover is null)
-        val liveHourly = listOf(
-            HourlyForecast(baseHour, 70f, "Clear", cloudCover = null, source = "NWS")
-        )
-        coEvery { weatherService.fetchForecast() } returns ForecastResult(
-            currentTemp = 70f,
-            hourly = liveHourly,
-            daily = emptyList()
+        dao.upsertHourlyForecastHistory(
+            lat, lon, WeatherSource.GENERIC_GAP.id, 0L,
+            listOf(HourlyForecast(futureHour, 75.4f, "Clear", source = WeatherSource.GENERIC_GAP.id)),
         )
 
-        // 2. Mock fetchHistory (Open-Meteo backfill data, cloudCover populated)
-        val backfillHourly = listOf(
-            HourlyForecast(baseHour, 68f, "Cloudy", cloudCover = 85, source = "OPEN_METEO")
-        )
-        coEvery { weatherService.fetchHistory(7) } returns ForecastResult(
-            hourly = backfillHourly
-        )
+        val rows = dao.getHourlyHistory(lat, lon, "NWS", futureHour - 3600_000L, futureHour + 3600_000L, nowMs = now)
 
-        // 3. Trigger refresh and capture the returned result
-        val result = repository.refresh()
-
-        // 4. Verify the returned result has the stitched cloud cover
-        val h0 = result.hourly.find { it.dateTime == baseHour }
-        assertNotNull("Hourly forecast should exist in returned result", h0)
-        assertEquals("Temperature should come from live fetch", 70f, h0!!.temperature)
-        assertEquals("Cloud cover should be repaired from backfill immediately", 85, h0.cloudCover)
+        // Future Generic legitimately fills beyond the API horizon, so it IS admitted.
+        assertEquals(1, rows.size)
+        assertEquals(WeatherSource.GENERIC_GAP.id, rows[0].source)
     }
 }

@@ -13,8 +13,6 @@ import com.weatherwidget.util.DayNightHours
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.Locale
 import com.weatherwidget.widget.handlers.formatPrecipAmount
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -383,11 +381,8 @@ object PrecipitationGraphRenderer {
             ).toMutableList()
         nowLabelPlacement?.let { overlayBounds.add(it.bounds) }
 
-        val today = currentTime.toLocalDate()
-        val leftDate = hours.first().dateTime.toLocalDate()
-        val rightDate = hours.last().dateTime.toLocalDate()
-        val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+        val (today, leftDate, rightDate, leftText, rightText) =
+            GraphRenderUtils.dayLabelEndpoints(hours.first().dateTime, hours.last().dateTime, currentTime)
         val dayLabelFontMetrics = textMeasurer.getDayTextBounds(false)
         val todayLabelFontMetrics = textMeasurer.getDayTextBounds(true)
         val computedDayPlacements = GraphRenderUtils.computeDayLabelPlacements(
@@ -691,19 +686,11 @@ object PrecipitationGraphRenderer {
         ) { index, iconRect ->
             val hour = hours[index]
             val iconRes = hour.iconRes ?: return@drawHourLabels
-            val drawable = androidx.core.content.ContextCompat.getDrawable(context, iconRes) ?: return@drawHourLabels
-
-            drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
-            if (!hour.isRainy && !hour.isMixed) {
-                val iconTint = when {
-                    hour.isNight -> HourlyGraphDefaults.ICON_TINT_NIGHT
-                    hour.isTwilight -> HourlyGraphDefaults.ICON_TINT_TWILIGHT
-                    hour.isSunny -> HourlyGraphDefaults.ICON_TINT_SUNNY
-                    else -> HourlyGraphDefaults.ICON_TINT_DEFAULT
-                }
-                drawable.setTint(iconTint)
-            }
-            drawable.draw(canvas)
+            GraphRenderUtils.drawHourIcon(
+                context, canvas, iconRes, iconRect,
+                isRainy = hour.isRainy, isMixed = hour.isMixed,
+                isNight = hour.isNight, isTwilight = hour.isTwilight, isSunny = hour.isSunny,
+            )
             onHourIconDrawn?.invoke(index)
         }
 

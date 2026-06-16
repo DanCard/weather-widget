@@ -127,19 +127,6 @@ class DesktopWeatherRepository(
     @Volatile private var deepestHistoryDaysFetched = BASELINE_HISTORY_DAYS
     private val historyFetchMutex = Mutex()
 
-    /**
-     * Pulls older hourly history on demand when the user zooms/pans the graph past what's cached.
-     * [neededBackHours] is how far back from now the visible window now reaches. Idempotent and
-     * guarded: returns false immediately when the requested depth is already covered, so rapid wheel
-     * events don't spam the network. Returns true only when new data was fetched and persisted — the
-     * caller then reloads the cache so the graph picks it up. Best-effort: logs and returns false on
-     * failure, leaving existing data intact.
-     *
-     * Open-Meteo `past_days` supplies the temperature/forecast curve for any source (stored under
-     * GENERIC_GAP as a non-masking fallback, exactly like the one-time launch backfill). For NWS we
-     * additionally widen the station-observation window so the authoritative pink actual line extends
-     * too — same station set, just a longer window per call.
-     */
     /** Days of `past_days` needed to cover [neededBackHours] of visible history, plus a day of margin. */
     private fun neededHistoryDays(neededBackHours: Int): Int =
         (kotlin.math.ceil(neededBackHours / 24.0).toInt() + 1).coerceIn(1, MAX_HISTORY_DAYS)
@@ -147,11 +134,22 @@ class DesktopWeatherRepository(
     /**
      * Cheap, no-network check of whether [ensureHistory] would actually fetch at this depth. Lets the
      * UI show the "fetching" toast only when a real pull is about to happen, not on every zoom tick.
+     * Gated to NWS: it's the only source whose deep history we extend on demand (station observations).
      */
     fun needsDeeperHistory(neededBackHours: Int): Boolean =
-        neededHistoryDays(neededBackHours) > deepestHistoryDaysFetched
+        weatherSource == "NWS" && neededHistoryDays(neededBackHours) > deepestHistoryDaysFetched
 
+    /**
+     * Pulls older NWS station observations on demand when the user zooms/pans the graph past what's
+     * cached — these drive the pink actual line. Idempotent and guarded so rapid wheel events don't
+     * spam the network; returns true only when new data was persisted (caller then reloads the cache).
+     *
+     * Deliberately does NOT backfill an Open-Meteo forecast curve: GENERIC_GAP is future-only and must
+     * never fill history (its Open-Meteo decimals would masquerade as the real, whole-degree NWS
+     * forecast). The past forecast curve comes solely from real accumulated NWS snapshots.
+     */
     suspend fun ensureHistory(neededBackHours: Int): Boolean = withContext(Dispatchers.IO) {
+        if (weatherSource != "NWS") return@withContext false
         val neededDays = neededHistoryDays(neededBackHours)
         if (neededDays <= deepestHistoryDaysFetched) return@withContext false
         historyFetchMutex.withLock {
@@ -159,26 +157,13 @@ class DesktopWeatherRepository(
             if (neededDays <= deepestHistoryDaysFetched) return@withLock false
             var fetchedAny = false
             try {
-                val historyResult = weatherService.fetchHistory(neededDays)
-                if (historyResult.hourly.isNotEmpty()) {
-                    weatherDao.upsertHourlyForecastHistory(
-                        latitude, longitude, WeatherSource.GENERIC_GAP.id, 0L, historyResult.hourly,
-                    )
+                val obs = weatherService.fetchObservationHistory(neededDays.toLong())
+                if (obs.isNotEmpty()) {
+                    weatherDao.upsertObservations(obs.map { it.toEntity(System.currentTimeMillis()) })
                     fetchedAny = true
                 }
             } catch (e: Exception) {
-                Log.e("DesktopWeatherRepository", "On-demand Open-Meteo history fetch failed: $e")
-            }
-            if (weatherSource == "NWS") {
-                try {
-                    val obs = weatherService.fetchObservationHistory(neededDays.toLong())
-                    if (obs.isNotEmpty()) {
-                        weatherDao.upsertObservations(obs.map { it.toEntity(System.currentTimeMillis()) })
-                        fetchedAny = true
-                    }
-                } catch (e: Exception) {
-                    Log.e("DesktopWeatherRepository", "On-demand NWS observation history fetch failed: $e")
-                }
+                Log.e("DesktopWeatherRepository", "On-demand NWS observation history fetch failed: $e")
             }
             if (fetchedAny) {
                 deepestHistoryDaysFetched = neededDays
@@ -188,31 +173,10 @@ class DesktopWeatherRepository(
         }
     }
 
-    private var hasAttemptedBackfill = false
-
     suspend fun refresh(now: Long = System.currentTimeMillis()): ForecastResult = withContext(Dispatchers.IO) {
-        // One-time backfill if history is empty (e.g. fresh install)
-        if (!hasAttemptedBackfill) {
-            hasAttemptedBackfill = true
-            val historyStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
-            val historyCount = weatherDao.getHourlyHistoryCount(latitude, longitude, weatherSource, historyStart, now)
-            if (historyCount < 24) {
-                Log.i("DesktopWeatherRepository", "History sparse ($historyCount rows), triggering one-time backfill from Open-Meteo")
-                try {
-                    // 7 past_days covers the widest zoom-out (6 days back) with a day of margin.
-                    val historyResult = weatherService.fetchHistory(7)
-                    if (historyResult.hourly.isNotEmpty()) {
-                        // Use bucket 0 for the one-time backfill snapshots to distinguish from regular 4h snapshots.
-                        // Store as GENERIC_GAP so it serves as a fallback without masking NWS retrieval bugs.
-                        weatherDao.upsertHourlyForecastHistory(latitude, longitude, WeatherSource.GENERIC_GAP.id, 0L, historyResult.hourly)
-                        Log.i("DesktopWeatherRepository", "Backfill success: ${historyResult.hourly.size} rows")
-                    }
-                } catch (e: Exception) {
-                    Log.e("DesktopWeatherRepository", "Backfill failed: $e")
-                }
-            }
-        }
-
+        // NOTE: no Open-Meteo history backfill here. GENERIC_GAP is future-only; past forecast history
+        // must come only from real accumulated NWS snapshots (a fresh install simply starts sparse and
+        // fills in as it runs), so we never seed Open-Meteo decimals into the past.
         val result = weatherService.fetchForecast()
 
         // Persist

@@ -12,9 +12,11 @@ detector, then work through the de-duplication batches it surfaces.
 Started from the user's question about whether desktop/Android/shared duplication is easy to spot and
 share. Confirmed the preconditions were already good (`:shared` is pure Kotlin/JVM, `:app → :shared ←
 :desktop`, an established "delegate" pattern). Added an automated copy-paste detector, then executed
-three de-duplication batches. Tracked progress via `./gradlew cpdCheck`.
+five de-duplication batches. Tracked progress via `./gradlew cpdCheck`.
 
-**Duplicate-block count across the session: 99 → 89** (and a 4th batch in progress at session end).
+**Duplicate-block count across the session: 99 → 84.**
+
+**Duplicate-block count across the session: 99 → 84.**
 
 ---
 
@@ -124,7 +126,8 @@ healthy (2 procs).
 
 **`:app`:** `widget/HourlyGraphPaints.kt` (new), `widget/TemperatureGraphStyle.kt`,
 `widget/GraphRenderUtils.kt`, `widget/CloudCoverGraphStyle.kt`, `widget/PrecipitationGraphStyle.kt`,
-`test/.../widget/TemperatureGraphStyleTest.kt`
+`widget/CloudCoverGraphRenderer.kt`, `widget/PrecipitationGraphRenderer.kt`,
+`test/.../widget/TemperatureGraphStyleTest.kt`, `test/.../widget/GraphRenderUtilsTest.kt`
 
 **`:desktop`:** `DesktopGraphUtils.kt`, `HourlyGraphInput.kt`, `CloudCoverGraph.kt`,
 `PrecipitationGraph.kt`, `TemperatureGraph.kt`
@@ -133,17 +136,36 @@ healthy (2 procs).
 
 ## Verification status
 
-- Batches 0–3: shared + app + desktop compile clean; new shared tests + Android renderer/style tests
+- Batches 0–5: shared + app + desktop compile clean; new shared tests + Android renderer/style tests
   + 49 desktop tests (`DesktopGraphZoomTest` 24, `DesktopUiTest` 20, `DesktopStartupTest` 5) all green.
-- Desktop app rebuilt + restarted twice via `scripts/buildStart.sh`; healthy (2 procs each time).
-- Batch 4: not yet verified (in progress).
+- Desktop app rebuilt + restarted via `scripts/buildStart.sh` after each desktop batch; healthy (2 procs).
+- Batch 5: `installDebug` OK on both physical devices; 44 renderer Robolectric tests green; on-device
+  screenshot skipped (Pixel locked).
+
+## Batch 5 — App CloudCoverGraphRenderer ↔ PrecipitationGraphRenderer (`:app`, within-platform) — DONE
+
+These were **already** mostly de-duplicated (real shared logic in `GraphRenderUtils.drawHourLabels`/
+`drawDayLabels`/`computeDayLabelPlacements` + `ValueLabelEngine`). CPD's remaining hits were mostly
+*structural* (data-class field lists, function-signature tails, already-shared call sites). Extracted
+the two genuine *logic* dups to `GraphRenderUtils`:
+- `drawHourIcon(context, canvas, iconRes, iconRect, isRainy/isMixed/isNight/isTwilight/isSunny)` — the
+  footer weather-icon draw+tint body. Each renderer keeps its own per-icon side-effect at the call
+  site (cloud `drawnIconBounds.add`, precip `onHourIconDrawn`).
+- `dayLabelEndpoints(first, last, currentTime)` → `DayLabelEndpoints` (today/left/right date+text),
+  destructured at the call sites.
+
+Added a plain-JUnit `dayLabelEndpoints` test. CPD 87 → 84. Residual cloud↔precip renderer pairs
+(14/14/11-line) are the structural ones, left intentionally. 44 renderer Robolectric tests green;
+`installDebug` succeeded on both physical devices (Samsung Fold + Pixel 7 Pro); on-device screenshot
+skipped (Pixel screen was off/locked — did not wake the user's phone).
 
 ## Remaining de-duplication backlog
 
-- **Batch 4** (in progress): desktop `yAt` coordinate-setup extraction.
-- App-side `CloudCoverGraphRenderer` ↔ `PrecipitationGraphRenderer` (Android Canvas) — separate target.
 - **Biggest, still parked:** app `CloudCoverViewHandler` ↔ `PrecipViewHandler` (85+47+22-line CPD hits)
   — RemoteViews widget-binding with sticky-visibility hazards; warrants its own plan-mode pass.
+- The leftover cloud↔precip residuals in both the desktop graphs and the Android renderers are now
+  *structural* (composable/function signatures, data-class field lists, already-shared call sites) —
+  CPD will keep flagging them, but they're not deduplicatable without harming readability.
 
 ## Notes / no commits
 
