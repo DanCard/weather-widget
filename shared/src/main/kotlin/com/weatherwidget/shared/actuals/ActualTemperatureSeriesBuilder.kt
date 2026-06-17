@@ -56,7 +56,6 @@ object ActualTemperatureSeriesBuilder {
     private const val GENERIC_GAP_SOURCE = "Generic"
     private const val TIME_DECAY_MAX_AGE_MS = 3 * 60 * 60 * 1000L
     private const val NEAR_ZERO_KM = 0.1f
-    private const val DEDUP_MS = 5 * 60 * 1000L
     private const val MAX_INTERPOLATION_GAP_MS = 3 * 60 * 60 * 1000L
     private const val MAX_EXTRAPOLATION_GAP_MS = 3 * 60 * 60 * 1000L
 
@@ -228,18 +227,16 @@ object ActualTemperatureSeriesBuilder {
         val byStation = filtered.groupBy { it.stationId }.mapValues { it.value.sortedBy { obs -> obs.timestamp } }
         val candidateTimes = filtered.map { it.timestamp }.distinct().sorted()
         val result = mutableListOf<ObservationReading>()
-        var lastEmittedMs = 0L
-        var dedupSkippedCount = 0
         val candidates = mutableListOf<DecayBlendInput>()
         val zoneId = if (onBlendDebug != null) ZoneId.systemDefault() else null
         val timePattern = if (onBlendDebug != null) DateTimeFormatter.ofPattern("HH:mm") else null
 
+        // Blend once per distinct observation timestamp (no time-bucket thinning). Observation data is
+        // naturally sparse (NWS ~15 min, other sources hourly), so this is cheap, and — crucially — it
+        // makes the emitted series independent of the query window. That is what lets the daily bar
+        // (ActualsAggregator) and the hourly graph (build()) derive the SAME max/min for a day instead
+        // of two window-dependent 5-min-thinned approximations. See daily_vs_hourly_actual_extrema_mismatch.
         for (targetTs in candidateTimes) {
-            if (targetTs - lastEmittedMs < DEDUP_MS) {
-                dedupSkippedCount += 1
-                continue
-            }
-
             candidates.clear()
             var hasObserved = false
             var hasInterpolated = false
@@ -295,7 +292,6 @@ object ActualTemperatureSeriesBuilder {
                     ),
                 )
             }
-            lastEmittedMs = targetTs
         }
 
         return BlendObservationResult(
@@ -306,7 +302,7 @@ object ActualTemperatureSeriesBuilder {
                 stationCount = byStation.size,
                 candidateTimeCount = candidateTimes.size,
                 emittedPointCount = result.size,
-                dedupSkippedCount = dedupSkippedCount,
+                dedupSkippedCount = 0, // thinning removed; retained as 0 for stat/summary compatibility
             ),
         )
     }

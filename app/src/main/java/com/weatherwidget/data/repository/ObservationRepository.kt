@@ -14,7 +14,11 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.local.toReading
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.util.SpatialInterpolator
+import java.time.Instant
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetConstants
@@ -529,6 +533,44 @@ class ObservationRepository @Inject constructor(
                 "date=$date src=${new.source} computed_hi=${new.highTemp} computed_lo=${new.lowTemp} stations=[$stationsStr]",
                 "DEBUG",
             )
+        }
+
+        // EXTREMA_WINDOW_DIAG (one-shot probe for the daily-bar vs hourly-graph high/low mismatch):
+        // blend the NWS series two ways — day-isolated [startTs,endTs] (what daily_extremes uses) and a
+        // wide ±24h window (closer to the hourly graph's blend context) — and log each argmax/argmin
+        // timestamp. If the two windows agree, the window is NOT the cause (interpolation reach is only
+        // 3h, so the ~3pm peak / ~5am trough are out of any edge's reach) and the gap lives in the
+        // hourly pipeline. Compare against HOURLY_DAY_EXTREMA's hi@/lo@ timestamps for the same day.
+        runCatching {
+            val hourlyR = effectiveHourly.map { it.toHourlyForecast() }
+            val fmt = DateTimeFormatter.ofPattern("HH:mm")
+            fun probe(obs: List<ObservationReading>, s: Long, e: Long): String {
+                val series = ActualTemperatureSeriesBuilder.blendObservationSeries(
+                    observations = obs,
+                    hourlyForecasts = hourlyR,
+                    displaySourceId = WeatherSource.NWS.id,
+                    userLat = latitude,
+                    userLon = longitude,
+                    startMs = s,
+                    endMs = e,
+                ).observations.filter { it.timestamp in startTs until endTs }
+                if (series.isEmpty()) return "empty"
+                val hi = series.maxByOrNull { it.temperature }!!
+                val lo = series.minByOrNull { it.temperature }!!
+                return "hi=${"%.2f".format(hi.temperature)}@${Instant.ofEpochMilli(hi.timestamp).atZone(zone).format(fmt)} " +
+                    "lo=${"%.2f".format(lo.temperature)}@${Instant.ofEpochMilli(lo.timestamp).atZone(zone).format(fmt)} pts=${series.size}"
+            }
+            val nwsDayObs = dayObs.filter { it.api == WeatherSource.NWS.id }.map { it.toReading() }
+            if (nwsDayObs.isNotEmpty()) {
+                val dayMs = 24 * 3600_000L
+                val wideObs = observationDao.getObservationsInRange(startTs - dayMs, endTs + dayMs, latitude, longitude)
+                    .filter { it.api == WeatherSource.NWS.id }.map { it.toReading() }
+                appLogDao.log(
+                    "EXTREMA_WINDOW_DIAG",
+                    "date=$date isolated=[${probe(nwsDayObs, startTs, endTs)}] wide=[${probe(wideObs, startTs - dayMs, endTs + dayMs)}]",
+                    "DEBUG",
+                )
+            }
         }
 
         val isToday = date == LocalDate.now()

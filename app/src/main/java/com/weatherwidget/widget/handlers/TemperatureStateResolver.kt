@@ -153,6 +153,29 @@ internal object TemperatureStateResolver {
             }
         }
 
+        // HOURLY_DAY_EXTREMA: per-day actual high/low the hourly graph derives from its rendered points,
+        // for direct comparison against the daily bar's persisted daily_extremes (logged as
+        // DAILY_EXTREME_BLEND). Diagnoses the "daily bar 72.4 vs hourly 72.9" divergence: same blend
+        // function, but the two pipelines feed it different obs windows. Logs the actual-point count and
+        // window span too so we can see whether a window/interpolation edge is moving the max.
+        run {
+            val zoneId = ZoneId.systemDefault()
+            val actualPts = graphHours.filter { it.isActual }
+            val byDay = actualPts.groupBy { it.dateTime.toLocalDate() }
+            val fmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+            val perDay = byDay.entries.sortedBy { it.key }.joinToString("; ") { (date, pts) ->
+                val hi = pts.maxByOrNull { it.actualTemperature ?: it.temperature }!!
+                val lo = pts.minByOrNull { it.actualTemperature ?: it.temperature }!!
+                "$date hi=${"%.2f".format(hi.actualTemperature ?: hi.temperature)}@${hi.dateTime.format(fmt)} " +
+                    "lo=${"%.2f".format(lo.actualTemperature ?: lo.temperature)}@${lo.dateTime.format(fmt)} n=${pts.size}"
+            }
+            val span = if (graphHours.isEmpty()) "none" else "${graphHours.first().dateTime}..${graphHours.last().dateTime}"
+            effectiveAppLogDao.log(
+                "HOURLY_DAY_EXTREMA",
+                "widget=$appWidgetId source=${displaySource.id} zoom=$zoom offset=$hourlyOffset span=$span perDay=[$perDay]",
+            )
+        }
+
         // 4. Current Temp Resolution
         val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
         val resolveStartMs = System.currentTimeMillis()

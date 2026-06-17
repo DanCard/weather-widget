@@ -120,13 +120,21 @@ object TemperatureLabelResolver {
         extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
         Log.d(TAG, "Potential anchors: $potentialAnchors")
 
-        // Drop any candidate that sits on a NaN forecast temp before it reaches the dense-filter /
-        // suppression passes, all of which round labelTemps[idx] to an Int (roundToInt throws on NaN).
-        // A window can extend past the loaded forecast horizon, leaving trailing hours with NaN temps;
-        // the START/END boundary anchors in particular are added positionally and could land there.
-        // (TemperatureExtrema already picks its high/low only among finite temps.)
+        // Value used by the dense-filter / suppression passes, which round to an Int (roundToInt throws
+        // on NaN). A window can extend past the loaded forecast horizon, leaving hours with a NaN
+        // forecast temp. Where the forecast is NaN but the point is an OBSERVED actual, fall back to the
+        // actual value so the actual-line label survives (its value is real even though no forecast was
+        // loaded) — this is the fix for "all actual labels vanish on a partial-forecast render". Where
+        // the forecast is finite we keep it unchanged, so normal renders behave exactly as before.
+        val effectiveTemps = labelTemps.indices.map { i ->
+            val forecast = labelTemps[i]
+            if (!forecast.isNaN()) forecast
+            else actualLabelTemps[i].let { actual -> if (hours[i].isActual && !actual.isNaN()) actual else forecast }
+        }
+        // Drop only candidates with no usable value at all (NaN forecast AND not an observed actual) —
+        // e.g. a START/END boundary anchor that landed in a forecast gap.
         val deduplicatedIndices = deduplicateAnchors(potentialAnchors, labelTemps, actualLabelTemps)
-            .filter { !labelTemps[it].isNaN() }
+            .filter { !effectiveTemps[it].isNaN() }
             .toSet()
         Log.d(TAG, "Deduplicated: $deduplicatedIndices")
         val explicitAnchors = deduplicatedIndices.filter { idx ->
@@ -143,7 +151,7 @@ object TemperatureLabelResolver {
         }.toSet()
 
         val filteredIndices = GraphLabelPlacementUtils.filterDenseLabelCandidates(
-            items = labelTemps,
+            items = effectiveTemps,
             candidates = deduplicatedIndices.toList(),
             globalMaxIdx = extrema.dailyHighIndex,
             globalMinIdx = extrema.dailyLowIndex,
@@ -158,7 +166,7 @@ object TemperatureLabelResolver {
         Log.d(TAG, "Filtered: $filteredIndices")
 
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
-            items = labelTemps,
+            items = effectiveTemps,
             candidates = filteredIndices,
             globalMaxIdx = extrema.dailyHighIndex,
             globalMinIdx = extrema.dailyLowIndex,

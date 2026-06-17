@@ -573,6 +573,17 @@ class WidgetStateManager
             val offset = getHourlyOffset(widgetId)
             val liveCenter = now.plusHours(offset.toLong())
             val includesNow = offset.toLong() in -zoom.forwardHours..zoom.backHours
+            val hasAnchor = getGraphAnchorMs(widgetId) != null
+            // HOURLY_CENTER_TRACE: diagnoses Issue 2 (a past-day view auto-advancing). branch=liveCenter
+            // means the view tracks NOW (drifts on every refresh); branch=anchor means it's pinned.
+            // includesNow is inclusive, so a day-click landing offset == -forwardHours grazes NOW at the
+            // window edge and drifts even though the user is "viewing yesterday".
+            Log.d(
+                "WidgetStateManager",
+                "HOURLY_CENTER_TRACE: widget=$widgetId offset=$offset zoom=$zoom back=${zoom.backHours} " +
+                    "fwd=${zoom.forwardHours} includesNow=$includesNow hasAnchor=$hasAnchor " +
+                    "branch=${if (includesNow || !hasAnchor) "liveCenter(drift)" else "anchor(fixed)"}",
+            )
             if (includesNow) return liveCenter
             val anchorMs = getGraphAnchorMs(widgetId) ?: return liveCenter
             return java.time.Instant.ofEpochMilli(anchorMs)
