@@ -16,6 +16,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -53,11 +54,38 @@ object TemperatureViewHandler {
         repository: WeatherRepository? = null,
         startupToken: String? = null,
         deferCurrentTempResolution: Boolean = false,
+        // True for opportunistic "UI-only" repaints (the ~2-min now-tracking alarm). Such repaints
+        // carry a now-centered narrow data window, so re-rendering an ANCHORED past/future graph from
+        // them corrupts it (forecast gaps -> blank curve + missing labels). For those we update only
+        // the current-temp header and leave the graph as the last full render painted it.
+        uiOnly: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val stateManager = WidgetStateManager(context)
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+
+        // Anchored view = NOW is not inside the visible window (a clicked past/future day). Its graph is
+        // static, so skip the graph re-render on opportunistic UI-only updates and refresh just the
+        // header current temp. Full renders (onUpdate startup, data fetch, user interaction) carry the
+        // wide data window and still render the graph correctly.
+        if (uiOnly) {
+            val zoom = stateManager.getZoomLevel(appWidgetId)
+            val nowForWindow = LocalDateTime.now()
+            val nowInWindow = !nowForWindow.isBefore(centerTime.minusHours(zoom.backHours)) &&
+                !nowForWindow.isAfter(centerTime.plusHours(zoom.forwardHours))
+            if (!nowInWindow) {
+                updateAnchoredHeaderCurrentTemp(
+                    context, appWidgetManager, appWidgetId, stateManager, displaySource, dimensions,
+                    currentTempHourlyForecasts, lastObservedTemp, observedAt, nowForWindow,
+                )
+                appLogDao.log(
+                    WidgetPerfLogger.TAG_WIDGET_PAINT,
+                    "widget=$appWidgetId caller=TEMPERATURE state=header_only_anchored thread=${Thread.currentThread().name}",
+                )
+                return
+            }
+        }
 
         val resolutionResult = TemperatureStateResolver.resolve(
             context = context,
@@ -179,6 +207,57 @@ object TemperatureViewHandler {
             ),
             debugTag = TAG,
         )
+    }
+
+    /**
+     * Header-only refresh for an anchored (static) graph view on an opportunistic UI update: resolve the
+     * live current temp and partially update just the header temp/delta, leaving the previously-rendered
+     * graph bitmap untouched. Mirrors the partial-update path in [scheduleCurrentTempRefinement].
+     */
+    private suspend fun updateAnchoredHeaderCurrentTemp(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        displaySource: WeatherSource,
+        dimensions: WidgetDimensions,
+        currentTempHourlyForecasts: List<HourlyForecastEntity>,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        now: LocalDateTime,
+    ) {
+        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
+        val lat = configuredLocation?.first ?: currentTempHourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = configuredLocation?.second ?: currentTempHourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val smoothed = computeSmoothedForecasts(currentTempHourlyForecasts, displaySource)
+        val resolution = CurrentTemperatureResolver.resolve(
+            now = now,
+            displaySource = displaySource,
+            hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
+            lastObservedTemp = lastObservedTemp,
+            observedAt = observedAt,
+            storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
+            currentLat = lat,
+            currentLon = lon,
+            smoothedForecasts = smoothed,
+        )
+        if (resolution.shouldClearStoredDelta) stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
+        resolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
+
+        val partial = RemoteViews(context.packageName, com.weatherwidget.R.layout.widget_weather)
+        val displayTemp = resolution.displayTemp
+        partial.setTextViewText(
+            com.weatherwidget.R.id.current_temp,
+            displayTemp?.let { CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, resolution.isStaleEstimate) },
+        )
+        partial.setViewVisibility(com.weatherwidget.R.id.current_temp, android.view.View.VISIBLE)
+        val currentTempPx = android.util.TypedValue.applyDimension(
+            android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, context.resources.displayMetrics,
+        )
+        partial.setTextViewTextSize(com.weatherwidget.R.id.current_temp, android.util.TypedValue.COMPLEX_UNIT_PX, currentTempPx)
+        // Anchored view: NOW is off-window, so the now-relative delta is not meaningful here — hide it.
+        partial.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.GONE)
+        appWidgetManager.partiallyUpdateAppWidget(appWidgetId, partial)
     }
 
     private data class CurrentTempRefinementParams(

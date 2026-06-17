@@ -184,7 +184,7 @@ class WeatherWidgetWorker
 
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_start uiOnly=$uiOnlyRefresh thread=${Thread.currentThread().name}")
                         val jobType = if (uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
-                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, jobType)
+                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, jobType, uiOnly = uiOnlyRefresh)
                         val afterUpdateMs = SystemClock.elapsedRealtime()
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_done uiOnly=$uiOnlyRefresh elapsedMs=${afterUpdateMs - afterActualsMs}")
 
@@ -345,6 +345,7 @@ class WeatherWidgetWorker
             currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
             dailyActuals: DailyActualsBySource = emptyMap(),
             jobType: WidgetUpdateTracker.JobType = WidgetUpdateTracker.JobType.BACKGROUND_SYNC,
+            uiOnly: Boolean = false,
         ) = coroutineScope {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
@@ -361,7 +362,8 @@ class WeatherWidgetWorker
                         hourlyForecasts = hourlyForecasts,
                         currentTemps = currentTemps,
                         dailyActualsBySource = dailyActuals,
-                        repository = weatherRepository
+                        repository = weatherRepository,
+                        uiOnly = uiOnly,
                     )
                 }
                 WidgetUpdateTracker.trackJob(appWidgetId, job, jobType)

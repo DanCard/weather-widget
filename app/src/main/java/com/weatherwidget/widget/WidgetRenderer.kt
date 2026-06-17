@@ -84,6 +84,9 @@ object WidgetRenderer {
         dailyActualsBySource: DailyActualsBySource = emptyMap(),
         repository: WeatherRepository? = null,
         startupToken: String? = null,
+        // True for opportunistic UI-only repaints (now-tracking alarm); lets the TEMPERATURE handler
+        // skip re-rendering an anchored (static) graph from a narrow now-centered window.
+        uiOnly: Boolean = false,
     ) {
         val renderStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -217,6 +220,7 @@ object WidgetRenderer {
                     repository = repository,
                     startupToken = startupToken,
                     deferCurrentTempResolution = startupToken != null,
+                    uiOnly = uiOnly,
                 )
             }
             ViewMode.PRECIPITATION -> {
