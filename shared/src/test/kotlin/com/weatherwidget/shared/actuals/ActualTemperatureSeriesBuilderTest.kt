@@ -115,7 +115,6 @@ class ActualTemperatureSeriesBuilderTest {
             contextLookaheadHours = 60,
             now = LocalDateTime.parse("2026-06-05T12:00:00"),
             zoneId = zone,
-            singleDayDate = day,
         )
 
         val actualTemps = result.points.filter { it.isActual && it.actualTemp != null }.map { it.actualTemp!! }

@@ -109,9 +109,6 @@ internal fun dayClickConfig(
         viewMode = targetView,
         hourlyOffset = hours,
         zoomFactor = zoom,
-        // Pin to the clicked day: the graph bounds its window + actual blend to this day absolutely
-        // (drift-free, unlike the offset which is now-relative), so labeled high/low match the daily view.
-        hourlySingleDayEpoch = clickedDate.toEpochDay(),
     )
 }
 
@@ -738,14 +735,13 @@ internal fun WidgetPopup(
                                     } else {
                                         config.hourlyOffset
                                     }
-                                    // Zoom/pan exits the pinned single-day view (mirrors Android's scroll/zoom clear).
-                                    onUpdateConfig(config.copy(zoomFactor = newFactor, hourlyOffset = newOffset, hourlySingleDayEpoch = null))
+                                    onUpdateConfig(config.copy(zoomFactor = newFactor, hourlyOffset = newOffset))
                                 }
                             }
                             val handlePan: (Int) -> Unit = { deltaHours ->
                                 val newOffset = (config.hourlyOffset + deltaHours).coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
                                 if (newOffset != config.hourlyOffset) {
-                                    onUpdateConfig(config.copy(hourlyOffset = newOffset, hourlySingleDayEpoch = null))
+                                    onUpdateConfig(config.copy(hourlyOffset = newOffset))
                                 }
                             }
                             // ←/→ pan the hourly window by the same nav-jump the arrow buttons use.
@@ -812,7 +808,6 @@ internal fun WidgetPopup(
                                     modifier = Modifier.fillMaxSize(),
                                     centerOffsetHours = config.hourlyOffset,
                                     zoomFactor = config.zoomFactor,
-                                    singleDayDate = config.hourlySingleDayEpoch?.let { java.time.LocalDate.ofEpochDay(it) },
                                     scale = uiScale,
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
@@ -829,7 +824,6 @@ internal fun WidgetPopup(
                                             config.copy(
                                                 zoomFactor = DesktopGraphUtils.zoomFactorForStage(next),
                                                 hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
-                                                hourlySingleDayEpoch = null,
                                             )
                                         )
                                     },
@@ -845,7 +839,7 @@ internal fun WidgetPopup(
                                 val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
                                 val newOffset = (config.hourlyOffset - jump).coerceAtLeast(MIN_HOURLY_OFFSET)
                                 Log.d(TAG, "HourlyNav: left jump=${-jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
-                                onUpdateConfig(config.copy(hourlyOffset = newOffset, hourlySingleDayEpoch = null))
+                                onUpdateConfig(config.copy(hourlyOffset = newOffset))
                             }
                             NavArrow(
                                 alignment = Alignment.CenterEnd,
@@ -855,7 +849,7 @@ internal fun WidgetPopup(
                                 val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
                                 val newOffset = (config.hourlyOffset + jump).coerceAtMost(MAX_HOURLY_OFFSET)
                                 Log.d(TAG, "HourlyNav: right jump=+${jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
-                                onUpdateConfig(config.copy(hourlyOffset = newOffset, hourlySingleDayEpoch = null))
+                                onUpdateConfig(config.copy(hourlyOffset = newOffset))
                             }
                             // Transient banner while an on-demand deep-history pull is in flight (or
                             // briefly on failure). Drawn last so it floats over the graph + arrows.

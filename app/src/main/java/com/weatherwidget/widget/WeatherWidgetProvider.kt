@@ -204,6 +204,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     staleCheckMs = checkStalenessAndFetch(context)
                 }
             } catch (e: CancellationException) {
+                // HOURLY_PAINT_TRACE: a cancelled startup leaves the "Loading..." placeholder in place
+                // (we deliberately do NOT repaint an error state on cancellation). Logged so a stuck
+                // placeholder can be attributed to cancellation vs. a silent no-paint.
+                appLogDao.log(
+                    "HOURLY_PAINT_TRACE",
+                    "phase=onUpdate_CANCELLED widgets=${filteredIds.joinToString(",")} msg=${e.message}",
+                    "WARN",
+                )
                 throw e
             } catch (e: Exception) {
                 // A throw here would otherwise leave every widget stuck on the "Loading..." placeholder
@@ -370,20 +378,53 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         result: StartupQueryResult,
         startupToken: String,
     ) = coroutineScope {
+        val stateManager = stateManager(context)
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
         for (appWidgetId in filteredIds) {
+            // HOURLY_PAINT_TRACE: persisted (survives process freeze) lifecycle of each startup paint.
+            // Diagnoses widgets stuck on the "Loading..." placeholder — a paint that is cancelled (e.g.
+            // a second UI_PAINT job cancels this one via WidgetUpdateTracker) never reaches its
+            // updateAppWidget call and never hits onUpdate's error repaint, so the placeholder persists.
+            val viewMode = stateManager.getViewMode(appWidgetId)
+            appLogDao.log(
+                "HOURLY_PAINT_TRACE",
+                "phase=startup_launch widget=$appWidgetId view=$viewMode token=$startupToken",
+            )
             val job = launch {
-                WidgetRenderer.updateWidgetWithData(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    appWidgetId = appWidgetId,
-                    weatherList = result.weatherList,
-                    forecastSnapshots = result.forecastSnapshots,
-                    hourlyForecasts = result.hourlyForecasts,
-                    currentTemps = result.currentTemps,
-                    dailyActualsBySource = result.dailyActualsBySource,
-                    repository = repository,
-                    startupToken = startupToken,
-                )
+                try {
+                    WidgetRenderer.updateWidgetWithData(
+                        context = context,
+                        appWidgetManager = appWidgetManager,
+                        appWidgetId = appWidgetId,
+                        weatherList = result.weatherList,
+                        forecastSnapshots = result.forecastSnapshots,
+                        hourlyForecasts = result.hourlyForecasts,
+                        currentTemps = result.currentTemps,
+                        dailyActualsBySource = result.dailyActualsBySource,
+                        repository = repository,
+                        startupToken = startupToken,
+                    )
+                    appLogDao.log(
+                        "HOURLY_PAINT_TRACE",
+                        "phase=startup_done widget=$appWidgetId view=$viewMode",
+                    )
+                } catch (e: CancellationException) {
+                    appLogDao.log(
+                        "HOURLY_PAINT_TRACE",
+                        "phase=startup_CANCELLED widget=$appWidgetId view=$viewMode msg=${e.message}",
+                        "WARN",
+                    )
+                    Log.w(TAG, "startup paint CANCELLED widget=$appWidgetId view=$viewMode", e)
+                    throw e
+                } catch (e: Exception) {
+                    appLogDao.log(
+                        "HOURLY_PAINT_TRACE",
+                        "phase=startup_ERROR widget=$appWidgetId view=$viewMode msg=${e.message}",
+                        "ERROR",
+                    )
+                    Log.e(TAG, "startup paint ERROR widget=$appWidgetId view=$viewMode", e)
+                    throw e
+                }
             }
             WidgetUpdateTracker.trackJob(appWidgetId, job, WidgetUpdateTracker.JobType.UI_PAINT)
         }
@@ -577,17 +618,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             context.startActivity(settingsIntent)
         } else {
             val stateManager = stateManager(context)
-            // Pin the hourly view to the clicked calendar day so it shows the full midnight->midnight
-            // day and its actual line is built day-bounded — making the labeled high/low match the
-            // daily bar exactly. Applies to TODAY too (previously today fell back to the partial
-            // [now-12h, now+12h] rolling window — the "doesn't show the full day" bug). Cleared on
-            // scroll/zoom by the state manager.
-            val clickedDate = try { LocalDate.parse(dateStr) } catch (_: Exception) { null }
-            val singleDay = clickedDate?.takeIf {
-                appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID
-            }
-            stateManager.setSingleDayDate(appWidgetId, singleDay)
-            Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset singleDay=$singleDay currentStoredMode=${stateManager.getViewMode(appWidgetId)} currentStoredZoom=${stateManager.getZoomLevel(appWidgetId)}")
+            // Day-click navigates the hourly view by jumping the hourly offset to the clicked day
+            // (handleSetView below). The window then follows the single rolling/anchor rule in
+            // resolveHourlyCenterTime: it rolls while NOW is in-window (today) and is pinned to a fixed
+            // absolute anchor once NOW falls outside it (past/future days). No separate single-day pin —
+            // that rigid 00:00->24:00 grid used to extend past the loaded forecast horizon and feed NaN
+            // temps into the label renderer (renderGraph crash -> stuck "Loading...").
+            Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${stateManager.getViewMode(appWidgetId)} currentStoredZoom=${stateManager.getZoomLevel(appWidgetId)}")
             if (targetMode == ViewMode.PRECIPITATION) {
                 stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
             }

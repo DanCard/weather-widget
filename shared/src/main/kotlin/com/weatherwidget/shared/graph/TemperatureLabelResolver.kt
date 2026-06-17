@@ -120,7 +120,14 @@ object TemperatureLabelResolver {
         extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
         Log.d(TAG, "Potential anchors: $potentialAnchors")
 
+        // Drop any candidate that sits on a NaN forecast temp before it reaches the dense-filter /
+        // suppression passes, all of which round labelTemps[idx] to an Int (roundToInt throws on NaN).
+        // A window can extend past the loaded forecast horizon, leaving trailing hours with NaN temps;
+        // the START/END boundary anchors in particular are added positionally and could land there.
+        // (TemperatureExtrema already picks its high/low only among finite temps.)
         val deduplicatedIndices = deduplicateAnchors(potentialAnchors, labelTemps, actualLabelTemps)
+            .filter { !labelTemps[it].isNaN() }
+            .toSet()
         Log.d(TAG, "Deduplicated: $deduplicatedIndices")
         val explicitAnchors = deduplicatedIndices.filter { idx ->
             potentialAnchors.any { it.first == idx && it.second != TemperatureRole.LOCAL }

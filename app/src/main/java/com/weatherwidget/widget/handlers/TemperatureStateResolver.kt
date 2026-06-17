@@ -134,6 +134,16 @@ internal object TemperatureStateResolver {
         val buildHourDataMs: Long
         when (graphLoadResult) {
             is GraphLoadOutcome.Empty -> {
+                // HOURLY_PAINT_TRACE: an empty hour list yields a blank graph state. The widget still
+                // paints (so this should NOT leave the "Loading..." placeholder), but it explains a
+                // graph that renders empty.
+                effectiveAppLogDao.log(
+                    "HOURLY_PAINT_TRACE",
+                    "phase=resolve_EMPTY widget=$appWidgetId reason=${graphLoadResult.reason} " +
+                        "hourlyCount=${hourlyForecasts.size} " +
+                        "centerTime=$centerTime useGraph=$useGraph defer=$deferStartupGraphActuals",
+                    "WARN",
+                )
                 return buildEmptyGraphResult(appWidgetId, displaySource, zoom, hourlyOffset, lat, lon, smoothedForecasts)
             }
             is GraphLoadOutcome.Loaded -> {
@@ -267,6 +277,16 @@ internal object TemperatureStateResolver {
             showTextMode = !useGraph || bitmap == null
         )
 
+        // HOURLY_PAINT_TRACE: final graph decision. A null bitmap with useGraph=true means renderGraph
+        // threw (caught above) and we fall back to text mode — another path that can look "blank".
+        if (useGraph && bitmap == null) {
+            effectiveAppLogDao.log(
+                "HOURLY_PAINT_TRACE",
+                "phase=resolve_NULL_BITMAP widget=$appWidgetId hours=${graphHours.size} renderMs=$renderMs",
+                "WARN",
+            )
+        }
+
         return ResolutionResult(
             state = TemperatureWidgetState(
                 appWidgetId = appWidgetId,
@@ -358,7 +378,6 @@ internal object TemperatureStateResolver {
             observations,
             onBlendDebug = { lineProvider -> blendDebugCollector.recordDetailed(lineProvider) },
             smoothedForecasts = smoothedForecasts,
-            singleDayDate = stateManager.getSingleDayDate(appWidgetId),
         )
         val hourData = hourDataResult.hours
         val buildHourDataMs = System.currentTimeMillis() - buildHourDataStartMs

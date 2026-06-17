@@ -151,8 +151,6 @@ internal fun buildHourDataResult(
     actuals: List<ObservationEntity> = emptyList(),
     onBlendDebug: ((() -> String) -> Unit)? = null,
     smoothedForecasts: Map<Long, Float>? = null,
-    // When set, the actual line is built day-bounded so its high/low match the daily bar exactly.
-    singleDayDate: java.time.LocalDate? = null,
 ): BuildHourDataResult {
     val now = LocalDateTime.now()
 
@@ -161,10 +159,8 @@ internal fun buildHourDataResult(
     val zoneId = ZoneId.systemDefault()
     val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
     val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-    // Single-day mode bounds the visible forecast grid to the clicked calendar day so it lines up with
-    // build()'s day-bounded actual series (and matches the daily bar's window).
-    val startHour = if (singleDayDate != null) singleDayDate.atStartOfDay() else alignedCenter.minusHours(zoom.backHours)
-    val endHour = if (singleDayDate != null) singleDayDate.plusDays(1).atStartOfDay() else alignedCenter.plusHours(zoom.forwardHours)
+    val startHour = alignedCenter.minusHours(zoom.backHours)
+    val endHour = alignedCenter.plusHours(zoom.forwardHours)
     val lat = hourlyForecasts.firstOrNull()?.locationLat ?: com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_LAT
     val lon = hourlyForecasts.firstOrNull()?.locationLon ?: com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_LON
     val sourceActuals = actuals.filter { matchesObservationSource(it, displaySource) }
@@ -193,7 +189,6 @@ internal fun buildHourDataResult(
         now = now,
         zoneId = zoneId,
         smoothedForecasts = smoothedForecasts,
-        singleDayDate = singleDayDate,
         onBlendDebug = onBlendDebug,
     )
     val selectedStationId = actualSeries.selectedStationId

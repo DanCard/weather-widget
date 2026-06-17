@@ -44,8 +44,15 @@ object TemperatureExtrema {
         val actualLabelTemps = hours.map { h ->
             if (h.isActual) h.actualTemperature ?: h.temperature else h.temperature
         }
-        val dailyHighIndex = labelTemps.indices.maxByOrNull { labelTemps[it] } ?: -1
-        val dailyLowIndex = labelTemps.indices.minByOrNull { labelTemps[it] } ?: -1
+        // A graph window can extend past the loaded forecast horizon, leaving trailing hours with a
+        // Float.NaN forecast temp (ActualTemperatureSeriesBuilder fills missing forecasts with NaN).
+        // Float.compareTo ranks NaN as the LARGEST value, so a naive maxByOrNull would pick a NaN index
+        // as the daily high — and that index later flows into roundToInt(), which throws
+        // "Cannot round NaN value" and aborts the whole graph render (blank "Loading..." widget). Every
+        // extrema index below is therefore chosen only among finite temps.
+        val finiteLabelIndices = labelTemps.indices.filter { !labelTemps[it].isNaN() }
+        val dailyHighIndex = finiteLabelIndices.maxByOrNull { labelTemps[it] } ?: -1
+        val dailyLowIndex = finiteLabelIndices.minByOrNull { labelTemps[it] } ?: -1
 
         val actualEndIndex = if (transitionX != null) effectiveActualEndIndex else hours.lastIndex
         // Only points that genuinely have observed/carried actual data — NOT forecast-only points in
@@ -156,12 +163,12 @@ object TemperatureExtrema {
                 "lowIdxs=$actualDailyLowIndices lowTemps=${actualDailyLowIndices.map { actualLabelTemps[it] }}")
 
         val forecastStartIndex = if (transitionX != null) effectiveActualEndIndex else 0
-        val forecastIndices = (forecastStartIndex..hours.lastIndex).filter { it in labelTemps.indices }
+        val forecastIndices = (forecastStartIndex..hours.lastIndex).filter { it in labelTemps.indices && !labelTemps[it].isNaN() }
         val forecastHighIndex = forecastIndices.maxByOrNull { labelTemps[it] } ?: -1
         val forecastLowIndex = forecastIndices.minByOrNull { labelTemps[it] } ?: -1
 
         val hasTransition = transitionX != null
-        val pastForecastIndices = if (hasTransition) (0..actualEndIndex).filter { it in labelTemps.indices } else emptyList()
+        val pastForecastIndices = if (hasTransition) (0..actualEndIndex).filter { it in labelTemps.indices && !labelTemps[it].isNaN() } else emptyList()
         val pastForecastHighIndex = if (hasTransition) pastForecastIndices.maxByOrNull { labelTemps[it] } ?: -1 else -1
         val pastForecastLowIndex = if (hasTransition) pastForecastIndices.minByOrNull { labelTemps[it] } ?: -1 else -1
 

@@ -111,10 +111,6 @@ fun TemperatureGraph(
     modifier: Modifier = Modifier,
     centerOffsetHours: Int = 0,
     zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
-    // When set, the view is pinned to this calendar day: the window is bounded to [day, day+1]
-    // absolutely (drift-free) and the actual line is built day-bounded so the labeled high/low match
-    // the daily view exactly. Set on a daily-bar click; cleared on pan/zoom/nav.
-    singleDayDate: java.time.LocalDate? = null,
     scale: Float = 1f,
     onViewModeChange: (String) -> Unit = {},
     onToggleZoom: (Int) -> Unit = {},
@@ -136,18 +132,10 @@ fun TemperatureGraph(
     val totalSpanHours = backHours + forwardHours
 
     val zoneId = ZoneId.systemDefault()
-    // Single-day pin: bound the window to the clicked day absolutely (drift-free). Otherwise the
-    // rolling window from the zoom/offset. The day-bounded blend (singleDayDate passed to the builder)
-    // makes the labeled actual high/low reproduce that day's daily_extremes — matching the daily view.
-    val window = remember(center, backHours, forwardHours, zoneId, singleDayDate) {
-        if (singleDayDate != null) {
-            HourWindow(
-                startMs = singleDayDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-                endMs = singleDayDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(),
-            )
-        } else {
-            temperatureGraphHourWindow(center, backHours, forwardHours, zoneId)
-        }
+    // Rolling window from the zoom/offset. resolveHourlyCenterTime's single rule applies: it tracks
+    // NOW while NOW is in-window and is anchored (drift-free) once NOW falls outside it.
+    val window = remember(center, backHours, forwardHours, zoneId) {
+        temperatureGraphHourWindow(center, backHours, forwardHours, zoneId)
     }
     val start = window.startMs
     val cutoff = window.endMs
@@ -226,7 +214,6 @@ fun TemperatureGraph(
             now = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId),
             zoneId = zoneId,
             smoothedForecasts = smoothedForecastsMap,
-            singleDayDate = singleDayDate,
         )
         // TEMP DIAGNOSTIC: where does the pink actual line start/end vs the visible window? Compares
         // the first/last actual point to windowStart and the raw observation range, to chase the
