@@ -1,5 +1,7 @@
 package com.weatherwidget.data.local
 
+import kotlin.math.abs
+
 /**
  * Single source of truth for "does this stored row belong to the user's current location?".
  *
@@ -29,4 +31,20 @@ object LocationMatch {
 
     const val JDBC_WHERE =
         "ABS(locationLat - ?) <= $TOLERANCE_DEG AND ABS(locationLon - ?) <= $TOLERANCE_DEG"
+
+    /**
+     * Much finer than [TOLERANCE_DEG]: "is this literally the SAME physical site, modulo lat/lon
+     * precision jitter?". The coarse 0.1° fetch box is for "near the user" and would wrongly merge two
+     * genuinely different nearby markers; this box is for collapsing the sub-precision fragments of one
+     * site that accumulate across fetches (e.g. `37.4168014` vs `37.4168434` — the same spot, ~tens of
+     * metres apart). Used by in-memory unification AFTER the rows are fetched, where exact float
+     * equality would silently drop a fragment (e.g. the morning forecast rows) and blank part of the
+     * graph. Observed fragments are ~0.0001° apart; genuinely different markers (e.g. 37.422 vs 37.4168)
+     * are ~0.005° apart, so 0.002° (~200 m) sits safely between — `≫` jitter, `≪` real marker spacing.
+     */
+    const val SAME_SITE_TOLERANCE_DEG = 0.002
+
+    /** True when (lat1,lon1) and (lat2,lon2) are the same site under [SAME_SITE_TOLERANCE_DEG]. */
+    fun sameSite(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Boolean =
+        abs(lat1 - lat2) <= SAME_SITE_TOLERANCE_DEG && abs(lon1 - lon2) <= SAME_SITE_TOLERANCE_DEG
 }

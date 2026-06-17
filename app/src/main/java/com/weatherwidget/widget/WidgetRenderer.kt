@@ -126,9 +126,12 @@ object WidgetRenderer {
                 ?: currentTemps.firstOrNull()?.locationLon
                 ?: WeatherWidgetWorker.DEFAULT_LON
 
-        // 1. Pick the single coordinate pair in the hourly data that is closest to our target location.
-        // This avoids mixing data from multiple Mountain View markers (e.g. 37.422 vs 37.4168)
-        // which would otherwise cause the smoothing and interpolation to jitter.
+        // 1. Pick the coordinate pair in the hourly data closest to our target location, then keep every
+        // row at that SAME physical site. We can't use exact float equality: one site accumulates
+        // sub-precision fragments across fetches (e.g. 37.4168014 vs 37.4168434, ~tens of metres apart),
+        // and exact-matching one fragment silently drops the others — which blanked the forecast line
+        // for part of a past day. LocationMatch.sameSite merges those fragments while still excluding a
+        // genuinely different marker (e.g. 37.422 vs 37.4168) that would jitter the smoothing.
         val bestHourlyMatch = hourlyForecasts
             .asSequence()
             .map { it.locationLat to it.locationLon }
@@ -136,7 +139,7 @@ object WidgetRenderer {
             .minByOrNull { (lat, lon) -> Math.abs(lat - locationLat) + Math.abs(lon - locationLon) }
 
         val unifiedHourlyForecasts = if (bestHourlyMatch != null) {
-            hourlyForecasts.filter { it.locationLat == bestHourlyMatch.first && it.locationLon == bestHourlyMatch.second }
+            hourlyForecasts.filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestHourlyMatch.first, bestHourlyMatch.second) }
         } else hourlyForecasts
 
         // Filter hourly forecasts to the NOW-centered window for current temp resolution.

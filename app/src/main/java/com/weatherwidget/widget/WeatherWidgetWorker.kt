@@ -11,6 +11,7 @@ import android.os.SystemClock
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.local.ForecastEntity
@@ -299,8 +300,11 @@ class WeatherWidgetWorker
                     bestLat = lat
                     bestLon = lon
                 }
+                // Keep every row at the SAME physical site as bestPair (not exact float equality):
+                // one site fragments into sub-precision coordinates across fetches, and dropping the
+                // fragments here would blank part of the graph downstream. See LocationMatch.sameSite.
                 val filteredCurrent = if (bestPair != null) {
-                    current.filter { it.locationLat == bestLat && it.locationLon == bestLon }
+                    current.filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestLat, bestLon) }
                 } else current
                 val history = historyDao.getHistoryInRangeForBucketWindowAllSources(
                     startDateTime = startTimeMs,
@@ -309,7 +313,7 @@ class WeatherWidgetWorker
                     bucketEnd = Long.MAX_VALUE,
                     lat = bestLat,
                     lon = bestLon,
-                ).filter { it.locationLat == bestLat && it.locationLon == bestLon }
+                ).filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestLat, bestLon) }
                     .map {
                         HourlyForecastEntity(
                             dateTime = it.dateTime,
