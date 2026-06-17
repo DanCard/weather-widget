@@ -818,11 +818,21 @@ object DailyForecastGraphRenderer {
                 layout.graphTop
             }
 
-            // Past days: when the forecast high missed the actual by enough AND there's room, label
-            // BOTH — actual in the thermostat color, forecast in the forecast-bar color (DualHighLabel).
-            val actualHigh = day.solidLineHigh
-            val forecastHigh = if (day.isPast) day.dashedLineHigh else null
-            val actualBaseline = y - labelOffset
+            // History — and today once its high is settled (past the 5pm cutoff) — can label BOTH the
+            // actual (thermostat color) and the forecast (forecast-bar color) when the forecast missed
+            // by enough AND there's vertical room (DualHighLabel). Today's "actual" is the observed peak
+            // (effectiveHigh) and its forecast label sits over the live-forecast bar (tripleBarOffset),
+            // whereas a past day's forecast overlay sits at forecastBarOffset.
+            val todayHighSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isHighTrackingActual(
+                isToday = day.isToday,
+                solidHigh = day.solidLineHigh,
+                ghostHigh = day.ghostLineHigh,
+                nowHour = day.nowHour,
+            )
+            val actualHigh = if (day.isToday) (day.effectiveHigh() ?: day.solidLineHigh) else day.solidLineHigh
+            val forecastHigh = if (day.isPast || todayHighSettled) day.dashedLineHigh else null
+            val actualBaseline = if (day.isToday) layout.tempToY(actualHigh) - labelOffset else y - labelOffset
+            val forecastLabelX = centerX + (if (day.isToday) layout.tripleBarOffset else layout.forecastBarOffset)
             val forecastBaseline = forecastHigh?.let { layout.tempToY(it) - labelOffset }
             // Label height for the room test; fontMetrics is null under stubbed-Paint unit tests,
             // so fall back to textSize there. Only needed when a forecast label is in play.
@@ -832,19 +842,24 @@ object DailyForecastGraphRenderer {
                 DualHighLabel.showBoth(actualHigh, forecastHigh, actualBaseline, forecastBaseline, twoLabelHeight)
 
             if (showBoth) {
-                // Dual highs only render for past days, so both labels are history → outlined.
+                // Dual highs render for past days and settled-today, so both labels are outlined.
                 val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
                 drawTempLabel(canvas, formatTempLabel(actualHigh), centerX, actualBaseline, basePaint,
                     extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true)
-                drawTempLabel(canvas, formatTempLabel(forecastHigh), centerX + layout.forecastBarOffset, forecastBaseline,
+                drawTempLabel(canvas, formatTempLabel(forecastHigh), forecastLabelX, forecastBaseline,
                     basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor, drawOutline = true)
             } else {
                 val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
                 val highLabel = formatTempLabel(displayHigh)
                 val labelY = if (day.isToday) layout.tempToY(day.effectiveHigh() ?: day.solidLineHigh) else y
+                // Once today's high is settled (past the 5pm cutoff) the single number tracks the
+                // observed actual — recolor it the thermostat (observed) color so it reads as a real
+                // reading, not a forecast. Mirrors effectiveHigh()'s own actual-vs-forecast branch.
+                val highColorOverride = if (todayHighSettled) COLOR_OBSERVED_RED else null
                 // History and today get the thin outline (today's headline sits over the triple bars);
                 // future days stay plain.
-                drawTempLabel(canvas, highLabel, centerX, labelY - labelOffset, basePaint, drawOutline = day.isPast || day.isToday)
+                drawTempLabel(canvas, highLabel, centerX, labelY - labelOffset, basePaint,
+                    colorOverride = highColorOverride, drawOutline = day.isPast || day.isToday)
             }
         }
     }

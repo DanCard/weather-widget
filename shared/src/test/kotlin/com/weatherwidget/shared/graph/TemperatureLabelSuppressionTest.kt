@@ -783,4 +783,51 @@ class TemperatureLabelSuppressionTest {
             candidates.any { it.index == 51 && it.role == TemperatureRole.ACTUAL_LOW }
         )
     }
+
+    @Test
+    fun `actual low at the left edge (start of observed data) is labeled`() {
+        // Reproduces the live NWS day-view case: the actual (observed) line is flat overnight and its
+        // coldest point sits at idx 0 (midnight, the start of the observed data). The forecast has its
+        // own pre-dawn dip at idx 5 (so the forecast daily-low role does NOT claim idx 0). The actual
+        // low at the left edge must still be labeled ACTUAL_LOW — it is a real boundary value, mirroring
+        // the right-edge (NOW) exemption.
+        val start = LocalDateTime.of(2026, 6, 16, 0, 0)
+        // forecast: dips to 58 at idx 5, peaks 80 at idx 16 (min/max away from idx 0).
+        val forecast = listOf(
+            61f, 60f, 59.5f, 59f, 58.5f, 58f, 59f, 60f, 62f, 65f, 68f, 71f,
+            74f, 76f, 78f, 79f, 80f, 79f, 77f, 74f, 70f, 67f, 64f, 63f,
+        )
+        // actual: coldest at idx 0 (61), warms to a 73 plateau midday, then eases back — min is the
+        // left-edge point, max is interior, so neither the forecast HIGH nor LOW role lands on idx 0.
+        val actual = listOf(
+            61f, 61.2f, 61.4f, 61.6f, 62f, 62.5f, 63f, 64f, 66f, 68f, 70f, 72f,
+            73f, 73f, 72f, 71f, 70f, 69f, 68f, 67f, 66f, 65f, 64f, 63f,
+        )
+        val hours = forecast.indices.map { i ->
+            val dt = start.plusHours(i.toLong())
+            HourData(
+                dateTime = dt,
+                temperature = forecast[i],
+                label = "${dt.hour}h",
+                isActual = true,
+                actualTemperature = actual[i],
+            )
+        }
+
+        val lastIdx = hours.lastIndex
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, lastIdx, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = lastIdx,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 600,
+        )
+
+        assertTrue(
+            "the left-edge actual low at idx 0 should be labeled ACTUAL_LOW",
+            candidates.any { it.index == 0 && it.role == TemperatureRole.ACTUAL_LOW }
+        )
+    }
 }

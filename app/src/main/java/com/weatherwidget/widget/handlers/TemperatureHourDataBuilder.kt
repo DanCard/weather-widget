@@ -20,6 +20,7 @@ import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.shared.graph.HourData
+import com.weatherwidget.shared.graph.HourDataAssembler
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.ZoomLevel
 import java.time.Instant
@@ -153,7 +154,6 @@ internal fun buildHourDataResult(
     // When set, the actual line is built day-bounded so its high/low match the daily bar exactly.
     singleDayDate: java.time.LocalDate? = null,
 ): BuildHourDataResult {
-    val hours = mutableListOf<HourData>()
     val now = LocalDateTime.now()
 
     val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
@@ -250,137 +250,69 @@ internal fun buildHourDataResult(
     val dateMode = zoom == ZoomLevel.THREE_DAY
     val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
-    var currentHour = startHour
-    var hourIndex = 0
-
-    // 1. Collect top-of-hour forecasts
-    while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
-        val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
-        val forecast = forecastsByTime[hourMs]
-
-        if (forecast == null) {
-            Log.w(TAG, "buildHourDataList: Missing forecast for $currentHour (ms=$hourMs) source=${displaySource.id}")
-        }
-
-        val isCurrentHour = currentHour == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val showLabel =
-            if (dateMode) {
-                hourMs in dateLabelMillis
-            } else when (zoom) {
-                ZoomLevel.WIDE -> hourIndex % labelInterval == 0
-                ZoomLevel.THREE_DAY -> hourIndex % labelInterval == 0
-                ZoomLevel.NARROW -> true
+    // Assemble the graph point list from the shared sub-hourly-inclusive series, so the labeled actual
+    // high/low match the daily view exactly (an off-hour observed peak/trough rides on its own point
+    // instead of collapsing onto the nearest hour). Platform decoration — footer hour label, weather
+    // icon, sun/day-night flags, label cadence — is layered on here; the desktop app calls the same
+    // assembler with an identity decorator. topHourOrdinal reproduces the old per-top-of-hour index the
+    // WIDE/THREE_DAY label cadence keys off (sub-hourly points don't advance it).
+    var topHourOrdinal = 0
+    val finalHours = HourDataAssembler.assembleHourData(actualSeries, zoneId) { base, isTopHour, _ ->
+        val time = base.dateTime
+        if (isTopHour) {
+            val hourMs = time.atZone(zoneId).toInstant().toEpochMilli()
+            val hourIndex = topHourOrdinal++
+            val forecast = forecastsByTime[hourMs]
+            if (forecast == null) {
+                Log.w(TAG, "buildHourDataList: Missing forecast for $time (ms=$hourMs) source=${displaySource.id}")
             }
-
-        val sunInfo = SunPositionUtils.getSunInfo(currentHour, lat, lon)
-        val isNight = sunInfo.isNight
-        val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
-        val isSunBoundary = sunInfo.isSunBoundary
-        if (isTwilight || isSunBoundary) {
-            Log.d(TAG, "phase=${sunInfo.phase} boundary=$isSunBoundary hour=$currentHour condition=${forecast?.condition ?: "null"} lat=$lat lon=$lon")
-        }
-        val iconRes = forecast?.let {
-            WeatherIconMapper.getIconResource(
-                condition = it.condition,
-                isNight = isNight,
-                cloudCover = it.cloudCover,
-                precipProbability = it.precipProbability,
-                isTwilight = isTwilight,
-                isSunBoundary = isSunBoundary,
-            )
-        }
-        val isSunny = iconRes?.let { WeatherIconMapper.isSunny(it) } ?: false
-        val isRainy = iconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false
-        val isMixed = iconRes?.let { WeatherIconMapper.isMixed(it) } ?: false
-
-        hours.add(
-            HourData(
-                dateTime = currentHour,
-                temperature = smoothedForecasts?.get(hourMs) ?: forecast?.temperature ?: Float.NaN,
-                label = if (dateMode) formatDateLabel(currentHour.toLocalDate()) else formatHourLabel(currentHour),
+            val sunInfo = SunPositionUtils.getSunInfo(time, lat, lon)
+            val isNight = sunInfo.isNight
+            val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
+            val isSunBoundary = sunInfo.isSunBoundary
+            val iconRes = forecast?.let {
+                WeatherIconMapper.getIconResource(
+                    condition = it.condition,
+                    isNight = isNight,
+                    cloudCover = it.cloudCover,
+                    precipProbability = it.precipProbability,
+                    isTwilight = isTwilight,
+                    isSunBoundary = isSunBoundary,
+                )
+            }
+            val showLabel =
+                if (dateMode) {
+                    hourMs in dateLabelMillis
+                } else when (zoom) {
+                    ZoomLevel.WIDE -> hourIndex % labelInterval == 0
+                    ZoomLevel.THREE_DAY -> hourIndex % labelInterval == 0
+                    ZoomLevel.NARROW -> true
+                }
+            base.copy(
+                label = if (dateMode) formatDateLabel(time.toLocalDate()) else formatHourLabel(time),
                 iconRes = iconRes,
                 isNight = isNight,
                 isTwilight = isTwilight,
                 isSunBoundary = isSunBoundary,
-                isSunny = isSunny,
-                isRainy = isRainy,
-                isMixed = isMixed,
-                isCurrentHour = isCurrentHour,
+                isSunny = iconRes?.let { WeatherIconMapper.isSunny(it) } ?: false,
+                isRainy = iconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false,
+                isMixed = iconRes?.let { WeatherIconMapper.isMixed(it) } ?: false,
+                isCurrentHour = time == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS),
                 showLabel = showLabel,
-                isActual = false,
-                actualTemperature = null,
-                isObservedActual = false,
-            ),
-        )
-        hourIndex++
-        currentHour = currentHour.plusHours(1)
-    }
-
-    // 2. Inject sub-hourly actuals
-    val finalHours = mutableListOf<HourData>()
-    val pointsByTime = actualSeries.points.associateBy {
-        Instant.ofEpochMilli(it.timeMs).atZone(zoneId).toLocalDateTime()
-    }
-
-    for (time in pointsByTime.keys.sorted()) {
-        val isTopHour = time.minute == 0 && time.second == 0
-        val actualPoint = pointsByTime.getValue(time)
-
-        if (isTopHour) {
-            val topHourData = hours.find { it.dateTime == time }
-            if (topHourData != null) {
-                finalHours.add(
-                    topHourData.copy(
-                        isActual = actualPoint.isActual,
-                        actualTemperature = actualPoint.actualTemp,
-                        isObservedActual = actualPoint.isObservedActual,
-                    )
-                )
-            }
+            )
         } else {
-            val prevTopHour = hours.lastOrNull { !it.dateTime.isAfter(time) }
-            val nextTopHour = hours.firstOrNull { it.dateTime.isAfter(time) }
-            
-            val forecastTemp = if (prevTopHour != null && nextTopHour != null) {
-                val prevT = prevTopHour.temperature
-                val nextT = nextTopHour.temperature
-                if (prevT.isNaN() || nextT.isNaN()) Float.NaN else {
-                    val totalSecs = java.time.Duration.between(prevTopHour.dateTime, nextTopHour.dateTime).seconds
-                    val elapsedSecs = java.time.Duration.between(prevTopHour.dateTime, time).seconds
-                    val fraction = elapsedSecs.toFloat() / totalSecs.toFloat()
-                    prevT + (nextT - prevT) * fraction
-                }
-            } else {
-                val prevT = prevTopHour?.temperature
-                val nextT = nextTopHour?.temperature
-                when {
-                    prevT != null && !prevT.isNaN() -> prevT
-                    nextT != null && !nextT.isNaN() -> nextT
-                    else -> Float.NaN
-                }
-            }
-
             val subSunInfo = SunPositionUtils.getSunInfo(time, lat, lon)
-            val iconRes: Int? = null
-
-            finalHours.add(
-                HourData(
-                    dateTime = time,
-                    temperature = actualPoint.forecastTemp.takeUnless { it.isNaN() } ?: forecastTemp,
-                    label = formatHourLabel(time),
-                    iconRes = iconRes,
-                    isNight = subSunInfo.isNight,
-                    isTwilight = subSunInfo.phase == SunPhase.TWILIGHT,
-                    isSunBoundary = subSunInfo.isSunBoundary,
-                    isSunny = iconRes?.let { WeatherIconMapper.isSunny(it) } ?: false,
-                    isRainy = iconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false,
-                    isMixed = iconRes?.let { WeatherIconMapper.isMixed(it) } ?: false,
-                    isCurrentHour = false,
-                    showLabel = false,
-                    isActual = actualPoint.isActual,
-                    actualTemperature = actualPoint.actualTemp,
-                    isObservedActual = actualPoint.isObservedActual,
-                )
+            base.copy(
+                label = formatHourLabel(time),
+                iconRes = null,
+                isNight = subSunInfo.isNight,
+                isTwilight = subSunInfo.phase == SunPhase.TWILIGHT,
+                isSunBoundary = subSunInfo.isSunBoundary,
+                isSunny = false,
+                isRainy = false,
+                isMixed = false,
+                isCurrentHour = false,
+                showLabel = false,
             )
         }
     }

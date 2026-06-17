@@ -94,6 +94,24 @@ internal object DesktopGraphUtils {
         (ln(stage.backHours.toFloat() / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS.toFloat() / MIN_BACK_HOURS))
             .coerceIn(0f, 1f)
 
+    /** A full calendar day: the span a day-click frames in the hourly view. */
+    const val DAY_VIEW_SPAN_HOURS = 24
+
+    /**
+     * The [zoomFactor] whose total visible span (back + forward) is closest to a full day, so a
+     * day-click can frame the clicked day midnight→midnight. Because the renderers map the *data
+     * span* (first→last point) to width — not back/forward individually — only the window's
+     * `[start, end]` bounds are visible, so the asymmetric back/forward split is irrelevant: all that
+     * matters is back + forward ≈ 24 and anchoring `center = startOfDay + back`. Computed from the
+     * current curve (scanning z) rather than hardcoded, so a future rescale of MIN/MAX_BACK_HOURS
+     * keeps it correct. With today's constants this lands at z≈0.34 → back=15, forward=9 (sum 24).
+     */
+    val dayViewZoomFactor: Float by lazy {
+        (0..1000)
+            .map { it / 1000f }
+            .minBy { z -> kotlin.math.abs(backHoursFor(z) + forwardHoursFor(z) - DAY_VIEW_SPAN_HOURS) }
+    }
+
     /**
      * Once the visible span crosses ~2 days, the bottom strip switches from time-of-day labels
      * ("12a/12p") to one date label per day — bare clock labels can't tell you which day a region

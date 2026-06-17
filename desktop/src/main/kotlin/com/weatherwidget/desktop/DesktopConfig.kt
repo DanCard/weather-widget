@@ -27,6 +27,11 @@ data class DesktopConfig(
     // anchored on the right). 0 = default view (~1 history day). encodeDefaults=false omits the 0.
     val dailyExtraHistory: Int = 0,
     val hourlyOffset: Int = 0,
+    // When set (epoch-day), the hourly view is pinned to that single calendar day: the window is
+    // bounded to [day 00:00, day+1 00:00] absolutely and the actual line is built day-bounded so its
+    // labeled high/low match the daily view exactly. Set on a daily-bar click; cleared on pan/zoom/nav.
+    // Mirrors the Android widget's single-day pin. encodeDefaults=false omits the null.
+    val hourlySingleDayEpoch: Long? = null,
     // Continuous zoom: 0 = most zoomed-in (~±2h), 1 = most zoomed-out (6 days back / 1 day forward).
     // Legacy "zoomLevel" string configs are ignored on read (ignoreUnknownKeys) and reset to default.
     val zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,

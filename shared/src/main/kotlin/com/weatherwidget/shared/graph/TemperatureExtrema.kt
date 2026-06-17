@@ -76,18 +76,24 @@ object TemperatureExtrema {
         // "wrong" side of the boundary has its min/max land on a still-monotonic slope point at the
         // day edge (e.g. Tue's "low" is just the descent into Wed's post-midnight valley). Labeling
         // that slope point is redundant next to the real adjacent-day extreme, so drop it.
-        // The actual-region's own end (the observation cutoff / NOW) is exempt: an extreme there is a
-        // real observed boundary value (e.g. temp still climbing to NOW), not a midnight artifact, so
-        // we only require the neighbor that exists within the observed data.
+        // BOTH ends of the observed region are exempt symmetrically: an extreme at the observation
+        // cutoff / NOW (right end) or at the start of the observed data (left end — e.g. the coldest
+        // point sits at midnight in the 24h day view) is a real observed boundary value, not a
+        // midnight artifact, so we only require the neighbor that exists within the observed data.
+        // Genuine multi-day slope shoulders at *interior* day boundaries still require both neighbors
+        // here and are additionally caught by the shoulder-drop walk below.
+        val actualStartIndex = actualIndices.firstOrNull() ?: -1
         fun isActualLocalMin(i: Int): Boolean {
-            if (i <= 0 || i > actualEndIndex) return false
+            if (actualStartIndex < 0 || i < actualStartIndex || i > actualEndIndex) return false
+            val leftOk = i <= actualStartIndex || actualLabelTemps[i] <= actualLabelTemps[i - 1]
             val rightOk = i >= actualEndIndex || actualLabelTemps[i] <= actualLabelTemps[i + 1]
-            return actualLabelTemps[i] <= actualLabelTemps[i - 1] && rightOk
+            return leftOk && rightOk
         }
         fun isActualLocalMax(i: Int): Boolean {
-            if (i <= 0 || i > actualEndIndex) return false
+            if (actualStartIndex < 0 || i < actualStartIndex || i > actualEndIndex) return false
+            val leftOk = i <= actualStartIndex || actualLabelTemps[i] >= actualLabelTemps[i - 1]
             val rightOk = i >= actualEndIndex || actualLabelTemps[i] >= actualLabelTemps[i + 1]
-            return actualLabelTemps[i] >= actualLabelTemps[i - 1] && rightOk
+            return leftOk && rightOk
         }
         // The current (incomplete) day's observed maximum is NOT its daily high if the day hasn't
         // peaked yet — e.g. mid-morning "now" with the afternoon still ahead. Labeling that morning

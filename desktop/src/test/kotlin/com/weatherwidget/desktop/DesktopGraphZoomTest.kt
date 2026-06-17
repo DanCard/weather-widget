@@ -61,6 +61,16 @@ class DesktopGraphZoomTest {
     }
 
     @Test
+    fun `day-view zoom spans a full day`() {
+        // A day-click frames the clicked day midnight->midnight; that requires back + forward == 24h
+        // at the chosen factor. Guards against a future rescale of the zoom curve silently breaking
+        // the full-day window (it is computed, not hardcoded).
+        val zoom = DesktopGraphUtils.dayViewZoomFactor
+        val span = DesktopGraphUtils.backHoursFor(zoom) + DesktopGraphUtils.forwardHoursFor(zoom)
+        assertTrue("day-view span $span should be within 1h of 24", kotlin.math.abs(span - 24) <= 1)
+    }
+
+    @Test
     fun `label interval always divides 24 and widens with span`() {
         val tight = DesktopGraphUtils.labelIntervalFor(4)
         val wide = DesktopGraphUtils.labelIntervalFor(168)

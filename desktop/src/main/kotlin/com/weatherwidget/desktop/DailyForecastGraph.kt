@@ -156,53 +156,64 @@ fun DailyForecastGraph(
                 }
             }
 
-            // Today uses the shared cutoff rule: after 9am the low number tracks the observed actual
-            // and drops the forecast/snapshot comparison lows (folded together here so the pre-cutoff
-            // value is unchanged), falling back to them only when no actual exists yet. Other days
-            // keep the plain min of all candidate lows.
-            val lowForLabel = if (day.isToday) {
-                com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
-                    isToday = true,
-                    solidLow = day.solidLow,
-                    forecastLow = listOfNotNull(day.forecastLow, day.snapshotLow).minOrNull(),
-                    nowHour = day.nowHour,
-                )
-            } else {
-                listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
-            }
+            // All columns funnel through the shared resolver (matches Android exactly):
+            //   today  -> cutoff rule: after 9am the low tracks the observed actual and drops the
+            //             forecast/snapshot comparison lows (folded together so the pre-cutoff value
+            //             is unchanged), falling back to them only when no actual exists yet.
+            //   past   -> returns solidLow (the observed actual) — the forecast low is bar-only and
+            //             must never win the printed number, even when it predicted colder.
+            //   future -> returns solidLow (which IS the forecast for future days).
+            val lowForLabel = com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
+                isToday = day.isToday,
+                solidLow = day.solidLow,
+                forecastLow = listOfNotNull(day.forecastLow, day.snapshotLow).minOrNull(),
+                nowHour = day.nowHour,
+            )
 
-            // Past days: label BOTH the actual high (thermostat pink) and the forecast high (yellow,
-            // matching the forecast bar) when they differ enough and there's room (DualHighLabel);
-            // otherwise fall through to the single high label below.
+            // History — and today once its high is settled (past the 5pm cutoff) — label BOTH the
+            // actual high (thermostat pink) and the forecast high (yellow, matching the forecast bar)
+            // when they differ enough and there's room (DualHighLabel); otherwise fall through to the
+            // single high label below. Today's actual is the observed peak (max of solid/ghost); its
+            // forecast label sits over the live-forecast bar (the same +tripleOffset as history's).
             val highForLabel = listOfNotNull(day.solidHigh, day.forecastHigh, day.ghostHigh, day.snapshotHigh).maxOrNull()
-            val pastActualHigh = if (day.isPast) day.solidHigh else null
-            val pastForecastHigh = if (day.isPast) day.forecastHigh else null
+            val todayHighSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isHighTrackingActual(
+                isToday = day.isToday,
+                solidHigh = day.solidHigh,
+                ghostHigh = day.ghostHigh,
+                nowHour = day.nowHour,
+            )
+            val dualActualHigh = when {
+                day.isPast -> day.solidHigh
+                todayHighSettled -> listOfNotNull(day.solidHigh, day.ghostHigh).maxOrNull()
+                else -> null
+            }
+            val dualForecastHigh = if (day.isPast || todayHighSettled) day.forecastHigh else null
             // Both highs at full size (no 2% two-label shrink); the lower one gets a 4% boost below.
             val dualBase = 12f * scale
             // Lower label = smaller temp (sits lower, with the taller forecast bar through it) → boost.
             fun dualBaseFor(temp: Float, otherTemp: Float): Float =
                 if (temp < otherTemp) dualBase * LOWER_DUAL_LABEL_FONT_BOOST else dualBase
-            val showDualHighs = if (pastActualHigh != null && pastForecastHigh != null) {
-                val aText = formatTemp(pastActualHigh)
-                val fText = formatTemp(pastForecastHigh)
-                val aH = textMeasurer.measure(aText, TextStyle(fontSize = tempFontSize(aText, dualBaseFor(pastActualHigh, pastForecastHigh)).sp)).size.height.toFloat()
-                val fH = textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBaseFor(pastForecastHigh, pastActualHigh)).sp)).size.height.toFloat()
-                val aTop = (yAt(pastActualHigh) - aH - 3f * scale).coerceAtLeast(-headerBleed)
-                val fTop = (yAt(pastForecastHigh) - fH - 3f * scale).coerceAtLeast(-headerBleed)
-                DualHighLabel.showBoth(pastActualHigh, pastForecastHigh, aTop, fTop, maxOf(aH, fH))
+            val showDualHighs = if (dualActualHigh != null && dualForecastHigh != null) {
+                val aText = formatTemp(dualActualHigh)
+                val fText = formatTemp(dualForecastHigh)
+                val aH = textMeasurer.measure(aText, TextStyle(fontSize = tempFontSize(aText, dualBaseFor(dualActualHigh, dualForecastHigh)).sp)).size.height.toFloat()
+                val fH = textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBaseFor(dualForecastHigh, dualActualHigh)).sp)).size.height.toFloat()
+                val aTop = (yAt(dualActualHigh) - aH - 3f * scale).coerceAtLeast(-headerBleed)
+                val fTop = (yAt(dualForecastHigh) - fH - 3f * scale).coerceAtLeast(-headerBleed)
+                DualHighLabel.showBoth(dualActualHigh, dualForecastHigh, aTop, fTop, maxOf(aH, fH))
             } else false
 
-            if (showDualHighs && pastActualHigh != null && pastForecastHigh != null) {
-                val aText = formatTemp(pastActualHigh)
-                val aSize = tempFontSize(aText, dualBaseFor(pastActualHigh, pastForecastHigh))
+            if (showDualHighs && dualActualHigh != null && dualForecastHigh != null) {
+                val aText = formatTemp(dualActualHigh)
+                val aSize = tempFontSize(aText, dualBaseFor(dualActualHigh, dualForecastHigh))
                 val aLayout = textMeasurer.measure(aText, TextStyle(fontSize = aSize.sp, color = COLOR_OBSERVED))
-                val aY = (yAt(pastActualHigh) - aLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                val aY = (yAt(dualActualHigh) - aLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
                 drawOutlinedText(textMeasurer, aLayout, Offset(centerX - aLayout.size.width / 2f, aY))
 
-                val fText = formatTemp(pastForecastHigh)
-                val fSize = tempFontSize(fText, dualBaseFor(pastForecastHigh, pastActualHigh))
+                val fText = formatTemp(dualForecastHigh)
+                val fSize = tempFontSize(fText, dualBaseFor(dualForecastHigh, dualActualHigh))
                 val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
-                val fY = (yAt(pastForecastHigh) - fLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                val fY = (yAt(dualForecastHigh) - fLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
                 drawOutlinedText(textMeasurer, fLayout, Offset(centerX + tripleOffset - fLayout.size.width / 2f, fY))
             } else {
                 // Single label uses the shared effectiveHigh() so the headline rule matches Android
@@ -221,9 +232,17 @@ fun DailyForecastGraph(
                 if (singleHigh != null) {
                     val highLabelText = formatTemp(singleHigh)
                     val highSize = tempFontSize(highLabelText, 12f * scale)
+                    // Once today's high is settled (past 5pm) the single number tracks the observed
+                    // actual — recolor it the thermostat (observed) color so it reads as a real
+                    // reading, not a forecast. Mirrors the dual-label gate above (and Android).
+                    val highColor = when {
+                        todayHighSettled -> COLOR_OBSERVED
+                        day.isToday -> Color.Yellow
+                        else -> Color.White
+                    }
                     val highText = textMeasurer.measure(
                         highLabelText,
-                        TextStyle(fontSize = highSize.sp, color = if (day.isToday) Color.Yellow else Color.White)
+                        TextStyle(fontSize = highSize.sp, color = highColor)
                     )
                     // Sit above the bar top; for the hottest bar this rides up past the canvas top into
                     // the header (a little overlap is welcome) rather than dropping onto the bar.

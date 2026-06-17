@@ -97,6 +97,30 @@ object DailyDayValueResolver {
     }
 
     /**
+     * Whether today's headline high is currently tracking the **observed actual** rather than the
+     * forecast-inclusive blend — i.e. the exact case where [effectiveHighForLabel] returns
+     * `max(observed, ghost)` and drops the forecast.
+     *
+     * True only for today, once the local time is past [ACTUAL_HIGH_CUTOFF_HOUR] (5pm) AND an actual
+     * high exists. Callers use this to recolor the high label to the thermostat (observed) color,
+     * signaling the number is now a settled actual instead of a prediction. Mirrors the branch in
+     * [effectiveHighForLabel] so the color and the value never disagree.
+     *
+     * @param nowHour Local hour-of-day (0–23); null disables the cutoff (legacy behavior).
+     */
+    fun isHighTrackingActual(
+        isToday: Boolean,
+        solidHigh: Float?,
+        ghostHigh: Float?,
+        nowHour: Int? = null,
+    ): Boolean {
+        if (!isToday) return false
+        val actualHigh = listOfNotNull(solidHigh, ghostHigh).maxOrNull()
+        val highSettled = nowHour != null && nowHour >= ACTUAL_HIGH_CUTOFF_HOUR
+        return highSettled && actualHigh != null
+    }
+
+    /**
      * The "headline" low used for the today column's single low number. Mirror of
      * [effectiveHighForLabel].
      *

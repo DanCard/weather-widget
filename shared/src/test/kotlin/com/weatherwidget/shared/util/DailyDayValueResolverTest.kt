@@ -80,6 +80,62 @@ class DailyDayValueResolverTest {
         assertEquals(76f, high)
     }
 
+    // ── isHighTrackingActual (drives the thermostat-color recolor) ──────────
+
+    @Test
+    fun highTrackingActualTrueAfterCutoffWithActual() {
+        // 6pm with an observed peak → the headline is a settled actual, so recolor it.
+        assertEquals(
+            true,
+            DailyDayValueResolver.isHighTrackingActual(
+                isToday = true, solidHigh = 74f, ghostHigh = 76f, nowHour = 18,
+            ),
+        )
+    }
+
+    @Test
+    fun highTrackingActualFalseBeforeCutoff() {
+        // Noon: high not settled yet → still a forecast blend, keep the normal color.
+        assertEquals(
+            false,
+            DailyDayValueResolver.isHighTrackingActual(
+                isToday = true, solidHigh = 74f, ghostHigh = 76f, nowHour = 12,
+            ),
+        )
+    }
+
+    @Test
+    fun highTrackingActualFalseAfterCutoffWhenNoActual() {
+        // 6pm but no observations → headline falls back to forecast, so it is NOT an actual.
+        assertEquals(
+            false,
+            DailyDayValueResolver.isHighTrackingActual(
+                isToday = true, solidHigh = null, ghostHigh = null, nowHour = 18,
+            ),
+        )
+    }
+
+    @Test
+    fun highTrackingActualFalseForNonToday() {
+        assertEquals(
+            false,
+            DailyDayValueResolver.isHighTrackingActual(
+                isToday = false, solidHigh = 74f, ghostHigh = 76f, nowHour = 18,
+            ),
+        )
+    }
+
+    @Test
+    fun highTrackingActualFalseWhenHourNull() {
+        // null hour disables the cutoff (legacy behavior) → never recolor.
+        assertEquals(
+            false,
+            DailyDayValueResolver.isHighTrackingActual(
+                isToday = true, solidHigh = 74f, ghostHigh = 76f, nowHour = null,
+            ),
+        )
+    }
+
     // ── Low cutoff (9am) ───────────────────────────────────────────────────
 
     @Test

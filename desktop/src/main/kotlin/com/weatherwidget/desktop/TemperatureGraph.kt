@@ -30,6 +30,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.graph.HourDataAssembler
 import com.weatherwidget.shared.graph.*
 import com.weatherwidget.shared.util.Log
 import java.time.Instant
@@ -110,6 +111,10 @@ fun TemperatureGraph(
     modifier: Modifier = Modifier,
     centerOffsetHours: Int = 0,
     zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
+    // When set, the view is pinned to this calendar day: the window is bounded to [day, day+1]
+    // absolutely (drift-free) and the actual line is built day-bounded so the labeled high/low match
+    // the daily view exactly. Set on a daily-bar click; cleared on pan/zoom/nav.
+    singleDayDate: java.time.LocalDate? = null,
     scale: Float = 1f,
     onViewModeChange: (String) -> Unit = {},
     onToggleZoom: (Int) -> Unit = {},
@@ -131,8 +136,18 @@ fun TemperatureGraph(
     val totalSpanHours = backHours + forwardHours
 
     val zoneId = ZoneId.systemDefault()
-    val window = remember(center, backHours, forwardHours, zoneId) {
-        temperatureGraphHourWindow(center, backHours, forwardHours, zoneId)
+    // Single-day pin: bound the window to the clicked day absolutely (drift-free). Otherwise the
+    // rolling window from the zoom/offset. The day-bounded blend (singleDayDate passed to the builder)
+    // makes the labeled actual high/low reproduce that day's daily_extremes — matching the daily view.
+    val window = remember(center, backHours, forwardHours, zoneId, singleDayDate) {
+        if (singleDayDate != null) {
+            HourWindow(
+                startMs = singleDayDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                endMs = singleDayDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            )
+        } else {
+            temperatureGraphHourWindow(center, backHours, forwardHours, zoneId)
+        }
     }
     val start = window.startMs
     val cutoff = window.endMs
@@ -186,6 +201,14 @@ fun TemperatureGraph(
         val windowEnd = cutoff
 
         val zoneId = ZoneId.systemDefault()
+        // Smoothed forecast per hourly point (preserves all extrema), fed to the builder so the
+        // assembled dense HourData carries the SAME forecast temps the curve is drawn from — keeping
+        // forecast labels stable and matching Android's dense list by construction.
+        val forecastTemps = com.weatherwidget.shared.util.TemperatureInterpolator
+            .smoothValuesPreservingAllExtrema(points.map { it.temperature }, smoothIterations)
+        val smoothedForecastsMap = points.indices.associate {
+            points[it].dateTime to forecastTemps[it]
+        }
         val actualSeries = ActualTemperatureSeriesBuilder.build(
             hourlyForecasts = hourly,
             observations = observations,
@@ -202,7 +225,8 @@ fun TemperatureGraph(
             contextLookaheadHours = maxOf(ACTUALS_CONTEXT_LOOKAHEAD_HOURS, forwardHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
             now = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId),
             zoneId = zoneId,
-            smoothedForecasts = null,
+            smoothedForecasts = smoothedForecastsMap,
+            singleDayDate = singleDayDate,
         )
         // TEMP DIAGNOSTIC: where does the pink actual line start/end vs the visible window? Compares
         // the first/last actual point to windowStart and the raw observation range, to chase the
@@ -245,8 +269,6 @@ fun TemperatureGraph(
             0f
         }
 
-        val rawForecastTemps = points.map { it.temperature }
-        val forecastTemps = com.weatherwidget.shared.util.TemperatureInterpolator.smoothValuesPreservingAllExtrema(rawForecastTemps, smoothIterations)
         val expectedTemps = forecastTemps.map { it + appliedDelta }
         val allTemps = forecastTemps + actualLinePoints.mapNotNull { it.actualTemp } + expectedTemps
         val rawMin = allTemps.minOrNull() ?: 0f
@@ -490,35 +512,28 @@ fun TemperatureGraph(
             }
         }
 
-        val hourDataList = points.mapIndexed { idx, p ->
-            val actualPoint = actualSeries.points.find { it.timeMs == p.dateTime }
-            val isAct = actualPoint?.isActual ?: false
-            val actTemp = actualPoint?.actualTemp
-            val temp = forecastTemps[idx]
-            val dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(p.dateTime), zoneId)
-            HourData(
-                dateTime = dt,
-                temperature = temp,
-                label = formatHourLabel(dt.hour),
-                isActual = isAct,
-                actualTemperature = actTemp
-            )
-        }
+        // Dense point list (hourly forecast anchors + injected sub-hourly observed points) from the
+        // shared assembler — identical to what the Android widget builds. The label engine derives the
+        // actual high/low from this list, so an off-hour observed peak/trough rides on its own point
+        // instead of collapsing onto the nearest hour. The forecast curve + actual line keep drawing
+        // from `coords`/`actualLinePoints`; only the label geometry below switches to the dense list,
+        // and all three engine inputs (hours/originalPoints/forecastPoints) stay index-aligned.
+        fun msOf(dt: LocalDateTime): Long = dt.atZone(zoneId).toInstant().toEpochMilli()
+        val hourDataList = HourDataAssembler.assembleHourData(actualSeries, zoneId)
 
-        val originalPointsList = points.mapIndexed { idx, p ->
-            val actualPoint = actualSeries.points.find { it.timeMs == p.dateTime }
-            val actTemp = actualPoint?.actualTemp ?: (forecastTemps[idx] + appliedDelta)
-            xAt(idx) to yAt(actTemp)
+        val originalPointsList = hourDataList.map { hd ->
+            val actTemp = hd.actualTemperature ?: (hd.temperature + appliedDelta)
+            xAtTime(msOf(hd.dateTime)) to yAt(actTemp)
         }
-        val forecastPointsList = points.mapIndexed { idx, _ ->
-            xAt(idx) to yAt(forecastTemps[idx])
+        val forecastPointsList = hourDataList.map { hd ->
+            xAtTime(msOf(hd.dateTime)) to yAt(hd.temperature)
         }
         val actualVisiblePointsList = actualLinePoints.map { point ->
             xAtTime(point.timeMs) to yAt(point.actualTemp!!)
         }
 
         val effectiveActualEndIndex = if (transitionMs != null) {
-            points.indexOfLast { it.dateTime <= transitionMs }
+            hourDataList.indexOfLast { msOf(it.dateTime) <= transitionMs }
         } else {
             -1
         }
@@ -551,7 +566,7 @@ fun TemperatureGraph(
             observedAt = transitionMs,
             effectiveActualEndIndex = effectiveActualEndIndex,
             fetchTime = fetchTime,
-            numColumns = points.size,
+            numColumns = hourDataList.size,
             tempToY = { yAt(it) },
             metrics = metricsAdapter,
             drawnIconBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },

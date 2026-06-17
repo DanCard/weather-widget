@@ -577,13 +577,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             context.startActivity(settingsIntent)
         } else {
             val stateManager = stateManager(context)
-            // Pin the hourly view to the clicked PAST day so its actual line is built day-bounded and
-            // its high/low match the daily bar exactly. Today/future bars keep the normal rolling view
-            // (their daily bar shows forecast, not actual, so there's nothing to match). Cleared on
+            // Pin the hourly view to the clicked calendar day so it shows the full midnight->midnight
+            // day and its actual line is built day-bounded — making the labeled high/low match the
+            // daily bar exactly. Applies to TODAY too (previously today fell back to the partial
+            // [now-12h, now+12h] rolling window — the "doesn't show the full day" bug). Cleared on
             // scroll/zoom by the state manager.
             val clickedDate = try { LocalDate.parse(dateStr) } catch (_: Exception) { null }
             val singleDay = clickedDate?.takeIf {
-                appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && it.isBefore(LocalDate.now())
+                appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID
             }
             stateManager.setSingleDayDate(appWidgetId, singleDay)
             Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset singleDay=$singleDay currentStoredMode=${stateManager.getViewMode(appWidgetId)} currentStoredZoom=${stateManager.getZoomLevel(appWidgetId)}")

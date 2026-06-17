@@ -497,18 +497,30 @@ class DesktopUiTest {
     }
 
     @Test
-    fun testDayClickResetsZoomToDefault() {
+    fun testDayClickOpensFullDayWindow() {
         val clickedDate = java.time.LocalDate.now().plusDays(1)
         // Empty day list -> targetView falls back to "HOURLY"; the zoom reset is independent of it.
         val fromTightZoom = dayClickConfig(stubConfig.copy(zoomFactor = 0f), clickedDate, emptyList())
         val fromWideZoom = dayClickConfig(stubConfig.copy(zoomFactor = 1f), clickedDate, emptyList())
 
-        // Prior zoom is ignored: both extremes snap back to the default WIDE view.
-        assertEquals(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR, fromTightZoom.zoomFactor)
-        assertEquals(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR, fromWideZoom.zoomFactor)
-
-        // The view re-centers on the clicked day (tomorrow's noon is ~24-48h ahead) and opens hourly.
+        // Prior zoom is ignored: both extremes snap to the day-view zoom (back + forward ≈ 24h).
+        assertEquals(DesktopGraphUtils.dayViewZoomFactor, fromTightZoom.zoomFactor)
+        assertEquals(DesktopGraphUtils.dayViewZoomFactor, fromWideZoom.zoomFactor)
         assertEquals("HOURLY", fromTightZoom.viewMode)
-        assertEquals(true, fromTightZoom.hourlyOffset in 12..48)
+
+        // The resulting window brackets the clicked day midnight→midnight. The window is
+        // [center - backHours, center + forwardHours] where center = now + hourlyOffset; reconstruct
+        // it and assert its left edge lands on the clicked day's midnight (within the ±1h rounding of
+        // a whole-hour offset) and it spans ~24h.
+        val zoom = DesktopGraphUtils.dayViewZoomFactor
+        val backHours = DesktopGraphUtils.backHoursFor(zoom)
+        val forwardHours = DesktopGraphUtils.forwardHoursFor(zoom)
+        val center = java.time.LocalDateTime.now().plusHours(fromTightZoom.hourlyOffset.toLong())
+        val windowStart = center.minusHours(backHours.toLong())
+        val expectedMidnight = clickedDate.atStartOfDay()
+        val startDriftHours =
+            java.time.Duration.between(expectedMidnight, windowStart).toMinutes() / 60.0
+        assertEquals(0.0, startDriftHours, 1.0)
+        assertEquals(DesktopGraphUtils.DAY_VIEW_SPAN_HOURS, backHours + forwardHours)
     }
 }

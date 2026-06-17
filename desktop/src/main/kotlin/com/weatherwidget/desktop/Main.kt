@@ -76,33 +76,42 @@ private const val MIN_HOURLY_OFFSET = -720
 private const val MAX_HOURLY_OFFSET = 720
 
 /**
- * Hours from now to **noon** of [clickedDate]. The hourly graphs render a window around
- * `now + hourlyOffset`; at the default WIDE zoom that's ~12h back / 6h forward, so anchoring on the
- * clicked day's midday frames the clicked day (roughly midnight→evening) rather than straddling
- * noon-of-prev-day → noon-of-clicked-day.
+ * Whole-hour offset from now to the center of a full-day hourly window for [clickedDate]. The hourly
+ * graphs render a window of `[center - backHours, center + forwardHours]` around `now + hourlyOffset`.
+ * Anchoring `center = startOfDay + backHours` (with the day-view zoom whose back+forward ≈ 24h) makes
+ * the window's left edge land on the day's midnight, so it frames the clicked day midnight→midnight.
+ * Rounded to the nearest hour (not truncated) so the temperature graph's hour-alignment lands on the
+ * intended center regardless of the current minute-of-hour.
  */
-private fun offsetToDayCenter(clickedDate: LocalDate): Int =
-    java.time.Duration.between(LocalDateTime.now(), clickedDate.atStartOfDay().plusHours(12))
-        .toHours().toInt()
+private fun offsetToDayCenter(clickedDate: LocalDate, backHours: Int): Int {
+    val center = clickedDate.atStartOfDay().plusHours(backHours.toLong())
+    val minutes = java.time.Duration.between(LocalDateTime.now(), center).toMinutes()
+    return Math.round(minutes / 60.0).toInt()
+}
 
 /**
- * Config for opening the hourly view focused on [clickedDate]: centers on the day's noon and
- * **resets the zoom to the default WIDE view**, deliberately ignoring whatever zoom the hourly graph
- * was last left at, so a clicked day always opens at a consistent day-scale framing.
+ * Config for opening the hourly view focused on [clickedDate]: frames the clicked day as a full
+ * 24-hour window (midnight→midnight) by selecting the day-view zoom and anchoring the center so the
+ * window's left edge is the day's midnight. Deliberately ignores whatever zoom the hourly graph was
+ * last left at, so a clicked day always opens at a consistent full-day framing.
  */
 internal fun dayClickConfig(
     config: DesktopConfig,
     clickedDate: LocalDate,
     days: List<DesktopDailyDay>,
 ): DesktopConfig {
-    val hours = offsetToDayCenter(clickedDate)
+    val zoom = DesktopGraphUtils.dayViewZoomFactor
+    val hours = offsetToDayCenter(clickedDate, DesktopGraphUtils.backHoursFor(zoom))
     val clickedIcon = days.find { it.date == clickedDate }?.iconCondition
     val targetView = clickedIcon
         ?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: "HOURLY"
     return config.copy(
         viewMode = targetView,
         hourlyOffset = hours,
-        zoomFactor = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
+        zoomFactor = zoom,
+        // Pin to the clicked day: the graph bounds its window + actual blend to this day absolutely
+        // (drift-free, unlike the offset which is now-relative), so labeled high/low match the daily view.
+        hourlySingleDayEpoch = clickedDate.toEpochDay(),
     )
 }
 
@@ -729,13 +738,14 @@ internal fun WidgetPopup(
                                     } else {
                                         config.hourlyOffset
                                     }
-                                    onUpdateConfig(config.copy(zoomFactor = newFactor, hourlyOffset = newOffset))
+                                    // Zoom/pan exits the pinned single-day view (mirrors Android's scroll/zoom clear).
+                                    onUpdateConfig(config.copy(zoomFactor = newFactor, hourlyOffset = newOffset, hourlySingleDayEpoch = null))
                                 }
                             }
                             val handlePan: (Int) -> Unit = { deltaHours ->
                                 val newOffset = (config.hourlyOffset + deltaHours).coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
                                 if (newOffset != config.hourlyOffset) {
-                                    onUpdateConfig(config.copy(hourlyOffset = newOffset))
+                                    onUpdateConfig(config.copy(hourlyOffset = newOffset, hourlySingleDayEpoch = null))
                                 }
                             }
                             // ←/→ pan the hourly window by the same nav-jump the arrow buttons use.
@@ -802,6 +812,7 @@ internal fun WidgetPopup(
                                     modifier = Modifier.fillMaxSize(),
                                     centerOffsetHours = config.hourlyOffset,
                                     zoomFactor = config.zoomFactor,
+                                    singleDayDate = config.hourlySingleDayEpoch?.let { java.time.LocalDate.ofEpochDay(it) },
                                     scale = uiScale,
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
@@ -818,6 +829,7 @@ internal fun WidgetPopup(
                                             config.copy(
                                                 zoomFactor = DesktopGraphUtils.zoomFactorForStage(next),
                                                 hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
+                                                hourlySingleDayEpoch = null,
                                             )
                                         )
                                     },
@@ -833,7 +845,7 @@ internal fun WidgetPopup(
                                 val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
                                 val newOffset = (config.hourlyOffset - jump).coerceAtLeast(MIN_HOURLY_OFFSET)
                                 Log.d(TAG, "HourlyNav: left jump=${-jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
-                                onUpdateConfig(config.copy(hourlyOffset = newOffset))
+                                onUpdateConfig(config.copy(hourlyOffset = newOffset, hourlySingleDayEpoch = null))
                             }
                             NavArrow(
                                 alignment = Alignment.CenterEnd,
@@ -843,7 +855,7 @@ internal fun WidgetPopup(
                                 val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
                                 val newOffset = (config.hourlyOffset + jump).coerceAtMost(MAX_HOURLY_OFFSET)
                                 Log.d(TAG, "HourlyNav: right jump=+${jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
-                                onUpdateConfig(config.copy(hourlyOffset = newOffset))
+                                onUpdateConfig(config.copy(hourlyOffset = newOffset, hourlySingleDayEpoch = null))
                             }
                             // Transient banner while an on-demand deep-history pull is in flight (or
                             // briefly on failure). Drawn last so it floats over the graph + arrows.

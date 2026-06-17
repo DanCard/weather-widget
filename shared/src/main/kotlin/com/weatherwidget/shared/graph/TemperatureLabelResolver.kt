@@ -440,6 +440,13 @@ object TemperatureLabelResolver {
         role: TemperatureRole,
         suppressLeftEdgeLabel: Boolean,
     ): SuppressionResult {
+        // An actual high/low keeps its own label at the left edge: an observed extreme at the start of
+        // the observed data (e.g. the coldest point sits at midnight in the 24h day view) is a real
+        // boundary value the user wants to see, mirroring the right-edge exemptions in
+        // checkFetchDotSuppression / checkEndpointSuppression.
+        if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.ACTUAL_LOW) {
+            return SuppressionResult(false)
+        }
         val isBoundary = role == TemperatureRole.START || role == TemperatureRole.END
         if (idx == 0 && suppressLeftEdgeLabel && !isBoundary) {
             return SuppressionResult(true)
