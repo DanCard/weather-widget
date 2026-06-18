@@ -159,7 +159,7 @@ class TemperatureLabelHardBoundMinorOverlapTest {
         forecast[12] = 52f
         val hours = buildHours(forecast)
 
-        // Beside the label but ~12px vertical overlap > 3.6px budget => still blocks the anchor slot.
+        // Beside the label but ~12px vertical overlap > 5.4px budget => still blocks the anchor slot.
         val hard = belowSlotHardBound(52f, 12, hours, 300, 400, overlapPx = 12f, sideOffset = 6f)
         val placements = runEngineTest(hours, 300, 400, reservedHardBounds = listOf(hard))
         val low = placements.find { it.displayTemperature == 52f }
