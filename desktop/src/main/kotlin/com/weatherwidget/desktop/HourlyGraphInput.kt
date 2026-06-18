@@ -85,7 +85,7 @@ fun Modifier.hourlyGraphFooterTapInput(
     points: List<HourlyForecast>,
     zoomFactor: Float,
     scale: Float,
-    onViewModeChange: (String) -> Unit,
+    onViewModeChange: (ViewMode) -> Unit,
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit,
     onPan: (deltaHours: Int) -> Unit,
 ): Modifier = this

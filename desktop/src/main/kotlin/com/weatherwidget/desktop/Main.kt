@@ -99,7 +99,7 @@ internal fun dayClickConfig(
     val hours = offsetToDayCenter(clickedDate, DesktopGraphUtils.backHoursFor(zoom))
     val clickedIcon = days.find { it.date == clickedDate }?.iconCondition
     val targetView = clickedIcon
-        ?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: "HOURLY"
+        ?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: ViewMode.HOURLY
     return config.copy(
         viewMode = targetView,
         hourlyOffset = hours,
@@ -615,14 +615,14 @@ internal fun WidgetPopup(
                         onOpenObservations = onOpenObservations,
                         onOpenHistory = onOpenHistory,
                         onUpdateLocation = onUpdateLocation,
-                        showWeatherSummary = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION",
+                        showWeatherSummary = config.viewMode.isHourly,
                         headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
                         scale = uiScale,
                     )
 
                     Spacer(Modifier.height(4.dp))
 
-                    val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
+                    val isHourly = config.viewMode.isHourly
                     if (isHourly) {
                         Box(modifier = Modifier.fillMaxWidth().weight(1f).testTag("hourly_temperature_surface")) {
                             // Shared scroll-zoom + drag-pan handlers for all three hourly graphs.
@@ -663,7 +663,7 @@ internal fun WidgetPopup(
                                     DesktopGraphUtils.backHoursFor(config.zoomFactor) - config.hourlyOffset
                                 onNeedHistory(earliestVisibleHoursBack)
                             }
-                            if (config.viewMode == "CLOUD_COVER") {
+                            if (config.viewMode == ViewMode.CLOUD_COVER) {
                                 CloudCoverGraph(
                                     hourly = snapshot.hourly,
                                     displaySourceId = config.weatherSource,
@@ -679,7 +679,7 @@ internal fun WidgetPopup(
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
                                 )
-                            } else if (config.viewMode == "PRECIPITATION") {
+                            } else if (config.viewMode == ViewMode.PRECIPITATION) {
                                 PrecipitationGraph(
                                     hourly = snapshot.hourly,
                                     observations = snapshot.rawObservations,
@@ -931,7 +931,7 @@ private fun WidgetHeader(
         it.dateTime >= nowEpoch - 3_600_000L && it.dateTime <= nowEpoch + 3_600_000L
     }
     val precipProb = currentHourData?.precipProbability?.takeIf { it > 0 }
-    val isHourly = config.viewMode == "HOURLY" || config.viewMode == "TEMPERATURE" || config.viewMode == "CLOUD_COVER" || config.viewMode == "PRECIPITATION"
+    val isHourly = config.viewMode.isHourly
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -947,7 +947,7 @@ private fun WidgetHeader(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clickable {
-                        val targetMode = if (isHourly) "DAILY" else "HOURLY"
+                        val targetMode = if (isHourly) ViewMode.DAILY else ViewMode.HOURLY
                         onUpdateConfig(config.copy(viewMode = targetMode))
                     }.testTag("current_temp_toggle")
                 ) {
@@ -983,7 +983,7 @@ private fun WidgetHeader(
                             .align(Alignment.CenterVertically)
                             .offset(y = 2.dp)
                             .clickable {
-                                onUpdateConfig(config.copy(viewMode = "PRECIPITATION"))
+                                onUpdateConfig(config.copy(viewMode = ViewMode.PRECIPITATION))
                             }
                     )
                 }
@@ -1003,9 +1003,9 @@ private fun WidgetHeader(
                         // Cycling graph selector
                         val currentView = config.viewMode
                         val (nextEmoji, nextView) = when (currentView) {
-                            "CLOUD_COVER" -> "🌧️" to "PRECIPITATION"
-                            "PRECIPITATION" -> "🌡️" to "HOURLY"
-                            else -> "☁️" to "CLOUD_COVER"
+                            ViewMode.CLOUD_COVER -> "🌧️" to ViewMode.PRECIPITATION
+                            ViewMode.PRECIPITATION -> "🌡️" to ViewMode.HOURLY
+                            else -> "☁️" to ViewMode.CLOUD_COVER
                         }
                         Text(
                             text = nextEmoji,
@@ -1034,7 +1034,7 @@ private fun WidgetHeader(
                             contentDescription = "Daily view",
                             tint = Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.size((15 * scale).dp).clickable {
-                                onUpdateConfig(config.copy(viewMode = "DAILY"))
+                                onUpdateConfig(config.copy(viewMode = ViewMode.DAILY))
                             }.testTag("switch_to_daily")
                         )
                         // Forecast history (how each day's forecast evolved) — ports Android's

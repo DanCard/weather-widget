@@ -56,7 +56,7 @@ fun PrecipitationGraph(
     centerOffsetHours: Int = 0,
     zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
     scale: Float = 1f,
-    onViewModeChange: (String) -> Unit = {},
+    onViewModeChange: (ViewMode) -> Unit = {},
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
     onPan: (deltaHours: Int) -> Unit = {},
 ) {

@@ -40,12 +40,12 @@ object WeatherIcon {
         return WeatherConditionResolver.isCloudForecastEligible(iconName)
     }
 
-    fun resolveIconHome(iconRes: String): String {
+    fun resolveIconHome(iconRes: String): ViewMode {
         val iconName = iconRes.removePrefix("drawable/").removeSuffix(".xml")
         return when (WeatherConditionResolver.resolveIconHome(iconName)) {
-            WeatherConditionResolver.IconHome.PRECIPITATION -> "PRECIPITATION"
-            WeatherConditionResolver.IconHome.CLOUD_COVER -> "CLOUD_COVER"
-            WeatherConditionResolver.IconHome.HOURLY -> "HOURLY"
+            WeatherConditionResolver.IconHome.PRECIPITATION -> ViewMode.PRECIPITATION
+            WeatherConditionResolver.IconHome.CLOUD_COVER -> ViewMode.CLOUD_COVER
+            WeatherConditionResolver.IconHome.HOURLY -> ViewMode.HOURLY
         }
     }
 }

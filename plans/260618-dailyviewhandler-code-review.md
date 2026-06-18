@@ -4,7 +4,7 @@
 Apply actionable code review findings to `DailyViewHandler.kt` (1559 lines) to reduce duplication, improve debuggability, and eliminate redundant work. Each phase runs tests and commits before moving on.
 
 ## Current Phase
-Phase 1
+Complete (Phase 9 deferred)
 
 ## Already Done (from prior plans)
 - `bindNavDirection` helper extracted (Phase 4 of 260525 plan)
@@ -20,11 +20,11 @@ Phase 1
 **Risk:** Low
 **Files:** DailyViewHandler.kt
 
-- [ ] Add `sunInfo` field to `DailyRenderContext`
-- [ ] Compute it once in `updateWidget` before constructing the context
-- [ ] Remove the two duplicate calls; use `ctx.sunInfo` in `renderGraphMode` and pass it to `resolveHeaderState`
-- [ ] Run `./gradlew test`
-- [ ] Commit
+- [x] Add `sunInfo` field to `DailyRenderContext`
+- [x] Compute it once in `updateWidget` before constructing the context
+- [x] Remove the two duplicate calls; use `ctx.sunInfo` in `renderGraphMode` and pass it to `resolveHeaderState`
+- [x] Run `./gradlew test`
+- [x] Commit: `6c99b6b6`
 
 ---
 
@@ -33,9 +33,9 @@ Phase 1
 **Risk:** Low
 **Files:** DailyViewHandler.kt
 
-- [ ] Wrap the `loadTodaySourceObservations` + `buildTodayHighProvenanceMessage` block (lines 1058–1081) in a `Log.isLoggable(TAG, Log.DEBUG)` or `BuildConfig.DEBUG` guard
-- [ ] Run `./gradlew test`
-- [ ] Commit
+- [x] Wrap the `loadTodaySourceObservations` + `buildTodayHighProvenanceMessage` block (lines 1058–1081) in a `Log.isLoggable(TAG, Log.DEBUG)` guard
+- [x] Run `./gradlew test`
+- [x] Commit: `7de0a938`
 
 ---
 
@@ -44,10 +44,10 @@ Phase 1
 **Risk:** Low
 **Files:** DailyViewHandler.kt
 
-- [ ] Add `database` field to `DailyRenderContext` (computed once at construction)
-- [ ] Replace inline `WeatherDatabase.getDatabase(context)` calls in `maybeBackfillIncompleteHistory` and `renderGraphMode` with `ctx.database` or pass as parameter
-- [ ] Run `./gradlew test`
-- [ ] Commit
+- [x] Add `database` field to `DailyRenderContext` (computed once at construction)
+- [x] Replace inline `WeatherDatabase.getDatabase(context)` calls in `maybeBackfillIncompleteHistory` and `renderGraphMode` with `ctx.database` or pass as parameter
+- [x] Run `./gradlew test`
+- [x] Commit: `c0962edf`
 
 ---
 
@@ -56,23 +56,21 @@ Phase 1
 **Risk:** Low
 **Files:** DailyViewHandler.kt
 
-- [ ] Add `private const val` entries for each magic string at the top of `DailyViewHandler`
-- [ ] Replace inline usages with the constants
-- [ ] Run `./gradlew test`
-- [ ] Commit
+- [x] Add `private const val` entries for each magic string at the top of `DailyViewHandler`
+- [x] Replace inline usages with the constants
+- [x] Run `./gradlew test`
+- [x] Commit: `c63edf1a`
 
 ---
 
 ### Phase 5: Extract Formatting Utilities
 **Finding:** `formatTempValue`, `formatDistance`, `formatLocalTime` (lines 875–888) are private formatting helpers that could serve other diagnostic code.
 **Risk:** Low
-**Files:** DailyViewHandler.kt, possibly a new small file
+**Files:** DailyViewHandler.kt, possibly a new file
 
-- [ ] Decide target: keep as private in `DailyViewHandler` (simplest) or move to a shared `WidgetFormatUtils` object
-- [ ] If extracting: create the file, move the 3 functions, update imports
-- [ ] If keeping: no-op, document as intentional
-- [ ] Run `./gradlew test`
-- [ ] Commit
+- [x] Decided: keep private — only used within DailyViewHandler, no extraction needed
+- [x] Run `./gradlew test`
+- [x] No commit needed (no-op)
 
 ---
 
@@ -81,9 +79,9 @@ Phase 1
 **Risk:** Low
 **Files:** DailyViewHandler.kt
 
-- [ ] Add a `Log.d` inside the `mapNotNull` lambda when `chosen` is null, logging the date and reason (no preferred source, or incomplete temps with no gap fallback)
-- [ ] Run `./gradlew test`
-- [ ] Commit
+- [x] Add a `Log.d` inside the `mapNotNull` lambda when `chosen` is null, logging the date and reason
+- [x] Run `./gradlew test`
+- [x] Commit: `307aafd4`
 
 ---
 
@@ -92,10 +90,9 @@ Phase 1
 **Risk:** Low (documentation only)
 **Files:** DailyViewHandler.kt
 
-- [ ] Add a comment to `buildAvailableNavigationDates` explaining why `GENERIC_GAP` is included
-- [ ] If it's a bug, fix it and update tests; if intentional, document the rationale
-- [ ] Run `./gradlew test`
-- [ ] Commit
+- [x] Added comment explaining why GENERIC_GAP is included (intentional — allows navigating to far-future climate normals)
+- [x] Run `./gradlew test`
+- [x] Commit: `b9b2f49d`
 
 ---
 
@@ -104,16 +101,14 @@ Phase 1
 **Risk:** Low
 **Files:** DailyViewHandler.kt
 
-- [ ] Verify whether `columnIndex` can differ from the list index
-- [ ] If always the same: remove the `?: index` fallback and use `day.columnIndex` directly (or `index` directly)
-- [ ] If can differ: keep as-is, add a comment explaining the fallback
-- [ ] Run `./gradlew test`
-- [ ] Commit
+- [x] Verified: columnIndex is always set by DailyViewLogic; added comment documenting the safety fallback
+- [x] Run `./gradlew test`
+- [x] Commit (included in prior commit)
 
 ---
 
 ### Phase 9 (Optional, Larger): Extract renderGraphMode
-**Finding:** `renderGraphMode` is ~240 lines (985–1227). It handles DB queries, bitmap rendering, click handler setup, and logging.
+**Finding:** `renderGraphMode` is ~267 lines (1011–1278). It handles DB queries, bitmap rendering, click handler setup, and logging.
 **Risk:** Medium
 **Files:** DailyViewHandler.kt, possibly a new file
 
@@ -121,6 +116,7 @@ Phase 1
 - [ ] Keep `DailyRenderContext` as the shared input
 - [ ] Run `./gradlew test`
 - [ ] Commit
+- **Status:** cancelled (deferred — medium risk, function is well-structured internally)
 
 ---
 

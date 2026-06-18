@@ -78,7 +78,7 @@ class DesktopUiTest {
         // Initially in DAILY mode (default). Tap the current temp to switch to HOURLY.
         composeTestRule.onNodeWithTag("current_temp_toggle").performClick()
 
-        assert(updatedConfig?.viewMode == "HOURLY")
+        assert(updatedConfig?.viewMode == ViewMode.HOURLY)
     }
 
     @Test
@@ -127,7 +127,7 @@ class DesktopUiTest {
         var updatedConfig: DesktopConfig? = null
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = "HOURLY"),
+                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -139,7 +139,7 @@ class DesktopUiTest {
 
         // Tapping the cloud emoji switcher in temperature graph (HOURLY)
         composeTestRule.onNodeWithText("☁️").performClick()
-        assertEquals("CLOUD_COVER", updatedConfig?.viewMode)
+        assertEquals(ViewMode.CLOUD_COVER, updatedConfig?.viewMode)
     }
 
     @Test
@@ -147,7 +147,7 @@ class DesktopUiTest {
         var updatedConfig: DesktopConfig? = null
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = "DAILY"),
+                config = stubConfig.copy(viewMode = ViewMode.DAILY),
                 forecast = stubForecast.copy(
                     hourly = listOf(
                         com.weatherwidget.data.model.HourlyForecast(
@@ -169,7 +169,7 @@ class DesktopUiTest {
 
         // Click on "80%" in header to switch to PRECIPITATION graph
         composeTestRule.onNodeWithText("80%").performClick()
-        assertEquals("PRECIPITATION", updatedConfig?.viewMode)
+        assertEquals(ViewMode.PRECIPITATION, updatedConfig?.viewMode)
     }
 
     @Test
@@ -177,7 +177,7 @@ class DesktopUiTest {
         var updatedConfig: DesktopConfig? = null
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = "HOURLY"),
+                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -202,7 +202,7 @@ class DesktopUiTest {
     fun testHourlyNavigationDisablesAtBounds() {
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = "HOURLY", hourlyOffset = -720),
+                config = stubConfig.copy(viewMode = ViewMode.HOURLY, hourlyOffset = -720),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -367,7 +367,7 @@ class DesktopUiTest {
         var opened = false
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = "HOURLY"),
+                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -383,10 +383,10 @@ class DesktopUiTest {
 
     @Test
     fun headerGraphSelectorCyclesViews() {
-        var viewMode: String? = null
+        var viewMode: ViewMode? = null
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = "HOURLY"),
+                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -398,13 +398,13 @@ class DesktopUiTest {
 
         // HOURLY -> click selector -> CLOUD_COVER
         composeTestRule.onNodeWithTag("graph_selector").performClick()
-        assertEquals("CLOUD_COVER", viewMode)
+        assertEquals(ViewMode.CLOUD_COVER, viewMode)
 
         // Reset and check CLOUD_COVER -> PRECIPITATION
         viewMode = null
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = "CLOUD_COVER"),
+                config = stubConfig.copy(viewMode = ViewMode.CLOUD_COVER),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -414,13 +414,13 @@ class DesktopUiTest {
             )
         }
         composeTestRule.onNodeWithTag("graph_selector").performClick()
-        assertEquals("PRECIPITATION", viewMode)
+        assertEquals(ViewMode.PRECIPITATION, viewMode)
 
         // Reset and check PRECIPITATION -> HOURLY
         viewMode = null
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = "PRECIPITATION"),
+                config = stubConfig.copy(viewMode = ViewMode.PRECIPITATION),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -430,7 +430,7 @@ class DesktopUiTest {
             )
         }
         composeTestRule.onNodeWithTag("graph_selector").performClick()
-        assertEquals("HOURLY", viewMode)
+        assertEquals(ViewMode.HOURLY, viewMode)
     }
 
     @Test
@@ -505,7 +505,7 @@ class DesktopUiTest {
         // Prior zoom is ignored: both extremes snap to the day-view zoom (back + forward ≈ 24h).
         assertEquals(DesktopGraphUtils.dayViewZoomFactor, fromTightZoom.zoomFactor)
         assertEquals(DesktopGraphUtils.dayViewZoomFactor, fromWideZoom.zoomFactor)
-        assertEquals("HOURLY", fromTightZoom.viewMode)
+        assertEquals(ViewMode.HOURLY, fromTightZoom.viewMode)
 
         // The resulting window brackets the clicked day midnight→midnight. The window is
         // [center - backHours, center + forwardHours] where center = now + hourlyOffset; reconstruct

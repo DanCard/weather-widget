@@ -14,7 +14,7 @@ data class DesktopConfig(
     val lon: Double,
     val label: String,
     val weatherSource: String = "NWS",
-    val viewMode: String = "DAILY",
+    val viewMode: ViewMode = ViewMode.DAILY,
     val windowX: Float? = null,
     val windowY: Float? = null,
     val windowWidth: Float? = null,
