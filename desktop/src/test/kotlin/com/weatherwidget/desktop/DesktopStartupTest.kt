@@ -24,8 +24,7 @@ class DesktopStartupTest {
         val config = DesktopConfig(
             lat = 0.0,
             lon = 0.0,
-            label = "Test",
-            source = "Test"
+            label = "Test"
         )
         
         // This should not throw any exceptions

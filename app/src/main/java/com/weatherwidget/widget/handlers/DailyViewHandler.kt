@@ -471,6 +471,7 @@ object DailyViewHandler : WidgetViewHandler {
         displayDays: List<DailyForecastGraphRenderer.DayData>,
     ) {
         displayDays.forEachIndexed { index, day ->
+            // columnIndex is always set by DailyViewLogic; fallback to list position for safety
             val colIndex = day.columnIndex ?: index
             val iconRes = day.iconRes
             val iconName =

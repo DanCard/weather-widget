@@ -12,7 +12,6 @@ class DesktopDailyForecastModelTest {
         lat = 37.4220,
         lon = -122.0841,
         label = "Test",
-        source = "NWS",
         weatherSource = "NWS",
         dateOffset = -1
     )

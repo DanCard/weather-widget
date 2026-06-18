@@ -39,8 +39,7 @@ class DesktopUiTest {
     private val stubConfig = DesktopConfig(
         lat = 37.4220,
         lon = -122.0841,
-        label = "Mountain View",
-        source = "Manual"
+        label = "Mountain View"
     )
 
     @Test

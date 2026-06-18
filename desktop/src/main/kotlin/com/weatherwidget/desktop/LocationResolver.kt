@@ -83,7 +83,6 @@ fun ResolvedLocation.toConfig(): DesktopConfig {
         lat = lat,
         lon = lon,
         label = label,
-        source = source,
         weatherSource = if (isUs) "NWS" else "OPEN_METEO"
     )
 }

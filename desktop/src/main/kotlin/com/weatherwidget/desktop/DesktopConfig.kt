@@ -13,7 +13,6 @@ data class DesktopConfig(
     val lat: Double,
     val lon: Double,
     val label: String,
-    val source: String,
     val weatherSource: String = "NWS",
     val viewMode: String = "DAILY",
     val windowX: Float? = null,

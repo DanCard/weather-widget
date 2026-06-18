@@ -49,10 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import java.awt.Font
-import java.awt.Graphics2D
-import java.awt.RenderingHints
-import java.awt.image.BufferedImage
+
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -62,9 +59,7 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import javax.swing.SwingUtilities
 import kotlin.math.roundToInt
-import java.awt.Color as AwtColor
-import dorkbox.systemTray.SystemTray
-import dorkbox.systemTray.MenuItem as TrayMenuItem
+
 
 /**
  * Desktop entry point. System-tray icon + a small frameless popup — the Linux-desktop analogue of
@@ -584,102 +579,7 @@ internal fun createTrayTextMeasurer(): TextMeasurer =
         defaultDensity = Density(1f),
     )
 
-@Composable
-private fun TemperatureSystemTray(
-    temperature: Float?,
-    dataStatus: DataStatus,
-    onShow: () -> Unit,
-    onSettings: () -> Unit,
-    onStatistics: () -> Unit,
-    onUpdateLocation: () -> Unit,
-    onQuit: () -> Unit,
-) {
-    Log.i("Main", "Initializing SystemTray...")
-    val tray = remember {
-        try {
-            SystemTray.get()
-        } catch (e: Throwable) {
-            // Note: GTK errors often cause a hard abort that try-catch cannot stop,
-            // but logging before/after helps isolate the cause.
-            Log.e("Main", "Failed to initialize SystemTray: $e")
-            null
-        }
-    }
-    if (tray == null) {
-        Log.w("Main", "SystemTray is NOT supported or failed to initialize on this system.")
-        return
-    }
 
-    DisposableEffect(Unit) {
-        tray.setImage(createTemperatureTrayImage(temperature))
-        tray.setStatus(temperature?.let { formatTrayTemperature(it) + "°" } ?: "Weather Widget")
-        
-        tray.menu.apply {
-            add(TrayMenuItem("Show") { onShow() })
-            add(TrayMenuItem("Forecast Accuracy") { onStatistics() })
-            add(TrayMenuItem("Settings") { onSettings() })
-            add(TrayMenuItem("Update location...") { onUpdateLocation() })
-            add(TrayMenuItem("Quit") { onQuit() })
-        }
-
-        onDispose {
-            tray.shutdown()
-            Log.i("Main", "TrayIcon removed from SystemTray.")
-        }
-    }
-
-    LaunchedEffect(temperature, dataStatus) {
-        tray.setImage(createTemperatureTrayImage(temperature))
-        tray.setStatus(temperature?.let { formatTrayTemperature(it) + "°" } ?: "Weather Widget")
-        val suffix = if (dataStatus is DataStatus.Stale) " (offline)" else ""
-        tray.setTooltip(temperature?.let { "Weather Widget: ${formatTrayTemperature(it)}°$suffix" } ?: "Weather Widget")
-    }
-}
-
-private fun createTemperatureTrayImage(temperature: Float?): BufferedImage {
-    val size = 64
-    // TYPE_INT_RGB (opaque) so the background is guaranteed not to be white-on-white on tray
-    // hosts that drop the alpha channel (some Linux AppIndicator implementations, older
-    // Windows shells). A solid black background with yellow text stays legible everywhere.
-    val image = BufferedImage(size, size, BufferedImage.TYPE_INT_RGB)
-    val graphics = image.createGraphics()
-    try {
-        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-        graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON)
-
-        graphics.color = AwtColor.BLACK
-        graphics.fillRect(0, 0, size, size)
-
-        val text = temperature?.let { formatTrayTemperature(it) } ?: "--"
-        graphics.color = AwtColor.YELLOW // High contrast yellow
-
-        // We use a large base font size and then scale it to fit the square perfectly.
-        // This makes the text "fat" or "squashed" to use every available pixel.
-        val baseFontSize = 64
-        graphics.font = Font(Font.SANS_SERIF, Font.BOLD, baseFontSize)
-        val metrics = graphics.fontMetrics
-        val textWidth = metrics.stringWidth(text)
-        val textHeight = metrics.ascent + metrics.descent
-
-        graphics.translate(size / 2.0, size / 2.0)
-        graphics.rotate(Math.toRadians(90.0))
-
-        // Scale the text so it fills the 64x64 square exactly.
-        // sideways width (size) / textWidth
-        // sideways height (size) / textHeight
-        val scaleX = size.toDouble() / textWidth
-        val scaleY = size.toDouble() / textHeight
-        
-        // Apply scaling (limiting to a reasonable max to avoid extreme distortion if text is very short)
-        graphics.scale(scaleX.coerceAtMost(2.0), scaleY.coerceAtMost(2.0))
-
-        graphics.drawString(text, -textWidth / 2, (metrics.ascent - metrics.descent) / 2)
-    } finally {
-        graphics.dispose()
-    }
-    return image
-}
 
 @Composable
 internal fun WidgetPopup(
@@ -1241,17 +1141,7 @@ private fun DailyForecastTextMode(
     }
 }
 
-@Composable
-private fun ViewModeChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelSmall,
-        color = if (selected) Color.White else Color.White.copy(alpha = 0.35f),
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 2.dp)
-    )
-}
+
 
 @Composable
 private fun CenteredMessage(text: String) {
