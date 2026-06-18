@@ -638,6 +638,9 @@ object DailyViewHandler : WidgetViewHandler {
         dailyActuals: DailyActualMap,
         displaySource: WeatherSource,
     ): Set<LocalDate> {
+        // GENERIC_GAP (climate normals) is included so users can navigate to far-future dates
+        // (> today+2) where the display source has no forecast. These render as climate-normal
+        // bars in the graph. Closer dates still require the display source (see weatherByDate).
         val renderableForecastDates = weatherList
             .asSequence()
             .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
