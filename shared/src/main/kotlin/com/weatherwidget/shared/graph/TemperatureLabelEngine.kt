@@ -182,6 +182,8 @@ object TemperatureLabelEngine {
         val labelHeight = metrics.height
         val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = false)
 
+        Log.d(TAG, "EngineInput: heightPx=$heightPx widthPx=$widthPx fetchDotX=${fetchDotX?.let { String.format("%.1f", it) }} transitionX=${transitionX?.let { String.format("%.1f", it) }} labelHeight=${String.format("%.1f", labelHeight)} hardBounds=${reservedHardBounds.map { "(${String.format("%.1f", it.left)},${String.format("%.1f", it.top)},${String.format("%.1f", it.right)},${String.format("%.1f", it.bottom)})" }}")
+
         for (candidate in candidates) {
             val idx = candidate.index
             val temps = candidate.labelTemps
@@ -336,10 +338,25 @@ object TemperatureLabelEngine {
                     val allowFlippedAboveCurveGraze = flipDecided && placeAbove && curveAvoidanceEligible
                     val overlapsCurve = curveAvoidanceEligible && !curveIntrusion.isEmpty && !allowFlippedAboveCurveGraze && !isCurveAvoidanceExempt && !curveWithinDip
 
-                    // Hard obstacles (fetch-dot value/age labels) are never softened by minor-overlap.
+                    // Hard obstacles (fetch-dot value/age labels) tolerate the SAME minor (whitespace-
+                    // level) overlap as placed labels: a label rect is built from full font
+                    // ascent/descent, so a sub-budget overlap is empty leading, not glyph ink. This
+                    // lets e.g. a NOW-valley ACTUAL_LOW hug its valley instead of dropping a full
+                    // label-height with a long leader. A real overlap still exceeds the budget, so a
+                    // forecast LOW landing squarely on the dot value still flips above (260612).
                     val overlapsHard = reservedHardBounds.any { it.intersects(bounds) }
+                    val hardOverlap = if (overlapsHard) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, reservedHardBounds) else 0f
+                    val allowMinorHardOverlap = overlapsHard && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, hardOverlap, labelHeight)
 
-                    val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve || overlapsHard
+                    val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve || (overlapsHard && !allowMinorHardOverlap)
+
+                    if (hasCollision && shouldLogPlacement(candidate.role)) {
+                        Log.d(TAG, "PlaceReject: role=${candidate.role} idx=$idx step=$step above=$placeAbove " +
+                            "blocker=[label=$overlapsLabel/${String.format("%.1f", labelOverlap)}(minorOK=$allowMinorLabelOverlap) " +
+                            "icon=$overlapsIcon/${String.format("%.1f", iconOverlap)}(minorOK=$allowMinorIconOverlap) " +
+                            "hard=$overlapsHard/${String.format("%.1f", hardOverlap)}(minorOK=$allowMinorHardOverlap) " +
+                            "curve=$overlapsCurve] bounds=(${String.format("%.1f", bounds.top)},${String.format("%.1f", bounds.bottom)})")
+                    }
 
                     if (hasCollision && !placeAbove && geometry.isValley && step == 0 && !flipDecided) {
                         val outcome = tryValleyBelowCascade(
@@ -397,6 +414,9 @@ object TemperatureLabelEngine {
                     if (!hasCollision) {
                         val drawLeader = step > 0
                         val lineEndY = if (!placeAbove) bounds.top else bounds.bottom
+                        if (shouldLogPlacement(candidate.role)) {
+                            Log.d(TAG, "PlaceAccept: role=${candidate.role} idx=$idx step=$step above=$placeAbove leader=$drawLeader hardOverlap=${String.format("%.1f", hardOverlap)} allowMinorHardOverlap=$allowMinorHardOverlap")
+                        }
                         resultPlacements.add(
                             PlacedLabel(
                                 index = idx,
@@ -614,11 +634,14 @@ object TemperatureLabelEngine {
         val labelOverlapPx = if (baseOverlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, drawnLabelBoundsList) else 0f
         val iconOverlapPx = if (baseOverlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, drawnIconBounds) else 0f
         val iconOverlapRatio = if (!placeAbove && geometry.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
+        val hardOverlapPx = if (baseOverlapsHard) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, reservedHardBounds) else 0f
         val allowMinorLabelOverlap = baseOverlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlapPx, labelHeight)
         val allowMinorIconOverlap = baseOverlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlapPx <= labelHeight * iconOverlapRatio
-        // Hard obstacles (fetch-dot value/age labels) are never softened: a hit blocks this
-        // direction outright, so the caller tries the opposite side (flip above the curve).
-        val effectiveLabelBlocker = (baseOverlapsLabel && !allowMinorLabelOverlap) || baseOverlapsHard
+        // Hard obstacles (fetch-dot value/age labels) tolerate the same minor (whitespace-level)
+        // overlap as placed labels, so the pre-pass does not pre-emptively reject the below direction
+        // for a sub-budget hit; a real (> budget) overlap still blocks and the caller flips above.
+        val allowMinorHardOverlap = baseOverlapsHard && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, hardOverlapPx, labelHeight)
+        val effectiveLabelBlocker = (baseOverlapsLabel && !allowMinorLabelOverlap) || (baseOverlapsHard && !allowMinorHardOverlap)
         val effectiveIconBlocker = baseOverlapsIcon && !allowMinorIconOverlap
 
         Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", geometry.sy)} baseBounds=(${baseBounds.left},${baseBounds.top},${baseBounds.right},${baseBounds.bottom}) intrusion=${if (intrusion.isEmpty) "none" else "minY=${String.format("%.1f", intrusion.minY)} maxY=${String.format("%.1f", intrusion.maxY)}"} labelBlocker=$effectiveLabelBlocker iconBlocker=$effectiveIconBlocker hardBlocker=$baseOverlapsHard allowedDip=${String.format("%.1f", CURVE_AVOIDANCE_ALLOWED_DIP_DP * density)}")
