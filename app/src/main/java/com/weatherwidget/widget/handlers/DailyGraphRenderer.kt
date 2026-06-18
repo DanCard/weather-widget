@@ -9,14 +9,13 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
-import com.weatherwidget.widget.HeaderConstants
-import com.weatherwidget.widget.HeaderPrecipCalculator
-import com.weatherwidget.widget.WidgetPerfLogger
-import com.weatherwidget.widget.WidgetSizeCalculator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
@@ -151,7 +150,7 @@ internal object DailyGraphRenderer {
         val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(ctx.context, dimensions.widthDp, dimensions.heightDp)
         val dateText = if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS) ctx.today.format(DailyViewHandler.headerDateFormatter) else null
 
-        val graphRefreshDecisions = MissingDataRefreshHelper.computeMissingDataRefreshes(
+        val graphRefreshDecisions = computeMissingDataRefreshes(
             today = ctx.today,
             displaySource = ctx.displaySource,
             dailyActuals = ctx.dailyActuals,
@@ -324,7 +323,7 @@ internal object DailyGraphRenderer {
         appWidgetId: Int,
         today: LocalDate,
         displaySource: WeatherSource,
-        forecastWeather: com.weatherwidget.data.local.ForecastEntity?,
+        forecastWeather: ForecastEntity?,
         dailyActual: DailyExtreme?,
         todayDay: DailyForecastGraphRenderer.DayData,
         currentTemp: Float?,

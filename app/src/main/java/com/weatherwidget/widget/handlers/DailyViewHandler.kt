@@ -42,10 +42,6 @@ import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.withContext
-import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 import java.time.Instant
 import java.time.LocalDate
@@ -794,26 +790,6 @@ object DailyViewHandler : WidgetViewHandler {
         } else {
             views.setViewVisibility(ids.rain, View.GONE)
         }
-    }
-
-    private fun setupGraphZoneClickHandlers(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-        now: LocalDateTime,
-        days: List<DailyForecastGraphRenderer.DayData>,
-        lat: Double,
-        lon: Double,
-        displaySource: WeatherSource,
-        numColumns: Int,
-        zoneIds: List<Int>,
-        requestCodeOffset: Int = 0,
-        resolveTargetMode: ((Int?) -> ViewMode)? = null,
-    ) {
-        DailyClickHandlerFactory.setupGraphZoneClickHandlers(
-            context, views, appWidgetId, now, days, lat, lon, displaySource,
-            numColumns, zoneIds, requestCodeOffset, resolveTargetMode,
-        )
     }
 
     private suspend fun renderTextMode(

@@ -55,7 +55,7 @@ class DailyViewHandlerUnitTest {
             .toInstant()
             .toEpochMilli()
 
-        val message = DailyViewHandler.buildTodayHighProvenanceMessage(
+        val message = DailyGraphRenderer.buildTodayHighProvenanceMessage(
             appWidgetId = 74,
             today = today,
             displaySource = WeatherSource.NWS,
