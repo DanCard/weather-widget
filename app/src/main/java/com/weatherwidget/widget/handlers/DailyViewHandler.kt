@@ -1062,28 +1062,30 @@ object DailyViewHandler : WidgetViewHandler {
                 "DEBUG"
             )
             withContext(Dispatchers.IO) {
-                val todaySourceObservations = loadTodaySourceObservations(
-                    database = database,
-                    today = ctx.today,
-                    lat = lat,
-                    lon = lon,
-                    displaySource = ctx.displaySource,
-                )
-                ctx.appLogDao.log(
-                    "TODAY_HIGH_PROVENANCE",
-                    buildTodayHighProvenanceMessage(
-                        appWidgetId = ctx.appWidgetId,
+                if (Log.isLoggable(TAG, Log.DEBUG)) {
+                    val todaySourceObservations = loadTodaySourceObservations(
+                        database = database,
                         today = ctx.today,
+                        lat = lat,
+                        lon = lon,
                         displaySource = ctx.displaySource,
-                        forecastWeather = ctx.weatherByDate[ctx.today],
-                        dailyActual = todayActual,
-                        todayDay = todayDay,
-                        currentTemp = ctx.currentTemp,
-                        observedAt = ctx.observedAt,
-                        observations = todaySourceObservations,
-                    ),
-                    "DEBUG",
-                )
+                    )
+                    ctx.appLogDao.log(
+                        "TODAY_HIGH_PROVENANCE",
+                        buildTodayHighProvenanceMessage(
+                            appWidgetId = ctx.appWidgetId,
+                            today = ctx.today,
+                            displaySource = ctx.displaySource,
+                            forecastWeather = ctx.weatherByDate[ctx.today],
+                            dailyActual = todayActual,
+                            todayDay = todayDay,
+                            currentTemp = ctx.currentTemp,
+                            observedAt = ctx.observedAt,
+                            observations = todaySourceObservations,
+                        ),
+                        "DEBUG",
+                    )
+                }
             }
         }
 
