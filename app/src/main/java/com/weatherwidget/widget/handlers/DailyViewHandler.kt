@@ -282,7 +282,10 @@ object DailyViewHandler : WidgetViewHandler {
                         // (Today's incomplete-source recovery lives in DailyViewLogic / DailyActualsEstimator.)
                         preferred
                     }
-                    chosen?.let { date to it }
+                    chosen?.let { date to it } ?: run {
+                        Log.d(TAG, "weatherByDate: dropping date=$date (no renderable source, allowGapFallback=$allowGapFallback, items=${items.map { it.source }})")
+                        null
+                    }
                 }
                 .toMap()
 
