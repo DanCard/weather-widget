@@ -346,7 +346,9 @@ object TemperatureLabelEngine {
                     // forecast LOW landing squarely on the dot value still flips above (260612).
                     val overlapsHard = reservedHardBounds.any { it.intersects(bounds) }
                     val hardOverlap = if (overlapsHard) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, reservedHardBounds) else 0f
-                    val allowMinorHardOverlap = overlapsHard && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, hardOverlap, labelHeight)
+                    val allowMinorHardOverlap = overlapsHard &&
+                        GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, hardOverlap, labelHeight) &&
+                        GraphLabelPlacementUtils.hardOverlapIsSideOnly(bounds, reservedHardBounds)
 
                     val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve || (overlapsHard && !allowMinorHardOverlap)
 
@@ -640,7 +642,9 @@ object TemperatureLabelEngine {
         // Hard obstacles (fetch-dot value/age labels) tolerate the same minor (whitespace-level)
         // overlap as placed labels, so the pre-pass does not pre-emptively reject the below direction
         // for a sub-budget hit; a real (> budget) overlap still blocks and the caller flips above.
-        val allowMinorHardOverlap = baseOverlapsHard && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, hardOverlapPx, labelHeight)
+        val allowMinorHardOverlap = baseOverlapsHard &&
+            GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, hardOverlapPx, labelHeight) &&
+            GraphLabelPlacementUtils.hardOverlapIsSideOnly(baseBounds, reservedHardBounds)
         val effectiveLabelBlocker = (baseOverlapsLabel && !allowMinorLabelOverlap) || (baseOverlapsHard && !allowMinorHardOverlap)
         val effectiveIconBlocker = baseOverlapsIcon && !allowMinorIconOverlap
 

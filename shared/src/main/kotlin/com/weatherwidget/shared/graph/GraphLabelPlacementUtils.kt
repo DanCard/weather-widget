@@ -313,6 +313,18 @@ object GraphLabelPlacementUtils {
         labelHeight: Float
     ): Boolean = isMinorOverlapEligible(role) && overlapHeight <= labelHeight * MINOR_OVERLAP_HEIGHT_RATIO
 
+    /**
+     * A within-budget vertical overlap is only safe whitespace when the label sits BESIDE the
+     * obstacle, not on top of it. Two labels at (nearly) the same x — e.g. a valley forecast LOW
+     * head-on with the fetch-dot value label — collide glyph-on-glyph even when the vertical overlap
+     * is "minor" (the "631°" garble). Treat the overlap as minor-eligible only when the label's
+     * center-x falls OUTSIDE every intersecting obstacle's x-span (the label is to one side).
+     */
+    fun hardOverlapIsSideOnly(bounds: GraphRect, hardBounds: List<GraphRect>): Boolean {
+        val cx = (bounds.left + bounds.right) / 2f
+        return hardBounds.none { it.intersects(bounds) && cx >= it.left && cx <= it.right }
+    }
+
     fun maxVerticalOverlap(
         bounds: GraphRect,
         existingBounds: List<GraphRect>,
