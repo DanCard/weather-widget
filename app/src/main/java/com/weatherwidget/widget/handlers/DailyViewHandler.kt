@@ -108,6 +108,7 @@ object DailyViewHandler : WidgetViewHandler {
         val appLogDao: AppLogDao,
         val isIconWidth: Boolean,
         val sunInfo: SunInfo,
+        val database: WeatherDatabase,
     )
 
     private data class DayIds(
@@ -180,7 +181,8 @@ object DailyViewHandler : WidgetViewHandler {
         // Get the current display source for this widget
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val dailyActuals = dailyActualsBySource[displaySource.id].orEmpty()
-        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+        val database = WeatherDatabase.getDatabase(context)
+        val appLogDao = database.appLogDao()
 
         val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
@@ -206,6 +208,7 @@ object DailyViewHandler : WidgetViewHandler {
         // the daily view also fetches the missing NWS observations and recomputes the cache.
         maybeBackfillIncompleteHistory(
             context = context,
+            database = database,
             repository = repository,
             stateManager = stateManager,
             appWidgetId = appWidgetId,
@@ -377,6 +380,7 @@ object DailyViewHandler : WidgetViewHandler {
             appLogDao = appLogDao,
             isIconWidth = isIconWidth,
             sunInfo = sunInfo,
+            database = database,
         )
 
         if (useGraph) {
@@ -410,6 +414,7 @@ object DailyViewHandler : WidgetViewHandler {
             for (decision in textRefreshDecisions) {
                 requestMissingDataRefresh(
                     context = context,
+                    appLogDao = appLogDao,
                     stateManager = stateManager,
                     appWidgetId = appWidgetId,
                     displaySource = displaySource,
@@ -498,6 +503,7 @@ object DailyViewHandler : WidgetViewHandler {
      */
     private suspend fun maybeBackfillIncompleteHistory(
         context: Context,
+        database: WeatherDatabase,
         repository: WeatherRepository?,
         stateManager: WidgetStateManager,
         appWidgetId: Int,
@@ -517,7 +523,7 @@ object DailyViewHandler : WidgetViewHandler {
         val observations = repository.getObservationsInRange(minEpoch, maxEpoch, lat, lon)
         maybeEnqueueHourlyObservationBackfill(
             context = context,
-            database = WeatherDatabase.getDatabase(context),
+            database = database,
             stateManager = stateManager,
             appWidgetId = appWidgetId,
             displaySource = displaySource,
@@ -530,6 +536,7 @@ object DailyViewHandler : WidgetViewHandler {
 
     private suspend fun requestMissingDataRefresh(
         context: Context,
+        appLogDao: AppLogDao,
         stateManager: WidgetStateManager,
         appWidgetId: Int,
         displaySource: WeatherSource,
@@ -544,7 +551,7 @@ object DailyViewHandler : WidgetViewHandler {
             return
         }
         stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, refreshType)
-        WeatherDatabase.getDatabase(context).appLogDao().log(logTag, message, "INFO")
+        appLogDao.log(logTag, message, "INFO")
         WeatherWidgetProvider.triggerImmediateUpdate(
             context = context,
             forceRefresh = forceRefresh,
@@ -999,7 +1006,6 @@ object DailyViewHandler : WidgetViewHandler {
         lat: Double,
         lon: Double,
     ): RenderMetrics {
-        val database = WeatherDatabase.getDatabase(ctx.context)
         val todayStr = ctx.today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val isIconWidth = dimensions.isIconWidth
         val formattedTemp = headerState.formattedTemp
@@ -1064,7 +1070,7 @@ object DailyViewHandler : WidgetViewHandler {
             withContext(Dispatchers.IO) {
                 if (Log.isLoggable(TAG, Log.DEBUG)) {
                     val todaySourceObservations = loadTodaySourceObservations(
-                        database = database,
+                        database = ctx.database,
                         today = ctx.today,
                         lat = lat,
                         lon = lon,
@@ -1118,6 +1124,7 @@ object DailyViewHandler : WidgetViewHandler {
         for (decision in graphRefreshDecisions) {
             requestMissingDataRefresh(
                 context = ctx.context,
+                appLogDao = ctx.appLogDao,
                 stateManager = ctx.stateManager,
                 appWidgetId = ctx.appWidgetId,
                 displaySource = ctx.displaySource,
