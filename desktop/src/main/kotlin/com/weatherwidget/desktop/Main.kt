@@ -497,14 +497,15 @@ private fun runApp() = application {
             LaunchedEffect(windowState.position, windowState.size) {
                 kotlinx.coroutines.delay(1000)
                 val pos = windowState.position
+                val latestConfig = config ?: return@LaunchedEffect
                 if (pos is WindowPosition.Absolute) {
-                    val newConfig = currentConfig.copy(
+                    val newConfig = latestConfig.copy(
                         windowX = pos.x.value,
                         windowY = pos.y.value,
                         windowWidth = windowState.size.width.value,
                         windowHeight = windowState.size.height.value
                     )
-                    if (newConfig != currentConfig) {
+                    if (newConfig != latestConfig) {
                         saveConfigAndNotify(newConfig)
                     }
                 }
