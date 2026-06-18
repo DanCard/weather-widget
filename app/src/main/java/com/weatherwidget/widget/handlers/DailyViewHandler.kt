@@ -26,6 +26,7 @@ import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.NavigationUtils
+import com.weatherwidget.util.SunInfo
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
@@ -106,6 +107,7 @@ object DailyViewHandler : WidgetViewHandler {
         val stateManager: WidgetStateManager,
         val appLogDao: AppLogDao,
         val isIconWidth: Boolean,
+        val sunInfo: SunInfo,
     )
 
     private data class DayIds(
@@ -275,6 +277,8 @@ object DailyViewHandler : WidgetViewHandler {
                 }
                 .toMap()
 
+        val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
+
         val headerResolution = resolveAndBindHeader(
             context = context,
             views = views,
@@ -294,6 +298,7 @@ object DailyViewHandler : WidgetViewHandler {
             numRows = numRows,
             useGraph = useGraph,
             smoothedForecasts = smoothedForecasts,
+            sunInfo = sunInfo,
         )
 
         val currentTemp = headerResolution.state.currentTemp
@@ -371,6 +376,7 @@ object DailyViewHandler : WidgetViewHandler {
             stateManager = stateManager,
             appLogDao = appLogDao,
             isIconWidth = isIconWidth,
+            sunInfo = sunInfo,
         )
 
         if (useGraph) {
@@ -1142,13 +1148,12 @@ object DailyViewHandler : WidgetViewHandler {
         )
         logGraphDayIconDetails(ctx.context, ctx.appWidgetId, displayDays)
 
-        val graphSunInfo = SunPositionUtils.getSunInfo(ctx.now, lat, lon)
         val isNightPrecip = ctx.precipProb != null && HeaderPrecipCalculator.isNext8HourPrecipPredominantlyNight(
             hourlyForecasts = ctx.hourlyForecasts,
             displaySource = ctx.displaySource,
             referenceTime = ctx.now,
-            sunriseHour = graphSunInfo.sunTimes.sunriseHour,
-            sunsetHour = graphSunInfo.sunTimes.sunsetHour,
+            sunriseHour = ctx.sunInfo.sunTimes.sunriseHour,
+            sunsetHour = ctx.sunInfo.sunTimes.sunsetHour,
         )
         val headerRenderData = if (disclosure != HeaderDisclosureLevel.NONE) {
             DailyForecastGraphRenderer.HeaderRenderData(
@@ -1268,6 +1273,7 @@ object DailyViewHandler : WidgetViewHandler {
         numRows: Int,
         useGraph: Boolean,
         smoothedForecasts: Map<Long, Float>?,
+        sunInfo: SunInfo,
     ): HeaderResolution {
         val resolution = resolveHeaderState(
             context = context,
@@ -1287,6 +1293,7 @@ object DailyViewHandler : WidgetViewHandler {
             numRows = numRows,
             useGraph = useGraph,
             smoothedForecasts = smoothedForecasts,
+            sunInfo = sunInfo,
         )
         bindHeaderState(
             context = context,
@@ -1317,6 +1324,7 @@ object DailyViewHandler : WidgetViewHandler {
         numRows: Int,
         useGraph: Boolean,
         smoothedForecasts: Map<Long, Float>?,
+        sunInfo: SunInfo,
     ): HeaderResolution {
         val today = now.toLocalDate()
         val isIconWidth = dimensions.isIconWidth
@@ -1326,7 +1334,6 @@ object DailyViewHandler : WidgetViewHandler {
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
         )
-        val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
         val iconRes =
             if (todayHeaderForecast != null) {
                 WeatherIconMapper.getIconResource(
