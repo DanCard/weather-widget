@@ -13,7 +13,7 @@ import java.time.ZoneOffset
  *
  * A reserved hard bound (the fetch-dot value/age label) is no longer an *absolute* blocker: a label
  * may take the SAME minor (whitespace-level) overlap with it that the engine already tolerates for
- * placed labels — `shouldAllowMinorOverlap(role, overlap, MINOR_OVERLAP_HEIGHT_RATIO=0.45)`. So a
+ * placed labels — `shouldAllowMinorOverlap(role, overlap, MINOR_OVERLAP_HEIGHT_RATIO=0.30)`. So a
  * valley low whose just-below slot only grazes the hard bound hugs its valley at step 0 (no leader)
  * instead of dropping a full label-height. A real (> budget) overlap still blocks — preserving the
  * `260612` "631°" flip-above (guarded by TemperatureLabelFetchDotHardBoundsTest).
@@ -36,7 +36,7 @@ class TemperatureLabelHardBoundMinorOverlapTest {
             )
         }
 
-    // ascent/descent give labelHeight = descent - ascent = 12; minor-overlap budget = 0.45*12 = 5.4px.
+    // ascent/descent give labelHeight = descent - ascent = 12; minor-overlap budget = 0.30*12 = 3.6px.
     private class TestLabelTextMetrics(
         val charWidth: Float = 6f,
         override val ascent: Float = -10f,
@@ -123,9 +123,9 @@ class TemperatureLabelHardBoundMinorOverlapTest {
         forecast[12] = 52f
         val hours = buildHours(forecast)
 
-        // Beside the label (center-x outside the bound) + ~4px vertical overlap < 5.4px budget.
+        // Beside the label (center-x outside the bound) + ~3px vertical overlap < 3.6px budget.
         // Mirrors Samsung: the 58.8 low sits to the LEFT of the fetch-dot value label.
-        val hard = belowSlotHardBound(52f, 12, hours, 300, 400, overlapPx = 4f, sideOffset = 6f)
+        val hard = belowSlotHardBound(52f, 12, hours, 300, 400, overlapPx = 3f, sideOffset = 6f)
         val placements = runEngineTest(hours, 300, 400, reservedHardBounds = listOf(hard))
         val low = placements.find { it.displayTemperature == 52f }
         assertNotNull("Low label should be placed", low)
@@ -159,7 +159,7 @@ class TemperatureLabelHardBoundMinorOverlapTest {
         forecast[12] = 52f
         val hours = buildHours(forecast)
 
-        // Beside the label but ~12px vertical overlap > 5.4px budget => still blocks the anchor slot.
+        // Beside the label but ~12px vertical overlap > 3.6px budget => still blocks the anchor slot.
         val hard = belowSlotHardBound(52f, 12, hours, 300, 400, overlapPx = 12f, sideOffset = 6f)
         val placements = runEngineTest(hours, 300, 400, reservedHardBounds = listOf(hard))
         val low = placements.find { it.displayTemperature == 52f }

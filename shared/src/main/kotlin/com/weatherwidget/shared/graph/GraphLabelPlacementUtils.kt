@@ -291,7 +291,7 @@ object GraphLabelPlacementUtils {
         )
     }
 
-    const val MINOR_OVERLAP_HEIGHT_RATIO = 0.45f
+    const val MINOR_OVERLAP_HEIGHT_RATIO = 0.30f
     const val MINOR_OVERLAP_ICON_RATIO = 0.85f
     const val VALLEY_HORIZONTAL_SHIFT_FRACTION = 0.5f
     const val VALLEY_BELOW_LABEL_OVERLAP_RATIO = 0.65f
