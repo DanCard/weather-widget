@@ -67,7 +67,9 @@ import kotlin.math.roundToInt
  */
 private const val APP_PACKAGE = "weather-widget-desktop"
 private const val TAG = "Main"
+/** 30 days × 24 hours = 720 hours. Maximum pannable depth into the past. */
 private const val MIN_HOURLY_OFFSET = -720
+/** 30 days × 24 hours = 720 hours. Maximum pannable depth into the future. */
 private const val MAX_HOURLY_OFFSET = 720
 
 /**
@@ -266,6 +268,7 @@ private fun runApp() = application {
         LaunchedEffect(anyWindowOpen) {
             if (!anyWindowOpen) {
                 Log.i(TAG, "All windows closed. Ephemeral UI process exiting...")
+                // Grace period for Compose/EDT teardown before hard exit.
                 kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
                     Thread.sleep(400)
                     kotlin.system.exitProcess(0)
@@ -456,7 +459,7 @@ private fun runApp() = application {
                 }
             ) {
                 SettingsWindow(
-                    config = config!!,
+                    config = config!!, // guarded by `config != null` in outer if
                     onClose = { settingsVisible = false },
                     onSave = { newConfig ->
                         saveConfigAndNotify(newConfig)
@@ -615,7 +618,6 @@ internal fun WidgetPopup(
                         onOpenObservations = onOpenObservations,
                         onOpenHistory = onOpenHistory,
                         onUpdateLocation = onUpdateLocation,
-                        showWeatherSummary = config.viewMode.isHourly,
                         headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
                         scale = uiScale,
                     )
@@ -909,10 +911,10 @@ private fun WidgetHeader(
     onOpenObservations: () -> Unit,
     onOpenHistory: () -> Unit = {},
     onUpdateLocation: () -> Unit,
-    showWeatherSummary: Boolean = true,
     headerTime: LocalDateTime = LocalDateTime.now(),
     scale: Float = 1f,
 ) {
+    val showWeatherSummary = config.viewMode.isHourly
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
     val targetHour = remember(headerTime) { headerTime.truncatedTo(ChronoUnit.HOURS) }
 

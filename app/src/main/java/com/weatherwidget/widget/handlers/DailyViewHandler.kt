@@ -80,15 +80,15 @@ object DailyViewHandler : WidgetViewHandler {
     private const val HISTORY_BACKFILL_VISIBLE_DAYS = 3L
     // Log tags for diagnostic database entries
     private const val LOG_TAG_WIDGET_ACTUAL = "WIDGET_ACTUAL"
-    private const val LOG_TAG_TODAY_BAR_DEBUG = "TODAY_BAR_DEBUG"
-    private const val LOG_TAG_TODAY_HIGH_PROVENANCE = "TODAY_HIGH_PROVENANCE"
+    internal const val LOG_TAG_TODAY_BAR_DEBUG = "TODAY_BAR_DEBUG"
+    internal const val LOG_TAG_TODAY_HIGH_PROVENANCE = "TODAY_HIGH_PROVENANCE"
     private const val LOG_TAG_DAILY_RENDER = "DAILY_RENDER"
     private const val LOG_TAG_DAILY_RENDER_EMPTY = "DAILY_RENDER_EMPTY"
     // Locale captured at class-load time is safe: Android restarts the process on locale change,
     // which re-initializes this singleton with the new default locale.
-    private val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
+    internal val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
 
-    private class DailyRenderContext(
+    internal class DailyRenderContext(
         val context: Context,
         val views: RemoteViews,
         val appWidgetId: Int,
@@ -393,12 +393,11 @@ object DailyViewHandler : WidgetViewHandler {
         )
 
         if (useGraph) {
-            val metrics = renderGraphMode(
+            val metrics = DailyGraphRenderer.render(
                 ctx = ctx,
                 headerState = headerResolution.state,
                 headerPrecipPlacement = headerResolution.precipPlacement,
                 dimensions = dimensions,
-                appWidgetManager = appWidgetManager,
                 startupToken = startupToken,
                 resolveMs = resolveMs,
                 lat = lat,
@@ -465,30 +464,6 @@ object DailyViewHandler : WidgetViewHandler {
         )
     }
 
-    private fun logGraphDayIconDetails(
-        context: Context,
-        appWidgetId: Int,
-        displayDays: List<DailyForecastGraphRenderer.DayData>,
-    ) {
-        displayDays.forEachIndexed { index, day ->
-            // columnIndex is always set by DailyViewLogic; fallback to list position for safety
-            val colIndex = day.columnIndex ?: index
-            val iconRes = day.iconRes
-            val iconName =
-                iconRes?.let {
-                    runCatching { context.resources.getResourceEntryName(it) }.getOrNull()
-                } ?: "null"
-            Log.d(
-                TAG,
-                "graphDay widget=$appWidgetId col=${colIndex + 1} date=${day.date} " +
-                    "isToday=${day.isToday} iconRes=$iconRes iconName=$iconName " +
-                    "isRainy=${iconRes?.let(WeatherIconMapper::isPrecipitation) ?: false} " +
-                    "isCloudEligible=${iconRes?.let(WeatherIconMapper::isCloudForecastEligible) ?: false} " +
-                    "hasRainForecast=${day.rainData.hasRainForecast}",
-            )
-        }
-    }
-
     /**
      * Whether the daily view should probe recent NWS observation coverage for a backfill. Only
      * NWS history is gap-fetchable, and only the recent window ([HISTORY_BACKFILL_VISIBLE_DAYS])
@@ -544,7 +519,7 @@ object DailyViewHandler : WidgetViewHandler {
         )
     }
 
-    private suspend fun requestMissingDataRefresh(
+    internal suspend fun requestMissingDataRefresh(
         context: Context,
         appLogDao: AppLogDao,
         stateManager: WidgetStateManager,
@@ -574,7 +549,7 @@ object DailyViewHandler : WidgetViewHandler {
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
     }
 
-    private suspend fun logDailyRenderSummary(
+    internal suspend fun logDailyRenderSummary(
         appLogDao: AppLogDao,
         appWidgetId: Int,
         dateOffset: Int,
@@ -609,7 +584,7 @@ object DailyViewHandler : WidgetViewHandler {
      * ratio, which dates missed it (with daysFromToday), and the actual hourly window span for
      * the display source so a window/coverage gap is visible from app_logs alone.
      */
-    private fun buildCloudCoverDiagnostic(
+    internal fun buildCloudCoverDiagnostic(
         cloudDays: List<DailyForecastGraphRenderer.DayData>,
         hourlyForecasts: List<HourlyForecastEntity>?,
         displaySource: WeatherSource,
@@ -821,98 +796,6 @@ object DailyViewHandler : WidgetViewHandler {
         }
     }
 
-    private suspend fun loadTodaySourceObservations(
-        database: WeatherDatabase,
-        today: LocalDate,
-        lat: Double,
-        lon: Double,
-        displaySource: WeatherSource,
-    ): List<ObservationEntity> {
-        val zoneId = ZoneId.systemDefault()
-        val startMs = today.atStartOfDay(zoneId).toInstant().toEpochMilli()
-        val endMs = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-        return database.observationDao()
-            .getObservationsInRange(startMs, endMs, lat, lon)
-            .filter { it.api == displaySource.id && it.stationId != "NWS_BLEND" }
-    }
-
-    @VisibleForTesting
-    internal fun buildTodayHighProvenanceMessage(
-        appWidgetId: Int,
-        today: LocalDate,
-        displaySource: WeatherSource,
-        forecastWeather: ForecastEntity?,
-        dailyActual: DailyExtreme?,
-        todayDay: DailyForecastGraphRenderer.DayData,
-        currentTemp: Float?,
-        observedAt: Long?,
-        observations: List<ObservationEntity>,
-    ): String {
-        val stationMaxes = formatStationMaxes(observations)
-        val obsSpan = formatObservationSpan(observations)
-        return "widget=$appWidgetId date=$today source=${displaySource.id} " +
-            "forecastHigh=${formatTempValue(forecastWeather?.highTemp)} forecastLow=${formatTempValue(forecastWeather?.lowTemp)} " +
-            "dailyActualHigh=${formatTempValue(dailyActual?.highTemp)} dailyActualLow=${formatTempValue(dailyActual?.lowTemp)} " +
-            "currentTemp=${formatTempValue(currentTemp)} observedAt=${formatLocalTime(observedAt)} " +
-            "graphObservedHigh=${formatTempValue(todayDay.solidLineHigh)} graphObservedLow=${formatTempValue(todayDay.solidLineLow)} " +
-            "graphForecastHigh=${formatTempValue(todayDay.dashedLineHigh)} graphForecastLow=${formatTempValue(todayDay.dashedLineLow)} " +
-            "graphGhostHigh=${formatTempValue(todayDay.ghostLineHigh)} graphSnapshotHigh=${formatTempValue(todayDay.snapshotHigh)} " +
-            "obsRows=${observations.size} obsSpan=$obsSpan stationMaxes=[$stationMaxes]"
-    }
-
-    private fun formatStationMaxes(observations: List<ObservationEntity>): String {
-        if (observations.isEmpty()) return "none"
-        return observations
-            .groupBy { it.stationId }
-            .mapNotNull { (stationId, rows) ->
-                val maxRow = rows.maxByOrNull { it.temperature } ?: return@mapNotNull null
-                val minRow = rows.minByOrNull { it.temperature }
-                StationExtremeSummary(
-                    stationId = stationId,
-                    maxTemp = maxRow.temperature,
-                    maxAt = maxRow.timestamp,
-                    minTemp = minRow?.temperature,
-                    distanceKm = maxRow.distanceKm,
-                    rowCount = rows.size,
-                )
-            }
-            .sortedWith(compareByDescending<StationExtremeSummary> { it.maxTemp }.thenBy { it.distanceKm })
-            .take(6)
-            .joinToString("|") { summary ->
-                "${summary.stationId}(max=${formatTempValue(summary.maxTemp)}@${formatLocalTime(summary.maxAt)}," +
-                    "min=${formatTempValue(summary.minTemp)},n=${summary.rowCount},d=${formatDistance(summary.distanceKm)}km)"
-            }
-    }
-
-    private data class StationExtremeSummary(
-        val stationId: String,
-        val maxTemp: Float,
-        val maxAt: Long,
-        val minTemp: Float?,
-        val distanceKm: Float,
-        val rowCount: Int,
-    )
-
-    private fun formatObservationSpan(observations: List<ObservationEntity>): String {
-        if (observations.isEmpty()) return "none"
-        return "${formatLocalTime(observations.minOf { it.timestamp })}..${formatLocalTime(observations.maxOf { it.timestamp })}"
-    }
-
-    private fun formatTempValue(value: Float?): String =
-        value?.let { String.format(Locale.US, "%.2f", it) } ?: "null"
-
-    private fun formatDistance(value: Float): String =
-        String.format(Locale.US, "%.2f", value)
-
-    private fun formatLocalTime(timestampMs: Long?): String {
-        if (timestampMs == null) return "null"
-        val formatter = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.US)
-        return Instant.ofEpochMilli(timestampMs)
-            .atZone(ZoneId.systemDefault())
-            .toLocalTime()
-            .format(formatter)
-    }
-
     private fun setupGraphDayClickHandlers(
         context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
         days: List<DailyForecastGraphRenderer.DayData>, lat: Double, lon: Double, displaySource: WeatherSource,
@@ -1003,7 +886,7 @@ object DailyViewHandler : WidgetViewHandler {
         return visibleDaysInfo
     }
 
-    private data class RenderMetrics(
+    internal data class RenderMetrics(
         val prepareMs: Long,
         val renderMs: Long,
     )
@@ -1253,7 +1136,7 @@ object DailyViewHandler : WidgetViewHandler {
         return RenderMetrics(prepareMs, renderMs)
     }
 
-    private data class HeaderState(
+    internal data class HeaderState(
         val iconRes: Int,
         val currentTemp: Float?,
         val formattedTemp: String?,
