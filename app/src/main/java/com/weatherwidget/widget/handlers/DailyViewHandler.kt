@@ -78,6 +78,12 @@ object DailyViewHandler : WidgetViewHandler {
     // Only probe for incomplete-history backfill when the visible window is recent enough that
     // NWS observation history can still serve it. Older days are beyond the fetch horizon.
     private const val HISTORY_BACKFILL_VISIBLE_DAYS = 3L
+    // Log tags for diagnostic database entries
+    private const val LOG_TAG_WIDGET_ACTUAL = "WIDGET_ACTUAL"
+    private const val LOG_TAG_TODAY_BAR_DEBUG = "TODAY_BAR_DEBUG"
+    private const val LOG_TAG_TODAY_HIGH_PROVENANCE = "TODAY_HIGH_PROVENANCE"
+    private const val LOG_TAG_DAILY_RENDER = "DAILY_RENDER"
+    private const val LOG_TAG_DAILY_RENDER_EMPTY = "DAILY_RENDER_EMPTY"
     // Locale captured at class-load time is safe: Android restarts the process on locale change,
     // which re-initializes this singleton with the new default locale.
     private val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
@@ -196,7 +202,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         val yesterday = today.minusDays(1)
         val yesterdayActual = dailyActuals[yesterday]
-        appLogDao.log("WIDGET_ACTUAL",
+        appLogDao.log(LOG_TAG_WIDGET_ACTUAL,
             "date=$yesterday src=${displaySource.id} low=${yesterdayActual?.lowTemp} " +
             "allDates=${dailyActuals.keys} allSources=${dailyActualsBySource.keys}",
             "DEBUG"
@@ -580,7 +586,7 @@ object DailyViewHandler : WidgetViewHandler {
     ) {
         val mode = if (useGraph) "GRAPH" else "TEXT"
         val datesSummary = visibleDates.joinToString(",").ifEmpty { "<none>" }
-        val tag = if (visibleDates.isEmpty()) "DAILY_RENDER_EMPTY" else "DAILY_RENDER"
+        val tag = if (visibleDates.isEmpty()) LOG_TAG_DAILY_RENDER_EMPTY else LOG_TAG_DAILY_RENDER
         val cloudSummary = if (cloudDays != null) {
             " " + buildCloudCoverDiagnostic(cloudDays, hourlyForecasts, displaySource)
         } else ""
@@ -968,7 +974,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         visibleDaysInfo.find { it.isToday }?.let { todayDay ->
             ctx.appLogDao.log(
-                "TODAY_BAR_DEBUG",
+                LOG_TAG_TODAY_BAR_DEBUG,
                 "widget=${ctx.appWidgetId} mode=TEXT high=${todayDay.highLabel} low=${todayDay.lowLabel} " +
                     "fallback=${todayDay.isTodayForecastFallback}",
                 "DEBUG"
@@ -1059,7 +1065,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         days.find { it.isToday }?.let { todayDay ->
             ctx.appLogDao.log(
-                "TODAY_BAR_DEBUG",
+                LOG_TAG_TODAY_BAR_DEBUG,
                 "widget=${ctx.appWidgetId} mode=GRAPH obsHigh=${todayDay.solidLineHigh} obsLow=${todayDay.solidLineLow} " +
                     "fHigh=${todayDay.dashedLineHigh} fLow=${todayDay.dashedLineLow} " +
                     "trueHigh=${todayDay.ghostLineHigh} bStackLow=${todayDay.bottomStackLow} " +
@@ -1077,7 +1083,7 @@ object DailyViewHandler : WidgetViewHandler {
                         displaySource = ctx.displaySource,
                     )
                     ctx.appLogDao.log(
-                        "TODAY_HIGH_PROVENANCE",
+                        LOG_TAG_TODAY_HIGH_PROVENANCE,
                         buildTodayHighProvenanceMessage(
                             appWidgetId = ctx.appWidgetId,
                             today = ctx.today,
