@@ -82,6 +82,17 @@ object WeatherConditionResolver {
 
     private val SUNNY_ICONS = setOf(IC_CLEAR, IC_NIGHT, IC_MOSTLY_CLEAR, IC_HORIZON_SUN)
 
+    /**
+     * Mixed icons whose forecast-bar bottom segment is painted rain-blue rather than cloud-grey.
+     * Deliberately only "chance rain" (not "slight chance"); mirrors Android's CHANCE_RAIN_ICONS
+     * so the cloud/rain bar split is identical across platforms.
+     */
+    val CHANCE_RAIN_ICONS = setOf(
+        IC_PARTLY_CLOUDY_CHANCE_RAIN,
+        IC_PARTLY_CLOUDY_CHANCE_RAIN_NIGHT,
+        IC_CLOUDY_CHANCE_RAIN,
+    )
+
     // ── Thresholds ────────────────────────────────────────────────────────
 
     private const val FULLY_CLOUDY_THRESHOLD = 97
@@ -113,6 +124,31 @@ object WeatherConditionResolver {
     fun isRainIndicator(iconName: String): Boolean = iconName in RAIN_INDICATOR_ICONS
     fun isMixed(iconName: String): Boolean = iconName in MIXED_ICONS
     fun isCloudForecastEligible(iconName: String): Boolean = iconName in CLOUD_FORECAST_ELIGIBLE_ICONS
+    fun isChanceOfRainIcon(iconName: String): Boolean = iconName in CHANCE_RAIN_ICONS
+
+    /**
+     * Minimum measured cloud cover (%) for a provider's "partly cloudy" wording to stand as a
+     * partly-cloudy daily icon. Below this, the day is really only a few clouds → "mostly clear".
+     */
+    const val PARTLY_CLOUDY_MIN_CLOUD_COVER = 25
+
+    /**
+     * Daily-only floor: a provider's worded "partly cloudy" is necessary but NOT sufficient — it must
+     * ALSO be at least [PARTLY_CLOUDY_MIN_CLOUD_COVER]% cloudy at noon. When the measured
+     * [cloudCoverPercent] is known and below that, downgrade to the slightly-cloudy tier ("mostly
+     * clear", via [getCloudCoverIcon]). Any other icon, or a null reading, passes through unchanged.
+     *
+     * Intentionally invoked only from the daily icon path (NOT from [resolveIconName], which also
+     * drives per-hour icons) so hourly icons are untouched.
+     */
+    fun applyDailyPartlyCloudyFloor(iconName: String, cloudCoverPercent: Int?, isNight: Boolean): String {
+        val isPartlyCloudy = iconName == IC_PARTLY_CLOUDY || iconName == IC_PARTLY_CLOUDY_NIGHT
+        return if (isPartlyCloudy && cloudCoverPercent != null && cloudCoverPercent < PARTLY_CLOUDY_MIN_CLOUD_COVER) {
+            getCloudCoverIcon(isNight, cloudCoverPercent)
+        } else {
+            iconName
+        }
+    }
 
     enum class IconHome { PRECIPITATION, CLOUD_COVER, HOURLY }
 

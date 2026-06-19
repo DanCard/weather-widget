@@ -46,6 +46,7 @@ fun CloudCoverGraph(
     zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
     scale: Float = 1f,
     onViewModeChange: (ViewMode) -> Unit = {},
+    onToggleZoom: (clickedOffset: Int) -> Unit = {},
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
     onPan: (deltaHours: Int) -> Unit = {},
 ) {
@@ -63,7 +64,7 @@ fun CloudCoverGraph(
     val watermarkPainter = painterResource("drawable/ic_weather_mostly_cloudy.xml")
 
     Canvas(
-        modifier = modifier.hourlyGraphFooterTapInput(
+        modifier = modifier.hourlyGraphTapInput(
             start = start,
             cutoff = cutoff,
             nowMs = now,
@@ -73,6 +74,7 @@ fun CloudCoverGraph(
             zoomFactor = zoomFactor,
             scale = scale,
             onViewModeChange = onViewModeChange,
+            onToggleZoom = onToggleZoom,
             onZoomScroll = onZoomScroll,
             onPan = onPan,
         )

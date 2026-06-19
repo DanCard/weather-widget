@@ -70,7 +70,7 @@ object DailyForecastIconResolver {
                 if (shouldSuppressRainIcon(icon, weather.precipProbability, daysFromToday, isNight, dayPrecipProbability, nightPrecipProbability)) {
                     return WeatherIconMapper.getCloudCoverIcon(isNight, cloudCover)
                 }
-                return icon
+                return applyPartlyCloudyFloor(icon, cloudCover, isNight)
             }
         }
 
@@ -85,7 +85,23 @@ object DailyForecastIconResolver {
             return WeatherIconMapper.getCloudCoverIcon(isNight, cloudCover)
         }
 
-        return icon
+        return applyPartlyCloudyFloor(icon, cloudCover, isNight)
+    }
+
+    /**
+     * Daily-only floor (shared rule, see [WeatherConditionResolver.applyDailyPartlyCloudyFloor]):
+     * a worded "partly cloudy" must ALSO be at least the shared min cloud cover at noon, else it's
+     * really only a few clouds → downgrade to the "mostly clear" tier.
+     */
+    private fun applyPartlyCloudyFloor(icon: Int, cloudCover: Int?, isNight: Boolean): Int {
+        val isPartlyCloudy = icon == R.drawable.ic_weather_partly_cloudy ||
+            icon == R.drawable.ic_weather_partly_cloudy_night
+        return if (isPartlyCloudy && cloudCover != null &&
+            cloudCover < com.weatherwidget.shared.util.WeatherConditionResolver.PARTLY_CLOUDY_MIN_CLOUD_COVER) {
+            WeatherIconMapper.getCloudCoverIcon(isNight, cloudCover)
+        } else {
+            icon
+        }
     }
 
     internal fun shouldSuppressRainIcon(

@@ -70,13 +70,16 @@ fun Modifier.hourlyPanZoomInput(
 }
 
 /**
- * The cloud-cover and precipitation graphs share an identical Canvas input chain: [hourlyPanZoomInput]
- * plus a footer-tap handler that, when the bottom ~44dp strip is clicked, maps the clicked hour's
- * weather icon to its "home" view and fires [onViewModeChange]. (The temperature graph's tap differs —
- * it toggles zoom — so it keeps its own chain.)
+ * The single tap+pan+zoom input chain shared by all three desktop hourly graphs (Temperature,
+ * CloudCover, Precipitation): [hourlyPanZoomInput] plus a two-zone tap handler —
+ *   - **bottom ~44dp strip** → map the tapped hour's weather icon to its "home" view ([onViewModeChange]);
+ *   - **graph body** → toggle the zoom stage centered on the tapped hour ([onToggleZoom]).
+ *
+ * Keyed on start/cutoff too (not just points) so the captured time window stays fresh across hour
+ * boundaries.
  */
 @Composable
-fun Modifier.hourlyGraphFooterTapInput(
+fun Modifier.hourlyGraphTapInput(
     start: Long,
     cutoff: Long,
     nowMs: Long,
@@ -86,19 +89,25 @@ fun Modifier.hourlyGraphFooterTapInput(
     zoomFactor: Float,
     scale: Float,
     onViewModeChange: (ViewMode) -> Unit,
+    onToggleZoom: (clickedOffset: Int) -> Unit,
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit,
     onPan: (deltaHours: Int) -> Unit,
 ): Modifier = this
     .hourlyPanZoomInput(start, cutoff, nowMs, spanHours, dragHours, onZoomScroll, onPan)
-    .pointerInput(points, zoomFactor, scale) {
+    .pointerInput(points, zoomFactor, scale, start, cutoff) {
         detectTapGestures { offset ->
             if (offset.y >= size.height - 44.dp.toPx() * scale) {
+                // Bottom strip: switch the view to the tapped hour's condition home view.
                 val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
                 val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
                 val clickedPoint = points[index]
                 val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
-                val targetView = WeatherIcon.resolveIconHome(iconRes)
-                onViewModeChange(targetView)
+                onViewModeChange(WeatherIcon.resolveIconHome(iconRes))
+            } else {
+                // Graph body: quick zoom in/out toggle centered on the tapped hour.
+                val clickedTimeMs = start + (offset.x / size.width.toFloat()) * (cutoff - start)
+                val clickedOffset = ((clickedTimeMs - nowMs) / 3_600_000f).roundToInt()
+                onToggleZoom(clickedOffset)
             }
         }
     }

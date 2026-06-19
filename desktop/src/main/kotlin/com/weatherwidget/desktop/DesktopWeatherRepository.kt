@@ -91,11 +91,18 @@ class DesktopWeatherRepository(
         val observations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
             .map { it.toReading() }
 
+        // The range query returns every API's observations; the displayed current condition /
+        // "observed at" must come ONLY from the displayed source (NWS_BLEND has api=NWS, so it's
+        // correctly included for NWS and excluded for Open-Meteo/Silurian). Without this filter a
+        // non-NWS view would show an NWS blend timestamp/condition.
+        val displaySource = WeatherSource.fromDisplaySource(weatherSource)
+        val sourceObs = observations.filter { it.api == displaySource.id }
+
         // Prefer the most-recent NWS_BLEND synthetic row — it represents the IDW-weighted truth
         // across all stations. Raw station rows can have newer timestamps (from historical fetches)
         // but those are single-station readings, not the calibrated blend.
-        val newestObs = observations.filter { it.stationId == "NWS_BLEND" }.maxByOrNull { it.timestamp }
-            ?: observations.maxByOrNull { it.timestamp }
+        val newestObs = sourceObs.filter { it.stationId == "NWS_BLEND" }.maxByOrNull { it.timestamp }
+            ?: sourceObs.maxByOrNull { it.timestamp }
 
         // Freshness gate only governs whether the *current condition* is shown as observed vs forecast.
         val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }

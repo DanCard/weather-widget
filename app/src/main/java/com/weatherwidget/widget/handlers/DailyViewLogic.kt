@@ -597,30 +597,24 @@ object DailyViewLogic {
         displaySource: WeatherSource,
         weatherSourceId: String?,
     ): Float? {
-        val targetSourceId = if (weatherSourceId == WeatherSource.GENERIC_GAP.id) {
-            WeatherSource.GENERIC_GAP.id
-        } else {
-            displaySource.id
+        // Delegate to the shared single source of truth (source-filtered, GENERIC_GAP-aware) so
+        // Android and desktop compute the day's noon cloud cover identically.
+        val mapped = hourlyForecasts.map {
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = it.dateTime,
+                temperature = it.temperature,
+                condition = it.condition,
+                cloudCover = it.cloudCover,
+                source = it.source,
+            )
         }
-        val noon = date.atTime(12, 0)
-
-        val candidates = hourlyForecasts
-            .asSequence()
-            .filter { it.source == targetSourceId }
-            .mapNotNull { forecast ->
-                val localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(forecast.dateTime), ZoneId.systemDefault())
-                val cloudCover = forecast.cloudCover ?: return@mapNotNull null
-                if (localDateTime.toLocalDate() != date) return@mapNotNull null
-                Triple(abs(ChronoUnit.MINUTES.between(noon, localDateTime)), localDateTime, cloudCover)
-            }
-            .toList()
-
-        val closestCloudCover = candidates
-            .minWithOrNull(compareBy<Triple<Long, LocalDateTime, Int>> { it.first }.thenBy { it.second })
-            ?.third
-
-        val ratio = closestCloudCover?.coerceIn(0, 100)?.div(100f)
-        Log.d(TAG, "resolveNoonCloudCoverRatio: date=$date source=$targetSourceId weatherSourceId=$weatherSourceId matches=${candidates.size} closestCover=$closestCloudCover ratio=$ratio")
+        val ratio = com.weatherwidget.shared.util.DailyNoonCloudCover.resolveNoonCloudCoverRatio(
+            hourly = mapped,
+            date = date,
+            displaySourceId = displaySource.id,
+            rowSourceId = weatherSourceId,
+        )
+        Log.d(TAG, "resolveNoonCloudCoverRatio: date=$date displaySource=${displaySource.id} weatherSourceId=$weatherSourceId ratio=$ratio")
         return ratio
     }
 

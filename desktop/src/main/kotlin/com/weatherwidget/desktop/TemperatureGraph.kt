@@ -24,7 +24,6 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.input.pointer.pointerInput
 import com.weatherwidget.data.model.HourlyForecast
@@ -156,34 +155,20 @@ fun TemperatureGraph(
     if (points.size < 2) return
 
     Canvas(
-        modifier = modifier
-            .hourlyPanZoomInput(
-                start = start,
-                cutoff = cutoff,
-                nowMs = now,
-                spanHours = totalSpanHours,
-                dragHours = dragHours,
-                onZoomScroll = onZoomScroll,
-                onPanCommit = onPan,
-            )
-            .pointerInput(points, zoomFactor, scale, start, cutoff) {
-                detectTapGestures { offset ->
-                    if (offset.y >= size.height - 44.dp.toPx() * scale) {
-                        // Bottom strip: switch the view to the tapped hour's condition home view.
-                        val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
-                        val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
-                        val clickedPoint = points[index]
-                        val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
-                        val targetView = WeatherIcon.resolveIconHome(iconRes)
-                        onViewModeChange(targetView)
-                    } else {
-                        // Graph body: quick zoom in/out toggle centered on the tapped hour.
-                        val clickedTimeMs = start + (offset.x / size.width.toFloat()) * (cutoff - start)
-                        val clickedOffset = ((clickedTimeMs - now) / 3_600_000f).roundToInt()
-                        onToggleZoom(clickedOffset)
-                    }
-                }
-            }
+        modifier = modifier.hourlyGraphTapInput(
+            start = start,
+            cutoff = cutoff,
+            nowMs = now,
+            spanHours = totalSpanHours,
+            dragHours = dragHours,
+            points = points,
+            zoomFactor = zoomFactor,
+            scale = scale,
+            onViewModeChange = onViewModeChange,
+            onToggleZoom = onToggleZoom,
+            onZoomScroll = onZoomScroll,
+            onPan = onPan,
+        )
     ) {
         val windowStart = start
         val windowEnd = cutoff

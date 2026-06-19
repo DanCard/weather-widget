@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
 import java.time.Instant
 import java.time.LocalDate
@@ -39,6 +40,12 @@ data class DesktopDailyDay(
     val snapshotHigh: Float?,
     val snapshotLow: Float?,
     val iconCondition: String?,
+    /**
+     * Resolved + gated daily icon NAME (e.g. "ic_weather_mostly_clear"). Derived from [iconCondition]
+     * with the source-filtered noon cloud % threaded in and the daily partly-cloudy floor applied,
+     * so the displayed icon (and its painter/colors/tap-routing) match Android.
+     */
+    val iconName: String,
     val isToday: Boolean,
     val isPast: Boolean,
     val cloudCoverRatio: Float?,
@@ -257,6 +264,28 @@ object DesktopDailyForecastModel {
             observedNightPrecipMm = actual?.precipNightMm,
         )
 
+        // Source-filtered noon cloud cover (shared with Android) drives both the bar split ratio and
+        // the daily icon. The GENERIC_GAP exception applies only to climate-normal future days.
+        val rowSourceId = if (forecast?.isClimateNormal == true) WeatherSource.GENERIC_GAP.id else null
+        val noonCloudPercent = com.weatherwidget.shared.util.DailyNoonCloudCover.resolveNoonCloudCoverPercent(
+            hourly = hourly,
+            date = date,
+            displaySourceId = displaySourceId,
+            rowSourceId = rowSourceId,
+        )
+        val rawCondition = forecast?.condition ?: actual?.condition ?: displaySnapshot?.condition
+        // Daily icon noon is daytime (isNight = false). Thread the noon cloud % in, then apply the
+        // daily partly-cloudy floor: worded "partly cloudy" needs ≥25% noon cloud to stand.
+        val baseIconName = com.weatherwidget.shared.util.WeatherConditionResolver.resolveIconName(
+            condition = rawCondition,
+            isNight = false,
+            cloudCover = noonCloudPercent,
+            precipProbability = forecast?.precipProbability,
+        )
+        val gatedIconName = com.weatherwidget.shared.util.WeatherConditionResolver.applyDailyPartlyCloudyFloor(
+            baseIconName, noonCloudPercent, isNight = false,
+        )
+
         return DesktopDailyDay(
             date = date,
             label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
@@ -270,10 +299,11 @@ object DesktopDailyForecastModel {
             ghostHigh = ghostHigh,
             snapshotHigh = displaySnapshot?.highTemp,
             snapshotLow = displaySnapshot?.lowTemp,
-            iconCondition = forecast?.condition ?: actual?.condition ?: displaySnapshot?.condition,
+            iconCondition = rawCondition,
+            iconName = gatedIconName,
             isToday = isToday,
             isPast = isPast,
-            cloudCoverRatio = resolveNoonCloudCoverRatio(date, hourly),
+            cloudCoverRatio = noonCloudPercent?.div(100f),
             dailyRainLabelText = dailyRainLabelText,
             nightRainLabelText = nightRainLabelText,
             isClimateNormal = forecast?.isClimateNormal == true,
@@ -324,21 +354,6 @@ object DesktopDailyForecastModel {
     ): Boolean {
         val (leftmost, rightmost) = NavigationUtils.getVisibleDateRange(today, dateOffset, numColumns, skipYesterday)
         return availableDates.any { !it.isBefore(leftmost) && !it.isAfter(rightmost) }
-    }
-
-    private fun resolveNoonCloudCoverRatio(date: LocalDate, hourly: List<HourlyForecast>): Float? {
-        val noon = date.atTime(12, 0)
-        return hourly.asSequence()
-            .mapNotNull { forecast ->
-                val cloud = forecast.cloudCover ?: return@mapNotNull null
-                val local = LocalDateTime.ofInstant(Instant.ofEpochMilli(forecast.dateTime), ZoneId.systemDefault())
-                if (local.toLocalDate() != date) return@mapNotNull null
-                Triple(ChronoUnit.MINUTES.between(noon, local).let { kotlin.math.abs(it) }, local, cloud)
-            }
-            .minWithOrNull(compareBy<Triple<Long, LocalDateTime, Int>> { it.first }.thenBy { it.second })
-            ?.third
-            ?.coerceIn(0, 100)
-            ?.div(100f)
     }
 
 }

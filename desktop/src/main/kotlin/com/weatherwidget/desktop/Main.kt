@@ -99,9 +99,10 @@ internal fun dayClickConfig(
 ): DesktopConfig {
     val zoom = DesktopGraphUtils.dayViewZoomFactor
     val hours = offsetToDayCenter(clickedDate, DesktopGraphUtils.backHoursFor(zoom))
-    val clickedIcon = days.find { it.date == clickedDate }?.iconCondition
-    val targetView = clickedIcon
-        ?.let { WeatherIcon.resolveIconHome(WeatherIcon.getIconResource(it)) } ?: ViewMode.HOURLY
+    // Route on the resolved+gated icon name (matches the displayed icon), not the raw condition.
+    val clickedIconName = days.find { it.date == clickedDate }?.iconName
+    val targetView = clickedIconName
+        ?.let { WeatherIcon.resolveIconHome("drawable/$it.xml") } ?: ViewMode.HOURLY
     return config.copy(
         viewMode = targetView,
         hourlyOffset = hours,
@@ -647,6 +648,22 @@ internal fun WidgetPopup(
                                     onUpdateConfig(config.copy(hourlyOffset = newOffset))
                                 }
                             }
+                            // Body-tap zoom toggle, shared by all three hourly graphs: cycle the 3 zoom
+                            // stages (WIDE→NARROW→THREE_DAY→WIDE), matching Android, and re-center on the
+                            // tapped hour. The wheel may have moved us off a stage, so snap to the nearest
+                            // one before advancing.
+                            val handleToggleZoom: (Int) -> Unit = { clickedOffset ->
+                                val current = ZoomStage.nearestByTotalSpan(
+                                    DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor)
+                                )
+                                val next = current.next()
+                                onUpdateConfig(
+                                    config.copy(
+                                        zoomFactor = DesktopGraphUtils.zoomFactorForStage(next),
+                                        hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
+                                    )
+                                )
+                            }
                             // ←/→ pan the hourly window by the same nav-jump the arrow buttons use.
                             SideEffect {
                                 onRegisterArrowKeyHandler { left ->
@@ -679,6 +696,7 @@ internal fun WidgetPopup(
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
                                     },
+                                    onToggleZoom = handleToggleZoom,
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
                                 )
@@ -696,6 +714,7 @@ internal fun WidgetPopup(
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
                                     },
+                                    onToggleZoom = handleToggleZoom,
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
                                 )
@@ -715,21 +734,7 @@ internal fun WidgetPopup(
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
                                     },
-                                    onToggleZoom = { clickedOffset ->
-                                        // Cycle the shared 3 stages (WIDE→NARROW→THREE_DAY→WIDE), matching
-                                        // Android, and re-center on the tapped hour. The wheel may have
-                                        // moved us off a stage, so snap to the nearest one before advancing.
-                                        val current = ZoomStage.nearestByTotalSpan(
-                                            DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor)
-                                        )
-                                        val next = current.next()
-                                        onUpdateConfig(
-                                            config.copy(
-                                                zoomFactor = DesktopGraphUtils.zoomFactorForStage(next),
-                                                hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
-                                            )
-                                        )
-                                    },
+                                    onToggleZoom = handleToggleZoom,
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
                                 )

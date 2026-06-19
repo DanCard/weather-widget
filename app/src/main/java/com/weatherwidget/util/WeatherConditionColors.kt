@@ -90,14 +90,18 @@ object WeatherConditionColors {
     }
 
     internal fun resolveMixedBarSplit(iconRes: Int, cloudRatioOverride: Float? = null): MixedBarSplit? {
-        val ratio = (cloudRatioOverride ?: cloudRatio(iconRes))?.coerceIn(0f, 1f) ?: return null
-        val isRainyIcon = iconRes in CHANCE_RAIN_ICONS
-        val bottomColor = if (isRainyIcon) FORECAST_RAINY else FORECAST_CLOUDY
+        // Delegate the split math/colors to the shared single source of truth (keeps Android and
+        // desktop identical); Android only supplies its resource-ID inputs.
+        val ratio = cloudRatioOverride ?: cloudRatio(iconRes)
+        val shared = com.weatherwidget.shared.util.WeatherColors.mixedBarSplit(
+            ratio,
+            iconRes in CHANCE_RAIN_ICONS,
+        ) ?: return null
         return MixedBarSplit(
-            ratio = ratio,
-            topColor = FORECAST_SUNNY,
-            bottomColor = bottomColor,
-            topFraction = (1f - ratio).coerceIn(0f, 1f),
+            ratio = shared.ratio,
+            topColor = shared.topColorArgb,
+            bottomColor = shared.bottomColorArgb,
+            topFraction = shared.topFraction,
         )
     }
 

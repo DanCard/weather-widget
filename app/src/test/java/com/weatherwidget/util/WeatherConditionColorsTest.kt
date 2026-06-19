@@ -2,6 +2,7 @@ package com.weatherwidget.util
 
 import android.graphics.LinearGradient
 import com.weatherwidget.R
+import com.weatherwidget.shared.util.WeatherColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -102,16 +103,19 @@ class WeatherConditionColorsTest {
         assertNotNull(split)
         assertEquals(0.45f, split!!.ratio, 0.0001f)
         assertEquals(0.55f, split.topFraction, 0.0001f)
-        assertEquals(WeatherConditionColors.FORECAST_SUNNY, split.topColor)
-        assertEquals(WeatherConditionColors.FORECAST_CLOUDY, split.bottomColor)
+        // Colors come from the shared single source of truth (WeatherColors); asserting against
+        // the shared constants is meaningful even in plain JUnit, where Android's Color.parseColor
+        // stub would collapse every WeatherConditionColors.* constant to 0.
+        assertEquals(WeatherColors.FORECAST_SUNNY, split.topColor)
+        assertEquals(WeatherColors.FORECAST_CLOUDY, split.bottomColor)
     }
 
     @Test
     fun mixedChanceRainResolvesBlueBottomSplit() {
         val split = WeatherConditionColors.resolveMixedBarSplit(R.drawable.ic_weather_partly_cloudy_chance_rain, 0.66f)
         assertNotNull(split)
-        assertEquals(WeatherConditionColors.FORECAST_SUNNY, split!!.topColor)
-        assertEquals(WeatherConditionColors.FORECAST_RAINY, split.bottomColor)
+        assertEquals(WeatherColors.FORECAST_SUNNY, split!!.topColor)
+        assertEquals(WeatherColors.FORECAST_RAINY, split.bottomColor)
     }
 
     @Test

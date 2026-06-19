@@ -28,4 +28,31 @@ object WeatherColors {
             else -> FORECAST_CLOUDY
         }
     }
+
+    /**
+     * A weather-adaptive forecast bar split into a clear (gold) top and a cloud/rain bottom.
+     * Bar height encodes the temperature range; this split encodes the weather: the bottom
+     * segment's *height* is the cloud-cover [ratio] and its *color* is rain (blue) vs cloud (grey).
+     */
+    data class MixedBarSplit(
+        val ratio: Float,
+        val topColorArgb: Int,     // FORECAST_SUNNY
+        val bottomColorArgb: Int,  // FORECAST_RAINY (chance of rain) or FORECAST_CLOUDY
+        val topFraction: Float,    // 1 - ratio (height of the clear/top segment)
+    )
+
+    /**
+     * Single source of truth for the cloud/rain bar split shared by Android and desktop.
+     * Returns null when there's no cloud ratio (the caller should draw a solid bar).
+     * Each platform supplies [cloudRatio] (0..1) and [isChanceOfRain] from its own icon model.
+     */
+    fun mixedBarSplit(cloudRatio: Float?, isChanceOfRain: Boolean): MixedBarSplit? {
+        val r = (cloudRatio ?: return null).coerceIn(0f, 1f)
+        return MixedBarSplit(
+            ratio = r,
+            topColorArgb = FORECAST_SUNNY,
+            bottomColorArgb = if (isChanceOfRain) FORECAST_RAINY else FORECAST_CLOUDY,
+            topFraction = (1f - r).coerceIn(0f, 1f),
+        )
+    }
 }

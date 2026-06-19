@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -23,6 +22,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.graph.DualHighLabel
+import com.weatherwidget.shared.util.WeatherConditionResolver
 import kotlin.math.roundToInt
 
 private val COLOR_FORECAST_SUNNY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_SUNNY)
@@ -45,7 +45,9 @@ fun DailyForecastGraph(
 ) {
     val textMeasurer = rememberTextMeasurer()
     val displayDays = state.days
-    val painters = displayDays.map { painterResource(WeatherIcon.getIconResource(it.iconCondition)) }
+    // Use the pre-resolved, cloud-gated icon NAME (matches Android) rather than re-resolving the raw
+    // condition here (which would ignore the noon cloud % and the daily partly-cloudy floor).
+    val painters = displayDays.map { painterResource("drawable/${it.iconName}.xml") }
 
     if (displayDays.isEmpty()) return
 
@@ -117,8 +119,10 @@ fun DailyForecastGraph(
                     sCondColor
                 }
 
-                drawRangeLine(centerX + tripleOffset, day.forecastHigh, day.forecastLow, ::yAt, baseColor, thinWidth)
-                drawRangeLine(centerX - tripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, snapshotColor, thinWidth)
+                // Both today bars carry today's cloud-cover ratio (same day); the rain-vs-cloud
+                // bottom color follows each bar's own condition (live forecast vs 24h-prior snapshot).
+                drawAdaptiveBar(centerX + tripleOffset, day.forecastHigh, day.forecastLow, ::yAt, thinWidth, baseColor, day.cloudCoverRatio, day.iconCondition)
+                drawAdaptiveBar(centerX - tripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, thinWidth, snapshotColor, day.cloudCoverRatio, day.snapshot?.condition)
                 // The thermostat: solid red "mercury" (current temp), a faint ghost reaching up to
                 // the day's high-water mark, and a round bulb at the low end. Drawn last so the
                 // mercury and bulb sit on top of the forecast/snapshot bars.
@@ -137,14 +141,17 @@ fun DailyForecastGraph(
                     )
                 }
             } else if (day.isPast) {
-                drawRangeLine(
+                // Forecast overlay carries the cloud/rain split (matches Android's past-day overlay);
+                // the observed actual bar stays solid.
+                drawAdaptiveBar(
                     centerX = centerX + tripleOffset,
                     high = day.forecastHigh,
                     low = day.forecastLow,
                     yAt = ::yAt,
-                    // Adaptive forecast color (amber/gray/blue) to match Android's forecast overlay.
-                    color = forecastColor(day),
                     width = thinWidth,
+                    baseColor = forecastColor(day),
+                    cloudCoverRatio = day.cloudCoverRatio,
+                    iconCondition = day.iconCondition,
                 )
                 drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, barWidth * 0.72f)
             } else {
@@ -152,7 +159,7 @@ fun DailyForecastGraph(
                 val low = day.solidLow
                 if (high != null && low != null) {
                     val color = if (day.isClimateNormal) COLOR_GAP_FALLBACK else baseColor
-                    drawAdaptiveBar(centerX, yAt(high), yAt(low), barWidth, color, day.cloudCoverRatio)
+                    drawAdaptiveBar(centerX, high, low, ::yAt, barWidth, color, day.cloudCoverRatio, day.iconCondition)
                 }
             }
 
@@ -340,29 +347,34 @@ private fun DrawScope.drawRangeLine(
     )
 }
 
+/**
+ * Weather-adaptive forecast bar: a clear ([baseColor]) top over a cloud/rain bottom, where the
+ * bottom segment's height is the cloud-cover ratio and its color is rain-blue vs cloud-grey.
+ * Faithful port of Android's DailyForecastGraphRenderer.drawWeatherAdaptiveBar — two hard solid
+ * segments (no fade), with the split math/colors single-sourced from shared WeatherColors. Falls
+ * back to a solid [baseColor] bar when there's no cloud ratio (e.g. clear/fully-rainy days).
+ * Nullable high/low (skips the bar when either is absent), mirroring [drawRangeLine].
+ */
 private fun DrawScope.drawAdaptiveBar(
     centerX: Float,
-    highY: Float,
-    lowY: Float,
+    high: Float?,
+    low: Float?,
+    yAt: (Float) -> Float,
     width: Float,
     baseColor: Color,
     cloudCoverRatio: Float?,
+    iconCondition: String?,
 ) {
-    if (cloudCoverRatio != null && baseColor == COLOR_FORECAST_SUNNY) {
-        drawLine(
-            brush = Brush.verticalGradient(
-                0f to COLOR_FORECAST_SUNNY,
-                (1f - cloudCoverRatio).coerceIn(0.05f, 0.95f) to COLOR_FORECAST_SUNNY,
-                1f to COLOR_FORECAST_CLOUDY,
-                startY = highY,
-                endY = lowY,
-            ),
-            start = Offset(centerX, highY),
-            end = Offset(centerX, lowY),
-            strokeWidth = width,
-            cap = StrokeCap.Round,
-        )
-    } else {
+    if (high == null || low == null) return
+    val highY = yAt(high)
+    val lowY = yAt(low)
+
+    val iconName = iconCondition?.let { WeatherConditionResolver.resolveIconName(it) }
+    val ratio = cloudCoverRatio ?: iconName?.let { WeatherConditionResolver.cloudRatioFromIcon(it) }
+    val isChanceOfRain = iconName?.let { WeatherConditionResolver.isChanceOfRainIcon(it) } ?: false
+    val split = com.weatherwidget.shared.util.WeatherColors.mixedBarSplit(ratio, isChanceOfRain)
+
+    if (split == null) {
         drawLine(
             color = baseColor,
             start = Offset(centerX, highY),
@@ -370,11 +382,35 @@ private fun DrawScope.drawAdaptiveBar(
             strokeWidth = width,
             cap = StrokeCap.Round,
         )
+        return
+    }
+
+    val barHeight = lowY - highY
+    val topEndY = (highY + barHeight * split.topFraction).coerceIn(highY, lowY)
+    // Bottom (grey/blue) full-height first, then the clear (baseColor) top painted over it —
+    // matches Android's two-segment draw order. Top color is the bar's own baseColor (e.g. the
+    // bright snapshot yellow), not the split's gold, exactly as Android keeps its paint color.
+    drawLine(
+        color = Color(split.bottomColorArgb),
+        start = Offset(centerX, highY),
+        end = Offset(centerX, lowY),
+        strokeWidth = width,
+        cap = StrokeCap.Round,
+    )
+    if (topEndY - highY > 0.5f) {
+        drawLine(
+            color = baseColor,
+            start = Offset(centerX, highY),
+            end = Offset(centerX, topEndY),
+            strokeWidth = width,
+            cap = StrokeCap.Round,
+        )
     }
 }
 
 private fun forecastColor(day: DesktopDailyDay): Color {
-    val flags = WeatherIcon.getConditionFlags(day.iconCondition)
+    // Derive flags from the resolved+gated icon name so the bar color matches the displayed icon.
+    val flags = WeatherConditionResolver.getConditionFlags(day.iconName)
     return when {
         flags.isRainy -> COLOR_FORECAST_RAINY
         flags.isMixed -> COLOR_FORECAST_SUNNY
