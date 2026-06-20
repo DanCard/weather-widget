@@ -31,7 +31,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
 /**
  * Router for handling widget intent actions.
@@ -213,10 +212,10 @@ suspend fun handleNavigation(
         )
 
         // Navigating forward past Open-Meteo's real (non-climate-normal) coverage → request an
-        // on-demand extension to the full 16-day window. Gated on Open-Meteo specifically (the only
-        // source that can extend; NWS et al. cap near a week of their own accord) and on whether the
-        // requested horizon actually exceeds current coverage, so it fires once and not on every step.
-        // The widened batch is fetched by the forced-refresh worker via KEY_FORECAST_DAYS.
+        // on-demand extension. Gated on Open-Meteo specifically (the only source that can extend; NWS
+        // et al. cap near a week of their own accord). The whether/how-far decision is the shared
+        // ForecastHorizon.extensionTarget (identical to desktop's); the widened batch is fetched by the
+        // forced-refresh worker via KEY_FORECAST_DAYS.
         if (!isLeft) {
             val (_, navRightmost) =
                 NavigationUtils.getVisibleDateRange(
@@ -228,16 +227,15 @@ suspend fun handleNavigation(
             val meteoRealMax = weatherList
                 .filter { it.source == WeatherSource.OPEN_METEO.id && !it.isClimateNormal }
                 .maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }
-            val meteoCoverageDays = meteoRealMax?.let { (ChronoUnit.DAYS.between(today, it) + 1).toInt() } ?: 0
-            if (ForecastHorizon.daysToCover(today, navRightmost) > meteoCoverageDays) {
+            ForecastHorizon.extensionTarget(today, navRightmost, meteoRealMax)?.let { target ->
                 appLogDao.log(
                     "DAILY_NAV_EXTEND_FORECAST",
-                    "widget=$appWidgetId rightmost=$navRightmost meteoRealMax=$meteoRealMax coverageDays=$meteoCoverageDays requesting=${ForecastHorizon.MAX_DAYS}"
+                    "widget=$appWidgetId rightmost=$navRightmost meteoRealMax=$meteoRealMax requesting=$target"
                 )
                 RefreshScheduler.enqueueForcedRefresh(
                     context,
                     reason = "nav_extend_forecast",
-                    forecastDays = ForecastHorizon.MAX_DAYS,
+                    forecastDays = target,
                 )
             }
         }

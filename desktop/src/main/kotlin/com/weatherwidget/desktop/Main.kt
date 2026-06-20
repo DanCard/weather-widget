@@ -257,20 +257,19 @@ private fun runApp() = application {
             }
         }
         // On-demand forecast extension: fired by WidgetPopup when the daily view's rightmost visible
-        // day moves past what the baseline (8-day) fetch covers. Unlike deep history we don't widen
-        // incrementally — we fetch straight to ForecastHorizon.MAX_DAYS once, which unlocks all
-        // further forward navigation. The repository's own widest-horizon guard (needsWiderForecast)
-        // makes this a no-op once the extended batch has landed, so repeated pans don't re-fetch.
+        // day moves past what the baseline (8-day) fetch covers. The decision of whether/how-far to
+        // extend lives in the shared ForecastHorizon.extensionTarget (so Android and desktop can't
+        // drift); this callback just runs the fetch for the target it was handed. The repository's
+        // mutex makes rapid pans idempotent, and the in-flight flag avoids stacking UI launches.
         var forecastExtendInFlight by remember { mutableStateOf(false) }
-        val onNeedForecastExtension: (LocalDate) -> Unit = remember(repository) {
-            fn@{ rightmostVisible: LocalDate ->
+        val onNeedForecastExtension: (Int) -> Unit = remember(repository) {
+            fn@{ targetDays: Int ->
                 val repo = repository ?: return@fn
-                val needed = ForecastHorizon.daysToCover(LocalDate.now(), rightmostVisible)
-                if (forecastExtendInFlight || !repo.needsWiderForecast(needed)) return@fn
+                if (forecastExtendInFlight) return@fn
                 forecastExtendInFlight = true
                 uiScope.launch {
                     try {
-                        if (repo.ensureForecastDays(ForecastHorizon.MAX_DAYS)) {
+                        if (repo.ensureForecastDays(targetDays)) {
                             repo.loadCached()?.let { forecast = it }
                         }
                     } catch (e: Exception) {
@@ -626,7 +625,7 @@ internal fun WidgetPopup(
     onOpenHistory: () -> Unit = {},
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
     onNeedHistory: (Int) -> Unit = {},
-    onNeedForecastExtension: (LocalDate) -> Unit = {},
+    onNeedForecastExtension: (Int) -> Unit = {},
     historyFetchToast: String? = null,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -818,13 +817,20 @@ internal fun WidgetPopup(
                                 dimensions = dimensions,
                             )
 
-                            // When the rightmost visible day moves past the baseline forecast horizon,
-                            // ask for an on-demand extension to the full Open-Meteo window. Keyed on the
-                            // date so it fires once per new edge (pan, arrow, or initial load) and the
-                            // repository's widest-horizon guard no-ops it once the wider batch is in.
+                            // When the rightmost visible day moves past real (non-climate-normal)
+                            // forecast coverage, ask for an on-demand extension. The shared decision
+                            // (ForecastHorizon.extensionTarget) reads the actual coverage from the
+                            // loaded snapshot — so it's authoritative across relaunches — and returns
+                            // the days to fetch, or null when the edge is already covered. Keyed on the
+                            // edge date so it evaluates once per new edge (pan, arrow, or initial load).
                             val rightmostVisibleDate = dailyState.days.lastOrNull()?.date
                             LaunchedEffect(rightmostVisibleDate) {
-                                rightmostVisibleDate?.let(onNeedForecastExtension)
+                                val edge = rightmostVisibleDate ?: return@LaunchedEffect
+                                val realCoverageMaxDate = snapshot.daily
+                                    .filter { !it.isClimateNormal }
+                                    .maxOfOrNull { LocalDate.parse(it.date) }
+                                ForecastHorizon.extensionTarget(LocalDate.now(), edge, realCoverageMaxDate)
+                                    ?.let(onNeedForecastExtension)
                             }
 
                             // Sync both clamped values in one write so a simultaneous offset+zoom clamp

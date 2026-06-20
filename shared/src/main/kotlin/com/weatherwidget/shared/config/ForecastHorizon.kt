@@ -36,4 +36,25 @@ object ForecastHorizon {
         val span = ChronoUnit.DAYS.between(today, target).toInt() + 1 // inclusive of both endpoints
         return span.coerceIn(BASELINE_DAYS, MAX_DAYS)
     }
+
+    /**
+     * The on-demand extension decision, shared by both platforms so the trigger can't drift. Given
+     * the rightmost day the daily view can now show and how far *real* (non-climate-normal) forecast
+     * coverage currently reaches ([realCoverageMaxDate], or null when there's no real coverage yet),
+     * returns the `forecast_days` to fetch — always [MAX_DAYS], since one extension unlocks all
+     * further navigation — or null when current coverage already reaches the visible edge.
+     *
+     * Each platform supplies [realCoverageMaxDate] from its own store (the I/O is necessarily
+     * platform-specific); only this judgement on those inputs is shared.
+     */
+    fun extensionTarget(
+        today: LocalDate,
+        rightmostVisible: LocalDate,
+        realCoverageMaxDate: LocalDate?,
+    ): Int? {
+        val coverageDays = realCoverageMaxDate
+            ?.let { ChronoUnit.DAYS.between(today, it).toInt() + 1 } // inclusive of both endpoints
+            ?: 0
+        return if (daysToCover(today, rightmostVisible) > coverageDays) MAX_DAYS else null
+    }
 }

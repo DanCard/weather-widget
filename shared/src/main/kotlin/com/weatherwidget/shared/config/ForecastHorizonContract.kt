@@ -21,4 +21,29 @@ object ForecastHorizonContract {
         Case("just past baseline grows by one", 8, ForecastHorizon.BASELINE_DAYS + 1),
         Case("far future clamps to max", 30, ForecastHorizon.MAX_DAYS),
     )
+
+    /**
+     * Cases for [ForecastHorizon.extensionTarget], the on-demand trigger decision both platforms
+     * delegate to. [rightmostOffsetDays] is the visible edge's offset from [BASE];
+     * [coverageOffsetDays] is real-forecast coverage's max-date offset (null = no real coverage yet).
+     */
+    data class ExtensionCase(
+        val name: String,
+        val rightmostOffsetDays: Long,
+        val coverageOffsetDays: Long?,
+        val expected: Int?,
+    )
+
+    val EXTENSION_CASES: List<ExtensionCase> = listOf(
+        // Edge inside what's already covered → no fetch. (+7 coverage = the 8-day baseline batch.)
+        ExtensionCase("edge within coverage", 5, 7, null),
+        ExtensionCase("edge exactly at the baseline edge", 7, 7, null),
+        // Edge past real coverage → fetch the full window.
+        ExtensionCase("edge one past coverage extends", 8, 7, ForecastHorizon.MAX_DAYS),
+        ExtensionCase("far edge with short coverage extends", 14, 7, ForecastHorizon.MAX_DAYS),
+        // No real coverage at all → extend.
+        ExtensionCase("no real coverage extends", 7, null, ForecastHorizon.MAX_DAYS),
+        // Already at full coverage → never re-fetch.
+        ExtensionCase("full coverage never re-fetches", 15, 15, null),
+    )
 }

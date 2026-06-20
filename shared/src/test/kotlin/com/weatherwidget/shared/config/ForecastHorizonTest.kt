@@ -24,6 +24,19 @@ class ForecastHorizonTest {
     }
 
     @Test
+    fun `extensionTarget honours the shared contract boundaries`() {
+        for (case in ForecastHorizonContract.EXTENSION_CASES) {
+            val rightmost = ForecastHorizonContract.BASE.plusDays(case.rightmostOffsetDays)
+            val coverageMax = case.coverageOffsetDays?.let { ForecastHorizonContract.BASE.plusDays(it) }
+            assertEquals(
+                case.name,
+                case.expected,
+                ForecastHorizon.extensionTarget(ForecastHorizonContract.BASE, rightmost, coverageMax),
+            )
+        }
+    }
+
+    @Test
     fun `a target before today never drops below baseline`() {
         val yesterday = ForecastHorizonContract.BASE.minusDays(1)
         assertEquals(

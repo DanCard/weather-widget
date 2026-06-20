@@ -72,8 +72,6 @@ class DesktopForecastExtensionIntegrationTest {
 
     @Test
     fun `ensureForecastDays fetches the full horizon and persists it`() = runTest {
-        assertTrue("a wider horizon than baseline is needed up front", repository.needsWiderForecast(ForecastHorizon.MAX_DAYS))
-
         val widened = repository.ensureForecastDays(ForecastHorizon.MAX_DAYS)
 
         assertTrue("extension reported new data", widened)
@@ -90,8 +88,7 @@ class DesktopForecastExtensionIntegrationTest {
     fun `a second extension at the same horizon is a no-op`() = runTest {
         assertTrue(repository.ensureForecastDays(ForecastHorizon.MAX_DAYS))
 
-        // Already covered → no further fetch, and the guard reports nothing more is needed.
-        assertFalse(repository.needsWiderForecast(ForecastHorizon.MAX_DAYS))
+        // Already covered → the second call is a no-op and issues no further fetch.
         assertFalse(repository.ensureForecastDays(ForecastHorizon.MAX_DAYS))
         coVerify(exactly = 1) { weatherService.fetchForecast(ForecastHorizon.MAX_DAYS) }
     }

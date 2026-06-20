@@ -190,14 +190,6 @@ class DesktopWeatherRepository(
     private val forecastFetchMutex = Mutex()
 
     /**
-     * Cheap, no-network check of whether [ensureForecastDays] would actually fetch at this horizon.
-     * Lets the daily view show its "extending forecast" affordance only when a real pull is imminent,
-     * not on every pan tick.
-     */
-    fun needsWiderForecast(neededDays: Int): Boolean =
-        neededDays.coerceAtMost(ForecastHorizon.MAX_DAYS) > widestForecastDaysFetched
-
-    /**
      * Extends the daily forecast horizon on demand when the user navigates the daily view past what
      * the baseline fetch covers. A 7-day baseline drops the day exactly one week out; rather than
      * recompute per pan step we fetch straight to the requested horizon (callers pass
