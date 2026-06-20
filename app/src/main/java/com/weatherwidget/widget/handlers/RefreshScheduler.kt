@@ -18,6 +18,11 @@ object RefreshScheduler {
     private const val TAG = "RefreshScheduler"
     private const val STALE_REFRESH_DEBOUNCE_MS = 30 * 1000L
 
+    // Coverage-staleness debounce: longer than the time-staleness one because a coverage gap persists
+    // across many renders until the fetch lands, and (for a source that genuinely caps below the
+    // baseline) we never want to busy-loop the network. One forced fetch per source per window.
+    private const val COVERAGE_REFRESH_DEBOUNCE_MS = 30 * 60 * 1000L
+
     @Volatile
     private var isRefreshDisabledForTesting = false
 
@@ -101,6 +106,37 @@ object RefreshScheduler {
             policy,
             workRequest,
         )
+    }
+
+    /**
+     * Forces a forecast refresh when the daily view finds a day *within the baseline horizon* that has
+     * no real forecast (it's showing GENERIC_GAP climate-normal filler). The normal fetch cadence is
+     * time-based — "fresh" means "fetched recently" — so a short-but-recent cache (e.g. a 7-day batch
+     * inherited right after upgrading to the 8-day baseline) is never re-fetched, leaving that day a
+     * generic green bar forever. This is the coverage-based complement: it requests [forecastDays] so
+     * the gap is filled. Debounced per source so it can't busy-loop the network. Logs only when it
+     * actually enqueues (callers may invoke this on every render).
+     */
+    suspend fun enqueueForecastCoverageRefresh(
+        context: Context,
+        sourceId: String,
+        forecastDays: Int,
+        appLogDao: AppLogDao? = null,
+    ) {
+        if (isRefreshDisabledForTesting) return
+        val nowMs = System.currentTimeMillis()
+        val prefs = context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE)
+        val key = "last_enqueue_coverage_$sourceId"
+        val lastEnqueueMs = prefs.getLong(key, -1L).takeIf { it >= 0L }
+        if (lastEnqueueMs != null && nowMs - lastEnqueueMs < COVERAGE_REFRESH_DEBOUNCE_MS) {
+            return
+        }
+        prefs.edit().putLong(key, nowMs).apply()
+        appLogDao?.log(
+            "COVERAGE_REFRESH_ENQUEUE",
+            "source=$sourceId forecastDays=$forecastDays reason=coverage_gap_within_baseline",
+        )
+        enqueueForcedRefresh(context, reason = "coverage_gap", forecastDays = forecastDays)
     }
 
     suspend fun refreshIfStale(

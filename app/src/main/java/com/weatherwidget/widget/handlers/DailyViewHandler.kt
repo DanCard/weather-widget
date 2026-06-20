@@ -22,6 +22,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.DailyExtreme
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.DailyForecastIconResolver
@@ -284,6 +285,27 @@ object DailyViewHandler : WidgetViewHandler {
                     }
                 }
                 .toMap()
+
+        // Coverage-staleness check: if the rightmost day currently VISIBLE has no real (non-climate)
+        // forecast for the selected source, it's showing GENERIC_GAP filler that a fetch would replace.
+        // The normal cadence is time-based ("fetched recently") and won't catch a short-but-recent cache
+        // (e.g. a 7-day batch inherited right after upgrading to the 8-day baseline, or a wide widget
+        // whose edge sits past current coverage). We reuse the SAME shared decision as the on-demand nav
+        // trigger — extensionTarget — so render-time and nav-time agree, then force a fetch deep enough
+        // to fill the visible edge. Debounced per source in the scheduler, so calling it every render is safe.
+        val realCoverageMax = weatherList
+            .filter { it.source == displaySource.id && !it.isClimateNormal }
+            .maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+        val (_, visibleRightmost) = NavigationUtils.getVisibleDateRange(today, dateOffset, numColumns, skipYesterday)
+        ForecastHorizon.extensionTarget(today, visibleRightmost, realCoverageMax)?.let { target ->
+            Log.d(TAG, "coverage gap: widget=$appWidgetId source=${displaySource.id} realMax=$realCoverageMax visibleEnd=$visibleRightmost requesting=$target")
+            RefreshScheduler.enqueueForecastCoverageRefresh(
+                context = context,
+                sourceId = displaySource.id,
+                forecastDays = target,
+                appLogDao = appLogDao,
+            )
+        }
 
         val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
 
