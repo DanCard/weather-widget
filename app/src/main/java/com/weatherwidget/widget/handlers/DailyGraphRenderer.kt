@@ -134,13 +134,13 @@ internal object DailyGraphRenderer {
             }
         }
 
-        val displayDays = if (ctx.dateOffset == 0) {
-            ctx.stateManager.setDailyColumnCount(ctx.appWidgetId, days.size)
-            days
-        } else {
-            val baseline = ctx.stateManager.getDailyColumnCount(ctx.appWidgetId)
-            if (baseline > 0 && days.size > baseline) days.take(baseline) else days
-        }
+        // prepareGraphDays always returns exactly numColumns days, and numColumns is derived from
+        // the widget width — identical at every nav offset. Cap defensively against the *live*
+        // column count so a navigated view shows the same number of days as the offset-0 ("today")
+        // view. This previously capped against a count stored at offset 0, which went stale and
+        // trimmed the view whenever the column count grew (e.g. a wider widget gaining a day):
+        // a navigated widget stayed pinned to the old count until it returned to today.
+        val displayDays = if (days.size > ctx.numColumns) days.take(ctx.numColumns) else days
         Log.d(TAG, "render: Graph mode - prepared ${days.size} days, displaying ${displayDays.size} for ${ctx.numColumns} columns (offset=${ctx.dateOffset}).")
 
         if (displayDays.isEmpty()) {

@@ -33,16 +33,25 @@ object WidgetSizeCalculator {
      * Bias added to the reported widget width before dividing by [CELL_WIDTH_DP].
      *
      * Combined with round-to-nearest (not floor), this intentionally rounds UP a widget
-     * that is within ~half a cell of the next column, so we fit one more forecast day.
-     * The 5→6 column boundary, for example, lands at width >= 370dp.
+     * that is within ~(this many) dp of the next column, so we fit one more forecast day.
+     * With this value the 5→6 boundary lands at width >= 355dp and the 8→9 boundary at
+     * width >= 565dp.
      *
-     * This is deliberate, not a fudge: the daily view always has data to fill the extra
-     * column. ForecastHorizon.BASELINE_DAYS (8 = today + 7) covers the widest practical
-     * widget, with on-demand extension to MAX_DAYS (16). Before that baseline existed the
-     * extra column could render empty; it no longer does. Days shown == columns
-     * (see NavigationUtils.getDayOffsets).
+     * Sized so the widest practical real widget — the Samsung Fold 4 full-width (6-span)
+     * widget, which reports ~574dp — reaches its **9th** day column. Nine columns is still
+     * fully inside the forecast baseline: at >8 columns the narrow skip-yesterday rule is
+     * off (see NavigationUtils.NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD), so the window is
+     * yesterday..+7 — and +7 == ForecastHorizon.BASELINE_DAYS (8 = today + 7). So the extra
+     * column is backed by routine data for sources that return a full week (Open-Meteo);
+     * NWS (~today..+6) leaves the +7 column to the climate-normal fallback, which is the
+     * intended long-range filler for dates > today+2. Days shown == columns.
+     *
+     * Verified (against live device options, June 2026) that raising this from 15 to 30
+     * flips only the 574dp Fold widget to 9; the Pixel 7 Pro (~373dp → 6) and every other
+     * observed widget size are unchanged. Widths > ~643dp would reach 10 columns (+8, past
+     * baseline) and fall to climate-normal there too, but no current launcher reports them.
      */
-    private const val COLUMN_FIT_BIAS_DP = 15
+    private const val COLUMN_FIT_BIAS_DP = 30
 
     /**
      * Row-count analogue of [COLUMN_FIT_BIAS_DP]: biases height toward the next row so a

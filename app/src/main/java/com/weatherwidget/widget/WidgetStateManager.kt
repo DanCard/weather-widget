@@ -145,14 +145,6 @@ class WidgetStateManager
             prefs.edit().putInt("$KEY_DATE_OFFSET_PREFIX$widgetId", clampedOffset).apply()
         }
 
-        fun getDailyColumnCount(widgetId: Int): Int {
-            return prefs.getInt("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId", 0)
-        }
-
-        fun setDailyColumnCount(widgetId: Int, count: Int) {
-            prefs.edit().putInt("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId", count).apply()
-        }
-
         // Personal-weather-station discount (app-wide). UI stores a percent; the blend consumes a weight.
         fun getPersonalStationDiscountPercent(): Int =
             prefs.getInt(KEY_PERSONAL_STATION_DISCOUNT, DEFAULT_PERSONAL_STATION_DISCOUNT)

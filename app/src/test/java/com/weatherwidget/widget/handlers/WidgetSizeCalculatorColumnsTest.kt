@@ -9,8 +9,9 @@ import org.junit.experimental.categories.Category
  * Pure-function tests for the width->columns (and height->rows) mapping.
  *
  * These pin the *intentional* round-up bias that lets the daily view fit an extra forecast
- * day on widgets that are within ~half a cell of the next column (e.g. the Pixel 7 Pro, which
- * reports ~373dp and therefore shows 6 days). See COLUMN_FIT_BIAS_DP in WidgetSizeCalculator.
+ * day on widgets near a column boundary: the Pixel 7 Pro (~373dp) shows 6 days, and the
+ * Samsung Fold 4 full-width widget (~574dp) shows 9. See COLUMN_FIT_BIAS_DP in
+ * WidgetSizeCalculator.
  *
  * Kept as plain JUnit (no Robolectric) since the math is decoupled from Android plumbing.
  */
@@ -34,11 +35,26 @@ class WidgetSizeCalculatorColumnsTest {
     }
 
     @Test
+    fun columns_foldFullWidthFitsNineDays() {
+        // Samsung Fold 4 full-width (6-span) widget reports ~574dp -> 9 columns
+        // (yesterday + today + 7 forecast = window -1..+7, within ForecastHorizon.BASELINE_DAYS).
+        // Verified against live device options on RFCT71FR9NT.
+        assertEquals(9, WidgetSizeCalculator.columnsForWidthDp(574))
+    }
+
+    @Test
+    fun columns_roundUpBias_atEightToNineBoundary() {
+        // The 8->9 boundary (the one that gives the Fold its 9th day) sits at width >= 565dp.
+        // Pinning both sides keeps the extra column a deliberate, stable choice.
+        assertEquals(8, WidgetSizeCalculator.columnsForWidthDp(564))
+        assertEquals(9, WidgetSizeCalculator.columnsForWidthDp(566))
+    }
+
+    @Test
     fun columns_roundUpBias_atFiveToSixBoundary() {
-        // The bias rounds UP at half a cell: the 5->6 boundary sits at width >= 370dp.
-        // Pinning both sides guarantees the extra day is a deliberate, stable choice.
-        assertEquals(5, WidgetSizeCalculator.columnsForWidthDp(369))
-        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(370))
+        // With the current bias the 5->6 boundary sits at width >= 355dp.
+        assertEquals(5, WidgetSizeCalculator.columnsForWidthDp(354))
+        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(355))
     }
 
     @Test
