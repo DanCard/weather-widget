@@ -28,6 +28,27 @@ object WidgetSizeCalculator {
     private const val CELL_WIDTH_DP = 70
     private const val CELL_HEIGHT_DP = 90
     private const val ICON_WIDTH_THRESHOLD_DP = 130
+
+    /**
+     * Bias added to the reported widget width before dividing by [CELL_WIDTH_DP].
+     *
+     * Combined with round-to-nearest (not floor), this intentionally rounds UP a widget
+     * that is within ~half a cell of the next column, so we fit one more forecast day.
+     * The 5→6 column boundary, for example, lands at width >= 370dp.
+     *
+     * This is deliberate, not a fudge: the daily view always has data to fill the extra
+     * column. ForecastHorizon.BASELINE_DAYS (8 = today + 7) covers the widest practical
+     * widget, with on-demand extension to MAX_DAYS (16). Before that baseline existed the
+     * extra column could render empty; it no longer does. Days shown == columns
+     * (see NavigationUtils.getDayOffsets).
+     */
+    private const val COLUMN_FIT_BIAS_DP = 15
+
+    /**
+     * Row-count analogue of [COLUMN_FIT_BIAS_DP]: biases height toward the next row so a
+     * widget that is nearly tall enough is treated as the taller layout.
+     */
+    private const val ROW_FIT_BIAS_DP = 25
     private const val MAX_BITMAP_PIXELS = 225_000 // Limit bitmap to ~900KB (ARGB_8888 is 4 bytes/px)
 
     /**
@@ -51,14 +72,29 @@ object WidgetSizeCalculator {
         val width = if (isPortrait) minWidth else maxWidth
         val height = if (isPortrait) maxHeight else minHeight
 
-        // Standard Android widget size formula: (size + padding) / cell_size with rounding
-        // Using +15/+25 padding and proper rounding to handle widgets that are "almost" N rows/cols
-        val cols = ((width + 15).toFloat() / CELL_WIDTH_DP).roundToInt().coerceAtLeast(1)
-        val rows = ((height + 25).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
+        val cols = columnsForWidthDp(width)
+        val rows = rowsForHeightDp(height)
         val isIconWidth = width <= ICON_WIDTH_THRESHOLD_DP
 
         return WidgetDimensions(cols, rows, width, height, isIconWidth)
     }
+
+    /**
+     * Maps a widget width (dp) to the number of day columns the daily view shows.
+     *
+     * Pure (no Android dependencies) so the round-up bias is directly unit-testable.
+     * Round-to-nearest plus [COLUMN_FIT_BIAS_DP] deliberately fits the extra forecast day
+     * for widgets within ~half a cell of the next column (e.g. 5→6 columns at width >= 370dp).
+     */
+    fun columnsForWidthDp(widthDp: Int): Int =
+        ((widthDp + COLUMN_FIT_BIAS_DP).toFloat() / CELL_WIDTH_DP).roundToInt().coerceAtLeast(1)
+
+    /**
+     * Maps a widget height (dp) to the number of rows, biased toward the taller layout.
+     * Pure counterpart to [columnsForWidthDp]; see [ROW_FIT_BIAS_DP].
+     */
+    fun rowsForHeightDp(heightDp: Int): Int =
+        ((heightDp + ROW_FIT_BIAS_DP).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
 
     /**
      * Get optimal bitmap size for the widget, applying downscaling if needed.
