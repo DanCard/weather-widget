@@ -746,6 +746,7 @@ suspend fun handleResize(
             displaySource = displaySource,
             hourlyForecasts = currentTempHourlyForecasts,
             now = now,
+            personalStationWeight = stateManager.getPersonalStationWeight(),
         )
 
         val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(ctCurrentTemps, displaySource)
@@ -875,6 +876,7 @@ suspend fun handleResize(
             displaySource = displaySource,
             hourlyForecasts = currentTempHourlyForecasts,
             now = now,
+            personalStationWeight = stateManager.getPersonalStationWeight(),
         )
 
         val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)

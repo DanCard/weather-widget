@@ -23,6 +23,7 @@ object CurrentTempResolver {
         displaySource: WeatherSource,
         hourlyForecasts: List<HourlyForecastEntity>,
         now: LocalDateTime,
+        personalStationWeight: Double = 1.0,
     ): ObservationResolver.ObservedCurrentTemperature? {
         if (repository == null) return null
 
@@ -40,6 +41,7 @@ object CurrentTempResolver {
             lon = lon,
             now = now,
             queryWindow = queryWindow,
+            personalStationWeight = personalStationWeight,
         )
     }
 
@@ -52,6 +54,7 @@ object CurrentTempResolver {
         lon: Double,
         now: LocalDateTime,
         queryWindow: com.weatherwidget.widget.CurrentTemperatureResolver.CurrentTempResolutionWindow = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now),
+        personalStationWeight: Double = 1.0,
     ): ObservationResolver.ObservedCurrentTemperature? {
         val resolved = ActualsAggregator.resolveCurrentObservation(
             observations = observations.map { it.toReading() },
@@ -62,6 +65,7 @@ object CurrentTempResolver {
             nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             lookbackHours = 12L,
             lookaheadHours = 3L,
+            personalStationWeight = personalStationWeight,
         )
 
         Log.d(

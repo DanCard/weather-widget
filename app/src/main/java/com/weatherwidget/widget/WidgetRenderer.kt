@@ -164,6 +164,7 @@ object WidgetRenderer {
                     lon = locationLon,
                     now = now,
                     queryWindow = nowResolutionWindow,
+                    personalStationWeight = stateManager.getPersonalStationWeight(),
                 )
             } else {
                 val resolved = ActualsAggregator.resolveCurrentObservation(
@@ -175,6 +176,7 @@ object WidgetRenderer {
                     nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     lookbackHours = 12L,
                     lookaheadHours = 2L,
+                    personalStationWeight = stateManager.getPersonalStationWeight(),
                 )
                 resolved?.let { (temp, timestamp, fetchedAt) ->
                     ObservationResolver.ObservedCurrentTemperature(
