@@ -11,6 +11,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
+import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.widget.ForecastFetchContext
 import com.weatherwidget.widget.WidgetStateManager
@@ -39,9 +40,10 @@ class WeatherRepository
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
             fetchContext: ForecastFetchContext? = null,
+            forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
         ): Result<List<ForecastEntity>> {
             return forecastRepository.getWeatherData(
-                latitude, longitude, locationName, forceRefresh, networkAllowed, targetSourceId, fetchContext
+                latitude, longitude, locationName, forceRefresh, networkAllowed, targetSourceId, fetchContext, forecastDays
             )
         }
 

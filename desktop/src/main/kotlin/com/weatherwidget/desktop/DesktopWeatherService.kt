@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.SpatialInterpolator
@@ -74,7 +75,14 @@ class DesktopWeatherService(
         apiKeys = config?.apiKeys ?: emptyMap()
     )
 
-    suspend fun fetchForecast(): ForecastResult = runCatching {
+    /**
+     * @param forecastDays how many days of daily forecast to request from Open-Meteo (inclusive of
+     *   today). Defaults to [ForecastHorizon.BASELINE_DAYS]; the daily view's on-demand extension
+     *   passes a larger value (up to [ForecastHorizon.MAX_DAYS]) when the user navigates past the
+     *   baseline edge. Only the Open-Meteo path honours it — NWS and the other sources cap near a
+     *   week of their own accord.
+     */
+    suspend fun fetchForecast(forecastDays: Int = ForecastHorizon.BASELINE_DAYS): ForecastResult = runCatching {
         when (weatherSource) {
             "NWS" -> fetchNwsForecast()
             WeatherSource.TOMORROW_IO.id -> withHistoricalActuals(tomorrowIo.getForecast(latitude, longitude), WeatherSource.TOMORROW_IO.id)
@@ -82,7 +90,7 @@ class DesktopWeatherService(
             WeatherSource.VISUAL_CROSSING.id -> withHistoricalActuals(visualCrossing.getForecast(latitude, longitude), WeatherSource.VISUAL_CROSSING.id)
             WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
             WeatherSource.OPEN_WEATHER_MAP.id -> withHistoricalActuals(openWeatherMap.getForecast(latitude, longitude), WeatherSource.OPEN_WEATHER_MAP.id)
-            else -> fetchOpenMeteoForecastWithActuals()
+            else -> fetchOpenMeteoForecastWithActuals(forecastDays)
         }
     }.getOrElse { e ->
         if (e is CancellationException) throw e
@@ -91,7 +99,7 @@ class DesktopWeatherService(
             // This is the one legitimate cross-source fallback — but log it so it is never silent.
             "NWS" -> {
                 weatherDao?.log("SOURCE_FALLBACK", "NWS unavailable, substituting Open-Meteo: ${e.message}", "WARN")
-                fetchOpenMeteoForecastWithActuals()
+                fetchOpenMeteoForecastWithActuals(forecastDays)
             }
             // Open-Meteo itself has nowhere to fall back to.
             WeatherSource.OPEN_METEO.id -> throw e
@@ -140,9 +148,11 @@ class DesktopWeatherService(
      * source falls back to Open-Meteo. When Open-Meteo is itself the active source the two ids are
      * identical, so this is a no-op there.
      */
-    private suspend fun fetchOpenMeteoForecastWithActuals(): ForecastResult =
+    private suspend fun fetchOpenMeteoForecastWithActuals(
+        forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
+    ): ForecastResult =
         withHistoricalActuals(
-            openMeteo.getForecast(latitude, longitude, historyDays = ACTUALS_HISTORY_DAYS),
+            openMeteo.getForecast(latitude, longitude, days = forecastDays, historyDays = ACTUALS_HISTORY_DAYS),
             weatherSource,
         )
 

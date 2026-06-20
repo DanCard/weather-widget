@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
+import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.actuals.ActualsAggregator
@@ -182,11 +183,58 @@ class DesktopWeatherRepository(
         }
     }
 
-    suspend fun refresh(now: Long = System.currentTimeMillis()): ForecastResult = withContext(Dispatchers.IO) {
+    // Widest forecast horizon (in days, inclusive of today) requested this session. Seeded at the
+    // baseline the normal refresh fetches, so a default daily view never triggers an extension fetch.
+    // Reset for free on location/source change — the repository is re-`remember`ed in Main.kt.
+    @Volatile private var widestForecastDaysFetched = ForecastHorizon.BASELINE_DAYS
+    private val forecastFetchMutex = Mutex()
+
+    /**
+     * Cheap, no-network check of whether [ensureForecastDays] would actually fetch at this horizon.
+     * Lets the daily view show its "extending forecast" affordance only when a real pull is imminent,
+     * not on every pan tick.
+     */
+    fun needsWiderForecast(neededDays: Int): Boolean =
+        neededDays.coerceAtMost(ForecastHorizon.MAX_DAYS) > widestForecastDaysFetched
+
+    /**
+     * Extends the daily forecast horizon on demand when the user navigates the daily view past what
+     * the baseline fetch covers. A 7-day baseline drops the day exactly one week out; rather than
+     * recompute per pan step we fetch straight to the requested horizon (callers pass
+     * [ForecastHorizon.MAX_DAYS]) once — a single pull unlocks all further forward navigation.
+     *
+     * Idempotent and mutex-guarded so rapid pan/arrow events don't stack network calls; returns true
+     * only when new data was persisted (caller then reloads the cache). Reuses [refresh] so the
+     * extended batch is persisted, snapshotted, and climate-gap-filled exactly like a normal fetch.
+     */
+    suspend fun ensureForecastDays(neededDays: Int): Boolean = withContext(Dispatchers.IO) {
+        val target = neededDays.coerceIn(ForecastHorizon.BASELINE_DAYS, ForecastHorizon.MAX_DAYS)
+        if (target <= widestForecastDaysFetched) return@withContext false
+        forecastFetchMutex.withLock {
+            // Re-check under the lock: a concurrent call may have already widened coverage.
+            if (target <= widestForecastDaysFetched) return@withLock false
+            val widened = try {
+                refresh(forecastDays = target).daily.isNotEmpty()
+            } catch (e: Exception) {
+                Log.e("DesktopWeatherRepository", "On-demand forecast extension to ${target}d failed: $e")
+                false
+            }
+            if (widened) {
+                widestForecastDaysFetched = target
+                Log.i("DesktopWeatherRepository", "ensureForecastDays widened to ${target}d (source=$weatherSource)")
+            }
+            widened
+        }
+    }
+
+    suspend fun refresh(
+        now: Long = System.currentTimeMillis(),
+        forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
+    ): ForecastResult = withContext(Dispatchers.IO) {
         // NOTE: no Open-Meteo history backfill here. GENERIC_GAP is future-only; past forecast history
         // must come only from real accumulated NWS snapshots (a fresh install simply starts sparse and
         // fills in as it runs), so we never seed Open-Meteo decimals into the past.
-        val result = weatherService.fetchForecast()
+        val result = weatherService.fetchForecast(forecastDays)
 
         // Persist
         weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, result.hourly)

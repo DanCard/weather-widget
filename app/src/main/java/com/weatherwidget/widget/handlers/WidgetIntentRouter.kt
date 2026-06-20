@@ -15,6 +15,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.DailyActualsBySource
@@ -30,6 +31,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 /**
  * Router for handling widget intent actions.
@@ -209,6 +211,36 @@ suspend fun handleNavigation(
             "DAILY_NAV_APPLY",
             "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset->$newOffset source=${displaySource.id}"
         )
+
+        // Navigating forward past Open-Meteo's real (non-climate-normal) coverage → request an
+        // on-demand extension to the full 16-day window. Gated on Open-Meteo specifically (the only
+        // source that can extend; NWS et al. cap near a week of their own accord) and on whether the
+        // requested horizon actually exceeds current coverage, so it fires once and not on every step.
+        // The widened batch is fetched by the forced-refresh worker via KEY_FORECAST_DAYS.
+        if (!isLeft) {
+            val (_, navRightmost) =
+                NavigationUtils.getVisibleDateRange(
+                    today = today,
+                    dateOffset = newOffset,
+                    numColumns = numColumns,
+                    skipYesterday = skipYesterday,
+                )
+            val meteoRealMax = weatherList
+                .filter { it.source == WeatherSource.OPEN_METEO.id && !it.isClimateNormal }
+                .maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }
+            val meteoCoverageDays = meteoRealMax?.let { (ChronoUnit.DAYS.between(today, it) + 1).toInt() } ?: 0
+            if (ForecastHorizon.daysToCover(today, navRightmost) > meteoCoverageDays) {
+                appLogDao.log(
+                    "DAILY_NAV_EXTEND_FORECAST",
+                    "widget=$appWidgetId rightmost=$navRightmost meteoRealMax=$meteoRealMax coverageDays=$meteoCoverageDays requesting=${ForecastHorizon.MAX_DAYS}"
+                )
+                RefreshScheduler.enqueueForcedRefresh(
+                    context,
+                    reason = "nav_extend_forecast",
+                    forecastDays = ForecastHorizon.MAX_DAYS,
+                )
+            }
+        }
 
         refreshDailyView(
             context = context,

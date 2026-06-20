@@ -3,6 +3,7 @@ package com.weatherwidget.data.remote
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.test.runTest
@@ -10,6 +11,7 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
@@ -44,6 +46,56 @@ class OpenMeteoApiTest {
             }
         }
     }
+
+    // Captures the outgoing request so we can assert on the URL parameters Ktor actually sent — the
+    // `forecast_days` value is the exact seam a horizon regression slips through (parsing tests can't
+    // see it). Returns a minimal valid daily body so getForecast completes.
+    private fun createCapturingClient(captured: MutableList<HttpRequestData>): HttpClient {
+        val body =
+            """
+            {"daily":{"time":["2026-06-20"],"temperature_2m_max":[70.0],"temperature_2m_min":[50.0],"weather_code":[0]}}
+            """.trimIndent()
+        return HttpClient(MockEngine) {
+            engine {
+                addHandler { request ->
+                    captured += request
+                    respond(
+                        content = body,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                    )
+                }
+            }
+            install(ContentNegotiation) { json(json) }
+        }
+    }
+
+    @Test
+    fun `getForecast requests the baseline forecast_days by default`() =
+        runTest {
+            val captured = mutableListOf<HttpRequestData>()
+            val api = OpenMeteoApi(createCapturingClient(captured), json)
+
+            api.getForecast(37.42, -122.08)
+
+            val request = captured.single { it.url.host.contains("open-meteo") }
+            assertEquals(
+                ForecastHorizon.BASELINE_DAYS.toString(),
+                request.url.parameters["forecast_days"],
+            )
+        }
+
+    @Test
+    fun `getForecast forwards an explicit days value (on-demand extension)`() =
+        runTest {
+            val captured = mutableListOf<HttpRequestData>()
+            val api = OpenMeteoApi(createCapturingClient(captured), json)
+
+            api.getForecast(37.42, -122.08, days = ForecastHorizon.MAX_DAYS)
+
+            val request = captured.single { it.url.host.contains("open-meteo") }
+            assertEquals("16", request.url.parameters["forecast_days"])
+        }
 
     @Test
     fun `getForecast parses daily temperatures correctly`() =

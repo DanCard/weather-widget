@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
@@ -33,7 +34,7 @@ class OpenMeteoApi
         suspend fun getForecast(
             lat: Double,
             lon: Double,
-            days: Int = 7,
+            days: Int = ForecastHorizon.BASELINE_DAYS,
             historyDays: Int = 0,
         ): ForecastResult {
             val response: String =

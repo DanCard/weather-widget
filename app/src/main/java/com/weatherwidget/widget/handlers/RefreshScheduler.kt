@@ -9,6 +9,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.widget.BatteryFetchStrategy
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -77,6 +78,7 @@ object RefreshScheduler {
         context: Context,
         reason: String = "manual_refresh",
         policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE,
+        forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
     ) {
         if (isRefreshDisabledForTesting) {
             Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason)")
@@ -89,6 +91,7 @@ object RefreshScheduler {
                     Data.Builder()
                         .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
                         .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
+                        .putInt(WeatherWidgetWorker.KEY_FORECAST_DAYS, forecastDays)
                         .build(),
                 )
                 .build()

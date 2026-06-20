@@ -7,8 +7,10 @@ import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.shared.config.ForecastHorizon
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
+import io.ktor.client.request.*
 import io.ktor.http.*
 import io.mockk.coEvery
 import io.mockk.every
@@ -87,6 +89,71 @@ class OpenMeteoIntegrationTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true)
+        )
+    }
+
+    private fun createCapturingRepository(
+        captured: MutableList<HttpRequestData>,
+        mockResponse: String,
+    ): ForecastRepository {
+        val context = RuntimeEnvironment.getApplication()
+        val mockEngine = MockEngine { request ->
+            captured += request
+            respond(
+                content = mockResponse,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        val openMeteoApi = OpenMeteoApi(HttpClient(mockEngine), json)
+        val nwsApi = mockk<NwsApi>()
+        coEvery { nwsApi.getGridPoint(any(), any()) } throws Exception("NWS unavailable for integration test")
+        val widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
+        every { widgetStateManager.isSourceVisible(any()) } returns true
+        every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
+        every { widgetStateManager.getPrimarySource() } returns WeatherSource.OPEN_METEO
+        return ForecastRepository(
+            context, db.forecastDao(), db.hourlyForecastDao(), db.hourlyForecastHistoryDao(),
+            db.appLogDao(), nwsApi, openMeteoApi, mockk(relaxed = true), mockk(relaxed = true),
+            mockk(relaxed = true), widgetStateManager, db.climateNormalDao(), db.observationDao(),
+            mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
+            mockk(relaxed = true),
+        )
+    }
+
+    private fun List<HttpRequestData>.meteoForecastDays(): List<String?> =
+        filter { it.url.host.contains("open-meteo") && it.url.parameters.contains("forecast_days") }
+            .map { it.url.parameters["forecast_days"] }
+
+    @Test
+    fun `getWeatherData requests baseline days by default and the requested horizon on extension`() = runTest {
+        val minimalResponse = """
+            {
+                "daily": {
+                    "time": ["$today", "$tomorrow"],
+                    "temperature_2m_max": [72.4, 72.6],
+                    "temperature_2m_min": [50.2, 51.8],
+                    "weather_code": [1, 1]
+                }
+            }
+        """.trimIndent()
+        val captured = mutableListOf<HttpRequestData>()
+        repository = createCapturingRepository(captured, minimalResponse)
+
+        // Baseline routine fetch.
+        repository.getWeatherData(testLat, testLon, "Test", forceRefresh = true)
+        assertEquals(
+            "default fetch requests the baseline horizon",
+            listOf(ForecastHorizon.BASELINE_DAYS.toString()),
+            captured.meteoForecastDays(),
+        )
+
+        // On-demand extension (the value the nav-past-edge worker carries via KEY_FORECAST_DAYS).
+        repository.getWeatherData(testLat, testLon, "Test", forceRefresh = true, forecastDays = ForecastHorizon.MAX_DAYS)
+        assertEquals(
+            "extension fetch forwards the requested 16-day horizon",
+            listOf(ForecastHorizon.BASELINE_DAYS.toString(), "16"),
+            captured.meteoForecastDays(),
         )
     }
 

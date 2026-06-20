@@ -31,6 +31,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
+import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.Log
@@ -255,6 +256,32 @@ private fun runApp() = application {
                 }
             }
         }
+        // On-demand forecast extension: fired by WidgetPopup when the daily view's rightmost visible
+        // day moves past what the baseline (8-day) fetch covers. Unlike deep history we don't widen
+        // incrementally — we fetch straight to ForecastHorizon.MAX_DAYS once, which unlocks all
+        // further forward navigation. The repository's own widest-horizon guard (needsWiderForecast)
+        // makes this a no-op once the extended batch has landed, so repeated pans don't re-fetch.
+        var forecastExtendInFlight by remember { mutableStateOf(false) }
+        val onNeedForecastExtension: (LocalDate) -> Unit = remember(repository) {
+            fn@{ rightmostVisible: LocalDate ->
+                val repo = repository ?: return@fn
+                val needed = ForecastHorizon.daysToCover(LocalDate.now(), rightmostVisible)
+                if (forecastExtendInFlight || !repo.needsWiderForecast(needed)) return@fn
+                forecastExtendInFlight = true
+                uiScope.launch {
+                    try {
+                        if (repo.ensureForecastDays(ForecastHorizon.MAX_DAYS)) {
+                            repo.loadCached()?.let { forecast = it }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "On-demand forecast extension failed: ${e.message}")
+                    } finally {
+                        forecastExtendInFlight = false
+                    }
+                }
+            }
+        }
+
         // Auto-dismiss the transient end-of-history / failure messages (a successful extend clears the
         // toast immediately).
         LaunchedEffect(historyFetchToast) {
@@ -570,6 +597,7 @@ private fun runApp() = application {
                     },
                     onRegisterArrowKeyHandler = { arrowKeyHandler = it },
                     onNeedHistory = onNeedHistory,
+                    onNeedForecastExtension = onNeedForecastExtension,
                     historyFetchToast = historyFetchToast,
                 )
             }
@@ -598,6 +626,7 @@ internal fun WidgetPopup(
     onOpenHistory: () -> Unit = {},
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
     onNeedHistory: (Int) -> Unit = {},
+    onNeedForecastExtension: (LocalDate) -> Unit = {},
     historyFetchToast: String? = null,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -788,6 +817,15 @@ internal fun WidgetPopup(
                                 forecast = snapshot,
                                 dimensions = dimensions,
                             )
+
+                            // When the rightmost visible day moves past the baseline forecast horizon,
+                            // ask for an on-demand extension to the full Open-Meteo window. Keyed on the
+                            // date so it fires once per new edge (pan, arrow, or initial load) and the
+                            // repository's widest-horizon guard no-ops it once the wider batch is in.
+                            val rightmostVisibleDate = dailyState.days.lastOrNull()?.date
+                            LaunchedEffect(rightmostVisibleDate) {
+                                rightmostVisibleDate?.let(onNeedForecastExtension)
+                            }
 
                             // Sync both clamped values in one write so a simultaneous offset+zoom clamp
                             // doesn't clobber each other (two separate copy() calls off the same config would).
