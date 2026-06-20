@@ -1119,9 +1119,12 @@ private fun WidgetHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val visibleSources = config.visibleSources
+                // Show the shared short label (e.g. "Meteo"), matching Android's API indicator, rather
+                // than the raw stored id ("OPEN_METEO"). One source of truth: WeatherSource.shortDisplayName.
+                val sourceLabel = WeatherSource.fromDisplaySource(config.weatherSource).shortDisplayName
                 if (visibleSources.size > 1) {
                     Text(
-                        text = config.weatherSource,
+                        text = sourceLabel,
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = (10 * scale).sp,
@@ -1132,7 +1135,7 @@ private fun WidgetHeader(
                     )
                 } else {
                     Text(
-                        text = config.weatherSource,
+                        text = sourceLabel,
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = (10 * scale).sp,
                         color = Color.White.copy(alpha = 0.5f),

@@ -28,6 +28,7 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.util.StationHistoryUrl
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +88,10 @@ class WeatherObservationsActivity : AppCompatActivity() {
         adapter = ObservationAdapter { entity ->
             if (entity.stationId.contains("_HIST_")) {
                 showRenameDialog(entity)
+            } else {
+                // NWS stations link to their public web history page; other sources have none.
+                StationHistoryUrl.forStation(currentSource.id, entity.stationId)
+                    ?.let { openStationHistory(it) }
             }
         }
         recyclerView.adapter = adapter
@@ -225,6 +230,14 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
             }
             sendBroadcast(refreshIntent)
+        }
+    }
+
+    private fun openStationHistory(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+        } catch (e: android.content.ActivityNotFoundException) {
+            Log.w(TAG, "No browser to open $url", e)
         }
     }
 

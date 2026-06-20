@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,6 +36,7 @@ import com.weatherwidget.data.local.desktop.DesktopLogEntity
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.util.StationHistoryUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -313,8 +315,13 @@ private fun ObservationList(observations: List<DesktopObservationEntity>) {
     
     LazyColumn(modifier = Modifier.fillMaxSize().padding(6.dp)) {
         items(observations) { obs ->
+            // NWS stations link to their public time-series history page; other sources have none.
+            val historyUrl = StationHistoryUrl.forStation(obs.api, obs.stationId)
             Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                    .clickable(enabled = historyUrl != null) {
+                        historyUrl?.let(::openInBrowser)
+                    },
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = ObsStyle.cardFill),
                 border = BorderStroke(1.dp, ObsStyle.cardBorder)
