@@ -151,6 +151,7 @@ internal fun buildHourDataResult(
     actuals: List<ObservationEntity> = emptyList(),
     onBlendDebug: ((() -> String) -> Unit)? = null,
     smoothedForecasts: Map<Long, Float>? = null,
+    personalStationWeight: Double = 1.0,
 ): BuildHourDataResult {
     val now = LocalDateTime.now()
 
@@ -189,6 +190,7 @@ internal fun buildHourDataResult(
         now = now,
         zoneId = zoneId,
         smoothedForecasts = smoothedForecasts,
+        personalStationWeight = personalStationWeight,
         onBlendDebug = onBlendDebug,
     )
     val selectedStationId = actualSeries.selectedStationId

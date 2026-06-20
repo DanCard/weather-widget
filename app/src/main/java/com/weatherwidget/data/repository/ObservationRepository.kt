@@ -80,6 +80,11 @@ class ObservationRepository @Inject constructor(
 
     private val prefs by lazy { com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs") }
 
+    // App-wide personal-station discount, read fresh so a Settings change takes effect on the next
+    // recompute without restarting. Lives in WidgetStateManager's prefs (not this class's "weather_prefs").
+    private fun personalStationWeight(): Double =
+        com.weatherwidget.widget.WidgetStateManager(context).getPersonalStationWeight()
+
     companion object {
         private const val MAX_RETRIES = 5
     }
@@ -438,7 +443,8 @@ class ObservationRepository @Inject constructor(
             observations = todayObs,
             hourlyForecasts = hourlyForecasts,
             locationLat = latitude,
-            locationLon = longitude
+            locationLon = longitude,
+            personalStationWeight = personalStationWeight(),
         )
 
         val obsSpanSummary =
@@ -510,7 +516,7 @@ class ObservationRepository @Inject constructor(
         val effectiveHourly = hourlyForecasts.ifEmpty {
             hourlyForecastDao.getHourlyForecasts(startTs, endTs, latitude, longitude)
         }
-        val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, effectiveHourly, latitude, longitude)
+        val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, effectiveHourly, latitude, longitude, personalStationWeight())
         val existingExtremes = dailyExtremeDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
             .associateBy { it.source }
 

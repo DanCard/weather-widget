@@ -263,11 +263,30 @@ class ActualTemperatureSeriesBuilderTest {
     }
 
     @Test
-    fun `personal stations get half weight in the IDW blend`() {
-        // A nearby personal station (PWS) reading hot must not dominate the blend the way its raw
-        // inverse-distance² weight would. At the same instant: PWS 79° @2km vs official 75° @4km.
-        // Full weight: 0.25*79 + 0.0625*75 over 0.3125 = 78.2. With the 0.5 personal penalty:
-        // 0.125*79 + 0.0625*75 over 0.1875 = 77.67 — pulled toward the official reading.
+    fun `personal and official stations get equal weight with no discount (default)`() {
+        // Default personalStationWeight = 1.0 (0% discount): PWS gets the same IDW weight as an
+        // official station at the same distance. PWS 79° @2km vs official 75° @4km:
+        // 0.25*79 + 0.0625*75 over 0.3125 = 78.2.
+        val blended = blendTwoStation(personalStationWeight = 1.0)
+        assertEquals(78.2f, blended, 0.05f)
+    }
+
+    @Test
+    fun `personal station at half weight shifts the blend toward the official reading`() {
+        // personalStationWeight = 0.5 (50% discount): PWS weight 0.5*0.25=0.125, official 0.0625.
+        // (0.125*79 + 0.0625*75) / 0.1875 = 77.67 — pulled down from 78.2 toward the official 75°.
+        val blended = blendTwoStation(personalStationWeight = 0.5)
+        assertEquals(77.67f, blended, 0.05f)
+    }
+
+    @Test
+    fun `personal station fully discounted is excluded from the blend`() {
+        // personalStationWeight = 0.0 (100% discount): PWS dropped entirely, only the official remains.
+        val blended = blendTwoStation(personalStationWeight = 0.0)
+        assertEquals(75f, blended, 0.01f)
+    }
+
+    private fun blendTwoStation(personalStationWeight: Double): Float {
         val peak = "2026-06-03T15:00:00"
         val obs = listOf(
             observation("PWS", peak, 79f, distanceKm = 2f, stationType = "PERSONAL"),
@@ -275,7 +294,7 @@ class ActualTemperatureSeriesBuilderTest {
         )
         val forecasts = forecasts("2026-06-03T00:00:00", 24)
 
-        val blended = ActualTemperatureSeriesBuilder.blendObservationSeries(
+        return ActualTemperatureSeriesBuilder.blendObservationSeries(
             observations = obs,
             hourlyForecasts = forecasts,
             displaySourceId = WeatherSource.NWS.id,
@@ -283,9 +302,8 @@ class ActualTemperatureSeriesBuilderTest {
             userLon = LON,
             startMs = epoch("2026-06-03T00:00:00"),
             endMs = epoch("2026-06-04T00:00:00"),
+            personalStationWeight = personalStationWeight,
         ).observations.single().temperature
-
-        assertEquals(77.67f, blended, 0.05f)
     }
 
     private fun forecasts(start: String, count: Int, source: String = WeatherSource.NWS.id): List<HourlyForecast> {

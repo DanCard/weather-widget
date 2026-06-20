@@ -98,6 +98,18 @@ internal fun SettingsWindow(
 
                     Spacer(Modifier.height(24.dp))
 
+                    // Personal Weather Stations
+                    Text("Personal Weather Stations", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    PersonalStationDiscount(
+                        discountPercent = currentConfig.personalStationDiscount,
+                        onChanged = { newPercent ->
+                            currentConfig = currentConfig.copy(personalStationDiscount = newPercent)
+                        }
+                    )
+
+                    Spacer(Modifier.height(24.dp))
+
                     // API Keys
                     Text("API Keys", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(8.dp))
@@ -169,6 +181,47 @@ internal fun SettingsWindow(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PersonalStationDiscount(
+    discountPercent: Int,
+    onChanged: (Int) -> Unit
+) {
+    fun labelFor(percent: Int): String = when (percent) {
+        0 -> "0% — no discount (counts the same as official)"
+        100 -> "100% — personal stations ignored"
+        else -> "$percent% discount"
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Personal (backyard) stations often over-read in the sun. Discount how much they count " +
+                "toward the measured temperature. 0% = no discount; 100% = ignored.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            labelFor(discountPercent),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Slider(
+            value = discountPercent.toFloat(),
+            onValueChange = { onChanged(it.toInt()) },
+            valueRange = 0f..100f,
+            steps = 0,
+            modifier = Modifier.fillMaxWidth().testTag("personal_station_discount_slider")
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("0% · no discount", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("100% · ignored", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -25,7 +25,8 @@ class DesktopWeatherRepository(
     private val weatherDao: DesktopWeatherDao,
     private val latitude: Double,
     private val longitude: Double,
-    private val weatherSource: String
+    private val weatherSource: String,
+    private val personalStationWeight: Double = 1.0
 ) {
     private fun resolveForForecastResult(
         hourly: List<HourlyForecast>,
@@ -53,6 +54,7 @@ class DesktopWeatherRepository(
             nowMs = now,
             lookbackHours = 12L,
             lookaheadHours = 3L,
+            personalStationWeight = personalStationWeight,
         )
 
         val lastObservedTemp = resolvedObs?.first
@@ -263,7 +265,8 @@ class DesktopWeatherRepository(
             hourlyForecasts = hourly,
             locationLat = latitude,
             locationLon = longitude,
-            updatedAtMs = now
+            updatedAtMs = now,
+            personalStationWeight = personalStationWeight,
         )
 
         weatherDao.upsertDailyExtremes(extremes)

@@ -13,6 +13,7 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -64,6 +65,9 @@ class SettingsActivity : AppCompatActivity() {
 
         // API Keys section
         setupApiKeysList()
+
+        // Personal weather station discount slider
+        setupPersonalStationDiscount()
 
         // Location Settings
         setupLocationSettings()
@@ -320,6 +324,35 @@ class SettingsActivity : AppCompatActivity() {
         workManager.getWorkInfoByIdLiveData(currentWorkId).observe(this) { workInfo ->
             onFinished(workInfo, isForecastWork = false)
         }
+    }
+
+    private fun setupPersonalStationDiscount() {
+        val seekBar = findViewById<SeekBar>(R.id.personal_station_discount_seekbar)
+        val valueLabel = findViewById<TextView>(R.id.personal_station_discount_value)
+
+        fun labelFor(percent: Int): String = when (percent) {
+            0 -> "0% — no discount (counts the same as official)"
+            100 -> "100% — personal stations ignored"
+            else -> "$percent% discount"
+        }
+
+        val initial = widgetStateManager.getPersonalStationDiscountPercent()
+        seekBar.progress = initial
+        valueLabel.text = labelFor(initial)
+
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                valueLabel.text = labelFor(progress)
+            }
+
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                val percent = sb?.progress ?: return
+                widgetStateManager.setPersonalStationDiscountPercent(percent)
+                Log.d("SETTINGS", "Personal station discount set to $percent%")
+            }
+        })
     }
 
     private fun setupLocationSettings() {

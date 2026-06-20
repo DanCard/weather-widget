@@ -214,7 +214,7 @@ fun runDaemon() {
         val config = currentConfig ?: return
         val svc = DesktopWeatherService(config.lat, config.lon, config.weatherSource, config.apiKeys, weatherDao)
         weatherService = svc
-        val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.weatherSource)
+        val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.weatherSource, config.personalStationWeight())
         repo = newRepo
 
         fetchJob = daemonScope.launch {
@@ -341,7 +341,8 @@ fun runDaemon() {
                                     weatherDao,
                                     config.lat,
                                     config.lon,
-                                    otherSource
+                                    otherSource,
+                                    config.personalStationWeight()
                                 )
                                 otherRepo.refresh()
                                 otherService.close()

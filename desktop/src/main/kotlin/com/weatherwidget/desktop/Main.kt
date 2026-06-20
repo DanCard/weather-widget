@@ -204,9 +204,9 @@ private fun runApp() = application {
                 DesktopWeatherService(it.lat, it.lon, it.weatherSource, it.apiKeys, weatherDao)
             } ?: DesktopWeatherService(currentConfig)
         }
-        val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource) {
+        val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.personalStationDiscount) {
             currentConfig?.let {
-                DesktopWeatherRepository(weatherService, weatherDao, it.lat, it.lon, it.weatherSource)
+                DesktopWeatherRepository(weatherService, weatherDao, it.lat, it.lon, it.weatherSource, it.personalStationWeight())
             }
         }
 
@@ -731,6 +731,7 @@ internal fun WidgetPopup(
                                     centerOffsetHours = config.hourlyOffset,
                                     zoomFactor = config.zoomFactor,
                                     scale = uiScale,
+                                    personalStationWeight = config.personalStationWeight(),
                                     onViewModeChange = { targetView ->
                                         onUpdateConfig(config.copy(viewMode = targetView))
                                     },

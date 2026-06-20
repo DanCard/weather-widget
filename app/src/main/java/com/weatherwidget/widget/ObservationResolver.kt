@@ -68,6 +68,7 @@ object ObservationResolver {
         hourlyForecasts: List<HourlyForecastEntity>,
         locationLat: Double,
         locationLon: Double,
+        personalStationWeight: Double = 1.0,
     ): DailyActualsBySource {
         val local = ZoneId.systemDefault()
         val sharedExtremes = ActualsAggregator.aggregate(
@@ -75,7 +76,8 @@ object ObservationResolver {
             hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
             locationLat = locationLat,
             locationLon = locationLon,
-            zoneId = local
+            zoneId = local,
+            personalStationWeight = personalStationWeight,
         )
 
         return sharedExtremes.groupBy { it.source }
@@ -94,6 +96,7 @@ object ObservationResolver {
         hourlyForecasts: List<HourlyForecastEntity>,
         locationLat: Double,
         locationLon: Double,
+        personalStationWeight: Double = 1.0,
     ): List<DailyExtremeEntity> {
         val local = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
@@ -103,7 +106,8 @@ object ObservationResolver {
             locationLat = locationLat,
             locationLon = locationLon,
             zoneId = local,
-            updatedAtMs = now
+            updatedAtMs = now,
+            personalStationWeight = personalStationWeight,
         )
 
         return sharedExtremes.map { it.toEntity() }

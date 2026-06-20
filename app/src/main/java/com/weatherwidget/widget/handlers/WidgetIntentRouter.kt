@@ -152,7 +152,7 @@ suspend fun handleNavigation(
 
         val availableForecastDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }.toSet()
 
-        val dailyActuals = getDailyActuals(ctx.database, ctx.location.lat, ctx.location.lon)
+        val dailyActuals = getDailyActuals(ctx.database, ctx.location.lat, ctx.location.lon, WidgetStateManager(context).getPersonalStationWeight())
         val availableObsDates = dailyActuals.values.flatMap { it.keys }.toSet()
 
         val availableDates = (availableForecastDates + availableObsDates)
@@ -421,6 +421,7 @@ suspend fun handleToggleView(
         database: WeatherDatabase,
         lat: Double,
         lon: Double,
+        personalStationWeight: Double = 1.0,
     ): DailyActualsBySource {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
@@ -441,7 +442,7 @@ suspend fun handleToggleView(
         val hourlyLookbackStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zone).toInstant().toEpochMilli()
         val hourlyLookaheadEnd = now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zone).toInstant().toEpochMilli()
         val hourlyForecasts = database.hourlyForecastDao().getHourlyForecasts(hourlyLookbackStart, hourlyLookaheadEnd, lat, lon)
-        val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs, hourlyForecasts, lat, lon)
+        val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs, hourlyForecasts, lat, lon, personalStationWeight)
 
         // Today must stay live-only. Persisted daily_extremes can contain a different high
         // than the time-aligned live blender, which makes SET_VIEW renders disagree with
@@ -726,7 +727,7 @@ suspend fun handleResize(
         val todayStartMs = LocalDate.now().atStartOfDay(zoneId).toInstant().toEpochMilli()
         val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs)
             ?: database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
-        val finalDailyActuals = dailyActuals ?: getDailyActuals(database, lat, lon)
+        val finalDailyActuals = dailyActuals ?: getDailyActuals(database, lat, lon, WidgetStateManager(context).getPersonalStationWeight())
         val currentTempHourlyForecasts =
             GraphDataLoader.loadCurrentTempResolutionHourlyForecasts(
                 hourlyDao = hourlyDao,

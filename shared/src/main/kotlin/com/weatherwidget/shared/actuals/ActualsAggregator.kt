@@ -31,7 +31,8 @@ object ActualsAggregator {
         nowMs: Long = System.currentTimeMillis(),
         lookbackHours: Long = 12L,
         lookaheadHours: Long = 3L,
-        zoneId: ZoneId = ZoneId.systemDefault()
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        personalStationWeight: Double = 1.0
     ): Triple<Float, Long, Long>? {
         val truncatedMs = (nowMs / 3600_000L) * 3600_000L
         val minute = (nowMs % 3600_000L) / 60_000L
@@ -48,6 +49,7 @@ object ActualsAggregator {
             userLon = userLon,
             startMs = contextStartMs,
             endMs = contextEndMs,
+            personalStationWeight = personalStationWeight,
             onBlendDebug = null,
         )
 
@@ -73,7 +75,8 @@ object ActualsAggregator {
         locationLat: Double,
         locationLon: Double,
         zoneId: ZoneId = ZoneId.systemDefault(),
-        updatedAtMs: Long = System.currentTimeMillis()
+        updatedAtMs: Long = System.currentTimeMillis(),
+        personalStationWeight: Double = 1.0
     ): List<DailyExtreme> {
         val today = LocalDate.now(zoneId)
 
@@ -96,6 +99,7 @@ object ActualsAggregator {
                             locationLon = locationLon,
                             dayStartMs = dayStartMs,
                             dayEndMs = dayEndMs,
+                            personalStationWeight = personalStationWeight,
                         ) ?: return@mapNotNull null
 
                         val mostCommonCondition = dayObs
@@ -135,9 +139,10 @@ object ActualsAggregator {
         locationLon: Double,
         dayStartMs: Long,
         dayEndMs: Long,
+        personalStationWeight: Double = 1.0,
     ): Pair<Float, Float>? {
         if (dayObs.isEmpty()) return null
-        
+
         val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
             observations = dayObs,
             hourlyForecasts = hourlyForecasts,
@@ -146,6 +151,7 @@ object ActualsAggregator {
             userLon = locationLon,
             startMs = dayStartMs,
             endMs = dayEndMs,
+            personalStationWeight = personalStationWeight,
             onBlendDebug = null,
         )
         

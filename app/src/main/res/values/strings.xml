@@ -29,6 +29,10 @@
     <string name="api_sources_title">Weather Data Sources</string>
     <string name="api_sources_description">Enable/disable and reorder sources. Disabled sources are excluded from widget toggles and background fetches until re-enabled.</string>
     <string name="must_keep_one_source">At least one source must remain enabled</string>
+    <string name="personal_stations_title">Personal Weather Stations</string>
+    <string name="personal_stations_description" formatted="false">Personal (backyard) stations often over-read in the sun. Discount how much they count toward the measured temperature. 0% = no discount: personal stations count the same as official stations. 100% = personal stations are ignored.</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · no discount</string>
+    <string name="personal_stations_ignored" formatted="false">100% · ignored</string>
     <string name="api_source_silurian_desc">Silurian.ai — shown as Silur (global coverage)</string>
     <string name="api_source_nws_desc">National Weather Service (US only)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — shown as Tmrw (global coverage)</string>

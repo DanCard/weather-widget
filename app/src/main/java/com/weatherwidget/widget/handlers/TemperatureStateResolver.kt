@@ -401,6 +401,7 @@ internal object TemperatureStateResolver {
             observations,
             onBlendDebug = { lineProvider -> blendDebugCollector.recordDetailed(lineProvider) },
             smoothedForecasts = smoothedForecasts,
+            personalStationWeight = stateManager.getPersonalStationWeight(),
         )
         val hourData = hourDataResult.hours
         val buildHourDataMs = System.currentTimeMillis() - buildHourDataStartMs

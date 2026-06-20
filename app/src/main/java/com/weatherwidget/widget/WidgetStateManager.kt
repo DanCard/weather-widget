@@ -60,6 +60,10 @@ class WidgetStateManager
             private const val KEY_DATE_OFFSET_PREFIX = "widget_date_offset_"
             private const val KEY_API_PREFERENCE = "api_preference"
             private const val KEY_VISIBLE_SOURCES_ORDER = "visible_sources_order"
+            // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
+            // IDW blend. 0 = no discount (PWS counts the same as official); 100 = PWS ignored entirely.
+            private const val KEY_PERSONAL_STATION_DISCOUNT = "personal_station_discount"
+            const val DEFAULT_PERSONAL_STATION_DISCOUNT = 0
             private const val KEY_MIGRATION_DONE = "api_pref_migrated"
             private const val KEY_HIDE_OPEN_WEATHER_MAP_MIGRATION_DONE = "hide_open_weather_map_migration_done_v4"
             private const val KEY_VISUAL_CROSSING_MIGRATION_DONE = "visual_crossing_migration_done_v5"
@@ -148,6 +152,17 @@ class WidgetStateManager
         fun setDailyColumnCount(widgetId: Int, count: Int) {
             prefs.edit().putInt("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId", count).apply()
         }
+
+        // Personal-weather-station discount (app-wide). UI stores a percent; the blend consumes a weight.
+        fun getPersonalStationDiscountPercent(): Int =
+            prefs.getInt(KEY_PERSONAL_STATION_DISCOUNT, DEFAULT_PERSONAL_STATION_DISCOUNT)
+
+        fun setPersonalStationDiscountPercent(percent: Int) {
+            prefs.edit().putInt(KEY_PERSONAL_STATION_DISCOUNT, percent.coerceIn(0, 100)).apply()
+        }
+
+        // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
+        fun getPersonalStationWeight(): Double = 1.0 - getPersonalStationDiscountPercent() / 100.0
 
         fun getApiKey(source: WeatherSource): String? {
             return prefs.getString("$KEY_API_KEY_PREFIX${source.name}", null)

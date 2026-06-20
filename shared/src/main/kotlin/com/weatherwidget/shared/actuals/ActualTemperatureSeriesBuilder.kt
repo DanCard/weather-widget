@@ -59,11 +59,11 @@ object ActualTemperatureSeriesBuilder {
     private const val MAX_INTERPOLATION_GAP_MS = 3 * 60 * 60 * 1000L
     private const val MAX_EXTRAPOLATION_GAP_MS = 3 * 60 * 60 * 1000L
 
-    // Personal weather stations (backyard units) frequently over-read in sun and are poorly sited, so
-    // they get half the IDW weight of an official station at the same distance. Without this, a nearby
-    // PWS dominates the inverse-distance² blend and pulls the actual high above the official network.
+    // Personal weather stations (backyard units) frequently over-read in sun and are poorly sited.
+    // Callers pass a `personalStationWeight` multiplier (0.0..1.0) applied to a PWS's IDW weight
+    // relative to an official station at the same distance. 1.0 (the default) = no discount, equal
+    // weight; 0.0 = ignore PWS entirely. The value originates from a user setting on each platform.
     private const val PERSONAL_STATION_TYPE = "PERSONAL"
-    private const val PERSONAL_STATION_WEIGHT_MULTIPLIER = 1.0
 
     fun build(
         hourlyForecasts: List<HourlyForecast>,
@@ -79,6 +79,7 @@ object ActualTemperatureSeriesBuilder {
         now: LocalDateTime = LocalDateTime.now(),
         zoneId: ZoneId = ZoneId.systemDefault(),
         smoothedForecasts: Map<Long, Float>? = null,
+        personalStationWeight: Double = 1.0,
         onBlendDebug: ((() -> String) -> Unit)? = null,
     ): ActualTemperatureSeriesResult {
         val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySourceId, now.atZone(zoneId).toInstant().toEpochMilli())
@@ -118,6 +119,7 @@ object ActualTemperatureSeriesBuilder {
             userLon = userLon,
             startMs = contextStartMs,
             endMs = contextEndMs,
+            personalStationWeight = personalStationWeight,
             onBlendDebug = onBlendDebug,
         )
         val blendedActuals = blendedActualsResult.observations
@@ -209,6 +211,7 @@ object ActualTemperatureSeriesBuilder {
         userLon: Double,
         startMs: Long,
         endMs: Long,
+        personalStationWeight: Double = 1.0,
         onBlendDebug: ((() -> String) -> Unit)? = null,
     ): BlendObservationResult {
         val filtered = observations
@@ -266,7 +269,7 @@ object ActualTemperatureSeriesBuilder {
 
             if (candidates.isEmpty()) continue
             val anchor = anchorStation ?: continue
-            val blendedTemp = blendCandidateTemperature(candidates) ?: continue
+            val blendedTemp = blendCandidateTemperature(candidates, personalStationWeight) ?: continue
             val bestSourceKind = when {
                 hasObserved -> "observed"
                 hasInterpolated -> "interpolated"
@@ -366,8 +369,13 @@ object ActualTemperatureSeriesBuilder {
         val stationType: String,
     )
 
-    private fun blendCandidateTemperature(candidates: List<DecayBlendInput>): Float? {
-        val veryClose = candidates.filter { it.distanceKm <= NEAR_ZERO_KM && timeDecayFactor(it.ageMs) > 0f }
+    private fun blendCandidateTemperature(candidates: List<DecayBlendInput>, personalStationWeight: Double): Float? {
+        // A fully-discounted PWS (weight 0) contributes nothing, so drop it entirely. This also keeps it
+        // from winning the near-zero-distance tiebreak below when an official station exists elsewhere.
+        val eligible = if (personalStationWeight <= 0.0) candidates.filter { !it.isPersonal } else candidates
+        if (eligible.isEmpty()) return null
+
+        val veryClose = eligible.filter { it.distanceKm <= NEAR_ZERO_KM && timeDecayFactor(it.ageMs) > 0f }
         if (veryClose.isNotEmpty()) {
             // A station essentially at the user's location wins outright (IDW would divide by ~0). Prefer
             // an official station here too, falling back to the nearest personal one if that's all there is.
@@ -378,10 +386,10 @@ object ActualTemperatureSeriesBuilder {
 
         var wSum = 0.0
         var tSum = 0.0
-        for (candidate in candidates) {
+        for (candidate in eligible) {
             val decay = timeDecayFactor(candidate.ageMs)
             if (decay <= 0f) continue
-            val typeWeight = if (candidate.isPersonal) PERSONAL_STATION_WEIGHT_MULTIPLIER else 1.0
+            val typeWeight = if (candidate.isPersonal) personalStationWeight else 1.0
             val w = typeWeight * decay.toDouble() / (candidate.distanceKm.toDouble() * candidate.distanceKm.toDouble())
             tSum += w * candidate.temperature
             wSum += w
