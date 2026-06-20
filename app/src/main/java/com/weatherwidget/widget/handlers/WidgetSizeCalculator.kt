@@ -25,31 +25,30 @@ data class WidgetDimensions(
  * Calculator for widget size and bitmap dimensions.
  */
 object WidgetSizeCalculator {
-    private const val CELL_WIDTH_DP = 70
+    // Per-column width assumption (dp). Deliberately tighter than a launcher grid cell so the daily
+    // view packs more days at every size — e.g. Pixel 7 Pro (~373dp) shows 7 days and the Fold
+    // full-width (~574dp) shows 10. Lowering this densifies all widgets uniformly.
+    private const val CELL_WIDTH_DP = 60
     private const val CELL_HEIGHT_DP = 90
     private const val ICON_WIDTH_THRESHOLD_DP = 130
 
     /**
      * Bias added to the reported widget width before dividing by [CELL_WIDTH_DP].
      *
-     * Combined with round-to-nearest (not floor), this intentionally rounds UP a widget
-     * that is within ~(this many) dp of the next column, so we fit one more forecast day.
-     * With this value the 5→6 boundary lands at width >= 355dp and the 8→9 boundary at
-     * width >= 565dp.
+     * Combined with round-to-nearest (not floor), this rounds UP a widget that is within ~(this
+     * many) dp of the next column, fitting one more forecast day. With the current [CELL_WIDTH_DP]
+     * the 5→6 boundary lands at width >= 300dp, 6→7 at >= 360dp, and 9→10 at >= 540dp.
      *
-     * Sized so the widest practical real widget — the Samsung Fold 4 full-width (6-span)
-     * widget, which reports ~574dp — reaches its **9th** day column. Nine columns is still
-     * fully inside the forecast baseline: at >8 columns the narrow skip-yesterday rule is
-     * off (see NavigationUtils.NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD), so the window is
-     * yesterday..+7 — and +7 == ForecastHorizon.BASELINE_DAYS (8 = today + 7). So the extra
-     * column is backed by routine data for sources that return a full week (Open-Meteo);
-     * NWS (~today..+6) leaves the +7 column to the climate-normal fallback, which is the
-     * intended long-range filler for dates > today+2. Days shown == columns.
+     * Density is governed mainly by [CELL_WIDTH_DP]; this bias just nudges borderline widgets up.
+     * Representative results: Pixel 7 Pro (~373dp) → 7 days, Samsung Fold 4 full-width (~574dp) →
+     * 10 days. Days shown == columns (see NavigationUtils.getDayOffsets).
      *
-     * Verified (against live device options, June 2026) that raising this from 15 to 30
-     * flips only the 574dp Fold widget to 9; the Pixel 7 Pro (~373dp → 6) and every other
-     * observed widget size are unchanged. Widths > ~643dp would reach 10 columns (+8, past
-     * baseline) and fall to climate-normal there too, but no current launcher reports them.
+     * Data backing the rightmost columns: at >8 columns the narrow skip-yesterday rule is off
+     * (NavigationUtils.NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD), so a 10-column window is
+     * yesterday..+8. +7 is the routine baseline (ForecastHorizon.BASELINE_DAYS = 8 = today + 7);
+     * the +8 column (and NWS's +7, since NWS only returns ~today..+6) fall to the climate-normal
+     * filler, which is the intended long-range fallback for dates > today+2, plus the on-demand
+     * forecast extension the daily view triggers when its visible edge passes real coverage.
      */
     private const val COLUMN_FIT_BIAS_DP = 30
 
@@ -91,9 +90,9 @@ object WidgetSizeCalculator {
     /**
      * Maps a widget width (dp) to the number of day columns the daily view shows.
      *
-     * Pure (no Android dependencies) so the round-up bias is directly unit-testable.
+     * Pure (no Android dependencies) so the column math is directly unit-testable.
      * Round-to-nearest plus [COLUMN_FIT_BIAS_DP] deliberately fits the extra forecast day
-     * for widgets within ~half a cell of the next column (e.g. 5→6 columns at width >= 370dp).
+     * for widgets near a column boundary (e.g. 6→7 columns at width >= 360dp).
      */
     fun columnsForWidthDp(widthDp: Int): Int =
         ((widthDp + COLUMN_FIT_BIAS_DP).toFloat() / CELL_WIDTH_DP).roundToInt().coerceAtLeast(1)

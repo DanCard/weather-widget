@@ -29,6 +29,38 @@ class DailyForecastGraphRendererTest {
     }
 
     @Test
+    fun `fitScaleForWidth leaves a label that already fits unchanged`() {
+        // "78°" comfortably inside the column: no shrink.
+        assertEquals(1f, DailyForecastGraphRenderer.fitScaleForWidth(40f, maxWidthPx = 60f, currentScale = 1f))
+    }
+
+    @Test
+    fun `fitScaleForWidth shrinks an overflowing label to fit the column`() {
+        // 80px label, 60px budget -> scale down to 0.75 so it fits.
+        assertEquals(0.75f, DailyForecastGraphRenderer.fitScaleForWidth(80f, maxWidthPx = 60f, currentScale = 1f), 0.0001f)
+    }
+
+    @Test
+    fun `fitScaleForWidth never shrinks below the legibility floor`() {
+        // Wildly oversized label clamps to currentScale * minScale (legibility floor), not to 0.
+        val minScale = 0.7f
+        assertEquals(
+            0.7f,
+            DailyForecastGraphRenderer.fitScaleForWidth(1000f, maxWidthPx = 10f, currentScale = 1f, minScale = minScale),
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun `fitScaleForWidth composes with an existing wide-label scale`() {
+        // Starting from the 0.95 wide-label step, an 80px@0.95 label in a 60px column shrinks
+        // further to 0.95 * 0.75 (still above the 0.95 * 0.7 floor).
+        val current = 0.95f
+        val result = DailyForecastGraphRenderer.fitScaleForWidth(80f, maxWidthPx = 60f, currentScale = current)
+        assertEquals(current * (60f / 80f), result, 0.0001f)
+    }
+
+    @Test
     fun `resolveBottomStackLow prefers explicit bottom stack low over observed low`() {
         val day = DailyForecastGraphRenderer.DayData(
             date = LocalDate.of(2030, 6, 15),

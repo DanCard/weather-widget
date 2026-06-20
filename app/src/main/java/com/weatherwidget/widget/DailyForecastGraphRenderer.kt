@@ -32,6 +32,12 @@ object DailyForecastGraphRenderer {
     private const val MAX_DAY_LABEL_WIDTH_SCALE = 1.04f
     private const val MIN_DYNAMIC_DAY_LABEL_SCALE = 0.72f
     private const val DAY_LABEL_HORIZONTAL_GAP_DP = 4f
+    // Temp-label shrink-to-fit budget. Rather than enforce a gap, we ALLOW a small overlap into the
+    // neighbouring column before shrinking, so labels stay as large as possible — a sliver of overlap
+    // reads better than visibly smaller text. Only labels wider than (column + this allowance) shrink,
+    // and only down to MIN_TEMP_LABEL_FIT_SCALE of their size (legibility floor).
+    private const val TEMP_LABEL_OVERLAP_ALLOWANCE_DP = 6f
+    private const val MIN_TEMP_LABEL_FIT_SCALE = 0.7f
     private const val MIN_BAR_HEIGHT_DP = 1.0f
 
     private val COLOR_FORECAST = 0xFF5AC8FA.toInt()
@@ -216,6 +222,8 @@ object DailyForecastGraphRenderer {
         val graphBottom: Float,
         val graphHeight: Float,
         val dayWidth: Float,
+        // Width budget for a single (centered) temp label before it overflows into the next column.
+        val tempLabelMaxWidthPx: Float,
         val horizontalPadding: Float,
         val tripleBarOffset: Float,
         val forecastBarOffset: Float,
@@ -510,6 +518,7 @@ object DailyForecastGraphRenderer {
             graphBottom = graphBottom,
             graphHeight = graphHeight,
             dayWidth = dayWidth,
+            tempLabelMaxWidthPx = dayWidth + (TEMP_LABEL_OVERLAP_ALLOWANCE_DP * labelScale).dp(density),
             horizontalPadding = horizontalPadding,
             tripleBarOffset = (8f * scaleFactor * labelScale).dp(density),
             forecastBarOffset = barWidth * FORECAST_BAR_OFFSET_SCALE,
@@ -704,7 +713,8 @@ object DailyForecastGraphRenderer {
                     day.isPast -> paints.pastTempTextPaint
                     else -> paints.tempTextPaint
                 }
-                drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint, drawOutline = day.isPast)
+                drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint, drawOutline = day.isPast,
+                    maxWidthPx = layout.tempLabelMaxWidthPx)
             }
         }
 
@@ -845,9 +855,11 @@ object DailyForecastGraphRenderer {
                 // Dual highs render for past days and settled-today, so both labels are outlined.
                 val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
                 drawTempLabel(canvas, formatTempLabel(actualHigh), centerX, actualBaseline, basePaint,
-                    extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true)
+                    extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true,
+                    maxWidthPx = layout.tempLabelMaxWidthPx)
                 drawTempLabel(canvas, formatTempLabel(forecastHigh), forecastLabelX, forecastBaseline,
-                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor, drawOutline = true)
+                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor, drawOutline = true,
+                    maxWidthPx = layout.tempLabelMaxWidthPx)
             } else {
                 val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
                 val highLabel = formatTempLabel(displayHigh)
@@ -859,7 +871,8 @@ object DailyForecastGraphRenderer {
                 // History and today get the thin outline (today's headline sits over the triple bars);
                 // future days stay plain.
                 drawTempLabel(canvas, highLabel, centerX, labelY - labelOffset, basePaint,
-                    colorOverride = highColorOverride, drawOutline = day.isPast || day.isToday)
+                    colorOverride = highColorOverride, drawOutline = day.isPast || day.isToday,
+                    maxWidthPx = layout.tempLabelMaxWidthPx)
             }
         }
     }
@@ -871,6 +884,21 @@ object DailyForecastGraphRenderer {
      * When [drawOutline] is true (history labels), a thin black stroke is drawn behind the fill to keep
      * the label legible over a same-colored bar.
      */
+    /**
+     * Reduces [currentScale] just enough that a label measuring [measuredWidthAtScale] px fits
+     * within [maxWidthPx], never going below [minScale]. Returns [currentScale] unchanged when the
+     * label already fits (or no budget is given). Pure so the shrink-to-fit math is unit-testable.
+     */
+    internal fun fitScaleForWidth(
+        measuredWidthAtScale: Float,
+        maxWidthPx: Float,
+        currentScale: Float,
+        minScale: Float = MIN_TEMP_LABEL_FIT_SCALE,
+    ): Float {
+        if (maxWidthPx <= 0f || measuredWidthAtScale <= maxWidthPx) return currentScale
+        return (currentScale * (maxWidthPx / measuredWidthAtScale)).coerceAtLeast(currentScale * minScale)
+    }
+
     private fun drawTempLabel(
         canvas: Canvas,
         text: String,
@@ -880,8 +908,13 @@ object DailyForecastGraphRenderer {
         extraScale: Float = 1f,
         colorOverride: Int? = null,
         drawOutline: Boolean = false,
+        maxWidthPx: Float = Float.MAX_VALUE,
     ) {
-        val scale = extraScale * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
+        // Start from the existing fixed wide-label step, then shrink-to-fit against the column width
+        // so 3+ digit / decimal temps (e.g. "77.7°") never spill their degree symbol into the next
+        // column on dense layouts. Keeps the ° and the tenths; only the font size adapts.
+        val baseScale = extraScale * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
+        val scale = fitScaleForWidth(measureTextWidth(base, text) * baseScale, maxWidthPx, baseScale)
         val paint = if (colorOverride == null && scale == 1f) base else Paint(base).apply {
             if (colorOverride != null) color = colorOverride
             textSize = base.textSize * scale
