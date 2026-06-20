@@ -459,7 +459,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
             contains("source=${source.id}")
     }
 
-    internal class ObservationAdapter(private val onItemClick: (ObservationEntity) -> Unit) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
+    internal class ObservationAdapter(
+        @get:VisibleForTesting internal val onItemClick: (ObservationEntity) -> Unit,
+    ) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
         internal var items: List<ObservationEntity> = emptyList()
         private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
 

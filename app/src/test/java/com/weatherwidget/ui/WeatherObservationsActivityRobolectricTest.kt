@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -226,6 +227,57 @@ class WeatherObservationsActivityRobolectricTest {
             val logs = activity.findViewById<TextView>(R.id.fetch_logs).text.toString()
 
             assertTrue(logs.contains("requested type=charging_loop reason=charging_loop decision=enqueue_delayed"))
+        }
+    }
+
+    @Test
+    fun `clicking an official NWS station opens its time-series web page`() {
+        val scenario = launchActivity()
+
+        scenario.onActivity { activity ->
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            adapter.onItemClick(adapter.items.first { it.stationId == "KNUQ" })
+            shadowOf(Looper.getMainLooper()).idle()
+
+            val started = shadowOf(activity).nextStartedActivity
+            assertEquals(Intent.ACTION_VIEW, started.action)
+            assertEquals("https://www.weather.gov/wrh/timeseries?site=KNUQ", started.dataString)
+        }
+    }
+
+    @Test
+    fun `clicking a personal NWS station opens its time-series web page`() {
+        val scenario = launchActivity()
+
+        scenario.onActivity { activity ->
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            adapter.onItemClick(adapter.items.first { it.stationId == "AW020" })
+            shadowOf(Looper.getMainLooper()).idle()
+
+            val started = shadowOf(activity).nextStartedActivity
+            assertEquals(Intent.ACTION_VIEW, started.action)
+            assertEquals("https://www.weather.gov/wrh/timeseries?site=AW020", started.dataString)
+        }
+    }
+
+    @Test
+    fun `clicking a non-NWS station opens nothing`() {
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.SILURIAN))
+        stateManager.setCurrentDisplaySource(widgetId, WeatherSource.NWS)
+        val scenario = launchActivity()
+
+        scenario.onActivity { activity ->
+            // Cycle NWS -> Silurian so the active source has no per-station web page.
+            activity.findViewById<TextView>(R.id.api_source_button).performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+
+        scenario.onActivity { activity ->
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            adapter.onItemClick(adapter.items.first { it.stationId == "SILURIAN_MAIN" })
+            shadowOf(Looper.getMainLooper()).idle()
+
+            assertNull("Non-NWS rows have no link and must not start an activity", shadowOf(activity).nextStartedActivity)
         }
     }
 
