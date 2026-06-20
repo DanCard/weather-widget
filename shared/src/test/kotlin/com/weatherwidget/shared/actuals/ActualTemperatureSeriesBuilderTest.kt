@@ -210,6 +210,84 @@ class ActualTemperatureSeriesBuilderTest {
         }
     }
 
+    @Test
+    fun `blended day high is independent of query window when a station distance drifts`() {
+        // Regression for the daily-bar (77.4) vs hourly-graph (76.8) split: a station's logged
+        // distanceKm drifts as the configured location moves. The IDW weight at today's 15:00 peak must
+        // use today's distance regardless of whether the blend input window also includes a stale,
+        // farther-logged reading from days ago. The daily bar feeds an isolated today-only window; the
+        // hourly graph feeds a 72h window — they must agree. Before the fix, resolveStationValueAt used
+        // stationObs.first().distanceKm, so the wide window's earliest (stale, 2.9km) reading down-weighted
+        // the near station for the whole day and dragged the peak down. (daily_vs_hourly_actual_extrema_mismatch)
+        val todayPeak = "2026-06-03T15:00:00"
+        val nearToday = listOf(
+            observation("S_NEAR", "2026-06-03T06:00:00", 58f, distanceKm = 2.0f),
+            observation("S_NEAR", todayPeak, 79f, distanceKm = 2.0f),
+            observation("S_NEAR", "2026-06-03T20:00:00", 64f, distanceKm = 2.0f),
+        )
+        val midToday = listOf(
+            observation("S_MID", "2026-06-03T06:00:00", 56f, distanceKm = 4.0f),
+            observation("S_MID", "2026-06-03T15:00:00", 75f, distanceKm = 4.0f),
+            observation("S_MID", "2026-06-03T20:00:00", 62f, distanceKm = 4.0f),
+        )
+        // Same near station, three days earlier, logged from a farther location (2.9km). Only its
+        // presence as the station's earliest reading differs between the two windows.
+        val staleNear = listOf(
+            observation("S_NEAR", "2026-05-31T15:00:00", 70f, distanceKm = 2.9f),
+        )
+        val forecasts = forecasts("2026-05-31T00:00:00", 96)
+        val dayStart = epoch("2026-06-03T00:00:00")
+        val dayEnd = epoch("2026-06-04T00:00:00")
+
+        fun dayHigh(obs: List<ObservationReading>, startMs: Long, endMs: Long): Float =
+            ActualTemperatureSeriesBuilder.blendObservationSeries(
+                observations = obs,
+                hourlyForecasts = forecasts,
+                displaySourceId = WeatherSource.NWS.id,
+                userLat = LAT,
+                userLon = LON,
+                startMs = startMs,
+                endMs = endMs,
+            ).observations.filter { it.timestamp in dayStart until dayEnd }.maxOf { it.temperature }
+
+        // Daily-bar path: isolated today-only window.
+        val isolated = dayHigh(nearToday + midToday, dayStart, dayEnd)
+        // Hourly-graph path: wide window that also contains the stale earlier reading.
+        val wide = dayHigh(
+            staleNear + nearToday + midToday,
+            epoch("2026-05-31T00:00:00"),
+            epoch("2026-06-04T00:00:00"),
+        )
+
+        assertEquals("today's blended high must not depend on the query window", isolated, wide, 0.001f)
+    }
+
+    @Test
+    fun `personal stations get half weight in the IDW blend`() {
+        // A nearby personal station (PWS) reading hot must not dominate the blend the way its raw
+        // inverse-distance² weight would. At the same instant: PWS 79° @2km vs official 75° @4km.
+        // Full weight: 0.25*79 + 0.0625*75 over 0.3125 = 78.2. With the 0.5 personal penalty:
+        // 0.125*79 + 0.0625*75 over 0.1875 = 77.67 — pulled toward the official reading.
+        val peak = "2026-06-03T15:00:00"
+        val obs = listOf(
+            observation("PWS", peak, 79f, distanceKm = 2f, stationType = "PERSONAL"),
+            observation("OFFICIAL_1", peak, 75f, distanceKm = 4f, stationType = "OFFICIAL"),
+        )
+        val forecasts = forecasts("2026-06-03T00:00:00", 24)
+
+        val blended = ActualTemperatureSeriesBuilder.blendObservationSeries(
+            observations = obs,
+            hourlyForecasts = forecasts,
+            displaySourceId = WeatherSource.NWS.id,
+            userLat = LAT,
+            userLon = LON,
+            startMs = epoch("2026-06-03T00:00:00"),
+            endMs = epoch("2026-06-04T00:00:00"),
+        ).observations.single().temperature
+
+        assertEquals(77.67f, blended, 0.05f)
+    }
+
     private fun forecasts(start: String, count: Int, source: String = WeatherSource.NWS.id): List<HourlyForecast> {
         val startTime = LocalDateTime.parse(start)
         return (0..count).map { index ->
@@ -229,6 +307,7 @@ class ActualTemperatureSeriesBuilderTest {
         temperature: Float,
         api: String = WeatherSource.NWS.id,
         distanceKm: Float,
+        stationType: String = "OFFICIAL",
     ): ObservationReading =
         ObservationReading(
             stationId = stationId,
@@ -240,6 +319,7 @@ class ActualTemperatureSeriesBuilderTest {
             locationLon = LON,
             distanceKm = distanceKm,
             api = api,
+            stationType = stationType,
         )
 
     private fun epoch(value: String): Long =

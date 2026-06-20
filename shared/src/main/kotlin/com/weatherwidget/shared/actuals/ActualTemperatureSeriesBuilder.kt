@@ -59,6 +59,12 @@ object ActualTemperatureSeriesBuilder {
     private const val MAX_INTERPOLATION_GAP_MS = 3 * 60 * 60 * 1000L
     private const val MAX_EXTRAPOLATION_GAP_MS = 3 * 60 * 60 * 1000L
 
+    // Personal weather stations (backyard units) frequently over-read in sun and are poorly sited, so
+    // they get half the IDW weight of an official station at the same distance. Without this, a nearby
+    // PWS dominates the inverse-distance² blend and pulls the actual high above the official network.
+    private const val PERSONAL_STATION_TYPE = "PERSONAL"
+    private const val PERSONAL_STATION_WEIGHT_MULTIPLIER = 1.0
+
     fun build(
         hourlyForecasts: List<HourlyForecast>,
         observations: List<ObservationReading>,
@@ -247,7 +253,8 @@ object ActualTemperatureSeriesBuilder {
                 val resolved = resolveStationValueAt(stationObs, targetTs, forecastSeries)
                 if (resolved != null) {
                     val ageMs = maxOf(0L, targetTs - resolved.anchorTs)
-                    candidates.add(DecayBlendInput(resolved.distanceKm, resolved.temperature, ageMs))
+                    val isPersonal = resolved.stationType == PERSONAL_STATION_TYPE
+                    candidates.add(DecayBlendInput(resolved.distanceKm, resolved.temperature, ageMs, isPersonal))
                     if (resolved.anchorTs > bestAnchorTs) bestAnchorTs = resolved.anchorTs
                     if (anchorStation == null) anchorStation = stationObs.minByOrNull { it.distanceKm }
                     when (resolved.sourceKind) {
@@ -348,6 +355,7 @@ object ActualTemperatureSeriesBuilder {
         val distanceKm: Float,
         val temperature: Float,
         val ageMs: Long,
+        val isPersonal: Boolean = false,
     )
 
     private data class ResolvedStationValue(
@@ -355,18 +363,26 @@ object ActualTemperatureSeriesBuilder {
         val distanceKm: Float,
         val sourceKind: String,
         val anchorTs: Long,
+        val stationType: String,
     )
 
     private fun blendCandidateTemperature(candidates: List<DecayBlendInput>): Float? {
         val veryClose = candidates.filter { it.distanceKm <= NEAR_ZERO_KM && timeDecayFactor(it.ageMs) > 0f }
-        if (veryClose.isNotEmpty()) return veryClose.minBy { it.distanceKm }.temperature
+        if (veryClose.isNotEmpty()) {
+            // A station essentially at the user's location wins outright (IDW would divide by ~0). Prefer
+            // an official station here too, falling back to the nearest personal one if that's all there is.
+            val pick = veryClose.filter { !it.isPersonal }.minByOrNull { it.distanceKm }
+                ?: veryClose.minBy { it.distanceKm }
+            return pick.temperature
+        }
 
         var wSum = 0.0
         var tSum = 0.0
         for (candidate in candidates) {
             val decay = timeDecayFactor(candidate.ageMs)
             if (decay <= 0f) continue
-            val w = decay.toDouble() / (candidate.distanceKm.toDouble() * candidate.distanceKm.toDouble())
+            val typeWeight = if (candidate.isPersonal) PERSONAL_STATION_WEIGHT_MULTIPLIER else 1.0
+            val w = typeWeight * decay.toDouble() / (candidate.distanceKm.toDouble() * candidate.distanceKm.toDouble())
             tSum += w * candidate.temperature
             wSum += w
         }
@@ -379,10 +395,18 @@ object ActualTemperatureSeriesBuilder {
         forecastSeries: List<HourlyForecast>,
     ): ResolvedStationValue? {
         if (stationObs.isEmpty()) return null
-        val distanceKm = stationObs.first().distanceKm
+        // stationType is a property of the station (constant across its readings), so capture it once.
+        val stationType = stationObs.first().stationType
+        // Weight by the station's distance AT THIS targetTs, not stationObs.first().distanceKm. The
+        // configured location can drift over time, so a station's logged distanceKm varies between
+        // readings; using the earliest reading's distance made the IDW weight — and thus the blended
+        // value at every timestamp — depend on the query window. That desynced the daily bar (today-only
+        // window) from the hourly graph (72h context window) for the same day. See per-reading distance
+        // below. (daily_vs_hourly_actual_extrema_mismatch)
         val insertIdx = stationObs.binarySearch { it.timestamp.compareTo(targetTs) }.let {
             if (it >= 0) {
-                return ResolvedStationValue(stationObs[it].temperature, distanceKm, "observed", stationObs[it].timestamp)
+                val hit = stationObs[it]
+                return ResolvedStationValue(hit.temperature, hit.distanceKm, "observed", hit.timestamp, stationType)
             }
             -(it + 1)
         }
@@ -396,7 +420,8 @@ object ActualTemperatureSeriesBuilder {
                 if (gapMs > MAX_INTERPOLATION_GAP_MS) return null
                 val fraction = (targetTs - before.timestamp).toFloat() / gapMs.toFloat()
                 val interpolated = before.temperature + (after.temperature - before.temperature) * fraction
-                ResolvedStationValue(interpolated, distanceKm, "interpolated", after.timestamp)
+                val interpolatedDistanceKm = before.distanceKm + (after.distanceKm - before.distanceKm) * fraction
+                ResolvedStationValue(interpolated, interpolatedDistanceKm, "interpolated", after.timestamp, stationType)
             }
             before != null && after == null -> {
                 val gapMs = targetTs - before.timestamp
@@ -404,7 +429,7 @@ object ActualTemperatureSeriesBuilder {
                 val baseForecast = forecastTemperatureAt(forecastSeries, before.timestamp) ?: return null
                 val targetForecast = forecastTemperatureAt(forecastSeries, targetTs) ?: return null
                 val extrapolated = before.temperature + (targetForecast - baseForecast)
-                ResolvedStationValue(extrapolated, distanceKm, "forecast_extrapolated", before.timestamp)
+                ResolvedStationValue(extrapolated, before.distanceKm, "forecast_extrapolated", before.timestamp, stationType)
             }
             else -> null
         }
