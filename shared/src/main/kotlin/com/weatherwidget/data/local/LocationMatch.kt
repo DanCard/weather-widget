@@ -47,4 +47,20 @@ object LocationMatch {
     /** True when (lat1,lon1) and (lat2,lon2) are the same site under [SAME_SITE_TOLERANCE_DEG]. */
     fun sameSite(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Boolean =
         abs(lat1 - lat2) <= SAME_SITE_TOLERANCE_DEG && abs(lon1 - lon2) <= SAME_SITE_TOLERANCE_DEG
+
+    /**
+     * Decimal places lat/lon are rounded to before being written into a location-keyed table's
+     * primary key. 3 dp ≈ 111 m — coarse enough that geocoding/GPS jitter (observed on-device up to
+     * ~0.0001°, i.e. the 4th decimal) collapses onto a single key so `INSERT … ON CONFLICT REPLACE`
+     * actually overwrites instead of accumulating a new per-precision fragment, yet finer than the
+     * spacing of genuinely-different markers (≥0.005°, e.g. the default location vs a GPS fix) so
+     * those stay distinct. Stays inside [SAME_SITE_TOLERANCE_DEG] (0.002°), so even a residual
+     * boundary-straddle is still merged by [sameSite] on the read path.
+     */
+    const val WRITE_QUANTIZE_DECIMALS = 3
+
+    private val QUANTIZE_FACTOR = Math.pow(10.0, WRITE_QUANTIZE_DECIMALS.toDouble())
+
+    /** Rounds a coordinate component to [WRITE_QUANTIZE_DECIMALS] for use as a stable storage key. */
+    fun quantize(coordinate: Double): Double = Math.round(coordinate * QUANTIZE_FACTOR) / QUANTIZE_FACTOR
 }

@@ -137,11 +137,15 @@ class DesktopWeatherRepositoryTest {
         assertNotNull(result)
 
         val merged = result!!.hourly.associateBy { it.dateTime }
+        // Past hour shows the ORIGINAL prediction from history (temp/condition/cloud), not the live
+        // REPLACE-overwritten hindsight revision — see HourlyForecastStitcher.
         val repaired = merged[now - 3600_000L]!!
         assertEquals(82, repaired.cloudCover)
-        assertEquals(70f, repaired.temperature, 0.0f)
-        assertEquals("Clear", repaired.condition)
+        assertEquals(68f, repaired.temperature, 0.0f)
+        assertEquals("Cloudy", repaired.condition)
+        // Future hour keeps the live forecast.
         assertEquals(14, merged[now + 3600_000L]!!.cloudCover)
+        assertEquals(72f, merged[now + 3600_000L]!!.temperature, 0.0f)
     }
 
     @Test

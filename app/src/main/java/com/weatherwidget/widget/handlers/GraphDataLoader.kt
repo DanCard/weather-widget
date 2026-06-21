@@ -4,6 +4,9 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ZoomLevel
 import java.time.LocalDateTime
@@ -54,12 +57,16 @@ object GraphDataLoader {
         val centerStartMs = window.centerStart.atZone(zoneId).toInstant().toEpochMilli()
         val centerEndMs = window.centerEnd.atZone(zoneId).toInstant().toEpochMilli()
 
+        // Match within the same-site box (0.002°), NOT exact float equality: stored coordinates are
+        // quantized on write (LocationMatch.quantize, 3 dp) while the query centre is the raw
+        // configured/GPS coordinate, so the two differ by up to ~0.0005°. An exact filter here would
+        // drop every cached row after quantization and blank the graph until a network fetch lands.
         val centerRows = if (source != null) {
             hourlyDao.getHourlyForecastsBySource(centerStartMs, centerEndMs, lat, lon, source.id)
         } else {
             hourlyDao.getHourlyForecasts(centerStartMs, centerEndMs, lat, lon)
         }.filter {
-            Math.abs(it.locationLat - lat) < 0.0001 && Math.abs(it.locationLon - lon) < 0.0001
+            LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon)
         }
         val currentRows = if (window.nowStart == null || window.nowEnd == null) {
             centerRows
@@ -72,7 +79,7 @@ object GraphDataLoader {
             } else {
                 hourlyDao.getHourlyForecasts(nowStartMs, nowEndMs, lat, lon)
             }.filter {
-                Math.abs(it.locationLat - lat) < 0.0001 && Math.abs(it.locationLon - lon) < 0.0001
+                LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon)
             }
 
             (centerRows + nowRows)
@@ -84,50 +91,62 @@ object GraphDataLoader {
             return currentRows
         }
 
-        val historyRows = run {
-            val sourceId = source.id
-            hourlyHistoryDao.getHistoryInRangeForBucketWindow(
-                startDateTime = centerStartMs,
-                endDateTime = centerEndMs,
-                bucketStart = Long.MIN_VALUE,
-                bucketEnd = Long.MAX_VALUE,
-                lat = lat,
-                lon = lon,
-                source = sourceId,
-            ).map {
-                HourlyForecastEntity(
-                    dateTime = it.dateTime,
-                    locationLat = it.locationLat,
-                    locationLon = it.locationLon,
-                    temperature = it.temperature,
-                    condition = it.condition,
-                    source = it.source,
-                    precipProbability = it.precipProbability,
-                    cloudCover = it.cloudCover,
-                    precipAmountMm = it.precipAmountMm,
-                    fetchedAt = it.fetchedAt,
-                )
-            }
+        val historyRows = hourlyHistoryDao.getHistoryInRangeForBucketWindow(
+            startDateTime = centerStartMs,
+            endDateTime = centerEndMs,
+            bucketStart = Long.MIN_VALUE,
+            bucketEnd = Long.MAX_VALUE,
+            lat = lat,
+            lon = lon,
+            source = source.id,
+        ).map {
+            HourlyForecastEntity(
+                dateTime = it.dateTime,
+                locationLat = it.locationLat,
+                locationLon = it.locationLon,
+                temperature = it.temperature,
+                condition = it.condition,
+                source = it.source,
+                precipProbability = it.precipProbability,
+                cloudCover = it.cloudCover,
+                precipAmountMm = it.precipAmountMm,
+                fetchedAt = it.fetchedAt,
+            )
         }
 
-        val historyByTime = historyRows.associateBy { it.dateTime }
-        val stitched = linkedMapOf<Long, HourlyForecastEntity>()
-        for (row in historyRows) {
-            stitched[row.dateTime] = row
-        }
-        for (row in currentRows) {
-            val historical = historyByTime[row.dateTime]
-            stitched[row.dateTime] = if (historical != null) {
-                row.copy(
-                    cloudCover = row.cloudCover ?: historical.cloudCover,
-                )
-            } else {
-                row
-            }
-        }
-
-        return stitched.values.sortedBy { it.dateTime }
+        // Same shared merge desktop uses: live (freshest) wins for current/future hours; the
+        // earliest snapshot ("original prediction") wins for past hours; same-site fragments are
+        // collapsed. All raw buckets/fragments are passed in — the stitcher does the selection.
+        val nowMs = now.atZone(zoneId).toInstant().toEpochMilli()
+        val stitched = HourlyForecastStitcher.stitch(
+            current = currentRows.map { it.toHourlyForecast() },
+            history = historyRows.map { it.toHourlyForecast() },
+            nowMs = nowMs,
+            centerLat = lat,
+            centerLon = lon,
+        )
+        return stitched.map { it.toEntity(lat, lon) }
     }
+
+    /** Map a stitched [com.weatherwidget.data.model.HourlyForecast] back to an entity for the
+     *  downstream graph pipeline; coordinates are always present (they came from a DB row) but fall
+     *  back to the query centre defensively. */
+    private fun com.weatherwidget.data.model.HourlyForecast.toEntity(
+        fallbackLat: Double,
+        fallbackLon: Double,
+    ): HourlyForecastEntity =
+        HourlyForecastEntity(
+            dateTime = dateTime,
+            locationLat = locationLat ?: fallbackLat,
+            locationLon = locationLon ?: fallbackLon,
+            temperature = temperature,
+            condition = condition,
+            source = source ?: WeatherSource.GENERIC_GAP.id,
+            precipProbability = precipProbability,
+            cloudCover = cloudCover,
+            precipAmountMm = precipAmountMm,
+            fetchedAt = fetchedAt,
+        )
 
     suspend fun loadCurrentTempResolutionHourlyForecasts(
         hourlyDao: HourlyForecastDao,
@@ -143,7 +162,7 @@ object GraphDataLoader {
             lat,
             lon,
         ).filter {
-            Math.abs(it.locationLat - lat) < 0.0001 && Math.abs(it.locationLon - lon) < 0.0001
+            LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon)
         }
     }
 }

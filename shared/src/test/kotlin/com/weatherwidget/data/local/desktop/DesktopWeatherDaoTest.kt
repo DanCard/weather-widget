@@ -261,33 +261,33 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
-    fun `getHourlyHistory coalesces cloud cover from an older snapshot when the freshest lacks it`() {
+    fun `getHourlyHistory keeps the earliest snapshot temp and coalesces cloud from a later one`() {
         val lat = 40.0
         val lon = -75.0
         val source = "NWS"
         val hour = 1_780_682_400_000L
 
-        // Older snapshot of this hour (taken when it was further out in the forecast horizon) carries
-        // sky cover; the freshest snapshot (taken as the hour became "now") arrived with cloudCover
-        // null, mirroring NWS near-term gridpoint gaps.
+        // Earliest snapshot = the original prediction for this hour (what the graph shows for a past
+        // hour, rather than NWS's later hindsight revision). Here it carries temp/condition/precip but
+        // dropped sky cover; a later snapshot supplies the cloud cover, which is coalesced in.
         dao.upsertHourlyForecastHistory(
             lat, lon, source, snapshotBucket = 1_780_500_000_000L,
-            listOf(HourlyForecast(hour, 60f, "Cloudy", precipProbability = 20, cloudCover = 75)),
+            listOf(HourlyForecast(hour, 60f, "Cloudy", precipProbability = 20, cloudCover = null)),
         )
         dao.upsertHourlyForecastHistory(
             lat, lon, source, snapshotBucket = 1_780_675_200_000L,
-            listOf(HourlyForecast(hour, 64f, "Sunny", precipProbability = null, cloudCover = null)),
+            listOf(HourlyForecast(hour, 64f, "Sunny", precipProbability = null, cloudCover = 75)),
         )
 
         val history = dao.getHourlyHistory(lat, lon, source, hour - 1, hour + 1)
 
         assertEquals(1, history.size)
-        // Temperature/condition come from the freshest snapshot...
-        assertEquals(64f, history[0].temperature)
-        assertEquals("Sunny", history[0].condition)
-        // ...but the missing cloud cover (and precip) are backfilled from the older snapshot.
-        assertEquals(75, history[0].cloudCover)
+        // Temperature/condition come from the earliest snapshot (the original prediction)...
+        assertEquals(60f, history[0].temperature)
+        assertEquals("Cloudy", history[0].condition)
         assertEquals(20, history[0].precipProbability)
+        // ...while the missing cloud cover is coalesced from the later snapshot.
+        assertEquals(75, history[0].cloudCover)
     }
 
     @Test

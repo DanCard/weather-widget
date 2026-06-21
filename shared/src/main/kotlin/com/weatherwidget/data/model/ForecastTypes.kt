@@ -9,6 +9,11 @@ data class HourlyForecast(
     val cloudCover: Int? = null,
     val source: String? = null,
     val fetchedAt: Long = 0L,
+    // Storage-key coordinates, carried so the shared selection logic can collapse same-site
+    // fragments (float-keyed rows that GPS jitter splits into per-precision silos). Null for
+    // consumers that don't read from the location-keyed tables.
+    val locationLat: Double? = null,
+    val locationLon: Double? = null,
 )
 
 data class DailyForecast(

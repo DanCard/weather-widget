@@ -28,10 +28,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
+                    // Quantize the PK coordinate so geocoding/GPS jitter overwrites instead of
+                    // accumulating per-precision fragments (see LocationMatch.quantize).
+                    val keyLat = LocationMatch.quantize(locationLat)
+                    val keyLon = LocationMatch.quantize(locationLon)
                     for (h in hourly) {
                         stmt.setLong(1, h.dateTime)
-                        stmt.setDouble(2, locationLat)
-                        stmt.setDouble(3, locationLon)
+                        stmt.setDouble(2, keyLat)
+                        stmt.setDouble(3, keyLon)
                         stmt.setFloat(4, h.temperature)
                         stmt.setString(5, h.condition)
                         stmt.setString(6, source)
@@ -62,10 +66,13 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
+                    // Quantize the PK coordinate so jitter overwrites instead of fragmenting.
+                    val keyLat = LocationMatch.quantize(locationLat)
+                    val keyLon = LocationMatch.quantize(locationLon)
                     for (h in hourly) {
                         stmt.setLong(1, h.dateTime)
-                        stmt.setDouble(2, locationLat)
-                        stmt.setDouble(3, locationLon)
+                        stmt.setDouble(2, keyLat)
+                        stmt.setDouble(3, keyLon)
                         stmt.setFloat(4, h.temperature)
                         stmt.setString(5, h.condition)
                         stmt.setString(6, source)
@@ -484,6 +491,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = source,
                         fetchedAt = rs.getLong("fetchedAt"),
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
                     ))
                 }
             }
@@ -500,10 +509,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             // or invent a forecast for hours we never actually forecast). So only admit Generic rows
             // for future timestamps; the real source supplies all past/near hours.
             val sql = """
-                SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt, source
+                SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt, source, locationLat, locationLon
                 FROM hourly_forecast_history
                 WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR (source = 'Generic' AND dateTime > ?)) AND dateTime >= ? AND dateTime <= ?
-                ORDER BY dateTime ASC, (source = ?) DESC, snapshotBucket DESC
+                ORDER BY dateTime ASC, (source = ?) DESC, snapshotBucket ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, locationLat)
@@ -514,14 +523,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setLong(6, endMs)
                 stmt.setString(7, source)
                 val rs = stmt.executeQuery()
-                // One merged row per (dateTime, source). The query is ordered snapshotBucket DESC,
-                // so the freshest snapshot of an hour is seen first and supplies temperature and
-                // condition. Older snapshots of the same hour only backfill nullable fields the
-                // freshest one is missing — chiefly cloudCover: NWS frequently omits sky cover on
-                // the near-term hours (the freshest snapshot of a now-past hour), yet provided it
-                // for that same hour when it sat further out in the forecast horizon. Picking only
-                // the freshest snapshot therefore dropped cloud cover for almost every past hour,
-                // collapsing the desktop cloud-cover graph to a flat line.
+                // One merged row per (dateTime, source). The query is ordered snapshotBucket ASC, so
+                // the EARLIEST snapshot of an hour is seen first and supplies temperature and
+                // condition — the "original prediction" the hourly graph shows for past hours rather
+                // than NWS's REPLACE-overwritten hindsight revision. Later snapshots of the same hour
+                // only backfill nullable fields the earliest one is missing — chiefly cloudCover:
+                // NWS frequently omits sky cover on the near-term hours, yet provided it for that
+                // same hour when it sat further out in the forecast horizon, so coalescing across
+                // buckets keeps the cloud-cover graph populated.
                 val merged = LinkedHashMap<Pair<Long, String>, HourlyForecast>()
                 while (rs.next()) {
                     val dateTime = rs.getLong("dateTime")
@@ -535,6 +544,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = rowSource,
                         fetchedAt = rs.getLong("fetchedAt"),
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
                     )
                     val key = dateTime to rowSource
                     val existing = merged[key]
@@ -573,10 +584,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
-    fun getHourlyWithHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, maxAgeMs: Long): List<HourlyForecast> {
+    fun getHourlyWithHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, maxAgeMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> {
         val current = getLatestHourly(locationLat, locationLon, source, maxAgeMs).filter { it.dateTime in startMs..endMs }
         val history = getHourlyHistory(locationLat, locationLon, source, startMs, endMs)
-        val stitched = HourlyForecastStitcher.stitch(current, history)
+        val stitched = HourlyForecastStitcher.stitch(current, history, nowMs, locationLat, locationLon)
         val repairedCloudCoverCount = current.count { row ->
             row.cloudCover == null && stitched.firstOrNull { it.dateTime == row.dateTime }?.cloudCover != null
         }

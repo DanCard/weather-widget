@@ -1,8 +1,10 @@
 package com.weatherwidget.data.local
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 
 /**
  * Pure unit coverage for [LocationMatch.sameSite] — the fine "same physical site, modulo precision
@@ -51,5 +53,24 @@ class LocationMatchSameSiteTest {
         val t = LocationMatch.SAME_SITE_TOLERANCE_DEG
         assertTrue(LocationMatch.sameSite(37.0, -122.0, 37.0 + t * 0.9, -122.0 - t * 0.9))
         assertFalse(LocationMatch.sameSite(37.0, -122.0, 37.0 + t * 1.1, -122.0))
+    }
+
+    @Test
+    fun `quantize rounds to the write grid and collapses jitter`() {
+        // The two on-device precisions of the same site round to the same key.
+        assertEquals(LocationMatch.quantize(afternoonLat), LocationMatch.quantize(morningLat), 0.0)
+        assertEquals(LocationMatch.quantize(afternoonLon), LocationMatch.quantize(morningLon), 0.0)
+        assertEquals(37.417, LocationMatch.quantize(afternoonLat), 0.0)
+    }
+
+    @Test
+    fun `quantized value stays within the same-site box of the original`() {
+        val q = LocationMatch.quantize(afternoonLat)
+        assertTrue(abs(q - afternoonLat) <= LocationMatch.SAME_SITE_TOLERANCE_DEG)
+    }
+
+    @Test
+    fun `quantize keeps genuinely different markers apart`() {
+        assertFalse(LocationMatch.quantize(37.4168) == LocationMatch.quantize(37.4220))
     }
 }

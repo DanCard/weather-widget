@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
-    version = 47,
+    version = 48,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -104,6 +104,40 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        // Data-only cleanup (table structure is unchanged from v47). Float lat/lon in the PK let
+        // GPS/geocoding jitter accumulate one row per precision for the same hour; this collapses
+        // those fragments — keeping the freshest per quantized key — and rounds the surviving rows
+        // onto the same grid LocationMatch.quantize writes to going forward, so REPLACE overwrites
+        // cleanly. No schema change, so 48.json is structurally identical to 47.json.
+        val MIGRATION_47_48 = object : Migration(47, 48) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // hourly_forecasts: dedupe per (dateTime, source, rounded lat/lon), keep freshest.
+                db.execSQL(
+                    "DELETE FROM `hourly_forecasts` WHERE rowid NOT IN (" +
+                        "SELECT rowid FROM `hourly_forecasts` h WHERE fetchedAt = (" +
+                        "SELECT MAX(fetchedAt) FROM `hourly_forecasts` h2 WHERE " +
+                        "h2.dateTime = h.dateTime AND h2.source = h.source AND " +
+                        "ROUND(h2.locationLat, 3) = ROUND(h.locationLat, 3) AND " +
+                        "ROUND(h2.locationLon, 3) = ROUND(h.locationLon, 3)) " +
+                        "GROUP BY h.dateTime, h.source, ROUND(h.locationLat, 3), ROUND(h.locationLon, 3))",
+                )
+                db.execSQL("UPDATE `hourly_forecasts` SET `locationLat` = ROUND(`locationLat`, 3), `locationLon` = ROUND(`locationLon`, 3)")
+
+                // hourly_forecast_history: same, but keyed also by snapshotBucket (each bucket is a
+                // distinct as-predicted generation we want to preserve).
+                db.execSQL(
+                    "DELETE FROM `hourly_forecast_history` WHERE rowid NOT IN (" +
+                        "SELECT rowid FROM `hourly_forecast_history` h WHERE fetchedAt = (" +
+                        "SELECT MAX(fetchedAt) FROM `hourly_forecast_history` h2 WHERE " +
+                        "h2.dateTime = h.dateTime AND h2.source = h.source AND h2.snapshotBucket = h.snapshotBucket AND " +
+                        "ROUND(h2.locationLat, 3) = ROUND(h.locationLat, 3) AND " +
+                        "ROUND(h2.locationLon, 3) = ROUND(h.locationLon, 3)) " +
+                        "GROUP BY h.dateTime, h.source, h.snapshotBucket, ROUND(h.locationLat, 3), ROUND(h.locationLon, 3))",
+                )
+                db.execSQL("UPDATE `hourly_forecast_history` SET `locationLat` = ROUND(`locationLat`, 3), `locationLon` = ROUND(`locationLon`, 3)")
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -166,7 +200,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

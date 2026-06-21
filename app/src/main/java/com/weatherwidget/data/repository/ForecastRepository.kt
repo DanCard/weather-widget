@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
@@ -770,8 +771,18 @@ class ForecastRepository
             return ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
         }
 
-        private suspend fun saveHourlyEntities(entities: List<HourlyForecastEntity>) {
-            if (entities.isEmpty()) return
+        private suspend fun saveHourlyEntities(rawEntities: List<HourlyForecastEntity>) {
+            if (rawEntities.isEmpty()) return
+
+            // Quantize the PK coordinate so geocoding/GPS jitter overwrites the existing row instead
+            // of accumulating a new per-precision fragment (see LocationMatch.quantize). Done once
+            // here so both the live insert and the history snapshot below share the stable key.
+            val entities = rawEntities.map {
+                it.copy(
+                    locationLat = LocationMatch.quantize(it.locationLat),
+                    locationLon = LocationMatch.quantize(it.locationLon),
+                )
+            }
 
             val minDateTime = entities.minOf { it.dateTime }
             val maxDateTime = entities.maxOf { it.dateTime }

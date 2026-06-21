@@ -131,4 +131,46 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate47To48_collapsesJitteredHourlyFragments_keepingFreshestOnQuantizedKey() {
+        // Two rows for the SAME hour/source at ~10 cm-apart coordinates (GPS jitter): a stale one and
+        // a fresh one. Pre-migration the float PK keeps both; the migration must collapse them to the
+        // freshest, rounded onto the quantized grid. A genuinely different marker must survive.
+        helper.createDatabase(testDb, 47).apply {
+            execSQL(
+                "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, " +
+                    "condition, source, precipProbability, cloudCover, precipAmountMm, fetchedAt) " +
+                    "VALUES (5000, 37.4168014, -122.0888977, 82.0, 'Hot', 'NWS', NULL, NULL, NULL, 100)",
+            )
+            execSQL(
+                "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, " +
+                    "condition, source, precipProbability, cloudCover, precipAmountMm, fetchedAt) " +
+                    "VALUES (5000, 37.4168434, -122.0889969, 76.0, 'Mild', 'NWS', NULL, NULL, NULL, 9000)",
+            )
+            // Genuinely different marker (~0.5 km away) — must NOT be collapsed into the above.
+            execSQL(
+                "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, " +
+                    "condition, source, precipProbability, cloudCover, precipAmountMm, fetchedAt) " +
+                    "VALUES (5000, 37.4220, -122.0841, 60.0, 'Cool', 'NWS', NULL, NULL, NULL, 9999)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 48, true, WeatherDatabase.MIGRATION_47_48)
+
+        // The two jittered fragments collapsed to one freshest row; the distinct marker survived.
+        db.query("SELECT COUNT(*) FROM hourly_forecasts").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(2, c.getInt(0))
+        }
+        // Freshest wins at the user's site, on the quantized (3 dp) coordinate.
+        db.query("SELECT temperature, locationLat, locationLon FROM hourly_forecasts WHERE ROUND(locationLat,3) = 37.417").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(76.0f, c.getFloat(0), 0.001f)
+            assertEquals(37.417, c.getDouble(1), 0.0)
+            assertEquals(-122.089, c.getDouble(2), 0.0)
+        }
+        db.close()
+    }
 }

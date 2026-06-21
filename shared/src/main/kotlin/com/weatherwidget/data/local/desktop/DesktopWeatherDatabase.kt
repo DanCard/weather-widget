@@ -173,19 +173,45 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 val rs = stmt.executeQuery("PRAGMA user_version")
                 val currentVersion = if (rs.next()) rs.getInt(1) else 0
                 if (currentVersion == 0) {
-                    stmt.execute("PRAGMA user_version = 2")
+                    stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
-                    migrate(conn, currentVersion, 2)
+                    migrate(conn, currentVersion, SCHEMA_VERSION)
                 }
             }
         }
     }
 
     private fun migrate(conn: Connection, from: Int, to: Int) {
-        if (from < to) {
-            conn.createStatement().use { stmt ->
-                stmt.execute("PRAGMA user_version = $to")
+        if (from >= to) return
+        conn.createStatement().use { stmt ->
+            // v3: collapse coordinate-fragmented hourly rows (float lat/lon in the PK let GPS jitter
+            // accumulate one row per precision for the same hour) — keep the freshest per quantized
+            // key and round survivors onto the grid LocationMatch.quantize now writes to.
+            if (from < 3) {
+                dedupeQuantizeHourly(stmt, "hourly_forecasts", "")
+                dedupeQuantizeHourly(stmt, "hourly_forecast_history", ", h.snapshotBucket")
             }
+            stmt.execute("PRAGMA user_version = $to")
         }
+    }
+
+    /** Keep the freshest row per (dateTime, source[, snapshotBucket], rounded lat/lon), then round
+     *  the surviving coordinates so future REPLACE upserts overwrite instead of fragmenting. */
+    private fun dedupeQuantizeHourly(stmt: java.sql.Statement, table: String, bucketCol: String) {
+        val bucketJoin = if (bucketCol.isEmpty()) "" else " AND h2.snapshotBucket = h.snapshotBucket"
+        stmt.execute(
+            "DELETE FROM $table WHERE rowid NOT IN (" +
+                "SELECT rowid FROM $table h WHERE fetchedAt = (" +
+                "SELECT MAX(fetchedAt) FROM $table h2 WHERE " +
+                "h2.dateTime = h.dateTime AND h2.source = h.source$bucketJoin AND " +
+                "ROUND(h2.locationLat, 3) = ROUND(h.locationLat, 3) AND " +
+                "ROUND(h2.locationLon, 3) = ROUND(h.locationLon, 3)) " +
+                "GROUP BY h.dateTime, h.source$bucketCol, ROUND(h.locationLat, 3), ROUND(h.locationLon, 3))",
+        )
+        stmt.execute("UPDATE $table SET locationLat = ROUND(locationLat, 3), locationLon = ROUND(locationLon, 3)")
+    }
+
+    companion object {
+        private const val SCHEMA_VERSION = 3
     }
 }
