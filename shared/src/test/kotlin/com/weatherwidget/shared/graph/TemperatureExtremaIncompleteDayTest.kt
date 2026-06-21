@@ -90,4 +90,43 @@ class TemperatureExtremaIncompleteDayTest {
             5 in extrema.actualDailyHighIndices,
         )
     }
+
+    // A partial edge day (Apr 8) is observed for only a short slice where the actual high (63.91°) and
+    // low (63.88°) both round to "63.9°". Emitting both stacks two identical labels at the graph edge.
+    // The degenerate day's low must be dropped (keep the high), while a normal day (Apr 9) with a
+    // genuinely separated high/low keeps BOTH. Points are ordered low-then-high within Apr 8 so the
+    // merged extrema never have same-type neighbours — isolating this from the shoulder-drop logic.
+    private val degenerateDayPoints = listOf(
+        hour(8, 6, temp = 63.88f, actual = 63.88f, isActual = true),   // idx0: Apr 8 actual low  -> "63.9"
+        hour(8, 12, temp = 63.91f, actual = 63.91f, isActual = true),  // idx1: Apr 8 actual high -> "63.9"
+        hour(9, 6, temp = 55f, actual = 55f, isActual = true),         // idx2: Apr 9 actual low  (55)
+        hour(9, 12, temp = 75f, actual = 75f, isActual = true),        // idx3: Apr 9 actual high (75)
+        hour(9, 18, temp = 60f, actual = 60f, isActual = true),
+    )
+
+    @Test
+    fun `edge day whose actual high and low render identically keeps only the high`() {
+        val extrema = TemperatureExtrema.compute(
+            hours = build(degenerateDayPoints),
+            transitionX = null,
+            effectiveActualEndIndex = 4,
+            fetchTime = null,
+            prominenceThreshold = 1.5f,
+        )
+
+        assertTrue(
+            "Apr 8 degenerate high (idx 1) should be kept. highs=${extrema.actualDailyHighIndices}",
+            1 in extrema.actualDailyHighIndices,
+        )
+        assertFalse(
+            "Apr 8 degenerate low (idx 0) must be dropped — it renders identically to the day's high " +
+                "(\"63.9°\"). lows=${extrema.actualDailyLowIndices}",
+            0 in extrema.actualDailyLowIndices,
+        )
+        assertTrue(
+            "Apr 9's genuinely distinct low (idx 2) must NOT be over-suppressed. " +
+                "lows=${extrema.actualDailyLowIndices}",
+            2 in extrema.actualDailyLowIndices,
+        )
+    }
 }
