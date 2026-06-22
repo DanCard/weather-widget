@@ -67,15 +67,15 @@ class TemperatureGraphRendererYesterdayDeltaTest {
     }
 
     @Test
-    fun `does not draw yesterday delta label in wide view`() {
+    fun `draws yesterday delta label in the 24h view`() {
         val context = mockContext()
-        val start = LocalDateTime.of(2026, 3, 21, 10, 0)
-        // 25 points spanning 24h -> wide view, past the 12h gate.
+        val start = LocalDateTime.of(2026, 3, 21, 0, 0)
+        // 25 points spanning 24h (the WIDE view), with a hill curve leaving empty bands for the label.
         val hours = (0..24).map { offset ->
             HourData(
                 dateTime = start.plusHours(offset.toLong()),
-                temperature = 60f,
-                label = "${(10 + offset) % 24}h",
+                temperature = 50f + (12 - kotlin.math.abs(offset - 12)), // 50..62 hill peaking at noon
+                label = "${offset % 24}h",
                 showLabel = true,
                 isCurrentHour = offset == 12,
             )
@@ -86,11 +86,42 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             context = context,
             hours = hours,
             widthPx = 900,
-            heightPx = 300,
+            heightPx = 400,
             currentTime = start.plusHours(12).plusMinutes(25),
             bitmapScale = 0.96f,
             observedAt = observedAtMs,
-            lastObservedTemp = 60f,
+            lastObservedTemp = 62f,
+            deltaFromYesterday = 2.3f,
+        )
+
+        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3 from yesterday", any(), any(), any()) }
+    }
+
+    @Test
+    fun `does not draw yesterday delta label in the 3-day view`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 3, 20, 0, 0)
+        // 73 points spanning 72h -> the 3-day view, past the day-span gate.
+        val hours = (0..72).map { offset ->
+            HourData(
+                dateTime = start.plusHours(offset.toLong()),
+                temperature = 55f,
+                label = "${offset % 24}h",
+                showLabel = offset % 6 == 0,
+                isCurrentHour = offset == 36,
+            )
+        }
+        val observedAtMs = start.plusHours(36).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 900,
+            heightPx = 400,
+            currentTime = start.plusHours(36).plusMinutes(25),
+            bitmapScale = 0.94f,
+            observedAt = observedAtMs,
+            lastObservedTemp = 55f,
             deltaFromYesterday = 2.3f,
         )
 

@@ -12,8 +12,10 @@ import kotlin.math.round
  * - **Text**: signed, one decimal, e.g. `+0.4 from yesterday`, `-1.2 from yesterday`, `+0.0 from yesterday`.
  * - **Color**: the thermostat gradient ([TemperatureColorModel]) evaluated at the *current* temperature,
  *   so the label harmonizes with the curve color at "now".
- * - **Visibility**: only in the zoomed-in view, gated by the SAME window-span ceiling as the fetch-dot
- *   age label ([FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN], 12 h), and only when a delta exists.
+ * - **Visibility**: the narrow AND the 24 h view, gated by [DELTA_LABEL_MAX_HOURS_SPAN] (25 h — admits a
+ *   full-day window, excludes the 3-day view), and only when a delta exists. This is intentionally wider
+ *   than the fetch-dot age gate ([FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN], 12 h): "is this fresh enough to
+ *   show an age?" and "is this zoomed in enough for a yesterday comparison?" are different questions.
  * - **Position**: dropped into empty space — a vertical band in the plot, preferring the visual center,
  *   that clears both the temperature curve and every already-placed label/icon/fetch-dot.
  *
@@ -22,6 +24,12 @@ import kotlin.math.round
  */
 object YesterdayDeltaLabel {
     const val SUFFIX = " from yesterday"
+
+    /**
+     * Show the label for windows up to this span: admits the narrow view and the 24 h view (span 24 h),
+     * excludes the 3-day view (span 72 h). Deliberately wider than the 12 h fetch-dot age gate.
+     */
+    const val DELTA_LABEL_MAX_HOURS_SPAN = 25L
 
     /** Number of x-anchors tried, in order; the first that yields any clear band wins (center first). */
     val X_FRACTIONS = listOf(0.5f, 0.35f, 0.65f, 0.22f, 0.78f)
@@ -73,7 +81,7 @@ object YesterdayDeltaLabel {
         curveYAt: (Float) -> Float?,
         metrics: Metrics,
         padPx: Float,
-        maxSpanHours: Long = FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN,
+        maxSpanHours: Long = DELTA_LABEL_MAX_HOURS_SPAN,
     ): Placement? {
         if (delta == null || currentTemp == null) return null
         if (spanHours > maxSpanHours) return null

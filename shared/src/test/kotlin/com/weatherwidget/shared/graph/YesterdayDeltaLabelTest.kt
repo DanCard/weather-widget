@@ -42,17 +42,30 @@ class YesterdayDeltaLabelTest {
     }
 
     @Test
-    fun `suppressed when window span exceeds the max`() {
-        assertNull(
+    fun `shows in the 24h view, suppressed only past the day-span max`() {
+        // 24h view (span 24) shows; the 3-day view (span 72) is suppressed.
+        assertNotNull(
             YesterdayDeltaLabel.place(
-                delta = 0.4f, currentTemp = 72f, spanHours = 13,
+                delta = 0.4f, currentTemp = 72f, spanHours = 24,
                 plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
             ),
         )
-        // boundary is inclusive (matches FetchDotLabel age gate).
+        assertNull(
+            YesterdayDeltaLabel.place(
+                delta = 0.4f, currentTemp = 72f, spanHours = 72,
+                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
+            ),
+        )
+        // boundary is inclusive.
         assertNotNull(
             YesterdayDeltaLabel.place(
-                delta = 0.4f, currentTemp = 72f, spanHours = FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN,
+                delta = 0.4f, currentTemp = 72f, spanHours = YesterdayDeltaLabel.DELTA_LABEL_MAX_HOURS_SPAN,
+                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
+            ),
+        )
+        assertNull(
+            YesterdayDeltaLabel.place(
+                delta = 0.4f, currentTemp = 72f, spanHours = YesterdayDeltaLabel.DELTA_LABEL_MAX_HOURS_SPAN + 1,
                 plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
             ),
         )
