@@ -148,7 +148,7 @@
                         <View
                             android:layout_width="14dp"
                             android:layout_height="3dp"
-                            android:background="#5AC8FA" />
+                            android:background="#FFFFFF" />
 
                         <TextView
                             android:id="@+id/legend_forecast_text"
@@ -156,7 +156,7 @@
                             android:layout_height="wrap_content"
                             android:text="NWS"
                             android:textSize="14sp"
-                            android:textColor="#5AC8FA"
+                            android:textColor="#FFFFFF"
                             android:layout_marginStart="6dp" />
                     </LinearLayout>
 
