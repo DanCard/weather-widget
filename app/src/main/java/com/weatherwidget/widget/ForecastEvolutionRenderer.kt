@@ -9,7 +9,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
 import android.util.TypedValue
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.AxisScale
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ErrorSample
@@ -36,48 +35,43 @@ import kotlin.math.ceil
 object ForecastEvolutionRenderer {
     fun renderHighGraph(
         context: Context,
-        nwsPoints: List<EvolutionPoint>,
-        meteoPoints: List<EvolutionPoint>,
+        points: List<EvolutionPoint>,
         actualHigh: Float?,
         appActualHigh: Float?,
         widthPx: Int,
         heightPx: Int,
-    ): Bitmap = renderGraph(context, nwsPoints, meteoPoints, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true)
+    ): Bitmap = renderGraph(context, points, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true)
 
     fun renderLowGraph(
         context: Context,
-        nwsPoints: List<EvolutionPoint>,
-        meteoPoints: List<EvolutionPoint>,
+        points: List<EvolutionPoint>,
         actualLow: Float?,
         appActualLow: Float?,
         widthPx: Int,
         heightPx: Int,
-    ): Bitmap = renderGraph(context, nwsPoints, meteoPoints, actualLow, appActualLow, widthPx, heightPx, isHigh = false)
+    ): Bitmap = renderGraph(context, points, actualLow, appActualLow, widthPx, heightPx, isHigh = false)
 
     fun renderHighErrorGraph(
         context: Context,
-        nwsPoints: List<EvolutionPoint>,
-        meteoPoints: List<EvolutionPoint>,
+        points: List<EvolutionPoint>,
         actualHigh: Float?,
         appActualHigh: Float?,
         widthPx: Int,
         heightPx: Int,
-    ): Bitmap = renderErrorGraph(context, nwsPoints, meteoPoints, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true)
+    ): Bitmap = renderErrorGraph(context, points, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true)
 
     fun renderLowErrorGraph(
         context: Context,
-        nwsPoints: List<EvolutionPoint>,
-        meteoPoints: List<EvolutionPoint>,
+        points: List<EvolutionPoint>,
         actualLow: Float?,
         appActualLow: Float?,
         widthPx: Int,
         heightPx: Int,
-    ): Bitmap = renderErrorGraph(context, nwsPoints, meteoPoints, actualLow, appActualLow, widthPx, heightPx, isHigh = false)
+    ): Bitmap = renderErrorGraph(context, points, actualLow, appActualLow, widthPx, heightPx, isHigh = false)
 
     private fun renderGraph(
         context: Context,
-        nwsPoints: List<EvolutionPoint>,
-        meteoPoints: List<EvolutionPoint>,
+        points: List<EvolutionPoint>,
         actualValue: Float?,
         appActualValue: Float?,
         widthPx: Int,
@@ -88,20 +82,20 @@ object ForecastEvolutionRenderer {
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.TRANSPARENT)
 
-        if (nwsPoints.isEmpty() && meteoPoints.isEmpty()) return bitmap
+        if (points.isEmpty()) return bitmap
 
         fun tempFor(point: EvolutionPoint): Float? =
             if (isHigh) point.highTemp else point.lowTemp
 
-        val nwsSeries = bucketize(nwsPoints) { tempFor(it) }
-        val meteoSeries = bucketize(meteoPoints) { tempFor(it) }
+        // The history view shows a single selected API at a time, so there is one forecast series
+        // drawn in one color (no per-source color).
+        val series = bucketize(points) { tempFor(it) }
+        if (series.isEmpty()) return bitmap
 
-        if (nwsSeries.isEmpty() && meteoSeries.isEmpty()) return bitmap
-
-        val allTemps = collectTemps(nwsSeries + meteoSeries, ::tempFor, actualValue, appActualValue)
+        val allTemps = collectTemps(series, ::tempFor, actualValue, appActualValue)
         if (allTemps.isEmpty()) return bitmap
 
-        val forecastSamples = (nwsSeries + meteoSeries).mapNotNull { point ->
+        val forecastSamples = series.mapNotNull { point ->
             tempFor(point)?.let { temp -> ForecastSample(temp, point.daysAhead, point.source) }
         }
 
@@ -114,13 +108,11 @@ object ForecastEvolutionRenderer {
         val paints = EvolutionGraphStyle.getPaints(context)
         val dp = { dp: Float -> dpToPx(context, dp) }
 
-        val allPoints = nwsSeries + meteoSeries
-        val timeAxis = TimeAxis(allPoints.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(layout.graphWidth))
+        val timeAxis = TimeAxis(series.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(layout.graphWidth))
 
         drawGridAndAxes(canvas, layout, axisScale, timeAxis, paints, dp, isError = false)
 
-        drawSeriesCurve(canvas, nwsSeries, ::tempFor, axisScale, timeAxis, layout, paints.nwsCurve, paints.nwsPoint, dp)
-        drawSeriesCurve(canvas, meteoSeries, ::tempFor, axisScale, timeAxis, layout, paints.meteoCurve, paints.meteoPoint, dp)
+        drawSeriesCurve(canvas, series, ::tempFor, axisScale, timeAxis, layout, paints.forecastCurve, paints.forecastPoint, dp)
 
         drawActualLine(canvas, layout, axisScale, actualValue, paints.apiActualLine, "API actual: ${actualValue?.let { formatTempLabel(it) }}", paints.apiActualLabel, dp)
         drawActualLine(canvas, layout, axisScale, appActualValue, paints.appActualLine, "Location actual: ${appActualValue?.let { formatTempLabel(it) }}", paints.appActualLabel, dp)
@@ -130,8 +122,7 @@ object ForecastEvolutionRenderer {
 
     private fun renderErrorGraph(
         context: Context,
-        nwsPoints: List<EvolutionPoint>,
-        meteoPoints: List<EvolutionPoint>,
+        points: List<EvolutionPoint>,
         actualValue: Float?,
         appActualValue: Float?,
         widthPx: Int,
@@ -143,17 +134,15 @@ object ForecastEvolutionRenderer {
         canvas.drawColor(Color.TRANSPARENT)
 
         val baseline = appActualValue ?: actualValue ?: return bitmap
-        if (nwsPoints.isEmpty() && meteoPoints.isEmpty()) return bitmap
+        if (points.isEmpty()) return bitmap
 
         fun tempFor(point: EvolutionPoint): Float? =
             if (isHigh) point.highTemp else point.lowTemp
 
-        val nwsSeries = bucketize(nwsPoints) { tempFor(it) }
-        val meteoSeries = bucketize(meteoPoints) { tempFor(it) }
-        val allSeries = nwsSeries + meteoSeries
-        if (allSeries.isEmpty()) return bitmap
+        val series = bucketize(points) { tempFor(it) }
+        if (series.isEmpty()) return bitmap
 
-        val errorSamples = ForecastEvolutionGeometry.errorSamples(allSeries, ::tempFor, baseline)
+        val errorSamples = ForecastEvolutionGeometry.errorSamples(series, ::tempFor, baseline)
         if (errorSamples.isEmpty()) return bitmap
 
         val maxAbsError = errorSamples.maxOf { abs(it.error) }
@@ -181,8 +170,8 @@ object ForecastEvolutionRenderer {
             }
         }
 
-        drawErrorSeriesCurve(canvas, errorSamples.filter { it.source == WeatherSource.NWS }, axisScale, timeAxis, layout, paints.nwsCurve, paints.nwsPoint, dp)
-        drawErrorSeriesCurve(canvas, errorSamples.filter { it.source == WeatherSource.OPEN_METEO }, axisScale, timeAxis, layout, paints.meteoCurve, paints.meteoPoint, dp)
+        // Single source at a time: one error series in one color, whatever the API.
+        drawErrorSeriesCurve(canvas, errorSamples, axisScale, timeAxis, layout, paints.forecastCurve, paints.forecastPoint, dp)
 
         return bitmap
     }
@@ -218,7 +207,7 @@ object ForecastEvolutionRenderer {
         val graphWidth = graphRight - graphLeft
         val graphHeight = graphBottom - graphTop
 
-        val sourceColor = if (sample.source == WeatherSource.NWS) EvolutionGraphStyle.NWS_COLOR else EvolutionGraphStyle.METEO_COLOR
+        val sourceColor = EvolutionGraphStyle.FORECAST_COLOR
 
         val yLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(EvolutionGraphStyle.LABEL_COLOR)

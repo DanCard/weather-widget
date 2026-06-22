@@ -15,8 +15,7 @@ import com.weatherwidget.shared.graph.ForecastEvolutionStyle
  */
 object EvolutionGraphStyle {
     // Re-exposed for existing call sites; single source of truth is ForecastEvolutionStyle.
-    val NWS_COLOR get() = ForecastEvolutionStyle.NWS_COLOR
-    val METEO_COLOR get() = ForecastEvolutionStyle.METEO_COLOR
+    val FORECAST_COLOR get() = ForecastEvolutionStyle.FORECAST_COLOR
     val API_ACTUAL_COLOR get() = ForecastEvolutionStyle.API_ACTUAL_COLOR
     val APP_ACTUAL_COLOR get() = ForecastEvolutionStyle.APP_ACTUAL_COLOR
     val LABEL_COLOR get() = ForecastEvolutionStyle.LABEL_COLOR
@@ -46,10 +45,8 @@ object EvolutionGraphStyle {
 
     data class PaintSet(
         val density: Float,
-        val nwsCurve: Paint,
-        val nwsPoint: Paint,
-        val meteoCurve: Paint,
-        val meteoPoint: Paint,
+        val forecastCurve: Paint,
+        val forecastPoint: Paint,
         val gridLine: Paint,
         val yLabel: Paint,
         val xLabel: Paint,
@@ -70,26 +67,15 @@ object EvolutionGraphStyle {
 
         val dp = { dp: Float -> dpToPx(context, dp) }
 
-        val nwsCurve = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(NWS_COLOR)
+        val forecastCurve = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(FORECAST_COLOR)
             strokeWidth = dp(CURVE_STROKE_DP)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
-        val nwsPoint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(NWS_COLOR)
-            style = Paint.Style.FILL
-        }
-        val meteoCurve = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(METEO_COLOR)
-            strokeWidth = dp(CURVE_STROKE_DP)
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
-        val meteoPoint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(METEO_COLOR)
+        val forecastPoint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(FORECAST_COLOR)
             style = Paint.Style.FILL
         }
         val gridLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -143,8 +129,7 @@ object EvolutionGraphStyle {
 
         val paintSet = PaintSet(
             density = density,
-            nwsCurve = nwsCurve, nwsPoint = nwsPoint,
-            meteoCurve = meteoCurve, meteoPoint = meteoPoint,
+            forecastCurve = forecastCurve, forecastPoint = forecastPoint,
             gridLine = gridLine, yLabel = yLabel, xLabel = xLabel,
             apiActualLine = apiActualLine, apiActualLabel = apiActualLabel,
             appActualLine = appActualLine, appActualLabel = appActualLabel,

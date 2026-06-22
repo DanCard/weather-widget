@@ -356,39 +356,15 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 )
             }
 
-        val nwsPoints = evolutionPoints.filter { it.source == WeatherSource.NWS }
-        val visualCrossingPoints = evolutionPoints.filter { it.source == WeatherSource.VISUAL_CROSSING }
-        val meteoPoints = evolutionPoints.filter { it.source == WeatherSource.OPEN_METEO }
-        val weatherApiPoints = evolutionPoints.filter { it.source == WeatherSource.WEATHER_API }
-        val meteoLikePoints = visualCrossingPoints + meteoPoints + weatherApiPoints
-        val gapPoints = evolutionPoints.filter { it.source == WeatherSource.GENERIC_GAP }
-
         val snapshotSummaryView = findViewById<TextView>(R.id.snapshot_summary_text)
-        val pointsBySource = mapOf(
-            WeatherSource.NWS to nwsPoints,
-            WeatherSource.VISUAL_CROSSING to visualCrossingPoints,
-            WeatherSource.OPEN_METEO to meteoPoints,
-            WeatherSource.WEATHER_API to weatherApiPoints,
-        )
-        val summaryCount = pointsBySource[requestedSource]?.size
-            ?: pointsBySource.values.sumOf { it.size }
-        val summaryText = if (requestedSource != null) {
-            getString(R.string.forecast_history_summary_single, summaryCount, requestedSource.displayName)
-        } else {
-            buildString {
-                append(getString(
-                    R.string.forecast_history_summary_combined,
-                    nwsPoints.size,
-                    visualCrossingPoints.size,
-                    meteoPoints.size,
-                    weatherApiPoints.size,
-                ))
-                if (gapPoints.isNotEmpty()) {
-                    append(getString(R.string.forecast_history_summary_climate_fill, gapPoints.size))
-                }
-            }
-        }
-        snapshotSummaryView.text = summaryText
+        // The view always shows a single selected API at a time (snapshots are pre-filtered to the
+        // requested source in loadData), drawn as one forecast series in one color. The count is just
+        // the snapshots for that API.
+        val summaryCount = evolutionPoints.size
+        val sourceLabelForSummary = requestedSource?.displayName
+            ?: getString(R.string.forecast_history_api_fallback_label)
+        snapshotSummaryView.text =
+            getString(R.string.forecast_history_summary_single, summaryCount, sourceLabelForSummary)
         if (summaryCount == 0) {
             snapshotSummaryView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
             snapshotSummaryView.setTextColor(resources.getColor(R.color.widget_text_primary, theme))
@@ -402,8 +378,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
         updateFreshnessCard()
 
         val isPastDate = date.isBefore(LocalDate.now())
-        val nwsLegend = findViewById<View>(R.id.legend_nws_group)
-        val meteoLegend = findViewById<View>(R.id.legend_meteo_group)
         val legendActualGroup = findViewById<View>(R.id.legend_actual_group)
         val legendAppActualGroup = findViewById<View>(R.id.legend_app_actual_group)
 
@@ -415,22 +389,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
             legendAppActualGroup.visibility = View.GONE
         }
 
-        when (requestedSource) {
-            WeatherSource.NWS -> {
-                nwsLegend.visibility = View.VISIBLE
-                meteoLegend.visibility = View.GONE
-            }
-            WeatherSource.VISUAL_CROSSING,
-            WeatherSource.OPEN_METEO,
-            WeatherSource.WEATHER_API -> {
-                nwsLegend.visibility = View.GONE
-                meteoLegend.visibility = View.VISIBLE
-            }
-            else -> {
-                nwsLegend.visibility = View.VISIBLE
-                meteoLegend.visibility = View.VISIBLE
-            }
-        }
+        // Single forecast legend (one color for every API), relabeled to the selected API.
+        findViewById<TextView>(R.id.legend_forecast_text).text =
+            requestedSource?.shortDisplayName ?: getString(R.string.forecast_history_api_fallback_label)
 
         val apiHigh = if (isPastDate) actualWeather?.highTemp else null
         val apiLow = if (isPastDate) actualWeather?.lowTemp else null
@@ -488,7 +449,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         highTitle.text = if (isErrorMode) getString(R.string.forecast_error_high_title) else getString(R.string.forecast_evolution_high_title)
         lowTitle.text = if (isErrorMode) getString(R.string.forecast_error_low_title) else getString(R.string.forecast_evolution_low_title)
 
-        if (nwsPoints.isNotEmpty() || meteoLikePoints.isNotEmpty()) {
+        if (evolutionPoints.isNotEmpty()) {
             if (isErrorMode && (apiHigh == null || apiLow == null)) {
                 noDataTextView.text = getString(R.string.forecast_error_requires_actuals)
                 noDataTextView.visibility = View.VISIBLE
@@ -504,15 +465,15 @@ class ForecastHistoryActivity : AppCompatActivity() {
             fun render(actual: Float?, appActual: Float?, isHigh: Boolean) =
                 if (isErrorMode) {
                     if (isHigh) ForecastEvolutionRenderer.renderHighErrorGraph(
-                        this, nwsPoints, meteoLikePoints, actual, appActual, width, height,
+                        this, evolutionPoints, actual, appActual, width, height,
                     ) else ForecastEvolutionRenderer.renderLowErrorGraph(
-                        this, nwsPoints, meteoLikePoints, actual, appActual, width, height,
+                        this, evolutionPoints, actual, appActual, width, height,
                     )
                 } else {
                     if (isHigh) ForecastEvolutionRenderer.renderHighGraph(
-                        this, nwsPoints, meteoLikePoints, actual, appActual, width, height,
+                        this, evolutionPoints, actual, appActual, width, height,
                     ) else ForecastEvolutionRenderer.renderLowGraph(
-                        this, nwsPoints, meteoLikePoints, actual, appActual, width, height,
+                        this, evolutionPoints, actual, appActual, width, height,
                     )
                 }
 

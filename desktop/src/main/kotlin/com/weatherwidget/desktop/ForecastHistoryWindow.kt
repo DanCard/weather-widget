@@ -35,7 +35,6 @@ import com.weatherwidget.shared.graph.AxisScale
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ErrorSample
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.EvolutionPoint
-import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ForecastSample
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.TimeAxis
 import com.weatherwidget.shared.graph.ForecastEvolutionStyle
 import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
@@ -51,16 +50,10 @@ import kotlin.math.abs
 import kotlin.math.ceil
 
 private const val MS_IN_A_DAY = 86_400_000L
-private val METEO_LIKE_IDS = setOf(
-    WeatherSource.VISUAL_CROSSING.id,
-    WeatherSource.OPEN_METEO.id,
-    WeatherSource.WEATHER_API.id,
-)
 
 /** Everything the window needs for one (targetDate, source) view, computed off the UI thread. */
 private data class HistoryData(
-    val nwsPoints: List<EvolutionPoint>,
-    val meteoPoints: List<EvolutionPoint>,
+    val points: List<EvolutionPoint>,
     val apiHigh: Float?,
     val apiLow: Float?,
     val appHigh: Float?,
@@ -212,7 +205,7 @@ private fun Header(
 private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource) {
     val textMeasurer = rememberTextMeasurer()
     val isError = graphMode == GraphMode.ERROR
-    val hasPoints = d.nwsPoints.isNotEmpty() || d.meteoPoints.isNotEmpty()
+    val hasPoints = d.points.isNotEmpty()
 
     if (!hasPoints) {
         Text("No forecast snapshots for ${source.displayName} on this day.", color = Color.Gray, fontSize = 13.sp)
@@ -222,11 +215,11 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource)
         Spacer(Modifier.height(12.dp))
     } else {
         GraphCard(if (isError) "High forecast error" else "High forecast evolution") {
-            EvolutionGraph(d.nwsPoints, d.meteoPoints, d.apiHigh, d.appHigh, isHigh = true, isError = isError, textMeasurer = textMeasurer)
+            EvolutionGraph(d.points, d.apiHigh, d.appHigh, isHigh = true, isError = isError, textMeasurer = textMeasurer)
         }
         Spacer(Modifier.height(12.dp))
         GraphCard(if (isError) "Low forecast error" else "Low forecast evolution") {
-            EvolutionGraph(d.nwsPoints, d.meteoPoints, d.apiLow, d.appLow, isHigh = false, isError = isError, textMeasurer = textMeasurer)
+            EvolutionGraph(d.points, d.apiLow, d.appLow, isHigh = false, isError = isError, textMeasurer = textMeasurer)
         }
         Spacer(Modifier.height(12.dp))
     }
@@ -279,8 +272,8 @@ private fun GraphCard(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun Legend(source: WeatherSource, isPast: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        val seriesColor = if (source == WeatherSource.NWS) ForecastEvolutionStyle.NWS_COLOR else ForecastEvolutionStyle.METEO_COLOR
-        LegendDot(parseColor(seriesColor), source.shortDisplayName)
+        // One forecast color for every API; the dot is labeled with the selected source.
+        LegendDot(parseColor(ForecastEvolutionStyle.FORECAST_COLOR), source.shortDisplayName)
         if (isPast) {
             LegendDot(parseColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), "API actual")
             LegendDot(parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), "Location actual")
@@ -299,8 +292,7 @@ private fun LegendDot(color: Color, label: String) {
 
 @Composable
 private fun EvolutionGraph(
-    nwsPoints: List<EvolutionPoint>,
-    meteoPoints: List<EvolutionPoint>,
+    points: List<EvolutionPoint>,
     actual: Float?,
     appActual: Float?,
     isHigh: Boolean,
@@ -308,8 +300,8 @@ private fun EvolutionGraph(
     textMeasurer: TextMeasurer,
 ) {
     Canvas(Modifier.fillMaxWidth().height(200.dp)) {
-        if (isError) drawError(nwsPoints, meteoPoints, actual, appActual, isHigh, textMeasurer)
-        else drawEvolution(nwsPoints, meteoPoints, actual, appActual, isHigh, textMeasurer)
+        if (isError) drawError(points, actual, appActual, isHigh, textMeasurer)
+        else drawEvolution(points, actual, appActual, isHigh, textMeasurer)
     }
 }
 
@@ -330,27 +322,25 @@ private fun DrawScope.layout(): Layout = Layout(
 )
 
 private fun DrawScope.drawEvolution(
-    nwsPoints: List<EvolutionPoint>,
-    meteoPoints: List<EvolutionPoint>,
+    points: List<EvolutionPoint>,
     actual: Float?,
     appActual: Float?,
     isHigh: Boolean,
     tm: TextMeasurer,
 ) {
     val tempFor = { p: EvolutionPoint -> if (isHigh) p.highTemp else p.lowTemp }
-    val nws = ForecastEvolutionGeometry.bucketize(nwsPoints, tempFor)
-    val meteo = ForecastEvolutionGeometry.bucketize(meteoPoints, tempFor)
-    if (nws.isEmpty() && meteo.isEmpty()) return
-    val allTemps = ForecastEvolutionGeometry.collectTemps(nws + meteo, tempFor, actual, appActual)
+    // One forecast series in one color (the view shows a single API at a time).
+    val series = ForecastEvolutionGeometry.bucketize(points, tempFor)
+    if (series.isEmpty()) return
+    val allTemps = ForecastEvolutionGeometry.collectTemps(series, tempFor, actual, appActual)
     if (allTemps.isEmpty()) return
 
     val axis = NiceAxisScale.compute(allTemps.minOrNull() ?: 0f, allTemps.maxOrNull() ?: 100f)
     val l = layout()
-    val timeAxis = TimeAxis((nws + meteo).map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(l.width, spacingPx = 46f, maxDivisions = 20))
+    val timeAxis = TimeAxis(series.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(l.width, spacingPx = 46f, maxDivisions = 20))
 
     drawGridAndAxes(l, axis, timeAxis, tm, isError = false)
-    drawSeriesCurve(nws.mapNotNull { p -> tempFor(p)?.let { it to p.fetchedAt } }, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.NWS_COLOR))
-    drawSeriesCurve(meteo.mapNotNull { p -> tempFor(p)?.let { it to p.fetchedAt } }, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.METEO_COLOR))
+    drawSeriesCurve(series.mapNotNull { p -> tempFor(p)?.let { it to p.fetchedAt } }, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.FORECAST_COLOR))
     drawActualLine(l, axis, actual, parseColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), dashed = true,
         "API actual: ${actual?.let { fmt(it) } ?: ""}", tm)
     drawActualLine(l, axis, appActual, parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), dashed = false,
@@ -358,8 +348,7 @@ private fun DrawScope.drawEvolution(
 }
 
 private fun DrawScope.drawError(
-    nwsPoints: List<EvolutionPoint>,
-    meteoPoints: List<EvolutionPoint>,
+    points: List<EvolutionPoint>,
     actual: Float?,
     appActual: Float?,
     isHigh: Boolean,
@@ -367,11 +356,9 @@ private fun DrawScope.drawError(
 ) {
     val baseline = appActual ?: actual ?: return
     val tempFor = { p: EvolutionPoint -> if (isHigh) p.highTemp else p.lowTemp }
-    val nws = ForecastEvolutionGeometry.bucketize(nwsPoints, tempFor)
-    val meteo = ForecastEvolutionGeometry.bucketize(meteoPoints, tempFor)
-    val all = nws + meteo
-    if (all.isEmpty()) return
-    val errors = ForecastEvolutionGeometry.errorSamples(all, tempFor, baseline)
+    val series = ForecastEvolutionGeometry.bucketize(points, tempFor)
+    if (series.isEmpty()) return
+    val errors = ForecastEvolutionGeometry.errorSamples(series, tempFor, baseline)
     if (errors.isEmpty()) return
 
     val yBound = maxOf(3f, ceil(errors.maxOf { abs(it.error) }) + 1f)
@@ -396,8 +383,8 @@ private fun DrawScope.drawError(
         }
     }
 
-    drawErrorCurve(errors.filter { it.source == WeatherSource.NWS }, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.NWS_COLOR))
-    drawErrorCurve(errors.filter { it.source.id in METEO_LIKE_IDS }, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.METEO_COLOR))
+    // Single error series in one color, whatever the API.
+    drawErrorCurve(errors, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.FORECAST_COLOR))
 }
 
 private fun DrawScope.drawGridAndAxes(l: Layout, axis: AxisScale, timeAxis: TimeAxis, tm: TextMeasurer, isError: Boolean) {
@@ -509,8 +496,8 @@ private fun loadHistory(
             source = WeatherSource.fromId(row.source),
         )
     }
-    val nwsPoints = points.filter { it.source == WeatherSource.NWS }
-    val meteoPoints = points.filter { it.source.id in METEO_LIKE_IDS }
+    // `points` is already filtered to the single selected source (line above) and drawn as one
+    // forecast series in one color.
 
     // Actuals (past days only).
     var apiHigh: Float? = null
@@ -550,8 +537,7 @@ private fun loadHistory(
     }.ifBlank { "No accuracy history yet — comparisons build up over the following weeks." }
 
     return HistoryData(
-        nwsPoints = nwsPoints,
-        meteoPoints = meteoPoints,
+        points = points,
         apiHigh = apiHigh, apiLow = apiLow,
         appHigh = appHigh, appLow = appLow,
         isPast = isPast,

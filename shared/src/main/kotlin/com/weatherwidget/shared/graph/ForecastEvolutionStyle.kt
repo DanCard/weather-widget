@@ -7,8 +7,9 @@ package com.weatherwidget.shared.graph
  * types.
  */
 object ForecastEvolutionStyle {
-    const val NWS_COLOR = "#5AC8FA"
-    const val METEO_COLOR = "#34C759"
+    // The history view shows one API at a time, so the forecast curve has a single color regardless
+    // of source — there is intentionally no per-source color.
+    const val FORECAST_COLOR = "#5AC8FA"
     const val API_ACTUAL_COLOR = "#FF9F0A"
     const val APP_ACTUAL_COLOR = "#FF3B30"
     const val LABEL_COLOR = "#AAAAAA"

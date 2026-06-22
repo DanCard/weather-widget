@@ -138,7 +138,7 @@
                     android:layout_marginEnd="12dp">
 
                     <LinearLayout
-                        android:id="@+id/legend_nws_group"
+                        android:id="@+id/legend_forecast_group"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
@@ -151,33 +151,12 @@
                             android:background="#5AC8FA" />
 
                         <TextView
+                            android:id="@+id/legend_forecast_text"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="NWS"
                             android:textSize="14sp"
                             android:textColor="#5AC8FA"
-                            android:layout_marginStart="6dp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/legend_meteo_group"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginEnd="12dp">
-
-                        <View
-                            android:layout_width="14dp"
-                            android:layout_height="3dp"
-                            android:background="#34C759" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="OM"
-                            android:textSize="14sp"
-                            android:textColor="#34C759"
                             android:layout_marginStart="6dp" />
                     </LinearLayout>
 
