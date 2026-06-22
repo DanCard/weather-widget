@@ -133,6 +133,7 @@ object TemperatureGraphRenderer {
         return CurveIntrusion.merge(a, f)
     }
 
+    private const val YESTERDAY_DELTA_LABEL_PAD_DP = 6f
     private const val STALENESS_MINOR_OVERLAP_RATIO = 0.40f
     private const val MAX_STALENESS_DISPLACEMENT_STEPS = 15
     private const val STALENESS_LEADER_LINE_MIN_STEPS = 2
@@ -482,6 +483,55 @@ object TemperatureGraphRenderer {
         }
     }
 
+    /**
+     * Draws the "+0.4 from yesterday" delta into empty graph space, at the staleness/age font size and in
+     * thermostat color. Formatting, the zoomed-in (≤12h span) gate, and empty-space placement all live in
+     * shared [YesterdayDeltaLabel] so Android and desktop stay consistent; this only measures text, hands
+     * over a visible-curve sampler, and draws. The number itself is computed upstream (the renderer's
+     * windowed [hours] may not reach back 24h when zoomed in).
+     */
+    private fun placeYesterdayDeltaLabel(ctx: RenderContext, hours: List<HourData>, deltaFromYesterday: Float?) {
+        if (deltaFromYesterday == null) return
+        val currentTemp = ctx.lastObservedTemp ?: return
+        if (hours.size < 2) return
+        val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+
+        val paint = ctx.paints.stalenessTextPaint
+        val text = YesterdayDeltaLabel.format(deltaFromYesterday)
+        val metrics = YesterdayDeltaLabel.Metrics(
+            width = paint.measureText(text),
+            ascent = fontAscent(paint),
+            descent = fontDescent(paint),
+        )
+        val obstacles = ctx.drawnLabelBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
+        val placement = YesterdayDeltaLabel.place(
+            delta = deltaFromYesterday,
+            currentTemp = currentTemp,
+            spanHours = spanHours,
+            plot = GraphRect(0f, ctx.graphTop, ctx.widthPx.toFloat(), ctx.graphBottom),
+            drawnBounds = obstacles,
+            curveYAt = { x -> sampleVisibleCurveY(ctx, x) },
+            metrics = metrics,
+            padPx = dpToPx(ctx.context, YESTERDAY_DELTA_LABEL_PAD_DP),
+        ) ?: return
+
+        val labelPaint = Paint(paint).apply {
+            color = placement.colorArgb
+            textAlign = Paint.Align.CENTER
+        }
+        ctx.canvas.drawText(placement.text, placement.centerX, placement.baselineY, labelPaint)
+        ctx.drawnLabelBounds.add(RectF(placement.box.left, placement.box.top, placement.box.right, placement.box.bottom))
+    }
+
+    /** Y of the *visible* curve at [x]: the actual line left of the transition, the forecast line right. */
+    private fun sampleVisibleCurveY(ctx: RenderContext, x: Float): Float? {
+        val transitionX = ctx.transitionX
+        val useActual = transitionX != null && x <= transitionX && ctx.actualVisiblePoints.isNotEmpty()
+        val points = if (useActual) ctx.actualVisiblePoints else ctx.forecastPoints
+        if (points.isEmpty()) return null
+        return interpolateYAtX(points, x)
+    }
+
     private fun placeDayLabels(
         ctx: RenderContext,
         hours: List<HourData>,
@@ -722,6 +772,7 @@ object TemperatureGraphRenderer {
         appliedDelta: Float? = null,
         observedAt: Long? = null,
         lastObservedTemp: Float? = null,
+        deltaFromYesterday: Float? = null,
         numColumns: Int = 0,
         job: Job? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
@@ -809,6 +860,8 @@ object TemperatureGraphRenderer {
 
         val fetchDotBounds = drawFetchDot(ctx, hours)
         ctx.drawnLabelBounds.addAll(fetchDotBounds)
+
+        placeYesterdayDeltaLabel(ctx, hours, deltaFromYesterday)
 
         GraphRenderUtils.drawNowIndicator(
             canvas = canvas,

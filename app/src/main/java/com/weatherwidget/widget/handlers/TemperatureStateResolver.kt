@@ -9,6 +9,8 @@ import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.toReading
+import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.HeaderFormatter
@@ -127,11 +129,14 @@ internal object TemperatureStateResolver {
             useGraph = useGraph,
             deferStartupGraphActuals = deferStartupGraphActuals,
             smoothedForecasts = smoothedForecasts,
+            observedAt = observedAt,
+            lastObservedTemp = lastObservedTemp,
         )
 
         val graphHours: List<HourData>
         val obsQueryMs: Long
         val buildHourDataMs: Long
+        var deltaFromYesterday: Float? = null
         when (graphLoadResult) {
             is GraphLoadOutcome.Empty -> {
                 // HOURLY_PAINT_TRACE: an empty hour list yields a blank graph state. The widget still
@@ -150,6 +155,7 @@ internal object TemperatureStateResolver {
                 graphHours = graphLoadResult.hours
                 obsQueryMs = graphLoadResult.obsQueryMs
                 buildHourDataMs = graphLoadResult.buildHourDataMs
+                deltaFromYesterday = graphLoadResult.deltaFromYesterday
             }
         }
 
@@ -278,6 +284,7 @@ internal object TemperatureStateResolver {
                     appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
                     observedAt = observedAt,
                     lastObservedTemp = lastObservedTemp,
+                    deltaFromYesterday = deltaFromYesterday,
                     numColumns = dimensions.cols,
                     job = coroutineContext[Job],
                     onFetchDotResolved = onFetchDotResolved,
@@ -341,6 +348,7 @@ internal object TemperatureStateResolver {
             val hours: List<HourData>,
             val obsQueryMs: Long,
             val buildHourDataMs: Long,
+            val deltaFromYesterday: Float? = null,
         ) : GraphLoadOutcome()
     }
 
@@ -360,6 +368,8 @@ internal object TemperatureStateResolver {
         useGraph: Boolean,
         deferStartupGraphActuals: Boolean,
         smoothedForecasts: Map<Long, Float>,
+        observedAt: Long?,
+        lastObservedTemp: Float?,
     ): GraphLoadOutcome {
         if (!useGraph) return GraphLoadOutcome.Loaded(emptyList(), 0L, 0L)
 
@@ -440,10 +450,27 @@ internal object TemperatureStateResolver {
             }
         }
 
+        // "+0.4 from yesterday" delta: current fetch-dot temp minus the blended actual at the same clock
+        // time 24h earlier. Computed here (not in the renderer) because the raw 72h observation list lives
+        // here — when zoomed in, the renderer's windowed hours may not even reach back a day. Null (label
+        // hidden) when the fetch dot or a yesterday observation is missing, e.g. navigated into the past.
+        val deltaFromYesterday = YesterdayDeltaCalculator.computeDelta(
+            observations = observations.map { it.toReading() },
+            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+            displaySourceId = displaySource.id,
+            userLat = lat,
+            userLon = lon,
+            observedAtMs = observedAt,
+            currentObservedTemp = lastObservedTemp,
+            personalStationWeight = stateManager.getPersonalStationWeight(),
+            zoneId = ZoneId.systemDefault(),
+        )
+
         return GraphLoadOutcome.Loaded(
             hours = hourData,
             obsQueryMs = obsQueryMs,
             buildHourDataMs = buildHourDataMs,
+            deltaFromYesterday = deltaFromYesterday,
         )
     }
 

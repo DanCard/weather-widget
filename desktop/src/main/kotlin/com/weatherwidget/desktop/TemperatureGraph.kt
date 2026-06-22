@@ -29,6 +29,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.shared.graph.HourDataAssembler
 import com.weatherwidget.shared.graph.*
 import com.weatherwidget.shared.util.Log
@@ -406,6 +407,21 @@ fun TemperatureGraph(
         var fetchDotXVal: Float? = null
         var fetchDotYVal: Float? = null
 
+        // "+0.4 from yesterday": current observed temp minus the blended actual at the same clock time 24h
+        // earlier. Same shared engine as Android; null (label hidden) when the fetch dot or a yesterday
+        // observation is missing. Drawn below, after the fetch dot, into whatever empty space remains.
+        val deltaFromYesterday = YesterdayDeltaCalculator.computeDelta(
+            observations = observations,
+            hourlyForecasts = hourly,
+            displaySourceId = displaySourceId,
+            userLat = latitude,
+            userLon = longitude,
+            observedAtMs = tMs,
+            currentObservedTemp = fetchDotPoint?.actualTemp,
+            personalStationWeight = personalStationWeight,
+            zoneId = zoneId,
+        )
+
         if (tMs != null && fetchDotPoint != null && tMs in windowStart..windowEnd) {
             val fetchDotX = xAtTime(tMs)
             val fetchDotY = yAt(fetchDotPoint.actualTemp!!)
@@ -617,6 +633,44 @@ fun TemperatureGraph(
             drawCircle(color = Color.Black.copy(alpha = 0.26f), radius = outerRadius, center = Offset(fetchDotXVal, fetchDotYVal))
             drawCircle(color = Color.White, radius = dotRadius, center = Offset(fetchDotXVal, fetchDotYVal))
             drawCircle(color = tempToColor(fetchDotPoint.actualTemp!!), radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
+        }
+
+        // "+0.4 from yesterday" label, in empty space, at the staleness/age font size and shadow, in
+        // thermostat color. Placement + gate + format are shared with Android (YesterdayDeltaLabel).
+        val deltaCurrentTemp = fetchDotPoint?.actualTemp
+        if (deltaFromYesterday != null && deltaCurrentTemp != null) {
+            val deltaSpanHours = (windowEnd - windowStart) / 3_600_000L
+            val deltaText = YesterdayDeltaLabel.format(deltaFromYesterday)
+            val deltaStyle = TextStyle(
+                fontSize = (9 * scale).sp,
+                shadow = androidx.compose.ui.graphics.Shadow(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    offset = Offset(0f, 1f * scale),
+                    blurRadius = 2f * scale,
+                ),
+            )
+            val measured = textMeasurer.measure(deltaText, deltaStyle)
+            val metrics = YesterdayDeltaLabel.Metrics(
+                width = measured.size.width.toFloat(),
+                ascent = -measured.size.height.toFloat(),
+                descent = 0f,
+            )
+            val placement = YesterdayDeltaLabel.place(
+                delta = deltaFromYesterday,
+                currentTemp = deltaCurrentTemp,
+                spanHours = deltaSpanHours,
+                plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
+                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                curveYAt = { x -> getCurveYAtX(x) },
+                metrics = metrics,
+                padPx = 6f * scale,
+            )
+            if (placement != null) {
+                val layout = textMeasurer.measure(deltaText, deltaStyle.copy(color = Color(placement.colorArgb)))
+                val topLeft = Offset(placement.box.left, placement.box.top)
+                drawText(layout, topLeft = topLeft)
+                drawnLabels.add(Rect(topLeft, Size(metrics.width, metrics.height)))
+            }
         }
 
         // NOW label drawn last (on top), collision-aware against the placed labels (shared helper).
