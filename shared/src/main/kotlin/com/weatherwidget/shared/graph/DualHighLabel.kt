@@ -28,7 +28,7 @@ object DualHighLabel {
      * Deliberately low so the room test below is the real gate — a meaningless ~1° difference
      * never shows two labels, but anything genuinely off does (when there's room).
      */
-    const val MIN_DIFF_DEG = 3f
+    const val MIN_DIFF_DEG = 2f
 
     /** Fraction of a label height the two boxes may overlap and still count as "enough room". */
     const val MAX_OVERLAP_FRACTION = 0.6f
