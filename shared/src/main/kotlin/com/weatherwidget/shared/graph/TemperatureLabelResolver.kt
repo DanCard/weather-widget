@@ -84,6 +84,43 @@ object TemperatureLabelResolver {
         }
     }
 
+    // Where a label's value came from — so a "what is this number / is it interpolated?" question is
+    // answerable straight from the log, without re-deriving the dense series by hand:
+    //   OBSERVED          = the measured/blended actual line (actualLabelTemps)
+    //   SMOOTHED_FORECAST = the smoothed forecast curve at a real extremum/endpoint (labelTemps)
+    //   SMOOTHED_MIDPOINT = a synthesized anchor dropped on a bare monotonic forecast stretch —
+    //                       interpolated, NOT a data point (this is the one that reads e.g. "73.8°"
+    //                       sitting between a 74° start and a 72° end). See addForecastMidpointLabel.
+    private fun provenanceFor(role: TemperatureRole, isMidpoint: Boolean): String = when {
+        isMidpoint -> "SMOOTHED_MIDPOINT"
+        role in ACTUAL_DISPLAY_ROLES -> "OBSERVED"
+        else -> "SMOOTHED_FORECAST"
+    }
+
+    // One enriched label-decision line: the on-screen string, its clock time, role, why, and value
+    // provenance — enough to map a label seen on the graph back to its origin in a single grep. DEBUG
+    // only: this is the per-render path, so it is intentionally NOT routed to app_logs (which is for
+    // sparse events and would otherwise be swamped, like the CurrentTempResolver tag once was).
+    private fun logLabelDecision(
+        action: String,
+        role: TemperatureRole,
+        idx: Int,
+        value: Float,
+        hours: List<HourData>,
+        reason: String,
+        provenance: String,
+        extra: String = "",
+    ) {
+        val t = hours.getOrNull(idx)?.dateTime?.toLocalTime()?.toString() ?: "?"
+        // No degree glyph: the file log sink isn't UTF-8 and renders ° as '?'. The bare number still
+        // greps against what's on screen (e.g. `grep 'displayed="73.8'`).
+        Log.d(
+            TAG,
+            "$action: displayed=\"${formatTemp(value)}\" t=$t role=$role reason=$reason " +
+                "provenance=$provenance val=$value idx=$idx" + if (extra.isEmpty()) "" else " $extra",
+        )
+    }
+
     fun computeExtremaIndices(
         hours: List<HourData>,
         transitionX: Float?,
@@ -239,7 +276,7 @@ object TemperatureLabelResolver {
             val temps = if (isActualRole) actualLabelTemps else labelTemps
 
             if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
-                Log.d(TAG, "LabelAccepted: role=$role idx=$idx val=${temps[idx]}")
+                logLabelDecision("LabelAccepted", role, idx, temps[idx], hours, reason = "EXTREMA", provenance = provenanceFor(role, isMidpoint = false))
             }
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
@@ -298,11 +335,11 @@ object TemperatureLabelResolver {
                 formatTemp(labelTemps[c.index]) == midText
         }
         if (alreadyOnForecastLine) {
-            Log.d(TAG, "MidpointSuppressed: idx=$mid val=${labelTemps[mid]} duplicates existing forecast label text=$midText")
+            logLabelDecision("MidpointSuppressed", TemperatureRole.LOCAL, mid, labelTemps[mid], hours, reason = "DUPLICATE_FORECAST_VALUE", provenance = provenanceFor(TemperatureRole.LOCAL, isMidpoint = true), extra = "duplicatesText=$midText")
             return
         }
 
-        Log.d(TAG, "LabelAccepted: role=LOCAL idx=$mid val=${labelTemps[mid]} reason=FORECAST_MIDPOINT futureStart=$futureStart lastIndex=$lastIndex")
+        logLabelDecision("LabelAccepted", TemperatureRole.LOCAL, mid, labelTemps[mid], hours, reason = "FORECAST_MIDPOINT", provenance = provenanceFor(TemperatureRole.LOCAL, isMidpoint = true), extra = "futureStart=$futureStart lastIndex=$lastIndex")
         specialCandidates.add(
             TempLabelCandidate(mid, TemperatureRole.LOCAL, labelTemps, hours[mid].temperature, forceForecastSeries = true)
         )
@@ -360,7 +397,7 @@ object TemperatureLabelResolver {
             val forecastVal = labelTemps[idx]
             if (formatTemp(actualVal) == formatTemp(forecastVal)) continue
 
-            Log.d(TAG, "LabelAccepted: role=$actualRole idx=$idx val=$actualVal reason=$reason")
+            logLabelDecision("LabelAccepted", actualRole, idx, actualVal, hours, reason = reason, provenance = provenanceFor(actualRole, isMidpoint = false))
             specialCandidates.add(
                 TempLabelCandidate(idx, actualRole, actualLabelTemps, hours[idx].temperature, forceForecastSeries = false)
             )
