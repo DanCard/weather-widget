@@ -61,7 +61,7 @@ object CurrentTemperatureResolver {
         now: Long = System.currentTimeMillis(),
     ): Map<Long, Float> {
         val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
-            .mapValues { (dateTimeMs, rows) -> pickBestForecast(rows, displaySourceId, dateTimeMs, now) }
+            .mapValues { (_, rows) -> pickBestForecast(rows, displaySourceId) }
         val sortedTimes = forecastsByTime.keys.sorted()
         val rawTemps = sortedTimes.map { forecastsByTime[it]!!.temperature }
         val smoothedTemps = TemperatureInterpolator.smoothValuesPreservingAllExtrema(
@@ -76,16 +76,16 @@ object CurrentTemperatureResolver {
     private fun pickBestForecast(
         rows: List<HourlyForecast>,
         sourceId: String,
-        dateTimeMs: Long,
-        nowMs: Long,
     ): HourlyForecast? {
         val candidates = when {
             rows.any { it.source == sourceId } -> rows.filter { it.source == sourceId }
             rows.any { it.source == WeatherSource.GENERIC_GAP.id } -> rows.filter { it.source == WeatherSource.GENERIC_GAP.id }
             else -> rows
         }
-        return if (dateTimeMs < nowMs) candidates.minByOrNull { it.fetchedAt }
-               else candidates.maxByOrNull { it.fetchedAt }
+        // The latest forecast wins for every hour, past or future. (Previously past hours used the
+        // earliest snapshot — the stale 6–7-day-out long-range prediction — which inflated the
+        // interpolated current temp. See HourlyForecastStitcher for the same fix on the graph line.)
+        return candidates.maxByOrNull { it.fetchedAt }
     }
 
     private fun debugLog(message: String) {
@@ -326,10 +326,9 @@ object CurrentTemperatureResolver {
         val targetHourMs = targetHour.atZone(zoneId).toInstant().toEpochMilli()
         val nextHourMs = nextHour.atZone(zoneId).toInstant().toEpochMilli()
 
-        val nowMs = targetTime.atZone(zoneId).toInstant().toEpochMilli()
         val sourceScopedForecasts =
             hourlyForecasts.groupBy { it.dateTime }
-                .mapValues { (dateTimeMs, rows) -> pickBestForecast(rows, source.id, dateTimeMs, nowMs) }
+                .mapValues { (_, rows) -> pickBestForecast(rows, source.id) }
 
         val currentHourForecast = sourceScopedForecasts[targetHourMs]
         val nextHourForecast = sourceScopedForecasts[nextHourMs]

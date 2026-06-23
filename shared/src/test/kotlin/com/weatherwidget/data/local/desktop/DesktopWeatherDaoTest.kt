@@ -261,15 +261,15 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
-    fun `getHourlyHistory keeps the earliest snapshot temp and coalesces cloud from a later one`() {
+    fun `getHourlyHistory keeps the freshest snapshot temp and coalesces precip from an older one`() {
         val lat = 40.0
         val lon = -75.0
         val source = "NWS"
         val hour = 1_780_682_400_000L
 
-        // Earliest snapshot = the original prediction for this hour (what the graph shows for a past
-        // hour, rather than NWS's later hindsight revision). Here it carries temp/condition/precip but
-        // dropped sky cover; a later snapshot supplies the cloud cover, which is coalesced in.
+        // Freshest snapshot = the latest forecast for this hour (matching the live line). Here it
+        // carries temp/condition/cloud but dropped precip probability; an older snapshot supplies the
+        // precip, which is coalesced in.
         dao.upsertHourlyForecastHistory(
             lat, lon, source, snapshotBucket = 1_780_500_000_000L,
             listOf(HourlyForecast(hour, 60f, "Cloudy", precipProbability = 20, cloudCover = null)),
@@ -282,12 +282,12 @@ class DesktopWeatherDaoTest {
         val history = dao.getHourlyHistory(lat, lon, source, hour - 1, hour + 1)
 
         assertEquals(1, history.size)
-        // Temperature/condition come from the earliest snapshot (the original prediction)...
-        assertEquals(60f, history[0].temperature)
-        assertEquals("Cloudy", history[0].condition)
-        assertEquals(20, history[0].precipProbability)
-        // ...while the missing cloud cover is coalesced from the later snapshot.
+        // Temperature/condition/cloud come from the freshest snapshot (the latest forecast)...
+        assertEquals(64f, history[0].temperature)
+        assertEquals("Sunny", history[0].condition)
         assertEquals(75, history[0].cloudCover)
+        // ...while the missing precip probability is coalesced from the older snapshot.
+        assertEquals(20, history[0].precipProbability)
     }
 
     @Test

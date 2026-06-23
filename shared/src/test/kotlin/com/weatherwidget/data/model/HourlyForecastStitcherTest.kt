@@ -55,9 +55,10 @@ class HourlyForecastStitcherTest {
     }
 
     @Test
-    fun `past hour - original prediction from earliest history wins`() {
+    fun `past hour - latest live forecast wins over older history snapshot`() {
         val past = now - 5_000L
-        // Live row is NWS's REPLACE-overwritten hindsight revision; history holds the original forecast.
+        // Past hours are no longer special-cased: the freshest forecast (the live row) wins, just like
+        // future hours. The older history snapshot does not override it.
         val current = listOf(fc(past, 76f, "Sunny", cloudCover = 5, fetchedAt = 9_000L))
         val history = listOf(fc(past, 71f, "Cloudy", cloudCover = 60, fetchedAt = 1_000L))
 
@@ -65,24 +66,39 @@ class HourlyForecastStitcherTest {
 
         assertEquals(1, stitched.size)
         val row = stitched.first()
-        assertEquals(71f, row.temperature, 0f) // original prediction, not the live revision
-        assertEquals("Cloudy", row.condition)
-        assertEquals(60, row.cloudCover)
+        assertEquals(76f, row.temperature, 0f) // latest live forecast, not the older snapshot
+        assertEquals("Sunny", row.condition)
+        assertEquals(5, row.cloudCover)
     }
 
     @Test
-    fun `past hour - earliest snapshot supplies temp while a later bucket backfills cloud cover`() {
+    fun `past hour - live supplies temp while the freshest history bucket backfills cloud cover`() {
         val past = now - 5_000L
-        val current = listOf(fc(past, 76f, "Sunny", cloudCover = 5, fetchedAt = 9_000L))
-        // Earliest snapshot (original) has the temp but dropped skyCover; a later bucket carried it.
+        // Live (freshest) has the temp but dropped skyCover; the freshest history bucket carries it.
+        val current = listOf(fc(past, 76f, "Sunny", cloudCover = null, fetchedAt = 9_000L))
         val history = listOf(
             fc(past, 71f, "Clear", cloudCover = null, fetchedAt = 1_000L),
             fc(past, 73f, "Cloudy", cloudCover = 60, fetchedAt = 4_000L),
         )
 
         val row = stitch(current, history).first()
-        assertEquals(71f, row.temperature, 0f) // earliest bucket temp
-        assertEquals(60, row.cloudCover) // coalesced from the later bucket
+        assertEquals(76f, row.temperature, 0f) // live (freshest) temp
+        assertEquals(60, row.cloudCover) // backfilled from history
+    }
+
+    @Test
+    fun `past hour with no live row falls back to the freshest history snapshot`() {
+        val past = now - 5_000L
+        // Fully-past days age out of the live table; the latest (freshest) snapshot then represents
+        // the most accurate forecast we have for that hour — not the earliest long-range one.
+        val history = listOf(
+            fc(past, 79f, "Hot", fetchedAt = 1_000L),   // stale 6-day-out prediction
+            fc(past, 73f, "Mild", fetchedAt = 8_000L),  // latest revision
+        )
+
+        val row = stitch(emptyList(), history).first()
+        assertEquals(73f, row.temperature, 0f) // freshest snapshot, not the earliest
+        assertEquals("Mild", row.condition)
     }
 
     @Test

@@ -512,7 +512,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt, source, locationLat, locationLon
                 FROM hourly_forecast_history
                 WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR (source = 'Generic' AND dateTime > ?)) AND dateTime >= ? AND dateTime <= ?
-                ORDER BY dateTime ASC, (source = ?) DESC, snapshotBucket ASC
+                ORDER BY dateTime ASC, (source = ?) DESC, snapshotBucket DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, locationLat)
@@ -523,14 +523,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setLong(6, endMs)
                 stmt.setString(7, source)
                 val rs = stmt.executeQuery()
-                // One merged row per (dateTime, source). The query is ordered snapshotBucket ASC, so
-                // the EARLIEST snapshot of an hour is seen first and supplies temperature and
-                // condition — the "original prediction" the hourly graph shows for past hours rather
-                // than NWS's REPLACE-overwritten hindsight revision. Later snapshots of the same hour
-                // only backfill nullable fields the earliest one is missing — chiefly cloudCover:
-                // NWS frequently omits sky cover on the near-term hours, yet provided it for that
-                // same hour when it sat further out in the forecast horizon, so coalescing across
-                // buckets keeps the cloud-cover graph populated.
+                // One merged row per (dateTime, source). The query is ordered snapshotBucket DESC, so
+                // the FRESHEST snapshot of an hour is seen first and supplies temperature and
+                // condition — the latest forecast, matching the live line and HourlyForecastStitcher.
+                // (This feeds the stitcher's `history` fallback, used only for hours that have aged out
+                // of the live table.) Older snapshots of the same hour only backfill nullable fields the
+                // freshest one is missing — chiefly cloudCover: NWS frequently omits sky cover on the
+                // near-term hours, yet provided it for that same hour when it sat further out in the
+                // forecast horizon, so coalescing across buckets keeps the cloud-cover graph populated.
                 val merged = LinkedHashMap<Pair<Long, String>, HourlyForecast>()
                 while (rs.next()) {
                     val dateTime = rs.getLong("dateTime")
