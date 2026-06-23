@@ -158,7 +158,9 @@ private fun runApp() = application {
 
         remember(weatherDao) {
             com.weatherwidget.widget.CurrentTemperatureResolver.dbLogger = { tag, message, level ->
-                weatherDao.log(tag, message, level)
+                // Persistence boundary: VERBOSE (high-frequency render/poll trace) stays ephemeral
+                // (console/autostart log) and is never persisted, keeping the DB log sparse. DEBUG+ persist.
+                if (level != "VERBOSE") weatherDao.log(tag, message, level)
             }
         }
 

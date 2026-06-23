@@ -12,9 +12,10 @@ import java.time.format.DateTimeFormatter
  * without [AndroidLogSink] (label placement, redundancy window, forecast-midpoint decisions) are
  * also invisible on desktop. Installed first thing in `main()`.
  *
- * DEBUG is printed by default to mirror Android's logcat (which shows `Log.d`); set
+ * DEBUG/VERBOSE are printed by default to mirror Android's logcat (which shows `Log.d`/`Log.v`); set
  * `-Dweatherwidget.desktop.debugLog=false` (or env `WEATHER_DESKTOP_DEBUG_LOG=0`) to silence the
- * per-render DEBUG chatter while keeping INFO/WARN/ERROR.
+ * per-render DEBUG/VERBOSE chatter while keeping INFO/WARN/ERROR. (VERBOSE is the per-frame/tick trace
+ * tier — visible here, but never persisted to the DB log; see Log.Priority.)
  */
 object DesktopLogSink : Log.Sink {
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
@@ -26,7 +27,7 @@ object DesktopLogSink : Log.Sink {
     }
 
     override fun log(priority: Log.Priority, tag: String, msg: String, tr: Throwable?) {
-        if (priority == Log.Priority.DEBUG && !debugEnabled) return
+        if ((priority == Log.Priority.DEBUG || priority == Log.Priority.VERBOSE) && !debugEnabled) return
         val stream = if (priority == Log.Priority.WARN || priority == Log.Priority.ERROR) System.err else System.out
         stream.println("${LocalTime.now().format(timeFmt)} ${priority.name.first()}/$tag: $msg")
         tr?.printStackTrace(stream)

@@ -137,8 +137,12 @@ object AppModule {
         database.appLogDao().also { dao ->
             val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
             CurrentTemperatureResolver.dbLogger = { tag, message, level ->
-                scope.launch {
-                    dao.log(tag, message, level)
+                // Persistence boundary: VERBOSE = high-frequency render/poll trace, ephemeral sinks
+                // (logcat) only — never persisted, so the queryable DB log stays sparse. DEBUG+ persist.
+                if (level != "VERBOSE") {
+                    scope.launch {
+                        dao.log(tag, message, level)
+                    }
                 }
             }
         }

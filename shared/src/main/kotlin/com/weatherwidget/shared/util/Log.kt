@@ -18,8 +18,14 @@ import java.util.logging.Logger
  * overloads the shared code actually uses.
  */
 object Log {
-    /** Severity, mapped to platform levels by each [Sink]. */
-    enum class Priority { DEBUG, INFO, WARN, ERROR }
+    /**
+     * Severity, mapped to platform levels by each [Sink]. [VERBOSE] (below DEBUG, mirroring
+     * `android.util.Log.VERBOSE`) is the home for high-frequency per-frame/tick/poll traces — render
+     * breadcrumbs and the like. By convention VERBOSE stays VISIBLE in the ephemeral sinks (logcat /
+     * desktop console) but is NOT persisted to the queryable DB log: the persistence boundary
+     * (`CurrentTemperatureResolver.dbLogger` wiring) drops it. DEBUG and above still persist.
+     */
+    enum class Priority { VERBOSE, DEBUG, INFO, WARN, ERROR }
 
     /** Platform output target. Install one via [install]; defaults to [JulSink]. */
     fun interface Sink {
@@ -33,6 +39,7 @@ object Log {
     object JulSink : Sink {
         override fun log(priority: Priority, tag: String, msg: String, tr: Throwable?) {
             val level = when (priority) {
+                Priority.VERBOSE -> java.util.logging.Level.FINER
                 Priority.DEBUG -> java.util.logging.Level.FINE
                 Priority.INFO -> java.util.logging.Level.INFO
                 Priority.WARN -> java.util.logging.Level.WARNING
@@ -55,6 +62,9 @@ object Log {
     fun resetToDefault() {
         this.sink = JulSink
     }
+
+    /** High-frequency per-frame/tick/poll trace. Visible ephemerally; never persisted to the DB log. */
+    fun v(tag: String, msg: String) = sink.log(Priority.VERBOSE, tag, msg, null)
 
     fun d(tag: String, msg: String) = sink.log(Priority.DEBUG, tag, msg, null)
 

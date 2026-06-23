@@ -112,12 +112,27 @@ app/src/main/java/com/weatherwidget/
 ### Logging
 - Define `private const val TAG = "ClassName"` at top of file
 - Use appropriate log levels:
-  - `Log.d(TAG, "message")` for debugging
-  - `Log.i(TAG, "message")` for informational
+  - `Log.v(TAG, "message")` for **high-frequency / per-frame / per-tick / per-poll traces** (render
+    breadcrumbs, the every-~2-min current-temp resolver, label-placement decisions, etc.)
+  - `Log.d(TAG, "message")` for low-frequency debug diagnostics worth keeping
+  - `Log.i(TAG, "message")` for informational events
   - `Log.e(TAG, "message", exception)` for errors (always include exception)
 - Log important state transitions and data fetches
 - Do not be eager to delete debug logging
-- Use database logging for important logging
+- **VERBOSE vs the DB log — the key rule.** The shared `Log` (`shared/.../util/Log.kt`) has two
+  routing decisions: the *ephemeral* sink (logcat / desktop console) shows everything including
+  VERBOSE; the *persistent* DB log (`app_logs`, queried with `sqlite3`) is reserved for **sparse,
+  queryable events**. `VERBOSE` is the explicit "do not persist" tier: it stays visible ephemerally
+  but is dropped at the persistence boundary (the `CurrentTemperatureResolver.dbLogger` wiring skips
+  `level == "VERBOSE"`). So:
+  - **Anything that fires every frame/tick/poll → `Log.v`.** Otherwise it swamps `app_logs` (the
+    `CurrentTempResolver` tag once grew to ~62k rows / ~96% of the table) and forces read-side
+    filters to dig real events back out.
+  - **`DEBUG` and above persist** to `app_logs` — fine for genuinely sparse breadcrumbs. Use database
+    logging for important, low-frequency state you want to query later (e.g. one summary row per
+    resolution like `CURR_TEMP_RESULT`, not the per-step trace).
+  - On **Android** `app_logs` is the only persistent log (no file sink), so prefer a periodic
+    *summary* at DEBUG over persisting a full trace; keep the trace at VERBOSE.
 
 ### Error Handling
 - Don't silently swallow exceptions - log them

@@ -64,8 +64,8 @@ object TemperatureExtrema {
         // consistent. In the normal (un-panned) view every past point is actual/carried, so no change.
         val actualIndices = (0..actualEndIndex).filter { it in actualLabelTemps.indices && hours[it].isActual }
         
-        Log.d(TAG, "ACTUAL_END_INDEX: $actualEndIndex transitionX=$transitionX")
-        Log.d(TAG, "LABEL_TEMPS: $labelTemps")
+        Log.v(TAG, "ACTUAL_END_INDEX: $actualEndIndex transitionX=$transitionX")
+        Log.v(TAG, "LABEL_TEMPS: $labelTemps")
         val nanIndices = labelTemps.mapIndexedNotNull { i, t -> if (t.isNaN()) i else null }
         if (nanIndices.isNotEmpty()) {
             Log.w(TAG, "NAN_TEMP_INDICES: $nanIndices hours=${nanIndices.map { hours[it].dateTime }}")
@@ -163,17 +163,17 @@ object TemperatureExtrema {
         }.toSet()
         val actualDailyLowIndices = rawDailyLowIndices.filterNot { it in shoulderDrops || it in degenerateLowDrops }
         if (shoulderDrops.isNotEmpty()) {
-            Log.d(TAG, "SHOULDER_DROPPED idxs=${shoulderDrops.sorted()} temps=${shoulderDrops.sorted().map { actualLabelTemps[it] }}")
+            Log.v(TAG, "SHOULDER_DROPPED idxs=${shoulderDrops.sorted()} temps=${shoulderDrops.sorted().map { actualLabelTemps[it] }}")
         }
         if (degenerateLowDrops.isNotEmpty()) {
-            Log.d(TAG, "DEGENERATE_DAY_LOW_DROPPED idxs=${degenerateLowDrops.sorted()} " +
+            Log.v(TAG, "DEGENERATE_DAY_LOW_DROPPED idxs=${degenerateLowDrops.sorted()} " +
                 "temps=${degenerateLowDrops.sorted().map { actualLabelTemps[it] }}")
         }
 
-        Log.d(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +
+        Log.v(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +
                 "lowIdx=$actualLowIndex lowTemp=${if (actualLowIndex >= 0) actualLabelTemps[actualLowIndex] else "N/A"} " +
                 "actualIndicesRange=${actualIndices.firstOrNull()}..${actualIndices.lastOrNull()}")
-        Log.d(TAG, "ACTUAL_DAILY highIdxs=$actualDailyHighIndices highTemps=${actualDailyHighIndices.map { actualLabelTemps[it] }} " +
+        Log.v(TAG, "ACTUAL_DAILY highIdxs=$actualDailyHighIndices highTemps=${actualDailyHighIndices.map { actualLabelTemps[it] }} " +
                 "lowIdxs=$actualDailyLowIndices lowTemps=${actualDailyLowIndices.map { actualLabelTemps[it] }}")
 
         val forecastStartIndex = if (transitionX != null) effectiveActualEndIndex else 0
@@ -188,7 +188,7 @@ object TemperatureExtrema {
 
         if (forecastHighIndex >= 0 && forecastLowIndex >= 0) {
             val forecastDates = forecastIndices.map { hours[it].dateTime.toLocalDate() }.distinct()
-            Log.d(TAG, "FORECAST_EXTREMA highIdx=$forecastHighIndex highTemp=${labelTemps[forecastHighIndex]} " +
+            Log.v(TAG, "FORECAST_EXTREMA highIdx=$forecastHighIndex highTemp=${labelTemps[forecastHighIndex]} " +
                 "lowIdx=$forecastLowIndex lowTemp=${labelTemps[forecastLowIndex]} " +
                 "forecastDates=$forecastDates forecastRange=$forecastStartIndex..${hours.lastIndex}")
         }
@@ -197,10 +197,10 @@ object TemperatureExtrema {
         val significantLocalExtrema = localExtrema.filter { index ->
             val prom = bilateralExtremaProminence(index, labelTemps, localExtrema)
             if (prom < prominenceThreshold) {
-                Log.d(TAG, "EXTREMUM_REJECTED idx=$index temp=${labelTemps[index]} prominence=$prom threshold=$prominenceThreshold")
+                Log.v(TAG, "EXTREMUM_REJECTED idx=$index temp=${labelTemps[index]} prominence=$prom threshold=$prominenceThreshold")
                 false
             } else {
-                Log.d(TAG, "SIGNIFICANT_EXTREMUM idx=$index temp=${labelTemps[index]} prominence=$prom")
+                Log.v(TAG, "SIGNIFICANT_EXTREMUM idx=$index temp=${labelTemps[index]} prominence=$prom")
                 true
             }
         }

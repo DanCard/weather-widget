@@ -37,16 +37,18 @@ class LogTest {
         val sink = CapturingSink()
         Log.install(sink)
 
+        Log.v("TagV", "verbose-msg")
         Log.d("TagD", "debug-msg")
         Log.i("TagI", "info-msg")
         Log.w("TagW", "warn-msg")
         Log.e("TagE", "error-msg")
 
-        assertEquals(4, sink.entries.size)
-        assertEquals(Entry(Log.Priority.DEBUG, "TagD", "debug-msg", null), sink.entries[0])
-        assertEquals(Entry(Log.Priority.INFO, "TagI", "info-msg", null), sink.entries[1])
-        assertEquals(Entry(Log.Priority.WARN, "TagW", "warn-msg", null), sink.entries[2])
-        assertEquals(Entry(Log.Priority.ERROR, "TagE", "error-msg", null), sink.entries[3])
+        assertEquals(5, sink.entries.size)
+        assertEquals(Entry(Log.Priority.VERBOSE, "TagV", "verbose-msg", null), sink.entries[0])
+        assertEquals(Entry(Log.Priority.DEBUG, "TagD", "debug-msg", null), sink.entries[1])
+        assertEquals(Entry(Log.Priority.INFO, "TagI", "info-msg", null), sink.entries[2])
+        assertEquals(Entry(Log.Priority.WARN, "TagW", "warn-msg", null), sink.entries[3])
+        assertEquals(Entry(Log.Priority.ERROR, "TagE", "error-msg", null), sink.entries[4])
     }
 
     @Test

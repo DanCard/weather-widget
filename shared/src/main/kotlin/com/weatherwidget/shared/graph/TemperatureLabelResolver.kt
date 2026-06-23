@@ -98,9 +98,10 @@ object TemperatureLabelResolver {
     }
 
     // One enriched label-decision line: the on-screen string, its clock time, role, why, and value
-    // provenance — enough to map a label seen on the graph back to its origin in a single grep. DEBUG
-    // only: this is the per-render path, so it is intentionally NOT routed to app_logs (which is for
-    // sparse events and would otherwise be swamped, like the CurrentTempResolver tag once was).
+    // provenance — enough to map a label seen on the graph back to its origin in a single grep.
+    // Emitted at VERBOSE (via Log.v, like every breadcrumb in this per-render engine): visible in the
+    // ephemeral sink (logcat / desktop console) but never persisted to app_logs, which is reserved for
+    // sparse events and would otherwise be swamped (as the CurrentTempResolver tag once was).
     private fun logLabelDecision(
         action: String,
         role: TemperatureRole,
@@ -114,7 +115,7 @@ object TemperatureLabelResolver {
         val t = hours.getOrNull(idx)?.dateTime?.toLocalTime()?.toString() ?: "?"
         // No degree glyph: the file log sink isn't UTF-8 and renders ° as '?'. The bare number still
         // greps against what's on screen (e.g. `grep 'displayed="73.8'`).
-        Log.d(
+        Log.v(
             TAG,
             "$action: displayed=\"${formatTemp(value)}\" t=$t role=$role reason=$reason " +
                 "provenance=$provenance val=$value idx=$idx" + if (extra.isEmpty()) "" else " $extra",
@@ -151,11 +152,11 @@ object TemperatureLabelResolver {
         // (zoom-aware) pixel budget. Extrema-vs-extrema redundancy (forecast-vs-actual high/low) is
         // about the SAME semantic quantity and keeps the legacy index window inside the check.
         val boundaryRedundancyWindow = computeRedundantPairWindow(hours, widthPx)
-        Log.d(TAG, "RedundancyWindow: boundary=$boundaryRedundancyWindow widthPx=$widthPx hours=${hours.size}")
+        Log.v(TAG, "RedundancyWindow: boundary=$boundaryRedundancyWindow widthPx=$widthPx hours=${hours.size}")
 
         val potentialAnchors = buildPotentialAnchors(extrema, hours.size)
         extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
-        Log.d(TAG, "Potential anchors: $potentialAnchors")
+        Log.v(TAG, "Potential anchors: $potentialAnchors")
 
         // Value used by the dense-filter / suppression passes, which round to an Int (roundToInt throws
         // on NaN). A window can extend past the loaded forecast horizon, leaving hours with a NaN
@@ -173,11 +174,11 @@ object TemperatureLabelResolver {
         val deduplicatedIndices = deduplicateAnchors(potentialAnchors, labelTemps, actualLabelTemps)
             .filter { !effectiveTemps[it].isNaN() }
             .toSet()
-        Log.d(TAG, "Deduplicated: $deduplicatedIndices")
+        Log.v(TAG, "Deduplicated: $deduplicatedIndices")
         val explicitAnchors = deduplicatedIndices.filter { idx ->
             potentialAnchors.any { it.first == idx && it.second != TemperatureRole.LOCAL }
         }.toSet()
-        Log.d(TAG, "Explicit: $explicitAnchors")
+        Log.v(TAG, "Explicit: $explicitAnchors")
 
         // Actual-series anchors display the OBSERVED value, not the forecast value this thinning
         // compares on. They must stay drawn but must not declutter a nearby forecast/LOCAL extreme
@@ -200,7 +201,7 @@ object TemperatureLabelResolver {
             immovableIndices = explicitAnchors,
             nonAbsorbingAnchors = actualDisplayingAnchors,
         )
-        Log.d(TAG, "Filtered: $filteredIndices")
+        Log.v(TAG, "Filtered: $filteredIndices")
 
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
             items = effectiveTemps,
@@ -231,7 +232,7 @@ object TemperatureLabelResolver {
             val leftEdgeResult = checkLeftEdgeSuppression(idx, role, suppressLeftEdgeLabel)
             if (leftEdgeResult.suppressed) {
                 if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
-                    Log.d(TAG, "LabelSuppressed: role=$role idx=$idx reason=LEFT_EDGE")
+                    Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=LEFT_EDGE")
                 }
                 suppressedIndices.add(idx)
                 continue
@@ -240,7 +241,7 @@ object TemperatureLabelResolver {
             val fetchResult = checkFetchDotSuppression(idx, role, extrema, observedAt, hours)
             if (fetchResult.suppressed) {
                 if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
-                    Log.d(TAG, "LabelSuppressed: role=$role idx=$idx reason=FETCH_DOT")
+                    Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=FETCH_DOT")
                 }
                 suppressedIndices.add(idx)
                 continue
@@ -249,7 +250,7 @@ object TemperatureLabelResolver {
 
             if (checkRedundantPairSuppression(idx, role, extrema, suppressedIndices, labelTemps, actualLabelTemps, boundaryRedundancyWindow)) {
                 if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
-                    Log.d(TAG, "LabelSuppressed: role=$role idx=$idx reason=REDUNDANT")
+                    Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=REDUNDANT")
                 }
                 suppressedIndices.add(idx)
                 continue
@@ -257,7 +258,7 @@ object TemperatureLabelResolver {
 
             if (checkTransitionBoundarySuppression(idx, role, effectiveActualEndIndex, transitionX, hours)) {
                 if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
-                    Log.d(TAG, "LabelSuppressed: role=$role idx=$idx reason=TRANSITION")
+                    Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=TRANSITION")
                 }
                 suppressedIndices.add(idx)
                 continue
@@ -265,7 +266,7 @@ object TemperatureLabelResolver {
 
             if (checkEndpointSuppression(idx, role, hours)) {
                 if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
-                    Log.d(TAG, "LabelSuppressed: role=$role idx=$idx reason=ENDPOINT")
+                    Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=ENDPOINT")
                 }
                 suppressedIndices.add(idx)
                 continue

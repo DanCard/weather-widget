@@ -42,7 +42,10 @@ fun runDaemon() {
     val weatherDao = DesktopWeatherDao(weatherDb)
 
     com.weatherwidget.widget.CurrentTemperatureResolver.dbLogger = { tag, message, level ->
-        weatherDao.log(tag, message, level)
+        // Persistence boundary: VERBOSE = high-frequency render/poll trace — visible only in the
+        // ephemeral desktop console (DesktopLogSink keeps the full trace in the autostart log), never
+        // persisted, so the queryable DB log stays sparse. DEBUG+ persist.
+        if (level != "VERBOSE") weatherDao.log(tag, message, level)
     }
 
     // IPC server

@@ -88,9 +88,12 @@ object CurrentTemperatureResolver {
         return candidates.maxByOrNull { it.fetchedAt }
     }
 
-    private fun debugLog(message: String) {
-        Log.d(TAG, message)
-        dbLogger?.invoke(TAG, message, "DEBUG")
+    // Per-resolution trace breadcrumb. VERBOSE: shown in the ephemeral sink (logcat / desktop console)
+    // but dropped at the dbLogger persistence boundary, so these high-frequency lines (the resolver
+    // runs every ~2 min) never swamp the queryable DB log. Use appLog for sparse, queryable summaries.
+    private fun verboseLog(message: String) {
+        Log.v(TAG, message)
+        dbLogger?.invoke(TAG, message, "VERBOSE")
     }
 
     private fun appLog(
@@ -98,7 +101,13 @@ object CurrentTemperatureResolver {
         message: String,
         level: String = "DEBUG",
     ) {
-        Log.d(tag, message)
+        when (level) {
+            "VERBOSE" -> Log.v(tag, message)
+            "INFO" -> Log.i(tag, message)
+            "WARN" -> Log.w(tag, message)
+            "ERROR" -> Log.e(tag, message)
+            else -> Log.d(tag, message)
+        }
         dbLogger?.invoke(tag, message, level)
     }
 
@@ -131,6 +140,9 @@ object CurrentTemperatureResolver {
                 "strictCount=${strictHourlyForecasts.size} window=${window.start.toLocalTime()}..${window.end.toLocalTime()} " +
                 "obsTemp=$lastObservedTemp obsAt=$observedAt " +
                 "hasStored=${storedDeltaState != null}",
+            // Per-resolution start breadcrumb: VERBOSE so it doesn't persist. The CURR_TEMP_RESULT
+            // outcome below stays DEBUG (persisted) — that's the one summary worth querying.
+            level = "VERBOSE",
         )
         val estimatedTemp =
             resolveStrictForecastTemperature(
@@ -140,7 +152,7 @@ object CurrentTemperatureResolver {
                 smoothedForecasts = smoothedForecasts,
             )
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        debugLog("resolve:estimatedTemp=$estimatedTemp nowMs=$nowMs")
+        verboseLog("resolve:estimatedTemp=$estimatedTemp nowMs=$nowMs")
         val scopeMatch =
             storedDeltaState?.let {
                 it.sourceId == displaySource.id &&
@@ -154,12 +166,12 @@ object CurrentTemperatureResolver {
                     if (kotlin.math.abs(storedDeltaState.locationLat - currentLat) >= 0.000001) add("lat")
                     if (kotlin.math.abs(storedDeltaState.locationLon - currentLon) >= 0.000001) add("lon")
                 }.joinToString(",")
-            debugLog(
+            verboseLog(
                 "resolve:storedDelta scopeMismatch=$mismatchReason requestedSource=${displaySource.id} " +
                     "requestedLat=$currentLat requestedLon=$currentLon",
             )
         }
-        debugLog(
+        verboseLog(
             "resolve:storedDelta=" +
                 storedDeltaState?.let {
                     "delta=${it.delta} observed=${it.lastObservedTemp} observedAt=${it.lastObservedAt} " +
@@ -175,7 +187,7 @@ object CurrentTemperatureResolver {
 
         if (lastObservedTemp != null && observedAt != null) {
             val hasNewObservedReading = scopedStoredDelta?.lastObservedAt != observedAt
-            debugLog(
+            verboseLog(
                 "resolve:observed available hasNewObservedReading=$hasNewObservedReading " +
                     "storedObservedAt=${scopedStoredDelta?.lastObservedAt}",
             )
@@ -207,12 +219,12 @@ object CurrentTemperatureResolver {
                             locationLon = currentLon,
                         )
                 }
-                debugLog(
+                verboseLog(
                     "resolve:anchorDelta rawDelta=$rawDelta updatedAt=${updatedDeltaState?.updatedAtMs ?: scopedStoredDelta?.updatedAtMs} " +
                         "observedTemp=$lastObservedTemp estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
                 )
             } else {
-                debugLog("resolve:anchorDelta FAILED - no forecast for observation time=$obsTime")
+                verboseLog("resolve:anchorDelta FAILED - no forecast for observation time=$obsTime")
                 appliedDelta = null
             }
         }
@@ -305,7 +317,7 @@ object CurrentTemperatureResolver {
         val latestFetchMs = sourceScopedForecasts.map { it.fetchedAt }.maxOrNull() ?: return false
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val stale = (nowMs - latestFetchMs) > STALE_HOURLY_FETCH_THRESHOLD_MS
-        debugLog(
+        verboseLog(
             "isStaleHourlyData: source=${displaySource.id} scopedCount=${sourceScopedForecasts.size} " +
                 "latestFetchMs=$latestFetchMs ageMs=${nowMs - latestFetchMs} thresholdMs=$STALE_HOURLY_FETCH_THRESHOLD_MS stale=$stale",
         )
@@ -334,7 +346,7 @@ object CurrentTemperatureResolver {
         val nextHourForecast = sourceScopedForecasts[nextHourMs]
 
         if (currentHourForecast == null) {
-            debugLog(
+            verboseLog(
                 "resolve:strictForecast unavailable target=$targetTime reason=missing_current_hour " +
                     "targetHourMs=$targetHourMs nextHourMs=$nextHourMs",
             )
@@ -346,7 +358,7 @@ object CurrentTemperatureResolver {
         }
 
         if (nextHourForecast == null) {
-            debugLog(
+            verboseLog(
                 "resolve:strictForecast unavailable target=$targetTime reason=missing_next_hour " +
                     "targetHourMs=$targetHourMs nextHourMs=$nextHourMs",
             )
