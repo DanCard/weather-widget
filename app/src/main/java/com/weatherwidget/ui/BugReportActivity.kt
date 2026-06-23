@@ -10,6 +10,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.util.Log
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -180,6 +181,7 @@ class BugReportActivity : AppCompatActivity() {
                 0.0
             }
         } catch (e: Exception) {
+            Log.w("BugReportActivity", "Could not read database size", e)
             0.0
         }
     }
@@ -280,6 +282,7 @@ class BugReportActivity : AppCompatActivity() {
             }
             versionName to versionCode
         } catch (e: Exception) {
+            Log.w("BugReportActivity", "Could not read app version info", e)
             "Unknown" to -1L
         }
     }

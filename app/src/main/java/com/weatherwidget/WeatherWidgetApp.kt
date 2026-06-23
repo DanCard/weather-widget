@@ -49,21 +49,7 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
      */
     private fun installCrashLogger() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            try {
-                val message = CrashReporter.formatCrashMessage(thread.name, throwable)
-                // The process is dying, so persist synchronously with a hard timeout. If the write
-                // hangs or fails, fall back to logcat — never let crash handling worsen the crash.
-                runBlocking {
-                    withTimeoutOrNull(CRASH_PERSIST_TIMEOUT_MS) {
-                        appLogDao.get().log(CrashReporter.CRASH_TAG, message, "ERROR")
-                    }
-                }
-            } catch (t: Throwable) {
-                Log.e(CrashReporter.CRASH_TAG, "Failed to persist crash", t)
-            }
-            previous?.uncaughtException(thread, throwable)
-        }
+        Thread.setDefaultUncaughtExceptionHandler(buildCrashHandler({ appLogDao.get() }, previous))
     }
 
     override val workManagerConfiguration: Configuration
@@ -74,6 +60,34 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
 
     companion object {
         private const val CRASH_PERSIST_TIMEOUT_MS = 2000L
+
+        /**
+         * Builds the uncaught-exception handler installed by [installCrashLogger]: format the crash
+         * via [CrashReporter], persist it as a CRASH-tagged app_logs row (synchronously, with a hard
+         * timeout), then chain to [previous] so Crashlytics/system handling still runs. Extracted so
+         * the handler→store wiring is testable without standing up Hilt — the DAO is supplied lazily
+         * via [appLogDaoProvider] (in production, `{ appLogDao.get() }`). See
+         * WeatherWidgetAppCrashHandlerTest.
+         */
+        internal fun buildCrashHandler(
+            appLogDaoProvider: () -> AppLogDao,
+            previous: Thread.UncaughtExceptionHandler?,
+        ): Thread.UncaughtExceptionHandler =
+            Thread.UncaughtExceptionHandler { thread, throwable ->
+                try {
+                    val message = CrashReporter.formatCrashMessage(thread.name, throwable)
+                    // The process is dying, so persist synchronously with a hard timeout. If the write
+                    // hangs or fails, fall back to logcat — never let crash handling worsen the crash.
+                    runBlocking {
+                        withTimeoutOrNull(CRASH_PERSIST_TIMEOUT_MS) {
+                            appLogDaoProvider().log(CrashReporter.CRASH_TAG, message, "ERROR")
+                        }
+                    }
+                } catch (t: Throwable) {
+                    Log.e(CrashReporter.CRASH_TAG, "Failed to persist crash", t)
+                }
+                previous?.uncaughtException(thread, throwable)
+            }
 
         @Volatile
         private var processStartElapsedRealtime: Long = 0L

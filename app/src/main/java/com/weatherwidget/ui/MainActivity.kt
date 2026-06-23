@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.Toast
@@ -214,6 +215,9 @@ class MainActivity : AppCompatActivity() {
                     val label = try {
                         sharedLocationResolver.fromCoordinates(lat, lon).label
                     } catch (e: Exception) {
+                        // Don't fail silently: a revoked permission or geocoder error would otherwise
+                        // just show raw coordinates with no clue why. Surface it to logcat/bug report.
+                        Log.w("MainActivity", "Location label lookup failed for ($lat, $lon); using raw coordinates", e)
                         String.format("%.4f, %.4f", lat, lon)
                     }
                     LocationUpdater.applyToAllWidgets(this@MainActivity, lat, lon, label)

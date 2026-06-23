@@ -198,7 +198,10 @@ hourly = hourlyForecasts,
                     val local = LocalDateTime.parse(timeRaw)
                     val zone = timezone?.let { ZoneId.of(it) } ?: ZoneId.systemDefault()
                     local.atZone(zone).toInstant().toEpochMilli()
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    // Both parse strategies failed: don't drop the timestamp silently — a current
+                    // observation then has no observedAt and we'd have no idea why. Log the raw value.
+                    Log.w(TAG, "Could not parse current observation time '$timeRaw': ${e.message}")
                     null
                 }
             }

@@ -5,6 +5,11 @@
 # Disable obfuscation (do not rename classes, fields, or methods)
 -dontobfuscate
 
+# Keep source file + line numbers so crash traces stay readable (File.kt:NN), paired
+# with -dontobfuscate. proguard-android-optimize.txt already keeps these; we declare it
+# explicitly so readable traces survive regardless of the base config.
+-keepattributes SourceFile,LineNumberTable
+
 # Keep Ktor serialization
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
