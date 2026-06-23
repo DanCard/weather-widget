@@ -2,6 +2,9 @@
 # By default, the flags in this file are appended to flags specified
 # in the SDK tools.
 
+# Disable obfuscation (do not rename classes, fields, or methods)
+-dontobfuscate
+
 # Keep Ktor serialization
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
