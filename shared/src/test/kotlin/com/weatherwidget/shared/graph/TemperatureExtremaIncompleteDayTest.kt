@@ -129,4 +129,96 @@ class TemperatureExtremaIncompleteDayTest {
             2 in extrema.actualDailyLowIndices,
         )
     }
+
+    // Apr 8 is a thin partial sliver observed only 22:00->23:00, descending (60.8 -> 58.9). It crosses
+    // midnight into Apr 9's genuine overnight low (58.4 @ 00:00), then Apr 9 warms to a real high (74).
+    // Apr 8's per-day "high" (idx0) is merely the warm START of one continuous descent into the Apr 9
+    // valley — not a diurnal peak — and must be dropped so it doesn't stack a second pink label at the
+    // left edge above the real low. The Apr 9 overnight low (idx2) is genuine and must be kept.
+    private val descendingBoundarySliverPoints = listOf(
+        hour(8, 22, temp = 60.8f, actual = 60.8f, isActual = true),  // idx0: Apr 8 boundary "high" (drop)
+        hour(8, 23, temp = 58.9f, actual = 58.9f, isActual = true),  // idx1: Apr 8 raw low (shoulder)
+        hour(9, 0, temp = 58.4f, actual = 58.4f, isActual = true),   // idx2: Apr 9 overnight low (KEEP)
+        hour(9, 6, temp = 62f, actual = 62f, isActual = true),
+        hour(9, 12, temp = 74f, actual = 74f, isActual = true),      // idx4: Apr 9 real high
+        hour(9, 18, temp = 66f, actual = 66f, isActual = true),
+    )
+
+    @Test
+    fun `descending boundary-start sliver high is dropped while the genuine nearby low is kept`() {
+        val extrema = TemperatureExtrema.compute(
+            hours = build(descendingBoundarySliverPoints),
+            transitionX = null,
+            effectiveActualEndIndex = 5,
+            fetchTime = null,
+            prominenceThreshold = 1.5f,
+        )
+        assertFalse(
+            "Apr 8 boundary-start high (idx 0) must be dropped — it is the warm start of a descent " +
+                "into the Apr 9 low, not a peak. highs=${extrema.actualDailyHighIndices}",
+            0 in extrema.actualDailyHighIndices,
+        )
+        assertTrue(
+            "Apr 9 overnight low (idx 2) is genuine and must be kept. lows=${extrema.actualDailyLowIndices}",
+            2 in extrema.actualDailyLowIndices,
+        )
+        assertTrue(
+            "Apr 9's real daytime high (idx 4) must still be labeled. highs=${extrema.actualDailyHighIndices}",
+            4 in extrema.actualDailyHighIndices,
+        )
+    }
+
+    // Apr 8 begins at its COLDEST observed point (50 @ 00:00 — the overnight low landing at the edge)
+    // and only ever warms. This boundary LOW is a genuine value the user wants labeled; the asymmetric
+    // rule must never drop it (actual_low_left_edge_label).
+    private val ascendingBoundaryLowPoints = listOf(
+        hour(8, 0, temp = 50f, actual = 50f, isActual = true),   // idx0: boundary low (KEEP)
+        hour(8, 6, temp = 58f, actual = 58f, isActual = true),
+        hour(8, 12, temp = 72f, actual = 72f, isActual = true),  // idx2: Apr 8 high
+        hour(9, 0, temp = 60f, actual = 60f, isActual = true),
+        hour(9, 12, temp = 78f, actual = 78f, isActual = true),
+    )
+
+    @Test
+    fun `coldest-at-edge boundary low is never dropped`() {
+        val extrema = TemperatureExtrema.compute(
+            hours = build(ascendingBoundaryLowPoints),
+            transitionX = null,
+            effectiveActualEndIndex = 4,
+            fetchTime = null,
+            prominenceThreshold = 1.5f,
+        )
+        assertTrue(
+            "Apr 8 boundary low (idx 0) is the genuine coldest-at-edge value and must be kept. " +
+                "lows=${extrema.actualDailyLowIndices}",
+            0 in extrema.actualDailyLowIndices,
+        )
+    }
+
+    // Apr 8 begins warm at the boundary (70 @ 06:00 — the day max), dips (64), then climbs back to a
+    // real interior peak (68) before falling into the next low. The descent from the boundary high to
+    // that low is NOT monotonic, so the boundary high is a genuine separated peak and must be KEPT.
+    private val separatedBoundaryHighPoints = listOf(
+        hour(8, 6, temp = 70f, actual = 70f, isActual = true),   // idx0: Apr 8 boundary high (KEEP)
+        hour(8, 10, temp = 64f, actual = 64f, isActual = true),
+        hour(8, 14, temp = 68f, actual = 68f, isActual = true),  // interior peak breaks monotonicity
+        hour(9, 0, temp = 55f, actual = 55f, isActual = true),   // idx3: next low
+        hour(9, 12, temp = 78f, actual = 78f, isActual = true),
+    )
+
+    @Test
+    fun `separated left-edge boundary high is kept when the descent is not monotonic`() {
+        val extrema = TemperatureExtrema.compute(
+            hours = build(separatedBoundaryHighPoints),
+            transitionX = null,
+            effectiveActualEndIndex = 4,
+            fetchTime = null,
+            prominenceThreshold = 1.5f,
+        )
+        assertTrue(
+            "Apr 8 boundary high (idx 0) is a genuine separated peak (non-monotonic descent) and must " +
+                "not be over-suppressed. highs=${extrema.actualDailyHighIndices}",
+            0 in extrema.actualDailyHighIndices,
+        )
+    }
 }

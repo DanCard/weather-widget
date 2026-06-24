@@ -150,24 +150,47 @@ object TemperatureExtrema {
                 keptExtreme = cur
             }
         }
-        val actualDailyHighIndices = rawDailyHighIndices.filterNot { it in shoulderDrops }
+        val shoulderedHighIndices = rawDailyHighIndices.filterNot { it in shoulderDrops }
         // A partial edge day spanning ~1h can have an actual high and low that round to the same
         // displayed value (e.g. 63.91 / 63.88 -> both "63.9°"), which stacks two identical labels at
         // the graph edge. When a day's high and low render identically, keep the high and drop the
         // redundant low. See per_day_actual_extrema_labels memory.
-        val highIdxByDay = actualDailyHighIndices.associateBy { hours[it].dateTime.toLocalDate() }
+        val highIdxByDay = shoulderedHighIndices.associateBy { hours[it].dateTime.toLocalDate() }
         val degenerateLowDrops = rawDailyLowIndices.filter { lowIdx ->
             val hiIdx = highIdxByDay[hours[lowIdx].dateTime.toLocalDate()] ?: return@filter false
             TemperatureLabelResolver.formatTemp(actualLabelTemps[hiIdx]) ==
                 TemperatureLabelResolver.formatTemp(actualLabelTemps[lowIdx])
         }.toSet()
         val actualDailyLowIndices = rawDailyLowIndices.filterNot { it in shoulderDrops || it in degenerateLowDrops }
+        // Drop a spurious LEFT-BOUNDARY high. A partial edge day that is a pure descending sliver (the
+        // observed data simply BEGINS at its warm point and falls straight into the next valley) keeps
+        // a per-day "high" at actualStartIndex. That index passes isActualLocalMax only because the
+        // left-edge exemption auto-trues leftOk (no left neighbour) — it is the warm START of a
+        // descent, not a diurnal peak. If the curve descends weakly-monotonically from that boundary
+        // high into the nearest retained actual low, with NO retained actual high in between, the high
+        // is redundant next to that low and stacks a second pink label at the graph edge. Drop it.
+        // ASYMMETRIC by design: never mirror this for a boundary LOW on an ascending sliver — a
+        // coldest-observed point at the left edge is a genuine value the user wants (see
+        // actual_low_left_edge_label memory).
+        val boundaryHighDrops = shoulderedHighIndices.filter { hi ->
+            if (hi != actualStartIndex) return@filter false
+            val firstLow = actualDailyLowIndices.minOrNull() ?: return@filter false
+            if (firstLow <= hi) return@filter false
+            if (actualLabelTemps[firstLow] >= actualLabelTemps[hi]) return@filter false
+            if (shoulderedHighIndices.any { it in (hi + 1) until firstLow }) return@filter false
+            (hi until firstLow).all { actualLabelTemps[it + 1] <= actualLabelTemps[it] }
+        }.toSet()
+        val actualDailyHighIndices = shoulderedHighIndices.filterNot { it in boundaryHighDrops }
         if (shoulderDrops.isNotEmpty()) {
             Log.v(TAG, "SHOULDER_DROPPED idxs=${shoulderDrops.sorted()} temps=${shoulderDrops.sorted().map { actualLabelTemps[it] }}")
         }
         if (degenerateLowDrops.isNotEmpty()) {
             Log.v(TAG, "DEGENERATE_DAY_LOW_DROPPED idxs=${degenerateLowDrops.sorted()} " +
                 "temps=${degenerateLowDrops.sorted().map { actualLabelTemps[it] }}")
+        }
+        if (boundaryHighDrops.isNotEmpty()) {
+            Log.v(TAG, "BOUNDARY_HIGH_DROPPED idxs=${boundaryHighDrops.sorted()} " +
+                "temps=${boundaryHighDrops.sorted().map { actualLabelTemps[it] }}")
         }
 
         Log.v(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +
