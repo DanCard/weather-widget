@@ -93,6 +93,9 @@ class WidgetStateManager
             // refreshes don't drift them forward; only views that include the now/fetch-dot point advance.
             private const val KEY_GRAPH_ANCHOR_MS_PREFIX = "widget_graph_anchor_ms_"
 
+            private const val KEY_LAST_GRAPH_RENDER_MS_PREFIX = "widget_last_graph_render_ms_"
+            private const val KEY_LAST_DISPLAYED_TEMP_PREFIX = "widget_last_displayed_temp_"
+
             private const val KEY_API_KEY_PREFIX = "api_key_"
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
@@ -409,6 +412,8 @@ class WidgetStateManager
                 .remove("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$widgetId")
                 .remove("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$widgetId")
                 .remove("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId")
+                .remove("$KEY_LAST_GRAPH_RENDER_MS_PREFIX$widgetId")
+                .remove("$KEY_LAST_DISPLAYED_TEMP_PREFIX$widgetId")
             prefs.all.keys
                 .filter { key ->
                     key.startsWith(KEY_CURRENT_TEMP_DELTA_PREFIX) ||
@@ -816,6 +821,27 @@ class WidgetStateManager
                 .remove("$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$suffix")
                 .remove("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$suffix")
                 .remove("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$suffix")
+                .apply()
+        }
+
+        data class LastGraphRenderState(
+            val renderMs: Long,
+            val displayedTemp: String?,
+        )
+
+        fun getLastGraphRender(widgetId: Int): LastGraphRenderState? {
+            val msKey = "$KEY_LAST_GRAPH_RENDER_MS_PREFIX$widgetId"
+            if (!prefs.contains(msKey)) return null
+            return LastGraphRenderState(
+                renderMs = prefs.getLong(msKey, 0L),
+                displayedTemp = prefs.getString("$KEY_LAST_DISPLAYED_TEMP_PREFIX$widgetId", null),
+            )
+        }
+
+        fun setLastGraphRender(widgetId: Int, state: LastGraphRenderState) {
+            prefs.edit()
+                .putLong("$KEY_LAST_GRAPH_RENDER_MS_PREFIX$widgetId", state.renderMs)
+                .putString("$KEY_LAST_DISPLAYED_TEMP_PREFIX$widgetId", state.displayedTemp)
                 .apply()
         }
 

@@ -487,4 +487,53 @@ class WidgetStateManagerTest {
         assertTrue(stateManager.isSourceErrored(WeatherSource.TOMORROW_IO))
         assertFalse(stateManager.isSourceErrored(WeatherSource.NWS))
     }
+
+    @Test
+    fun `getLastGraphRender returns null when no state stored`() {
+        assertNull(stateManager.getLastGraphRender(testWidgetId))
+    }
+
+    @Test
+    fun `setLastGraphRender round-trips correctly`() {
+        val state = WidgetStateManager.LastGraphRenderState(
+            renderMs = 123456789L,
+            displayedTemp = "72.3°",
+        )
+
+        stateManager.setLastGraphRender(testWidgetId, state)
+        val loaded = stateManager.getLastGraphRender(testWidgetId)
+
+        assertNotNull(loaded)
+        assertEquals(123456789L, loaded!!.renderMs)
+        assertEquals("72.3°", loaded.displayedTemp)
+    }
+
+    @Test
+    fun `setLastGraphRender with null temp round-trips correctly`() {
+        val state = WidgetStateManager.LastGraphRenderState(
+            renderMs = 99999L,
+            displayedTemp = null,
+        )
+
+        stateManager.setLastGraphRender(testWidgetId, state)
+        val loaded = stateManager.getLastGraphRender(testWidgetId)
+
+        assertNotNull(loaded)
+        assertEquals(99999L, loaded!!.renderMs)
+        assertNull(loaded.displayedTemp)
+    }
+
+    @Test
+    fun `clearWidgetState removes last graph render`() {
+        val state = WidgetStateManager.LastGraphRenderState(
+            renderMs = 42L,
+            displayedTemp = "65°",
+        )
+        stateManager.setLastGraphRender(testWidgetId, state)
+        assertNotNull(stateManager.getLastGraphRender(testWidgetId))
+
+        stateManager.clearWidgetState(testWidgetId)
+
+        assertNull(stateManager.getLastGraphRender(testWidgetId))
+    }
 }

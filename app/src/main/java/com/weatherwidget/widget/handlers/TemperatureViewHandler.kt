@@ -15,6 +15,7 @@ import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
+import com.weatherwidget.widget.GraphRepaintGate
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.data.local.toHourlyForecast
@@ -64,6 +65,7 @@ object TemperatureViewHandler {
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val stateManager = WidgetStateManager(context)
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+        var gateReason: String? = null
 
         // Anchored view = NOW is not inside the visible window (a clicked past/future day). Its graph is
         // static, so skip the graph re-render on opportunistic UI-only updates and refresh just the
@@ -75,13 +77,59 @@ object TemperatureViewHandler {
             val nowInWindow = !nowForWindow.isBefore(centerTime.minusHours(zoom.backHours)) &&
                 !nowForWindow.isAfter(centerTime.plusHours(zoom.forwardHours))
             if (!nowInWindow) {
-                updateAnchoredHeaderCurrentTemp(
+                updateHeaderCurrentTemp(
                     context, appWidgetManager, appWidgetId, stateManager, displaySource, dimensions,
                     currentTempHourlyForecasts, lastObservedTemp, observedAt, nowForWindow,
+                    showDelta = false,
                 )
                 appLogDao.log(
                     WidgetPerfLogger.TAG_WIDGET_PAINT,
                     "widget=$appWidgetId caller=TEMPERATURE state=header_only_anchored thread=${Thread.currentThread().name}",
+                )
+                return
+            }
+
+            // Live in-window case: gate the expensive bitmap rebuild on real change.
+            val liveSmoothed = computeSmoothedForecasts(currentTempHourlyForecasts, displaySource)
+            val liveResolution = CurrentTemperatureResolver.resolve(
+                now = nowForWindow,
+                displaySource = displaySource,
+                hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
+                lastObservedTemp = lastObservedTemp,
+                observedAt = observedAt,
+                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
+                currentLat = stateManager.getWidgetLocation(appWidgetId)?.first
+                    ?: currentTempHourlyForecasts.firstOrNull()?.locationLat
+                    ?: WeatherWidgetWorker.DEFAULT_LAT,
+                currentLon = stateManager.getWidgetLocation(appWidgetId)?.second
+                    ?: currentTempHourlyForecasts.firstOrNull()?.locationLon
+                    ?: WeatherWidgetWorker.DEFAULT_LON,
+                smoothedForecasts = liveSmoothed,
+            )
+            val currentFormatted = liveResolution.displayTemp?.let {
+                CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, liveResolution.isStaleEstimate)
+            }
+            val lastRender = stateManager.getLastGraphRender(appWidgetId)
+            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
+            val windowSpanMinutes = zoom.totalSpanHours * 60
+            val gateDecision = GraphRepaintGate.shouldRebuildBitmap(
+                displayedTemp = lastRender?.displayedTemp,
+                currentDisplayedTemp = currentFormatted,
+                lastRenderMs = lastRender?.renderMs ?: 0L,
+                nowMs = SystemClock.elapsedRealtime(),
+                windowSpanMinutes = windowSpanMinutes,
+                bitmapWidthPx = bitmapDims.widthPx,
+            )
+            gateReason = gateDecision.reason
+            if (!gateDecision.shouldRebuild) {
+                updateHeaderCurrentTemp(
+                    context, appWidgetManager, appWidgetId, stateManager, displaySource, dimensions,
+                    currentTempHourlyForecasts, lastObservedTemp, observedAt, nowForWindow,
+                    showDelta = true,
+                )
+                appLogDao.log(
+                    WidgetPerfLogger.TAG_WIDGET_PAINT,
+                    "widget=$appWidgetId caller=TEMPERATURE state=header_only_live reason=${gateDecision.reason} thread=${Thread.currentThread().name}",
                 )
                 return
             }
@@ -121,8 +169,20 @@ object TemperatureViewHandler {
             HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
-        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE state=data thread=${Thread.currentThread().name}")
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE state=data${gateReason?.let { " reason=$it" } ?: ""} thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
+
+        // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
+        val renderedFormattedTemp = resolutionResult.currentTempResolution.displayTemp?.let {
+            CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, resolutionResult.currentTempResolution.isStaleEstimate)
+        }
+        stateManager.setLastGraphRender(
+            appWidgetId,
+            WidgetStateManager.LastGraphRenderState(
+                renderMs = SystemClock.elapsedRealtime(),
+                displayedTemp = renderedFormattedTemp,
+            ),
+        )
 
         val headerLog = buildHeaderStateLog(
             widgetId = appWidgetId,
@@ -214,7 +274,7 @@ object TemperatureViewHandler {
      * live current temp and partially update just the header temp/delta, leaving the previously-rendered
      * graph bitmap untouched. Mirrors the partial-update path in [scheduleCurrentTempRefinement].
      */
-    private suspend fun updateAnchoredHeaderCurrentTemp(
+    private suspend fun updateHeaderCurrentTemp(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
@@ -225,6 +285,7 @@ object TemperatureViewHandler {
         lastObservedTemp: Float?,
         observedAt: Long?,
         now: LocalDateTime,
+        showDelta: Boolean,
     ) {
         val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
         val lat = configuredLocation?.first ?: currentTempHourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
@@ -255,8 +316,17 @@ object TemperatureViewHandler {
             android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, context.resources.displayMetrics,
         )
         partial.setTextViewTextSize(com.weatherwidget.R.id.current_temp, android.util.TypedValue.COMPLEX_UNIT_PX, currentTempPx)
-        // Anchored view: NOW is off-window, so the now-relative delta is not meaningful here — hide it.
-        partial.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.GONE)
+        val appliedDelta = resolution.appliedDelta
+        if (showDelta && appliedDelta != null && kotlin.math.abs(appliedDelta) >= DELTA_VISIBILITY_THRESHOLD) {
+            partial.setTextViewText(com.weatherwidget.R.id.current_temp_delta, String.format("%+.1f", appliedDelta))
+            val deltaPx = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, context.resources.displayMetrics,
+            )
+            partial.setTextViewTextSize(com.weatherwidget.R.id.current_temp_delta, android.util.TypedValue.COMPLEX_UNIT_PX, deltaPx)
+            partial.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.VISIBLE)
+        } else {
+            partial.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.GONE)
+        }
         appWidgetManager.partiallyUpdateAppWidget(appWidgetId, partial)
     }
 
