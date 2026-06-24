@@ -565,13 +565,18 @@ class ForecastRepository
                 }
                 true
             }.mapNotNull { forecast ->
-                if (forecast.highTemp == null && forecast.lowTemp == null) return@mapNotNull null
+                // Treat non-finite (NaN/Infinity) temps as missing: roundToInt() throws
+                // "Cannot round NaN value." on NaN (the ?. operator only guards null), which
+                // would abort the whole fetch and drop later sources' snapshots.
+                val high = forecast.highTemp?.takeIf { it.isFinite() }
+                val low = forecast.lowTemp?.takeIf { it.isFinite() }
+                if (high == null && low == null) return@mapNotNull null
 
                 // Preserve full decimal precision for Today's forecast to improve accuracy tracking.
                 // Continue rounding future days to integers for UI consistency and storage.
                 val isToday = forecast.targetDate == todayEpoch
-                val highTempSaved = if (isToday) forecast.highTemp else forecast.highTemp?.roundToInt()?.toFloat()
-                val lowTempSaved = if (isToday) forecast.lowTemp else forecast.lowTemp?.roundToInt()?.toFloat()
+                val highTempSaved = if (isToday) high else high?.roundToInt()?.toFloat()
+                val lowTempSaved = if (isToday) low else low?.roundToInt()?.toFloat()
 
                 ForecastEntity(
                     targetDate = forecast.targetDate,

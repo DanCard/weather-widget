@@ -134,6 +134,34 @@ class OpenMeteoApiTest {
         }
 
     @Test
+    fun `getForecast skips days with null daily temps instead of emitting NaN`() =
+        runTest {
+            // Open-Meteo returns null at window edges. A null max/min must not become Float.NaN,
+            // which previously poisoned roundToInt() in snapshot saving and aborted the fetch.
+            val responseJson =
+                """
+                {
+                    "daily": {
+                        "time": ["2026-01-27", "2026-01-28", "2026-01-29"],
+                        "temperature_2m_max": [70.0, null, 68.0],
+                        "temperature_2m_min": [45.0, 48.0, null],
+                        "weather_code": [0, 1, 3]
+                    }
+                }
+                """.trimIndent()
+
+            val client = createMockClient(responseJson)
+            val api = OpenMeteoApi(client, json)
+
+            val forecast = api.getForecast(37.42, -122.08)
+
+            // Only the fully-populated first day survives; the two partial days are dropped.
+            assertEquals(1, forecast.daily.size)
+            assertEquals("2026-01-27", forecast.daily[0].date)
+            assertTrue(forecast.daily.all { it.highTemp.isFinite() && it.lowTemp.isFinite() })
+        }
+
+    @Test
     fun `getForecast handles missing current temperature`() =
         runTest {
             val responseJson =

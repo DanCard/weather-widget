@@ -62,11 +62,11 @@ class OpenMeteoApi
             Log.d(TAG, "getForecast: parsed ${dates.size} dates: $dates")
             val maxTemps =
                 daily?.get("temperature_2m_max")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toFloatOrNull() ?: Float.NaN
+                    it.jsonPrimitive.content.toFloatOrNull()
                 } ?: emptyList()
             val minTemps =
                 daily?.get("temperature_2m_min")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toFloatOrNull() ?: Float.NaN
+                    it.jsonPrimitive.content.toFloatOrNull()
                 } ?: emptyList()
             val weatherCodes =
                 daily?.get("weather_code")?.jsonArray?.map {
@@ -82,12 +82,18 @@ class OpenMeteoApi
                 } ?: emptyList()
 
 val dailyForecasts =
-dates.mapIndexed { index, date ->
+dates.mapIndexedNotNull { index, date ->
 val code = weatherCodes.getOrNull(index) ?: 0
+// Open-Meteo returns null entries at window edges; skip days without a usable
+// high/low instead of emitting Float.NaN, which poisons roundToInt() downstream
+// (snapshot saving in ForecastRepository) and aborts the whole fetch cycle.
+val high = maxTemps.getOrNull(index)?.takeIf { it.isFinite() }
+val low = minTemps.getOrNull(index)?.takeIf { it.isFinite() }
+if (high == null || low == null) return@mapIndexedNotNull null
 DailyForecast(
 date = date,
-highTemp = maxTemps.getOrNull(index) ?: Float.NaN,
-lowTemp = minTemps.getOrNull(index) ?: Float.NaN,
+highTemp = high,
+lowTemp = low,
 condition = weatherCodeToCondition(code),
 iconToken = code.toString(),
 precipProbability = precipProbs.getOrNull(index),
@@ -237,18 +243,22 @@ hourly = hourlyForecasts,
             val dates = daily?.get("time")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
             val maxTemps =
                 daily?.get("temperature_2m_max")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toFloatOrNull() ?: Float.NaN
+                    it.jsonPrimitive.content.toFloatOrNull()
                 } ?: emptyList()
             val minTemps =
                 daily?.get("temperature_2m_min")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toFloatOrNull() ?: Float.NaN
+                    it.jsonPrimitive.content.toFloatOrNull()
                 } ?: emptyList()
 
-return dates.mapIndexed { index, date ->
+return dates.mapIndexedNotNull { index, date ->
+// Skip days lacking a usable high/low rather than emitting Float.NaN (poisons roundToInt()).
+val high = maxTemps.getOrNull(index)?.takeIf { it.isFinite() }
+val low = minTemps.getOrNull(index)?.takeIf { it.isFinite() }
+if (high == null || low == null) return@mapIndexedNotNull null
 DailyForecast(
 date = date,
-highTemp = maxTemps.getOrNull(index) ?: Float.NaN,
-lowTemp = minTemps.getOrNull(index) ?: Float.NaN,
+highTemp = high,
+lowTemp = low,
 condition = weatherCodeToCondition(0),
 )
 }
