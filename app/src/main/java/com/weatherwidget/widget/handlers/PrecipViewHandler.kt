@@ -27,6 +27,7 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.GraphRepaintGate
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Job
@@ -60,6 +61,7 @@ object PrecipViewHandler {
         observedAt: Long? = null,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
         startupToken: String? = null,
+        uiOnly: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -70,6 +72,29 @@ object PrecipViewHandler {
 
         val stateManager = WidgetStateManager(context)
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+
+        // Gate bitmap rebuilds on real change for opportunistic UI-only repaints.
+        if (uiOnly) {
+            val zoom = stateManager.getZoomLevel(appWidgetId)
+            val lastRender = stateManager.getLastGraphRender(appWidgetId)
+            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
+            val windowSpanMinutes = zoom.totalSpanHours * 60
+            val gateDecision = GraphRepaintGate.shouldRebuildBitmap(
+                displayedTemp = null,
+                currentDisplayedTemp = null,
+                lastRenderMs = lastRender?.renderMs ?: 0L,
+                nowMs = SystemClock.elapsedRealtime(),
+                windowSpanMinutes = windowSpanMinutes,
+                bitmapWidthPx = bitmapDims.widthPx,
+            )
+            if (!gateDecision.shouldRebuild) {
+                appLogDao.log(
+                    WidgetPerfLogger.TAG_WIDGET_PAINT,
+                    "widget=$appWidgetId caller=PRECIPITATION state=skipped reason=${gateDecision.reason} thread=${Thread.currentThread().name}",
+                )
+                return
+            }
+        }
 
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
 
@@ -382,6 +407,15 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
+
+        // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
+        stateManager.setLastGraphRender(
+            appWidgetId,
+            com.weatherwidget.widget.WidgetStateManager.LastGraphRenderState(
+                renderMs = SystemClock.elapsedRealtime(),
+                displayedTemp = null,
+            ),
+        )
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
         WidgetPerfLogger.logIfSlow(
             appLogDao = appLogDao,

@@ -14,6 +14,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.widget.handlers.CurrentTempResolver
@@ -240,6 +241,7 @@ object WidgetRenderer {
                     observedAt = observation?.observedAt,
                     repository = repository,
                     startupToken = startupToken,
+                    uiOnly = uiOnly,
                 )
             }
             ViewMode.CLOUD_COVER -> {
@@ -255,9 +257,19 @@ object WidgetRenderer {
                     observedAt = observation?.observedAt,
                     repository = repository,
                     startupToken = startupToken,
+                    uiOnly = uiOnly,
                 )
             }
             ViewMode.DAILY -> {
+                // Daily view has no sub-hourly moving element; skip the expensive rebuild on
+                // opportunistic UI-only repaints (the ~2-min now-tracking alarm).
+                if (uiOnly) {
+                    WeatherDatabase.getDatabase(context).appLogDao().log(
+                        com.weatherwidget.widget.WidgetPerfLogger.TAG_WIDGET_PAINT,
+                        "widget=$appWidgetId caller=DAILY state=skipped_ui_only thread=${Thread.currentThread().name}",
+                    )
+                    return
+                }
                 DailyViewHandler.updateWidget(
                     context = context,
                     appWidgetManager = appWidgetManager,

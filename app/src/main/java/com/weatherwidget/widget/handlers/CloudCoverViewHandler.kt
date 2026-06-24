@@ -26,6 +26,7 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.GraphRepaintGate
 import kotlinx.coroutines.Job
 import kotlin.coroutines.coroutineContext
 import java.time.Instant
@@ -107,6 +108,7 @@ object CloudCoverViewHandler {
         observedAt: Long? = null,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
         startupToken: String? = null,
+        uiOnly: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -117,6 +119,29 @@ object CloudCoverViewHandler {
 
         val stateManager = WidgetStateManager(context)
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+
+        // Gate bitmap rebuilds on real change for opportunistic UI-only repaints.
+        if (uiOnly) {
+            val zoom = stateManager.getZoomLevel(appWidgetId)
+            val lastRender = stateManager.getLastGraphRender(appWidgetId)
+            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
+            val windowSpanMinutes = zoom.totalSpanHours * 60
+            val gateDecision = GraphRepaintGate.shouldRebuildBitmap(
+                displayedTemp = null,
+                currentDisplayedTemp = null,
+                lastRenderMs = lastRender?.renderMs ?: 0L,
+                nowMs = SystemClock.elapsedRealtime(),
+                windowSpanMinutes = windowSpanMinutes,
+                bitmapWidthPx = bitmapDims.widthPx,
+            )
+            if (!gateDecision.shouldRebuild) {
+                appLogDao.log(
+                    WidgetPerfLogger.TAG_WIDGET_PAINT,
+                    "widget=$appWidgetId caller=CLOUD_COVER state=skipped reason=${gateDecision.reason} thread=${Thread.currentThread().name}",
+                )
+                return
+            }
+        }
 
         val sourceRows = hourlyForecasts.count { it.source == displaySource.id }
         val sourceRowsWithCloudCover = hourlyForecasts.count { it.source == displaySource.id && it.cloudCover != null }
@@ -421,6 +446,15 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
+
+        // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
+        stateManager.setLastGraphRender(
+            appWidgetId,
+            com.weatherwidget.widget.WidgetStateManager.LastGraphRenderState(
+                renderMs = SystemClock.elapsedRealtime(),
+                displayedTemp = null,
+            ),
+        )
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
         WidgetPerfLogger.logIfSlow(
             appLogDao = appLogDao,
