@@ -106,10 +106,37 @@ class ForecastFetchPolicyTest {
     }
 
     @Test
-    fun `off-charger ignores screen and active distinctions when battery is below 80 percent`() {
+    fun `off-charger ignores the screen distinction when battery is below 80 percent`() {
+        // Screen state no longer matters off-charger, but active-vs-non-active does (see below).
         val a = ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = true, batteryLevel = 75)
-        val b = ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = false, isActiveSource = false, batteryLevel = 75)
+        val b = ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = false, isActiveSource = true, batteryLevel = 75)
         assertEquals(a, b)
+    }
+
+    @Test
+    fun `off-charger non-active source doubles the battery-tier interval`() {
+        // 240-tier -> 480 for a background (not currently-displayed) source.
+        assertEquals(
+            240L * ForecastFetchPolicy.OFF_CHARGER_NONACTIVE_MULTIPLIER,
+            ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = false, batteryLevel = 75),
+        )
+        // 480-tier -> 960.
+        assertEquals(
+            480L * ForecastFetchPolicy.OFF_CHARGER_NONACTIVE_MULTIPLIER,
+            ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = false, batteryLevel = 60),
+        )
+    }
+
+    @Test
+    fun `off-charger active source keeps the plain battery-tier interval`() {
+        assertEquals(240L, ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = true, batteryLevel = 75))
+        assertEquals(480L, ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = true, batteryLevel = 60))
+    }
+
+    @Test
+    fun `off-charger below 50 percent returns null even for a non-active source`() {
+        // The battery tier suppresses the fetch entirely; the multiplier must not resurrect it.
+        assertNull(ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = false, batteryLevel = 30))
     }
 
     @Test

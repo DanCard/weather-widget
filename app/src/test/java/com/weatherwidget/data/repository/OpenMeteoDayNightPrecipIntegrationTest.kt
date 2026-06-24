@@ -69,7 +69,8 @@ class OpenMeteoDayNightPrecipIntegrationTest {
         every { widgetStateManager.isSourceVisible(any()) } returns true
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
         every { widgetStateManager.getPrimarySource() } returns WeatherSource.OPEN_METEO
-        
+        every { widgetStateManager.getActiveDisplaySourceIds() } returns setOf(WeatherSource.OPEN_METEO.id)
+
         return ForecastRepository(
             context = context,
             forecastDao = db.forecastDao(),

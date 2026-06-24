@@ -24,6 +24,11 @@ object ForecastFetchPolicy {
     const val CHARGING_SCREEN_OFF_ACTIVE_MINUTES = 120L
     const val CHARGING_SCREEN_OFF_NONACTIVE_MINUTES = 240L
 
+    // Off-charger, non-active (not currently displayed) sources fetch less often than the active
+    // source — battery matters most off the charger, and a background source can tolerate staler
+    // data. Applied as a multiple of the battery-tier interval.
+    const val OFF_CHARGER_NONACTIVE_MULTIPLIER = 2L
+
     private const val OFF_CHARGER_LOW_BATTERY_TICK_MINUTES = 24 * 60L
 
     private const val DEFAULT_GRACE_MS = 120_000L
@@ -37,7 +42,9 @@ object ForecastFetchPolicy {
         val treatAsCharging = isCharging || batteryLevel >= 80
 
         if (!treatAsCharging) {
-            return BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
+            val base = BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
+                ?: return null
+            return if (isActiveSource) base else base * OFF_CHARGER_NONACTIVE_MULTIPLIER
         }
         return when {
             isScreenInteractive && isActiveSource -> CHARGING_SCREEN_ON_ACTIVE_MINUTES

@@ -69,6 +69,7 @@ class OpenMeteoIntegrationTest {
         every { widgetStateManager.isSourceVisible(any()) } returns true
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
         every { widgetStateManager.getPrimarySource() } returns WeatherSource.OPEN_METEO
+        every { widgetStateManager.getActiveDisplaySourceIds() } returns setOf(WeatherSource.OPEN_METEO.id)
         
         return ForecastRepository(
             context,
@@ -112,6 +113,7 @@ class OpenMeteoIntegrationTest {
         every { widgetStateManager.isSourceVisible(any()) } returns true
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
         every { widgetStateManager.getPrimarySource() } returns WeatherSource.OPEN_METEO
+        every { widgetStateManager.getActiveDisplaySourceIds() } returns setOf(WeatherSource.OPEN_METEO.id)
         return ForecastRepository(
             context, db.forecastDao(), db.hourlyForecastDao(), db.hourlyForecastHistoryDao(),
             db.appLogDao(), nwsApi, openMeteoApi, mockk(relaxed = true), mockk(relaxed = true),
@@ -276,7 +278,7 @@ class OpenMeteoIntegrationTest {
         // Each row's bucket = policy applied to its real fetchedAt, and 4h-aligned (primary source).
         rows.forEach { r ->
             assertEquals(
-                ForecastHistoryPolicy.snapshotBucket(r.fetchedAt, "OPEN_METEO", "OPEN_METEO"),
+                ForecastHistoryPolicy.snapshotBucket(r.fetchedAt, "OPEN_METEO", setOf("OPEN_METEO")),
                 r.snapshotBucket,
             )
             assertEquals("primary bucket must be 4h-aligned", 0L, r.snapshotBucket % ForecastHistoryPolicy.PRIMARY_BUCKET_MS)

@@ -40,19 +40,13 @@ class ForecastRepositoryHourlyChangeTest {
     }
 
     @Test
-    fun `hasMeaningfulHourlyChange returns true when fetchedAt is more than one hour newer`() {
+    fun `hasMeaningfulHourlyChange returns false for an unchanged row no matter how old fetchedAt is`() {
+        // There is no time-based force-write: an identical row is never rewritten just to refresh
+        // fetchedAt. (fetchedAt = content-production time; freshness/staleness lives elsewhere.)
         val existing = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L)
-        val fetched = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L + 61 * 60 * 1000L)
+        val muchNewer = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L + 100L * 24 * 60 * 60 * 1000L)
 
-        assertTrue(ForecastRepository.hasMeaningfulHourlyChange(existing, fetched))
-    }
-
-    @Test
-    fun `hasMeaningfulHourlyChange returns false when fetchedAt is less than one hour newer`() {
-        val existing = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L)
-        val fetched = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L + 30 * 60 * 1000L)
-
-        assertFalse(ForecastRepository.hasMeaningfulHourlyChange(existing, fetched))
+        assertFalse(ForecastRepository.hasMeaningfulHourlyChange(existing, muchNewer))
     }
 
     @Test

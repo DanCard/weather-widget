@@ -90,6 +90,12 @@ class ForecastRepository
             private const val CACHE_LOOKBACK_DAYS = 7L
             private const val CACHE_FORECAST_DAYS = 30L
 
+            // A row is rewritten only when its content actually changes — never just to refresh
+            // fetchedAt. fetchedAt therefore means "when this content was produced", which is what
+            // freshest-selection wants; the forecast-history snapshot stamps its own real fetch time
+            // independently. An unchanged row keeps its row (and old fetchedAt) untouched, which is
+            // the write-saving point. (Retention deletes by fetchedAt < 30d, but the live display
+            // window is only -24h..+60h, so a stale-fetchedAt row is never one still on screen.)
             @androidx.annotation.VisibleForTesting
             internal fun hasMeaningfulHourlyChange(
                 existing: HourlyForecastEntity?,
@@ -100,8 +106,7 @@ class ForecastRepository
                     existing.condition != newlyFetched.condition ||
                     existing.precipProbability != newlyFetched.precipProbability ||
                     existing.precipAmountMm != newlyFetched.precipAmountMm ||
-                    existing.cloudCover != newlyFetched.cloudCover ||
-                    newlyFetched.fetchedAt - existing.fetchedAt > 60 * 60 * 1000L
+                    existing.cloudCover != newlyFetched.cloudCover
             }
 
             /**
@@ -643,13 +648,15 @@ class ForecastRepository
                 
                 if (changedForecasts.isNotEmpty()) {
                     // History cadence cap: collapse any earlier snapshot from this same bucket so the
-                    // daily forecast timeline keeps at most one row per 4h (primary) / 8h (non-primary)
+                    // daily forecast timeline keeps at most one row per 4h (priority) / 12h (background)
                     // window. The inserted rows carry the real fetchedAt, so current display and
-                    // last-updated stay fresh; only intra-bucket duplicates are removed. See
-                    // ForecastHistoryPolicy and ForecastEvolutionRenderer's SNAPSHOT_BUCKET_HOURS.
-                    val primarySourceId = widgetStateManager.getPrimarySource().id
-                    val bucketStart = ForecastHistoryPolicy.snapshotBucket(System.currentTimeMillis(), sourceId, primarySourceId)
-                    val bucketEnd = bucketStart + ForecastHistoryPolicy.bucketMs(sourceId, primarySourceId)
+                    // last-updated stay fresh; only intra-bucket duplicates are removed. Priority =
+                    // the currently-displayed sources, so the source the user is viewing keeps the
+                    // fast cadence. See ForecastHistoryPolicy and ForecastEvolutionRenderer's
+                    // SNAPSHOT_BUCKET_HOURS (a display-only collapse, unaffected by a wider cadence).
+                    val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
+                    val bucketStart = ForecastHistoryPolicy.snapshotBucket(System.currentTimeMillis(), sourceId, prioritySourceIds)
+                    val bucketEnd = bucketStart + ForecastHistoryPolicy.bucketMs(sourceId, prioritySourceIds)
                     forecastDao.deleteForecastsInBucket(
                         source = sourceId,
                         lat = latitude,
@@ -795,6 +802,11 @@ class ForecastRepository
                 mergePreservingNullableFields(existingByDateTime[newlyFetched.dateTime], newlyFetched)
             }
 
+            // Priority = the currently-displayed sources; background sources snapshot history at a
+            // wider cadence (see below). Live rows are written only on a real content change, so the
+            // priority set does not gate the live insert.
+            val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
+
             val changedEntities = mergedEntities.filter { merged ->
                 val existing = existingByDateTime[merged.dateTime]
                 hasMeaningfulHourlyChange(existing, merged)
@@ -806,9 +818,8 @@ class ForecastRepository
 
             // Forecast-history snapshot: preserve the full predicted hourly curve as fetched, keyed by
             // its snapshot bucket. Within a bucket the PK (incl snapshotBucket) makes later fetches
-            // REPLACE earlier ones, capping cadence at 4h (primary) / 8h (non-primary). The live table
+            // REPLACE earlier ones, capping cadence at 4h (priority) / 12h (background). The live table
             // above stays latest-only; this is the historical record. See ForecastHistoryPolicy.
-            val primarySourceId = widgetStateManager.getPrimarySource().id
             val historyRows = mergedEntities.map { e ->
                 HourlyForecastHistoryEntity(
                     dateTime = e.dateTime,
@@ -817,7 +828,7 @@ class ForecastRepository
                     temperature = e.temperature,
                     condition = e.condition,
                     source = e.source,
-                    snapshotBucket = ForecastHistoryPolicy.snapshotBucket(e.fetchedAt, e.source, primarySourceId),
+                    snapshotBucket = ForecastHistoryPolicy.snapshotBucket(e.fetchedAt, e.source, prioritySourceIds),
                     precipProbability = e.precipProbability,
                     cloudCover = e.cloudCover,
                     precipAmountMm = e.precipAmountMm,

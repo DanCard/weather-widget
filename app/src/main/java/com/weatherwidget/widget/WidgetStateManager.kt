@@ -204,11 +204,29 @@ class WidgetStateManager
         }
 
         /**
-         * The primary API source = first entry of the global visible-sources order. Used by
-         * [com.weatherwidget.data.repository.ForecastHistoryPolicy] to pick the 4h (primary) vs 8h
-         * (non-primary) forecast-history snapshot cadence. Never empty (defaults to NWS).
+         * The primary API source = first entry of the global visible-sources order. Never empty
+         * (defaults to NWS). Prefer [getActiveDisplaySourceIds] for prioritization decisions —
+         * the global first-in-order source may not be the one the user is actually viewing.
          */
         fun getPrimarySource(): WeatherSource = getStoredVisibleSourcesOrder().first()
+
+        /**
+         * The set of source ids currently displayed across all widget instances — the user's
+         * "selected"/active sources. These get the priority (fast) lane in fetch and DB-write
+         * cadence ([com.weatherwidget.data.repository.ForecastHistoryPolicy] and the current-temp
+         * throttle). Keying off what's displayed (rather than the global first-in-order source)
+         * matches user intent and routes the genuinely-background sources to the slow lane.
+         *
+         * Falls back to [getPrimarySource] when there are no widgets (e.g. a background fetch
+         * before any widget is placed, or a test harness with no widgets).
+         */
+        fun getActiveDisplaySourceIds(): Set<String> {
+            val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+            val componentName = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
+            val ids = appWidgetManager.getAppWidgetIds(componentName)
+            val active = ids.map { getCurrentDisplaySource(it).id }.toSet()
+            return active.ifEmpty { setOf(getPrimarySource().id) }
+        }
 
         private fun getStoredVisibleSourcesOrder(): List<WeatherSource> {
             migrateApiPreferenceIfNeeded()

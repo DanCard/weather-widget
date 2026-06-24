@@ -76,7 +76,9 @@ class CurrentTempRepository
             // Sources ranked 4th or lower in the visible order are "low priority": their current
             // temp is network-fetched at most once an hour instead of on every charging-loop cycle
             // (~10 min). This conserves tight free-plan API quotas (e.g. Tomorrow.io ~25 req/hr).
-            // Index is 0-based, so rank >= 3 means the 4th source onward.
+            // Index is 0-based, so rank >= 3 means the 4th source onward. A source currently
+            // displayed on a widget is always exempt from this throttle regardless of its rank, so
+            // the source the user is viewing stays fresh even if it sits low in the global order.
             private const val LOW_PRIORITY_RANK_THRESHOLD = 3
             private const val LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS = 3_600_000L // 60 minutes
 
@@ -146,9 +148,13 @@ class CurrentTempRepository
                         .filter { it != WeatherSource.GENERIC_GAP }
                         .distinct()
 
+                    // Sources currently displayed on a widget are never throttled — "priority" means
+                    // the source the user is actually viewing, not just the global first-in-order one.
+                    val activeSourceIds = widgetStateManager.getActiveDisplaySourceIds()
                     val targetSources = candidateSources.filter { src ->
                         val rank = rankBySource[src] ?: 0
                         val throttled = !bypassThrottle &&
+                            src.id !in activeSourceIds &&
                             rank >= LOW_PRIORITY_RANK_THRESHOLD &&
                             !widgetStateManager.shouldFetchCurrentTempForSource(src.id, LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS)
                         !throttled
