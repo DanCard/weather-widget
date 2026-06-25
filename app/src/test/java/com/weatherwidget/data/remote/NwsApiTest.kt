@@ -520,23 +520,27 @@ class NwsApiTest {
             val response =
                 """
                 {
-                    "properties": {
-                        "stationName": "Moffett Field",
-                        "timestamp": "2026-03-19T03:15:00+00:00",
-                        "textDescription": "Rain",
-                        "temperature": {
-                            "unitCode": "wmoUnit:degC",
-                            "value": 15.0
-                        },
-                        "precipitationLastHour": {
-                            "unitCode": "wmoUnit:mm",
-                            "value": 2.5
-                        },
-                        "precipitationLast24Hours": {
-                            "unitCode": "wmoUnit:mm",
-                            "value": 15.3
+                    "features": [
+                        {
+                            "properties": {
+                                "stationName": "Moffett Field",
+                                "timestamp": "2026-03-19T03:15:00+00:00",
+                                "textDescription": "Rain",
+                                "temperature": {
+                                    "unitCode": "wmoUnit:degC",
+                                    "value": 15.0
+                                },
+                                "precipitationLastHour": {
+                                    "unitCode": "wmoUnit:mm",
+                                    "value": 2.5
+                                },
+                                "precipitationLast24Hours": {
+                                    "unitCode": "wmoUnit:mm",
+                                    "value": 15.3
+                                }
+                            }
                         }
-                    }
+                    ]
                 }
                 """.trimIndent()
 
@@ -570,19 +574,23 @@ class NwsApiTest {
             val response =
                 """
                 {
-                    "properties": {
-                        "stationName": "Moffett Field",
-                        "timestamp": "2026-03-19T03:15:00+00:00",
-                        "textDescription": "Clear",
-                        "temperature": {
-                            "unitCode": "wmoUnit:degC",
-                            "value": 20.0
-                        },
-                        "precipitationLastHour": {
-                            "unitCode": "wmoUnit:mm",
-                            "value": null
+                    "features": [
+                        {
+                            "properties": {
+                                "stationName": "Moffett Field",
+                                "timestamp": "2026-03-19T03:15:00+00:00",
+                                "textDescription": "Clear",
+                                "temperature": {
+                                    "unitCode": "wmoUnit:degC",
+                                    "value": 20.0
+                                },
+                                "precipitationLastHour": {
+                                    "unitCode": "wmoUnit:mm",
+                                    "value": null
+                                }
+                            }
                         }
-                    }
+                    ]
                 }
                 """.trimIndent()
 
@@ -684,5 +692,54 @@ class NwsApiTest {
             // Sanity: pre-existing temp parsing still works.
             assertEquals(14.5f, obs[0].temperatureCelsius)
             assertEquals(14.0f, obs[1].temperatureCelsius)
+        }
+
+    @Test
+    fun `getLatestObservationDetailed queries observations list directly`() =
+        runTest {
+            val timestamp = "2026-06-25T16:00:00Z"
+            val response =
+                """
+                {
+                    "features": [
+                        {
+                            "properties": {
+                                "stationName": "Moffett Field",
+                                "timestamp": "$timestamp",
+                                "textDescription": "Clear",
+                                "temperature": {
+                                    "unitCode": "wmoUnit:degC",
+                                    "value": 22.5
+                                }
+                            }
+                        }
+                    ]
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler { request ->
+                            assertTrue(request.url.encodedPath.contains("/observations"))
+                            assertEquals("10", request.url.parameters["limit"])
+                            respond(
+                                content = response,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val obs = api.getLatestObservationDetailed("KNUQ")
+
+            assertNotNull(obs)
+            assertEquals(22.5f, obs!!.temperatureCelsius)
+            assertEquals(timestamp, obs.timestamp)
         }
 }

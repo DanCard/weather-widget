@@ -462,39 +462,7 @@ class NwsApi
         }
 
         suspend fun getLatestObservationDetailed(stationId: String): Observation? {
-            var primaryObs: Observation? = null
-            var primaryFailed = false
-            
-            try {
-                val response: String =
-                    httpClient.get("$BASE_URL/stations/$stationId/observations/latest") {
-                        header("User-Agent", USER_AGENT)
-                        header("Accept", "application/geo+json")
-                    }.body()
-
-                val jsonObj = json.parseToJsonElement(response).jsonObject
-                val props = jsonObj["properties"]?.jsonObject
-                
-                if (props != null) {
-                    primaryObs = parseObservationProperties(props, stationId)
-                    if (primaryObs == null) {
-                        Log.d("NwsApi", "getLatestObservationDetailed: station=$stationId latest has null temperature value. Triggering fallback.")
-                        primaryFailed = true
-                    }
-                } else {
-                    primaryFailed = true
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w("NwsApi", "getLatestObservationDetailed: Error fetching latest for $stationId: ${e.message}. Triggering fallback.")
-                primaryFailed = true
-            }
-
-            if (primaryFailed) {
-                return getRecentValidObservationDetailed(stationId)
-            }
-            return primaryObs
+            return getRecentValidObservationDetailed(stationId, limit = 10)
         }
 
         private suspend fun getRecentValidObservationDetailed(stationId: String, limit: Int = 10): Observation? {
