@@ -492,6 +492,7 @@ object TemperatureGraphRenderer {
      */
     private fun placeYesterdayDeltaLabel(ctx: RenderContext, hours: List<HourData>, deltaFromYesterday: Float?) {
         if (deltaFromYesterday == null) return
+        if (ctx.fetchDotX == null) return
         val currentTemp = ctx.lastObservedTemp ?: return
         if (hours.size < 2) return
         val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()

@@ -638,7 +638,7 @@ fun TemperatureGraph(
         // "+0.4 from yesterday" label, in empty space, at the staleness/age font size and shadow, in
         // thermostat color. Placement + gate + format are shared with Android (YesterdayDeltaLabel).
         val deltaCurrentTemp = fetchDotPoint?.actualTemp
-        if (deltaFromYesterday != null && deltaCurrentTemp != null) {
+        if (deltaFromYesterday != null && deltaCurrentTemp != null && fetchDotXVal != null) {
             val deltaSpanHours = (windowEnd - windowStart) / 3_600_000L
             val deltaText = YesterdayDeltaLabel.format(deltaFromYesterday)
             val deltaStyle = TextStyle(

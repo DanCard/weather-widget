@@ -158,6 +158,40 @@ class TemperatureGraphRendererYesterdayDeltaTest {
         verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from yesterday") }, any(), any(), any()) }
     }
 
+    @Test
+    fun `does not draw yesterday delta label when fetch dot is outside the visible hours`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 3, 21, 10, 0)
+        // Tomorrow's hours (starts 24h later)
+        val tomorrowStart = start.plusHours(24)
+        val temps = listOf(50f, 52f, 54f, 53f, 51f)
+        val hours = temps.mapIndexed { offset, t ->
+            HourData(
+                dateTime = tomorrowStart.plusHours(offset.toLong()),
+                temperature = t,
+                label = "${(10 + offset) % 24}h",
+                showLabel = true,
+                isCurrentHour = false,
+            )
+        }
+        // observedAtMs is TODAY (start.plusHours(2)), which is outside tomorrow's hours range
+        val observedAtMs = start.plusHours(2).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 900,
+            heightPx = 400,
+            currentTime = start.plusHours(2).plusMinutes(25),
+            bitmapScale = 0.93f, // distinct scale
+            observedAt = observedAtMs,
+            lastObservedTemp = 54f,
+            deltaFromYesterday = 2.3f,
+        )
+
+        verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from yesterday") }, any(), any(), any()) }
+    }
+
     private fun mockContext(): Context {
         mockkStatic(Bitmap::class)
         mockkConstructor(Canvas::class)
