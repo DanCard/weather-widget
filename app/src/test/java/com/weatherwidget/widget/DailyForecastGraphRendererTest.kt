@@ -115,4 +115,68 @@ class DailyForecastGraphRendererTest {
 
         assertEquals(false, placement.fits)
     }
+
+    // Samsung repro: the interstitial night label lands beside this day's own low label and clips
+    // its degree symbol. It should nudge DOWN to share the low label's baseline (beside the number),
+    // never moving sideways or dropping past the baseline.
+    @Test
+    fun `resolveNightCollision nudges down to share low label baseline when overlapping`() {
+        // Night label sits high (baseline 100, top 86) over the low label digits (top 95).
+        val result = DailyForecastRainLabelRenderer.resolveNightCollision(
+            nightCenterX = 200f,
+            nightBaseline = 100f,
+            nightHalfWidth = 12f,
+            ascent = -14f,
+            descent = 4f,
+            ownLeft = 180f,
+            ownTop = 95f,
+            ownRight = 205f,
+            ownBottom = 140f,
+            ownBaseline = 135f,
+        )
+
+        assertEquals("down", result.resolution)
+        assertEquals(135f, result.baseline, 0.01f)
+        assertEquals(200f, result.centerX, 0.01f) // never moves sideways
+    }
+
+    @Test
+    fun `resolveNightCollision leaves label when it does not overlap the low label`() {
+        // Night label is well to the right of the low label — no horizontal overlap.
+        val result = DailyForecastRainLabelRenderer.resolveNightCollision(
+            nightCenterX = 260f,
+            nightBaseline = 100f,
+            nightHalfWidth = 12f,
+            ascent = -14f,
+            descent = 4f,
+            ownLeft = 180f,
+            ownTop = 95f,
+            ownRight = 205f,
+            ownBottom = 140f,
+            ownBaseline = 135f,
+        )
+
+        assertEquals("none", result.resolution)
+        assertEquals(100f, result.baseline, 0.01f)
+    }
+
+    @Test
+    fun `resolveNightCollision never moves the label up`() {
+        // Overlapping, but the night label already sits below the low label baseline — leave it.
+        val result = DailyForecastRainLabelRenderer.resolveNightCollision(
+            nightCenterX = 200f,
+            nightBaseline = 138f,
+            nightHalfWidth = 12f,
+            ascent = -14f,
+            descent = 4f,
+            ownLeft = 180f,
+            ownTop = 95f,
+            ownRight = 205f,
+            ownBottom = 140f,
+            ownBaseline = 135f,
+        )
+
+        assertEquals("none", result.resolution)
+        assertEquals(138f, result.baseline, 0.01f)
+    }
 }

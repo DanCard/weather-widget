@@ -696,6 +696,9 @@ object DailyForecastGraphRenderer {
         val displayLow = resolveBottomStackLow(day)
         val lowY = anchorLow?.let { layout.tempToY(it) }
 
+        // Captured so the night rain label can treat this day's own low label (degree symbol
+        // included) as an obstacle to avoid; null when no low label is drawn.
+        var ownLowLabelBox: DailyForecastRainLabelRenderer.LowLabelBox? = null
         if (lowY != null) {
             val iconY = lowY + (ICON_BELOW_BAR_SPACING_DP).dp(layout.density)
             drawWeatherIcon(canvas, context, day, centerX, iconY, layout.iconSize)
@@ -715,11 +718,23 @@ object DailyForecastGraphRenderer {
                 }
                 drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint, drawOutline = day.isPast,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
+
+                // Unscaled metrics are a safe (slight) over-estimate of the drawn glyph extent,
+                // which only ever makes the obstacle larger — never missing a real collision.
+                val lowHalfWidth = measureTextWidth(tempPaint, lowLabelText) / 2f
+                val lowMetrics = tempPaint.fontMetrics
+                ownLowLabelBox = DailyForecastRainLabelRenderer.LowLabelBox(
+                    left = centerX - lowHalfWidth,
+                    top = lowTempY + lowMetrics.ascent,
+                    right = centerX + lowHalfWidth,
+                    bottom = lowTempY + lowMetrics.descent,
+                    baseline = lowTempY,
+                )
             }
         }
 
         DailyForecastRainLabelRenderer.drawDailyRainLabel(day, centerX, layout, paints, onRainLabelDrawn, canvas)
-        DailyForecastRainLabelRenderer.drawNightRainLabel(day, rightNeighbor, centerX, layout, paints, onRainLabelDrawn, canvas)
+        DailyForecastRainLabelRenderer.drawNightRainLabel(day, rightNeighbor, centerX, layout, paints, ownLowLabelBox, onRainLabelDrawn, canvas)
     }
 
     private fun drawWeatherIcon(canvas: Canvas, context: Context, day: DayData, centerX: Float, iconY: Float, iconSize: Int) {

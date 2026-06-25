@@ -45,6 +45,21 @@ internal object DailyForecastRainLabelRenderer {
         val placementType: String,
     )
 
+    internal data class NightCollisionResult(
+        val centerX: Float,
+        val baseline: Float,
+        val resolution: String, // "none" | "down"
+    )
+
+    /** This day's drawn low-temp label, used as an obstacle for the night rain label. */
+    internal data class LowLabelBox(
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
+        val baseline: Float,
+    )
+
     internal data class DailyRainLabelPlacement(
         val debug: RainLabelDrawnDebug,
         val fitsPreferredTopMargin: Boolean,
@@ -131,6 +146,7 @@ internal object DailyForecastRainLabelRenderer {
         centerX: Float,
         layout: LayoutInfo,
         paints: PaintSet,
+        ownLowLabel: LowLabelBox?,
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
         canvas: Canvas,
     ) {
@@ -146,29 +162,59 @@ internal object DailyForecastRainLabelRenderer {
         val finalTopOverlap = (tuck.dynamicOverlapDp).toPx(layout.density)
         val finalTopY = tuck.anchorBaseline + tuck.tempMetrics.descent - finalTopOverlap
         val finalBaseline = finalTopY - metrics.ascent
-        val finalBottomWithMargin = finalBaseline + metrics.descent
+
+        // The interstitial anchor (min of this day's and the neighbor's low baseline) can land the
+        // label right next to this day's own low label, clipping its degree symbol. When that
+        // happens, nudge the label straight DOWN to share the low label's baseline so it sits beside
+        // the number (e.g. "56° 12%"), clear of the degree symbol above. No horizontal move; the
+        // interstitial anchor in resolveNightAnchorBaseline is intentionally untouched.
+        val nightTextWidth = fit.paint.measureText(rainText)
+        val nightHalfWidth = nightTextWidth / 2f
+        var resolvedCenterX = fit.centerX
+        var resolvedBaseline = finalBaseline
+        var resolution = "none"
+
+        if (ownLowLabel != null) {
+            val collision = resolveNightCollision(
+                nightCenterX = resolvedCenterX,
+                nightBaseline = resolvedBaseline,
+                nightHalfWidth = nightHalfWidth,
+                ascent = metrics.ascent,
+                descent = metrics.descent,
+                ownLeft = ownLowLabel.left,
+                ownTop = ownLowLabel.top,
+                ownRight = ownLowLabel.right,
+                ownBottom = ownLowLabel.bottom,
+                ownBaseline = ownLowLabel.baseline,
+            )
+            resolvedCenterX = collision.centerX
+            resolvedBaseline = collision.baseline
+            resolution = collision.resolution
+        }
+
+        val resolvedBottom = resolvedBaseline + metrics.descent
 
         Log.d(TAG, "nightRainLabel position: date=${day.date} text=\"$rainText\"" +
             " anchorBaseline=${tuck.anchorBaseline} tightFraction=${tuck.tightFraction}" +
             " dynamicOverlapDp=${tuck.dynamicOverlapDp} finalTopOverlap=${finalTopOverlap}px" +
-            " finalTopY=$finalTopY finalBaseline=$finalBaseline finalBottom=$finalBottomWithMargin" +
+            " finalTopY=$finalTopY finalBaseline=$finalBaseline resolvedBaseline=$resolvedBaseline" +
+            " resolvedCenterX=$resolvedCenterX resolution=$resolution finalBottom=$resolvedBottom" +
             " hardBottomLimit=$hardBottomLimit roomBelowDp=${tuck.roomBelowDp}" +
             " tempDescent=${tuck.tempMetrics.descent}")
 
-        if (finalBottomWithMargin <= hardBottomLimit) {
-            canvas.drawText(rainText, fit.centerX, finalBaseline, fit.paint)
-            val nightTextWidth = fit.paint.measureText(rainText)
+        if (resolvedBottom <= hardBottomLimit) {
+            canvas.drawText(rainText, resolvedCenterX, resolvedBaseline, fit.paint)
             onRainLabelDrawn?.invoke(
                 RainLabelDrawnDebug(
                     date = day.date,
                     text = rainText,
                     placement = fit.placementType,
-                    centerX = fit.centerX,
-                    leftX = fit.centerX - nightTextWidth / 2f,
-                    rightX = fit.centerX + nightTextWidth / 2f,
-                    baselineY = finalBaseline,
-                    topY = finalBaseline + metrics.ascent,
-                    bottomY = finalBaseline + metrics.descent,
+                    centerX = resolvedCenterX,
+                    leftX = resolvedCenterX - nightHalfWidth,
+                    rightX = resolvedCenterX + nightHalfWidth,
+                    baselineY = resolvedBaseline,
+                    topY = resolvedBaseline + metrics.ascent,
+                    bottomY = resolvedBottom,
                     anchorBaselineY = tuck.anchorBaseline,
                     isNightLabel = true,
                 )
@@ -176,7 +222,39 @@ internal object DailyForecastRainLabelRenderer {
             return
         }
 
-        Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$finalBaseline")
+        Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$resolvedBaseline")
+    }
+
+    /**
+     * Resolves a collision between the night rain label and this day's own low-temp label
+     * (degree symbol included). When the two overlap, nudge the rain label straight DOWN so its
+     * baseline matches the low label's — it then sits beside the number ("56° 12%") and clears the
+     * degree symbol above. Only ever moves down, and never further than the shared baseline, so the
+     * label stays by the side of the temperature rather than dropping into the empty space below.
+     * Pure float math (no Paint/RectF) so it is unit-testable in a renderer environment where font
+     * metrics are stubbed to zero.
+     */
+    internal fun resolveNightCollision(
+        nightCenterX: Float,
+        nightBaseline: Float,
+        nightHalfWidth: Float,
+        ascent: Float,
+        descent: Float,
+        ownLeft: Float,
+        ownTop: Float,
+        ownRight: Float,
+        ownBottom: Float,
+        ownBaseline: Float,
+    ): NightCollisionResult {
+        val nightLeft = nightCenterX - nightHalfWidth
+        val nightRight = nightCenterX + nightHalfWidth
+        val nightTop = nightBaseline + ascent
+        val nightBottom = nightBaseline + descent
+        val intersects = nightLeft < ownRight && ownLeft < nightRight && nightTop < ownBottom && ownTop < nightBottom
+        if (!intersects || ownBaseline <= nightBaseline) {
+            return NightCollisionResult(nightCenterX, nightBaseline, "none")
+        }
+        return NightCollisionResult(nightCenterX, ownBaseline, "down")
     }
 
     internal fun resolveRainAboveHighPlacement(
