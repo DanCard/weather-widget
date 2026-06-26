@@ -124,6 +124,36 @@ object TemperatureLabelEngine {
         return mapOf(start.index to startAbove, actual.index to !startAbove)
     }
 
+    private val LEFT_EDGE_FORECAST_HIGH_ROLES = setOf(
+        TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH,
+    )
+
+    // Left-edge counterpart to computeLeftEdgeStartOrdering for when the forecast partner is a HIGH
+    // (not a START). A left-edge forecast high and a near-coincident equal-or-cooler ACTUAL_HIGH
+    // would both be force-placed above and stack (the actual via placeActualHighAboveCurve); drop
+    // the cooler observed high BELOW its own peak while the warmer forecast high stays above. Scoped
+    // to the left edge AND the equal-or-cooler case, so the lone actual high and the genuinely
+    // warmer actual are untouched. Returns ONLY the actual override; the forecast high keeps its
+    // existing default-above path.
+    private fun computeLeftEdgeHighOrdering(candidates: List<TempLabelCandidate>): Map<Int, Boolean> {
+        val forecast = candidates
+            .filter { it.role in LEFT_EDGE_FORECAST_HIGH_ROLES }
+            .minByOrNull { it.index } ?: return emptyMap()
+        if (forecast.index > LEFT_EDGE_START_WINDOW) return emptyMap() // left edge only
+        val actual = candidates
+            .filter {
+                it.role == TemperatureRole.ACTUAL_HIGH && it.index != forecast.index &&
+                    abs(it.index - forecast.index) <= LEFT_EDGE_START_WINDOW
+            }
+            .minByOrNull { abs(it.index - forecast.index) } ?: return emptyMap()
+        val forecastVal = forecast.labelTemps[forecast.index]
+        val actualVal = actual.labelTemps[actual.index]
+        if (TemperatureLabelResolver.formatTemp(forecastVal) == TemperatureLabelResolver.formatTemp(actualVal)) return emptyMap()
+        // Only act when the forecast is the warmer one; a genuinely warmer actual keeps default above.
+        if (forecastVal < actualVal) return emptyMap()
+        return mapOf(actual.index to false)
+    }
+
     // Forecast-series labels avoid only the FORECAST curve, never the actual curve. A forecast
     // extreme nested under a much taller/deeper actual curve must sit flush on its OWN forecast peak
     // or valley; treating the towering actual curve as an obstacle drives the label far off-anchor
@@ -173,7 +203,8 @@ object TemperatureLabelEngine {
         TemperatureLabelResolver.sortLabelCandidates(candidates)
 
         val forcedAboveLows = computeForcedAboveLowIndices(candidates)
-        val leftEdgeOrder = computeLeftEdgeStartOrdering(candidates)
+        // computeLeftEdgeStartOrdering wins on any key collision (its START pairing is the tuned case).
+        val leftEdgeOrder = computeLeftEdgeHighOrdering(candidates) + computeLeftEdgeStartOrdering(candidates)
         val drawnLabelMetas = mutableListOf<PlacedLabelMeta>()
         val resultPlacements = mutableListOf<PlacedLabel>()
 
@@ -226,7 +257,9 @@ object TemperatureLabelEngine {
             // spikes past the hourly anchor. Place it above the actual line's local peak under the
             // label, clamping into the header band if there is no room. Above the global observed
             // peak there is only headroom, so this never collides with meaningful data.
-            if (candidate.role == TemperatureRole.ACTUAL_HIGH) {
+            // A left-edge ACTUAL_HIGH paired with a warmer forecast high is rerouted below the curve
+            // via leftEdgeOrder; let it flow through the normal loop instead of forcing it above.
+            if (candidate.role == TemperatureRole.ACTUAL_HIGH && idx !in leftEdgeOrder) {
                 placeActualHighAboveCurve(
                     heightPx = heightPx,
                     density = density,
