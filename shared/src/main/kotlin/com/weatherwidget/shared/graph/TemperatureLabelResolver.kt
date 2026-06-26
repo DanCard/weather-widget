@@ -37,6 +37,12 @@ object TemperatureLabelResolver {
     private const val REDUNDANT_PAIR_PX = 64f
     private const val REDUNDANT_PAIR_WINDOW_CAP = 8
 
+    // A boundary START/END label is redundant with a pixel-near SAME-SERIES forecast extreme when
+    // their DISPLAYED values are within this many degrees — matches how the user reads "73 ≈ 75".
+    // Looser than the strict cross-series (actual) gate, which stays < 2f so forecast-vs-actual pairs
+    // (different series the user compares side by side) keep both labels.
+    private const val SAME_SERIES_BOUNDARY_REDUNDANT_DEGREES = 2
+
     /**
      * Index window within which a nearby labeled extremum can mark this candidate redundant.
      * Zoom-aware when [widthPx] > 0 (converts [REDUNDANT_PAIR_PX] through the view's px-per-hour);
@@ -604,8 +610,10 @@ object TemperatureLabelResolver {
                     if (widthPx > 0) pixelGapByTime(hours, idx, tIdx, widthPx) <= REDUNDANT_PAIR_PX
                     else abs(idx - tIdx) <= boundaryWindow
                 forecastTargets.any { tIdx ->
+                    // Same-series (forecast-vs-forecast): compare DISPLAYED values with a looser ≤2°
+                    // tolerance so a START reading 73 is dropped next to a forecast HIGH reading 75.
                     isTarget(tIdx) && nearEnough(tIdx) &&
-                        abs(labelTemps[idx] - labelTemps[tIdx]) < redundantValueThreshold
+                        abs(labelTemps[idx].roundToInt() - labelTemps[tIdx].roundToInt()) <= SAME_SERIES_BOUNDARY_REDUNDANT_DEGREES
                 } || actualTargets.any { tIdx ->
                     isTarget(tIdx) && nearEnough(tIdx) &&
                         abs(labelTemps[idx] - actualLabelTemps[tIdx]) < redundantValueThreshold

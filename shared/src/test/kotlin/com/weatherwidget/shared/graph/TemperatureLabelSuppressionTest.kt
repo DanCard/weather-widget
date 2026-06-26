@@ -901,4 +901,69 @@ class TemperatureLabelSuppressionTest {
             candidates.any { it.index == 0 && it.role == TemperatureRole.START },
         )
     }
+
+    // Reproduces the live emulator 24h view (2026-06-26): the forecast START at the left edge read 73,
+    // ~2° below the pixel-near forecast HIGH of 75 on the SAME line, so the START label was redundant
+    // noise. It is a forecast-vs-forecast boundary pair (the redundant neighbour is the forecast HIGH,
+    // not an actual high), which the strict cross-series < 2f gate missed. The actual line sits 13°
+    // below the forecast so only the forecast path is exercised. [highMinusStart] sets START's gap
+    // below the HIGH.
+    private fun twentyFourHourForecastStartHours(highMinusStart: Float): List<HourData> {
+        val start = LocalDateTime.of(2026, 6, 26, 13, 0)
+        val f = FloatArray(25)
+        f[0] = 75f - highMinusStart // START
+        f[1] = 74.5f
+        f[2] = 75f                  // forecast daily HIGH (idx 2, ~2h from the edge => pixel-near)
+        for (i in 3..13) f[i] = 75f - (75f - 57f) * (i - 2) / (13 - 2) // decline to LOW 57 at idx 13
+        for (i in 14..24) f[i] = 57f + (68f - 57f) * (i - 13) / (24 - 13) // rise to END 68 at idx 24
+        return (0 until 25).map { i ->
+            val dt = start.plusHours(i.toLong())
+            HourData(
+                dateTime = dt,
+                temperature = f[i],
+                label = "${dt.hour}h",
+                isActual = true,
+                actualTemperature = f[i] - 13f, // far below the forecast => actual path can't suppress START
+            )
+        }
+    }
+
+    @Test
+    fun `left-edge forecast START is dropped when within 2 degrees of a pixel-near forecast HIGH`() {
+        val hours = twentyFourHourForecastStartHours(highMinusStart = 2f) // START 73 vs HIGH 75
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = hours.lastIndex,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 584,
+        )
+
+        assertFalse(
+            "redundant forecast START at idx 0 should be suppressed, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 0 && it.role == TemperatureRole.START },
+        )
+        assertTrue("forecast HIGH (75) should remain at idx 2", candidates.any { it.index == 2 && it.role == TemperatureRole.HIGH })
+    }
+
+    @Test
+    fun `left-edge forecast START is kept when more than 2 degrees from the forecast HIGH`() {
+        val hours = twentyFourHourForecastStartHours(highMinusStart = 3f) // START 72 vs HIGH 75 => 3°
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = hours.lastIndex,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 584,
+        )
+
+        assertTrue(
+            "a forecast START a genuine 3° below the HIGH should be kept, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 0 && it.role == TemperatureRole.START },
+        )
+    }
 }
