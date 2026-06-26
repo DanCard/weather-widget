@@ -277,16 +277,20 @@ internal fun buildHourDataResult(
                     isSunBoundary = isSunBoundary,
                 )
             }
-            val showLabel =
-                if (dateMode) {
-                    hourMs in dateLabelMillis
-                } else when (zoom) {
-                    ZoomLevel.WIDE -> hourIndex % labelInterval == 0
-                    ZoomLevel.THREE_DAY -> hourIndex % labelInterval == 0
-                    ZoomLevel.NARROW -> true
-                }
+            // Shared with the precip/cloud graphs so all three agree on date vs time-of-day footer labels.
+            val nonDateShowLabel = when (zoom) {
+                ZoomLevel.NARROW -> true
+                else -> hourIndex % labelInterval == 0
+            }
+            val labelInfo = HourlyGraphViewCommon.resolveHourLabel(
+                time = time,
+                hourMs = hourMs,
+                dateMode = dateMode,
+                dateLabelMillis = dateLabelMillis,
+                nonDateShowLabel = nonDateShowLabel,
+            )
             base.copy(
-                label = if (dateMode) formatDateLabel(time.toLocalDate()) else formatHourLabel(time),
+                label = labelInfo.label,
                 iconRes = iconRes,
                 isNight = isNight,
                 isTwilight = isTwilight,
@@ -295,7 +299,8 @@ internal fun buildHourDataResult(
                 isRainy = iconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false,
                 isMixed = iconRes?.let { WeatherIconMapper.isMixed(it) } ?: false,
                 isCurrentHour = time == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS),
-                showLabel = showLabel,
+                showLabel = labelInfo.showLabel,
+                isDateLabel = labelInfo.isDateLabel,
             )
         } else {
             val subSunInfo = SunPositionUtils.getSunInfo(time, lat, lon)

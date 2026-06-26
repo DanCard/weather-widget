@@ -58,6 +58,7 @@ object CloudCoverGraphRenderer {
         val isMixed: Boolean = false,
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true,
+        val isDateLabel: Boolean = false,
     )
 
     data class LabelPlacementDebug(
@@ -251,6 +252,7 @@ object CloudCoverGraphRenderer {
             iconSize = footerIconSize,
             iconTextGapDp = GraphRenderUtils.footerIconGapDp(numColumns),
             hasIcon = { showHourlyIcons && it.iconRes != null },
+            isDateLabel = { it.isDateLabel },
         ) { index, iconRect ->
             val hour = hours[index]
             val iconRes = hour.iconRes ?: return@drawHourLabels

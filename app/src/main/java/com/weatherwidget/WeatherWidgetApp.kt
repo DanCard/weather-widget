@@ -35,6 +35,12 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
         com.weatherwidget.shared.util.Log.install(AndroidLogSink)
         installCrashLogger()
         processStartElapsedRealtime = SystemClock.elapsedRealtime()
+        // Cold-start trace anchor. This line's logcat timestamp is process birth (wall-clock); the
+        // first-trigger/first-paint markers below report their age relative to it, so a slow "load"
+        // can be split into "OS started the process late" (large gap before this line vs. when the
+        // widget was looked at / the triggering broadcast was enqueued) vs. "init+render was slow"
+        // (large first_paint ageMs). See COLD_START_TRACE logs.
+        Log.i(COLD_START_TAG, "process onCreate pid=${android.os.Process.myPid()}")
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             OpportunisticUpdateJobService.scheduleOpportunisticUpdate(this)
         }
@@ -95,6 +101,27 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
         fun processAgeMs(nowElapsedRealtime: Long = SystemClock.elapsedRealtime()): Long {
             val start = processStartElapsedRealtime
             return if (start > 0L) (nowElapsedRealtime - start).coerceAtLeast(0L) else Long.MAX_VALUE
+        }
+
+        // --- Cold-start trace (one line each per process lifetime) ----------------------------------
+        // Anchored on [processAgeMs]. firstTrigger = first onReceive/onUpdate reaches the provider;
+        // firstPaint = first widget actually pushed to AppWidgetManager. The gap between them isolates
+        // "process started but render was slow"; the gap between process onCreate (its logcat
+        // timestamp) and the triggering broadcast isolates "OS was slow to start the process".
+        const val COLD_START_TAG = "COLD_START_TRACE"
+        private val firstTriggerLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+        private val firstPaintLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        fun logFirstTriggerOnce(via: String) {
+            if (firstTriggerLogged.compareAndSet(false, true)) {
+                Log.i(COLD_START_TAG, "first_trigger ageMs=${processAgeMs()} via=$via")
+            }
+        }
+
+        fun logFirstPaintOnce(appWidgetId: Int, view: String, path: String) {
+            if (firstPaintLogged.compareAndSet(false, true)) {
+                Log.i(COLD_START_TAG, "first_paint ageMs=${processAgeMs()} widget=$appWidgetId view=$view path=$path")
+            }
         }
     }
 }

@@ -112,6 +112,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
+        com.weatherwidget.WeatherWidgetApp.logFirstTriggerOnce("onUpdate")
         val now = SystemClock.elapsedRealtime()
         val filteredIds = appWidgetIds.filter { id ->
             val last = lastUpdateByWidgetId[id] ?: 0L
@@ -498,6 +499,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     ) {
         super.onReceive(context, intent)
         Log.d(TAG, "onReceive: action=${intent.action}")
+        com.weatherwidget.WeatherWidgetApp.logFirstTriggerOnce("onReceive:${intent.action}")
 
         when (intent.action) {
             WidgetActions.ACTION_REFRESH -> handleRefreshAction(context, intent)

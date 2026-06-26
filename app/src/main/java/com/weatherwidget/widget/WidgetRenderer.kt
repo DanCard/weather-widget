@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
+import com.weatherwidget.WeatherWidgetApp
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
@@ -295,6 +296,11 @@ object WidgetRenderer {
         }
 
         val totalMs = SystemClock.elapsedRealtime() - renderStartMs
+        WeatherWidgetApp.logFirstPaintOnce(
+            appWidgetId = appWidgetId,
+            view = effectiveViewMode.toString(),
+            path = if (startupToken != null) "startupFastPath" else "full",
+        )
         WidgetPerfLogger.logIfSlow(
             appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
             thresholdMs = WidgetPerfLogger.WIDGET_RENDER_SLOW_MS,

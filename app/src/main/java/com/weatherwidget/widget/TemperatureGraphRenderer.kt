@@ -380,6 +380,7 @@ object TemperatureGraphRenderer {
             iconSize = ctx.iconSize.toFloat(),
             iconTextGapDp = GraphRenderUtils.footerIconGapDp(numColumns),
             hasIcon = { it.iconRes != null },
+            isDateLabel = { it.isDateLabel },
         ) { index, iconRect ->
             val hour = hours[index]
             hour.iconRes?.let { res ->

@@ -176,6 +176,29 @@ internal object GraphRenderUtils {
     fun isNarrowWidget(numColumns: Int): Boolean =
         numColumns <= HourlyGraphDefaults.NARROW_WIDGET_MAX_COLUMNS
 
+    /**
+     * Places a date footer label horizontally: clamps a label that extends from [leftExtent] left to
+     * [rightExtent] right of its desired [centerX] so it stays fully on a [widthPx]-wide canvas, and
+     * returns the clamped center — or null (drop the label) when it can't be shown without clipping
+     * the canvas (wider than the canvas) or overlapping the previously drawn date label, whose right
+     * edge is [prevRightPx]. This keeps a label that merely needs a nudge (room to its right, e.g. the
+     * left-edge day on a wide widget) while dropping one that would genuinely jam a neighbor (narrow
+     * widgets). [minGapPx] is the minimum clear space required between adjacent date labels.
+     */
+    fun placeDateLabelCenter(
+        centerX: Float,
+        leftExtent: Float,
+        rightExtent: Float,
+        widthPx: Int,
+        prevRightPx: Float,
+        minGapPx: Float,
+    ): Float? {
+        if (leftExtent + rightExtent > widthPx) return null
+        val clamped = centerX.coerceIn(leftExtent, widthPx - rightExtent)
+        if (clamped - leftExtent < prevRightPx + minGapPx) return null
+        return clamped
+    }
+
     /** dp gap between the hour text and the icon in the inline footer group, by widget width class. */
     fun footerIconGapDp(numColumns: Int): Float =
         if (isNarrowWidget(numColumns)) HourlyGraphDefaults.FOOTER_ICON_GAP_NARROW_DP
@@ -195,8 +218,12 @@ internal object GraphRenderUtils {
      * renders as a single inline row `<hour><a|p><icon>` (e.g. `3p☁`): the numeric part and
      * meridiem drawn as one centered string, then the weather icon to the right. The icon's [RectF] is handed to
      * [drawIcon] so the caller applies its own (condition-specific) tint and draws into it.
-     * The icon is always skipped on the last labeled hour to avoid crowding with its neighbor.
+     * The icon is skipped on the last labeled hour to avoid crowding with its neighbor, except for
+     * date labels ([isDateLabel]), which are one-per-day and far apart so the last day keeps its icon.
      * Hours where [hasIcon] is false fall back to the plain centered label.
+     *
+     * [isDateLabel] marks THREE_DAY per-day date labels ("Tue 23"): such a label is dropped entirely
+     * when it would clip a canvas edge (rather than being clamped inward onto its neighbor).
      */
     fun <T> drawHourLabels(
         canvas: Canvas,
@@ -212,6 +239,7 @@ internal object GraphRenderUtils {
         iconSize: Float = 0f,
         iconTextGapDp: Float = 0f,
         hasIcon: (T) -> Boolean = { false },
+        isDateLabel: (T) -> Boolean = { false },
         drawIcon: ((index: Int, iconRect: RectF) -> Unit)? = null,
     ) {
         val bottomInset = dpToPx(HourlyGraphDefaults.FOOTER_BOTTOM_INSET_DP)
@@ -244,13 +272,23 @@ internal object GraphRenderUtils {
             }
         }
         var lastHourLabelX = -1000f
+        // Right edge of the last drawn date label, for adjacent-overlap detection (date footer only).
+        var lastDateLabelRight = Float.NEGATIVE_INFINITY
+        val dateLabelGap = dpToPx(HourlyGraphDefaults.DATE_LABEL_MIN_GAP_DP)
 
         items.forEachIndexed { index, item ->
             val centerX = points[index].first
             if (!showLabel(item) || centerX - lastHourLabelX < minHourLabelSpacing) return@forEachIndexed
 
             val fullLabel = labelText(item)
-            val inline = iconSize > 0f && drawIcon != null && hasIcon(item) && index != lastLabeledIndex
+
+            val dateLabel = isDateLabel(item)
+
+            // The last-labeled icon is normally skipped to keep crowded time-of-day labels from
+            // colliding near the right edge. Date labels are one-per-day and far apart, so the last
+            // day keeps its icon (otherwise the rightmost day, e.g. "Fri 26", loses its indicator).
+            val inline = iconSize > 0f && drawIcon != null && hasIcon(item) &&
+                (index != lastLabeledIndex || dateLabel)
 
             if (inline) {
                 val hourText = fullLabel.dropLast(1)
@@ -261,7 +299,14 @@ internal object GraphRenderUtils {
                 // the meridiem letter.
                 val leftExtent = hourMerW / 2f
                 val rightExtent = hourMerW / 2f + gap + iconSize
-                val center = centerX.coerceIn(leftExtent, widthPx - rightExtent)
+                // Date labels: clamp inward and drop only when they'd clip the canvas or jam the
+                // neighbor day (overlap-aware). Time-of-day labels keep the plain edge clamp.
+                val center = if (dateLabel) {
+                    placeDateLabelCenter(centerX, leftExtent, rightExtent, widthPx, lastDateLabelRight, dateLabelGap)
+                        ?: return@forEachIndexed
+                } else {
+                    centerX.coerceIn(leftExtent, widthPx - rightExtent)
+                }
                 val textX = center
                 val iconLeft = center + hourMerW / 2f + gap
                 // hourLabelTextPaint is Align.CENTER, so drawText x is the string's center.
@@ -271,10 +316,18 @@ internal object GraphRenderUtils {
                 if (iconLeft + iconSize <= widthPx) {
                     drawIcon?.invoke(index, RectF(iconLeft, iconTop, iconLeft + iconSize, iconBottom))
                 }
+                if (dateLabel) lastDateLabelRight = center + rightExtent
             } else {
                 val textWidth = hourLabelTextPaint.measureText(fullLabel)
-                val clampedX = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+                val half = textWidth / 2f
+                val clampedX = if (dateLabel) {
+                    placeDateLabelCenter(centerX, half, half, widthPx, lastDateLabelRight, dateLabelGap)
+                        ?: return@forEachIndexed
+                } else {
+                    centerX.coerceIn(half, widthPx - half)
+                }
                 canvas.drawText(fullLabel, clampedX, baselineY, hourLabelTextPaint)
+                if (dateLabel) lastDateLabelRight = clampedX + half
             }
             lastHourLabelX = centerX
         }

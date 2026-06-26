@@ -94,12 +94,39 @@ internal object HourlyGraphViewCommon {
         val isRainy: Boolean,
         val isMixed: Boolean,
         val label: String,
+        val isDateLabel: Boolean,
     )
 
+    /** The footer-label decision for one hour: which text, whether to show it, and which kind. */
+    data class HourLabelInfo(val label: String, val showLabel: Boolean, val isDateLabel: Boolean)
+
     /**
-     * Resolves the sun phase, weather icon, and label for one hour — the block both hour-data
+     * The footer-label rule shared by all three hourly graphs (temperature, precip, cloud). At
+     * multi-day ([dateMode], i.e. THREE_DAY zoom) the footer shows one date label per day ("Tue 23")
+     * at the per-day representative hours in [dateLabelMillis]; otherwise it shows a time-of-day label
+     * ("3p") governed by each graph's own cadence ([nonDateShowLabel]). [isDateLabel] downstream
+     * drives both the drop-when-clipped and keep-the-last-day-icon behavior in
+     * [com.weatherwidget.widget.GraphRenderUtils.drawHourLabels].
+     */
+    fun resolveHourLabel(
+        time: LocalDateTime,
+        hourMs: Long,
+        dateMode: Boolean,
+        dateLabelMillis: Set<Long>,
+        nonDateShowLabel: Boolean,
+    ): HourLabelInfo =
+        if (dateMode) {
+            HourLabelInfo(formatDateLabel(time.toLocalDate()), hourMs in dateLabelMillis, true)
+        } else {
+            HourLabelInfo(formatHourLabel(time), nonDateShowLabel, false)
+        }
+
+    /**
+     * Resolves the sun phase, weather icon, and footer label for one hour — the block both hour-data
      * builders shared verbatim. Each builder keeps its own null-check and data-class construction
-     * (cloud cover vs precip probability), reading the common fields off the returned value.
+     * (cloud cover vs precip probability), reading the common fields off the returned value. The
+     * footer label uses the shared [resolveHourLabel] rule so all three graphs agree on date vs
+     * time-of-day labels (see also the temperature graph's TemperatureHourDataBuilder).
      */
     fun resolveHourPresentation(
         currentHour: LocalDateTime,
@@ -109,10 +136,19 @@ internal object HourlyGraphViewCommon {
         lon: Double,
         labelInterval: Int,
         hourIndex: Int,
+        hourMs: Long = 0L,
+        dateMode: Boolean = false,
+        dateLabelMillis: Set<Long> = emptySet(),
     ): HourPresentation {
         val diffMinutes = java.time.Duration.between(currentHour, now).toMinutes()
         val isClosest = kotlin.math.abs(diffMinutes) <= 30
-        val showLabel = isClosest || (hourIndex % labelInterval == 0)
+        val labelInfo = resolveHourLabel(
+            time = currentHour,
+            hourMs = hourMs,
+            dateMode = dateMode,
+            dateLabelMillis = dateLabelMillis,
+            nonDateShowLabel = isClosest || (hourIndex % labelInterval == 0),
+        )
         val sunInfo = SunPositionUtils.getSunInfo(currentHour, lat, lon)
         val isNight = sunInfo.isNight
         val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
@@ -127,7 +163,7 @@ internal object HourlyGraphViewCommon {
         )
         return HourPresentation(
             isCurrentHour = isClosest,
-            showLabel = showLabel,
+            showLabel = labelInfo.showLabel,
             isNight = isNight,
             isTwilight = isTwilight,
             isSunBoundary = isSunBoundary,
@@ -135,7 +171,8 @@ internal object HourlyGraphViewCommon {
             isSunny = WeatherIconMapper.isSunny(iconRes),
             isRainy = WeatherIconMapper.isPrecipitation(iconRes),
             isMixed = WeatherIconMapper.isMixed(iconRes),
-            label = formatHourLabel(currentHour),
+            label = labelInfo.label,
+            isDateLabel = labelInfo.isDateLabel,
         )
     }
 }

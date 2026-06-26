@@ -477,6 +477,11 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         var hourIndex = 0
         val zoneId = ZoneId.systemDefault()
 
+        // At THREE_DAY zoom switch the footer to one date label per day ("Tue 23"), matching the
+        // temperature graph (shared rule in HourlyGraphViewCommon.resolveHourLabel).
+        val dateMode = zoom == com.weatherwidget.widget.ZoomLevel.THREE_DAY
+        val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
+
         while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
             val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
             val forecast = forecastsByTime[hourMs]
@@ -484,6 +489,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             if (forecast != null) {
                 val p = HourlyGraphViewCommon.resolveHourPresentation(
                     currentHour, forecast, now, lat, lon, labelInterval, hourIndex,
+                    hourMs = hourMs, dateMode = dateMode, dateLabelMillis = dateLabelMillis,
                 )
                 hours.add(
                     PrecipitationGraphRenderer.PrecipHourData(
@@ -499,6 +505,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                         isMixed = p.isMixed,
                         isCurrentHour = p.isCurrentHour,
                         showLabel = p.showLabel,
+                        isDateLabel = p.isDateLabel,
                         precipAmountMm = forecast.precipAmountMm,
                         actualPrecipAmountMm =
                             if (currentHour.isBefore(now)) {

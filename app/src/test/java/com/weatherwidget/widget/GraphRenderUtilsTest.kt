@@ -67,6 +67,47 @@ class GraphRenderUtilsTest {
     }
 
     @Test
+    fun `placeDateLabelCenter clamps an edge label inward instead of dropping it when there is room`() {
+        // 60px-wide label (half-extent 30) near the left edge on a wide canvas with no prior label:
+        // clamp its center to 30 so it sits flush on-canvas rather than being dropped.
+        val clamped = GraphRenderUtils.placeDateLabelCenter(
+            centerX = 5f, leftExtent = 30f, rightExtent = 30f, widthPx = 800,
+            prevRightPx = Float.NEGATIVE_INFINITY, minGapPx = 6f,
+        )
+        assertEquals(30f, clamped!!, 0.001f)
+    }
+
+    @Test
+    fun `placeDateLabelCenter drops a label that would overlap the previous one`() {
+        // Previous label ended at x=100; a label clamped to center 110 (half 30) would start at 80,
+        // inside 100 + 6 gap -> drop.
+        val dropped = GraphRenderUtils.placeDateLabelCenter(
+            centerX = 110f, leftExtent = 30f, rightExtent = 30f, widthPx = 800,
+            prevRightPx = 100f, minGapPx = 6f,
+        )
+        assertEquals(null, dropped)
+    }
+
+    @Test
+    fun `placeDateLabelCenter drops a label wider than the canvas`() {
+        val dropped = GraphRenderUtils.placeDateLabelCenter(
+            centerX = 100f, leftExtent = 120f, rightExtent = 120f, widthPx = 200,
+            prevRightPx = Float.NEGATIVE_INFINITY, minGapPx = 6f,
+        )
+        assertEquals(null, dropped)
+    }
+
+    @Test
+    fun `placeDateLabelCenter keeps a well-separated label`() {
+        // Previous ended at 100; this one centers at 400 (half 30) -> starts at 370, clear -> keep.
+        val clamped = GraphRenderUtils.placeDateLabelCenter(
+            centerX = 400f, leftExtent = 30f, rightExtent = 30f, widthPx = 800,
+            prevRightPx = 100f, minGapPx = 6f,
+        )
+        assertEquals(400f, clamped!!, 0.001f)
+    }
+
+    @Test
     fun `smoothValuesPreservingAllExtrema preserves every local peak and valley`() {
         // Dynamic data with two distinct peaks and a valley
         val values = listOf(20f, 80f, 30f, 60f, 10f)

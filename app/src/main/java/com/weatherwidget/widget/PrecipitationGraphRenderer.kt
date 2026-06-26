@@ -47,6 +47,7 @@ object PrecipitationGraphRenderer {
         val isMixed: Boolean = false,
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true,
+        val isDateLabel: Boolean = false,
         val precipAmountMm: Float? = null,
         val actualPrecipAmountMm: Float? = null,
     )
@@ -683,6 +684,7 @@ object PrecipitationGraphRenderer {
             iconSize = footerIconSize,
             iconTextGapDp = GraphRenderUtils.footerIconGapDp(numColumns),
             hasIcon = { showHourlyIcons && it.iconRes != null },
+            isDateLabel = { it.isDateLabel },
         ) { index, iconRect ->
             val hour = hours[index]
             val iconRes = hour.iconRes ?: return@drawHourLabels
