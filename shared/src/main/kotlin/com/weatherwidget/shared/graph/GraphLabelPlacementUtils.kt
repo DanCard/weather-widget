@@ -20,15 +20,15 @@ object GraphLabelPlacementUtils {
 
     // Above-curve gap for the ACTUAL (observed) high specifically. Its placement always sits above the
     // spikey observed line (placeActualHighAboveCurve never flips below), so it can go tighter than the
-    // forecast high — 0dp pulls the number right onto the spike (remaining visual gap is the font
-    // descent only).
-    const val TEMP_ACTUAL_HIGH_ABOVE_GAP_DP = 0f
+    // forecast high. -1dp pulls the number a hair onto the spike so it reads as sitting right on the
+    // observed peak (and frees a touch of headroom above for a warmer forecast high to clear it).
+    const val TEMP_ACTUAL_HIGH_ABOVE_GAP_DP = -2f
 
     // Below-trough gap for the ACTUAL (observed) low when the normal below direction is blocked by
     // curve intrusion. The label hugs tight below the observed trough (no leader line), mirroring the
-    // high's above-spike placement. 1dp keeps the number very close while leaving a hair of visual
-    // separation from the actual line's minimum.
-    const val TEMP_ACTUAL_LOW_BELOW_GAP_DP = 1f
+    // high's above-spike placement. 0dp pulls the number right onto the observed minimum (remaining
+    // visual gap is the font ascent only).
+    const val TEMP_ACTUAL_LOW_BELOW_GAP_DP = 0f
 
     enum class CandidateKind {
         GLOBAL_MAX,
