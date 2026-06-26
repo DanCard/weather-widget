@@ -598,8 +598,13 @@ object TemperatureLabelResolver {
             // AND the per-day actual extrema — the per-day observed high sitting beside the edge is what
             // makes the forecast boundary value redundant (the global actual high may be far to the right).
             TemperatureRole.START, TemperatureRole.END -> {
-                val forecastTargets = listOf(
-                    extrema.dailyHighIndex, extrema.dailyLowIndex,
+                // The GLOBAL daily extrema (the single most important forecast labels) get the looser
+                // displayed-value tolerance: a START reading 73 beside the daily HIGH reading 75 is
+                // redundant. SECONDARY forecast extrema (forecast-region / past-forecast high/low) keep
+                // the strict raw < 2 gate, so e.g. an END reading 57 beside a forecast LOW of 55 — a
+                // distinct local valley, not THE daily low — is still its own boundary label.
+                val dailyTargets = listOf(extrema.dailyHighIndex, extrema.dailyLowIndex)
+                val secondaryForecastTargets = listOf(
                     extrema.forecastHighIndex, extrema.forecastLowIndex,
                     extrema.pastForecastHighIndex, extrema.pastForecastLowIndex,
                 )
@@ -609,11 +614,12 @@ object TemperatureLabelResolver {
                 fun nearEnough(tIdx: Int): Boolean =
                     if (widthPx > 0) pixelGapByTime(hours, idx, tIdx, widthPx) <= REDUNDANT_PAIR_PX
                     else abs(idx - tIdx) <= boundaryWindow
-                forecastTargets.any { tIdx ->
-                    // Same-series (forecast-vs-forecast): compare DISPLAYED values with a looser ≤2°
-                    // tolerance so a START reading 73 is dropped next to a forecast HIGH reading 75.
+                dailyTargets.any { tIdx ->
                     isTarget(tIdx) && nearEnough(tIdx) &&
                         abs(labelTemps[idx].roundToInt() - labelTemps[tIdx].roundToInt()) <= SAME_SERIES_BOUNDARY_REDUNDANT_DEGREES
+                } || secondaryForecastTargets.any { tIdx ->
+                    isTarget(tIdx) && nearEnough(tIdx) &&
+                        abs(labelTemps[idx] - labelTemps[tIdx]) < redundantValueThreshold
                 } || actualTargets.any { tIdx ->
                     isTarget(tIdx) && nearEnough(tIdx) &&
                         abs(labelTemps[idx] - actualLabelTemps[tIdx]) < redundantValueThreshold
