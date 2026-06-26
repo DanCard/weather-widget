@@ -112,16 +112,29 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
         private val firstTriggerLogged = java.util.concurrent.atomic.AtomicBoolean(false)
         private val firstPaintLogged = java.util.concurrent.atomic.AtomicBoolean(false)
 
+        // The first-trigger age, captured so a persisted slow-paint row can split the latency into
+        // "OS slow to deliver the broadcast" (large trigger age) vs "our render was slow" (large
+        // paint-minus-trigger gap). -1 until the first trigger fires.
+        @Volatile
+        private var firstTriggerAgeMs: Long = -1L
+
+        fun coldStartTriggerAgeMs(): Long = firstTriggerAgeMs
+
         fun logFirstTriggerOnce(via: String) {
             if (firstTriggerLogged.compareAndSet(false, true)) {
-                Log.i(COLD_START_TAG, "first_trigger ageMs=${processAgeMs()} via=$via")
+                firstTriggerAgeMs = processAgeMs()
+                Log.i(COLD_START_TAG, "first_trigger ageMs=$firstTriggerAgeMs via=$via")
             }
         }
 
-        fun logFirstPaintOnce(appWidgetId: Int, view: String, path: String) {
+        /** Returns the process-age (ms) at the first paint, or -1 if this was not the first paint. */
+        fun logFirstPaintOnce(appWidgetId: Int, view: String, path: String): Long {
             if (firstPaintLogged.compareAndSet(false, true)) {
-                Log.i(COLD_START_TAG, "first_paint ageMs=${processAgeMs()} widget=$appWidgetId view=$view path=$path")
+                val ageMs = processAgeMs()
+                Log.i(COLD_START_TAG, "first_paint ageMs=$ageMs widget=$appWidgetId view=$view path=$path")
+                return ageMs
             }
+            return -1L
         }
     }
 }

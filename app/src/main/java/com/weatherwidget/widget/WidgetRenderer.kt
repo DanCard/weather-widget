@@ -296,11 +296,31 @@ object WidgetRenderer {
         }
 
         val totalMs = SystemClock.elapsedRealtime() - renderStartMs
-        WeatherWidgetApp.logFirstPaintOnce(
+        val firstPaintAgeMs = WeatherWidgetApp.logFirstPaintOnce(
             appWidgetId = appWidgetId,
             view = effectiveViewMode.toString(),
             path = if (startupToken != null) "startupFastPath" else "full",
         )
+        // First paint of this process: persist the cold-start latency to app_logs ONLY when slow, so a
+        // future ~20s outlier survives logcat rotation. firstPaintAgeMs is process-age to paint (the
+        // 20s symptom), distinct from the per-render totalMs logged below. firstTriggerAgeMs in the
+        // message isolates OS-slow-to-deliver vs render-slow.
+        if (firstPaintAgeMs >= 0L) {
+            WidgetPerfLogger.logIfSlow(
+                appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
+                thresholdMs = WidgetPerfLogger.COLD_START_SLOW_MS,
+                totalMs = firstPaintAgeMs,
+                appLogTag = WidgetPerfLogger.TAG_COLD_START_PERF,
+                message = WidgetPerfLogger.kv(
+                    "widget" to appWidgetId,
+                    "view" to effectiveViewMode,
+                    "path" to (if (startupToken != null) "startupFastPath" else "full"),
+                    "firstPaintAgeMs" to firstPaintAgeMs,
+                    "firstTriggerAgeMs" to WeatherWidgetApp.coldStartTriggerAgeMs(),
+                ),
+                debugTag = TAG,
+            )
+        }
         WidgetPerfLogger.logIfSlow(
             appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
             thresholdMs = WidgetPerfLogger.WIDGET_RENDER_SLOW_MS,
