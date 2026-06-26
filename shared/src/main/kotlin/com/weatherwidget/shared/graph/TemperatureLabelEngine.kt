@@ -269,7 +269,6 @@ object TemperatureLabelEngine {
                     actualVisiblePoints = actualVisiblePoints,
                     candidate = candidate,
                     geometry = geometry,
-                    gapDp = gapDp,
                     labelAscent = labelAscent,
                     labelDescent = labelDescent,
                     drawnLabelMetas = drawnLabelMetas,
@@ -518,7 +517,6 @@ object TemperatureLabelEngine {
         actualVisiblePoints: List<Pair<Float, Float>>,
         candidate: TempLabelCandidate,
         geometry: ResolvedLabelGeometry,
-        gapDp: GraphLabelPlacementUtils.LabelGapDp,
         labelAscent: Float,
         labelDescent: Float,
         drawnLabelMetas: MutableList<PlacedLabelMeta>,
@@ -536,7 +534,9 @@ object TemperatureLabelEngine {
             if (px in left..right && py < curveTopY) curveTopY = py
         }
 
-        val gapAbovePx = gapDp.aboveDp * density
+        // The observed high rides right on its spike (this path never flips below), so use the tighter
+        // actual-high gap rather than the shared above gap.
+        val gapAbovePx = GraphLabelPlacementUtils.TEMP_ACTUAL_HIGH_ABOVE_GAP_DP * density
         val placement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
             pointY = curveTopY,
             placeAbove = true,
