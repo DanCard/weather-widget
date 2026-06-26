@@ -55,6 +55,24 @@ object TemperatureLabelResolver {
         return windowIndices.roundToInt().coerceIn(1, REDUNDANT_PAIR_WINDOW_CAP)
     }
 
+    /**
+     * On-screen horizontal gap (px) between two indices, derived from their real timestamps rather
+     * than index position. A single averaged px-per-hour (as in [computeRedundantPairWindow]) cannot
+     * see that the densely-sampled observed region near an edge packs many indices into a few pixels
+     * — e.g. on a 3-day view idx 0 and idx 30 can be ~5px apart yet 30 indices apart. This per-pair
+     * measure is exact for non-uniform sampling. Returns [Float.MAX_VALUE] when geometry is unknown
+     * (widthPx<=0) or the span is degenerate, so geometry-less unit tests fall back to never-near.
+     */
+    private fun pixelGapByTime(hours: List<HourData>, idxA: Int, idxB: Int, widthPx: Int): Float {
+        if (widthPx <= 0) return Float.MAX_VALUE
+        val a = hours.getOrNull(idxA) ?: return Float.MAX_VALUE
+        val b = hours.getOrNull(idxB) ?: return Float.MAX_VALUE
+        val spanMinutes = Duration.between(hours.first().dateTime, hours.last().dateTime).toMinutes()
+        if (spanMinutes <= 0L) return Float.MAX_VALUE
+        val pairMinutes = abs(Duration.between(a.dateTime, b.dateTime).toMinutes())
+        return pairMinutes.toFloat() / spanMinutes.toFloat() * widthPx
+    }
+
     val ESSENTIAL_LABEL_ROLES: Set<TemperatureRole> = setOf(
         TemperatureRole.LOW,
         TemperatureRole.HIGH,
@@ -248,7 +266,7 @@ object TemperatureLabelResolver {
             }
             fetchResult.overriddenRole?.let { role = it }
 
-            if (checkRedundantPairSuppression(idx, role, extrema, suppressedIndices, labelTemps, actualLabelTemps, boundaryRedundancyWindow)) {
+            if (checkRedundantPairSuppression(idx, role, extrema, suppressedIndices, labelTemps, actualLabelTemps, boundaryRedundancyWindow, hours, widthPx)) {
                 if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
                     Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=REDUNDANT")
                 }
@@ -539,6 +557,8 @@ object TemperatureLabelResolver {
         labelTemps: List<Float>,
         actualLabelTemps: List<Float>,
         boundaryWindow: Int,
+        hours: List<HourData>,
+        widthPx: Int,
     ): Boolean {
         val redundantValueThreshold = 2f
         // Legacy index window for same-semantic extrema pairs (forecast vs actual high/low): these
@@ -563,7 +583,35 @@ object TemperatureLabelResolver {
                 extrema.actualHighIndex >= 0 && isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], extremaWindow, redundantValueThreshold, "ACTUAL_HIGH")
             TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW ->
                 extrema.actualLowIndex >= 0 && isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], extremaWindow, redundantValueThreshold, "ACTUAL_LOW")
-            TemperatureRole.LOCAL, TemperatureRole.END, TemperatureRole.ACTUAL_END, TemperatureRole.START -> {
+            // Edge (boundary) labels are positional anchors, so "nearby" is a visual pixel budget, not
+            // an index window. In the densely-sampled observed region near an edge many indices collapse
+            // into a few pixels, so a START at idx 0 can be pixel-adjacent to a HIGH/ACTUAL_HIGH 30
+            // indices away (a 3-day view packs idx 0..30 into ~5px). Measure the gap from real
+            // timestamps (pixelGapByTime) when geometry is known; fall back to the legacy index window
+            // for geometry-less callers (unit tests). Targets include the global forecast/actual extrema
+            // AND the per-day actual extrema — the per-day observed high sitting beside the edge is what
+            // makes the forecast boundary value redundant (the global actual high may be far to the right).
+            TemperatureRole.START, TemperatureRole.END -> {
+                val forecastTargets = listOf(
+                    extrema.dailyHighIndex, extrema.dailyLowIndex,
+                    extrema.forecastHighIndex, extrema.forecastLowIndex,
+                    extrema.pastForecastHighIndex, extrema.pastForecastLowIndex,
+                )
+                val actualTargets = listOf(extrema.actualHighIndex, extrema.actualLowIndex) +
+                    extrema.actualDailyHighIndices + extrema.actualDailyLowIndices
+                fun isTarget(tIdx: Int): Boolean = tIdx >= 0 && tIdx != idx && tIdx !in suppressedIndices
+                fun nearEnough(tIdx: Int): Boolean =
+                    if (widthPx > 0) pixelGapByTime(hours, idx, tIdx, widthPx) <= REDUNDANT_PAIR_PX
+                    else abs(idx - tIdx) <= boundaryWindow
+                forecastTargets.any { tIdx ->
+                    isTarget(tIdx) && nearEnough(tIdx) &&
+                        abs(labelTemps[idx] - labelTemps[tIdx]) < redundantValueThreshold
+                } || actualTargets.any { tIdx ->
+                    isTarget(tIdx) && nearEnough(tIdx) &&
+                        abs(labelTemps[idx] - actualLabelTemps[tIdx]) < redundantValueThreshold
+                }
+            }
+            TemperatureRole.LOCAL, TemperatureRole.ACTUAL_END -> {
                 val forecastCandidates = listOf(
                     extrema.dailyHighIndex, extrema.dailyLowIndex,
                     extrema.forecastHighIndex, extrema.forecastLowIndex,

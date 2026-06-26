@@ -830,4 +830,75 @@ class TemperatureLabelSuppressionTest {
             candidates.any { it.index == 0 && it.role == TemperatureRole.ACTUAL_LOW }
         )
     }
+
+    // Reproduces the live emulator 3-day case (2026-06-26): the left edge stacked THREE labels —
+    // forecast HIGH (75), per-day ACTUAL_HIGH (72.7), and the forecast START boundary (73). The
+    // observed region is densely sampled (sub-hourly), so the START at idx 0 is only a few PIXELS from
+    // the per-day actual high yet ~20 indices away. The old index-window redundancy check (cap 8) could
+    // not see they were pixel-adjacent, AND it only compared START against the GLOBAL actual high
+    // (which here lands on the next day at idx 43), never the pixel-near per-day high — so START
+    // survived as redundant noise. Builds a 31-sample one-minute cluster + an hourly remainder.
+    private fun denseLeftEdgeHours(perDayActualHighPeak: Float): List<HourData> {
+        val base = LocalDateTime.of(2026, 6, 24, 15, 0)
+        val out = mutableListOf<HourData>()
+        // Dense observed cluster: 31 samples one minute apart (15:00..15:30). Forecast peaks at 75
+        // (idx 15 = daily HIGH); START at idx 0 reads ~71. The observed line peaks at
+        // [perDayActualHighPeak] (idx 20 = a PER-DAY actual high) ~11px from START but 20 indices away.
+        for (i in 0 until 31) {
+            val dt = base.plusMinutes(i.toLong())
+            val forecast = 75f - 0.27f * kotlin.math.abs(i - 15)            // 71 -> 75 -> 71
+            val actual = perDayActualHighPeak - 0.10f * kotlin.math.abs(i - 20)
+            out.add(HourData(dt, forecast, "${dt.minute}m", isActual = true, actualTemperature = actual))
+        }
+        // Sparse hourly remainder (16:00 d1 -> 08:00 d2): an overnight forecast low (57) and the GLOBAL
+        // observed high (74) on the next day, so extrema.actualHighIndex is far from idx 0 and the
+        // per-day list is what the START redundancy check must consult.
+        val sparseForecast = listOf(71f, 69f, 66f, 63f, 60f, 58f, 57f, 58f, 61f, 64f, 67f, 70f, 72f, 73f, 72f, 71f, 70f)
+        val sparseActual = listOf(71f, 70f, 68f, 66f, 64f, 62f, 61f, 62f, 65f, 68f, 71f, 73f, 74f, 73.5f, 72f, 71f, 70f)
+        for (k in sparseForecast.indices) {
+            val dt = base.plusHours((k + 1).toLong())
+            out.add(HourData(dt, sparseForecast[k], "${dt.hour}h", isActual = true, actualTemperature = sparseActual[k]))
+        }
+        return out
+    }
+
+    @Test
+    fun `left-edge START is dropped when a per-day actual high is pixel-near but index-far`() {
+        val hours = denseLeftEdgeHours(perDayActualHighPeak = 72.7f) // START 71 vs 72.7 => 1.7° < 2°
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = hours.lastIndex,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 584,
+        )
+
+        assertFalse(
+            "redundant left-edge START at idx 0 should be suppressed, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 0 && it.role == TemperatureRole.START },
+        )
+        // The informative labels remain.
+        assertTrue("forecast daily HIGH (75) should remain", candidates.any { it.role == TemperatureRole.HIGH })
+    }
+
+    @Test
+    fun `left-edge START is retained when the nearby per-day actual high differs by more than 2 degrees`() {
+        val hours = denseLeftEdgeHours(perDayActualHighPeak = 74f) // START 71 vs 74 => 3° > 2°
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = hours.lastIndex,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 584,
+        )
+
+        assertTrue(
+            "a genuinely distinct left-edge START should be kept, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 0 && it.role == TemperatureRole.START },
+        )
+    }
 }
