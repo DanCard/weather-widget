@@ -15,6 +15,13 @@ object TemperatureExtrema {
     // only a clearly-unreached high — a morning bump well below the afternoon forecast — is dropped.
     private const val INCOMPLETE_DAY_HIGH_MARGIN_DEGREES = 5f
 
+    // How far below BOTH flanking daily highs the trough between them must dip before we inject it as
+    // a diurnal (overnight) actual low that the per-calendar-day pass missed. This is the gate that
+    // separates a genuine overnight valley (deep — inject it) from a shallow same-peak shoulder (a
+    // peak split across midnight — don't inject; let the shoulder-drop collapse it as before). A real
+    // night dips many degrees; a split-peak shoulder dips < ~2°.
+    private const val INTER_PEAK_LOW_MIN_PROMINENCE_DEGREES = 3f
+
     data class ExtremaIndices(
         val labelTemps: List<Float>,
         val actualLabelTemps: List<Float>,
@@ -121,7 +128,7 @@ object TemperatureExtrema {
 
         val actualByDay = actualIndices.groupBy { hours[it].dateTime.toLocalDate() }
         val rawDailyHighIndices = actualByDay.values.mapNotNull { d -> d.maxByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMax(it) && dayHighReached(it) }.sorted()
-        val rawDailyLowIndices = actualByDay.values.mapNotNull { d -> d.minByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMin(it) }.sorted()
+        val perDayLowIndices = actualByDay.values.mapNotNull { d -> d.minByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMin(it) }.sorted()
         // Per-day RAW actual-extrema trace. VERBOSE => logcat/console only, never persisted to app_logs
         // (the sparse-log boundary drops VERBOSE), so it is cheap to leave on permanently. This is the
         // FIRST place to look when a day's pink actual high/low label goes missing: it shows each
@@ -141,7 +148,30 @@ object TemperatureExtrema {
                 "nbr[-1]=${minIdx?.let { if (it - 1 in actualLabelTemps.indices) actualLabelTemps[it - 1] else null }} " +
                 "nbr[+1]=${minIdx?.let { if (it + 1 in actualLabelTemps.indices) actualLabelTemps[it + 1] else null }})")
         }
-        Log.v(TAG, "PERDAY_RAW highs=$rawDailyHighIndices lows=$rawDailyLowIndices actualStart=$actualStartIndex actualEnd=$actualEndIndex")
+        Log.v(TAG, "PERDAY_RAW highs=$rawDailyHighIndices lows=$perDayLowIndices actualStart=$actualStartIndex actualEnd=$actualEndIndex")
+
+        // Inject the diurnal trough BETWEEN consecutive daily highs when the per-calendar-day pass
+        // missed it. A night low that straddles midnight makes its calendar day's minimum land on a
+        // still-descending ~23:55 shoulder (localMin=false, visible in PERDAY_RAW), so that day yields
+        // no low and the real trough is mis-owned by the next day. Two daily highs then sit adjacent
+        // and the shoulder-drop below would wrongly collapse the cooler one as a "split peak". For each
+        // high-pair with no per-day low between them, add the deepest OBSERVED point in the gap — but
+        // ONLY when it is a genuine valley (>= INTER_PEAK_LOW_MIN_PROMINENCE_DEGREES below both flanking
+        // highs). That prominence gate keeps a real overnight trough (deep) while still letting a shallow
+        // same-peak shoulder fall through to the shoulder-drop, preserving existing behaviour.
+        val interPeakLows = rawDailyHighIndices.zipWithNext().mapNotNull { (hiA, hiB) ->
+            if (perDayLowIndices.any { it in (hiA + 1) until hiB }) return@mapNotNull null
+            val troughIdx = actualIndices.filter { it in (hiA + 1) until hiB }
+                .minByOrNull { actualLabelTemps[it] } ?: return@mapNotNull null
+            val flankMin = minOf(actualLabelTemps[hiA], actualLabelTemps[hiB])
+            if (isActualLocalMin(troughIdx) &&
+                actualLabelTemps[troughIdx] <= flankMin - INTER_PEAK_LOW_MIN_PROMINENCE_DEGREES) troughIdx else null
+        }
+        val rawDailyLowIndices = (perDayLowIndices + interPeakLows).distinct().sorted()
+        if (interPeakLows.isNotEmpty()) {
+            Log.v(TAG, "INTER_PEAK_LOW_INJECTED idxs=$interPeakLows temps=${interPeakLows.map { actualLabelTemps[it] }} " +
+                "t=${interPeakLows.map { hours[it].dateTime.toLocalTime() }}")
+        }
 
         // Drop midnight-straddle "shoulder" extrema. A genuine diurnal cycle always separates two
         // successive actual lows with an actual high (and two highs with a low), so walking the

@@ -966,4 +966,54 @@ class TemperatureLabelSuppressionTest {
             candidates.any { it.index == 0 && it.role == TemperatureRole.START },
         )
     }
+
+    // Reproduces the live 3-day emulator bug (2026-06-26): on a multi-day COOLING trend, a day's
+    // overnight low straddles midnight — its calendar-day minimum lands on a still-descending ~23:00
+    // shoulder (fails isActualLocalMin), so that day yields NO per-day low. The two adjacent daily highs
+    // then sit consecutive and the shoulder-drop collapses one of them. The diurnal trough between two
+    // daily highs must be injected so BOTH highs survive AND the overnight low is labeled.
+    // Cooling trend, hourly, Mon/Tue/Wed: each night colder than the previous, with the diurnal minimum
+    // after midnight, so Tue's calendar min lands at Tue 23:00 (still descending into Wed's deeper pre-dawn
+    // trough) and is rejected — leaving Tue with no per-day low.
+    private fun coolingTrendMidnightStraddleHours(): List<HourData> {
+        val start = LocalDateTime.of(2026, 6, 8, 0, 0) // Monday 00:00 -> Mon/Tue/Wed
+        val controls = listOf(0 to 64f, 3 to 62f, 14 to 75f, 27 to 61f, 38 to 74f, 47 to 59f, 51 to 56f, 62 to 73f, 71 to 60f)
+        fun actualAt(h: Int): Float {
+            val hi = controls.indexOfFirst { it.first >= h }.coerceAtLeast(1)
+            val (x0, y0) = controls[hi - 1]
+            val (x1, y1) = controls[hi]
+            return if (x1 == x0) y1 else y0 + (y1 - y0) * (h - x0) / (x1 - x0)
+        }
+        return (0 until 72).map { h ->
+            val dt = start.plusHours(h.toLong())
+            val a = actualAt(h)
+            HourData(dateTime = dt, temperature = a + 3f, label = "${dt.hour}h", isActual = true, actualTemperature = a)
+        }
+    }
+
+    @Test
+    fun `midnight-straddle overnight low is injected between two daily highs so neither high is dropped`() {
+        val hours = coolingTrendMidnightStraddleHours()
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = hours.lastIndex,
+            transitionX = null,
+            observedAt = null,
+            widthPx = 600,
+        )
+
+        // All three days keep their actual high. Without the inter-peak injection, Tue's straddling
+        // overnight low is missed, Mon-high (h14) and Tue-high (h38) collapse via shoulder-drop, and a
+        // high vanishes (the live "no actual high for Wed 24" symptom).
+        assertTrue("Mon actual high (h14) should be labeled, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 14 && it.role == TemperatureRole.ACTUAL_HIGH })
+        assertTrue("Tue actual high (h38) should be labeled", candidates.any { it.index == 38 && it.role == TemperatureRole.ACTUAL_HIGH })
+        assertTrue("Wed actual high (h62) should be labeled", candidates.any { it.index == 62 && it.role == TemperatureRole.ACTUAL_HIGH })
+        // The Mon->Tue overnight trough (h27, ~61°) — missed by per-calendar-day detection — is injected
+        // and labeled (the live "no actual low for following low temp" symptom).
+        assertTrue("injected inter-peak overnight low (h27) should be labeled, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 27 && it.role == TemperatureRole.ACTUAL_LOW })
+    }
 }
