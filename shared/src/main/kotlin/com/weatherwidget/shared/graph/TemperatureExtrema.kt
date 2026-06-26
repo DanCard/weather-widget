@@ -122,6 +122,26 @@ object TemperatureExtrema {
         val actualByDay = actualIndices.groupBy { hours[it].dateTime.toLocalDate() }
         val rawDailyHighIndices = actualByDay.values.mapNotNull { d -> d.maxByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMax(it) && dayHighReached(it) }.sorted()
         val rawDailyLowIndices = actualByDay.values.mapNotNull { d -> d.minByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMin(it) }.sorted()
+        // Per-day RAW actual-extrema trace. VERBOSE => logcat/console only, never persisted to app_logs
+        // (the sparse-log boundary drops VERBOSE), so it is cheap to leave on permanently. This is the
+        // FIRST place to look when a day's pink actual high/low label goes missing: it shows each
+        // calendar day's chosen min/max index + temp + time and which predicate gates it
+        // (localMax/dayHighReached for highs, localMin for lows), plus the rejected min's neighbours.
+        // Classic failure it exposes: an overnight low that straddles midnight makes a day's calendar
+        // minimum land on a still-descending shoulder near 23:55 (localMin=false), so that day gets no
+        // low and the real trough is owned by the next calendar day.
+        actualByDay.entries.sortedBy { it.key }.forEach { (date, idxs) ->
+            val maxIdx = idxs.maxByOrNull { actualLabelTemps[it] }
+            val minIdx = idxs.minByOrNull { actualLabelTemps[it] }
+            Log.v(TAG, "PERDAY_RAW date=$date n=${idxs.size} range=[${idxs.minOrNull()}..${idxs.maxOrNull()}] " +
+                "max(idx=$maxIdx t=${maxIdx?.let { hours[it].dateTime.toLocalTime() }} temp=${maxIdx?.let { actualLabelTemps[it] }} " +
+                "localMax=${maxIdx?.let { isActualLocalMax(it) }} highReached=${maxIdx?.let { dayHighReached(it) }}) " +
+                "min(idx=$minIdx t=${minIdx?.let { hours[it].dateTime.toLocalTime() }} temp=${minIdx?.let { actualLabelTemps[it] }} " +
+                "localMin=${minIdx?.let { isActualLocalMin(it) }} " +
+                "nbr[-1]=${minIdx?.let { if (it - 1 in actualLabelTemps.indices) actualLabelTemps[it - 1] else null }} " +
+                "nbr[+1]=${minIdx?.let { if (it + 1 in actualLabelTemps.indices) actualLabelTemps[it + 1] else null }})")
+        }
+        Log.v(TAG, "PERDAY_RAW highs=$rawDailyHighIndices lows=$rawDailyLowIndices actualStart=$actualStartIndex actualEnd=$actualEndIndex")
 
         // Drop midnight-straddle "shoulder" extrema. A genuine diurnal cycle always separates two
         // successive actual lows with an actual high (and two highs with a low), so walking the
