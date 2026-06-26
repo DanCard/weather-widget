@@ -411,6 +411,15 @@ fun runDaemon() {
                                     Log.i(TAG, "UI process is not alive. Spawning a new UI process...")
                                     uiProcess = runCatching { launchUiProcess() }.getOrElse { e ->
                                         Log.e(TAG, "Failed to launch UI process: ${e.message}", e)
+                                        // Most likely the distributable was deleted out from under
+                                        // this daemon (it survives on a deleted inode but can't exec
+                                        // the missing launcher). Give the click immediate feedback —
+                                        // the panel ⚠ only refreshes on genmon's next poll.
+                                        notifyDesktop(
+                                            "Weather Widget can't open",
+                                            "App files are missing — rebuild and restart: scripts/buildStart.sh",
+                                            urgency = "critical",
+                                        )
                                         null
                                     }
                                 }

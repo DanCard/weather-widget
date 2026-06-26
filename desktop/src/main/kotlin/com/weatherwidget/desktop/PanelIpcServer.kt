@@ -55,6 +55,15 @@ class PanelIpcServer(private val appDataDir: Path) {
         val temp = forecast?.currentTemp
         val body = if (temp != null) String.format(Locale.US, "%.1f°", temp) else "--"
 
+        // The distributable can be deleted out from under us (a clean/rebuild) while this daemon
+        // keeps running on its deleted inode. We still serve fresh data here, but the daemon can no
+        // longer spawn the popup, so every genmon click fails silently. Surface that on the panel
+        // itself (and rewire the click to explain the fix) instead of leaving the user guessing.
+        if (isUiLauncherMissing()) {
+            currentMarkup.set(missingLauncherMarkup(body))
+            return
+        }
+
         val isStale = dataStatus is DataStatus.Stale
         val color = if (isStale || temp == null) STALE_COLOR else LIVE_COLOR
 
@@ -104,6 +113,24 @@ class PanelIpcServer(private val appDataDir: Path) {
         const val LIVE_COLOR = "#FFD500"   // high-contrast yellow, matches the tray icon
         const val STALE_COLOR = "#888888"  // grayed when data is stale / missing
         const val DELTA_COLOR = "#FF6B35"  // orange, matches the popup header delta
+        const val WARN_COLOR = "#FF3333"   // red, for "app files removed — restart needed"
+
+        /**
+         * Panel markup shown when the UI launcher binary was deleted (see [isUiLauncherMissing]).
+         * Keeps the live temperature but flags it with a red ⚠, explains the fix in the tooltip, and
+         * rewires the click away from the now-dead `touch .show` (which can no longer spawn the UI)
+         * to a desktop notification. Pure, so it's unit-testable. No `&` in the Pango-bound text
+         * (the panel/tooltip parse markup); the notify-send command is plain shell.
+         */
+        internal fun missingLauncherMarkup(body: String): String = buildPanelMarkup(
+            body = "$body ⚠",
+            color = WARN_COLOR,
+            deltaText = null,
+            tooltip = "Weather Widget: app files were removed — rebuild and restart " +
+                "(scripts/buildStart.sh)",
+            clickCmd = "notify-send -u critical -a 'Weather Widget' 'Weather Widget' " +
+                "'App files were removed. Rebuild and restart: scripts/buildStart.sh'",
+        )
 
         /**
          * Builds the genmon Pango markup. Pure (no I/O) so the delta logic is unit-testable.

@@ -207,3 +207,32 @@ fun launchUiProcess(): Process {
 
     return pb.inheritIO().start()
 }
+
+/**
+ * The absolute path [launchUiProcess] would exec (the command's first element), or null when it
+ * cannot be determined. Used to detect that the running distributable was deleted out from under a
+ * live daemon: the daemon keeps running on its now-deleted inode (still serving the panel socket and
+ * fetching data) but can no longer `posix_spawn` the UI window — every genmon click then fails
+ * silently with "No such file or directory".
+ */
+fun uiLaunchExecutablePath(): String? = runCatching {
+    if (isPackaged()) System.getProperty("jpackage.app-path")
+    else ProcessHandle.current().info().command().orElse(null)
+}.getOrNull()
+
+/** True when the UI launcher binary is gone (e.g. a `clean`/rebuild removed the distributable). */
+fun isUiLauncherMissing(): Boolean {
+    val path = uiLaunchExecutablePath() ?: return false // unknown → don't cry wolf
+    return !Files.exists(Path.of(path))
+}
+
+/**
+ * Best-effort desktop notification via `notify-send` (XFCE's notifyd). Fire-and-forget: never throws
+ * and is a no-op when `notify-send` is absent, matching the project's best-effort/interrupt-driven
+ * preference — a missing notifier must never take down the daemon.
+ */
+fun notifyDesktop(summary: String, body: String, urgency: String = "normal") {
+    runCatching {
+        ProcessBuilder("notify-send", "-u", urgency, "-a", "Weather Widget", summary, body).start()
+    }.onFailure { Log.w("DesktopProcess", "notify-send failed: ${it.message}") }
+}

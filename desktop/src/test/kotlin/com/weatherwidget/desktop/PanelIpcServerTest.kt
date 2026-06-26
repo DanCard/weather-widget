@@ -30,6 +30,18 @@ class PanelIpcServerTest {
     }
 
     @Test
+    fun `missing-launcher markup warns, keeps the temp, and rewires the dead click`() {
+        val m = PanelIpcServer.missingLauncherMarkup("72.5°")
+        assertTrue("temperature retained", m.contains("72.5°"))
+        assertTrue("warning glyph present", m.contains("⚠"))
+        assertTrue("warn color present", m.contains(PanelIpcServer.WARN_COLOR))
+        assertTrue("tooltip explains the fix", m.contains("buildStart.sh"))
+        // The click must no longer touch .show (the daemon can't spawn the UI); it notifies instead.
+        assertTrue("click notifies the user", m.contains("notify-send"))
+        assertFalse("dead .show click removed", m.contains("touch "))
+    }
+
+    @Test
     fun `always emits temp span tooltip and txtclick`() {
         for (delta in listOf("+1.2", null)) {
             val m = markup(delta)
