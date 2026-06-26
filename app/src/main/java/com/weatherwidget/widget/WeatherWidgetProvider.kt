@@ -709,10 +709,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     "isDataStale=$isDataStale $freshnessSummary",
                 "INFO",
             )
-            if (uiOnly || !WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
+            val needsNetworkFetch = !uiOnly && WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)
+
+            if (!needsNetworkFetch) {
                 triggerUiOnlyUpdate(context, reason = "refresh_action_ui_only")
                 Log.d(TAG, "onReceive: UI-only refresh path (uiOnly=$uiOnly, stale=$isDataStale)")
             } else {
+                // Repaint every widget from cache right now so the refresh shows current cached data in
+                // ~0.5s instead of waiting on the forced network sync (~7s). This is a direct render
+                // (not a second worker) so its DB read completes before the fetch below starts writing
+                // — a UI-only worker raced the fetch's writes and still painted ~5s late.
+                WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
+
                 val tempWorkRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInputData(
                         Data.Builder()

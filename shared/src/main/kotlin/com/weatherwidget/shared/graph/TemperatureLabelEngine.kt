@@ -211,7 +211,10 @@ object TemperatureLabelEngine {
         val labelAscent = metrics.ascent
         val labelDescent = metrics.descent
         val labelHeight = metrics.height
+        // Tighten the above-curve gap so high/peak temperature labels sit closer to the peak.
+        // Below-gap (lows) is unchanged; precip/cloud %-labels are unaffected (own getLabelGapDp call).
         val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = false)
+            .copy(aboveDp = GraphLabelPlacementUtils.TEMP_PREFERRED_ABOVE_GAP_DP)
 
         Log.d(TAG, "EngineInput: heightPx=$heightPx widthPx=$widthPx fetchDotX=${fetchDotX?.let { String.format("%.1f", it) }} transitionX=${transitionX?.let { String.format("%.1f", it) }} labelHeight=${String.format("%.1f", labelHeight)} hardBounds=${reservedHardBounds.map { "(${String.format("%.1f", it.left)},${String.format("%.1f", it.top)},${String.format("%.1f", it.right)},${String.format("%.1f", it.bottom)})" }}")
 

@@ -11,6 +11,13 @@ object GraphLabelPlacementUtils {
     const val FALLBACK_ABOVE_GAP_DP = 2f
     const val FALLBACK_BELOW_GAP_DP = 4f
 
+    // Temperature graph only: above-curve gap for high/peak value labels. Tighter than the shared
+    // PREFERRED_ABOVE_GAP_DP so the high number sits closer to the peak (the perceived gap is this
+    // plus the font descent). 1dp is the practical floor: at 0 the label box bottom touches the peak
+    // and collides with the descending shoulders, flipping the label below the curve.
+    // Precip/cloud %-labels keep PREFERRED_ABOVE_GAP_DP via getLabelGapDp.
+    const val TEMP_PREFERRED_ABOVE_GAP_DP = 1f
+
     enum class CandidateKind {
         GLOBAL_MAX,
         GLOBAL_MIN,

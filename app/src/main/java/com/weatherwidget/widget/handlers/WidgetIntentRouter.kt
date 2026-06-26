@@ -1,6 +1,7 @@
 package com.weatherwidget.widget.handlers
 
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
@@ -86,6 +87,22 @@ object WidgetIntentRouter {
     @VisibleForTesting
     fun setIsRefreshDisabledForTesting(disableRefreshFlag: Boolean) {
         RefreshScheduler.setIsRefreshDisabledForTesting(disableRefreshFlag)
+    }
+
+    /**
+     * Repaints every widget from cached DB data immediately (no network), reusing the same per-widget
+     * render path as the tap handlers. Called on a manual refresh so the user sees current cached
+     * content in ~0.5s instead of waiting on the forced background fetch (~7s). Reading here — before
+     * the fetch's DB writes — also keeps this read from being blocked behind those writes (the reason
+     * routing the cache paint through a second WorkManager job was still slow).
+     */
+    suspend fun renderAllWidgetsFromCache(context: Context, repository: WeatherRepository? = null) {
+        val ids = AppWidgetManager.getInstance(context)
+            .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
+        for (id in ids) {
+            if (id == AppWidgetManager.INVALID_APPWIDGET_ID) continue
+            refreshWidget(context, id, reason = "refresh_action_cache_first", repository = repository, actionTag = "REFRESH")
+        }
     }
 
     /**
