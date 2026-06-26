@@ -101,6 +101,33 @@ fun DailyForecastGraph(
 
         fun yAt(temp: Float): Float = top + graphHeight * (1f - (temp - minTemp) / range)
 
+        fun resolveLowLabelY(idx: Int): Float? {
+            val d = displayDays.getOrNull(idx) ?: return null
+            val lowVal = com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
+                isToday = d.isToday,
+                solidLow = d.solidLow,
+                forecastLow = listOfNotNull(d.forecastLow, d.snapshotLow).minOrNull(),
+                nowHour = d.nowHour,
+            ) ?: return null
+
+            val lowLabelText = formatTemp(lowVal)
+            val lowSize = tempFontSize(lowLabelText, 11f * scale)
+            val lowTextLayout = textMeasurer.measure(
+                lowLabelText,
+                TextStyle(fontSize = lowSize.sp)
+            )
+
+            val anchorLow = com.weatherwidget.shared.util.DailyDayValueResolver.iconAnchorLow(
+                solidLow = d.solidLow,
+                forecastLow = d.forecastLow,
+                snapshotLow = d.snapshotLow,
+            ) ?: lowVal
+
+            val iconTopMax = size.height - dayLabelBand - lowTextLayout.size.height - 2f * scale - iconSize - 2f * scale
+            val iconTop = (yAt(anchorLow) + 4f * scale).coerceAtMost(iconTopMax)
+            return iconTop + iconSize + 2f * scale
+        }
+
         displayDays.forEachIndexed { index, day ->
             val centerX = dayWidth * index + dayWidth / 2f
             val baseColor = forecastColor(day)
@@ -311,17 +338,93 @@ fun DailyForecastGraph(
             // +dayWidth/2 toward the neighbor), smaller, in the low-temp band.
             val nightText = day.nightRainLabelText
             if (nightText != null && lowForLabel != null) {
-                val nightLayout = textMeasurer.measure(
-                    nightText,
-                    TextStyle(fontSize = (11f * scale * 0.72f).sp, color = COLOR_FORECAST_RAINY),
-                )
-                val edgeMargin = 2f * scale
-                val nightX = (centerX + dayWidth / 2f - nightLayout.size.width / 2f)
-                    .coerceIn(edgeMargin, size.width - nightLayout.size.width - edgeMargin)
-                // Anchor just below the low temp, but keep clear of the icon/day-name row.
-                val nightFloor = iconFloorTop - nightLayout.size.height - 2f * scale
-                val nightY = (yAt(lowForLabel) + 3f * scale).coerceAtMost(nightFloor)
-                drawText(nightLayout, topLeft = Offset(nightX, nightY))
+                val leftLowY = resolveLowLabelY(index)
+                val rightLowY = resolveLowLabelY(index + 1)
+
+                if (leftLowY != null) {
+                    val anchorLowY = if (rightLowY != null) minOf(leftLowY, rightLowY) else leftLowY
+
+                    // Measure the low text of the left day to know its height/bottom
+                    val lowLabelText = formatTemp(lowForLabel)
+                    val lowSize = tempFontSize(lowLabelText, 11f * scale)
+                    val lowText = textMeasurer.measure(
+                        lowLabelText,
+                        TextStyle(fontSize = lowSize.sp)
+                    )
+                    val leftLowHeight = lowText.size.height
+
+                    val anchorBottomY = anchorLowY + leftLowHeight
+
+                    // Room below calculation (Android: hardBottomLimit - anchorBaseline)
+                    val roomBelowPx = (size.height - dayLabelBand - anchorBottomY).coerceAtLeast(0f)
+                    val roomBelowDp = roomBelowPx / scale
+
+                    val NIGHT_TUCK_ROOM_MIN_DP = 10f
+                    val NIGHT_TUCK_ROOM_MAX_DP = 22f
+                    val NIGHT_TUCK_OVERLAP_BASE_DP = 5.0f
+                    val NIGHT_TUCK_NUDGE_BASE_DP = 1.5f
+                    val NIGHT_TUCK_NUDGE_RANGE_DP = 1.5f
+
+                    val tightFraction = (1f - (roomBelowDp - NIGHT_TUCK_ROOM_MIN_DP) / (NIGHT_TUCK_ROOM_MAX_DP - NIGHT_TUCK_ROOM_MIN_DP)).coerceIn(0f, 1f)
+                    val dynamicOverlapDp = NIGHT_TUCK_OVERLAP_BASE_DP * tightFraction
+                    val dynamicNudgeDp = NIGHT_TUCK_NUDGE_BASE_DP + (NIGHT_TUCK_NUDGE_RANGE_DP * tightFraction)
+
+                    val isLeftTempLower = rightLowY != null && leftLowY > rightLowY
+                    val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.0f else dynamicNudgeDp
+
+                    val hNudgePx = effectiveNudgeDp * scale
+                    val shiftedCenterX = centerX + dayWidth / 2f - hNudgePx + 1f * scale
+
+                    // Base rain layout
+                    var finalPaintStyle = TextStyle(fontSize = (11f * scale * 0.72f).sp, color = COLOR_FORECAST_RAINY)
+                    var finalLayout = textMeasurer.measure(nightText, finalPaintStyle)
+                    val edgeMargin = 2f * scale
+                    val halfWidth = finalLayout.size.width / 2f
+
+                    var finalX = shiftedCenterX - halfWidth
+
+                    val canShiftStandard = (shiftedCenterX + halfWidth <= size.width - edgeMargin) && (shiftedCenterX - halfWidth >= edgeMargin)
+                    if (!canShiftStandard) {
+                        // Try reduced scaling (extraScale = 0.85f)
+                        val reducedStyle = TextStyle(fontSize = (11f * scale * 0.72f * 0.85f).sp, color = COLOR_FORECAST_RAINY)
+                        val reducedLayout = textMeasurer.measure(nightText, reducedStyle)
+                        val reducedHalfWidth = reducedLayout.size.width / 2f
+                        if (shiftedCenterX + reducedHalfWidth <= size.width - edgeMargin && shiftedCenterX - reducedHalfWidth >= edgeMargin) {
+                            finalPaintStyle = reducedStyle
+                            finalLayout = reducedLayout
+                            finalX = shiftedCenterX - reducedHalfWidth
+                        } else {
+                            // Fallback to centered
+                            finalX = (centerX - finalLayout.size.width / 2f).coerceIn(edgeMargin, size.width - finalLayout.size.width - edgeMargin)
+                        }
+                    }
+
+                    val dynamicOverlapPx = dynamicOverlapDp * scale
+                    val nightTopY = anchorBottomY - dynamicOverlapPx
+
+                    // Collision check with the left low label
+                    val leftLowX = centerX - lowText.size.width / 2f
+                    val rightLowX = centerX + lowText.size.width / 2f
+
+                    val nightLeft = finalX
+                    val nightRight = finalX + finalLayout.size.width
+                    val nightTop = nightTopY
+                    val nightBottom = nightTopY + finalLayout.size.height
+
+                    val intersects = (nightLeft < rightLowX && leftLowX < nightRight && nightTop < leftLowY + leftLowHeight && leftLowY < nightBottom)
+
+                    val finalNightTopY = if (intersects && leftLowY > nightTopY) {
+                        leftLowY
+                    } else {
+                        nightTopY
+                    }
+
+                    // Keep clear of the day-name row
+                    val hardBottomLimit = size.height - dayLabelBand
+                    if (finalNightTopY + finalLayout.size.height <= hardBottomLimit) {
+                        drawText(finalLayout, topLeft = Offset(finalX, finalNightTopY))
+                    }
+                }
             }
         }
     }

@@ -342,7 +342,7 @@ internal object DailyForecastRainLabelRenderer {
     ): NightHorizontalFit? {
         val currentPaint = createScaledRainPaint(day, day.rainData.nighttimePrecipProbability, RainLabelType.NIGHT, layout.density, paints)
         val textWidth = currentPaint.measureText(rainText)
-        val shiftedCenterX = centerX + layout.dayWidth / 2f - hNudgePx
+        val shiftedCenterX = centerX + layout.dayWidth / 2f - hNudgePx + (1.0f).toPx(layout.density)
         val halfWidth = textWidth / 2f
         val edgeMargin = (RAIN_LABEL_EDGE_MARGIN_DP).toPx(layout.density)
         val canShiftStandard = (shiftedCenterX + halfWidth <= layout.widthPx - edgeMargin) && (shiftedCenterX - halfWidth >= edgeMargin)
