@@ -69,6 +69,9 @@ private const val ACTUALS_CONTEXT_EDGE_PAD_HOURS = 12L
 // Temperature value labels (on-curve highs/lows + now/current temp) are 10% larger than the 14sp
 // time/axis labels for readability. Hour-of-day and day labels keep 14sp.
 private const val TEMP_VALUE_LABEL_SP = 15.4f // 14sp + 10%
+// Ghost-line label: wispier than the forecast/actual temp labels — fainter and 30% smaller.
+private const val GHOST_LINE_LABEL_ALPHA = 0.43f
+private const val GHOST_LINE_LABEL_SIZE_SCALE = 0.7f
 
 /**
  * Fetch-dot staleness age, mirroring Android's `TemperatureGraphStyle.formatAgeLabel`: show the age
@@ -670,6 +673,53 @@ fun TemperatureGraph(
                 val topLeft = Offset(placement.box.left, placement.box.top)
                 drawText(layout, topLeft = topLeft)
                 drawnLabels.add(Rect(topLeft, Size(metrics.width, metrics.height)))
+            }
+        }
+
+        // Ghost-line label: the expected temperature (forecast + delta) to one decimal, snapped to an
+        // hour mark on the right half so it reads against the footer hour labels ("at 6 PM → 69.4°").
+        // Drawn only in the narrow view and only where there's free space. Gate, selection, and
+        // placement are shared with Android (GhostLineLabel); styled ghost-like (faint italic white).
+        if (transitionX != null && abs(appliedDelta) >= 0.1f) {
+            val ghostSpanHours = (windowEnd - windowStart) / 3_600_000L
+            val labeledIndices = DesktopGraphUtils
+                .footerLabels(points, totalSpanHours, ZoneId.systemDefault())
+                .map { it.index }.toSet()
+            val ghostCandidates = points.indices.mapNotNull { i ->
+                val coord = expectedCoords[i]
+                if (coord.x <= transitionX) return@mapNotNull null
+                GhostLineLabel.Candidate(
+                    x = coord.x,
+                    ghostY = coord.y,
+                    expectedTemp = forecastTemps[i] + appliedDelta,
+                    hasHourLabel = i in labeledIndices,
+                )
+            }
+            if (ghostCandidates.isNotEmpty()) {
+                val ghostStyle = TextStyle(
+                    fontSize = (TEMP_VALUE_LABEL_SP * GHOST_LINE_LABEL_SIZE_SCALE * scale).sp,
+                    color = Color.White.copy(alpha = GHOST_LINE_LABEL_ALPHA),
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                )
+                val sampleHeight = textMeasurer.measure(GhostLineLabel.format(ghostCandidates.first().expectedTemp), ghostStyle).size.height.toFloat()
+                val maxWidth = ghostCandidates.maxOf { textMeasurer.measure(GhostLineLabel.format(it.expectedTemp), ghostStyle).size.width.toFloat() }
+                val metrics = GhostLineLabel.Metrics(width = maxWidth, ascent = -sampleHeight, descent = 0f)
+                val placement = GhostLineLabel.place(
+                    candidates = ghostCandidates,
+                    spanHours = ghostSpanHours,
+                    plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
+                    drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                    curveYAt = { x -> getCurveYAtX(x) },
+                    metrics = metrics,
+                    padPx = 4f * scale,
+                    gapPx = 2.5f * scale,
+                )
+                if (placement != null) {
+                    val layout = textMeasurer.measure(placement.text, ghostStyle)
+                    val topLeft = Offset(placement.box.left, placement.box.top)
+                    drawShadowedText(textMeasurer, layout, topLeft, scale)
+                    drawnLabels.add(Rect(topLeft, Size(layout.size.width.toFloat(), layout.size.height.toFloat())))
+                }
             }
         }
 

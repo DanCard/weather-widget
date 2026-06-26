@@ -134,6 +134,12 @@ object TemperatureGraphRenderer {
     }
 
     private const val YESTERDAY_DELTA_LABEL_PAD_DP = 6f
+    private const val GHOST_LINE_LABEL_PAD_DP = 4f
+    private const val GHOST_LINE_LABEL_GAP_DP = 2.5f
+    // Ghost-like: faint, translucent white that echoes the ghost line, but opaque enough to read.
+    private const val GHOST_LINE_LABEL_ALPHA = 110
+    // Smaller than the forecast/actual temp labels so it reads as a wispier annotation.
+    private const val GHOST_LINE_LABEL_SIZE_SCALE = 0.7f
     private const val STALENESS_MINOR_OVERLAP_RATIO = 0.40f
     private const val MAX_STALENESS_DISPLACEMENT_STEPS = 15
     private const val STALENESS_LEADER_LINE_MIN_STEPS = 2
@@ -533,6 +539,64 @@ object TemperatureGraphRenderer {
         return interpolateYAtX(points, x)
     }
 
+    /**
+     * Labels the **ghost line** (forecast + observed delta) with its expected temperature, to one
+     * decimal, snapped to an hour mark on the right half so it reads against the footer hour labels
+     * ("at 6 PM → 69.4°"). Drawn only in the narrow view and only where there's free space — gating,
+     * right-half/hour-mark selection, and empty-space placement all live in shared [GhostLineLabel].
+     * Styled ghost-like: faint, translucent white that echoes the line it sits on.
+     *
+     * Gated identically to the ghost line itself ([drawFillAndCurves]) so the label never appears
+     * without its line.
+     */
+    private fun placeGhostLineLabel(ctx: RenderContext, hours: List<HourData>) {
+        val appliedDelta = ctx.appliedDelta
+        val fetchDotX = ctx.fetchDotX
+        if (!(ctx.nowIndicatorVisible && appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null)) return
+        if (hours.size < 2 || ctx.expectedPoints.size != hours.size) return
+        val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+
+        // Only ghost-region hours (right of the fetch dot, where the line is actually drawn).
+        val candidates = hours.indices.mapNotNull { i ->
+            val (x, ghostY) = ctx.expectedPoints[i]
+            if (x <= fetchDotX + X_COORDINATE_MATCH_TOLERANCE) return@mapNotNull null
+            GhostLineLabel.Candidate(
+                x = x,
+                ghostY = ghostY,
+                expectedTemp = ctx.smoothedExpectedTemps[i],
+                hasHourLabel = hours[i].showLabel,
+            )
+        }
+        if (candidates.isEmpty()) return
+
+        val paint = Paint(ctx.paints.forecastTempLabelTextPaint).apply {
+            color = withAlpha(Color.WHITE, GHOST_LINE_LABEL_ALPHA)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+            textAlign = Paint.Align.CENTER
+            textSize *= GHOST_LINE_LABEL_SIZE_SCALE
+        }
+        val metrics = GhostLineLabel.Metrics(
+            // Widest candidate so the recorded collision box always covers the drawn text.
+            width = candidates.maxOf { paint.measureText(GhostLineLabel.format(it.expectedTemp)) },
+            ascent = fontAscent(paint),
+            descent = fontDescent(paint),
+        )
+        val obstacles = ctx.drawnLabelBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
+        val placement = GhostLineLabel.place(
+            candidates = candidates,
+            spanHours = spanHours,
+            plot = GraphRect(0f, ctx.graphTop, ctx.widthPx.toFloat(), ctx.graphBottom),
+            drawnBounds = obstacles,
+            curveYAt = { x -> sampleVisibleCurveY(ctx, x) },
+            metrics = metrics,
+            padPx = dpToPx(ctx.context, GHOST_LINE_LABEL_PAD_DP),
+            gapPx = dpToPx(ctx.context, GHOST_LINE_LABEL_GAP_DP),
+        ) ?: return
+
+        ctx.canvas.drawText(placement.text, placement.centerX, placement.baselineY, paint)
+        ctx.drawnLabelBounds.add(RectF(placement.box.left, placement.box.top, placement.box.right, placement.box.bottom))
+    }
+
     private fun placeDayLabels(
         ctx: RenderContext,
         hours: List<HourData>,
@@ -863,6 +927,7 @@ object TemperatureGraphRenderer {
         ctx.drawnLabelBounds.addAll(fetchDotBounds)
 
         placeYesterdayDeltaLabel(ctx, hours, deltaFromYesterday)
+        placeGhostLineLabel(ctx, hours)
 
         GraphRenderUtils.drawNowIndicator(
             canvas = canvas,
