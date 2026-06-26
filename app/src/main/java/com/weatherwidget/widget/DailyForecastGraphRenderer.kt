@@ -720,14 +720,16 @@ object DailyForecastGraphRenderer {
                     maxWidthPx = layout.tempLabelMaxWidthPx)
 
                 // Unscaled metrics are a safe (slight) over-estimate of the drawn glyph extent,
-                // which only ever makes the obstacle larger — never missing a real collision.
+                // which only ever makes the obstacle larger — never missing a real collision. Read
+                // ascent/descent via the null-safe helpers: Paint.fontMetrics is null under the
+                // stubbed-Paint Robolectric tests (see twoLabelHeight below), and they fall back to
+                // textSize there.
                 val lowHalfWidth = measureTextWidth(tempPaint, lowLabelText) / 2f
-                val lowMetrics = tempPaint.fontMetrics
                 ownLowLabelBox = DailyForecastRainLabelRenderer.LowLabelBox(
                     left = centerX - lowHalfWidth,
-                    top = lowTempY + lowMetrics.ascent,
+                    top = lowTempY + TemperatureGraphStyle.fontAscent(tempPaint),
                     right = centerX + lowHalfWidth,
-                    bottom = lowTempY + lowMetrics.descent,
+                    bottom = lowTempY + TemperatureGraphStyle.fontDescent(tempPaint),
                     baseline = lowTempY,
                 )
             }
