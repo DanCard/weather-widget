@@ -314,6 +314,7 @@ object TemperatureLabelEngine {
                     idx = idx,
                     temps = temps,
                     resultPlacements = resultPlacements,
+                    allActualVisiblePoints = actualVisiblePoints,
                 )
                 if (placed) continue
             }
@@ -577,6 +578,75 @@ object TemperatureLabelEngine {
         drawnLabelMetas.add(PlacedLabelMeta(bounds, isValleyBelow = false, role = candidate.role, temperature = temps[idx]))
     }
 
+    // Places the observed-low label tight below the actual line's local trough. Used as a fallback
+    // when the normal below direction is blocked by curve intrusion (instead of flipping above through
+    // the lines). Scans the actual curve across the label's x-span for the lowest point (largest y)
+    // so the label clears the jagged trough, then sits one tight gap below. Clamps to the bottom edge
+    // when the trough is too close to the bottom to leave a full gap. No leader line — the label sits
+    // right at the trough.
+    private fun placeActualLowBelowCurve(
+        heightPx: Int,
+        density: Float,
+        actualVisiblePoints: List<Pair<Float, Float>>,
+        candidate: TempLabelCandidate,
+        geometry: ResolvedLabelGeometry,
+        labelAscent: Float,
+        labelDescent: Float,
+        drawnLabelMetas: MutableList<PlacedLabelMeta>,
+        idx: Int,
+        temps: List<Float>,
+        resultPlacements: MutableList<PlacedLabel>,
+    ) {
+        val halfWidth = geometry.textWidth / 2f
+        val left = geometry.clampedX - halfWidth
+        val right = geometry.clampedX + halfWidth
+
+        // Lowest visible actual point beneath the label (fall back to the hourly anchor).
+        var curveBottomY = geometry.sy
+        for ((px, py) in actualVisiblePoints) {
+            if (px in left..right && py > curveBottomY) curveBottomY = py
+        }
+
+        val gapBelowPx = GraphLabelPlacementUtils.TEMP_ACTUAL_LOW_BELOW_GAP_DP * density
+        val placement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+            pointY = curveBottomY,
+            placeAbove = false,
+            gapPx = gapBelowPx,
+            textAscent = labelAscent,
+            textDescent = labelDescent,
+        )
+        var top = placement.top
+        var bottom = placement.bottom
+        var baselineY = placement.baselineY
+        if (bottom > heightPx) {
+            val shift = heightPx - bottom
+            top += shift
+            bottom += shift
+            baselineY += shift
+        }
+        val bounds = GraphRect(left, top, right, bottom)
+
+        resultPlacements.add(
+            PlacedLabel(
+                index = idx,
+                role = candidate.role,
+                text = geometry.label,
+                x = geometry.clampedX,
+                baselineY = baselineY,
+                placedAbove = false,
+                drawLeaderLine = false,
+                leaderFromY = geometry.sy,
+                leaderToY = geometry.sy,
+                isFuture = geometry.isFuture,
+                rawTemperature = candidate.rawTemperature,
+                displayTemperature = temps[idx],
+                reason = "belowActualCurve",
+                displacementSteps = 0,
+            )
+        )
+        drawnLabelMetas.add(PlacedLabelMeta(bounds, isValleyBelow = true, role = candidate.role, temperature = temps[idx]))
+    }
+
     private fun tryExactFitCurveAvoidance(
         widthPx: Int,
         heightPx: Int,
@@ -595,6 +665,7 @@ object TemperatureLabelEngine {
         idx: Int,
         temps: List<Float>,
         resultPlacements: MutableList<PlacedLabel>,
+        allActualVisiblePoints: List<Pair<Float, Float>>,
     ): Boolean {
         val allowedDipPx = allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
         for (placeAbove in directions) {
@@ -618,10 +689,32 @@ object TemperatureLabelEngine {
                 allowedDipPx = allowedDipPx,
                 resultPlacements = resultPlacements,
             )
+            Log.d(TAG, "ExactFitOutcome: role=${candidate.role} idx=$idx placeAbove=$placeAbove outcome=$outcome")
             when (outcome) {
                 ExactFitOutcome.NATURAL_FITS -> return false
                 ExactFitOutcome.PLACED -> return true
-                ExactFitOutcome.LABEL_OR_ICON_BLOCKED -> continue
+                ExactFitOutcome.LABEL_OR_ICON_BLOCKED -> {
+                    // ACTUAL_LOW: when the normal below direction is blocked (curve intrusion),
+                    // try tight-below-trough placement instead of falling through to above.
+                    // Gated on idx !in leftEdgeOrder to preserve left-edge pairing behavior.
+                    if (!placeAbove && candidate.role == TemperatureRole.ACTUAL_LOW) {
+                        placeActualLowBelowCurve(
+                            heightPx = heightPx,
+                            density = density,
+                            actualVisiblePoints = allActualVisiblePoints,
+                            candidate = candidate,
+                            geometry = geometry,
+                            labelAscent = labelAscent,
+                            labelDescent = labelDescent,
+                            drawnLabelMetas = drawnLabelMetas,
+                            idx = idx,
+                            temps = temps,
+                            resultPlacements = resultPlacements,
+                        )
+                        return true
+                    }
+                    continue
+                }
                 ExactFitOutcome.GAVE_UP -> return false
             }
         }

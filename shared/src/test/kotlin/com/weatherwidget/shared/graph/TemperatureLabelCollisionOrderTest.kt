@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.graph
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -279,6 +280,51 @@ class TemperatureLabelCollisionOrderTest {
         assertTrue(
             "Expected 50° above 49.8°. 50_y=${forecastLow.baselineY}, 49.8_y=${actualLow.baselineY}",
             forecastLow.baselineY < actualLow.baselineY
+        )
+    }
+
+    @Test
+    fun `actual low at valley with forecast curve dipping below places tight below trough with no leader`() {
+        val start = LocalDateTime.of(2026, 6, 25, 8, 0)
+        // 20 hours with valley at index 13 (to stay outside the left-edge start window of 8).
+        // Actual dips to 50° (clear valley), forecast dips even further to 45°. On the graph,
+        // cooler temps have higher y, so the forecast line extends BELOW the actual trough.
+        // The below-direction label must pass through the forecast curve, triggering the
+        // tight-below-trough fallback.
+        val forecastTemps = listOf(
+            70f, 70f, 70f, 70f, 70f, 70f, 70f, 70f,
+            70f, 65f, 60f, 55f, 52f, 48f, 53f, 58f, 63f, 68f, 72f, 75f
+        )
+        val actualTemps = listOf(
+            70f, 70f, 70f, 70f, 70f, 70f, 70f, 70f,
+            70f, 65f, 60f, 55f, 52f, 50f, 53f, 58f, 63f, 68f, 72f, 75f
+        )
+        val hours = buildHours(forecastTemps, actualTemps, start)
+        val observedAt = start.plusHours(19).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        val placements = runEngineTest(
+            hours = hours,
+            widthPx = 800,
+            heightPx = 400,
+            currentTime = start.plusHours(19),
+            observedAt = observedAt,
+        )
+
+        val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
+        assertNotNull("Expected ACTUAL_LOW label. placements=$placements", actualLow)
+        System.err.println("DEBUG actualLow=$actualLow")
+        assertFalse(
+            "ACTUAL_LOW should be placed BELOW the trough, not above. placement=$actualLow",
+            actualLow!!.placedAbove,
+        )
+        assertFalse(
+            "ACTUAL_LOW should have no leader line (tight below trough). placement=$actualLow",
+            actualLow.drawLeaderLine,
+        )
+        assertEquals(
+            "ACTUAL_LOW reason should be belowActualCurve",
+            "belowActualCurve",
+            actualLow.reason,
         )
     }
 }

@@ -24,6 +24,12 @@ object GraphLabelPlacementUtils {
     // descent only).
     const val TEMP_ACTUAL_HIGH_ABOVE_GAP_DP = 0f
 
+    // Below-trough gap for the ACTUAL (observed) low when the normal below direction is blocked by
+    // curve intrusion. The label hugs tight below the observed trough (no leader line), mirroring the
+    // high's above-spike placement. 1dp keeps the number very close while leaving a hair of visual
+    // separation from the actual line's minimum.
+    const val TEMP_ACTUAL_LOW_BELOW_GAP_DP = 1f
+
     enum class CandidateKind {
         GLOBAL_MAX,
         GLOBAL_MIN,

@@ -1047,4 +1047,57 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             actualLow.reason.startsWith("below")
         )
     }
+
+    @Test
+    fun `actual low at valley with forecast curve dipping below places tight below trough with no leader`() {
+        val start = LocalDateTime.of(2026, 6, 25, 8, 0)
+        // 20 hours: actual temps form a valley at index 13 (50°) (to stay outside the left-edge start window).
+        // Forecast temps are equal except at the valley where the forecast is 45° — since lower temps
+        // map to higher y (visually lower) on the graph, the forecast line dips BELOW the actual trough,
+        // causing curve intrusion in the below direction, which previously flipped the label above.
+        val actualTemps = listOf(
+            70f, 70f, 70f, 70f, 70f, 70f, 70f, 70f,
+            70f, 65f, 60f, 55f, 52f, 50f, 53f, 58f, 63f, 68f, 72f, 75f
+        )
+        val forecastTemps = listOf(
+            70f, 70f, 70f, 70f, 70f, 70f, 70f, 70f,
+            70f, 65f, 60f, 55f, 52f, 48f, 53f, 58f, 63f, 68f, 72f, 75f
+        )
+        val hours = (0 until 20).map { i ->
+            HourData(
+                dateTime = start.plusHours(i.toLong()),
+                temperature = forecastTemps[i],
+                actualTemperature = actualTemps[i],
+                isActual = true,
+                label = "${start.plusHours(i.toLong()).hour}h",
+            )
+        }
+
+        val placements = mutableListOf<LabelPlacementDebug>()
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 400,
+            currentTime = start.plusHours(19),
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
+        assertNotNull("Expected ACTUAL_LOW label. placements=$placements", actualLow)
+        assertFalse(
+            "ACTUAL_LOW should be placed BELOW the trough, not above. placement=$actualLow",
+            actualLow!!.placedAbove,
+        )
+        assertEquals(
+            "ACTUAL_LOW should have no displacement steps (tight below trough, no leader)",
+            0,
+            actualLow.displacementSteps,
+        )
+        assertEquals(
+            "ACTUAL_LOW reason should be belowActualCurve",
+            "belowActualCurve",
+            actualLow.reason,
+        )
+    }
 }
