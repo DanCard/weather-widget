@@ -210,29 +210,16 @@ object DailyViewLogic {
                 }
             }
 
-            val useDirectNwsPeriodPrecip = weather?.source == WeatherSource.NWS.id && displaySource == WeatherSource.NWS
-            val dayNightPrecip = if (!isPast && weather != null && !useDirectNwsPeriodPrecip) {
-                DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
-                    hourlyForecasts = hourlyForecasts,
-                    targetDate = date,
-                    now = now,
-                    latitude = weather.locationLat,
-                    longitude = weather.locationLon,
-                    displaySource = displaySource,
-                )
-            } else {
-                null
-            }
-            val dayPrecipForIcon = if (useDirectNwsPeriodPrecip) {
-                weather.daytimePrecipProbability ?: weather.precipProbability
-            } else {
-                dayNightPrecip?.dayMax ?: weather?.daytimePrecipProbability
-            }
-            val nightPrecipForIcon = if (useDirectNwsPeriodPrecip) {
-                weather.nighttimePrecipProbability
-            } else {
-                dayNightPrecip?.nightMax ?: weather?.nighttimePrecipProbability
-            }
+            // Day/night precip % for the icon + label, via the shared selection (parity with desktop).
+            val resolvedPrecip = DailyForecastIconResolver.resolveDailyLabelPrecip(
+                weather = weather,
+                hourlyForecasts = hourlyForecasts,
+                targetDate = date,
+                isPast = isPast,
+                displaySource = displaySource,
+            )
+            val dayPrecipForIcon = resolvedPrecip.dayPrecip
+            val nightPrecipForIcon = resolvedPrecip.nightPrecip
 
 
             val iconRes =
@@ -453,29 +440,16 @@ object DailyViewLogic {
                 }
             }
 
-            val useDirectNwsPeriodPrecip = weather?.source == WeatherSource.NWS.id && displaySource == WeatherSource.NWS
-            val dayNightPrecip = if (!isPastDate && weather != null && !useDirectNwsPeriodPrecip) {
-                DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
-                    hourlyForecasts = hourlyForecasts,
-                    targetDate = date,
-                    now = now,
-                    latitude = weather.locationLat,
-                    longitude = weather.locationLon,
-                    displaySource = displaySource,
-                )
-            } else {
-                null
-            }
-            val dayPrecipForIcon = if (useDirectNwsPeriodPrecip) {
-                weather.daytimePrecipProbability ?: weather.precipProbability
-            } else {
-                dayNightPrecip?.dayMax ?: weather?.daytimePrecipProbability
-            }
-            val nightPrecipForIcon = if (useDirectNwsPeriodPrecip) {
-                weather.nighttimePrecipProbability
-            } else {
-                dayNightPrecip?.nightMax ?: weather?.nighttimePrecipProbability
-            }
+            // Day/night precip % for the icon + label, via the shared selection (parity with desktop).
+            val resolvedPrecip = DailyForecastIconResolver.resolveDailyLabelPrecip(
+                weather = weather,
+                hourlyForecasts = hourlyForecasts,
+                targetDate = date,
+                isPast = isPastDate,
+                displaySource = displaySource,
+            )
+            val dayPrecipForIcon = resolvedPrecip.dayPrecip
+            val nightPrecipForIcon = resolvedPrecip.nightPrecip
 
 
             val cloudCoverRatioOverride =

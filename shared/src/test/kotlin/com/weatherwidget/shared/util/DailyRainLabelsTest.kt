@@ -217,4 +217,84 @@ class DailyRainLabelsTest {
         assertEquals(55, result.dayMax)
         assertNull(result.nightMax)
     }
+
+    // ---- resolveDailyLabelPrecip (Android/desktop parity for the daily rain %) ----
+
+    @Test
+    fun directNwsUsesPeriodChanceOverSparseHourlyMax() {
+        // The real bug: NWS shown as NWS. Hourly 8am-8pm max is a sparse 2%, but NWS's native daytime
+        // period chance is 15% — that 15% must win (this is the desktop "2%" vs Android "15%" gap).
+        val hourly = listOf(hour(today, 14, 2))
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            rowSourceId = WeatherSource.NWS.id,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 15,
+            nighttimePrecipProbability = 8,
+            precipProbability = 99,
+            hourly = hourly,
+            targetDate = today,
+            zoneId = zone,
+        )
+        assertEquals(15, resolved.dayPrecip)
+        assertEquals(8, resolved.nightPrecip)
+    }
+
+    @Test
+    fun directNwsFallsBackToDailyPrecipWhenPeriodChanceMissing() {
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            rowSourceId = WeatherSource.NWS.id,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = null,
+            nighttimePrecipProbability = null,
+            precipProbability = 30,
+            hourly = emptyList(),
+            targetDate = today,
+            zoneId = zone,
+        )
+        assertEquals(30, resolved.dayPrecip)
+        assertNull(resolved.nightPrecip)
+    }
+
+    @Test
+    fun nonNwsUsesHourlyWindowMaxWithPeriodFallback() {
+        // Open-Meteo shown as Open-Meteo: not the direct-NWS path → hourly 8am-8pm max wins.
+        val hourly = listOf(
+            hour(today, 15, 60, source = WeatherSource.OPEN_METEO.id),
+            hour(today, 22, 40, source = WeatherSource.OPEN_METEO.id),
+        )
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            rowSourceId = WeatherSource.OPEN_METEO.id,
+            displaySourceId = WeatherSource.OPEN_METEO.id,
+            daytimePrecipProbability = 99, // period fields ignored when hourly has rows
+            nighttimePrecipProbability = 99,
+            precipProbability = null,
+            hourly = hourly,
+            targetDate = today,
+            zoneId = zone,
+        )
+        assertEquals(60, resolved.dayPrecip)
+        assertEquals(40, resolved.nightPrecip)
+    }
+
+    @Test
+    fun pastDayReturnsPeriodFieldsForIconNotHourly() {
+        // Past days label from observed amounts; these resolved values only feed the icon, and must
+        // mirror Android's past-day path (period fields, no hourly recompute).
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = true,
+            rowSourceId = WeatherSource.OPEN_METEO.id,
+            displaySourceId = WeatherSource.OPEN_METEO.id,
+            daytimePrecipProbability = 12,
+            nighttimePrecipProbability = 7,
+            precipProbability = 50,
+            hourly = listOf(hour(today.minusDays(1), 15, 90, source = WeatherSource.OPEN_METEO.id)),
+            targetDate = today.minusDays(1),
+            zoneId = zone,
+        )
+        assertEquals(12, resolved.dayPrecip)
+        assertEquals(7, resolved.nightPrecip)
+    }
 }

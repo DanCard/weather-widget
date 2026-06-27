@@ -235,24 +235,27 @@ object DesktopDailyForecastModel {
         }
 
         // Rain labels (text-building logic shared with the Android widget). The daytime label sits
-        // on the bar; the night label tucks between columns. Past days prefer observed actuals;
-        // forecast days fall back to the day/night precip-probability windows from hourly data.
-        val dayNight = if (!isPast) {
-            com.weatherwidget.shared.util.DailyRainLabels.calculateDayNightPrecipProbabilities(
-                hourly = hourly,
-                targetDate = date,
-                displaySourceId = displaySourceId,
-            )
-        } else {
-            null
-        }
+        // on the bar; the night label tucks between columns. The day/night precip % is chosen by the
+        // shared resolveDailyLabelPrecip so desktop and Android pick identical values — for an NWS row
+        // shown as NWS that's NWS's native 12h period chance (e.g. today's 15%), not the sparse hourly
+        // max (which was showing 2% here). Past days prefer observed actuals.
+        val resolvedPrecip = com.weatherwidget.shared.util.DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = isPast,
+            rowSourceId = forecast?.source,
+            displaySourceId = displaySourceId,
+            daytimePrecipProbability = forecast?.daytimePrecipProbability,
+            nighttimePrecipProbability = forecast?.nighttimePrecipProbability,
+            precipProbability = forecast?.precipProbability,
+            hourly = hourly,
+            targetDate = date,
+        )
         val forecastAmountMm = forecast?.precipAmountMm ?: snapshot?.precipAmountMm
         val dailyRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainLabel(
             date = date,
             today = today,
             isPastDate = isPast,
             precipAmountMm = forecastAmountMm,
-            dayPrecipProbability = dayNight?.dayMax ?: forecast?.precipProbability,
+            dayPrecipProbability = resolvedPrecip.dayPrecip,
             allowTodayRainChanceLabel = true,
             observedPrecipAmountMm = actual?.precipDayMm ?: actual?.precipAmountMm,
         )
@@ -260,7 +263,7 @@ object DesktopDailyForecastModel {
             date = date,
             today = today,
             isPastDate = isPast,
-            nightPrecipProbability = dayNight?.nightMax,
+            nightPrecipProbability = resolvedPrecip.nightPrecip,
             observedNightPrecipMm = actual?.precipNightMm,
         )
 

@@ -190,6 +190,10 @@ object NwsDailyMapper {
                 condition = condition,
                 precipProbability = precipProbability,
                 precipAmountMm = acc.precipAmountMap[date],
+                // NWS's native 12-hour period chances — preferred over the sparse hourly max for the
+                // daily rain label (see DailyRainLabels.resolveDailyLabelPrecip).
+                daytimePrecipProbability = acc.daytimePrecipProbabilityMap[date],
+                nighttimePrecipProbability = acc.nighttimePrecipProbabilityMap[date],
             )
         }.sortedBy { it.date }
     }

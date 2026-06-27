@@ -131,6 +131,58 @@ object DailyRainLabels {
         return DayNightPrecip(dayMax = dayMax, nightMax = nightMax)
     }
 
+    /** The day/night precip % chosen for the daily label + icon (see [resolveDailyLabelPrecip]). */
+    data class ResolvedDailyPrecip(
+        val dayPrecip: Int?,
+        val nightPrecip: Int?,
+    )
+
+    /**
+     * Picks the day/night precip % shown on the daily label and used for the daily icon — the single
+     * source of truth shared by Android and desktop so the two never drift (e.g. today showing 15% on
+     * one and 2% on the other).
+     *
+     * For an NWS row displayed as NWS, NWS's own 12-hour daytime/nighttime *period* chance is more
+     * representative than the sparse hourly max, so it is used directly. Otherwise the hourly
+     * 8am–8pm / 8pm–8am window max ([calculateDayNightPrecipProbabilities]) is used, falling back to
+     * the row's period fields. (Faithful lift of the logic that previously lived inline in Android's
+     * DailyViewLogic; desktop previously reimplemented a divergent subset.)
+     */
+    fun resolveDailyLabelPrecip(
+        isPast: Boolean,
+        rowSourceId: String?,
+        displaySourceId: String,
+        daytimePrecipProbability: Int?,
+        nighttimePrecipProbability: Int?,
+        precipProbability: Int?,
+        hourly: List<HourlyForecast>,
+        targetDate: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): ResolvedDailyPrecip {
+        val useDirectNwsPeriodPrecip =
+            rowSourceId == WeatherSource.NWS.id && displaySourceId == WeatherSource.NWS.id
+        if (useDirectNwsPeriodPrecip) {
+            return ResolvedDailyPrecip(
+                dayPrecip = daytimePrecipProbability ?: precipProbability,
+                nightPrecip = nighttimePrecipProbability,
+            )
+        }
+        if (isPast) {
+            // Past days label from observed amounts, not probability; these only feed the icon.
+            return ResolvedDailyPrecip(daytimePrecipProbability, nighttimePrecipProbability)
+        }
+        val dayNight = calculateDayNightPrecipProbabilities(
+            hourly = hourly,
+            targetDate = targetDate,
+            displaySourceId = displaySourceId,
+            zoneId = zoneId,
+        )
+        return ResolvedDailyPrecip(
+            dayPrecip = dayNight.dayMax ?: daytimePrecipProbability,
+            nightPrecip = dayNight.nightMax ?: nighttimePrecipProbability,
+        )
+    }
+
     /**
      * Daytime rain label drawn on top of a day's bar.
      * - Past days: observed amount, or null when none.

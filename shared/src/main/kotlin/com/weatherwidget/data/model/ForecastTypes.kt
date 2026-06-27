@@ -25,6 +25,12 @@ data class DailyForecast(
     val precipProbability: Int? = null,
     val precipAmountMm: Float? = null,
     val isClimateNormal: Boolean = false,
+    // Source this row was produced for, and NWS's native 12-hour daytime/nighttime period rain
+    // chances. Carried so the shared daily rain-label selection (DailyRainLabels.resolveDailyLabelPrecip)
+    // can prefer NWS's period precip over the sparse hourly max — keeping desktop and Android identical.
+    val source: String? = null,
+    val daytimePrecipProbability: Int? = null,
+    val nighttimePrecipProbability: Int? = null,
 )
 
 data class DailyForecastSnapshot(

@@ -98,10 +98,11 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             conn.autoCommit = false
             try {
                 val sql = """
-                    INSERT OR REPLACE INTO forecasts 
-                    (targetDate, forecastDate, locationLat, locationLon, locationName, highTemp, lowTemp, condition, 
-                     nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm, batchFetchedAt, fetchedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO forecasts
+                    (targetDate, forecastDate, locationLat, locationLon, locationName, highTemp, lowTemp, condition,
+                     nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
+                     daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
@@ -121,8 +122,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setString(11, source)
                         stmt.setNullableInt(12, d.precipProbability)
                         stmt.setNullableFloat(13, d.precipAmountMm)
-                        stmt.setLong(14, now)
-                        stmt.setLong(15, now)
+                        stmt.setNullableInt(14, d.daytimePrecipProbability)
+                        stmt.setNullableInt(15, d.nighttimePrecipProbability)
+                        stmt.setLong(16, now)
+                        stmt.setLong(17, now)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -637,7 +640,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         iconToken = rs.getString("nativeDailyIconToken"),
                         precipProbability = rs.getNullableInt("precipProbability"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
-                        isClimateNormal = rs.getInt("isClimateNormal") == 1
+                        isClimateNormal = rs.getInt("isClimateNormal") == 1,
+                        source = source,
+                        daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
+                        nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
                     ))
                 }
             }
