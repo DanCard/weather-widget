@@ -9,6 +9,7 @@ import java.util.UUID
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
@@ -106,6 +107,16 @@ class DesktopClients {
             requestTimeoutMillis = 30_000
             connectTimeoutMillis = 10_000
             socketTimeoutMillis = 30_000
+        }
+        install(HttpRequestRetry) {
+            maxRetries = 2
+            retryOnExceptionIf { _, cause ->
+                cause is io.ktor.client.network.sockets.ConnectTimeoutException ||
+                cause is io.ktor.client.network.sockets.SocketTimeoutException ||
+                cause is io.ktor.client.plugins.HttpRequestTimeoutException ||
+                cause is java.io.IOException
+            }
+            exponentialDelay(base = 2.0, maxDelayMs = 2_000)
         }
     }
 

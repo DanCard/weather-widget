@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
@@ -254,11 +255,13 @@ fun runDaemon() {
 
                     delay(delayMs)
 
+                    val src = WeatherSource.fromDisplaySource(config.weatherSource).id
                     try {
                         Log.i(TAG, "Temp actuals loop refresh starting for ${config.weatherSource} (charging=$isCharging, level=$level%)...")
                         val result = newRepo.refreshObservations()
                         forecastState.value = result
                         dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.weatherSource) ?: System.currentTimeMillis())
+                        weatherDao.log("CURRENT_TEMP_STATUS", "source=$src ok=true", "INFO")
                         Log.i(TAG, "Temp actuals loop refresh successful.")
                     } catch (e: CancellationException) {
                         Log.i(TAG, "Temp actuals loop refresh cancelled.")
@@ -268,6 +271,7 @@ fun runDaemon() {
                         val isOffline = isOfflineException(e)
                         val reason = if (isOffline) "offline" else "source_error"
                         weatherDao.log("REFRESH_FAIL", "temp actuals: $reason ${e.message}", "WARN")
+                        weatherDao.log("CURRENT_TEMP_STATUS", "source=$src ok=false class=${e::class.simpleName} detail=${e.message}", "WARN")
                         val lastSuccess = weatherDao.getLastSuccessfulFetch(config.weatherSource)
                         dataStatusState.value = deriveDataStatus(
                             cachePresent = forecastState.value != null,

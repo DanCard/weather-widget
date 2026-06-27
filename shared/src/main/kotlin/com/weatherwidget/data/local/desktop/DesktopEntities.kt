@@ -88,3 +88,9 @@ data class DesktopStationCacheEntity(
     val stations: String,
     val updatedAt: Long,
 )
+
+data class CurrentTempStatus(
+    val timestamp: Long,
+    val ok: Boolean,
+    val message: String
+)

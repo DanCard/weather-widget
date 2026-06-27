@@ -2,10 +2,14 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.local.desktop.CurrentTempStatus
 import com.weatherwidget.data.model.DailyForecast
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
@@ -124,5 +128,67 @@ class DesktopWeatherDaoTest {
                 stmt.execute("UPDATE forecasts SET batchFetchedAt = $value, fetchedAt = $value")
             }
         }
+    }
+
+    @Test
+    fun `getLatestCurrentTempStatus retrieves the latest status matching specific source`() {
+        // Initially should be null
+        assertNull(dao.getLatestCurrentTempStatus("OPEN_METEO"))
+
+        // Log one ok=false for OPEN_METEO
+        val time1 = 1000L
+        dao.log(tag = "CURRENT_TEMP_STATUS", message = "source=OPEN_METEO ok=false class=ConnectTimeoutException detail=Timeout", level = "WARN")
+        database.getConnection().use { conn ->
+            conn.createStatement().use { stmt ->
+                stmt.execute("UPDATE app_logs SET timestamp = $time1 WHERE id = (SELECT max(id) FROM app_logs)")
+            }
+        }
+
+        // Log one ok=true for NWS at a later time
+        val time2 = 2000L
+        dao.log(tag = "CURRENT_TEMP_STATUS", message = "source=NWS ok=true", level = "INFO")
+        database.getConnection().use { conn ->
+            conn.createStatement().use { stmt ->
+                stmt.execute("UPDATE app_logs SET timestamp = $time2 WHERE id = (SELECT max(id) FROM app_logs)")
+            }
+        }
+
+        // Log one ok=true for OPEN_METEO at a later time
+        val time3 = 3000L
+        dao.log(tag = "CURRENT_TEMP_STATUS", message = "source=OPEN_METEO ok=true", level = "INFO")
+        database.getConnection().use { conn ->
+            conn.createStatement().use { stmt ->
+                stmt.execute("UPDATE app_logs SET timestamp = $time3 WHERE id = (SELECT max(id) FROM app_logs)")
+            }
+        }
+
+        // Verify NWS status
+        val nwsStatus = dao.getLatestCurrentTempStatus("NWS")
+        assertNotNull(nwsStatus)
+        assertEquals(time2, nwsStatus!!.timestamp)
+        assertTrue(nwsStatus.ok)
+        assertEquals("source=NWS ok=true", nwsStatus.message)
+
+        // Verify OPEN_METEO status (returns the latest one, which is time3 / ok=true)
+        val omStatus = dao.getLatestCurrentTempStatus("OPEN_METEO")
+        assertNotNull(omStatus)
+        assertEquals(time3, omStatus!!.timestamp)
+        assertTrue(omStatus.ok)
+        assertEquals("source=OPEN_METEO ok=true", omStatus.message)
+        
+        // Log one ok=false for OPEN_METEO at an even later time
+        val time4 = 4000L
+        dao.log(tag = "CURRENT_TEMP_STATUS", message = "source=OPEN_METEO ok=false class=SocketTimeoutException detail=Timeout2", level = "WARN")
+        database.getConnection().use { conn ->
+            conn.createStatement().use { stmt ->
+                stmt.execute("UPDATE app_logs SET timestamp = $time4 WHERE id = (SELECT max(id) FROM app_logs)")
+            }
+        }
+        
+        val omStatus2 = dao.getLatestCurrentTempStatus("OPEN_METEO")
+        assertNotNull(omStatus2)
+        assertEquals(time4, omStatus2!!.timestamp)
+        assertFalse(omStatus2.ok)
+        assertEquals("source=OPEN_METEO ok=false class=SocketTimeoutException detail=Timeout2", omStatus2.message)
     }
 }

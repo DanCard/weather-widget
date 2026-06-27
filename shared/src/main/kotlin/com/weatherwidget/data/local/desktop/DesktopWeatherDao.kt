@@ -419,6 +419,24 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
+    fun getLatestCurrentTempStatus(source: String): CurrentTempStatus? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT timestamp, message FROM app_logs WHERE tag = 'CURRENT_TEMP_STATUS' AND message LIKE ? ORDER BY timestamp DESC LIMIT 1"
+            ).use { stmt ->
+                stmt.setString(1, "source=$source%")
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    val timestamp = rs.getLong("timestamp")
+                    val msg = rs.getString("message")
+                    val ok = msg.contains("ok=true")
+                    return CurrentTempStatus(timestamp, ok, msg)
+                }
+            }
+        }
+        return null
+    }
+
     fun getRecentLogs(limit: Int = 200): List<DesktopLogEntity> {
         val result = mutableListOf<DesktopLogEntity>()
         db.getConnection().use { conn ->

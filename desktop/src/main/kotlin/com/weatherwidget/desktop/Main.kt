@@ -206,6 +206,9 @@ private fun runApp() = application {
         var dataStatus by remember { mutableStateOf<DataStatus>(DataStatus.Loading) }
         // Transient "Fetching older data…" banner shown while an on-demand deep-history pull runs.
         var historyFetchToast by remember { mutableStateOf<String?>(null) }
+        var currentTempFetchError by remember { mutableStateOf<String?>(null) }
+        var currentTempFetchTimestamp by remember { mutableStateOf(0L) }
+        var dismissedErrorTimestamp by remember { mutableStateOf(0L) }
         val uiScope = rememberCoroutineScope()
         val currentConfig = config
 
@@ -338,6 +341,80 @@ private fun runApp() = application {
                 } catch (e: Exception) {
                     Log.e(TAG, "Current-temp UI update failed: ${e.message}")
                 }
+            }
+        }
+
+        LaunchedEffect(repository, config, forecast) {
+            val repo = repository ?: return@LaunchedEffect
+            val activeConfig = config ?: return@LaunchedEffect
+            
+            fun updateStatus() {
+                val isHourly = activeConfig.viewMode.isHourly
+                if (!isHourly) {
+                    currentTempFetchError = null
+                    return
+                }
+                
+                val src = WeatherSource.fromDisplaySource(activeConfig.weatherSource).id
+                val status = weatherDao.getLatestCurrentTempStatus(src)
+                if (status != null && !status.ok) {
+                    val timeFmt = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
+                    val attemptFmt = DateTimeFormatter.ofPattern("H:mm:ss").withZone(ZoneId.systemDefault())
+                    val now = System.currentTimeMillis()
+                    
+                    val msg = status.message
+                    val className = msg.substringAfter("class=").substringBefore(" detail=")
+                    val detail = msg.substringAfter("detail=")
+                    
+                    val host = when {
+                        detail.contains("open-meteo.com") -> "api.open-meteo.com"
+                        detail.contains("weather.gov") -> "api.weather.gov"
+                        detail.contains("tomorrow.io") -> "api.tomorrow.io"
+                        detail.contains("weatherapi.com") -> "api.weatherapi.com"
+                        detail.contains("visualcrossing.com") -> "weather.visualcrossing.com"
+                        detail.contains("openweathermap.org") -> "api.openweathermap.org"
+                        detail.contains("silurian") -> "silurian API"
+                        else -> ""
+                    }
+                    
+                    val friendlyError = when (className) {
+                        "ConnectTimeoutException" -> "Connect timeout (10s)"
+                        "SocketTimeoutException" -> "Socket timeout"
+                        "UnknownHostException" -> "Unknown host (DNS lookup failed)"
+                        else -> detail.substringBefore(" [").take(40)
+                    }
+                    val errorLine = if (host.isNotEmpty()) "$friendlyError · $host" else friendlyError
+                    
+                    val lastGoodObsMs = forecast?.currentObservedAt
+                    val lastGoodLine = if (lastGoodObsMs != null) {
+                        val timeStr = timeFmt.format(Instant.ofEpochMilli(lastGoodObsMs))
+                        val ageStr = formatAge(now - lastGoodObsMs)
+                        "Last good obs: $timeStr ($ageStr ago)"
+                    } else {
+                        "Last good obs: None"
+                    }
+                    
+                    val attemptTimeStr = attemptFmt.format(Instant.ofEpochMilli(status.timestamp))
+                    val attemptLine = "Last attempt: $attemptTimeStr · 2 retries failed"
+                    
+                    val displayName = WeatherSource.fromId(src).displayName.uppercase().replace("-", "_")
+                    currentTempFetchError = """
+                        $displayName current temp not updating
+                        $errorLine
+                        $lastGoodLine
+                        $attemptLine
+                    """.trimIndent()
+                    currentTempFetchTimestamp = status.timestamp
+                } else {
+                    currentTempFetchError = null
+                }
+            }
+
+            updateStatus()
+
+            while (true) {
+                kotlinx.coroutines.delay(CURRENT_TEMP_UI_INTERVAL_MS)
+                updateStatus()
             }
         }
 
@@ -607,6 +684,11 @@ private fun runApp() = application {
                     onNeedHistory = onNeedHistory,
                     onNeedForecastExtension = onNeedForecastExtension,
                     historyFetchToast = historyFetchToast,
+                    currentTempFetchError = currentTempFetchError,
+                    onDismissCurrentTempError = {
+                        dismissedErrorTimestamp = currentTempFetchTimestamp
+                        currentTempFetchError = null
+                    },
                 )
             }
         }
@@ -636,6 +718,8 @@ internal fun WidgetPopup(
     onNeedHistory: (Int) -> Unit = {},
     onNeedForecastExtension: (Int) -> Unit = {},
     historyFetchToast: String? = null,
+    currentTempFetchError: String? = null,
+    onDismissCurrentTempError: () -> Unit = {},
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
       // One shared scale for header + graph so everything grows together with the window.
@@ -811,6 +895,56 @@ internal fun WidgetPopup(
                                         color = Color.White,
                                         fontSize = (12f * uiScale).sp,
                                     )
+                                }
+                            }
+
+                            // Persistent current temp fetch failure warning label
+                            currentTempFetchError?.let { msg ->
+                                Surface(
+                                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF3E1C1C).copy(alpha = 0.95f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE57373)),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            val lines = msg.split("\n")
+                                            if (lines.isNotEmpty()) {
+                                                Text(
+                                                    text = lines[0],
+                                                    color = Color(0xFFFFCDD2),
+                                                    fontSize = (13f * uiScale).sp,
+                                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                                )
+                                                lines.drop(1).forEach { line ->
+                                                    Text(
+                                                        text = line,
+                                                        color = Color(0xFFEF9A9A),
+                                                        fontSize = (11f * uiScale).sp,
+                                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Spacer(Modifier.width(16.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size((24f * uiScale).dp)
+                                                .clickable { onDismissCurrentTempError() },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "×",
+                                                color = Color(0xFFEF9A9A),
+                                                fontSize = (18f * uiScale).sp,
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1216,5 +1350,15 @@ private fun CenteredMessage(text: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+private fun formatAge(ageMillis: Long): String {
+    val minutes = ageMillis / 60_000
+    val hours = minutes / 60
+    return when {
+        hours >= 24 -> "${hours / 24}d ${hours % 24}h old"
+        hours > 0 -> "${hours}h ${minutes % 60}m old"
+        else -> "${minutes}m old"
     }
 }

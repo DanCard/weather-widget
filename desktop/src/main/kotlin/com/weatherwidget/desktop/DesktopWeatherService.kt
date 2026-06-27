@@ -50,6 +50,16 @@ class DesktopWeatherService(
             connectTimeoutMillis = 10_000
             socketTimeoutMillis = 30_000
         }
+        install(HttpRequestRetry) {
+            maxRetries = 2
+            retryOnExceptionIf { _, cause ->
+                cause is io.ktor.client.network.sockets.ConnectTimeoutException ||
+                cause is io.ktor.client.network.sockets.SocketTimeoutException ||
+                cause is io.ktor.client.plugins.HttpRequestTimeoutException ||
+                cause is java.io.IOException
+            }
+            exponentialDelay(base = 2.0, maxDelayMs = 2_000)
+        }
     }
 
     // Build-time keys (from local.properties / env, baked in via DesktopApiKeys) provide the default,
