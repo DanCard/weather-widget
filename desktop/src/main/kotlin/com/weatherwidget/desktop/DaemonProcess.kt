@@ -366,6 +366,59 @@ fun runDaemon() {
                     }
                 }
             }
+
+            // 3d. Non-primary actuals (observations) loop — 30 min, only while charging + screen on.
+            // Keeps the non-displayed sources' actual/current temp fresh for an instant toggle,
+            // without paying for it on battery or while the monitor is asleep. Off-charger or
+            // screen-off, non-primary actuals fall back to the slower non-active forecast loop (3c).
+            launch {
+                while (true) {
+                    val (isCharging, _) = PowerDetector.getPowerState()
+                    val delayMs = DesktopFetchStrategy.getNonPrimaryObservationDelayMs(
+                        isCharging = isCharging,
+                        screenOn = ScreenStateDetector.isScreenOn(),
+                    )
+                    if (delayMs == null) {
+                        // Gated off (battery or screen off): re-check soon so non-primary actuals
+                        // resume within minutes of plugging in / the screen waking, not 30 min later.
+                        delay(SUSPEND_RECHECK_INTERVAL_MS)
+                        continue
+                    }
+
+                    delay(delayMs)
+
+                    val nonActiveSources = config.visibleSources.filter { it != config.weatherSource }
+                    for (otherSource in nonActiveSources) {
+                        try {
+                            Log.i(TAG, "Non-primary actuals refresh starting for $otherSource...")
+                            val otherService = DesktopWeatherService(
+                                config.lat,
+                                config.lon,
+                                otherSource,
+                                config.apiKeys,
+                                weatherDao
+                            )
+                            val otherRepo = DesktopWeatherRepository(
+                                otherService,
+                                weatherDao,
+                                config.lat,
+                                config.lon,
+                                otherSource,
+                                config.personalStationWeight()
+                            )
+                            otherRepo.refreshObservations()
+                            otherService.close()
+                            Log.i(TAG, "Non-primary actuals refresh successful for $otherSource.")
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.i(TAG, "Non-primary actuals refresh failed for $otherSource: ${e.message}")
+                            val reason = if (isOfflineException(e)) "offline" else "source_error"
+                            weatherDao.log("REFRESH_FAIL", "non-primary actuals $otherSource: $reason ${e.message}", "WARN")
+                        }
+                    }
+                }
+            }
         }
     }
 

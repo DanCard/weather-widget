@@ -49,4 +49,20 @@ class DesktopFetchStrategyTest {
         assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging = false, batteryLevel = 60, isActiveSource = true))
         assertNull(DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging = false, batteryLevel = 40, isActiveSource = true))
     }
+
+    @Test
+    fun `getNonPrimaryObservationDelayMs returns 30 min only when charging and screen on`() {
+        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getNonPrimaryObservationDelayMs(isCharging = true, screenOn = true))
+    }
+
+    @Test
+    fun `getNonPrimaryObservationDelayMs skips when on battery`() {
+        assertNull(DesktopFetchStrategy.getNonPrimaryObservationDelayMs(isCharging = false, screenOn = true))
+    }
+
+    @Test
+    fun `getNonPrimaryObservationDelayMs skips when screen off`() {
+        assertNull(DesktopFetchStrategy.getNonPrimaryObservationDelayMs(isCharging = true, screenOn = false))
+        assertNull(DesktopFetchStrategy.getNonPrimaryObservationDelayMs(isCharging = false, screenOn = false))
+    }
 }

@@ -15,6 +15,11 @@ object DesktopFetchStrategy {
     private const val AC_ACTIVE_FORECAST_MINUTES = 60L
     private const val AC_INACTIVE_FORECAST_MINUTES = 120L
 
+    // Non-primary (non-displayed) sources get their actuals refreshed on this cadence, but only
+    // while it is cheap to do so: plugged in AND the screen is on. Off-charger or screen-off, the
+    // non-primary actuals fall back to the much slower non-active forecast loop (120 min+).
+    private const val AC_NONPRIMARY_OBSERVATION_MINUTES = 30L
+
     /**
      * Returns the delay in MS for the next observation fetch.
      * Returns null if fetches should be suspended.
@@ -45,4 +50,15 @@ object DesktopFetchStrategy {
             else -> null
         }
     }
+
+    /**
+     * Returns the delay in MS for the next non-primary (non-displayed) source actuals fetch, or
+     * null to skip this cycle. Intentionally fires ONLY while charging AND the screen is on — the
+     * non-primary actuals are a nicety (kept fresh for an instant source-toggle), not worth waking
+     * the network on battery or while the user isn't looking at the display.
+     *
+     * [screenOn] is supplied by the caller (e.g. [ScreenStateDetector]) so this stays pure/testable.
+     */
+    fun getNonPrimaryObservationDelayMs(isCharging: Boolean, screenOn: Boolean): Long? =
+        if (isCharging && screenOn) AC_NONPRIMARY_OBSERVATION_MINUTES * MS_PER_MINUTE else null
 }
