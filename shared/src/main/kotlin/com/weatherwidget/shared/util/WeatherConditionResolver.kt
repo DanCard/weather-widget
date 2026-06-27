@@ -158,6 +158,29 @@ object WeatherConditionResolver {
         else -> IconHome.HOURLY
     }
 
+    /** Minimum daily precip probability (%) for a daily-column tap to open the precipitation graph. */
+    const val DAILY_CLICK_PRECIP_THRESHOLD = 16
+
+    /**
+     * Daily-column tap gate: open the precipitation graph only when the day reads as rain AND its daily
+     * precip probability clears [DAILY_CLICK_PRECIP_THRESHOLD]. Platform-neutral so Android (Int res) and
+     * desktop (icon name) feed it their own already-computed `isRainIndicator`.
+     */
+    fun shouldDailyClickShowPrecip(isRainIndicator: Boolean, precipProbability: Int?): Boolean =
+        isRainIndicator && (precipProbability ?: 0) >= DAILY_CLICK_PRECIP_THRESHOLD
+
+    /**
+     * Name-based convenience for daily-column taps (desktop). Returns only [IconHome.PRECIPITATION] or
+     * [IconHome.HOURLY] — unlike [resolveIconHome] (bottom-row taps), a daily tap never routes to
+     * cloud cover, matching Android's `DayClickHelper.resolveDailyTargetViewMode`.
+     */
+    fun resolveDailyClickHome(iconName: String?, precipProbability: Int?): IconHome =
+        if (iconName != null && shouldDailyClickShowPrecip(isRainIndicator(iconName), precipProbability)) {
+            IconHome.PRECIPITATION
+        } else {
+            IconHome.HOURLY
+        }
+
     // ── Cloud ratio ───────────────────────────────────────────────────────
 
     /** Returns cloud ratio (0.0 = clear, 1.0 = overcast) from condition text, or null. */

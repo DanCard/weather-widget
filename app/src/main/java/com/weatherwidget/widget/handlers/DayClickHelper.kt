@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.ViewMode
@@ -45,8 +46,11 @@ object DayClickHelper {
 
     fun resolveDailyTargetViewMode(iconRes: Int?, precipProbability: Int?): ViewMode {
         if (iconRes == null) return ViewMode.TEMPERATURE
-        val prob = precipProbability ?: 0
-        return if (WeatherIconMapper.isRainIndicator(iconRes) && prob >= 16) {
+        return if (WeatherConditionResolver.shouldDailyClickShowPrecip(
+                WeatherIconMapper.isRainIndicator(iconRes),
+                precipProbability,
+            )
+        ) {
             ViewMode.PRECIPITATION
         } else {
             ViewMode.TEMPERATURE

@@ -12,10 +12,12 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.WeatherConditionResolver
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -521,5 +523,67 @@ class DesktopUiTest {
             java.time.Duration.between(expectedMidnight, windowStart).toMinutes() / 60.0
         assertEquals(0.0, startDriftHours, 1.0)
         assertEquals(DesktopGraphUtils.DAY_VIEW_SPAN_HOURS, backHours + forwardHours)
+    }
+
+    /** Minimal [DesktopDailyDay] for routing tests; only icon + precip carry the decision. */
+    private fun routingDay(
+        date: java.time.LocalDate,
+        iconName: String,
+        forecastPrecip: Int?,
+        snapshotPrecip: Int? = null,
+    ) = DesktopDailyDay(
+        date = date,
+        label = "Today",
+        forecast = DailyForecast(
+            date = date.toString(),
+            highTemp = 70f,
+            lowTemp = 50f,
+            condition = "n/a",
+            precipProbability = forecastPrecip,
+        ),
+        actual = null,
+        snapshot = snapshotPrecip?.let {
+            DailyForecastSnapshot(
+                date = date.toString(),
+                highTemp = 70f,
+                lowTemp = 50f,
+                condition = "n/a",
+                precipProbability = it,
+                fetchedAt = 0L,
+            )
+        },
+        solidHigh = null, solidLow = null, forecastHigh = null, forecastLow = null,
+        ghostHigh = null, snapshotHigh = null, snapshotLow = null,
+        iconCondition = null, iconName = iconName,
+        isToday = true, isPast = false, cloudCoverRatio = null,
+        dailyRainLabelText = null, nightRainLabelText = null, isClimateNormal = false,
+    )
+
+    @Test
+    fun testDayClickRoutesLikeAndroid() {
+        val date = java.time.LocalDate.now()
+        val rain = WeatherConditionResolver.IC_RAIN
+        val cloudy = WeatherConditionResolver.IC_CLOUDY
+
+        // Rainy day clearing the 16% threshold -> precipitation graph.
+        assertEquals(
+            ViewMode.PRECIPITATION,
+            dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = 16))).viewMode,
+        )
+        // Rainy day below the threshold -> hourly temperature graph.
+        assertEquals(
+            ViewMode.HOURLY,
+            dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = 15))).viewMode,
+        )
+        // Cloudy day -> hourly (no cloud-cover routing on a daily tap), matching Android.
+        assertEquals(
+            ViewMode.HOURLY,
+            dayClickConfig(stubConfig, date, listOf(routingDay(date, cloudy, forecastPrecip = 90))).viewMode,
+        )
+        // Snapshot precip is used when the forecast lacks it.
+        assertEquals(
+            ViewMode.PRECIPITATION,
+            dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = null, snapshotPrecip = 40))).viewMode,
+        )
     }
 }

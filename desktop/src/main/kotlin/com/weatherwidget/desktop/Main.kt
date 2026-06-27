@@ -35,6 +35,7 @@ import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
@@ -100,10 +101,16 @@ internal fun dayClickConfig(
 ): DesktopConfig {
     val zoom = DesktopGraphUtils.dayViewZoomFactor
     val hours = offsetToDayCenter(clickedDate, DesktopGraphUtils.backHoursFor(zoom))
-    // Route on the resolved+gated icon name (matches the displayed icon), not the raw condition.
-    val clickedIconName = days.find { it.date == clickedDate }?.iconName
-    val targetView = clickedIconName
-        ?.let { WeatherIcon.resolveIconHome("drawable/$it.xml") } ?: ViewMode.HOURLY
+    // Daily-tap routing matches Android (DayClickHelper.resolveDailyTargetViewMode): precipitation
+    // graph only when the day reads as rain AND its daily precip probability clears the threshold;
+    // otherwise the hourly temperature graph. A daily tap never routes to cloud cover. Gate on the
+    // same precip the displayed icon used (forecast, snapshot fallback).
+    val clickedDay = days.find { it.date == clickedDate }
+    val precipProb = clickedDay?.forecast?.precipProbability ?: clickedDay?.snapshot?.precipProbability
+    val targetView = when (WeatherConditionResolver.resolveDailyClickHome(clickedDay?.iconName, precipProb)) {
+        WeatherConditionResolver.IconHome.PRECIPITATION -> ViewMode.PRECIPITATION
+        else -> ViewMode.HOURLY
+    }
     return config.copy(
         viewMode = targetView,
         hourlyOffset = hours,
