@@ -61,6 +61,7 @@
         <activity
             android:name=".ui.WeatherObservationsActivity"
             android:exported="false"
+            android:taskAffinity=""
             android:label="Current Observations" />
 
         <activity

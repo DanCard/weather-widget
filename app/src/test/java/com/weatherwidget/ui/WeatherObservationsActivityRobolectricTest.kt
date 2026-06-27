@@ -1,9 +1,11 @@
 package com.weatherwidget.ui
 
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Looper
+import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
@@ -22,6 +24,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -352,6 +355,37 @@ class WeatherObservationsActivityRobolectricTest {
                 "Activity should fallback to first visible source when no widget ID is provided",
                 WeatherSource.NWS.shortDisplayName,
                 sourceButton.text.toString()
+            )
+        }
+    }
+
+    // Samsung regression: the widget launches this activity with FLAG_ACTIVITY_NEW_TASK. If it shared
+    // MainActivity's (default) task affinity, One UI Home would foreground the MainActivity-rooted task
+    // and finishing here would reveal the "Welcome to Weather Widget" screen. A distinct task affinity
+    // keeps it in its own task so Close returns to the home screen instead.
+    @Test
+    fun `observations activity does not share a task with the welcome MainActivity`() {
+        val pm = context.packageManager
+        val obsInfo = pm.getActivityInfo(
+            ComponentName(context, WeatherObservationsActivity::class.java), 0)
+        val mainInfo = pm.getActivityInfo(
+            ComponentName(context, MainActivity::class.java), 0)
+        assertNotEquals(
+            "Observations must live in its own task so closing it cannot reveal the Welcome screen",
+            mainInfo.taskAffinity,
+            obsInfo.taskAffinity,
+        )
+    }
+
+    @Test
+    fun `clicking Close finishes the activity without launching MainActivity`() {
+        launchActivity().onActivity { activity ->
+            activity.findViewById<Button>(R.id.close_button).performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue("Close must finish the activity", activity.isFinishing)
+            assertNull(
+                "Close must not start another activity (the Welcome screen)",
+                shadowOf(activity).nextStartedActivity,
             )
         }
     }
