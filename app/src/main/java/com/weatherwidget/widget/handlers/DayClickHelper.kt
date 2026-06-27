@@ -43,9 +43,10 @@ object DayClickHelper {
      */
     fun shouldShowHistory(@Suppress("UNUSED_PARAMETER") isPastDay: Boolean): Boolean = false
 
-    fun resolveDailyTargetViewMode(iconRes: Int?): ViewMode {
+    fun resolveDailyTargetViewMode(iconRes: Int?, precipProbability: Int?): ViewMode {
         if (iconRes == null) return ViewMode.TEMPERATURE
-        return if (WeatherIconMapper.isRainIndicator(iconRes)) {
+        val prob = precipProbability ?: 0
+        return if (WeatherIconMapper.isRainIndicator(iconRes) && prob >= 16) {
             ViewMode.PRECIPITATION
         } else {
             ViewMode.TEMPERATURE

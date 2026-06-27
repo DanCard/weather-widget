@@ -691,7 +691,8 @@ class DailyViewHandlerTest {
             lat = 37.0,
             lon = -122.0,
             displaySource = WeatherSource.NWS,
-            now = now
+            now = now,
+            precipProbability = 16,
         )
 
         assertEquals("com.weatherwidget.ACTION_DAY_CLICK", intent.action)

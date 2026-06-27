@@ -85,17 +85,17 @@ class DayClickHelperTest {
 
     @Test
     fun `daily rainy icon navigates to precipitation`() {
-        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_rain))
+        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_rain, 16))
     }
 
     @Test
     fun `daily cloud eligible icon navigates to temperature`() {
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_mostly_clear))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_mostly_clear, 0))
     }
 
     @Test
     fun `daily clear icon navigates to temperature`() {
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear, 0))
     }
 
     @Test
@@ -142,7 +142,19 @@ class DayClickHelperTest {
     fun `daily chance rain mixed icon navigates to precipitation`() {
         assertEquals(
             ViewMode.PRECIPITATION,
-            DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_partly_cloudy_chance_rain),
+            DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_partly_cloudy_chance_rain, 60),
+        )
+    }
+
+    @Test
+    fun `daily rainy icon with less than 16 percent chance navigates to temperature`() {
+        assertEquals(
+            ViewMode.TEMPERATURE,
+            DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_rain, 15),
+        )
+        assertEquals(
+            ViewMode.TEMPERATURE,
+            DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_rain, null),
         )
     }
 
@@ -258,7 +270,7 @@ class DayClickHelperTest {
 
         assertTrue("Daily precipitation 16% should count as rain", hasRain)
         assertFalse("Today should NOT show history", DayClickHelper.shouldShowHistory(false))
-        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_rain))
+        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_rain, dailyPrecipProbability))
     }
 
     @Test
@@ -274,7 +286,7 @@ class DayClickHelperTest {
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability)
 
         assertFalse("8% daily precip should NOT count as rain for navigation", hasRain)
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear, dailyPrecipProbability))
     }
 
     @Test
@@ -290,7 +302,7 @@ class DayClickHelperTest {
 
         assertTrue(hasRain)
         assertFalse(DayClickHelper.shouldShowHistory(false))
-        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_storm))
+        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_storm, 60))
     }
 
     @Test
@@ -306,7 +318,7 @@ class DayClickHelperTest {
 
         assertFalse(hasRain)
         assertFalse(DayClickHelper.shouldShowHistory(false))
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear, 0))
     }
 
     @Test
@@ -337,7 +349,7 @@ class DayClickHelperTest {
 
         assertEquals(0, todayNext8HourPrecip)
         assertFalse(hasRain)
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear, todayNext8HourPrecip))
     }
 
     // ── resolveHourlyBottomRowAction: icon-dependent routing for hourly graphs ──

@@ -80,6 +80,7 @@ class DailyViewHandlerIntentContractTest {
                 lon = LON,
                 displaySource = WeatherSource.NWS,
                 now = now,
+                precipProbability = 16,
             )
 
         val expectedOffset =
@@ -114,6 +115,7 @@ class DailyViewHandlerIntentContractTest {
                 lon = LON,
                 displaySource = WeatherSource.NWS,
                 now = now,
+                precipProbability = 16,
             )
 
         assertFalse(intent.getBooleanExtra("isHistory", true))

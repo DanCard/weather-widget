@@ -30,6 +30,7 @@ internal object DailyClickHandlerFactory {
         targetModeOverride: ViewMode? = null,
         offsetOverride: Int? = null,
         clickSource: String? = null,
+        precipProbability: Int? = null,
     ): Intent {
         val isHistory = date.isBefore(now.toLocalDate())
         val showHistory = DayClickHelper.shouldShowHistory(isHistory)
@@ -49,7 +50,7 @@ internal object DailyClickHandlerFactory {
             if (!showHistory) {
                 val targetMode = targetModeOverride
                     ?: if (isHistory) ViewMode.TEMPERATURE
-                    else DayClickHelper.resolveDailyTargetViewMode(iconRes)
+                    else DayClickHelper.resolveDailyTargetViewMode(iconRes, precipProbability)
                 val offset = offsetOverride ?: DayClickHelper.calculatePrecipitationOffset(now, date)
                 putExtra(WidgetActions.EXTRA_TARGET_VIEW, targetMode.name)
                 putExtra(WidgetActions.EXTRA_HOURLY_OFFSET, offset)
@@ -160,6 +161,7 @@ internal object DailyClickHandlerFactory {
                 } else {
                     "graph_bottom_day:col=$colIndex:date=${dayData.date}"
                 },
+                precipProbability = dayData.rainData.dailyPrecipProbability,
             )
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
