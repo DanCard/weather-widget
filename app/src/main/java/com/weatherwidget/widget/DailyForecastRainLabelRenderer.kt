@@ -24,6 +24,8 @@ internal object DailyForecastRainLabelRenderer {
     private const val NIGHT_TUCK_OVERLAP_BASE_DP = DailyRainLabels.NIGHT_TUCK_OVERLAP_BASE_DP
     private const val NIGHT_TUCK_NUDGE_BASE_DP = DailyRainLabels.NIGHT_TUCK_NUDGE_BASE_DP
     private const val NIGHT_TUCK_NUDGE_RANGE_DP = DailyRainLabels.NIGHT_TUCK_NUDGE_RANGE_DP
+    private const val NIGHT_TUCK_ROOMY_RIGHT_DP = DailyRainLabels.NIGHT_TUCK_ROOMY_RIGHT_DP
+    private const val NIGHT_TUCK_ROOMY_DOWN_DP = DailyRainLabels.NIGHT_TUCK_ROOMY_DOWN_DP
 
     internal enum class RainLabelType {
         DAY, NIGHT
@@ -177,7 +179,13 @@ internal object DailyForecastRainLabelRenderer {
         val rainText = day.rainData.nightRainLabelText ?: return
 
         val tuck = resolveNightAnchorBaseline(day, rightNeighbor, layout, paints) ?: return
-        val hNudgePx = (tuck.effectiveNudgeDp).toPx(layout.density)
+        // When roomy, push the label a couple px right + down off its snug tuck; collapses to 0 when
+        // cramped so a tight column keeps the existing tuck under the low temp.
+        val roomFraction = 1f - tuck.tightFraction
+        val roomyRightPx = (NIGHT_TUCK_ROOMY_RIGHT_DP * roomFraction).toPx(layout.density)
+        val roomyDownPx = (NIGHT_TUCK_ROOMY_DOWN_DP * roomFraction).toPx(layout.density)
+        // Existing fit subtracts hNudgePx (leftward); subtracting the right nudge shifts it back right.
+        val hNudgePx = (tuck.effectiveNudgeDp).toPx(layout.density) - roomyRightPx
         val fit = resolveNightHorizontalFit(day, rainText, centerX, layout, hNudgePx, paints) ?: return
 
         val metrics = fit.paint.fontMetrics
@@ -215,6 +223,9 @@ internal object DailyForecastRainLabelRenderer {
             resolvedBaseline = collision.baseline
             resolution = collision.resolution
         }
+
+        // Roomy down-nudge applied on top of any collision snap (0 when cramped).
+        resolvedBaseline += roomyDownPx
 
         val resolvedBottom = resolvedBaseline + metrics.descent
 

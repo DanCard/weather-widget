@@ -44,6 +44,15 @@ object DailyRainLabels {
     const val NIGHT_TUCK_NUDGE_BASE_DP = 1.5f
     const val NIGHT_TUCK_NUDGE_RANGE_DP = 1.5f
 
+    /**
+     * When there is room below the low-temp band, the night rain % is pushed off its snug tuck a
+     * couple px to the RIGHT and DOWN so it reads as its own label instead of hugging the low temp.
+     * Each is scaled by roomFraction = 1 - tightFraction, so a cramped column keeps the snug tuck
+     * (offset collapses to 0) while a roomy column gets the full nudge.
+     */
+    const val NIGHT_TUCK_ROOMY_RIGHT_DP = 2.5f
+    const val NIGHT_TUCK_ROOMY_DOWN_DP = 2.5f
+
     /** Max precip probability over the daytime (8am–8pm) and nighttime (8pm–8am) windows. */
     data class DayNightPrecip(
         val dayMax: Int?,

@@ -378,11 +378,17 @@ fun DailyForecastGraph(
                     val dynamicOverlapDp = NIGHT_TUCK_OVERLAP_BASE_DP * tightFraction
                     val dynamicNudgeDp = NIGHT_TUCK_NUDGE_BASE_DP + (NIGHT_TUCK_NUDGE_RANGE_DP * tightFraction)
 
+                    // When roomy, push the label a couple px right + down off its snug tuck; collapses
+                    // to 0 when cramped so a tight column keeps the existing tuck under the low temp.
+                    val roomFraction = 1f - tightFraction
+                    val roomyRightPx = DailyRainLabels.NIGHT_TUCK_ROOMY_RIGHT_DP * roomFraction * scale
+                    val roomyDownPx = DailyRainLabels.NIGHT_TUCK_ROOMY_DOWN_DP * roomFraction * scale
+
                     val isLeftTempLower = rightLowY != null && leftLowY > rightLowY
                     val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.0f else dynamicNudgeDp
 
                     val hNudgePx = effectiveNudgeDp * scale
-                    val shiftedCenterX = centerX + dayWidth / 2f - hNudgePx + 1f * scale
+                    val shiftedCenterX = centerX + dayWidth / 2f - hNudgePx + 1f * scale + roomyRightPx
 
                     // Base rain layout
                     var finalPaintStyle = TextStyle(fontSize = (11f * scale * DailyRainLabels.NIGHT_SCALE).sp, color = COLOR_FORECAST_RAINY)
@@ -430,8 +436,9 @@ fun DailyForecastGraph(
 
                     // Keep clear of the day-name row
                     val hardBottomLimit = size.height - dayLabelBand
-                    if (finalNightTopY + finalLayout.size.height <= hardBottomLimit) {
-                        drawText(finalLayout, topLeft = Offset(finalX, finalNightTopY))
+                    val drawnTopY = finalNightTopY + roomyDownPx
+                    if (drawnTopY + finalLayout.size.height <= hardBottomLimit) {
+                        drawText(finalLayout, topLeft = Offset(finalX, drawnTopY))
                     }
                 }
             }
