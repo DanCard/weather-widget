@@ -17,6 +17,14 @@ import com.weatherwidget.data.model.WeatherSource
 object HistoricalActualsBackfill {
 
     /**
+     * The synthetic `stationId` stamped on every backfill observation row for [sourceId] (e.g.
+     * `"NWS_MAIN"`, `"OPEN_METEO_MAIN"`). These rows are not real station observations — they exist
+     * only to drive the actual line — so the observations/stations UI uses this to recognise and
+     * filter them (see `ObservationSourceMatcher`).
+     */
+    fun syntheticStationId(sourceId: String): String = "${sourceId}_MAIN"
+
+    /**
      * @param hourly the source's hourly list, typically fetched with a `past_days` window so it
      *   spans both history and forecast. Only entries at or before [nowMs] are kept.
      * @param sourceId the [WeatherSource] id these hours belong to; becomes the observation `api`.
@@ -39,7 +47,7 @@ object HistoricalActualsBackfill {
             .filter { it.dateTime <= nowMs }
             .map { hour ->
                 ObservationReading(
-                    stationId = "${sourceId}_MAIN",
+                    stationId = syntheticStationId(sourceId),
                     stationName = "$sourceId: History Backfill",
                     timestamp = hour.dateTime,
                     temperature = hour.temperature,

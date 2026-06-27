@@ -28,6 +28,7 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.util.StationHistoryUrl
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -358,21 +359,10 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     internal object WeatherObservationsSupport {
-        private val sourcePrefixes =
-            mapOf(
-                WeatherSource.VISUAL_CROSSING to "VISUAL_CROSSING_",
-                WeatherSource.OPEN_WEATHER_MAP to "OPEN_WEATHER_MAP_",
-                WeatherSource.OPEN_METEO to "OPEN_METEO_",
-                WeatherSource.WEATHER_API to "WEATHER_API_",
-                WeatherSource.SILURIAN to "SILURIAN_",
-                WeatherSource.TOMORROW_IO to "TOMORROW_IO_",
-            )
-
+        // Delegates to the shared matcher so Android and the desktop stations list filter synthetic
+        // rows (NWS_BLEND, the NWS history backfill) identically. See ObservationSourceMatcher.
         fun matchesObservationSource(stationId: String, source: WeatherSource): Boolean =
-            when (source) {
-                WeatherSource.NWS -> stationId != "NWS_BLEND" && sourcePrefixes.values.none { prefix -> stationId.startsWith(prefix) }
-                else -> stationId.startsWith(sourcePrefixes[source] ?: return false)
-            }
+            ObservationSourceMatcher.matchesObservationSource(stationId, source)
 
         fun matchesFetchLog(log: AppLogEntity, source: WeatherSource): Boolean =
             when (log.tag) {

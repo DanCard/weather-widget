@@ -46,6 +46,17 @@ class WeatherObservationsSupportTest {
     }
 
     @Test
+    fun `matchesObservationSource excludes NWS history backfill from NWS`() {
+        // The NWS->Open-Meteo fallback mints "NWS_MAIN" backfill rows; they are not station obs.
+        assertFalse(
+            WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(
+                stationId = "NWS_MAIN",
+                source = WeatherSource.NWS,
+            ),
+        )
+    }
+
+    @Test
     fun `matchesObservationSource matches source prefixes for non-NWS sources`() {
         assertTrue(
             WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(

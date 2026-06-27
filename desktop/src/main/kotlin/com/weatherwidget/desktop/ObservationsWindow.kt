@@ -36,6 +36,7 @@ import com.weatherwidget.data.local.desktop.DesktopLogEntity
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.util.StationHistoryUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -147,10 +148,11 @@ internal fun ObservationsWindow(
                 val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
                 val obs = weatherDao.getRecentObservations(sinceMs)
                     .filter { it.api == currentSource.id }
-                    // Hide synthetic aggregates (the internal IDW blend) — same guard the Android
-                    // widget applies via WeatherObservationsActivity.matchesObservationSource().
+                    // Hide synthetic rows (IDW blend + NWS history backfill) — the shared matcher is
+                    // the same one the Android stations list uses. The stationType guard stays as a
+                    // belt-and-suspenders catch for the desktop-only "BLENDED" marker.
                     .filter {
-                        it.stationId != DesktopObservationEntity.NWS_BLEND_STATION_ID &&
+                        ObservationSourceMatcher.matchesObservationSource(it.stationId, currentSource) &&
                             it.stationType != "BLENDED"
                     }
                     .groupBy { it.stationId }

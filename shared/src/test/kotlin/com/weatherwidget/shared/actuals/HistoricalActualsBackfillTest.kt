@@ -49,6 +49,7 @@ class HistoricalActualsBackfillTest {
         val obs = result.single()
         assertEquals(WeatherSource.OPEN_METEO.id, obs.api)
         assertEquals("OPEN_METEO_MAIN", obs.stationId)
+        assertEquals(HistoricalActualsBackfill.syntheticStationId(WeatherSource.OPEN_METEO.id), obs.stationId)
         assertEquals("Clear", obs.condition)
         assertEquals(lat, obs.locationLat, 0.0)
         assertEquals(lon, obs.locationLon, 0.0)
@@ -70,6 +71,12 @@ class HistoricalActualsBackfillTest {
             listOf(hour(-1, 62f, precipMm = 1.5f)), lat, lon, WeatherSource.VISUAL_CROSSING.id, now,
         )
         assertNull(result.single().precipAmountMm)
+    }
+
+    @Test
+    fun `syntheticStationId appends _MAIN to the source id`() {
+        assertEquals("NWS_MAIN", HistoricalActualsBackfill.syntheticStationId(WeatherSource.NWS.id))
+        assertEquals("SILURIAN_MAIN", HistoricalActualsBackfill.syntheticStationId(WeatherSource.SILURIAN.id))
     }
 
     @Test
