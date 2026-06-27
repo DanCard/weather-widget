@@ -94,6 +94,17 @@ object TemperatureLabelResolver {
         TemperatureRole.ACTUAL_END,
     )
 
+    // Roles whose suppress/accept decisions are traced to logcat (Log.v — ephemeral, never persisted
+    // to app_logs). Includes the FORECAST_* roles so a near-edge forecast extreme that gets dropped
+    // is no longer invisible: the "right-side high not labeled" bug was a silent FORECAST_HIGH drop.
+    private val LOGGED_SUPPRESSION_ROLES = setOf(
+        TemperatureRole.ACTUAL_HIGH, TemperatureRole.HIGH,
+        TemperatureRole.ACTUAL_LOW, TemperatureRole.LOW,
+        TemperatureRole.ACTUAL_END, TemperatureRole.END,
+        TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
+        TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
+    )
+
     data class SuppressionResult(
         val suppressed: Boolean,
         val overriddenRole: TemperatureRole? = null,
@@ -255,7 +266,7 @@ object TemperatureLabelResolver {
 
             val leftEdgeResult = checkLeftEdgeSuppression(idx, role, suppressLeftEdgeLabel)
             if (leftEdgeResult.suppressed) {
-                if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
+                if (role in LOGGED_SUPPRESSION_ROLES) {
                     Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=LEFT_EDGE")
                 }
                 suppressedIndices.add(idx)
@@ -264,7 +275,7 @@ object TemperatureLabelResolver {
 
             val fetchResult = checkFetchDotSuppression(idx, role, extrema, observedAt, hours)
             if (fetchResult.suppressed) {
-                if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
+                if (role in LOGGED_SUPPRESSION_ROLES) {
                     Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=FETCH_DOT")
                 }
                 suppressedIndices.add(idx)
@@ -273,7 +284,7 @@ object TemperatureLabelResolver {
             fetchResult.overriddenRole?.let { role = it }
 
             if (checkRedundantPairSuppression(idx, role, extrema, suppressedIndices, labelTemps, actualLabelTemps, boundaryRedundancyWindow, hours, widthPx)) {
-                if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
+                if (role in LOGGED_SUPPRESSION_ROLES) {
                     Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=REDUNDANT")
                 }
                 suppressedIndices.add(idx)
@@ -281,16 +292,8 @@ object TemperatureLabelResolver {
             }
 
             if (checkTransitionBoundarySuppression(idx, role, effectiveActualEndIndex, transitionX, hours)) {
-                if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
+                if (role in LOGGED_SUPPRESSION_ROLES) {
                     Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=TRANSITION")
-                }
-                suppressedIndices.add(idx)
-                continue
-            }
-
-            if (checkEndpointSuppression(idx, role, hours)) {
-                if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
-                    Log.v(TAG, "LabelSuppressed: role=$role idx=$idx reason=ENDPOINT")
                 }
                 suppressedIndices.add(idx)
                 continue
@@ -300,7 +303,7 @@ object TemperatureLabelResolver {
             val forceForecast = role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.LOCAL, TemperatureRole.START, TemperatureRole.END)
             val temps = if (isActualRole) actualLabelTemps else labelTemps
 
-            if (role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW || role == TemperatureRole.ACTUAL_END || role == TemperatureRole.END) {
+            if (role in LOGGED_SUPPRESSION_ROLES) {
                 logLabelDecision("LabelAccepted", role, idx, temps[idx], hours, reason = "EXTREMA", provenance = provenanceFor(role, isMidpoint = false))
             }
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
@@ -679,34 +682,6 @@ object TemperatureLabelResolver {
         val boundaryIdx = effectiveActualEndIndex
         val transitionWindow = min(3, hours.lastIndex / 20)
         if (boundaryIdx >= 0 && abs(idx - boundaryIdx) <= transitionWindow) {
-            return true
-        }
-        return false
-    }
-
-    private fun checkEndpointSuppression(
-        idx: Int,
-        role: TemperatureRole,
-        hours: List<HourData>,
-    ): Boolean {
-        // HIGH and LOW (global daily extrema) are the most important labels on the graph and
-        // must never be dropped by edge-proximity decluttering — even if the daily high happens
-        // to fall within the edgeWindow (e.g. the curve peaks at the right edge of the graph).
-        // The observed extrema (ACTUAL_HIGH/ACTUAL_LOW) are likewise always worth their own label
-        // (mirroring their redundancy- and fetch-dot exemptions): a curve still cooling toward NOW
-        // puts the absolute observed low a couple of points shy of the edge, where it must not be
-        // decluttered. Only the secondary forecast extrema remain subject to edge suppression.
-        val extremaRoles = listOf(TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)
-        if (role !in extremaRoles) return false
-        val edgeWindow = when {
-            hours.lastIndex > 50 -> min(5, hours.lastIndex / 15)
-            hours.lastIndex > 24 -> min(8, hours.lastIndex / 6)
-            hours.lastIndex > 10 -> 1
-            else -> 0
-        }
-        val edgeDist = min(idx, hours.lastIndex - idx)
-        val isEndpoint = idx == 0 || idx == hours.lastIndex
-        if (edgeDist <= edgeWindow && !isEndpoint) {
             return true
         }
         return false

@@ -600,6 +600,78 @@ class TemperatureLabelSuppressionTest {
         )
     }
 
+    // Forecast crests just inside the RIGHT edge then eases down to the endpoint. The global daily
+    // HIGH (78) lives back at idx 8 (in the observed region) so the crest's role is FORECAST_HIGH, not
+    // HIGH. n=60 => edgeWindow=min(5,59/15)=3; the crest at idx 56 has edgeDist=3 (inside the OLD
+    // endpoint window). [crest] is the forecast-region peak; [endValue] sets the END value at idx 59.
+    private fun rightEdgeCrestHours(crest: Float, endValue: Float): List<HourData> {
+        val start = LocalDateTime.of(2026, 6, 13, 0, 0)
+        val n = 60
+        val effEnd = 40 // observed 0..40; forecast region 40..59
+        return (0 until n).map { i ->
+            val dt = start.plusHours(i.toLong())
+            val f = when {
+                i <= effEnd -> 78f - 0.5f * kotlin.math.abs(i - 8)                       // daily HIGH (78) at idx 8
+                i < 56 -> 62f + (crest - 62f) * (i - effEnd) / (56 - effEnd).toFloat()    // ramp 62 -> crest
+                i == 56 -> crest                                                          // crest near right edge
+                else -> crest + (endValue - crest) * (i - 56) / (59 - 56).toFloat()       // ease crest -> END
+            }
+            HourData(
+                dateTime = dt,
+                temperature = f,
+                label = "${dt.hour}h",
+                isActual = i <= effEnd,
+                actualTemperature = f - 13f,
+            )
+        }
+    }
+
+    @Test
+    fun `right-edge forecast crest is kept when it differs from the endpoint`() {
+        // Live emulator case: forecast crests at 68 (idx 56) then eases to a 66 END (idx 59). The crest
+        // is a genuine FORECAST_HIGH and must be labeled — the old endpoint-declutter dropped it.
+        val hours = rightEdgeCrestHours(crest = 68f, endValue = 66f)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 400f, 40, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 40,
+            transitionX = 400f,
+            observedAt = null,
+            widthPx = 567,
+        )
+
+        assertTrue(
+            "the right-edge forecast crest (68) at idx 56 must be labeled, not endpoint-suppressed; got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 56 && it.role == TemperatureRole.FORECAST_HIGH },
+        )
+    }
+
+    @Test
+    fun `near-edge forecast extremum wins over a redundant endpoint`() {
+        // Crest (67.8) and END (67.5) read as the same value and sit pixel-near: the declutter must
+        // prioritize the EXTREMUM and drop the ENDPOINT, not the reverse.
+        val hours = rightEdgeCrestHours(crest = 67.8f, endValue = 67.5f)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 400f, 40, null)
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 40,
+            transitionX = 400f,
+            observedAt = null,
+            widthPx = 567,
+        )
+
+        assertTrue(
+            "the forecast crest at idx 56 must survive; got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 56 && it.role == TemperatureRole.FORECAST_HIGH },
+        )
+        assertFalse(
+            "the redundant END at idx 59 must be the one suppressed; got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 59 && it.role == TemperatureRole.END },
+        )
+    }
+
     @Test
     fun `ACTUAL_LOW is retained when near daily low`() {
         val start = LocalDateTime.of(2026, 4, 8, 10, 0)
