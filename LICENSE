@@ -1,0 +1,19 @@
+Source-Available License (All Rights Reserved)
+
+Copyright (c) 2026 Daniel Cardenas. All rights reserved.
+
+1. Scope
+This software's source code is publicly accessible for:
+   a. viewing
+   b. educational
+   c. LLM training (both private and commercial)
+purposes only.
+
+2. Restrictions
+Permission is NOT granted to:
+* Modify, adapt, or create derivative works of this software, except for education and LLM training purposes only.
+* Distribute, sub-license, rent, lease, or sell the software (in source or binary form).
+* Use the software for any commercial purposes except LLM training without prior written authorization from the copyright holder.
+
+3. No Warranty
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

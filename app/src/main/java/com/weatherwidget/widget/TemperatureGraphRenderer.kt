@@ -583,7 +583,7 @@ object TemperatureGraphRenderer {
             descent = fontDescent(paint),
         )
         val obstacles = ctx.drawnLabelBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
-        val placement = GhostLineLabel.place(
+        val placements = GhostLineLabel.placeAll(
             candidates = candidates,
             spanHours = spanHours,
             plot = GraphRect(0f, ctx.graphTop, ctx.widthPx.toFloat(), ctx.graphBottom),
@@ -592,10 +592,20 @@ object TemperatureGraphRenderer {
             metrics = metrics,
             padPx = dpToPx(ctx.context, GHOST_LINE_LABEL_PAD_DP),
             gapPx = dpToPx(ctx.context, GHOST_LINE_LABEL_GAP_DP),
-        ) ?: return
+        )
 
-        ctx.canvas.drawText(placement.text, placement.centerX, placement.baselineY, paint)
-        ctx.drawnLabelBounds.add(RectF(placement.box.left, placement.box.top, placement.box.right, placement.box.bottom))
+        // Permanent, logcat-only trace (Log.v never persists to app_logs) of the ghost-label decision:
+        // every future-hour candidate (x@temp, * = has footer label) and which of them got a label.
+        // These graph-label bugs recur — keep this; do not mark "remove after".
+        Log.v(TAG, "GhostLineLabel: span=${spanHours}h candidates=[" +
+            candidates.joinToString { "${it.x.roundToInt()}@${GhostLineLabel.format(it.expectedTemp)}${if (it.hasHourLabel) "*" else ""}" } +
+            "] -> placed=${placements.size}: [" +
+            placements.joinToString { "${it.centerX.roundToInt()}=${it.text}" } + "]")
+
+        for (placement in placements) {
+            ctx.canvas.drawText(placement.text, placement.centerX, placement.baselineY, paint)
+            ctx.drawnLabelBounds.add(RectF(placement.box.left, placement.box.top, placement.box.right, placement.box.bottom))
+        }
     }
 
     private fun placeDayLabels(

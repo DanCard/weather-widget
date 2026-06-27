@@ -704,7 +704,7 @@ fun TemperatureGraph(
                 val sampleHeight = textMeasurer.measure(GhostLineLabel.format(ghostCandidates.first().expectedTemp), ghostStyle).size.height.toFloat()
                 val maxWidth = ghostCandidates.maxOf { textMeasurer.measure(GhostLineLabel.format(it.expectedTemp), ghostStyle).size.width.toFloat() }
                 val metrics = GhostLineLabel.Metrics(width = maxWidth, ascent = -sampleHeight, descent = 0f)
-                val placement = GhostLineLabel.place(
+                val placements = GhostLineLabel.placeAll(
                     candidates = ghostCandidates,
                     spanHours = ghostSpanHours,
                     plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
@@ -714,7 +714,7 @@ fun TemperatureGraph(
                     padPx = 4f * scale,
                     gapPx = 2.5f * scale,
                 )
-                if (placement != null) {
+                for (placement in placements) {
                     val layout = textMeasurer.measure(placement.text, ghostStyle)
                     val topLeft = Offset(placement.box.left, placement.box.top)
                     drawShadowedText(textMeasurer, layout, topLeft, scale)

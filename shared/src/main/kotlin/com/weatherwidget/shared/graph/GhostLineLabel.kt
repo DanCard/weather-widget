@@ -4,11 +4,13 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Pure, platform-free placement for the single temperature value drawn **on the ghost line** of the
+ * Pure, platform-free placement for the temperature value(s) drawn **on the ghost line** of the
  * zoomed-in hourly temperature graph. The ghost line is the forecast curve shifted by the
  * currently-observed delta (`expected = forecast + appliedDelta`) — "what we'd expect the real
  * temperature to be" — drawn only in the future region (right of the fetch dot). This object owns
- * where that label sits, what it reads, and when it shows, so Android and desktop stay consistent.
+ * where those labels sit, what they read, and when they show, so Android and desktop stay
+ * consistent. One label is placed per eligible hour mark that has room, so the line may carry
+ * several labels at once.
  *
  * - **Value**: the ghost line's own temperature at the chosen hour, to **one decimal** (e.g. `69.4°`).
  * - **Anchor**: snapped to an hour point so it reads against the footer hour labels ("at 6 PM → 69.4°").
@@ -70,13 +72,20 @@ object GhostLineLabel {
     }
 
     /**
-     * Resolves the ghost-line label, or null when it should not be drawn (window too wide, no
-     * candidates, or no clear hour point on the right half). [plot] is the curve-drawing area
-     * (exclude the footer). [drawnBounds] are obstacles already on the canvas. [curveYAt] returns the
-     * visible curve's y at a given x, or null off-curve. [padPx] is the edge clearance; [gapPx] is the
-     * gap kept between the label and the ghost line it hugs.
+     * Resolves **every** ghost-line label to draw, left-to-right, or an empty list when none should
+     * show (window too wide, no candidates, or no clear hour point on the right half). One label is
+     * placed at each eligible hour mark that has room — the ghost line can carry several labels.
+     *
+     * [plot] is the curve-drawing area (exclude the footer). [drawnBounds] are obstacles already on
+     * the canvas. [curveYAt] returns the visible curve's y at a given x, or null off-curve. [padPx]
+     * is the edge clearance; [gapPx] is the gap kept between a label and the ghost line it hugs.
+     *
+     * Hours whose footer label is shown are preferred so each temp sits over a visible tick; if no
+     * right-half hour carries a footer label we fall back to all right-half hours. Labels are placed
+     * against a **running obstacle list** (seeded from [drawnBounds]), so each placed ghost label
+     * becomes an obstacle for the next — they never stack on each other.
      */
-    fun place(
+    fun placeAll(
         candidates: List<Candidate>,
         spanHours: Long,
         plot: GraphRect,
@@ -86,51 +95,71 @@ object GhostLineLabel {
         padPx: Float,
         gapPx: Float,
         maxSpanHours: Long = MAX_HOURS_SPAN,
-    ): Placement? {
-        if (spanHours > maxSpanHours) return null
-        if (metrics.width <= 0f || metrics.height <= 0f) return null
-        if (candidates.isEmpty()) return null
-        if (metrics.width + 2f * padPx > plot.width) return null
+    ): List<Placement> {
+        if (spanHours > maxSpanHours) return emptyList()
+        if (metrics.width <= 0f || metrics.height <= 0f) return emptyList()
+        if (candidates.isEmpty()) return emptyList()
+        if (metrics.width + 2f * padPx > plot.width) return emptyList()
 
+        val rightCutoff = plot.left + RIGHT_HALF_FRACTION * plot.width
+        val rightHalf = candidates.filter { it.x >= rightCutoff }
+        if (rightHalf.isEmpty()) return emptyList()
+
+        // Prefer hours whose footer label is shown so each temp sits over a visible tick; fall back to
+        // any right-half hour only if none of them carry a footer label.
+        val labeled = rightHalf.filter { it.hasHourLabel }
+        val eligible = (if (labeled.isNotEmpty()) labeled else rightHalf).sortedBy { it.x }
+
+        val obstacles = drawnBounds.toMutableList()
+        val placed = mutableListOf<Placement>()
+        for (c in eligible) {
+            val p = tryPlaceAt(c, plot, obstacles, curveYAt, metrics, padPx, gapPx) ?: continue
+            placed.add(p)
+            obstacles.add(p.box) // later ghost labels avoid the ones already placed
+        }
+        return placed
+    }
+
+    /**
+     * Best placement for a single hour's ghost label: hugs the line (just above, else just below),
+     * skipping any box that leaves the plot, overlaps an [obstacles] rect, or has the curve passing
+     * through it. Of the valid above/below options the one with more curve clearance wins. Null when
+     * neither fits.
+     */
+    private fun tryPlaceAt(
+        c: Candidate,
+        plot: GraphRect,
+        obstacles: List<GraphRect>,
+        curveYAt: (Float) -> Float?,
+        metrics: Metrics,
+        padPx: Float,
+        gapPx: Float,
+    ): Placement? {
         val w = metrics.width
         val h = metrics.height
-        val rightCutoff = plot.left + RIGHT_HALF_FRACTION * plot.width
-        val eligible = candidates.filter { it.x >= rightCutoff }
-        if (eligible.isEmpty()) return null
-
-        // Prefer hours whose footer label is shown so the temp sits over a visible tick; fall back to
-        // any right-half hour only if none of the labeled ones have room.
-        val labeled = eligible.filter { it.hasHourLabel }
-        val tiers = if (labeled.isNotEmpty()) listOf(labeled, eligible) else listOf(eligible)
-
-        for (tier in tiers) {
-            var best: Placement? = null
-            var bestClearance = -1f
-            for (c in tier) {
-                val cx = c.x.coerceIn(plot.left + w / 2f + padPx, plot.right - w / 2f - padPx)
-                val left = cx - w / 2f
-                val right = cx + w / 2f
-                // Hug the line: try just above, then just below.
-                for (above in booleanArrayOf(true, false)) {
-                    val top = if (above) c.ghostY - gapPx - h else c.ghostY + gapPx
-                    val box = GraphRect(left, top, right, top + h)
-                    if (box.top < plot.top + padPx || box.bottom > plot.bottom - padPx) continue
-                    if (drawnBounds.any { it.intersects(box) }) continue
-                    val clearance = curveClearance(box, curveYAt) ?: continue // null = curve intrudes
-                    if (clearance > bestClearance) {
-                        bestClearance = clearance
-                        best = Placement(
-                            text = format(c.expectedTemp),
-                            centerX = cx,
-                            baselineY = top - metrics.ascent, // ascent is negative → baseline below top
-                            box = box,
-                        )
-                    }
-                }
+        val cx = c.x.coerceIn(plot.left + w / 2f + padPx, plot.right - w / 2f - padPx)
+        val left = cx - w / 2f
+        val right = cx + w / 2f
+        var best: Placement? = null
+        var bestClearance = -1f
+        // Hug the line: try just above, then just below.
+        for (above in booleanArrayOf(true, false)) {
+            val top = if (above) c.ghostY - gapPx - h else c.ghostY + gapPx
+            val box = GraphRect(left, top, right, top + h)
+            if (box.top < plot.top + padPx || box.bottom > plot.bottom - padPx) continue
+            if (obstacles.any { it.intersects(box) }) continue
+            val clearance = curveClearance(box, curveYAt) ?: continue // null = curve intrudes
+            if (clearance > bestClearance) {
+                bestClearance = clearance
+                best = Placement(
+                    text = format(c.expectedTemp),
+                    centerX = cx,
+                    baselineY = top - metrics.ascent, // ascent is negative → baseline below top
+                    box = box,
+                )
             }
-            if (best != null) return best // emptiest spot within the most-preferred tier that fits
         }
-        return null
+        return best
     }
 
     /**
