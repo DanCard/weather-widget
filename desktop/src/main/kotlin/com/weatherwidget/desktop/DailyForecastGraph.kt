@@ -22,6 +22,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.graph.DualHighLabel
+import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.shared.util.WeatherConditionResolver
 import kotlin.math.roundToInt
 
@@ -216,6 +217,10 @@ fun DailyForecastGraph(
                 ghostHigh = day.ghostHigh,
                 nowHour = day.nowHour,
             )
+            // Top Y of the high-temp label drawn at this column's center (actual high in dual mode,
+            // the single high otherwise). The day rain label anchors to this *rendered* top so it
+            // tucks against the temperature instead of floating, matching Android.
+            var highLabelTopAtCenter: Float? = null
             val dualActualHigh = when {
                 day.isPast -> day.solidHigh
                 todayHighSettled -> listOfNotNull(day.solidHigh, day.ghostHigh).maxOrNull()
@@ -242,6 +247,7 @@ fun DailyForecastGraph(
                 val aSize = tempFontSize(aText, dualBaseFor(dualActualHigh, dualForecastHigh))
                 val aLayout = textMeasurer.measure(aText, TextStyle(fontSize = aSize.sp, color = COLOR_OBSERVED))
                 val aY = (yAt(dualActualHigh) - aLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                highLabelTopAtCenter = aY
                 drawOutlinedText(textMeasurer, aLayout, Offset(centerX - aLayout.size.width / 2f, aY))
 
                 val fText = formatTemp(dualForecastHigh)
@@ -281,6 +287,7 @@ fun DailyForecastGraph(
                     // Sit above the bar top; for the hottest bar this rides up past the canvas top into
                     // the header (a little overlap is welcome) rather than dropping onto the bar.
                     val highLabelY = (yAt(singleHigh) - highText.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                    highLabelTopAtCenter = highLabelY
                     val highTopLeft = Offset(centerX - highText.size.width / 2f, highLabelY)
                     // History and today get the thin outline (today's headline sits over the triple
                     // bars, like history's dual labels); future days stay plain.
@@ -327,8 +334,10 @@ fun DailyForecastGraph(
             val rainText = day.dailyRainLabelText
             if (rainText != null) {
                 val rainLayout = textMeasurer.measure(rainText, TextStyle(fontSize = (9f * scale).sp, color = COLOR_FORECAST_RAINY))
-                // Sit above the high-temp label: bar top - (high label height ~14sp*scale) - gap - own height.
-                val anchorY = highForLabel?.let { yAt(it) - (14f * scale + 8f * scale) - rainLayout.size.height } ?: (top + 10f)
+                // Anchor to the high label's actual rendered top (shared rule: rain bottom = high top -
+                // gap; negative gap = slight overlap). Falls back to a small inset only if no high label.
+                val gapPx = DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP * scale
+                val anchorY = highLabelTopAtCenter?.let { it - gapPx - rainLayout.size.height } ?: (top + 10f)
                 // Stays above the high-temp label; may ride a little further into the header than it.
                 val rainFloor = -headerBleed - rainLayout.size.height - 2f * scale
                 drawText(rainLayout, topLeft = Offset(centerX - rainLayout.size.width / 2f, anchorY.coerceAtLeast(rainFloor)))
@@ -359,11 +368,11 @@ fun DailyForecastGraph(
                     val roomBelowPx = (size.height - dayLabelBand - anchorBottomY).coerceAtLeast(0f)
                     val roomBelowDp = roomBelowPx / scale
 
-                    val NIGHT_TUCK_ROOM_MIN_DP = 10f
-                    val NIGHT_TUCK_ROOM_MAX_DP = 22f
-                    val NIGHT_TUCK_OVERLAP_BASE_DP = 5.0f
-                    val NIGHT_TUCK_NUDGE_BASE_DP = 1.5f
-                    val NIGHT_TUCK_NUDGE_RANGE_DP = 1.5f
+                    val NIGHT_TUCK_ROOM_MIN_DP = DailyRainLabels.NIGHT_TUCK_ROOM_MIN_DP
+                    val NIGHT_TUCK_ROOM_MAX_DP = DailyRainLabels.NIGHT_TUCK_ROOM_MAX_DP
+                    val NIGHT_TUCK_OVERLAP_BASE_DP = DailyRainLabels.NIGHT_TUCK_OVERLAP_BASE_DP
+                    val NIGHT_TUCK_NUDGE_BASE_DP = DailyRainLabels.NIGHT_TUCK_NUDGE_BASE_DP
+                    val NIGHT_TUCK_NUDGE_RANGE_DP = DailyRainLabels.NIGHT_TUCK_NUDGE_RANGE_DP
 
                     val tightFraction = (1f - (roomBelowDp - NIGHT_TUCK_ROOM_MIN_DP) / (NIGHT_TUCK_ROOM_MAX_DP - NIGHT_TUCK_ROOM_MIN_DP)).coerceIn(0f, 1f)
                     val dynamicOverlapDp = NIGHT_TUCK_OVERLAP_BASE_DP * tightFraction
@@ -376,7 +385,7 @@ fun DailyForecastGraph(
                     val shiftedCenterX = centerX + dayWidth / 2f - hNudgePx + 1f * scale
 
                     // Base rain layout
-                    var finalPaintStyle = TextStyle(fontSize = (11f * scale * 0.72f).sp, color = COLOR_FORECAST_RAINY)
+                    var finalPaintStyle = TextStyle(fontSize = (11f * scale * DailyRainLabels.NIGHT_SCALE).sp, color = COLOR_FORECAST_RAINY)
                     var finalLayout = textMeasurer.measure(nightText, finalPaintStyle)
                     val edgeMargin = 2f * scale
                     val halfWidth = finalLayout.size.width / 2f
@@ -386,7 +395,7 @@ fun DailyForecastGraph(
                     val canShiftStandard = (shiftedCenterX + halfWidth <= size.width - edgeMargin) && (shiftedCenterX - halfWidth >= edgeMargin)
                     if (!canShiftStandard) {
                         // Try reduced scaling (extraScale = 0.85f)
-                        val reducedStyle = TextStyle(fontSize = (11f * scale * 0.72f * 0.85f).sp, color = COLOR_FORECAST_RAINY)
+                        val reducedStyle = TextStyle(fontSize = (11f * scale * DailyRainLabels.NIGHT_SCALE * 0.85f).sp, color = COLOR_FORECAST_RAINY)
                         val reducedLayout = textMeasurer.measure(nightText, reducedStyle)
                         val reducedHalfWidth = reducedLayout.size.width / 2f
                         if (shiftedCenterX + reducedHalfWidth <= size.width - edgeMargin && shiftedCenterX - reducedHalfWidth >= edgeMargin) {

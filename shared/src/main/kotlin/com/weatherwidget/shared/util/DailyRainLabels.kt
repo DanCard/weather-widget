@@ -19,6 +19,31 @@ import java.util.Locale
  */
 object DailyRainLabels {
 
+    // ── Shared placement constants (consumed by both Android and desktop renderers) ───────────────
+    // The drawing math stays platform-specific (Canvas vs Compose), but these dp values are the
+    // single source of truth so the two platforms stay visually identical and a tweak is made once.
+
+    /**
+     * Gap (dp) between the day rain label's BOTTOM and the high-temp label's TOP. Negative means a
+     * slight overlap (the percentage tucks onto the top of the temperature). Each platform applies
+     * its own density/scale. IMPORTANT: anchor to the high label's *rendered* top — a wide temp
+     * (e.g. "75.6°") is shrunk to fit a narrow column, so its real top is lower than full-size
+     * metrics imply; ignoring that leaves a large floating gap.
+     */
+    const val RAIN_HIGH_TEMP_GAP_DP = -3f
+
+    /** Edge margin (dp) keeping a rain label inside the widget bounds. */
+    const val RAIN_LABEL_EDGE_MARGIN_DP = 4f
+
+    // Night rain label tuck (interstitial label sitting in the low-temp band between two columns).
+    /** Night label font is this fraction of the day label size. */
+    const val NIGHT_SCALE = 0.72f
+    const val NIGHT_TUCK_ROOM_MIN_DP = 10f
+    const val NIGHT_TUCK_ROOM_MAX_DP = 22f
+    const val NIGHT_TUCK_OVERLAP_BASE_DP = 5.0f
+    const val NIGHT_TUCK_NUDGE_BASE_DP = 1.5f
+    const val NIGHT_TUCK_NUDGE_RANGE_DP = 1.5f
+
     /** Max precip probability over the daytime (8am–8pm) and nighttime (8pm–8am) windows. */
     data class DayNightPrecip(
         val dayMax: Int?,

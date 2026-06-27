@@ -71,7 +71,6 @@ object DailyForecastGraphRenderer {
     private const val CLIMATE_OVERLAY_ALPHA = 80
     private const val BULB_RADIUS_SCALE = 1.2f
     private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
-    private const val RAIN_HIGH_TEMP_GAP_DP = -2f
     private const val HISTORY_BAR_WIDTH_SCALE = 0.7f
     private const val FORECAST_OVERLAY_WIDTH_SCALE = 0.7f
     private const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f
@@ -916,6 +915,22 @@ object DailyForecastGraphRenderer {
         return (currentScale * (maxWidthPx / measuredWidthAtScale)).coerceAtLeast(currentScale * minScale)
     }
 
+    /**
+     * The font scale a temp label is actually drawn at: the fixed wide-label step times any caller
+     * [extraScale], then shrink-to-fit against the column width. Extracted from [drawTempLabel] so the
+     * rain label can anchor to the high label as it is *rendered* (a wide "75.6°" squeezed into a
+     * narrow column draws much smaller than its full-size metrics imply).
+     */
+    internal fun tempLabelDrawScale(
+        base: Paint,
+        text: String,
+        extraScale: Float,
+        maxWidthPx: Float,
+    ): Float {
+        val baseScale = extraScale * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
+        return fitScaleForWidth(measureTextWidth(base, text) * baseScale, maxWidthPx, baseScale)
+    }
+
     private fun drawTempLabel(
         canvas: Canvas,
         text: String,
@@ -930,8 +945,7 @@ object DailyForecastGraphRenderer {
         // Start from the existing fixed wide-label step, then shrink-to-fit against the column width
         // so 3+ digit / decimal temps (e.g. "77.7°") never spill their degree symbol into the next
         // column on dense layouts. Keeps the ° and the tenths; only the font size adapts.
-        val baseScale = extraScale * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
-        val scale = fitScaleForWidth(measureTextWidth(base, text) * baseScale, maxWidthPx, baseScale)
+        val scale = tempLabelDrawScale(base, text, extraScale, maxWidthPx)
         val paint = if (colorOverride == null && scale == 1f) base else Paint(base).apply {
             if (colorOverride != null) color = colorOverride
             textSize = base.textSize * scale
@@ -1050,6 +1064,28 @@ object DailyForecastGraphRenderer {
         val absoluteHigh = day.effectiveHigh() ?: return null
         val labelY = layout.tempToY(absoluteHigh)
         return labelY - (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density)
+    }
+
+    /**
+     * The fit-to-width font scale the high-temp label is actually drawn at. The rain label multiplies
+     * the full-size temp metrics by this so it anchors to the high label's *rendered* top, not its
+     * full-size top — otherwise a shrunk wide temp (e.g. dual-label "75.6°" in a narrow column) leaves
+     * a large gap above the high. The 2% dual-label shrink is immaterial next to the fit factor, so we
+     * pass extraScale = 1.
+     */
+    internal fun resolveHighLabelDrawScale(
+        day: DayData,
+        layout: LayoutInfo,
+        paints: PaintSet,
+    ): Float {
+        val highValue = day.effectiveHigh() ?: day.solidLineHigh ?: return 1f
+        val highText = formatTempLabel(highValue)
+        val tempPaint = when {
+            day.isToday -> paints.todayTempTextPaint
+            day.isPast -> paints.pastTempTextPaint
+            else -> paints.tempTextPaint
+        }
+        return tempLabelDrawScale(tempPaint, highText, extraScale = 1f, maxWidthPx = layout.tempLabelMaxWidthPx)
     }
 
     internal fun resolveLowLabelBaseline(

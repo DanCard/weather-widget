@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.graphics.*
 import android.util.Log
+import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.widget.DailyForecastGraphRenderer.LayoutInfo
 import com.weatherwidget.widget.DailyForecastGraphRenderer.PaintSet
@@ -14,14 +15,15 @@ internal object DailyForecastRainLabelRenderer {
     private const val TAG = "DailyRainLabelRenderer"
     private const val RAIN_FONT_SCALE_K = 0.6f
     private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
-    private const val RAIN_HIGH_TEMP_GAP_DP = -2f
-    private const val RAIN_LABEL_EDGE_MARGIN_DP = 4f
-    private const val NIGHT_SCALE = 0.72f
-    private const val NIGHT_TUCK_ROOM_MIN_DP = 10f
-    private const val NIGHT_TUCK_ROOM_MAX_DP = 22f
-    private const val NIGHT_TUCK_OVERLAP_BASE_DP = 5.0f
-    private const val NIGHT_TUCK_NUDGE_BASE_DP = 1.5f
-    private const val NIGHT_TUCK_NUDGE_RANGE_DP = 1.5f
+    // Placement constants live in :shared so Android and desktop stay identical (single tweak point).
+    private const val RAIN_HIGH_TEMP_GAP_DP = DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP
+    private const val RAIN_LABEL_EDGE_MARGIN_DP = DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP
+    private const val NIGHT_SCALE = DailyRainLabels.NIGHT_SCALE
+    private const val NIGHT_TUCK_ROOM_MIN_DP = DailyRainLabels.NIGHT_TUCK_ROOM_MIN_DP
+    private const val NIGHT_TUCK_ROOM_MAX_DP = DailyRainLabels.NIGHT_TUCK_ROOM_MAX_DP
+    private const val NIGHT_TUCK_OVERLAP_BASE_DP = DailyRainLabels.NIGHT_TUCK_OVERLAP_BASE_DP
+    private const val NIGHT_TUCK_NUDGE_BASE_DP = DailyRainLabels.NIGHT_TUCK_NUDGE_BASE_DP
+    private const val NIGHT_TUCK_NUDGE_RANGE_DP = DailyRainLabels.NIGHT_TUCK_NUDGE_RANGE_DP
 
     internal enum class RainLabelType {
         DAY, NIGHT
@@ -94,6 +96,21 @@ internal object DailyForecastRainLabelRenderer {
             )
         }
 
+        // Permanent placement trace (logcat-only; VERBOSE never persists to app_logs). The day rain
+        // label is anchored above the high-temp label: rain bottom should sit `gap` dp from the high
+        // label's top. `delta` is the actual pixel distance between the high label's top and the rain
+        // label's bottom — negative = overlap, large positive = the unexpected gap we are chasing.
+        val gapPx = (RAIN_HIGH_TEMP_GAP_DP * layout.bitmapScale.coerceAtMost(1f)).toPx(layout.density)
+        val delta = placement.debug.anchorTopY - placement.debug.bottomY
+        Log.v(
+            TAG,
+            "dayRainLabel placement: date=${day.date} isToday=${day.isToday} text=\"$rainText\"" +
+                " solidLineHigh=${day.solidLineHigh}" +
+                " highBaseline=${placement.debug.anchorBaselineY} highTop=${placement.debug.anchorTopY}" +
+                " rainBaseline=${placement.debug.baselineY} rainTop=${placement.debug.topY} rainBottom=${placement.debug.bottomY}" +
+                " gapPx=$gapPx delta(highTop-rainBottom)=$delta fits=${placement.fitsPreferredTopMargin}",
+        )
+
         canvas.drawText(rainText, centerX, placement.debug.baselineY, localRainPaint)
         onRainLabelDrawn?.invoke(placement.debug)
     }
@@ -113,9 +130,16 @@ internal object DailyForecastRainLabelRenderer {
             day.isPast -> paints.pastTempTextPaint
             else -> paints.tempTextPaint
         }
+        // The high label is shrink-to-fit when its temp is wide for the column (e.g. dual-label
+        // "75.6°"), so its rendered top is lower than the full-size metrics imply. Anchor the rain
+        // label to the high label *as drawn* by scaling the high metrics by that same draw scale —
+        // otherwise the percentage floats well above the temperature with a large gap.
+        val highScale = DailyForecastGraphRenderer.resolveHighLabelDrawScale(day, layout, paints)
+        val fullHighMetrics = textMetrics(tempPaint)
+        val drawnHighMetrics = TextMetrics(fullHighMetrics.ascent * highScale, fullHighMetrics.descent * highScale)
         val placement = resolveRainAboveHighPlacement(
             highBaseline = highBaseline,
-            highMetrics = textMetrics(tempPaint),
+            highMetrics = drawnHighMetrics,
             rainMetrics = textMetrics(localRainPaint),
             topMargin = layout.graphTop * 0.2f,
             gap = (RAIN_HIGH_TEMP_GAP_DP * layout.bitmapScale.coerceAtMost(1f)).toPx(layout.density),
