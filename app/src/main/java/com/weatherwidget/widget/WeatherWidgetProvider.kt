@@ -472,6 +472,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         super.onDisabled(context)
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_CURRENT_TEMP)
+        NonPrimaryObservationScheduler.cancel(context)
 
         val uiScheduler = UIUpdateScheduler(context)
         uiScheduler.cancelScheduledUpdates()

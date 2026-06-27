@@ -327,6 +327,20 @@ object TemperatureViewHandler {
         } else {
             partial.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.GONE)
         }
+
+        val db = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
+        val errorMsg = FetchFailureIndicatorHelper.resolveFetchError(
+            displaySourceId = displaySource.id,
+            appLogDao = db.appLogDao(),
+            lastGoodObsMs = observedAt,
+        )
+        FetchFailureIndicatorHelper.bind(
+            context = context,
+            views = partial,
+            appWidgetId = appWidgetId,
+            errorMessage = errorMsg,
+        )
+
         appWidgetManager.partiallyUpdateAppWidget(appWidgetId, partial)
     }
 

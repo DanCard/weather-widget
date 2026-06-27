@@ -101,6 +101,13 @@ internal object TemperatureViewBinder {
             scale = headerScale,
         )
 
+        FetchFailureIndicatorHelper.bind(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            errorMessage = header.fetchFailureMessage,
+        )
+
         HeaderRemoteViewsBinder.bindPrecipProbability(
             context = context,
             views = views,

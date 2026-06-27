@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.util.BatteryTier
+import com.weatherwidget.shared.util.NonPrimaryObservationPolicy
 
 /**
  * Pure decision functions for battery-aware fetch scheduling on the desktop.
@@ -14,11 +15,6 @@ object DesktopFetchStrategy {
     private const val AC_OBSERVATION_MINUTES = 10L
     private const val AC_ACTIVE_FORECAST_MINUTES = 60L
     private const val AC_INACTIVE_FORECAST_MINUTES = 120L
-
-    // Non-primary (non-displayed) sources get their actuals refreshed on this cadence, but only
-    // while it is cheap to do so: plugged in AND the screen is on. Off-charger or screen-off, the
-    // non-primary actuals fall back to the much slower non-active forecast loop (120 min+).
-    private const val AC_NONPRIMARY_OBSERVATION_MINUTES = 30L
 
     /**
      * Returns the delay in MS for the next observation fetch.
@@ -60,5 +56,5 @@ object DesktopFetchStrategy {
      * [screenOn] is supplied by the caller (e.g. [ScreenStateDetector]) so this stays pure/testable.
      */
     fun getNonPrimaryObservationDelayMs(isCharging: Boolean, screenOn: Boolean): Long? =
-        if (isCharging && screenOn) AC_NONPRIMARY_OBSERVATION_MINUTES * MS_PER_MINUTE else null
+        NonPrimaryObservationPolicy.intervalMinutes(isCharging, screenOn)?.let { it * MS_PER_MINUTE }
 }

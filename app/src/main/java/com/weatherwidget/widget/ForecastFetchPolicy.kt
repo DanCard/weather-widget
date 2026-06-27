@@ -1,5 +1,7 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.util.NonPrimaryObservationPolicy
+
 /**
  * Caller-supplied state used by [ForecastFetchPolicy] to decide which sources are due.
  * The repository is Android-coupled but this context lets it stay decision-free.
@@ -69,4 +71,7 @@ object ForecastFetchPolicy {
     ): Boolean {
         return nowMs - lastFetchTimeMs >= (intervalMinutes * 60_000L) - graceMs
     }
+
+    fun nonPrimaryObservationIntervalMinutes(isCharging: Boolean, isScreenInteractive: Boolean): Long? =
+        NonPrimaryObservationPolicy.intervalMinutes(isCharging, isScreenInteractive)
 }

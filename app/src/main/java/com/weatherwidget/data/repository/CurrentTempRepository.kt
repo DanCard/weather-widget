@@ -491,6 +491,20 @@ class CurrentTempRepository
                     "durationMs=$durationMs$errorSummary",
                 if (reading != null) "INFO" else "WARN",
             )
+
+            if (reading != null) {
+                appLogDao.log(
+                    "CURRENT_TEMP_STATUS",
+                    "source=${source.id} ok=true",
+                    "INFO",
+                )
+            } else {
+                appLogDao.log(
+                    "CURRENT_TEMP_STATUS",
+                    "source=${source.id} ok=false class=${exception?.javaClass?.simpleName ?: "Unknown"} detail=${exception?.message ?: "unknown"}",
+                    "WARN",
+                )
+            }
         }
 
         private suspend fun insertCurrentObservation(obsEntity: ObservationEntity) {

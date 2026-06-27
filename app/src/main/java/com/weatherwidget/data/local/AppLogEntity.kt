@@ -52,12 +52,16 @@ interface AppLogDao {
     )
     suspend fun getCurrentObservationFetchLogs(limit: Int): List<AppLogEntity>
 
+    @Query("SELECT * FROM app_logs WHERE tag = 'CURRENT_TEMP_STATUS' AND message LIKE 'source=' || :sourceId || '%' ORDER BY timestamp DESC, id DESC LIMIT 1")
+    suspend fun getLatestCurrentTempStatus(sourceId: String): AppLogEntity?
+
     @Query(
         """
         SELECT MAX(timestamp) FROM app_logs
         WHERE tag LIKE 'CURR_FETCH%'
             OR tag LIKE 'OBS_CURRENT%'
             OR tag LIKE 'OBS_HOURLY_BACKFILL%'
+            OR tag = 'CURRENT_TEMP_STATUS'
         """,
     )
     fun observeLatestCurrentObservationFetchLogAt(): Flow<Long?>

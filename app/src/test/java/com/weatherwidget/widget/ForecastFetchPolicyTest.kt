@@ -199,4 +199,12 @@ class ForecastFetchPolicyTest {
         val nowMs = 1_700_000_000_000L
         assertTrue(ForecastFetchPolicy.isDue(lastFetchTimeMs = 0L, intervalMinutes = 60L, nowMs = nowMs))
     }
+
+    @Test
+    fun `nonPrimaryObservationIntervalMinutes returns 30 when charging and screen interactive`() {
+        assertEquals(30L, ForecastFetchPolicy.nonPrimaryObservationIntervalMinutes(isCharging = true, isScreenInteractive = true))
+        assertNull(ForecastFetchPolicy.nonPrimaryObservationIntervalMinutes(isCharging = true, isScreenInteractive = false))
+        assertNull(ForecastFetchPolicy.nonPrimaryObservationIntervalMinutes(isCharging = false, isScreenInteractive = true))
+        assertNull(ForecastFetchPolicy.nonPrimaryObservationIntervalMinutes(isCharging = false, isScreenInteractive = false))
+    }
 }

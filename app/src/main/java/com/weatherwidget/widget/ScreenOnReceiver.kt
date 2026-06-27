@@ -42,6 +42,11 @@ class ScreenOnReceiver : BroadcastReceiver() {
         // Re-enqueue the periodic forecast worker with the charging-cadence interval (60 min).
         WeatherWidgetProvider.schedulePeriodicUpdate(context)
 
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        if (powerManager.isInteractive) {
+            NonPrimaryObservationScheduler.scheduleNextUpdate(context, isScreenInteractive = true)
+        }
+
         val now = System.currentTimeMillis()
         val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
         val lastRefreshMs = prefs.getLong(KEY_LAST_POWER_CONNECTED_REFRESH_MS, 0L)
@@ -79,6 +84,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         // Re-enqueue with the off-charger interval (BatteryFetchStrategy tiers).
         Log.d(TAG, "Power disconnected - rescheduling periodic forecast worker")
         WeatherWidgetProvider.schedulePeriodicUpdate(context)
+        NonPrimaryObservationScheduler.cancel(context)
     }
 
     private fun handleUserPresent(context: Context) {
@@ -104,8 +110,13 @@ class ScreenOnReceiver : BroadcastReceiver() {
                 reason = "screen_unlock_charging",
                 opportunistic = false,
             )
+            NonPrimaryObservationScheduler.scheduleNextUpdate(
+                context = context,
+                isScreenInteractive = true,
+            )
         } else {
             CurrentTempUpdateScheduler.cancel(context)
+            NonPrimaryObservationScheduler.cancel(context)
         }
 
         val pendingResult = goAsync()
@@ -129,10 +140,12 @@ class ScreenOnReceiver : BroadcastReceiver() {
     private fun handleScreenOff(context: Context) {
         val battery = getBatteryState(context)
         if (battery.isCharging) {
-            Log.d(TAG, "Screen turned off while charging - keeping current-temp loop running")
+            Log.d(TAG, "Screen turned off while charging - keeping current-temp loop running, but canceling non-primary loop")
+            NonPrimaryObservationScheduler.cancel(context)
         } else {
             Log.d(TAG, "Screen turned off on battery - canceling current-temp loop")
             CurrentTempUpdateScheduler.cancel(context)
+            NonPrimaryObservationScheduler.cancel(context)
         }
     }
 

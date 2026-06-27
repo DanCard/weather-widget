@@ -121,25 +121,31 @@ class ScreenOnReceiverTest {
     }
 
     @Test
-    fun `onReceive with SCREEN_OFF on battery cancels current-temp loop`() {
+    fun `onReceive with SCREEN_OFF on battery cancels current-temp and non-primary loops`() {
         mockkObject(CurrentTempUpdateScheduler)
+        mockkObject(NonPrimaryObservationScheduler)
         every { CurrentTempUpdateScheduler.cancel(any()) } just Runs
+        every { NonPrimaryObservationScheduler.cancel(any()) } just Runs
 
         receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_OFF))
 
         verify { CurrentTempUpdateScheduler.cancel(context) }
+        verify { NonPrimaryObservationScheduler.cancel(context) }
     }
 
     @Test
-    fun `onReceive with SCREEN_OFF while charging does not cancel current-temp loop`() {
+    fun `onReceive with SCREEN_OFF while charging does not cancel current-temp loop but cancels non-primary loop`() {
         mockkObject(CurrentTempUpdateScheduler)
+        mockkObject(NonPrimaryObservationScheduler)
         mockkObject(BatteryStatePolicy)
         every { CurrentTempUpdateScheduler.cancel(any()) } just Runs
+        every { NonPrimaryObservationScheduler.cancel(any()) } just Runs
         every { BatteryStatePolicy.isEffectivelyCharging(any()) } returns true
 
         receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_OFF))
 
         verify(exactly = 0) { CurrentTempUpdateScheduler.cancel(any()) }
+        verify { NonPrimaryObservationScheduler.cancel(context) }
     }
 
     @Test
@@ -208,6 +214,30 @@ class ScreenOnReceiverTest {
             WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY", 1).firstOrNull()
         assertNotNull("Expected latest UNLOCK_REFRESH_POLICY log", latest)
         assertFalse("Expected uiOnly field in log message", latest!!.message.contains("uiOnly=").not())
+    }
+
+    @Test
+    fun `onReceive with USER_PRESENT while charging schedules non-primary update`() {
+        mockkObject(NonPrimaryObservationScheduler)
+        mockkObject(BatteryStatePolicy)
+        every { NonPrimaryObservationScheduler.scheduleNextUpdate(any(), any()) } just Runs
+        every { BatteryStatePolicy.isEffectivelyCharging(any()) } returns true
+
+        receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
+
+        verify { NonPrimaryObservationScheduler.scheduleNextUpdate(context, isScreenInteractive = true) }
+    }
+
+    @Test
+    fun `onReceive with USER_PRESENT on battery cancels non-primary update`() {
+        mockkObject(NonPrimaryObservationScheduler)
+        mockkObject(BatteryStatePolicy)
+        every { NonPrimaryObservationScheduler.cancel(any()) } just Runs
+        every { BatteryStatePolicy.isEffectivelyCharging(any()) } returns false
+
+        receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
+
+        verify { NonPrimaryObservationScheduler.cancel(context) }
     }
 
     private fun unlockPolicyLogCount(): Int {

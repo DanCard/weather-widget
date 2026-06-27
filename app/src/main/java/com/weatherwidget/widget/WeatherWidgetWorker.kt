@@ -49,6 +49,7 @@ class WeatherWidgetWorker
             val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
             val forceRefresh = inputData.getBoolean(KEY_FORCE_REFRESH, false)
             val currentTempOnly = inputData.getBoolean(KEY_CURRENT_TEMP_ONLY, false)
+            val nonPrimaryCurrentTempOnly = inputData.getBoolean(KEY_NONPRIMARY_CURRENT_TEMP_ONLY, false)
             val opportunisticCurrentTemp = inputData.getBoolean(KEY_CURRENT_TEMP_OPPORTUNISTIC, false)
             val currentTempReason = inputData.getString(KEY_CURRENT_TEMP_REASON) ?: "unspecified"
             val targetSourceId = inputData.getString(KEY_TARGET_SOURCE)
@@ -99,6 +100,15 @@ class WeatherWidgetWorker
                     reason = currentTempReason,
                     force = forceRefresh,
                     targetSource = targetSourceId?.let(WeatherSource::fromId),
+                )
+            }
+
+            if (nonPrimaryCurrentTempOnly) {
+                return handleNonPrimaryCurrentTempOnlyWork(
+                    isPlugged = isPlugged,
+                    isScreenInteractive = isScreenInteractive,
+                    reason = currentTempReason,
+                    force = forceRefresh,
                 )
             }
 
@@ -466,6 +476,104 @@ class WeatherWidgetWorker
             }
         }
 
+        private suspend fun handleNonPrimaryCurrentTempOnlyWork(
+            isPlugged: Boolean,
+            isScreenInteractive: Boolean,
+            reason: String,
+            force: Boolean = false,
+        ): Result {
+            val startMs = SystemClock.elapsedRealtime()
+            appLogDao.log(
+                "NONPRIMARY_FETCH_START",
+                "id=$id reason=$reason isPlugged=$isPlugged isInteractive=$isScreenInteractive",
+                "INFO"
+            )
+
+            return try {
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                
+                val activeSourceIds = appWidgetIds.map { id ->
+                    widgetStateManager.getCurrentDisplaySource(id).id
+                }.distinct().toSet()
+
+                val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+                val nonActiveSources = visibleSources.filter { it.id !in activeSourceIds }
+
+                var resultMessage = "success"
+                var fetchDurationMs = 0L
+
+                if (nonActiveSources.isEmpty()) {
+                    resultMessage = "no_non_active_visible_sources"
+                } else {
+                    val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
+                    val fetchStartMs = SystemClock.elapsedRealtime()
+                    
+                    var successCount = 0
+                    var failCount = 0
+                    for (source in nonActiveSources) {
+                        val refreshResult = weatherRepository.refreshCurrentTemperature(
+                            latitude = location.first,
+                            longitude = location.second,
+                            locationName = getLocationName(location.first, location.second),
+                            source = source,
+                            reason = "non_primary_${reason}",
+                            forceRefresh = force,
+                        )
+                        refreshResult.fold(
+                            onSuccess = { successCount++ },
+                            onFailure = { failCount++ }
+                        )
+                    }
+                    fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
+                    resultMessage = "success=$successCount fail=$failCount"
+                }
+
+                val cacheRefreshStartMs = SystemClock.elapsedRealtime()
+                refreshWidgetsFromCache()
+                val cacheRefreshDurationMs = SystemClock.elapsedRealtime() - cacheRefreshStartMs
+
+                manageNonPrimaryLoopAfterRun(isPlugged, isScreenInteractive)
+
+                val totalDurationMs = SystemClock.elapsedRealtime() - startMs
+                appLogDao.log(
+                    "NONPRIMARY_FETCH_RESULT",
+                    "id=$id reason=$reason result=$resultMessage total=${totalDurationMs}ms fetch=${fetchDurationMs}ms widgets=${cacheRefreshDurationMs}ms",
+                    "INFO",
+                )
+                Result.success()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                appLogDao.log("NONPRIMARY_FETCH_CANCELLED", "reason=$reason durationMs=$durationMs msg=${e.message}", "INFO")
+                throw e
+            } catch (e: Exception) {
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                appLogDao.logException("NONPRIMARY_FETCH_EXCEPTION", "NonPrimary fetch failed (reason=$reason, duration=${durationMs}ms)", e)
+                manageNonPrimaryLoopAfterRun(isPlugged, isScreenInteractive)
+                Result.retry()
+            }
+        }
+
+        private suspend fun manageNonPrimaryLoopAfterRun(
+            isPlugged: Boolean,
+            isScreenInteractive: Boolean,
+        ) {
+            val intervalMinutes = ForecastFetchPolicy.nonPrimaryObservationIntervalMinutes(isPlugged, isScreenInteractive)
+            if (intervalMinutes != null) {
+                NonPrimaryObservationScheduler.scheduleNextUpdate(
+                    context = context,
+                    isScreenInteractive = isScreenInteractive,
+                )
+            } else {
+                appLogDao.log(
+                    "NONPRIMARY_LOOP_STOP",
+                    "reason=policy_blocked plugged=$isPlugged interactive=$isScreenInteractive",
+                    "INFO",
+                )
+            }
+        }
+
         private suspend fun handleObservationBackfillWork(
             latitude: Double,
             longitude: Double,
@@ -585,6 +693,7 @@ class WeatherWidgetWorker
             const val KEY_UI_ONLY_REFRESH = "ui_only_refresh"
             const val KEY_FORCE_REFRESH = "force_refresh"
             const val KEY_CURRENT_TEMP_ONLY = "current_temp_only"
+            const val KEY_NONPRIMARY_CURRENT_TEMP_ONLY = "nonprimary_current_temp_only"
             const val KEY_CURRENT_TEMP_OPPORTUNISTIC = "current_temp_opportunistic"
             const val KEY_CURRENT_TEMP_REASON = "current_temp_reason"
             const val KEY_TARGET_SOURCE = "target_source"
