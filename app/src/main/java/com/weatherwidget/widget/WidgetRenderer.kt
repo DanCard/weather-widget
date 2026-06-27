@@ -35,6 +35,38 @@ object WidgetRenderer {
 
     private const val TAG = "WidgetRenderer"
 
+    /**
+     * Widget IDs that have had a full DAILY graph paint in the *current process*. The DAILY view skips
+     * the expensive rebuild on opportunistic UI-only repaints (see [shouldSkipDailyUiOnlyRepaint]); that
+     * skip is only safe once a real graph bitmap exists. After a force-stop / fresh process / app
+     * update the widget shows the "Loading…" placeholder and the first update is often UI-only —
+     * skipping then would strand it on "Loading…". Cleared implicitly when the process dies.
+     */
+    private val fullyPaintedDailyWidgetIds: MutableSet<Int> =
+        java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /**
+     * Whether a UI-only DAILY repaint may skip the rebuild. Safe to skip only when the widget already
+     * has a real graph painted this process; otherwise we must do a full paint or the widget stays on
+     * the "Loading…" placeholder. Pure so it is unit-testable without a Context/AppWidgetManager.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun shouldSkipDailyUiOnlyRepaint(uiOnly: Boolean, alreadyPaintedThisProcess: Boolean): Boolean =
+        uiOnly && alreadyPaintedThisProcess
+
+    /** Test hook: reset the process-scoped paint tracker between cases. */
+    @androidx.annotation.VisibleForTesting
+    internal fun resetPaintTrackingForTest() = fullyPaintedDailyWidgetIds.clear()
+
+    @androidx.annotation.VisibleForTesting
+    internal fun markDailyPaintedForTest(appWidgetId: Int) {
+        fullyPaintedDailyWidgetIds.add(appWidgetId)
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun hasDailyPaintedForTest(appWidgetId: Int): Boolean =
+        fullyPaintedDailyWidgetIds.contains(appWidgetId)
+
     fun updateWidgetLoading(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -263,8 +295,12 @@ object WidgetRenderer {
             }
             ViewMode.DAILY -> {
                 // Daily view has no sub-hourly moving element; skip the expensive rebuild on
-                // opportunistic UI-only repaints (the ~2-min now-tracking alarm).
-                if (uiOnly) {
+                // opportunistic UI-only repaints (the ~2-min now-tracking alarm) — but ONLY once this
+                // widget has a real graph painted in the current process. After a force-stop / fresh
+                // process / app update the widget shows the "Loading…" placeholder and the first update
+                // is often UI-only; skipping then strands it on "Loading…" (graph bitmap never set), so
+                // fall through to a full paint instead. See shouldSkipDailyUiOnlyRepaint.
+                if (shouldSkipDailyUiOnlyRepaint(uiOnly, fullyPaintedDailyWidgetIds.contains(appWidgetId))) {
                     WeatherDatabase.getDatabase(context).appLogDao().log(
                         com.weatherwidget.widget.WidgetPerfLogger.TAG_WIDGET_PAINT,
                         "widget=$appWidgetId caller=DAILY state=skipped_ui_only thread=${Thread.currentThread().name}",
@@ -292,6 +328,8 @@ object WidgetRenderer {
                     stateManagerNullable = stateManager,
                     repository = repository,
                 )
+                // A real graph was just painted, so future UI-only ticks for this widget may skip.
+                fullyPaintedDailyWidgetIds.add(appWidgetId)
             }
         }
 
