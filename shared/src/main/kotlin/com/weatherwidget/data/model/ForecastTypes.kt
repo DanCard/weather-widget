@@ -42,6 +42,11 @@ data class DailyForecastSnapshot(
     val precipProbability: Int? = null,
     val precipAmountMm: Float? = null,
     val fetchedAt: Long,
+    // Daytime/nighttime period chance from the original forecast — needed so the desktop daily view can
+    // keep showing a past day's forecast rain chance (the snapshot is the only precip source for past
+    // days, since the live `DailyForecast` list holds only today + future).
+    val daytimePrecipProbability: Int? = null,
+    val nighttimePrecipProbability: Int? = null,
 )
 
 data class DailyActual(

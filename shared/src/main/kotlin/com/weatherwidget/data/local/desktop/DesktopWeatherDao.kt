@@ -716,7 +716,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
             val sql = """
                 SELECT targetDate, highTemp, lowTemp, condition, nativeDailyIconToken,
-                    precipProbability, precipAmountMm, fetchedAt, batchFetchedAt
+                    precipProbability, daytimePrecipProbability, nighttimePrecipProbability,
+                    precipAmountMm, fetchedAt, batchFetchedAt
                 FROM forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
                     AND targetDate >= ? AND targetDate <= ?
@@ -743,6 +744,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             precipProbability = rs.getNullableInt("precipProbability"),
                             precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                             fetchedAt = rs.getLong("fetchedAt"),
+                            daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
+                            nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
                         )
                     )
                 }

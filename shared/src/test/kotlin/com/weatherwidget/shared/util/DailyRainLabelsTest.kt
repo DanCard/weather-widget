@@ -66,17 +66,46 @@ class DailyRainLabelsTest {
     }
 
     @Test
-    fun pastDayWithNoObservedRainIsNull() {
+    fun pastDayWithNoObservedRainShowsForecastChance() {
+        // No measurable rain fell, but the forecast chance must stay visible in history
+        // instead of silently vanishing when the day turns into the past.
         val label = DailyRainLabels.buildDailyRainLabel(
             date = today.minusDays(1),
             today = today,
             isPastDate = true,
-            precipAmountMm = 5f,
+            precipAmountMm = 5f, // forecast amount must be ignored for past days
             dayPrecipProbability = 80,
             allowTodayRainChanceLabel = true,
             observedPrecipAmountMm = null,
         )
-        assertNull(label)
+        assertEquals("80%", label)
+    }
+
+    @Test
+    fun pastDayWithNoObservedRainAndZeroChanceIsNull() {
+        // Dry, zero-chance history stays clean (no clutter of "0%").
+        assertNull(
+            DailyRainLabels.buildDailyRainLabel(
+                date = today.minusDays(1),
+                today = today,
+                isPastDate = true,
+                precipAmountMm = null,
+                dayPrecipProbability = 0,
+                allowTodayRainChanceLabel = true,
+                observedPrecipAmountMm = null,
+            ),
+        )
+        assertNull(
+            DailyRainLabels.buildDailyRainLabel(
+                date = today.minusDays(1),
+                today = today,
+                isPastDate = true,
+                precipAmountMm = null,
+                dayPrecipProbability = null,
+                allowTodayRainChanceLabel = true,
+                observedPrecipAmountMm = null,
+            ),
+        )
     }
 
     @Test
@@ -165,6 +194,32 @@ class DailyRainLabelsTest {
             observedNightPrecipMm = 2f,
         )
         assertEquals("2mm", label)
+    }
+
+    @Test
+    fun nightPastWithNoObservedRainShowsForecastChance() {
+        // Reported case: NWS forecast 15% night chance, no measurable rain fell — the label
+        // must stay as "15%" in history instead of disappearing.
+        assertEquals(
+            "15%",
+            DailyRainLabels.buildNightRainLabel(
+                date = today.minusDays(1),
+                today = today,
+                isPastDate = true,
+                nightPrecipProbability = 15,
+                observedNightPrecipMm = null,
+            ),
+        )
+        // Zero/absent chance with no observed rain stays blank.
+        assertNull(
+            DailyRainLabels.buildNightRainLabel(
+                date = today.minusDays(1),
+                today = today,
+                isPastDate = true,
+                nightPrecipProbability = 0,
+                observedNightPrecipMm = null,
+            ),
+        )
     }
 
     @Test
@@ -296,5 +351,26 @@ class DailyRainLabelsTest {
         )
         assertEquals(12, resolved.dayPrecip)
         assertEquals(7, resolved.nightPrecip)
+    }
+
+    @Test
+    fun pastNwsNightOnlyChanceDoesNotLeakIntoDaytimeLabel() {
+        // Regression: a past NWS-as-NWS day with a night-only chance (daytime=null, night=15,
+        // precipProbability=15). The isPast branch must win over the NWS-direct branch so the night
+        // chance does NOT surface as a spurious daytime label (parity with desktop). Android previously
+        // hit the NWS-direct `daytime ?: precipProbability` fallback → bogus daytime 15%.
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = true,
+            rowSourceId = WeatherSource.NWS.id,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = null,
+            nighttimePrecipProbability = 15,
+            precipProbability = 15,
+            hourly = emptyList(),
+            targetDate = today.minusDays(1),
+            zoneId = zone,
+        )
+        assertNull(resolved.dayPrecip)
+        assertEquals(15, resolved.nightPrecip)
     }
 }

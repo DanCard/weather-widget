@@ -239,13 +239,15 @@ object DesktopDailyForecastModel {
         // shared resolveDailyLabelPrecip so desktop and Android pick identical values — for an NWS row
         // shown as NWS that's NWS's native 12h period chance (e.g. today's 15%), not the sparse hourly
         // max (which was showing 2% here). Past days prefer observed actuals.
+        // Past days have no live `forecast` row (the daily list holds only today + future), so the
+        // forecast rain chance to keep visible in history comes from the day's snapshot instead.
         val resolvedPrecip = com.weatherwidget.shared.util.DailyRainLabels.resolveDailyLabelPrecip(
             isPast = isPast,
             rowSourceId = forecast?.source,
             displaySourceId = displaySourceId,
-            daytimePrecipProbability = forecast?.daytimePrecipProbability,
-            nighttimePrecipProbability = forecast?.nighttimePrecipProbability,
-            precipProbability = forecast?.precipProbability,
+            daytimePrecipProbability = forecast?.daytimePrecipProbability ?: displaySnapshot?.daytimePrecipProbability,
+            nighttimePrecipProbability = forecast?.nighttimePrecipProbability ?: displaySnapshot?.nighttimePrecipProbability,
+            precipProbability = forecast?.precipProbability ?: displaySnapshot?.precipProbability,
             hourly = hourly,
             targetDate = date,
         )

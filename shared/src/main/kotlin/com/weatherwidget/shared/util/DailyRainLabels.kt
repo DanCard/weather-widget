@@ -168,6 +168,14 @@ object DailyRainLabels {
         targetDate: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): ResolvedDailyPrecip {
+        if (isPast) {
+            // Past days use the raw day/night period split with NO precipProbability→daytime fallback.
+            // This must take precedence over the NWS-direct branch below: an NWS night-only chance
+            // (daytime=null, precipProbability=15) would otherwise surface as a spurious daytime label
+            // on the bar. It also keeps Android (source-tagged row present → would hit the NWS-direct
+            // branch) and desktop (forecast row absent for past days) on the same path.
+            return ResolvedDailyPrecip(daytimePrecipProbability, nighttimePrecipProbability)
+        }
         val useDirectNwsPeriodPrecip =
             rowSourceId == WeatherSource.NWS.id && displaySourceId == WeatherSource.NWS.id
         if (useDirectNwsPeriodPrecip) {
@@ -175,10 +183,6 @@ object DailyRainLabels {
                 dayPrecip = daytimePrecipProbability ?: precipProbability,
                 nightPrecip = nighttimePrecipProbability,
             )
-        }
-        if (isPast) {
-            // Past days label from observed amounts, not probability; these only feed the icon.
-            return ResolvedDailyPrecip(daytimePrecipProbability, nighttimePrecipProbability)
         }
         val dayNight = calculateDayNightPrecipProbabilities(
             hourly = hourly,
@@ -194,7 +198,8 @@ object DailyRainLabels {
 
     /**
      * Daytime rain label drawn on top of a day's bar.
-     * - Past days: observed amount, or null when none.
+     * - Past days: observed amount when measurable rain fell, else the forecast chance% (so a real
+     *   forecast doesn't silently vanish the moment the day turns into history), else null.
      * - Today: amount when day-prob ≥ 95% (and amount known), else day-prob% (if allowed), else null.
      * - Future: suppressed below the distance-scaled threshold; else amount when prob ≥ 99%, else prob%.
      */
@@ -210,6 +215,10 @@ object DailyRainLabels {
         if (isPastDate) {
             if (observedPrecipAmountMm != null && observedPrecipAmountMm > 0f) {
                 return formatPrecipAmount(observedPrecipAmountMm)
+            }
+            // No measurable rain fell, but keep the forecasted chance visible in history.
+            if (dayPrecipProbability != null && dayPrecipProbability > 0) {
+                return "$dayPrecipProbability%"
             }
             return null
         }
@@ -238,7 +247,8 @@ object DailyRainLabels {
 
     /**
      * Nighttime rain label tucked between columns.
-     * - Past days: observed night amount, or null when none.
+     * - Past days: observed night amount when measurable rain fell, else the forecast night chance%
+     *   (so a real forecast doesn't silently vanish once the night turns into history), else null.
      * - Future: night-prob% when above the distance-scaled threshold, else null.
      */
     fun buildNightRainLabel(
@@ -251,6 +261,10 @@ object DailyRainLabels {
         if (isPastDate) {
             if (observedNightPrecipMm != null && observedNightPrecipMm > 0f) {
                 return formatPrecipAmount(observedNightPrecipMm)
+            }
+            // No measurable rain fell, but keep the forecasted night chance visible in history.
+            if (nightPrecipProbability != null && nightPrecipProbability > 0) {
+                return "$nightPrecipProbability%"
             }
             return null
         }
