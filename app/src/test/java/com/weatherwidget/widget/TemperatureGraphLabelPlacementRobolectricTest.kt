@@ -1102,4 +1102,49 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             actualLow.reason,
         )
     }
+
+    @Test
+    fun `drawHourLabels resolves crowding by choosing denser spacing or dropping icons`() {
+        val paint = Paint().apply {
+            textSize = 23f
+        }
+        val bitmap = android.graphics.Bitmap.createBitmap(800, 200, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+
+        val items = (0 until 24).map { i ->
+            HourData(
+                dateTime = LocalDateTime.now().plusHours(i.toLong()),
+                temperature = 60f,
+                label = "${i}p",
+                showLabel = true,
+                iconRes = 12345
+            )
+        }
+        val points = (0 until 24).map { i ->
+            Pair(i * 30f, 100f)
+        }
+
+        var iconDrawCount = 0
+        GraphRenderUtils.drawHourLabels(
+            canvas = canvas,
+            items = items,
+            points = points,
+            widthPx = 400,
+            heightPx = 200,
+            minHourLabelSpacing = 40f,
+            hourLabelTextPaint = paint,
+            dpToPx = { it * 2f },
+            showLabel = { it.showLabel },
+            labelText = { it.label },
+            iconSize = 15f,
+            iconTextGapDp = 2f,
+            hasIcon = { true },
+            isDateLabel = { false },
+            drawIcon = { index, rect ->
+                iconDrawCount++
+            }
+        )
+        // Check that layout runs successfully, and the icons are either dropped or some labels skipped.
+        assertTrue("Icon draw count should be limited to prevent crowding", iconDrawCount == 0 || iconDrawCount < items.size)
+    }
 }

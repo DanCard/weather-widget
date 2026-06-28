@@ -225,6 +225,104 @@ internal object GraphRenderUtils {
      * [isDateLabel] marks THREE_DAY per-day date labels ("Tue 23"): such a label is dropped entirely
      * when it would clip a canvas edge (rather than being clamped inward onto its neighbor).
      */
+    private const val TAG = "GraphRenderUtils"
+
+    private data class HourlyLayoutConfig(val spacing: Float, val drawIcons: Boolean)
+
+    private fun <T> checkHourlyLabelOverlap(
+        items: List<T>,
+        points: List<Pair<Float, Float>>,
+        widthPx: Int,
+        spacing: Float,
+        hourLabelTextPaint: Paint,
+        gap: Float,
+        showLabel: (T) -> Boolean,
+        labelText: (T) -> String,
+        iconSize: Float,
+        hasIcon: (T) -> Boolean,
+        isDateLabel: (T) -> Boolean,
+        drawIcons: Boolean,
+        minGapPx: Float,
+        dateLabelGap: Float,
+    ): Boolean {
+        var lastLabeledIndex = -1
+        var scanX = -1000f
+        items.forEachIndexed { index, item ->
+            if (index >= points.size) return@forEachIndexed
+            val cx = points[index].first
+            if (showLabel(item) && cx - scanX >= spacing) {
+                lastLabeledIndex = index
+                scanX = cx
+            }
+        }
+
+        var lastHourLabelX = -1000f
+        var lastDateLabelRight = Float.NEGATIVE_INFINITY
+        var prevRight = Float.NEGATIVE_INFINITY
+
+        items.forEachIndexed { index, item ->
+            if (index >= points.size) return@forEachIndexed
+            val centerX = points[index].first
+            if (!showLabel(item) || centerX - lastHourLabelX < spacing) return@forEachIndexed
+
+            val fullLabel = labelText(item)
+            val dateLabel = isDateLabel(item)
+
+            val inline = drawIcons && iconSize > 0f && hasIcon(item) &&
+                (index != lastLabeledIndex || dateLabel)
+
+            val left: Float
+            val right: Float
+            if (inline) {
+                val hourText = fullLabel.dropLast(1)
+                val meridiem = fullLabel.takeLast(1)
+                val hourMerW = hourLabelTextPaint.measureText(hourText + meridiem)
+                val leftExtent = hourMerW / 2f
+                val rightExtent = hourMerW / 2f + gap + iconSize
+                val center = if (dateLabel) {
+                    placeDateLabelCenter(centerX, leftExtent, rightExtent, widthPx, lastDateLabelRight, dateLabelGap)
+                        ?: return@forEachIndexed
+                } else {
+                    centerX.coerceIn(leftExtent, widthPx - rightExtent)
+                }
+                left = center - leftExtent
+                right = center + rightExtent
+                if (dateLabel) lastDateLabelRight = center + rightExtent
+            } else {
+                val textWidth = hourLabelTextPaint.measureText(fullLabel)
+                val half = textWidth / 2f
+                val clampedX = if (dateLabel) {
+                    placeDateLabelCenter(centerX, half, half, widthPx, lastDateLabelRight, dateLabelGap)
+                        ?: return@forEachIndexed
+                } else {
+                    centerX.coerceIn(half, widthPx - half)
+                }
+                left = clampedX - half
+                right = clampedX + half
+                if (dateLabel) lastDateLabelRight = clampedX + half
+            }
+
+            if (prevRight != Float.NEGATIVE_INFINITY && left < prevRight + minGapPx) {
+                return true
+            }
+            prevRight = right
+            lastHourLabelX = centerX
+        }
+        return false
+    }
+
+    /**
+     * Draw the hourly-graph footer. With [iconSize] > 0 and [drawIcon] supplied, each labeled hour
+     * renders as a single inline row `<hour><a|p><icon>` (e.g. `3p☁`): the numeric part and
+     * meridiem drawn as one centered string, then the weather icon to the right. The icon's [RectF] is handed to
+     * [drawIcon] so the caller applies its own (condition-specific) tint and draws into it.
+     * The icon is skipped on the last labeled hour to avoid crowding with its neighbor, except for
+     * date labels ([isDateLabel]), which are one-per-day and far apart so the last day keeps its icon.
+     * Hours where [hasIcon] is false fall back to the plain centered label.
+     *
+     * [isDateLabel] marks THREE_DAY per-day date labels ("Tue 23"): such a label is dropped entirely
+     * when it would clip a canvas edge (rather than being clamped inward onto its neighbor).
+     */
     fun <T> drawHourLabels(
         canvas: Canvas,
         items: List<T>,
@@ -244,13 +342,55 @@ internal object GraphRenderUtils {
     ) {
         val bottomInset = dpToPx(HourlyGraphDefaults.FOOTER_BOTTOM_INSET_DP)
         val gap = dpToPx(iconTextGapDp)
+        val minGapPx = dpToPx(3f)
+        val dateLabelGap = dpToPx(HourlyGraphDefaults.DATE_LABEL_MIN_GAP_DP)
+
+        // Find optimal spacing and drawIcons configuration to prevent overlap
+        val configs = listOf(
+            HourlyLayoutConfig(minHourLabelSpacing, true),
+            HourlyLayoutConfig(minHourLabelSpacing, false),
+            HourlyLayoutConfig(minHourLabelSpacing * 1.4f, true),
+            HourlyLayoutConfig(minHourLabelSpacing * 1.4f, false),
+            HourlyLayoutConfig(minHourLabelSpacing * 1.8f, true),
+            HourlyLayoutConfig(minHourLabelSpacing * 1.8f, false),
+            HourlyLayoutConfig(minHourLabelSpacing * 2.2f, false)
+        )
+
+        var selectedConfig = configs.first()
+        for (config in configs) {
+            val hasOverlap = checkHourlyLabelOverlap(
+                items = items,
+                points = points,
+                widthPx = widthPx,
+                spacing = config.spacing,
+                hourLabelTextPaint = hourLabelTextPaint,
+                gap = gap,
+                showLabel = showLabel,
+                labelText = labelText,
+                iconSize = iconSize,
+                hasIcon = hasIcon,
+                isDateLabel = isDateLabel,
+                drawIcons = config.drawIcons,
+                minGapPx = minGapPx,
+                dateLabelGap = dateLabelGap
+            )
+            if (!hasOverlap) {
+                selectedConfig = config
+                break
+            }
+        }
+
+        val finalSpacing = selectedConfig.spacing
+        val finalDrawIcons = selectedConfig.drawIcons
+
+        Log.d(TAG, "drawHourLabels: selected spacing=$finalSpacing, drawIcons=$finalDrawIcons (original spacing=$minHourLabelSpacing, items=${items.size})")
 
         // A single baseline shared by every label keeps the row flat. When icons are present the
         // row occupies an `iconSize`-tall band at the bottom and the text is vertically centered
         // on the icon; otherwise the text sits just above the bottom edge.
         val iconBottom = heightPx - bottomInset
         val iconTop = iconBottom - iconSize
-        val baselineY = if (iconSize > 0f) {
+        val baselineY = if (iconSize > 0f && finalDrawIcons) {
             val centerY = (iconTop + iconBottom) / 2f
             val fm = hourLabelTextPaint.fontMetrics
             val textCenterOffset = if (fm != null) (fm.ascent + fm.descent) / 2f else 0f
@@ -265,8 +405,9 @@ internal object GraphRenderUtils {
         var lastLabeledIndex = -1
         var scanX = -1000f
         items.forEachIndexed { index, item ->
+            if (index >= points.size) return@forEachIndexed
             val cx = points[index].first
-            if (showLabel(item) && cx - scanX >= minHourLabelSpacing) {
+            if (showLabel(item) && cx - scanX >= finalSpacing) {
                 lastLabeledIndex = index
                 scanX = cx
             }
@@ -274,11 +415,11 @@ internal object GraphRenderUtils {
         var lastHourLabelX = -1000f
         // Right edge of the last drawn date label, for adjacent-overlap detection (date footer only).
         var lastDateLabelRight = Float.NEGATIVE_INFINITY
-        val dateLabelGap = dpToPx(HourlyGraphDefaults.DATE_LABEL_MIN_GAP_DP)
 
         items.forEachIndexed { index, item ->
+            if (index >= points.size) return@forEachIndexed
             val centerX = points[index].first
-            if (!showLabel(item) || centerX - lastHourLabelX < minHourLabelSpacing) return@forEachIndexed
+            if (!showLabel(item) || centerX - lastHourLabelX < finalSpacing) return@forEachIndexed
 
             val fullLabel = labelText(item)
 
@@ -287,7 +428,7 @@ internal object GraphRenderUtils {
             // The last-labeled icon is normally skipped to keep crowded time-of-day labels from
             // colliding near the right edge. Date labels are one-per-day and far apart, so the last
             // day keeps its icon (otherwise the rightmost day, e.g. "Fri 26", loses its indicator).
-            val inline = iconSize > 0f && drawIcon != null && hasIcon(item) &&
+            val inline = finalDrawIcons && iconSize > 0f && drawIcon != null && hasIcon(item) &&
                 (index != lastLabeledIndex || dateLabel)
 
             if (inline) {
@@ -314,7 +455,7 @@ internal object GraphRenderUtils {
                 // Skip the icon if it would overflow the right edge (avoids the last two
                 // labels crowding each other when the rightmost group can't fit its icon).
                 if (iconLeft + iconSize <= widthPx) {
-                    drawIcon?.invoke(index, RectF(iconLeft, iconTop, iconLeft + iconSize, iconBottom))
+                    drawIcon(index, RectF(iconLeft, iconTop, iconLeft + iconSize, iconBottom))
                 }
                 if (dateLabel) lastDateLabelRight = center + rightExtent
             } else {
