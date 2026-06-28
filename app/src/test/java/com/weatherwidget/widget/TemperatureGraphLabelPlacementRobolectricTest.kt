@@ -866,7 +866,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             val actualTemp = when (i) {
                 0 -> 60f
                 1 -> 55f
-                2 -> 48f // ACTUAL_LOW
+                2 -> 48f // ACTUAL_LOW (interior valley)
+                3 -> 55f // observed neighbour so idx 2 is a genuine turning point (not a bare edge)
                 else -> null
             }
             HourData(
@@ -915,7 +916,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             val actualTemp = when (i) {
                 0 -> 50f
                 1 -> 55f
-                2 -> 64f // ACTUAL_HIGH
+                2 -> 64f // ACTUAL_HIGH (interior peak)
+                3 -> 55f // observed neighbour so idx 2 is a genuine turning point (not a bare edge)
                 else -> null
             }
             HourData(

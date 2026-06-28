@@ -82,7 +82,8 @@ class TemperatureLabelSuppressionTest {
 
         // Setup:
         // Global HIGH is at index 9 (80.0f)
-        // ACTUAL_HIGH is at index 2 (75.0f)
+        // ACTUAL_HIGH is at index 1 (75.0f) — an INTERIOR observed peak (idx 0/2 are cooler), since a
+        //   bare observation-cutoff edge is no longer treated as an actual extreme.
         // FORECAST_HIGH is at index 3 (75.1f)
         val hours = (0 until 10).map { offset ->
             val dt = start.plusHours(offset.toLong())
@@ -95,7 +96,12 @@ class TemperatureLabelSuppressionTest {
                 },
                 label = "${dt.hour}h",
                 isActual = offset <= 2,
-                actualTemperature = if (offset == 2) 75.0f else 60.0f + offset
+                actualTemperature = when (offset) {
+                    0 -> 73.0f
+                    1 -> 75.0f   // interior observed peak -> ACTUAL_HIGH at idx 1
+                    2 -> 73.0f
+                    else -> 60.0f + offset
+                }
             )
         }
 
@@ -108,10 +114,10 @@ class TemperatureLabelSuppressionTest {
             observedAt = null
         )
 
-        // ACTUAL_HIGH (at index 2) should be accepted.
+        // ACTUAL_HIGH (at index 1) should be accepted.
         // FORECAST_HIGH (at index 3) should be suppressed by ACTUAL_HIGH.
-        assertTrue("ACTUAL_HIGH should be accepted at index 2", candidates.any { it.index == 2 && it.role == TemperatureRole.ACTUAL_HIGH })
-        assertFalse("FORECAST_HIGH at index 3 should be suppressed by ACTUAL_HIGH at index 2", candidates.any { it.index == 3 && it.role == TemperatureRole.FORECAST_HIGH })
+        assertTrue("ACTUAL_HIGH should be accepted at index 1", candidates.any { it.index == 1 && it.role == TemperatureRole.ACTUAL_HIGH })
+        assertFalse("FORECAST_HIGH at index 3 should be suppressed by ACTUAL_HIGH", candidates.any { it.index == 3 && it.role == TemperatureRole.FORECAST_HIGH })
         assertTrue("HIGH should be accepted at index 9", candidates.any { it.index == 9 && it.role == TemperatureRole.HIGH })
     }
 
@@ -460,13 +466,11 @@ class TemperatureLabelSuppressionTest {
     }
 
     @Test
-    fun `actual low on the right-edge index wins over END`() {
-        // Reproduces the live emulator bug (2026-06-16): the observed line keeps cooling into the
-        // evening, so the absolute actual low lands on the last (right-edge / NOW) index — which is
-        // also the END boundary. resolveExtremaRole used to test hours.lastIndex (END) before the
-        // actual-extrema checks, so END won and the right-edge label showed the forecast endpoint
-        // value (70) instead of the observed low (59). The label appeared to "vanish" whenever the
-        // coldest observed point happened to land on the edge.
+    fun `actual low on the right-edge index is not labeled - it is just an edge value`() {
+        // The observed line keeps cooling into the evening, so the absolute actual low lands on the
+        // last (right-edge / NOW) index. Per the edge rule (an edge value is not a confirmed
+        // valley — the real low may lie beyond the window), the right-edge sample is NOT an
+        // ACTUAL_LOW; the boundary shows the forecast END value (70) instead.
         val start = LocalDateTime.of(2026, 4, 8, 0, 0) // midnight -> all 24 hours are one calendar day
         // Forecast curve: low at idx 3 (54), high at idx 14 (79), END value 70 at idx 23.
         val forecast = listOf(
@@ -502,21 +506,20 @@ class TemperatureLabelSuppressionTest {
 
         val rightEdge = candidates.find { it.index == 23 }
         assertEquals(
-            "right-edge label should be ACTUAL_LOW, not END, got ${candidates.map { it.role to it.index }}",
-            TemperatureRole.ACTUAL_LOW, rightEdge?.role,
+            "right-edge label should be END (edge value), not ACTUAL_LOW, got ${candidates.map { it.role to it.index }}",
+            TemperatureRole.END, rightEdge?.role,
         )
         assertEquals(
-            "right-edge label should carry the observed low (59), not the forecast endpoint (70)",
-            59.0f, rightEdge!!.labelTemps[rightEdge.index], 0.01f,
+            "right-edge END should carry the forecast endpoint (70), the observed edge low is not labeled",
+            70.0f, rightEdge!!.labelTemps[rightEdge.index], 0.01f,
         )
     }
 
     @Test
-    fun `actual low on the fetch-dot right edge wins over END`() {
-        // Current-day variant of the bug: the right-edge index is NOW, so the fetch dot lands on it.
-        // checkFetchDotSuppression used to relabel any edge fetch-dot index to START/END before the
-        // role mattered, clobbering the ACTUAL_LOW. The actual-extrema exemption must keep the observed
-        // low (59) instead of the forecast endpoint (70).
+    fun `actual low on the fetch-dot right edge is not labeled - it is just an edge value`() {
+        // Current-day variant: the right-edge index is NOW, so the fetch dot lands on it. The observed
+        // low (59) sits on that edge, which is no longer a confirmed valley, so the right-edge index
+        // must NOT be an ACTUAL_LOW (it is the END boundary / fetch-dot, not the observed low).
         val start = LocalDateTime.of(2026, 4, 8, 0, 0)
         val forecast = listOf(
             60f, 58f, 56f, 54f, 57f, 60f, 63f, 66f, 69f, 72f, 74f, 76f,
@@ -548,23 +551,19 @@ class TemperatureLabelSuppressionTest {
             widthPx = 600,
         )
 
-        val rightEdge = candidates.find { it.index == 23 }
-        assertEquals(
-            "right-edge fetch-dot label should be ACTUAL_LOW, not END, got ${candidates.map { it.role to it.index }}",
-            TemperatureRole.ACTUAL_LOW, rightEdge?.role,
-        )
-        assertEquals(
-            "right-edge label should carry the observed low (59), not the forecast endpoint (70)",
-            59.0f, rightEdge!!.labelTemps[rightEdge.index], 0.01f,
+        assertFalse(
+            "right-edge fetch-dot index (NOW) must NOT be an ACTUAL_LOW — it is an edge value. " +
+                "got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 23 && it.role == TemperatureRole.ACTUAL_LOW },
         )
     }
 
     @Test
-    fun `absolute actual low just inside the right edge is not endpoint-suppressed`() {
-        // Reproduces the live Samsung (SM-F936U1) case: the observed line cools toward NOW but the
-        // data carries a short forecast tail, so the absolute observed low (idx 57) lands a couple of
-        // points shy of the right edge (idx 59) — inside checkEndpointSuppression's edge window. It
-        // used to be decluttered away (LabelSuppressed reason=ENDPOINT). The absolute low must survive.
+    fun `absolute actual low at the observation cutoff edge is not labeled`() {
+        // The observed line cools monotonically toward NOW, so the absolute observed low lands on the
+        // observation cutoff (idx 57 = the right edge of the observed data). With no interior valley,
+        // that edge sample is NOT a confirmed turning point, so it must NOT be an ACTUAL_LOW — the real
+        // low may lie beyond the window. (The interior observed peak at idx 20 is still labeled.)
         val start = LocalDateTime.of(2026, 6, 13, 0, 0)
         val n = 60
         val effEnd = 57 // observed 0..57; a 2-point forecast tail (58..59) follows
@@ -594,9 +593,15 @@ class TemperatureLabelSuppressionTest {
             widthPx = 567,
         )
 
-        assertTrue(
-            "the absolute observed low at idx 57 must be labeled, not edge-suppressed; got ${candidates.map { it.role to it.index }}",
+        assertFalse(
+            "the observation-cutoff edge low at idx 57 must NOT be labeled ACTUAL_LOW (edge value); " +
+                "got ${candidates.map { it.role to it.index }}",
             candidates.any { it.index == 57 && it.role == TemperatureRole.ACTUAL_LOW },
+        )
+        assertTrue(
+            "the interior observed peak at idx 20 must still be labeled ACTUAL_HIGH; " +
+                "got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 20 && it.role == TemperatureRole.ACTUAL_HIGH },
         )
     }
 
@@ -857,12 +862,11 @@ class TemperatureLabelSuppressionTest {
     }
 
     @Test
-    fun `actual low at the left edge (start of observed data) is labeled`() {
-        // Reproduces the live NWS day-view case: the actual (observed) line is flat overnight and its
-        // coldest point sits at idx 0 (midnight, the start of the observed data). The forecast has its
-        // own pre-dawn dip at idx 5 (so the forecast daily-low role does NOT claim idx 0). The actual
-        // low at the left edge must still be labeled ACTUAL_LOW — it is a real boundary value, mirroring
-        // the right-edge (NOW) exemption.
+    fun `actual low at the left edge (start of observed data) is not labeled`() {
+        // The observed line's coldest point sits at idx 0 (the start of the observed data / left edge)
+        // and only warms from there — there is no interior valley. That edge sample is NOT a confirmed
+        // low (the real overnight low may lie off-screen before the window), so it must NOT be labeled
+        // ACTUAL_LOW. The interior midday peak (the 73 plateau) is still labeled ACTUAL_HIGH.
         val start = LocalDateTime.of(2026, 6, 16, 0, 0)
         // forecast: dips to 58 at idx 5, peaks 80 at idx 16 (min/max away from idx 0).
         val forecast = listOf(
@@ -897,9 +901,15 @@ class TemperatureLabelSuppressionTest {
             widthPx = 600,
         )
 
-        assertTrue(
-            "the left-edge actual low at idx 0 should be labeled ACTUAL_LOW",
+        assertFalse(
+            "the left-edge actual low at idx 0 must NOT be labeled ACTUAL_LOW (edge value); " +
+                "got ${candidates.map { it.role to it.index }}",
             candidates.any { it.index == 0 && it.role == TemperatureRole.ACTUAL_LOW }
+        )
+        assertTrue(
+            "the interior midday peak (73 plateau, idx 12) must still be labeled ACTUAL_HIGH; " +
+                "got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.index == 12 && it.role == TemperatureRole.ACTUAL_HIGH }
         )
     }
 

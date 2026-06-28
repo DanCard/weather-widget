@@ -150,7 +150,11 @@ class TemperatureLabelCollisionOrderTest {
         val forecast = MutableList(24) { 60f }
         forecast[10] = 52f
         val actual = MutableList<Float?>(24) { null }
+        // Observed valley with neighbours on both sides so idx 12 is a genuine turning point
+        // (a lone edge sample is no longer treated as an actual extreme).
+        actual[11] = 52f
         actual[12] = 50f
+        actual[13] = 52f
 
         val observedAt = LocalDateTime.of(2026, 4, 8, 13, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val placements = runEngineTest(
@@ -179,7 +183,10 @@ class TemperatureLabelCollisionOrderTest {
         val forecast = MutableList(24) { 70f }
         forecast[10] = 85f
         val actual = MutableList<Float?>(24) { null }
+        // Observed peak with neighbours on both sides so idx 12 is a genuine turning point.
+        actual[11] = 85f
         actual[12] = 87f
+        actual[13] = 85f
 
         val observedAt = LocalDateTime.of(2026, 4, 8, 13, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val placements = runEngineTest(
@@ -211,7 +218,11 @@ class TemperatureLabelCollisionOrderTest {
         forecast[25] = 54f
         forecast[26] = 54f
         val actual = MutableList<Float?>(48) { null }
+        // Observed valley with neighbours so idx 25 is a genuine turning point; idx 24/26 are the
+        // (edge) flanks and carry no actual label themselves.
+        actual[24] = 54f
         actual[25] = 53.2f
+        actual[26] = 54f
 
         val observedAt = LocalDateTime.of(2026, 4, 9, 2, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val placements = runEngineTest(
@@ -252,7 +263,10 @@ class TemperatureLabelCollisionOrderTest {
         forecast[25] = 50f
         forecast[26] = 50f
         val actual = MutableList<Float?>(48) { null }
+        // Observed valley with neighbours so idx 25 is a genuine turning point.
+        actual[24] = 50f
         actual[25] = 49.8f
+        actual[26] = 50f
 
         val observedAt = LocalDateTime.of(2026, 4, 9, 2, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val placements = runEngineTest(

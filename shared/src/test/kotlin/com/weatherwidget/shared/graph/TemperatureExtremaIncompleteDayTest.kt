@@ -168,19 +168,21 @@ class TemperatureExtremaIncompleteDayTest {
         )
     }
 
-    // Apr 8 begins at its COLDEST observed point (50 @ 00:00 — the overnight low landing at the edge)
-    // and only ever warms. This boundary LOW is a genuine value the user wants labeled; the asymmetric
-    // rule must never drop it (actual_low_left_edge_label).
+    // Apr 8's coldest OBSERVED value (50 @ 00:00) sits at the left edge and the window only warms from
+    // there. That edge sample is NOT a confirmed valley — the real overnight low may lie off-screen
+    // before the window — so it must NOT be labeled as an actual low (edges are just edge values; the
+    // genuine valley/peak labels are reserved for true turning points). Apr 8's real interior peak
+    // (72 @ idx2) is still labeled.
     private val ascendingBoundaryLowPoints = listOf(
-        hour(8, 0, temp = 50f, actual = 50f, isActual = true),   // idx0: boundary low (KEEP)
+        hour(8, 0, temp = 50f, actual = 50f, isActual = true),   // idx0: window-edge cold value (NOT a valley)
         hour(8, 6, temp = 58f, actual = 58f, isActual = true),
-        hour(8, 12, temp = 72f, actual = 72f, isActual = true),  // idx2: Apr 8 high
+        hour(8, 12, temp = 72f, actual = 72f, isActual = true),  // idx2: Apr 8 interior high (KEEP)
         hour(9, 0, temp = 60f, actual = 60f, isActual = true),
         hour(9, 12, temp = 78f, actual = 78f, isActual = true),
     )
 
     @Test
-    fun `coldest-at-edge boundary low is never dropped`() {
+    fun `coldest value at the window edge is not labeled as an actual low`() {
         val extrema = TemperatureExtrema.compute(
             hours = build(ascendingBoundaryLowPoints),
             transitionX = null,
@@ -188,26 +190,32 @@ class TemperatureExtremaIncompleteDayTest {
             fetchTime = null,
             prominenceThreshold = 1.5f,
         )
-        assertTrue(
-            "Apr 8 boundary low (idx 0) is the genuine coldest-at-edge value and must be kept. " +
-                "lows=${extrema.actualDailyLowIndices}",
+        assertFalse(
+            "Apr 8 edge value (idx 0) is the window boundary, not a confirmed valley, so it must NOT " +
+                "be an actual low. lows=${extrema.actualDailyLowIndices}",
             0 in extrema.actualDailyLowIndices,
+        )
+        assertTrue(
+            "Apr 8's real interior peak (idx 2) must still be labeled. highs=${extrema.actualDailyHighIndices}",
+            2 in extrema.actualDailyHighIndices,
         )
     }
 
-    // Apr 8 begins warm at the boundary (70 @ 06:00 — the day max), dips (64), then climbs back to a
-    // real interior peak (68) before falling into the next low. The descent from the boundary high to
-    // that low is NOT monotonic, so the boundary high is a genuine separated peak and must be KEPT.
+    // Apr 8 begins warm at the boundary (70 @ 06:00 — the day's WARMEST sample), dips (64), then climbs
+    // back to a lesser interior bump (68 @ idx2) before falling into the next low. The day's true high
+    // (70) is at the window edge (now edge-gated out), and the interior bump (68) is COOLER than that
+    // edge — so it is NOT the real high. Per "an extreme is not an extreme if the edge is more extreme",
+    // the day must get NO high label (we never substitute the lesser interior bump).
     private val separatedBoundaryHighPoints = listOf(
-        hour(8, 6, temp = 70f, actual = 70f, isActual = true),   // idx0: Apr 8 boundary high (KEEP)
+        hour(8, 6, temp = 70f, actual = 70f, isActual = true),   // idx0: window-edge warm value (NOT labeled)
         hour(8, 10, temp = 64f, actual = 64f, isActual = true),
-        hour(8, 14, temp = 68f, actual = 68f, isActual = true),  // interior peak breaks monotonicity
+        hour(8, 14, temp = 68f, actual = 68f, isActual = true),  // idx2: lesser interior bump (NOT substituted)
         hour(9, 0, temp = 55f, actual = 55f, isActual = true),   // idx3: next low
         hour(9, 12, temp = 78f, actual = 78f, isActual = true),
     )
 
     @Test
-    fun `separated left-edge boundary high is kept when the descent is not monotonic`() {
+    fun `interior bump cooler than the edge high is not substituted as the day high`() {
         val extrema = TemperatureExtrema.compute(
             hours = build(separatedBoundaryHighPoints),
             transitionX = null,
@@ -215,10 +223,51 @@ class TemperatureExtremaIncompleteDayTest {
             fetchTime = null,
             prominenceThreshold = 1.5f,
         )
-        assertTrue(
-            "Apr 8 boundary high (idx 0) is a genuine separated peak (non-monotonic descent) and must " +
-                "not be over-suppressed. highs=${extrema.actualDailyHighIndices}",
+        assertFalse(
+            "Apr 8 edge value (idx 0) is the window boundary, not a confirmed peak, so it must NOT be " +
+                "the actual high. highs=${extrema.actualDailyHighIndices}",
             0 in extrema.actualDailyHighIndices,
+        )
+        assertFalse(
+            "Apr 8's interior bump (idx 2) is COOLER than the edge high, so it must NOT be substituted " +
+                "as the day high. highs=${extrema.actualDailyHighIndices}",
+            2 in extrema.actualDailyHighIndices,
+        )
+    }
+
+    // The Pixel 7 Pro case: a zoomed-in window whose observed series rises monotonically from the left
+    // edge (the real overnight low is off-screen before the window). With no interior turning point,
+    // NEITHER an actual low nor an actual high should be produced — the leftmost rising sample is just
+    // an edge value, not a valley. (Forecast extrema are handled separately and still draw.)
+    private val monotonicRisingWindowPoints = listOf(
+        hour(28, 8, temp = 58f, actual = 58.9f, isActual = true),   // idx0: window left edge
+        hour(28, 9, temp = 62f, actual = 63.7f, isActual = true),
+        hour(28, 10, temp = 66f, actual = 67f, isActual = true),
+        hour(28, 11, temp = 70f, actual = 71f, isActual = true),
+        hour(28, 12, temp = 73f, actual = 73.5f, isActual = true),  // idx4: right edge / now
+    )
+
+    @Test
+    fun `monotonic-rising window produces no edge actual extrema`() {
+        val extrema = TemperatureExtrema.compute(
+            hours = build(monotonicRisingWindowPoints),
+            transitionX = null,
+            effectiveActualEndIndex = 4,
+            fetchTime = null,
+            prominenceThreshold = 1.5f,
+        )
+        assertFalse(
+            "The rising left-edge sample (idx 0) must NOT be an actual low. " +
+                "lows=${extrema.actualDailyLowIndices}",
+            0 in extrema.actualDailyLowIndices,
+        )
+        assertTrue(
+            "No actual low should be produced for a monotonic window. lows=${extrema.actualDailyLowIndices}",
+            extrema.actualDailyLowIndices.isEmpty(),
+        )
+        assertTrue(
+            "No actual high should be produced for a monotonic window. highs=${extrema.actualDailyHighIndices}",
+            extrema.actualDailyHighIndices.isEmpty(),
         )
     }
 }

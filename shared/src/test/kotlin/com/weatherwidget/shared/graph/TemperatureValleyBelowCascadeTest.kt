@@ -149,7 +149,11 @@ class TemperatureValleyBelowCascadeTest {
         val forecast = MutableList(24) { 60f }
         forecast[10] = 52f
         val actual = MutableList<Float?>(24) { null }
+        // Observed valley with neighbours on both sides so idx 12 is a genuine turning point
+        // (a lone edge sample is no longer treated as an actual extreme).
+        actual[11] = 52f
         actual[12] = 50f
+        actual[13] = 52f
 
         val observedAt = LocalDateTime.of(2026, 4, 8, 13, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val placements = runEngineTest(

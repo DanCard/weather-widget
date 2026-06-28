@@ -86,28 +86,25 @@ object TemperatureExtrema {
         // day, leaving every other day's actual extreme unlabeled (the forecast curve gets per-day
         // labels for free via significantLocalExtrema; this brings the actual series to parity).
         //
-        // Keep only genuine turning points: an overnight valley straddles midnight, so the day on the
-        // "wrong" side of the boundary has its min/max land on a still-monotonic slope point at the
-        // day edge (e.g. Tue's "low" is just the descent into Wed's post-midnight valley). Labeling
-        // that slope point is redundant next to the real adjacent-day extreme, so drop it.
-        // BOTH ends of the observed region are exempt symmetrically: an extreme at the observation
-        // cutoff / NOW (right end) or at the start of the observed data (left end — e.g. the coldest
-        // point sits at midnight in the 24h day view) is a real observed boundary value, not a
-        // midnight artifact, so we only require the neighbor that exists within the observed data.
-        // Genuine multi-day slope shoulders at *interior* day boundaries still require both neighbors
-        // here and are additionally caught by the shoulder-drop walk below.
+        // Keep only genuine turning points. A real actual high/low is a peak/valley with an OBSERVED
+        // neighbour on BOTH sides confirming the turn. The first/last observed sample is just a window
+        // edge: in a zoomed/panned view the real overnight valley (or afternoon peak) often lies
+        // off-screen beyond the visible window, so the leftmost/rightmost sample is merely where the
+        // window was cut — an edge value, not an extreme. We therefore never treat a boundary sample as
+        // an actual extreme (this reverses the old symmetric edge exemption; see the
+        // actual_low_left_edge_label / boundary_high_drop_left_edge history). Genuine multi-day slope
+        // shoulders at interior day boundaries still require both neighbours here and are additionally
+        // caught by the shoulder-drop walk below.
         val actualStartIndex = actualIndices.firstOrNull() ?: -1
         fun isActualLocalMin(i: Int): Boolean {
-            if (actualStartIndex < 0 || i < actualStartIndex || i > actualEndIndex) return false
-            val leftOk = i <= actualStartIndex || actualLabelTemps[i] <= actualLabelTemps[i - 1]
-            val rightOk = i >= actualEndIndex || actualLabelTemps[i] <= actualLabelTemps[i + 1]
-            return leftOk && rightOk
+            if (actualStartIndex < 0 || i <= actualStartIndex || i >= actualEndIndex) return false
+            return actualLabelTemps[i] <= actualLabelTemps[i - 1] &&
+                actualLabelTemps[i] <= actualLabelTemps[i + 1]
         }
         fun isActualLocalMax(i: Int): Boolean {
-            if (actualStartIndex < 0 || i < actualStartIndex || i > actualEndIndex) return false
-            val leftOk = i <= actualStartIndex || actualLabelTemps[i] >= actualLabelTemps[i - 1]
-            val rightOk = i >= actualEndIndex || actualLabelTemps[i] >= actualLabelTemps[i + 1]
-            return leftOk && rightOk
+            if (actualStartIndex < 0 || i <= actualStartIndex || i >= actualEndIndex) return false
+            return actualLabelTemps[i] >= actualLabelTemps[i - 1] &&
+                actualLabelTemps[i] >= actualLabelTemps[i + 1]
         }
         // The current (incomplete) day's observed maximum is NOT its daily high if the day hasn't
         // peaked yet — e.g. mid-morning "now" with the afternoon still ahead. Labeling that morning
@@ -127,6 +124,12 @@ object TemperatureExtrema {
         }
 
         val actualByDay = actualIndices.groupBy { hours[it].dateTime.toLocalDate() }
+        // Each day's extreme is its ABSOLUTE max/min, kept only if that sample is an interior turning
+        // point. Crucially we do NOT fall back to a lesser interior point when the absolute extreme is
+        // at an edge: if the day's coldest/warmest sample sits at a window edge (now edge-gated out),
+        // the day simply gets no label on that side — an interior shoulder that is less extreme than the
+        // edge is NOT the real low/high and labeling it is misleading clutter ("an extreme is not an
+        // extreme if the edge is more extreme").
         val rawDailyHighIndices = actualByDay.values.mapNotNull { d -> d.maxByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMax(it) && dayHighReached(it) }.sorted()
         val perDayLowIndices = actualByDay.values.mapNotNull { d -> d.minByOrNull { actualLabelTemps[it] } }.filter { isActualLocalMin(it) }.sorted()
         // Per-day RAW actual-extrema trace. VERBOSE => logcat/console only, never persisted to app_logs
@@ -212,35 +215,16 @@ object TemperatureExtrema {
                 TemperatureLabelResolver.formatTemp(actualLabelTemps[lowIdx])
         }.toSet()
         val actualDailyLowIndices = rawDailyLowIndices.filterNot { it in shoulderDrops || it in degenerateLowDrops }
-        // Drop a spurious LEFT-BOUNDARY high. A partial edge day that is a pure descending sliver (the
-        // observed data simply BEGINS at its warm point and falls straight into the next valley) keeps
-        // a per-day "high" at actualStartIndex. That index passes isActualLocalMax only because the
-        // left-edge exemption auto-trues leftOk (no left neighbour) — it is the warm START of a
-        // descent, not a diurnal peak. If the curve descends weakly-monotonically from that boundary
-        // high into the nearest retained actual low, with NO retained actual high in between, the high
-        // is redundant next to that low and stacks a second pink label at the graph edge. Drop it.
-        // ASYMMETRIC by design: never mirror this for a boundary LOW on an ascending sliver — a
-        // coldest-observed point at the left edge is a genuine value the user wants (see
-        // actual_low_left_edge_label memory).
-        val boundaryHighDrops = shoulderedHighIndices.filter { hi ->
-            if (hi != actualStartIndex) return@filter false
-            val firstLow = actualDailyLowIndices.minOrNull() ?: return@filter false
-            if (firstLow <= hi) return@filter false
-            if (actualLabelTemps[firstLow] >= actualLabelTemps[hi]) return@filter false
-            if (shoulderedHighIndices.any { it in (hi + 1) until firstLow }) return@filter false
-            (hi until firstLow).all { actualLabelTemps[it + 1] <= actualLabelTemps[it] }
-        }.toSet()
-        val actualDailyHighIndices = shoulderedHighIndices.filterNot { it in boundaryHighDrops }
+        // Boundary samples are no longer classified as actual highs (isActualLocalMax requires a
+        // confirming neighbour on both sides), so a warm window-edge START can never reach this list —
+        // the old left-boundary-high drop is unnecessary. A spurious edge "high" simply never exists.
+        val actualDailyHighIndices = shoulderedHighIndices
         if (shoulderDrops.isNotEmpty()) {
             Log.v(TAG, "SHOULDER_DROPPED idxs=${shoulderDrops.sorted()} temps=${shoulderDrops.sorted().map { actualLabelTemps[it] }}")
         }
         if (degenerateLowDrops.isNotEmpty()) {
             Log.v(TAG, "DEGENERATE_DAY_LOW_DROPPED idxs=${degenerateLowDrops.sorted()} " +
                 "temps=${degenerateLowDrops.sorted().map { actualLabelTemps[it] }}")
-        }
-        if (boundaryHighDrops.isNotEmpty()) {
-            Log.v(TAG, "BOUNDARY_HIGH_DROPPED idxs=${boundaryHighDrops.sorted()} " +
-                "temps=${boundaryHighDrops.sorted().map { actualLabelTemps[it] }}")
         }
 
         Log.v(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +
