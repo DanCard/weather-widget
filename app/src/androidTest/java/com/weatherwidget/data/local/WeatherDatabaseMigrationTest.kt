@@ -173,4 +173,27 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migration48To49_addsIsWebFallbackColumnToObservations() {
+        helper.createDatabase(testDb, 48).apply {
+            execSQL(
+                "INSERT INTO observations (stationId, stationName, timestamp, temperature, " +
+                    "condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, " +
+                    "maxTempLast24h, minTempLast24h, api) " +
+                    "VALUES ('KNUQ', 'Moffett Field', 1000, 72.0, 'Clear', 37.4, -122.0, 5.0, 'OFFICIAL', 2000, " +
+                    "NULL, NULL, 'NWS')"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 49, true, WeatherDatabase.MIGRATION_48_49)
+
+        db.query("SELECT * FROM observations WHERE stationId = 'KNUQ'").use { c ->
+            assertTrue(c.moveToFirst())
+            val isWebFallbackIdx = c.getColumnIndexOrThrow("isWebFallback")
+            assertEquals(0, c.getInt(isWebFallbackIdx)) // default value is 0 (false)
+        }
+        db.close()
+    }
 }

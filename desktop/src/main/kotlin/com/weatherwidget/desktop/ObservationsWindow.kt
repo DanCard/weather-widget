@@ -355,9 +355,10 @@ private fun ObservationList(observations: List<DesktopObservationEntity>) {
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val distanceStr = if (obs.distanceKm > 0) String.format("%.1f mi", obs.distanceKm * 0.621371f) else "Local"
+                        val originStr = if (obs.isWebFallback) "Web" else "API"
                         Text("${obs.stationId} • $distanceStr • ", fontSize = 14.sp, color = ObsStyle.textSecondary)
                         Text(
-                            obs.stationType,
+                            "${obs.stationType} ($originStr)",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (obs.stationType == "OFFICIAL") ObsStyle.typeOfficial else ObsStyle.typePersonal

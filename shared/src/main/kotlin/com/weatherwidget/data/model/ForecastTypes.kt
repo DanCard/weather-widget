@@ -75,6 +75,7 @@ data class ObservationReading(
     val api: String,
     val fetchedAt: Long = System.currentTimeMillis(),
     val precipAmountMm: Float? = null,
+    val isWebFallback: Boolean = false,
 )
 
 data class ForecastResult(

@@ -32,6 +32,7 @@ data class ObservationEntity(
     val minTempLast24h: Float? = null, // Fahrenheit; from NWS minTemperatureLast24Hours (rolling 24h ASOS extreme)
     val api: String, // Which API provided this observation (NWS, OPEN_METEO, WEATHER_API, SILURIAN)
     val precipAmountMm: Float? = null, // Observed precipitation amount in mm
+    val isWebFallback: Boolean = false, // <-- Added
 )
 
 fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationReading(
@@ -49,4 +50,5 @@ fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationRead
     api = api,
     fetchedAt = fetchedAt,
     precipAmountMm = precipAmountMm,
+    isWebFallback = isWebFallback,
 )

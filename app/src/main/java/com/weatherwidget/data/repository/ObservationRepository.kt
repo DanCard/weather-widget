@@ -161,12 +161,18 @@ class ObservationRepository @Inject constructor(
         val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
         val isStale = observation == null || runCatching { OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
 
+        var isWeb = false
         val finalObservation = if (isStale && synopticApi != null) {
             val fallbackReason = if (observation == null) "fail" else "stale"
             appLogDao.log("NWS_STATION_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
             Log.i(TAG, "Latest NWS observation for ${stationInfo.id} is missing or stale ($fallbackReason). Querying Synoptic fallback...")
             val synopticList = synopticApi.fetchSynopticObservations(stationInfo.id, 60, stationInfo.name)
-            synopticList?.lastOrNull() ?: observation
+            if (synopticList != null) {
+                isWeb = true
+                synopticList.lastOrNull()
+            } else {
+                observation
+            }
         } else {
             observation
         }
@@ -177,7 +183,7 @@ class ObservationRepository @Inject constructor(
             appLogDao.log("NWS_STATION_RETRY_OK", "station=${stationInfo.id} attempt=$attempt", "INFO")
             Log.d(TAG, "NWS station ${stationInfo.id} succeeded on retry attempt $attempt")
         }
-        val obsEntity = buildObservationEntity(finalObservation, stationInfo, latitude, longitude)
+        val obsEntity = buildObservationEntity(finalObservation, stationInfo, latitude, longitude, isWeb)
         observationDao.insertAll(listOf(obsEntity))
         logCurrentObservationInsert(obsEntity)
         val obsDate = java.time.Instant.ofEpochMilli(obsEntity.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -284,12 +290,19 @@ class ObservationRepository @Inject constructor(
                 val latestObs = observations.maxByOrNull { runCatching { OffsetDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) }
                 val isStale = latestObs == null || runCatching { OffsetDateTime.parse(latestObs.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
 
+                var isWeb = false
                 val finalObservations = if (index < 2 && isStale && synopticApi != null) {
                     val fallbackReason = if (observations.isEmpty()) "empty" else "stale"
                     appLogDao.log("NWS_DAILY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
                     Log.i(TAG, "Daily backfill NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
                     val minutes = WeatherConfig.NWS_BACKFILL_DAYS * 24 * 60L
-                    synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name) ?: observations
+                    val synopticList = synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name)
+                    if (synopticList != null) {
+                        isWeb = true
+                        synopticList
+                    } else {
+                        observations
+                    }
                 } else {
                     observations
                 }
@@ -297,7 +310,7 @@ class ObservationRepository @Inject constructor(
                 Log.d(TAG, "Station ${stationInfo.id} resolved ${finalObservations.size} observations")
                 if (finalObservations.isNotEmpty()) {
                     val entities = finalObservations.map { obs ->
-                        buildObservationEntity(obs, stationInfo, latitude, longitude)
+                        buildObservationEntity(obs, stationInfo, latitude, longitude, isWeb)
                     }
                     observationDao.insertAll(entities)
                     Log.i(TAG, "Successfully backfilled ${entities.size} observations from ${stationInfo.id}")
@@ -410,12 +423,19 @@ class ObservationRepository @Inject constructor(
                 val latestObs = observations.maxByOrNull { runCatching { OffsetDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) }
                 val isStale = latestObs == null || runCatching { OffsetDateTime.parse(latestObs.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
 
+                var isWeb = false
                 val finalObservations = if (index < 2 && isStale && synopticApi != null) {
                     val fallbackReason = if (observations.isEmpty()) "empty" else "stale"
                     appLogDao.log("OBS_HOURLY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
                     Log.i(TAG, "Hourly NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
                     val minutes = lookbackHours * 60L
-                    synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name) ?: observations
+                    val synopticList = synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name)
+                    if (synopticList != null) {
+                        isWeb = true
+                        synopticList
+                    } else {
+                        observations
+                    }
                 } else {
                     observations
                 }
@@ -428,7 +448,7 @@ class ObservationRepository @Inject constructor(
                 if (finalObservations.isEmpty()) continue
 
                 val entities = finalObservations.map { obs ->
-                    buildObservationEntity(obs, stationInfo, latitude, longitude)
+                    buildObservationEntity(obs, stationInfo, latitude, longitude, isWeb)
                 }
                 observationDao.insertAll(entities)
                 totalRows += entities.size
@@ -736,8 +756,6 @@ class ObservationRepository @Inject constructor(
         val newestTimestamp = dedupedNwsObs.maxOf { it.timestamp }
         val newestFetchedAt = dedupedNwsObs.maxOf { it.fetchedAt }
 
-        Log.d(TAG, "getMainObservationsWithComputedNwsBlend: blendedTemp=${blendedTemp} newestTimestamp=${newestTimestamp} newestFetchedAt=${newestFetchedAt}")
-
         val syntheticNwsMain = ObservationEntity(
             stationId = "NWS_BLEND",
             stationName = "NWS Blended",
@@ -750,6 +768,7 @@ class ObservationRepository @Inject constructor(
             stationType = "BLENDED",
             fetchedAt = newestFetchedAt,
             api = WeatherSource.NWS.id,
+            isWebFallback = false,
         )
 
         persistedMainObs + syntheticNwsMain
@@ -760,6 +779,7 @@ class ObservationRepository @Inject constructor(
         stationInfo: NwsApi.StationInfo,
         latitude: Double,
         longitude: Double,
+        isWebFallback: Boolean = false,
     ): ObservationEntity {
         val distanceKm = calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f
         return ObservationEntity(
@@ -776,6 +796,7 @@ class ObservationRepository @Inject constructor(
             minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
             api = WeatherSource.NWS.id,
             precipAmountMm = obs.precipLastHourMm,
+            isWebFallback = isWebFallback,
         )
     }
 

@@ -144,8 +144,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO observations 
-                    (stationId, stationName, timestamp, temperature, condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, maxTempLast24h, minTempLast24h, api, precipAmountMm)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (stationId, stationName, timestamp, temperature, condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, maxTempLast24h, minTempLast24h, api, precipAmountMm, isWebFallback)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     for (obs in observations) {
@@ -163,6 +163,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableFloat(12, obs.minTempLast24h)
                         stmt.setString(13, obs.api)
                         stmt.setNullableFloat(14, obs.precipAmountMm)
+                        stmt.setInt(15, if (obs.isWebFallback) 1 else 0)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -203,7 +204,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         maxTempLast24h = rs.getNullableFloat("maxTempLast24h"),
                         minTempLast24h = rs.getNullableFloat("minTempLast24h"),
                         api = rs.getString("api"),
-                        precipAmountMm = rs.getNullableFloat("precipAmountMm")
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        isWebFallback = rs.getInt("isWebFallback") == 1
                     )
                 }
             }
@@ -800,6 +802,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             minTempLast24h = if (rs.getObject("minTempLast24h") != null) rs.getFloat("minTempLast24h") else null,
                             api = rs.getString("api"),
                             precipAmountMm = if (rs.getObject("precipAmountMm") != null) rs.getFloat("precipAmountMm") else null,
+                            isWebFallback = rs.getInt("isWebFallback") == 1
                         )
                     )
                 }
@@ -838,6 +841,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         minTempLast24h = rs.getNullableFloat("minTempLast24h"),
                         api = rs.getString("api"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        isWebFallback = rs.getInt("isWebFallback") == 1
                     ))
                 }
             }

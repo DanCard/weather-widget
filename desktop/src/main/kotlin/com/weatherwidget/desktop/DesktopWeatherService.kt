@@ -190,8 +190,8 @@ class DesktopWeatherService(
         } ?: emptyList()
         fetchObservationBundles(stations, historyDays).flatMap { bundle ->
             buildList {
-                bundle.latest?.let { add(it.toReading(bundle.station)) }
-                bundle.historical.forEach { add(it.toReading(bundle.station)) }
+                bundle.latest?.let { add(it.toReading(bundle.station, bundle.isWebFallback)) }
+                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.isWebFallback)) }
             }
         }
     }
@@ -241,7 +241,7 @@ class DesktopWeatherService(
         // time-decay weighting (1 - age/3h) so older stations reduce their own contribution
         // automatically. Matching Android which uses a 3-hour staleness window rather than 30 min.
         val allLatestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest?.toReading(bundle.station)
+            bundle.latest?.toReading(bundle.station, bundle.isWebFallback)
         }
         // Subset used to decide whether a fresh observed temp is available for the header.
         val freshLatestReadings = allLatestReadings.filter {
@@ -259,8 +259,8 @@ class DesktopWeatherService(
         // All readings (latest + historical) from all successful stations
         val rawObservations = bundles.flatMap { bundle ->
             buildList {
-                bundle.latest?.let { add(it.toReading(bundle.station)) }
-                bundle.historical.forEach { add(it.toReading(bundle.station)) }
+                bundle.latest?.let { add(it.toReading(bundle.station, bundle.isWebFallback)) }
+                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.isWebFallback)) }
             }
         }
 
@@ -360,7 +360,7 @@ class DesktopWeatherService(
                 }
 
                 if (historical.isNotEmpty()) {
-                    ObservationBundle(station, latest, historical)
+                    ObservationBundle(station, latest, historical, isWebFallback = false)
                 } else {
                     null
                 }
@@ -378,13 +378,14 @@ class DesktopWeatherService(
         if (obsList.isEmpty()) return@bestEffort null
         val latest = obsList.last()
         val historical = obsList.dropLast(1)
-        ObservationBundle(station, latest, historical)
+        ObservationBundle(station, latest, historical, isWebFallback = true)
     }
 
     private data class ObservationBundle(
         val station: NwsApi.StationInfo,
         val latest: NwsApi.Observation?,
         val historical: List<NwsApi.Observation>,
+        val isWebFallback: Boolean = false,
     )
 
     private fun parseTimestamp(ts: String): Long {
@@ -404,7 +405,7 @@ class DesktopWeatherService(
         }
     }
 
-    private fun NwsApi.Observation.toReading(station: NwsApi.StationInfo) = ObservationReading(
+    private fun NwsApi.Observation.toReading(station: NwsApi.StationInfo, isWebFallback: Boolean = false) = ObservationReading(
         stationId = station.id,
         stationName = this.stationName.ifBlank { station.name },
         timestamp = parseTimestamp(timestamp),
@@ -418,6 +419,7 @@ class DesktopWeatherService(
         precipAmountMm = precipLastHourMm,
         maxTempLast24h = maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
         minTempLast24h = minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+        isWebFallback = isWebFallback,
     )
 
     private fun NwsApi.HourlyForecastPeriod.toHourlyForecast() = HourlyForecast(
@@ -463,7 +465,7 @@ class DesktopWeatherService(
         val bundles = fetchObservationBundles(stations)
         
         val allLatestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest?.toReading(bundle.station)
+            bundle.latest?.toReading(bundle.station, bundle.isWebFallback)
         }
         val freshLatestReadings = allLatestReadings.filter {
             System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
@@ -480,8 +482,8 @@ class DesktopWeatherService(
         // All readings (latest + historical) from all successful stations
         val rawObservations = bundles.flatMap { bundle ->
             buildList {
-                bundle.latest?.let { add(it.toReading(bundle.station)) }
-                bundle.historical.forEach { add(it.toReading(bundle.station)) }
+                bundle.latest?.let { add(it.toReading(bundle.station, bundle.isWebFallback)) }
+                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.isWebFallback)) }
             }
         }
 

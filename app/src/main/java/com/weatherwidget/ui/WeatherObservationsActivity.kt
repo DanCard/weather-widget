@@ -472,7 +472,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
             val distanceStr = if (item.distanceKm > 0) String.format(" • %.1f mi", item.distanceKm * 0.621371f) else ""
             holder.stationIdTime.text = "${item.stationId}$distanceStr • "
 
-            holder.stationTypeBadge.text = item.stationType
+            val originStr = if (item.isWebFallback) "Web" else "API"
+            holder.stationTypeBadge.text = "${item.stationType} ($originStr)"
             holder.stationTypeBadge.setTextColor(
                 if (item.stationType == "OFFICIAL") COLOR_TYPE_OFFICIAL else COLOR_TYPE_PERSONAL
             )

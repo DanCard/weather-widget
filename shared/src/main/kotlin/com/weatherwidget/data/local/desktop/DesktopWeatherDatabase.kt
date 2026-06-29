@@ -108,6 +108,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         minTempLast24h REAL,
                         api TEXT NOT NULL,
                         precipAmountMm REAL,
+                        isWebFallback INTEGER NOT NULL DEFAULT 0,
                         PRIMARY KEY (stationId, timestamp)
                     )
                 """.trimIndent())
@@ -191,7 +192,22 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 dedupeQuantizeHourly(stmt, "hourly_forecasts", "")
                 dedupeQuantizeHourly(stmt, "hourly_forecast_history", ", h.snapshotBucket")
             }
+            if (from < 4) {
+                addColumnIfMissing(stmt, "observations", "isWebFallback", "INTEGER NOT NULL DEFAULT 0")
+            }
             stmt.execute("PRAGMA user_version = $to")
+        }
+    }
+
+    private fun addColumnIfMissing(stmt: java.sql.Statement, table: String, column: String, type: String) {
+        val rs = stmt.executeQuery("PRAGMA table_info($table)")
+        val columns = mutableListOf<String>()
+        while (rs.next()) {
+            columns.add(rs.getString("name"))
+        }
+        rs.close()
+        if (!columns.contains(column)) {
+            stmt.execute("ALTER TABLE $table ADD COLUMN $column $type")
         }
     }
 
@@ -212,6 +228,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 3
+        private const val SCHEMA_VERSION = 4
     }
 }
