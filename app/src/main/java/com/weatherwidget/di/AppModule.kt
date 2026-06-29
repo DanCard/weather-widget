@@ -24,6 +24,7 @@ import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.data.remote.NominatimApi
 import com.weatherwidget.data.remote.IpGeolocationApi
+import com.weatherwidget.data.remote.SynopticApi
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.data.local.log
@@ -183,8 +184,9 @@ object AppModule {
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
         hourlyForecastDao: HourlyForecastDao,
+        synopticApi: SynopticApi,
     ): ObservationRepository = ObservationRepository(
-        context, observationDao, dailyExtremeDao, appLogDao, nwsApi, hourlyForecastDao
+        context, observationDao, dailyExtremeDao, appLogDao, nwsApi, hourlyForecastDao, synopticApi
     )
 
     @Provides

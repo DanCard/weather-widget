@@ -79,6 +79,7 @@ class DesktopWeatherService(
     private val visualCrossing = VisualCrossingApi(httpClient, json) { effectiveKeys[WeatherSource.VISUAL_CROSSING.id] }
     private val silurian = SilurianApi(httpClient, json) { effectiveKeys[WeatherSource.SILURIAN.id] }
     private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { effectiveKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
+    private val synopticApi = SynopticApi(httpClient, json)
 
     constructor(config: DesktopConfig?) : this(
         latitude = config?.lat ?: FALLBACK_LATITUDE,
@@ -373,65 +374,10 @@ class DesktopWeatherService(
         historyDays: Long
     ): ObservationBundle? = bestEffort("Synoptic fallback for ${station.id}") {
         val minutes = historyDays * 24 * 60
-        val token = "7c76618b66c74aee913bdbae4b448bdd"
-        val url = "https://api.synopticdata.com/v2/stations/timeseries"
-
-        val response: String = httpClient.get(url) {
-            parameter("STID", station.id)
-            parameter("recent", minutes)
-            parameter("token", token)
-            parameter("obtimezone", "utc")
-            header("Referer", "https://www.weather.gov/wrh/timeseries?site=${station.id}")
-            header("Origin", "https://www.weather.gov")
-        }.body()
-
-        val root = json.parseToJsonElement(response).jsonObject
-        val summaryObj = root["SUMMARY"]?.jsonObject
-        val responseCode = summaryObj?.get("RESPONSE_CODE")?.jsonPrimitive?.intOrNull
-        if (responseCode != 1) {
-            val message = summaryObj?.get("RESPONSE_MESSAGE")?.jsonPrimitive?.contentOrNull
-            Log.w(TAG, "Synoptic request failed for ${station.id}: $message")
-            return@bestEffort null
-        }
-
-        val stationArray = root["STATION"]?.jsonArray
-        val firstStation = stationArray?.firstOrNull()?.jsonObject ?: return@bestEffort null
-        val obsObj = firstStation["OBSERVATIONS"]?.jsonObject ?: return@bestEffort null
-
-        val dateTimeArray = obsObj["date_time"]?.jsonArray ?: return@bestEffort null
-        val airTempArray = obsObj["air_temp_set_1"]?.jsonArray
-        val weatherSummaryArray = obsObj["weather_summary_set_1d"]?.jsonArray
-        val weatherCondArray = obsObj["weather_condition_set_1d"]?.jsonArray
-
-        val stationName = firstStation["NAME"]?.jsonPrimitive?.content ?: station.name
-        val observationList = mutableListOf<NwsApi.Observation>()
-
-        for (i in 0 until dateTimeArray.size) {
-            val dateTimeStr = dateTimeArray[i].jsonPrimitive.content
-            val tempC = airTempArray?.getOrNull(i)?.jsonPrimitive?.doubleOrNull?.toFloat()
-                ?: continue // Skip observation if temperature is missing
-            
-            val summary = weatherSummaryArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
-                ?: weatherCondArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
-                ?: "Unknown"
-
-            observationList.add(
-                NwsApi.Observation(
-                    timestamp = dateTimeStr,
-                    temperatureCelsius = tempC,
-                    textDescription = summary,
-                    stationName = stationName,
-                    maxTempLast24hCelsius = null,
-                    minTempLast24hCelsius = null,
-                    precipLastHourMm = null
-                )
-            )
-        }
-
-        if (observationList.isEmpty()) return@bestEffort null
-
-        val latest = observationList.last()
-        val historical = observationList.dropLast(1)
+        val obsList = synopticApi.fetchSynopticObservations(station.id, minutes, station.name) ?: return@bestEffort null
+        if (obsList.isEmpty()) return@bestEffort null
+        val latest = obsList.last()
+        val historical = obsList.dropLast(1)
         ObservationBundle(station, latest, historical)
     }
 

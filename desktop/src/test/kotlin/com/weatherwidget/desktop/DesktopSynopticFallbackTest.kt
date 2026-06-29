@@ -94,6 +94,12 @@ class DesktopSynopticFallbackTest {
         httpClientField.isAccessible = true
         httpClientField.set(service, mockHttpClient)
 
+        // Set the private field 'synopticApi' using reflection
+        val mockSynopticApi = com.weatherwidget.data.remote.SynopticApi(mockHttpClient, json)
+        val synopticApiField = DesktopWeatherService::class.java.getDeclaredField("synopticApi")
+        synopticApiField.isAccessible = true
+        synopticApiField.set(service, mockSynopticApi)
+
         // 3. Invoke public fetchObservationsOnly()
         val result = service.fetchObservationsOnly()
         

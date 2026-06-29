@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.data.remote.SynopticApi
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -71,6 +72,7 @@ class ObservationRepository @Inject constructor(
     private val appLogDao: AppLogDao,
     private val nwsApi: NwsApi,
     private val hourlyForecastDao: HourlyForecastDao,
+    private val synopticApi: SynopticApi? = null,
 ) {
     internal data class RecentBackfillResult(
         val stationsTried: Int,
@@ -153,15 +155,29 @@ class ObservationRepository @Inject constructor(
             val reason = e.message ?: "null_response"
             appLogDao.log("NWS_STATION_FAIL", "station=${stationInfo.id} attempt=$attempt reason=$reason", "WARN")
             Log.w(TAG, "NWS station ${stationInfo.id} attempt $attempt failed: $reason")
-            return null
+            null
         }
-        if (observation == null) return null
+
+        val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
+        val isStale = observation == null || runCatching { OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
+
+        val finalObservation = if (isStale && synopticApi != null) {
+            val fallbackReason = if (observation == null) "fail" else "stale"
+            appLogDao.log("NWS_STATION_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
+            Log.i(TAG, "Latest NWS observation for ${stationInfo.id} is missing or stale ($fallbackReason). Querying Synoptic fallback...")
+            val synopticList = synopticApi.fetchSynopticObservations(stationInfo.id, 60, stationInfo.name)
+            synopticList?.lastOrNull() ?: observation
+        } else {
+            observation
+        }
+
+        if (finalObservation == null) return null
 
         if (attempt > 0) {
             appLogDao.log("NWS_STATION_RETRY_OK", "station=${stationInfo.id} attempt=$attempt", "INFO")
             Log.d(TAG, "NWS station ${stationInfo.id} succeeded on retry attempt $attempt")
         }
-        val obsEntity = buildObservationEntity(observation, stationInfo, latitude, longitude)
+        val obsEntity = buildObservationEntity(finalObservation, stationInfo, latitude, longitude)
         observationDao.insertAll(listOf(obsEntity))
         logCurrentObservationInsert(obsEntity)
         val obsDate = java.time.Instant.ofEpochMilli(obsEntity.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -254,13 +270,33 @@ class ObservationRepository @Inject constructor(
         val endTimeStr = DateTimeFormatter.ISO_INSTANT.format(now.toInstant())
         val remainingDates = datesToBackfill.toMutableSet()
 
-        for (stationInfo in stations.take(MAX_RETRIES)) {
+        val stationsToTry = stations.take(MAX_RETRIES)
+        for ((index, stationInfo) in stationsToTry.withIndex()) {
             Log.d(TAG, "Attempting backfill from station ${stationInfo.id}")
             try {
-                val observations = nwsApi.getObservations(stationInfo.id, startTimeStr, endTimeStr)
-                Log.d(TAG, "Station ${stationInfo.id} returned ${observations.size} observations")
-                if (observations.isNotEmpty()) {
-                    val entities = observations.map { obs ->
+                val observations = try {
+                    nwsApi.getObservations(stationInfo.id, startTimeStr, endTimeStr)
+                } catch (e: Exception) {
+                    emptyList()
+                }
+
+                val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
+                val latestObs = observations.maxByOrNull { runCatching { OffsetDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) }
+                val isStale = latestObs == null || runCatching { OffsetDateTime.parse(latestObs.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
+
+                val finalObservations = if (index < 2 && isStale && synopticApi != null) {
+                    val fallbackReason = if (observations.isEmpty()) "empty" else "stale"
+                    appLogDao.log("NWS_DAILY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
+                    Log.i(TAG, "Daily backfill NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
+                    val minutes = WeatherConfig.NWS_BACKFILL_DAYS * 24 * 60L
+                    synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name) ?: observations
+                } else {
+                    observations
+                }
+
+                Log.d(TAG, "Station ${stationInfo.id} resolved ${finalObservations.size} observations")
+                if (finalObservations.isNotEmpty()) {
+                    val entities = finalObservations.map { obs ->
                         buildObservationEntity(obs, stationInfo, latitude, longitude)
                     }
                     observationDao.insertAll(entities)
@@ -362,17 +398,36 @@ class ObservationRepository @Inject constructor(
         val localZone = ZoneId.systemDefault()
         val stationsToTry = stations.take(MAX_RETRIES)
 
-        for (stationInfo in stationsToTry) {
+        for ((index, stationInfo) in stationsToTry.withIndex()) {
             try {
-                val observations = nwsApi.getObservations(stationInfo.id, startTimeStr, endTimeStr)
+                val observations = try {
+                    nwsApi.getObservations(stationInfo.id, startTimeStr, endTimeStr)
+                } catch (e: Exception) {
+                    emptyList()
+                }
+
+                val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
+                val latestObs = observations.maxByOrNull { runCatching { OffsetDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) }
+                val isStale = latestObs == null || runCatching { OffsetDateTime.parse(latestObs.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
+
+                val finalObservations = if (index < 2 && isStale && synopticApi != null) {
+                    val fallbackReason = if (observations.isEmpty()) "empty" else "stale"
+                    appLogDao.log("OBS_HOURLY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
+                    Log.i(TAG, "Hourly NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
+                    val minutes = lookbackHours * 60L
+                    synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name) ?: observations
+                } else {
+                    observations
+                }
+
                 appLogDao.log(
                     "OBS_HOURLY_BACKFILL_STATION",
-                    "station=${stationInfo.id} rows=${observations.size} lookbackHours=$lookbackHours",
+                    "station=${stationInfo.id} rows=${finalObservations.size} lookbackHours=$lookbackHours",
                     "INFO",
                 )
-                if (observations.isEmpty()) continue
+                if (finalObservations.isEmpty()) continue
 
-                val entities = observations.map { obs ->
+                val entities = finalObservations.map { obs ->
                     buildObservationEntity(obs, stationInfo, latitude, longitude)
                 }
                 observationDao.insertAll(entities)
