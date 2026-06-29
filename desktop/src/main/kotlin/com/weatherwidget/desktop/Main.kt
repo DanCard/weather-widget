@@ -122,6 +122,15 @@ fun main(args: Array<String>) {
     // Surface shared-module diagnostics on the console (default JulSink drops DEBUG). First thing so
     // even startup logging from :shared is visible.
     Log.install(DesktopLogSink)
+
+    // On Linux, prefer the system truststore over the bundled JRE's truststore if present.
+    // The bundled JRE's cacerts is often outdated or incomplete compared to the system-wide store.
+    val systemTrustStore = java.io.File("/etc/ssl/certs/java/cacerts")
+    if (systemTrustStore.exists() && System.getProperty("javax.net.ssl.trustStore") == null) {
+        System.setProperty("javax.net.ssl.trustStore", systemTrustStore.absolutePath)
+        Log.i("Main", "Configured system SSL truststore: ${systemTrustStore.absolutePath}")
+    }
+
     val isUiMode = args.contains("--ui") || args.contains("ui") || args.contains("--show") || args.contains("show")
     if (System.getProperty("weatherwidget.desktop.startupSmoke") == "true") {
         if (isUiMode) {
