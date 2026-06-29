@@ -366,7 +366,7 @@ private fun runApp() = application {
                 
                 val src = WeatherSource.fromDisplaySource(activeConfig.weatherSource).id
                 val status = weatherDao.getLatestCurrentTempStatus(src)
-                if (status != null && !status.ok) {
+                if (status != null && !status.ok && status.timestamp > dismissedErrorTimestamp) {
                     val timeFmt = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
                     val attemptFmt = DateTimeFormatter.ofPattern("H:mm:ss").withZone(ZoneId.systemDefault())
                     val now = System.currentTimeMillis()

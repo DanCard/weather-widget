@@ -223,74 +223,92 @@ class DesktopWeatherRepository(
         now: Long = System.currentTimeMillis(),
         forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
     ): ForecastResult = withContext(Dispatchers.IO) {
-        // NOTE: no Open-Meteo history backfill here. GENERIC_GAP is future-only; past forecast history
-        // must come only from real accumulated NWS snapshots (a fresh install simply starts sparse and
-        // fills in as it runs), so we never seed Open-Meteo decimals into the past.
-        val result = weatherService.fetchForecast(forecastDays)
+        val displaySource = WeatherSource.fromDisplaySource(weatherSource)
+        try {
+            // NOTE: no Open-Meteo history backfill here. GENERIC_GAP is future-only; past forecast history
+            // must come only from real accumulated NWS snapshots (a fresh install simply starts sparse and
+            // fills in as it runs), so we never seed Open-Meteo decimals into the past.
+            val result = weatherService.fetchForecast(forecastDays)
 
-        // Persist
-        weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, result.hourly)
-        weatherDao.upsertForecasts(latitude, longitude, weatherSource, result.daily)
+            // Persist
+            weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, result.hourly)
+            weatherDao.upsertForecasts(latitude, longitude, weatherSource, result.daily)
 
-        if (result.rawObservations.isNotEmpty()) {
-            weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
+            if (result.rawObservations.isNotEmpty()) {
+                weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
+            }
+
+            // Derive actual daily highs/lows from the stored observation window — the actuals that
+            // forecast-accuracy comparisons are measured against.
+            val extremesCount = recomputeDailyExtremes(now)
+
+            // Snapshot for history (Tier 1 simplification: 4h buckets)
+            val snapshotBucket = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
+            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, snapshotBucket, result.hourly)
+
+            // Best-effort: ensure climate normals are cached for the future-day fallback. One network
+            // fetch per location, then served from cache; never fails the main refresh.
+            ensureClimateNormals()
+
+            // Cleanup old data (> 30 days)
+            weatherDao.cleanup(now - (30L * 24 * 3600 * 1000))
+
+            // Persistent pipeline-health summary
+            weatherDao.log(
+                tag = "REFRESH",
+                message = "source=$weatherSource hourly=${result.hourly.size} daily=${result.daily.size} " +
+                    "obs=${result.rawObservations.size} extremes=$extremesCount",
+            )
+            weatherDao.log("CURRENT_TEMP_STATUS", "source=${displaySource.id} ok=true", "INFO")
+
+            loadCached(now) ?: result
+        } catch (e: Exception) {
+            if (e !is kotlinx.coroutines.CancellationException) {
+                weatherDao.log("CURRENT_TEMP_STATUS", "source=${displaySource.id} ok=false class=${e::class.simpleName} detail=${e.message}", "WARN")
+            }
+            throw e
         }
-
-        // Derive actual daily highs/lows from the stored observation window — the actuals that
-        // forecast-accuracy comparisons are measured against.
-        val extremesCount = recomputeDailyExtremes(now)
-
-        // Snapshot for history (Tier 1 simplification: 4h buckets)
-        val snapshotBucket = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
-        weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, snapshotBucket, result.hourly)
-
-        // Best-effort: ensure climate normals are cached for the future-day fallback. One network
-        // fetch per location, then served from cache; never fails the main refresh.
-        ensureClimateNormals()
-
-        // Cleanup old data (> 30 days)
-        weatherDao.cleanup(now - (30L * 24 * 3600 * 1000))
-
-        // Persistent pipeline-health summary
-        weatherDao.log(
-            tag = "REFRESH",
-            message = "source=$weatherSource hourly=${result.hourly.size} daily=${result.daily.size} " +
-                "obs=${result.rawObservations.size} extremes=$extremesCount",
-        )
-
-        loadCached(now) ?: result
     }
 
     suspend fun refreshObservations(): ForecastResult = withContext(Dispatchers.IO) {
-        val result = weatherService.fetchObservationsOnly()
-        val now = System.currentTimeMillis()
+        val displaySource = WeatherSource.fromDisplaySource(weatherSource)
+        try {
+            val result = weatherService.fetchObservationsOnly()
+            val now = System.currentTimeMillis()
 
-        if (result.rawObservations.isNotEmpty()) {
-            weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
+            if (result.rawObservations.isNotEmpty()) {
+                weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
+            }
+
+            val extremesCount = recomputeDailyExtremes(now)
+            val cached = loadCached(now)
+
+            weatherDao.log(
+                tag = "OBS_REFRESH",
+                message = "source=$weatherSource obs=${result.rawObservations.size} extremes=$extremesCount",
+            )
+            weatherDao.log("CURRENT_TEMP_STATUS", "source=${displaySource.id} ok=true", "INFO")
+
+            val cachedHourly = cached?.hourly ?: emptyList()
+            val (currentTemp, appliedDelta) = resolveForForecastResult(cachedHourly, now)
+
+            result.copy(
+                currentTemp = currentTemp,
+                appliedDelta = appliedDelta,
+                currentCondition = result.currentCondition ?: cached?.currentCondition,
+                currentObservedAt = result.currentObservedAt ?: cached?.currentObservedAt,
+                daily = cached?.daily ?: emptyList(),
+                hourly = cachedHourly,
+                dailyActuals = cached?.dailyActuals ?: emptyMap(),
+                dailySnapshots = cached?.dailySnapshots ?: emptyMap(),
+                rawObservations = if (result.rawObservations.isNotEmpty()) result.rawObservations else cached?.rawObservations ?: emptyList(),
+            )
+        } catch (e: Exception) {
+            if (e !is kotlinx.coroutines.CancellationException) {
+                weatherDao.log("CURRENT_TEMP_STATUS", "source=${displaySource.id} ok=false class=${e::class.simpleName} detail=${e.message}", "WARN")
+            }
+            throw e
         }
-
-        val extremesCount = recomputeDailyExtremes(now)
-        val cached = loadCached(now)
-
-        weatherDao.log(
-            tag = "OBS_REFRESH",
-            message = "source=$weatherSource obs=${result.rawObservations.size} extremes=$extremesCount",
-        )
-
-        val cachedHourly = cached?.hourly ?: emptyList()
-        val (currentTemp, appliedDelta) = resolveForForecastResult(cachedHourly, now)
-
-        result.copy(
-            currentTemp = currentTemp,
-            appliedDelta = appliedDelta,
-            currentCondition = result.currentCondition ?: cached?.currentCondition,
-            currentObservedAt = result.currentObservedAt ?: cached?.currentObservedAt,
-            daily = cached?.daily ?: emptyList(),
-            hourly = cachedHourly,
-            dailyActuals = cached?.dailyActuals ?: emptyMap(),
-            dailySnapshots = cached?.dailySnapshots ?: emptyMap(),
-            rawObservations = if (result.rawObservations.isNotEmpty()) result.rawObservations else cached?.rawObservations ?: emptyList(),
-        )
     }
 
     /** Reads the stored observation window, (re)computes daily_extremes, and returns the row count. */
