@@ -323,12 +323,13 @@ object TemperatureGraphRenderer {
         val appliedDelta = ctx.appliedDelta
         val fetchDotX = ctx.fetchDotX
         val lastObservedTemp = ctx.lastObservedTemp
-        if (ctx.nowIndicatorVisible && appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null) {
+        if (appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null) {
             val expectedY = lastObservedTemp?.let { ctx.tempToY(it) }
             if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(fetchDotX, expectedY))
 
             ctx.canvas.save()
-            ctx.canvas.clipRect(fetchDotX, 0f, ctx.widthPx.toFloat(), ctx.heightPx.toFloat())
+            val clipStart = fetchDotX.coerceAtLeast(0f)
+            ctx.canvas.clipRect(clipStart, 0f, ctx.widthPx.toFloat(), ctx.heightPx.toFloat())
             ctx.canvas.drawPath(ctx.expectedPath, paints.ghostPaint)
             ctx.canvas.restore()
         }
@@ -553,11 +554,12 @@ object TemperatureGraphRenderer {
     private fun placeGhostLineLabel(ctx: RenderContext, hours: List<HourData>) {
         val appliedDelta = ctx.appliedDelta
         val fetchDotX = ctx.fetchDotX
-        if (!(ctx.nowIndicatorVisible && appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null)) return
+        if (!(appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null)) return
         if (hours.size < 2 || ctx.expectedPoints.size != hours.size) return
         val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
 
         // Only ghost-region hours (right of the fetch dot, where the line is actually drawn).
+        // If fetchDotX is off left (<0), treat entire view as ghost region.
         val candidates = hours.indices.mapNotNull { i ->
             val (x, ghostY) = ctx.expectedPoints[i]
             if (x <= fetchDotX + X_COORDINATE_MATCH_TOLERANCE) return@mapNotNull null
@@ -748,6 +750,9 @@ object TemperatureGraphRenderer {
     private fun resolveFetchDotLayout(ctx: RenderContext, hours: List<HourData>): FetchDotLayout? {
         val observedAt = ctx.observedAt ?: return null
         val fetchDotX = ctx.fetchDotX ?: return null
+        // Do not draw/fetch-dot when the anchor is off-screen (negative or beyond width).
+        // This prevents the dot from "sticking" to the edge when scrolling the now dot out of view.
+        if (fetchDotX < 0f || fetchDotX > ctx.widthPx) return null
         val lastObservedTemp = ctx.lastObservedTemp ?: return null
         val fetchY = ctx.tempToY(lastObservedTemp)
         val dotRadius = dpToPx(ctx.context, TemperatureGraphStyle.DOT_RADIUS_DP * ctx.labelScale)

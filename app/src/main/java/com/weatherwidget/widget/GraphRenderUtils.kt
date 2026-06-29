@@ -141,8 +141,19 @@ internal object GraphRenderUtils {
         // Find the hour bucket
         val firstTime = dateTimeOf(items.first())
         val lastTime = dateTimeOf(items.last())
+        val firstX = points.first().first
+        val lastX = points.last().first
         
-        if (targetTime.isBefore(firstTime) || targetTime.isAfter(lastTime)) return null
+        if (targetTime.isBefore(firstTime)) {
+            val diffMinutes = Duration.between(targetTime, firstTime).toMinutes()
+            val hoursBefore = diffMinutes / 60f
+            return firstX - hoursBefore * hourWidth
+        }
+        if (targetTime.isAfter(lastTime)) {
+            val diffMinutes = Duration.between(lastTime, targetTime).toMinutes()
+            val hoursAfter = diffMinutes / 60f
+            return lastX + hoursAfter * hourWidth
+        }
         
         // Find the index of the hour starting at or before targetTime
         val index = items.indexOfLast { !dateTimeOf(it).isAfter(targetTime) }

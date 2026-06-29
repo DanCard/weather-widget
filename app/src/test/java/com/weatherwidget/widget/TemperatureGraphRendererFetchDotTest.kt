@@ -104,6 +104,8 @@ class TemperatureGraphRendererFetchDotTest {
         )
 
         // Hidden NOW indicator: fill + 7 forecast segments = 8 paths (no ghost, no actual line).
+        // Ghost extension when dot scrolled off-left (future narrow view) still requires
+        // observedAt/fetch to compute (possibly negative) fetchDotX for anchor.
         verify(exactly = 8) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 

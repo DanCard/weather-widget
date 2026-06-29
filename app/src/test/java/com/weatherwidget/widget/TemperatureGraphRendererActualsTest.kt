@@ -30,7 +30,9 @@ import org.junit.experimental.categories.Category
  *
  * Path drawing order in renderGraph:
  *   1. forecastFillPath     — always (fill under forecast curve)
- *   2. expectedPath (ghost) — only when nowIndicatorVisible && |appliedDelta| >= 0.1
+ *   2. expectedPath (ghost) — when |appliedDelta| >= 0.1 && fetchDotX != null
+ *      (nowIndicatorVisible no longer required; supports ghost line extension when
+ *      now/fetch dot scrolls off-left in narrow future views)
  *   3. forecastSegments     — always (one drawPath per hour segment, = hours - 1)
  *   4. originalPath (solid) — only when transitionX != null (i.e., actuals present)
  *
@@ -116,6 +118,9 @@ class TemperatureGraphRendererActualsTest {
     // -------------------------------------------------------------------
     // Test 4: No actuals + delta active but NOW hidden → 8 paths, no ghost
     //         (Mirrors existing TemperatureGraphRendererFetchDotTest case)
+    //         Note: ghost extension (for future scroll where now dot off left) requires
+    //         observedAt/fetchTime so fetchDotX is computed (even if <0); here no observedAt
+    //         so fetchDotX=null, no ghost.
     // -------------------------------------------------------------------
     @Test
     fun `no actuals and delta but NOW hidden produces 2 drawPath calls — no ghost`() {

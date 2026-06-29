@@ -288,7 +288,7 @@ internal object TemperatureStateResolver {
                     heightPx = bitmapDims.heightPx,
                     currentTime = now,
                     bitmapScale = bitmapDims.bitmapScale,
-                    appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
+                    appliedDelta = currentTempResolution.appliedDelta,
                     observedAt = observedAt,
                     lastObservedTemp = lastObservedTemp,
                     deltaFromYesterday = deltaFromYesterday,
