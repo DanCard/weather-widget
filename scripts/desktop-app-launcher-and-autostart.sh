@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#
+# This script is the launcher used by the autostart desktop entry:
+# ~/.config/autostart/weather-widget-desktop.desktop
+# It handles auto-detecting X11 variables, cleans up stale autostart logs,
+# ensures the desktop app is built, and executes the binary.
+#
 set -euo pipefail
 
 # Auto-detect DISPLAY and XAUTHORITY if not set (e.g. run from a non-interactive/sandbox shell)

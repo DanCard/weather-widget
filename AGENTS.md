@@ -132,7 +132,7 @@ app/src/main/java/com/weatherwidget/
     logging for important, low-frequency state you want to query later (e.g. one summary row per
     resolution like `CURR_TEMP_RESULT`, not the per-step trace).
   - On **Android** `app_logs` is the only persistent log (no file sink), so prefer a periodic
-    *summary* at DEBUG over persisting a full trace; keep the trace at VERBOSE.
+    *summary* at DEBUG over persisting a full trace.  Use VERBOSE for frequent render logs.
 
 ### Error Handling
 - Don't silently swallow exceptions - log them
@@ -168,13 +168,14 @@ For bug reports, regressions, "why is this happening?" analysis, and data mismat
 - Do not guess at root cause.
 - Do not propose or implement a fix until evidence is collected.
 - If database and logs are not accessible, stop and ask for the exact missing command/data needed.
-- For live widget questions about what icon/value/layout is currently showing on emulator/device, verify with runtime evidence first: screenshot plus renderer-specific `adb logcat`, and quote the actual emitted icon/resource log line when available before answering.
+- For live widget questions about what icon/value/layout is currently showing on emulator/device, verify with runtime evidence first via adb.
+If logcat is missing considering adding logging and or asking user to reproduce.  A screenshot and analyzing it might be helpful.
 
 ## Testing Guidelines
 
 ### Test Location and Framework Preference
 
-**Prefer Robolectric (JVM) tests over instrumented (androidTest/emulator) tests whenever possible.** Robolectric tests run in seconds on the JVM; instrumented tests require an emulator or device and take minutes.
+**Like to have Robolectric (JVM) tests for each instrumented (androidTest/emulator) tests.**
 
 1. **Pure logic** (no Android dependencies): Write as plain unit tests in `test/` with no framework.
 2. **Needs Android Context, SharedPreferences, Room, or Resources**: Extend `com.weatherwidget.test.RobolectricTest` (which provides `@RunWith(RobolectricTestRunner::class)`, `@Config(sdk = [34])`, and `@Category(LongDuration::class)`). Use `ApplicationProvider.getApplicationContext()` for Context.
@@ -211,7 +212,9 @@ class TemperatureInterpolatorTest {
 - Include user prompts
 - Prefer numbered lists over bulleted lists in `session-logs/` for long lists.
 
-### Plan Files
+### Plans
+- Prefer a plan for moderate and large changes.
+- User prefers verbose output.  Always keep the user informed about what is happening.
 - Always write or copy plan files directly to the `plans/` directory in the repository root.
 
 ## Widget Development
