@@ -17,10 +17,12 @@ import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.call.body
+import io.ktor.client.request.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -329,7 +331,7 @@ class DesktopWeatherService(
         val end = Instant.now().truncatedTo(ChronoUnit.SECONDS)
         val start = end.minus(historyDays, ChronoUnit.DAYS)
         
-        val deferreds = stations.take(MAX_OBSERVATION_STATIONS).map { station ->
+        val deferreds = stations.take(MAX_OBSERVATION_STATIONS).mapIndexed { index, station ->
             async {
                 val historical = bestEffort("historical observations ${station.id}") {
                     nwsApi.getObservations(station.id, start.toString(), end.toString()).also { obs ->
@@ -337,11 +339,26 @@ class DesktopWeatherService(
                     }
                 }.orEmpty()
                 
-                if (historical.isNotEmpty()) {
-                    val latest = bestEffort("latest observation ${station.id}") {
+                val latest = if (historical.isNotEmpty()) {
+                    bestEffort("latest observation ${station.id}") {
                         nwsApi.getLatestObservationDetailed(station.id)
                     }
-                    Log.i(TAG, "selected observation station=${station.id} type=${station.type} historical=${historical.size} latest=${latest != null}")
+                } else {
+                    null
+                }
+
+                val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
+                val isStale = latest == null || runCatching { ZonedDateTime.parse(latest.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
+
+                if (index < 2 && isStale) {
+                    Log.i(TAG, "NWS API observations for ${station.id} are stale or missing. Querying Synoptic fallback...")
+                    val synopticBundle = fetchSynopticObservations(station, historyDays)
+                    if (synopticBundle != null) {
+                        return@async synopticBundle
+                    }
+                }
+
+                if (historical.isNotEmpty()) {
                     ObservationBundle(station, latest, historical)
                 } else {
                     null
@@ -351,16 +368,100 @@ class DesktopWeatherService(
         deferreds.mapNotNull { it.await() }
     }
 
+    private suspend fun fetchSynopticObservations(
+        station: NwsApi.StationInfo,
+        historyDays: Long
+    ): ObservationBundle? = bestEffort("Synoptic fallback for ${station.id}") {
+        val minutes = historyDays * 24 * 60
+        val token = "7c76618b66c74aee913bdbae4b448bdd"
+        val url = "https://api.synopticdata.com/v2/stations/timeseries"
+
+        val response: String = httpClient.get(url) {
+            parameter("STID", station.id)
+            parameter("recent", minutes)
+            parameter("token", token)
+            parameter("obtimezone", "utc")
+            header("Referer", "https://www.weather.gov/wrh/timeseries?site=${station.id}")
+            header("Origin", "https://www.weather.gov")
+        }.body()
+
+        val root = json.parseToJsonElement(response).jsonObject
+        val summaryObj = root["SUMMARY"]?.jsonObject
+        val responseCode = summaryObj?.get("RESPONSE_CODE")?.jsonPrimitive?.intOrNull
+        if (responseCode != 1) {
+            val message = summaryObj?.get("RESPONSE_MESSAGE")?.jsonPrimitive?.contentOrNull
+            Log.w(TAG, "Synoptic request failed for ${station.id}: $message")
+            return@bestEffort null
+        }
+
+        val stationArray = root["STATION"]?.jsonArray
+        val firstStation = stationArray?.firstOrNull()?.jsonObject ?: return@bestEffort null
+        val obsObj = firstStation["OBSERVATIONS"]?.jsonObject ?: return@bestEffort null
+
+        val dateTimeArray = obsObj["date_time"]?.jsonArray ?: return@bestEffort null
+        val airTempArray = obsObj["air_temp_set_1"]?.jsonArray
+        val weatherSummaryArray = obsObj["weather_summary_set_1d"]?.jsonArray
+        val weatherCondArray = obsObj["weather_condition_set_1d"]?.jsonArray
+
+        val stationName = firstStation["NAME"]?.jsonPrimitive?.content ?: station.name
+        val observationList = mutableListOf<NwsApi.Observation>()
+
+        for (i in 0 until dateTimeArray.size) {
+            val dateTimeStr = dateTimeArray[i].jsonPrimitive.content
+            val tempC = airTempArray?.getOrNull(i)?.jsonPrimitive?.doubleOrNull?.toFloat()
+                ?: continue // Skip observation if temperature is missing
+            
+            val summary = weatherSummaryArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
+                ?: weatherCondArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
+                ?: "Unknown"
+
+            observationList.add(
+                NwsApi.Observation(
+                    timestamp = dateTimeStr,
+                    temperatureCelsius = tempC,
+                    textDescription = summary,
+                    stationName = stationName,
+                    maxTempLast24hCelsius = null,
+                    minTempLast24hCelsius = null,
+                    precipLastHourMm = null
+                )
+            )
+        }
+
+        if (observationList.isEmpty()) return@bestEffort null
+
+        val latest = observationList.last()
+        val historical = observationList.dropLast(1)
+        ObservationBundle(station, latest, historical)
+    }
+
     private data class ObservationBundle(
         val station: NwsApi.StationInfo,
         val latest: NwsApi.Observation?,
         val historical: List<NwsApi.Observation>,
     )
 
+    private fun parseTimestamp(ts: String): Long {
+        return try {
+            var cleanStr = ts.trim()
+            if (cleanStr.length >= 5) {
+                val lastFour = cleanStr.takeLast(4)
+                val sign = cleanStr[cleanStr.length - 5]
+                if ((sign == '+' || sign == '-') && lastFour.all { it.isDigit() }) {
+                    cleanStr = cleanStr.substring(0, cleanStr.length - 2) + ":" + cleanStr.substring(cleanStr.length - 2)
+                }
+            }
+            ZonedDateTime.parse(cleanStr).toInstant().toEpochMilli()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse timestamp '$ts': ${e.message}", e)
+            System.currentTimeMillis()
+        }
+    }
+
     private fun NwsApi.Observation.toReading(station: NwsApi.StationInfo) = ObservationReading(
         stationId = station.id,
         stationName = this.stationName.ifBlank { station.name },
-        timestamp = try { ZonedDateTime.parse(timestamp).toInstant().toEpochMilli() } catch (e: Exception) { System.currentTimeMillis() },
+        timestamp = parseTimestamp(timestamp),
         temperature = (temperatureCelsius * 1.8f) + 32f,
         condition = textDescription,
         locationLat = latitude,
