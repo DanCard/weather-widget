@@ -348,6 +348,11 @@ object TemperatureLabelResolver {
 
         val mid = (futureStart + lastIndex) / 2
         if (mid <= futureStart || mid >= lastIndex) return
+
+        val distToFutureStart = mid - futureStart
+        if (distToFutureStart <= 2) {
+            Log.v(TAG, "ForecastMidpointCloseToTransition: mid=$mid futureStart=$futureStart span=${lastIndex - futureStart} -- label may collide with NOW/fetchDot hard bounds and require leader line")
+        }
         if (specialCandidates.any { it.index == mid }) return
         if (mid !in labelTemps.indices) return
 
