@@ -500,7 +500,11 @@ object TemperatureGraphRenderer {
      */
     private fun placeYesterdayDeltaLabel(ctx: RenderContext, hours: List<HourData>, deltaFromYesterday: Float?) {
         if (deltaFromYesterday == null) return
-        if (ctx.fetchDotX == null) return
+        val fetchDotX = ctx.fetchDotX
+        // Only draw the yesterday delta label if the fetch dot (anchor) is inside the visible graph area.
+        // When the fetch dot is outside (e.g. scrolled out of narrow view), suppress it — even if we
+        // compute an extrapolated fetchDotX for other purposes like ghost line extension.
+        if (fetchDotX == null || fetchDotX < 0f || fetchDotX > ctx.widthPx.toFloat()) return
         val currentTemp = ctx.lastObservedTemp ?: return
         if (hours.size < 2) return
         val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
