@@ -272,23 +272,25 @@ object DesktopDailyForecastModel {
         // Source-filtered noon cloud cover (shared with Android) drives both the bar split ratio and
         // the daily icon. The GENERIC_GAP exception applies only to climate-normal future days.
         val rowSourceId = if (forecast?.isClimateNormal == true) WeatherSource.GENERIC_GAP.id else null
-        val noonCloudPercent = com.weatherwidget.shared.util.DailyNoonCloudCover.resolveNoonCloudCoverPercent(
-            hourly = hourly,
-            date = date,
-            displaySourceId = displaySourceId,
-            rowSourceId = rowSourceId,
-        )
+        val measuredNoonCloudPercent = com.weatherwidget.shared.util.DailyNoonCloudCover
+            .resolveMeasuredNoonCloudCoverPercent(
+                hourly = hourly,
+                date = date,
+                displaySourceId = displaySourceId,
+                rowSourceId = rowSourceId,
+            )
+        val noonCloudPercentForBar = measuredNoonCloudPercent ?: 0
         val rawCondition = forecast?.condition ?: actual?.condition ?: displaySnapshot?.condition
-        // Daily icon noon is daytime (isNight = false). Thread the noon cloud % in, then apply the
-        // daily partly-cloudy floor: worded "partly cloudy" needs ≥25% noon cloud to stand.
+        // Daily icon noon is daytime (isNight = false). Thread the measured noon cloud % in, then
+        // apply the daily partly-cloudy floor: worded "partly cloudy" needs ≥25% noon cloud to stand.
         val baseIconName = com.weatherwidget.shared.util.WeatherConditionResolver.resolveIconName(
             condition = rawCondition,
             isNight = false,
-            cloudCover = noonCloudPercent,
+            cloudCover = measuredNoonCloudPercent,
             precipProbability = forecast?.precipProbability,
         )
         val gatedIconName = com.weatherwidget.shared.util.WeatherConditionResolver.applyDailyPartlyCloudyFloor(
-            baseIconName, noonCloudPercent, isNight = false,
+            baseIconName, measuredNoonCloudPercent, isNight = false,
         )
 
         return DesktopDailyDay(
@@ -308,7 +310,7 @@ object DesktopDailyForecastModel {
             iconName = gatedIconName,
             isToday = isToday,
             isPast = isPast,
-            cloudCoverRatio = noonCloudPercent / 100f,
+            cloudCoverRatio = noonCloudPercentForBar / 100f,
             dailyRainLabelText = dailyRainLabelText,
             nightRainLabelText = nightRainLabelText,
             isClimateNormal = forecast?.isClimateNormal == true,

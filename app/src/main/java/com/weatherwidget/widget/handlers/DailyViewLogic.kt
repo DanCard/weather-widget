@@ -459,7 +459,13 @@ object DailyViewLogic {
                     displaySource = displaySource,
                     weatherSourceId = weather?.source,
                 )
-            val cloudCoverPercent = (cloudCoverRatioOverride * 100).toInt()
+            val measuredCloudCoverPercent =
+                resolveMeasuredNoonCloudCoverPercent(
+                    date = date,
+                    hourlyForecasts = hourlyForecasts,
+                    displaySource = displaySource,
+                    weatherSourceId = weather?.source,
+                )
 
             val iconRes =
                 when {
@@ -472,7 +478,7 @@ object DailyViewLogic {
                             longitude = weather.locationLon,
                             dayPrecipProbability = dayPrecipForIcon,
                             nightPrecipProbability = nightPrecipForIcon,
-                            cloudCover = cloudCoverPercent,
+                            cloudCover = measuredCloudCoverPercent,
                         )
                     actual != null -> WeatherIconMapper.getIconResource(
                         condition = actual.condition,
@@ -565,15 +571,10 @@ object DailyViewLogic {
             }
             return days
             }
-    private fun resolveNoonCloudCoverRatio(
-        date: LocalDate,
+    private fun mapHourlyForecastsForNoonCloud(
         hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-        weatherSourceId: String?,
-    ): Float {
-        // Delegate to the shared single source of truth (source-filtered, GENERIC_GAP-aware) so
-        // Android and desktop compute the day's noon cloud cover identically.
-        val mapped = hourlyForecasts.map {
+    ): List<com.weatherwidget.data.model.HourlyForecast> =
+        hourlyForecasts.map {
             com.weatherwidget.data.model.HourlyForecast(
                 dateTime = it.dateTime,
                 temperature = it.temperature,
@@ -582,8 +583,17 @@ object DailyViewLogic {
                 source = it.source,
             )
         }
+
+    private fun resolveNoonCloudCoverRatio(
+        date: LocalDate,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        weatherSourceId: String?,
+    ): Float {
+        // Delegate to the shared single source of truth (source-filtered, GENERIC_GAP-aware) so
+        // Android and desktop compute the day's noon cloud cover identically.
         val ratio = com.weatherwidget.shared.util.DailyNoonCloudCover.resolveNoonCloudCoverRatio(
-            hourly = mapped,
+            hourly = mapHourlyForecastsForNoonCloud(hourlyForecasts),
             date = date,
             displaySourceId = displaySource.id,
             rowSourceId = weatherSourceId,
@@ -591,6 +601,19 @@ object DailyViewLogic {
         Log.d(TAG, "resolveNoonCloudCoverRatio: date=$date displaySource=${displaySource.id} weatherSourceId=$weatherSourceId ratio=$ratio")
         return ratio
     }
+
+    private fun resolveMeasuredNoonCloudCoverPercent(
+        date: LocalDate,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        weatherSourceId: String?,
+    ): Int? =
+        com.weatherwidget.shared.util.DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
+            hourly = mapHourlyForecastsForNoonCloud(hourlyForecasts),
+            date = date,
+            displaySourceId = displaySource.id,
+            rowSourceId = weatherSourceId,
+        )
 
     private fun buildDailyRainLabel(
         date: LocalDate,

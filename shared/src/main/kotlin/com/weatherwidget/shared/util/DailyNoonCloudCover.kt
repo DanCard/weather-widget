@@ -19,14 +19,18 @@ import java.time.ZoneId
  */
 object DailyNoonCloudCover {
 
-    /** Noon cloud cover as 0–100 percent for the target source; 0 when noon data is missing. */
-    fun resolveNoonCloudCoverPercent(
+    /**
+     * Measured noon cloud cover (0–100) for the target source, or null when noon data is absent.
+     * Use this for the daily icon partly-cloudy floor so a missing reading does not downgrade
+     * provider wording.
+     */
+    fun resolveMeasuredNoonCloudCoverPercent(
         hourly: List<HourlyForecast>,
         date: LocalDate,
         displaySourceId: String,
         rowSourceId: String? = null,
         zone: ZoneId = ZoneId.systemDefault(),
-    ): Int {
+    ): Int? {
         val targetSourceId = if (rowSourceId == WeatherSource.GENERIC_GAP.id) {
             WeatherSource.GENERIC_GAP.id
         } else {
@@ -42,8 +46,18 @@ object DailyNoonCloudCover {
             }
             .firstOrNull()
             ?.coerceIn(0, 100)
-            ?: 0
     }
+
+    /** Noon cloud cover as 0–100 percent for the target source; 0 when noon data is missing. */
+    fun resolveNoonCloudCoverPercent(
+        hourly: List<HourlyForecast>,
+        date: LocalDate,
+        displaySourceId: String,
+        rowSourceId: String? = null,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Int = resolveMeasuredNoonCloudCoverPercent(
+        hourly, date, displaySourceId, rowSourceId, zone,
+    ) ?: 0
 
     /** Convenience: the same value as a 0.0–1.0 ratio (what the bar renderer wants). */
     fun resolveNoonCloudCoverRatio(

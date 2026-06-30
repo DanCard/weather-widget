@@ -23,6 +23,9 @@ class DailyNoonCloudCoverTest {
     private fun resolve(hourly: List<HourlyForecast>, displaySource: String, rowSource: String? = null) =
         DailyNoonCloudCover.resolveNoonCloudCoverPercent(hourly, date, displaySource, rowSource, zone)
 
+    private fun resolveMeasured(hourly: List<HourlyForecast>, displaySource: String, rowSource: String? = null) =
+        DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(hourly, date, displaySource, rowSource, zone)
+
     @Test
     fun returnsOnlyTheDisplayedSourcesCloud() {
         val hourly = listOf(
@@ -37,6 +40,12 @@ class DailyNoonCloudCoverTest {
     fun assumesZeroWhenDisplayedSourceHasNoNoonData() {
         val hourly = listOf(hour(12, 80, "OPEN_METEO"))
         assertEquals(0, resolve(hourly, "NWS"))
+    }
+
+    @Test
+    fun measuredReturnsNullWhenDisplayedSourceHasNoNoonData() {
+        val hourly = listOf(hour(12, 80, "OPEN_METEO"))
+        assertEquals(null, resolveMeasured(hourly, "NWS"))
     }
 
     @Test
