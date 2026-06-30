@@ -80,7 +80,7 @@ object CurrentTemperatureResolver {
         val candidates = when {
             rows.any { it.source == sourceId } -> rows.filter { it.source == sourceId }
             rows.any { it.source == WeatherSource.GENERIC_GAP.id } -> rows.filter { it.source == WeatherSource.GENERIC_GAP.id }
-            else -> rows
+            else -> emptyList()
         }
         // The latest forecast wins for every hour, past or future. (Previously past hours used the
         // earliest snapshot — the stale 6–7-day-out long-range prediction — which inflated the

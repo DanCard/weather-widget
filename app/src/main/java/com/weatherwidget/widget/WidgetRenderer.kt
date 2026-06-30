@@ -18,6 +18,7 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.handlers.CurrentTempResolver
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.widget.handlers.CloudCoverViewHandler
@@ -243,13 +244,17 @@ object WidgetRenderer {
             .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
             ?.precipProbability
 
+        val sourceFilteredHourly = unifiedHourlyForecasts.filter {
+            it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id
+        }
+
         when (effectiveViewMode) {
             ViewMode.TEMPERATURE -> {
                 TemperatureViewHandler.updateWidget(
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
-                    hourlyForecasts = unifiedHourlyForecasts,
+                    hourlyForecasts = sourceFilteredHourly,
                     currentTempHourlyForecasts = nowCenteredHourlyForecasts,
                     centerTime = centerTime,
                     displaySource = displaySource,
@@ -267,7 +272,7 @@ object WidgetRenderer {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
-                    hourlyForecasts = unifiedHourlyForecasts,
+                    hourlyForecasts = sourceFilteredHourly,
                     centerTime = centerTime,
                     precipProbability = targetPrecip,
                     lastObservedTemp = observation?.temperature,
@@ -282,7 +287,7 @@ object WidgetRenderer {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
-                    hourlyForecasts = unifiedHourlyForecasts,
+                    hourlyForecasts = sourceFilteredHourly,
                     centerTime = centerTime,
                     displaySource = displaySource,
                     precipProbability = targetPrecip,

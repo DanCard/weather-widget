@@ -871,6 +871,7 @@ suspend fun handleResize(
                 centerTime = centerTime,
                 zoom = zoom,
                 now = now,
+                source = displaySource,
             )
 
         updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository, now)
