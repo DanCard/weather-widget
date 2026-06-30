@@ -86,6 +86,8 @@ class WidgetStateManager
             private const val KEY_CURRENT_TEMP_DELTA_LAT_PREFIX = "widget_current_temp_delta_lat_"
             private const val KEY_CURRENT_TEMP_DELTA_LON_PREFIX = "widget_current_temp_delta_lon_"
             private const val KEY_MISSING_DATA_REFRESH_PREFIX = "widget_missing_data_refresh_"
+            private const val KEY_TRANSIENT_MESSAGE_PREFIX = "widget_transient_msg_"
+            private const val KEY_TRANSIENT_MESSAGE_EXPIRES_PREFIX = "widget_transient_msg_expires_"
             private const val KEY_CURRENT_TEMP_FETCH_PREFIX = "current_temp_fetch_"
             private const val KEY_DAILY_COLUMN_COUNT_PREFIX = "widget_daily_col_count_"
             // Absolute center time (epoch ms) captured each time the hourly view is navigated. History
@@ -469,6 +471,50 @@ class WidgetStateManager
 
         fun markCurrentTempFetched(sourceId: String) {
             prefs.edit().putLong("$KEY_CURRENT_TEMP_FETCH_PREFIX$sourceId", System.currentTimeMillis()).apply()
+        }
+
+        /**
+         * Stores a short-lived message to overlay on the widget (e.g. "no hourly data — refreshing").
+         * The message is read back by [getActiveTransientMessage], which hides it once [expiresAtMs]
+         * passes. A delayed UI-only widget update (scheduled by the caller) repaints at expiry so the
+         * banner disappears on its own without a live process.
+         */
+        fun setTransientMessage(widgetId: Int, message: String, expiresAtMs: Long) {
+            prefs.edit()
+                .putString("$KEY_TRANSIENT_MESSAGE_PREFIX$widgetId", message)
+                .putLong("$KEY_TRANSIENT_MESSAGE_EXPIRES_PREFIX$widgetId", expiresAtMs)
+                .apply()
+        }
+
+        /**
+         * Returns the stored transient message for this widget if it has not yet expired, else null.
+         * Expired entries are cleared lazily so the banner does not linger after a stale repaint.
+         */
+        fun getActiveTransientMessage(widgetId: Int, nowMs: Long = System.currentTimeMillis()): String? {
+            val expiresAt = prefs.getLong("$KEY_TRANSIENT_MESSAGE_EXPIRES_PREFIX$widgetId", 0L)
+            if (expiresAt <= 0L || nowMs >= expiresAt) {
+                if (expiresAt != 0L) clearTransientMessage(widgetId)
+                return null
+            }
+            return prefs.getString("$KEY_TRANSIENT_MESSAGE_PREFIX$widgetId", null)
+        }
+
+        fun clearTransientMessage(widgetId: Int) {
+            prefs.edit()
+                .remove("$KEY_TRANSIENT_MESSAGE_PREFIX$widgetId")
+                .remove("$KEY_TRANSIENT_MESSAGE_EXPIRES_PREFIX$widgetId")
+                .apply()
+        }
+
+        /**
+         * True if a transient message is set and either still active or expired within the last
+         * [graceMs]. Unlike [getActiveTransientMessage] this does NOT clear the pref, so a renderer
+         * can decide to paint (to show or to clear the banner) before the expiry read happens. The
+         * grace window lets the one post-expiry repaint go through to remove the banner.
+         */
+        fun hasTransientMessagePending(widgetId: Int, graceMs: Long, nowMs: Long = System.currentTimeMillis()): Boolean {
+            val expiresAt = prefs.getLong("$KEY_TRANSIENT_MESSAGE_EXPIRES_PREFIX$widgetId", 0L)
+            return expiresAt != 0L && nowMs < expiresAt + graceMs
         }
 
         fun shouldRefreshMissingActuals(widgetId: Int, sourceId: String, cooldownMs: Long): Boolean =

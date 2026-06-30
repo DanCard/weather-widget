@@ -300,7 +300,15 @@ object WidgetRenderer {
                 // process / app update the widget shows the "Loading…" placeholder and the first update
                 // is often UI-only; skipping then strands it on "Loading…" (graph bitmap never set), so
                 // fall through to a full paint instead. See shouldSkipDailyUiOnlyRepaint.
-                if (shouldSkipDailyUiOnlyRepaint(uiOnly, fullyPaintedDailyWidgetIds.contains(appWidgetId))) {
+                // A pending transient message (e.g. the no-hourly banner) must paint even on a
+                // UI-only repaint — otherwise the daily skip optimization strands the banner shown
+                // (never painted) or, worse, never clears it. Grace covers the one post-expiry
+                // repaint that removes the banner.
+                val transientPending = stateManager.hasTransientMessagePending(
+                    appWidgetId,
+                    WeatherWidgetProvider.NO_HOURLY_MESSAGE_DURATION_MS,
+                )
+                if (shouldSkipDailyUiOnlyRepaint(uiOnly, fullyPaintedDailyWidgetIds.contains(appWidgetId)) && !transientPending) {
                     WeatherDatabase.getDatabase(context).appLogDao().log(
                         com.weatherwidget.widget.WidgetPerfLogger.TAG_WIDGET_PAINT,
                         "widget=$appWidgetId caller=DAILY state=skipped_ui_only thread=${Thread.currentThread().name}",

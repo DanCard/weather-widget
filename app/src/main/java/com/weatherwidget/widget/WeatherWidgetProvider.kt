@@ -49,7 +49,6 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.ui.ForecastHistoryActivity
-import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.handlers.DailyViewHandler
@@ -63,6 +62,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import java.time.LocalDate
@@ -610,15 +610,46 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             )
         Log.d(TAG, "handleDayClickAction branch: hasHourlyData=$hasHourlyData targetMode=$targetMode date=$dateStr offset=$targetOffset")
         if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE || targetMode == ViewMode.CLOUD_COVER)) {
-            Log.w(TAG, "handleDayClickAction: NO hourly data for date=$dateStr mode=$targetMode -> opening settings")
+            // No hourly data for the active source on the tapped day. This is common for far-future
+            // days once NWS hourly coverage ends, and (since cross-source fallback was removed) the
+            // hourly graph has nothing to draw. Rather than dead-ending the user at Settings, show a
+            // brief on-widget message, kick a refresh to try to fill the gap, and stay on the
+            // current view. The banner is cleared by a delayed UI repaint once it expires.
+            Log.w(TAG, "handleDayClickAction: NO hourly data for date=$dateStr mode=$targetMode -> message+refresh")
+            val stateManager = stateManager(context)
+            val dayLabel = formatNoHourlyDayLabel(dateStr)
+            // The tapped day is past the active source's hourly horizon, so a refresh can't conjure
+            // it — the useful, stable result is WHERE that source's hourly data ends. Compute it now
+            // from the DB and show a single message (no multi-render "refreshing -> outcome" dance,
+            // which the launcher coalesces). A best-effort background refresh still runs in case the
+            // horizon has since extended; the next tap would then open the graph.
+            val endLabel = lastHourlyEndLabelForSource(context, database, appWidgetId, intent)
+            val message =
+                if (endLabel != null) {
+                    context.getString(R.string.widget_no_hourly_refresh_none, dayLabel, endLabel)
+                } else {
+                    context.getString(R.string.widget_no_hourly_refresh_none_unknown, dayLabel)
+                }
+            stateManager.setTransientMessage(
+                appWidgetId,
+                message,
+                receiveTimeMs + NO_HOURLY_MESSAGE_DURATION_MS,
+            )
             database.appLogDao().log(
                 "CLICK_DAILY_NO_HOURLY",
-                "date=$dateStr mode=$targetMode -> settings",
+                "date=$dateStr mode=$targetMode -> \"$message\"",
             )
-            val settingsIntent = Intent(context, SettingsActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(settingsIntent)
+            // Paint the banner now and kick a best-effort background refresh.
+            triggerUiOnlyUpdate(context, reason = "show_no_hourly_msg")
+            triggerImmediateUpdate(context, forceRefresh = true, reason = "day_click_no_hourly")
+            // Clear precisely after the lifetime. WorkManager setInitialDelay is too imprecise for a
+            // 5s timer (it batches/defers delayed work), so instead we hold this broadcast's goAsync
+            // window with a coroutine delay (well under the receiver budget) and then repaint. The
+            // repaint clears the banner via getActiveTransientMessage's expiry check — which leaves a
+            // newer message from a later tap intact (its expiry hasn't passed).
+            val waitMs = (NO_HOURLY_MESSAGE_DURATION_MS + NO_HOURLY_CLEAR_BUFFER_MS) - (System.currentTimeMillis() - receiveTimeMs)
+            if (waitMs > 0) delay(waitMs)
+            triggerUiOnlyUpdate(context, reason = "clear_no_hourly_msg")
         } else {
             val stateManager = stateManager(context)
             // Day-click navigates the hourly view by jumping the hourly offset to the clicked day
@@ -683,6 +714,35 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
 
         return false
+    }
+
+    /**
+     * Where the active display source's hourly coverage ends, formatted e.g. "Mon Jul 6 at 3 PM",
+     * or null if that source has no upcoming hourly points. Used to explain why a tapped future day
+     * has no hourly graph (the API simply doesn't publish that far out).
+     */
+    private suspend fun lastHourlyEndLabelForSource(
+        context: Context,
+        database: WeatherDatabase,
+        appWidgetId: Int,
+        intent: Intent,
+    ): String? {
+        val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
+        val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
+        val latestWeather = database.forecastDao().getLatestWeather()
+        val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return null
+        val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return null
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return null
+
+        val sourceId = stateManager(context).getCurrentDisplaySource(appWidgetId).id
+        val zoneId = ZoneId.systemDefault()
+        val now = System.currentTimeMillis()
+        val horizonEnd = now + TimeUnit.DAYS.toMillis(40)
+        val rows = database.hourlyForecastDao().getHourlyForecastsBySource(now, horizonEnd, effectiveLat, effectiveLon, sourceId)
+        val lastMs = rows.maxOfOrNull { it.dateTime } ?: return null
+        return java.time.Instant.ofEpochMilli(lastMs)
+            .atZone(zoneId)
+            .format(java.time.format.DateTimeFormatter.ofPattern("EEE MMM d 'at' h a", java.util.Locale.getDefault()))
     }
 
     private fun handleRefreshAction(
@@ -911,6 +971,28 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val WORK_NAME_CURRENT_TEMP = "weather_widget_current_temp"
         const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
 
+        /**
+         * How long the transient no-hourly banner stays on the widget after a day tap that found no
+         * hourly data for the active source.
+         */
+        const val NO_HOURLY_MESSAGE_DURATION_MS = 5_000L
+
+        /**
+         * Buffer added when scheduling the clear repaint so it lands strictly AFTER the message
+         * expiry. Without it the repaint can race the expiry timestamp (fire at ~expiresAt, see the
+         * message as still-active) and leave the banner up until the next opportunistic update.
+         */
+        const val NO_HOURLY_CLEAR_BUFFER_MS = 500L
+
+        /** Formats a yyyy-MM-dd date string as e.g. "Tue Jul 7" for transient widget messages. */
+        internal fun formatNoHourlyDayLabel(dateStr: String): String =
+            try {
+                LocalDate.parse(dateStr)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("EEE MMM d", java.util.Locale.getDefault()))
+            } catch (_: Exception) {
+                dateStr
+            }
+
         private val lastUpdateByWidgetId = java.util.concurrent.ConcurrentHashMap<Int, Long>()
         private const val STARTUP_DEBOUNCE_MS = 500L
 
@@ -960,9 +1042,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         internal fun needsDailyStartupData(viewModes: Collection<ViewMode>): Boolean =
             viewModes.any { it == ViewMode.DAILY }
 
-        internal fun triggerUiOnlyUpdate(context: Context, reason: String = "unspecified") {
-            Log.d(TAG, "triggerUiOnlyUpdate: Enqueueing UI-only worker (reason=$reason)")
-            val workRequest =
+        internal fun triggerUiOnlyUpdate(
+            context: Context,
+            reason: String = "unspecified",
+            initialDelayMs: Long = 0L,
+        ) {
+            Log.d(TAG, "triggerUiOnlyUpdate: Enqueueing UI-only worker (reason=$reason, delayMs=$initialDelayMs)")
+            val builder =
                 OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInputData(
                         Data.Builder()
@@ -970,11 +1056,21 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
                             .build(),
                     )
-                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                    .build()
+            // A delayed repaint (used to clear an expired transient message) uses its own unique
+            // name so it does not REPLACE/cancel the immediate UI refresh, and vice versa. Repeated
+            // scheduling of the delayed clear keeps just the latest pending one (REPLACE).
+            val uniqueName: String
+            if (initialDelayMs > 0) {
+                builder.setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
+                uniqueName = WORK_NAME_ONE_TIME + "_ui_delayed"
+            } else {
+                builder.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                uniqueName = WORK_NAME_ONE_TIME + "_ui"
+            }
+            val workRequest = builder.build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
-                WORK_NAME_ONE_TIME + "_ui",
+                uniqueName,
                 ExistingWorkPolicy.REPLACE,
                 workRequest,
             )

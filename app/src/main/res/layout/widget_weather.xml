@@ -1679,4 +1679,23 @@
         android:focusable="true"
         android:visibility="gone" />
 
+    <!-- Transient message banner. Rendered last so it overlays the content; default GONE.
+         Shown briefly (see WeatherWidgetProvider.NO_HOURLY_MESSAGE_DURATION_MS) when a day
+         tap finds no hourly data for the active source, then cleared by a delayed UI update. -->
+    <TextView
+        android:id="@+id/widget_message_banner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginHorizontal="12dp"
+        android:background="@drawable/widget_message_bg"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp"
+        android:textColor="@android:color/white"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:maxLines="3"
+        android:gravity="center"
+        android:visibility="gone" />
+
 </FrameLayout>

@@ -222,6 +222,7 @@ class WeatherWidgetWorker
                             // Even on UI-only, ensure heartbeats are alive
                             manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
                         }
+
                         Result.success()
                     },
                     onFailure = { e ->

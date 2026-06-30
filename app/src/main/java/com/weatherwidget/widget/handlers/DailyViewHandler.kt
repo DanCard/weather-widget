@@ -248,6 +248,7 @@ object DailyViewHandler : WidgetViewHandler {
                 centerDate = centerDate,
                 visibleDates = emptyList(),
             )
+            bindTransientMessage(views, stateManager, appWidgetId)
             appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=warning thread=${Thread.currentThread().name}")
             appWidgetManager.updateAppWidget(appWidgetId, views)
             return
@@ -458,6 +459,7 @@ object DailyViewHandler : WidgetViewHandler {
             HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
+        bindTransientMessage(views, stateManager, appWidgetId)
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
@@ -565,6 +567,23 @@ object DailyViewHandler : WidgetViewHandler {
     private fun setupCurrentTempToggle(context: Context, views: RemoteViews, appWidgetId: Int) {
         HeaderTapTargetHelper.bindToggleTemperatureHeader(context, views, appWidgetId)
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
+    }
+
+    /**
+     * Shows the transient message banner (e.g. the no-hourly-data notice) if one is active for this
+     * widget, otherwise hides it. Driven by [WidgetStateManager.getActiveTransientMessage], which
+     * expires the message on its own; the caller schedules a delayed UI-only repaint so the banner
+     * clears at expiry without keeping a process alive.
+     */
+    @VisibleForTesting
+    internal fun bindTransientMessage(views: RemoteViews, stateManager: WidgetStateManager, appWidgetId: Int) {
+        val message = stateManager.getActiveTransientMessage(appWidgetId)
+        if (message != null) {
+            views.setTextViewText(R.id.widget_message_banner, message)
+            views.setViewVisibility(R.id.widget_message_banner, View.VISIBLE)
+        } else {
+            views.setViewVisibility(R.id.widget_message_banner, View.GONE)
+        }
     }
 
     internal suspend fun logDailyRenderSummary(
