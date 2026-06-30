@@ -16,6 +16,7 @@ import io.mockk.verify
 import io.mockk.slot
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -106,7 +107,40 @@ class TemperatureGraphRendererFetchDotTest {
         // Hidden NOW indicator: fill + 7 forecast segments = 8 paths (no ghost, no actual line).
         // Ghost extension when dot scrolled off-left (future narrow view) still requires
         // observedAt/fetch to compute (possibly negative) fetchDotX for anchor.
-        verify(exactly = 8) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 7) { anyConstructed<Canvas>().drawPath(any(), any()) }
+    }
+
+    @Test
+    fun `no ghost line on far future wide view even with delta and observation`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 7, 6, 0, 0)
+        val hours = (0..7).map { offset ->
+            com.weatherwidget.shared.graph.HourData(
+                dateTime = start.plusHours(offset.toLong()),
+                temperature = 60f + offset,
+                label = "${offset}h",
+                showLabel = true,
+                isCurrentHour = false,
+            )
+        }
+        val observedAtMs = LocalDateTime.of(2026, 6, 29, 22, 0)
+            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        var ghostDebug: com.weatherwidget.widget.GhostLineDebug? = null
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 567,
+            heightPx = 397,
+            currentTime = LocalDateTime.of(2026, 6, 29, 22, 0),
+            appliedDelta = 0.5f,
+            observedAt = observedAtMs,
+            lastObservedTemp = 63f,
+            onGhostLineDebug = { ghostDebug = it },
+        )
+
+        assertNull("Ghost line should not process on far-future anchored view", ghostDebug)
+        verify(exactly = 7) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     @Test

@@ -338,7 +338,18 @@ fun TemperatureGraph(
 
         // 2. Ghost Line (Shifted forecast curve representing expected path)
         val transitionX = lastActualPoint?.let { xAtTime(it.timeMs) }
-        if (transitionX != null && abs(appliedDelta) >= 0.1f) {
+        val ghostSpanHours = (windowEnd - windowStart) / 3_600_000L
+        val hoursFromNowToWindowStart = (windowStart - now) / 3_600_000L
+        val nowInWindow = now in windowStart..windowEnd
+        if (transitionX != null && abs(appliedDelta) >= 0.1f &&
+            com.weatherwidget.shared.graph.GhostLineGate.shouldProcess(
+                fetchDotX = transitionX,
+                graphWidthPx = w,
+                spanHours = ghostSpanHours,
+                nowIndicatorVisible = nowInWindow,
+                hoursFromNowToWindowStart = hoursFromNowToWindowStart,
+            )
+        ) {
             clipRect(left = transitionX, top = 0f, right = w, bottom = footer.graphBottom(h, scale)) {
                 val expectedPath = buildCurve(expectedCoords)
                 drawPath(
@@ -680,18 +691,27 @@ fun TemperatureGraph(
         // hour mark on the right half so it reads against the footer hour labels ("at 6 PM → 69.4°").
         // Drawn only in the narrow view and only where there's free space. Gate, selection, and
         // placement are shared with Android (GhostLineLabel); styled ghost-like (faint italic white).
-        if (transitionX != null && abs(appliedDelta) >= 0.1f) {
-            val ghostSpanHours = (windowEnd - windowStart) / 3_600_000L
+        if (transitionX != null && abs(appliedDelta) >= 0.1f &&
+            com.weatherwidget.shared.graph.GhostLineGate.shouldProcess(
+                fetchDotX = transitionX,
+                graphWidthPx = w,
+                spanHours = ghostSpanHours,
+                nowIndicatorVisible = nowInWindow,
+                hoursFromNowToWindowStart = hoursFromNowToWindowStart,
+            )
+        ) {
             val labeledIndices = DesktopGraphUtils
                 .footerLabels(points, totalSpanHours, ZoneId.systemDefault())
                 .map { it.index }.toSet()
             val ghostCandidates = points.indices.mapNotNull { i ->
                 val coord = expectedCoords[i]
                 if (coord.x <= transitionX) return@mapNotNull null
+                val expectedTemp = forecastTemps[i] + appliedDelta
+                if (!expectedTemp.isFinite()) return@mapNotNull null
                 GhostLineLabel.Candidate(
                     x = coord.x,
                     ghostY = coord.y,
-                    expectedTemp = forecastTemps[i] + appliedDelta,
+                    expectedTemp = expectedTemp,
                     hasHourLabel = i in labeledIndices,
                 )
             }

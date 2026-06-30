@@ -65,6 +65,7 @@ object GhostLineLabel {
 
     /** The ghost-line temperature, always to one decimal, e.g. `69.4°`, `0.0°`, `-1.2°`. */
     fun format(temp: Float): String {
+        if (!temp.isFinite()) return "--°"
         val tenths = (temp * 10f).roundToInt() // round-half-up at the tenths place
         val sign = if (tenths < 0) "-" else ""
         val mag = abs(tenths)

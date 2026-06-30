@@ -313,22 +313,42 @@ object TemperatureGraphRenderer {
         }
     }
 
+    private fun shouldProcessGhostLine(ctx: RenderContext, hours: List<HourData>): Boolean {
+        if (hours.size < 2) return false
+        val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+        val hoursFromNowToWindowStart =
+            java.time.Duration.between(ctx.currentTime, hours.first().dateTime).toHours()
+        return com.weatherwidget.shared.graph.GhostLineGate.shouldProcess(
+            fetchDotX = ctx.fetchDotX,
+            graphWidthPx = ctx.widthPx.toFloat(),
+            spanHours = spanHours,
+            nowIndicatorVisible = ctx.nowIndicatorVisible,
+            hoursFromNowToWindowStart = hoursFromNowToWindowStart,
+        )
+    }
+
     private fun drawFillAndCurves(ctx: RenderContext, expectedFillPath: Path, hours: List<HourData>) {
         val paints = ctx.paints
-        paints.expectedFillPaint.shader = buildTempGradient(
-            ctx.graphTop, ctx.graphBottom, ctx.minTemp, ctx.maxTemp, ctx.tempRange, alphaTop = TemperatureGraphStyle.EXPECTED_FILL_ALPHA_TOP, alphaBottom = TemperatureGraphStyle.EXPECTED_FILL_ALPHA_BOTTOM
-        )
-        ctx.canvas.drawPath(expectedFillPath, paints.expectedFillPaint)
-
         val appliedDelta = ctx.appliedDelta
         val fetchDotX = ctx.fetchDotX
         val lastObservedTemp = ctx.lastObservedTemp
-        if (appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null) {
+        val processGhost =
+            shouldProcessGhostLine(ctx, hours) &&
+                appliedDelta != null &&
+                abs(appliedDelta) >= MIN_GHOST_LINE_DELTA &&
+                fetchDotX != null
+
+        if (processGhost) {
+            paints.expectedFillPaint.shader = buildTempGradient(
+                ctx.graphTop, ctx.graphBottom, ctx.minTemp, ctx.maxTemp, ctx.tempRange, alphaTop = TemperatureGraphStyle.EXPECTED_FILL_ALPHA_TOP, alphaBottom = TemperatureGraphStyle.EXPECTED_FILL_ALPHA_BOTTOM
+            )
+            ctx.canvas.drawPath(expectedFillPath, paints.expectedFillPaint)
+
             val expectedY = lastObservedTemp?.let { ctx.tempToY(it) }
-            if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(fetchDotX, expectedY))
+            if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(fetchDotX!!, expectedY))
 
             ctx.canvas.save()
-            val clipStart = fetchDotX.coerceAtLeast(0f)
+            val clipStart = fetchDotX!!.coerceAtLeast(0f)
             ctx.canvas.clipRect(clipStart, 0f, ctx.widthPx.toFloat(), ctx.heightPx.toFloat())
             ctx.canvas.drawPath(ctx.expectedPath, paints.ghostPaint)
             ctx.canvas.restore()
@@ -352,9 +372,12 @@ object TemperatureGraphRenderer {
         }
 
         val transitionX = ctx.transitionX
-        if (transitionX != null) {
+        val transitionClipExtra = dpToPx(ctx.context, TRANSITION_CLIP_EXTRA_DP)
+        // Skip when the transition anchor is entirely off-screen left (far-future pan with stale
+        // observation extrapolated far behind the window). Matches fetch-dot suppression.
+        if (transitionX != null && transitionX + transitionClipExtra > 0f) {
             ctx.canvas.save()
-            ctx.canvas.clipRect(0f, 0f, transitionX + dpToPx(ctx.context, TRANSITION_CLIP_EXTRA_DP), ctx.heightPx.toFloat())
+            ctx.canvas.clipRect(0f, 0f, transitionX + transitionClipExtra, ctx.heightPx.toFloat())
             ctx.canvas.drawPath(ctx.actualPath, paints.actualLinePaint)
             ctx.canvas.restore()
         }
@@ -558,19 +581,22 @@ object TemperatureGraphRenderer {
     private fun placeGhostLineLabel(ctx: RenderContext, hours: List<HourData>) {
         val appliedDelta = ctx.appliedDelta
         val fetchDotX = ctx.fetchDotX
+        if (!shouldProcessGhostLine(ctx, hours)) return
         if (!(appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null)) return
         if (hours.size < 2 || ctx.expectedPoints.size != hours.size) return
         val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
 
-        // Only ghost-region hours (right of the fetch dot, where the line is actually drawn).
-        // If fetchDotX is off left (<0), treat entire view as ghost region.
+        // Only ghost-region hours (right of the on-screen fetch dot). Off-left extension is limited
+        // to narrow near-term scrolls by [GhostLineGate].
         val candidates = hours.indices.mapNotNull { i ->
             val (x, ghostY) = ctx.expectedPoints[i]
             if (x <= fetchDotX + X_COORDINATE_MATCH_TOLERANCE) return@mapNotNull null
+            val expectedTemp = ctx.smoothedExpectedTemps[i]
+            if (!expectedTemp.isFinite()) return@mapNotNull null
             GhostLineLabel.Candidate(
                 x = x,
                 ghostY = ghostY,
-                expectedTemp = ctx.smoothedExpectedTemps[i],
+                expectedTemp = expectedTemp,
                 hasHourLabel = hours[i].showLabel,
             )
         }

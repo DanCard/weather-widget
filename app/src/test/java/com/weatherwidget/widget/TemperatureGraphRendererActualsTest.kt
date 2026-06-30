@@ -29,17 +29,14 @@ import org.junit.experimental.categories.Category
  * whether actuals are present.
  *
  * Path drawing order in renderGraph:
- *   1. forecastFillPath     — always (fill under forecast curve)
- *   2. expectedPath (ghost) — when |appliedDelta| >= 0.1 && fetchDotX != null
- *      (nowIndicatorVisible no longer required; supports ghost line extension when
- *      now/fetch dot scrolls off-left in narrow future views)
- *   3. forecastSegments     — always (one drawPath per hour segment, = hours - 1)
- *   4. originalPath (solid) — only when transitionX != null (i.e., actuals present)
+ *   1. expectedFillPath + ghost stroke — when [GhostLineGate] allows and |appliedDelta| >= 0.1
+ *   2. forecastSegments — always (one drawPath per hour segment, = hours - 1)
+ *   3. originalPath (solid actual) — only when transitionX != null (actuals present)
  *
  * With 8 hours (default), forecast = 7 segments.
- * Baseline (no actuals, no ghost) = 1 fill + 7 segments = 8 paths.
- * Adding actuals = 8 + 1 = 9 paths.
- * Adding ghost = 9 + 1 = 10 paths.
+ * Baseline (no actuals, no ghost) = 7 segments.
+ * Adding actuals = 7 + 1 = 8 paths.
+ * Adding ghost = 8 + 2 = 10 paths (expected fill + ghost stroke).
  */
 @Category(MediumDuration::class)
 class TemperatureGraphRendererActualsTest {
@@ -66,11 +63,11 @@ class TemperatureGraphRendererActualsTest {
             currentTime = start.plusHours(2),
         )
 
-        verify(exactly = 8) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 7) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     // -------------------------------------------------------------------
-    // Test 2: With actuals → 9 drawPath calls (fill + 7 segments + solid actual)
+    // Test 2: With actuals → 8 drawPath calls (7 segments + solid actual)
     // -------------------------------------------------------------------
     @Test
     fun `with actuals produces 3 drawPath calls — fill, dashed forecast, solid actual`() {
@@ -87,7 +84,7 @@ class TemperatureGraphRendererActualsTest {
             currentTime = start.plusHours(5),
         )
 
-        verify(exactly = 9) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 8) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     // -------------------------------------------------------------------
@@ -137,7 +134,7 @@ class TemperatureGraphRendererActualsTest {
             appliedDelta = 2.0f,
         )
 
-        verify(exactly = 8) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 7) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     // -------------------------------------------------------------------
@@ -159,7 +156,7 @@ class TemperatureGraphRendererActualsTest {
             currentTime = start.plusHours(4),
         )
 
-        verify(exactly = 9) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 8) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     // -------------------------------------------------------------------

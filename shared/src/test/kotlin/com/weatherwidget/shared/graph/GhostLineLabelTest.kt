@@ -33,6 +33,19 @@ class GhostLineLabelTest {
     )
 
     @Test
+    fun `format returns placeholder for non-finite temperature`() {
+        assertEquals("--°", GhostLineLabel.format(Float.NaN))
+        assertEquals("--°", GhostLineLabel.format(Float.POSITIVE_INFINITY))
+    }
+
+    @Test
+    fun `placeAll formats non-finite candidate as placeholder without crashing`() {
+        val placements = placeAll(listOf(rightCandidate(300f, temp = Float.NaN)))
+        assertEquals(1, placements.size)
+        assertEquals("--°", placements[0].text)
+    }
+
+    @Test
     fun `format shows one decimal with degree`() {
         assertEquals("69.4°", GhostLineLabel.format(69.4f))
         assertEquals("69.0°", GhostLineLabel.format(69f))
