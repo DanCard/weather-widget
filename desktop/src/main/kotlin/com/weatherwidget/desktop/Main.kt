@@ -16,6 +16,8 @@ import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
@@ -27,12 +29,14 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.graph.ZoomStage
+import com.weatherwidget.shared.util.NoHourlyChecker
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.WeatherConditionResolver
@@ -298,6 +302,32 @@ private fun runApp() = application {
                     } finally {
                         forecastExtendInFlight = false
                     }
+                }
+            }
+        }
+
+        // Refresh triggered by a daily-view tap on a day that has no hourly data. Fetches the day's
+        // forecast horizon, refreshes the in-memory forecast, and hands the resulting hourly list back
+        // to the caller (WidgetPopup) so it can decide whether data arrived and post a result banner.
+        // The completion callback always fires (even on failure / no-new-data) so the UI never strands
+        // on the pending banner.
+        val onNeedHourlyRefresh: (Int, (List<HourlyForecast>) -> Unit) -> Unit = remember(repository) {
+            fn@{ targetDays: Int, onComplete: (List<HourlyForecast>) -> Unit ->
+                val repo = repository ?: run { onComplete(forecast?.hourly ?: emptyList()); return@fn }
+                uiScope.launch {
+                    val resultHourly = try {
+                        if (repo.ensureForecastDays(targetDays)) {
+                            val refreshed = repo.loadCached()
+                            forecast = refreshed
+                            refreshed?.hourly ?: emptyList()
+                        } else {
+                            forecast?.hourly ?: emptyList()
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "No-hourly day-tap refresh failed: ${e.message}")
+                        forecast?.hourly ?: emptyList()
+                    }
+                    onComplete(resultHourly)
                 }
             }
         }
@@ -692,6 +722,7 @@ private fun runApp() = application {
                     onRegisterArrowKeyHandler = { arrowKeyHandler = it },
                     onNeedHistory = onNeedHistory,
                     onNeedForecastExtension = onNeedForecastExtension,
+                    onNeedHourlyRefresh = onNeedHourlyRefresh,
                     historyFetchToast = historyFetchToast,
                     currentTempFetchError = currentTempFetchError,
                     onDismissCurrentTempError = {
@@ -726,6 +757,7 @@ internal fun WidgetPopup(
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
     onNeedHistory: (Int) -> Unit = {},
     onNeedForecastExtension: (Int) -> Unit = {},
+    onNeedHourlyRefresh: (days: Int, onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _, _ -> },
     historyFetchToast: String? = null,
     currentTempFetchError: String? = null,
     onDismissCurrentTempError: () -> Unit = {},
@@ -755,6 +787,11 @@ internal fun WidgetPopup(
                     )
 
                     Spacer(Modifier.height(4.dp))
+
+                    // Transient banner for day-taps that have no hourly data (e.g. NWS horizon ends
+                    // mid-week). Declared unconditionally (Compose hook ordering) and consumed only
+                    // inside the daily-view branch below.
+                    var noHourlyMessage by remember { mutableStateOf<String?>(null) }
 
                     val isHourly = config.viewMode.isHourly
                     if (isHourly) {
@@ -1035,22 +1072,40 @@ internal fun WidgetPopup(
                                 }
                             }
 
+                            val handleDayClick: (LocalDate) -> Unit = { clickedDate ->
+                                val visibleSourceIds = config.visibleSources.toSet()
+                                if (NoHourlyChecker.hasHourlyForDay(snapshot.hourly, clickedDate, visibleSourceIds)) {
+                                    noHourlyMessage = null
+                                    onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days))
+                                } else {
+                                    // Two-phase flow mirroring Android: show a pending banner, trigger
+                                    // a refresh for the tapped day, then replace it with a result banner
+                                    // once the refresh completes (data arrived, or still missing).
+                                    val dayLabel = NoHourlyChecker.formatDayLabel(clickedDate)
+                                    noHourlyMessage = NoHourlyChecker.buildPendingMessage(dayLabel)
+                                    val targetDays = ForecastHorizon.daysToCover(LocalDate.now(), clickedDate)
+                                    onNeedHourlyRefresh(targetDays) { newHourly ->
+                                        val hasData = NoHourlyChecker.hasHourlyForDay(newHourly, clickedDate, visibleSourceIds)
+                                        val endLabel =
+                                            if (!hasData) NoHourlyChecker.lastHourlyEndLabel(newHourly, visibleSourceIds)
+                                            else null
+                                        noHourlyMessage = NoHourlyChecker.buildResultMessage(dayLabel, hasData, endLabel)
+                                    }
+                                }
+                            }
+
                             if (dailyState.dimensions.useGraph) {
                                 DailyForecastGraph(
                                     state = dailyState,
                                     modifier = Modifier.fillMaxSize().then(dailyInput),
                                     scale = uiScale,
-                                    onDayClick = { clickedDate ->
-                                        onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days))
-                                    }
+                                    onDayClick = handleDayClick,
                                 )
                             } else {
                                 DailyForecastTextMode(
                                     state = dailyState,
                                     modifier = Modifier.fillMaxSize().then(dailyInput),
-                                    onDayClick = { clickedDate ->
-                                        onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days))
-                                    }
+                                    onDayClick = handleDayClick,
                                 )
                             }
 
@@ -1067,6 +1122,26 @@ internal fun WidgetPopup(
                                 testTag = "daily_nav_right",
                             ) {
                                 onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset + 1))
+                            }
+
+                            noHourlyMessage?.let { msg ->
+                                LaunchedEffect(msg) {
+                                    kotlinx.coroutines.delay(NoHourlyChecker.MESSAGE_DURATION_MS)
+                                    noHourlyMessage = null
+                                }
+                                Box(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = msg,
+                                        textAlign = TextAlign.Center,
+                                        color = Color.White.copy(alpha = 0.88f),
+                                        fontSize = (13f * uiScale).sp,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.testTag("no_hourly_message"),
+                                    )
+                                }
                             }
                         }
                     }
@@ -1317,6 +1392,7 @@ private fun DailyForecastTextMode(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .testTag("day_tab_${day.date}")
                     .clickable { onDayClick(day.date) }
                     .padding(horizontal = 4.dp, vertical = 2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,

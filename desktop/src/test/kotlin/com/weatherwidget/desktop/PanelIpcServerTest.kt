@@ -35,7 +35,7 @@ class PanelIpcServerTest {
         assertTrue("temperature retained", m.contains("72.5°"))
         assertTrue("warning glyph present", m.contains("⚠"))
         assertTrue("warn color present", m.contains(PanelIpcServer.WARN_COLOR))
-        assertTrue("tooltip explains the fix", m.contains("buildStart.sh"))
+        assertTrue("tooltip explains the fix", m.contains("buildStart-desktop.sh"))
         // The click must no longer touch .show (the daemon can't spawn the UI); it notifies instead.
         assertTrue("click notifies the user", m.contains("notify-send"))
         assertFalse("dead .show click removed", m.contains("touch "))

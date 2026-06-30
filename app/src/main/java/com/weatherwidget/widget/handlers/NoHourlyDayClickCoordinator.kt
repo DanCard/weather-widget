@@ -6,11 +6,10 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.config.ForecastHorizon
+import com.weatherwidget.shared.util.NoHourlyChecker
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -24,8 +23,7 @@ object NoHourlyDayClickCoordinator {
 
     fun formatDayLabel(dateStr: String): String =
         try {
-            LocalDate.parse(dateStr)
-                .format(DateTimeFormatter.ofPattern("EEE MMM d", Locale.getDefault()))
+            NoHourlyChecker.formatDayLabel(LocalDate.parse(dateStr))
         } catch (_: Exception) {
             dateStr
         }
@@ -111,8 +109,6 @@ object NoHourlyDayClickCoordinator {
         val horizonEnd = now + TimeUnit.DAYS.toMillis(40)
         val rows = database.hourlyForecastDao().getHourlyForecastsBySource(now, horizonEnd, effectiveLat, effectiveLon, sourceId)
         val lastMs = rows.maxOfOrNull { it.dateTime } ?: return null
-        return java.time.Instant.ofEpochMilli(lastMs)
-            .atZone(zoneId)
-            .format(DateTimeFormatter.ofPattern("EEE MMM d 'at' h a", Locale.getDefault()))
+        return NoHourlyChecker.formatEndLabel(lastMs)
     }
 }

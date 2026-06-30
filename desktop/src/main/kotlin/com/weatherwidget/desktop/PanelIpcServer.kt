@@ -127,9 +127,9 @@ class PanelIpcServer(private val appDataDir: Path) {
             color = WARN_COLOR,
             deltaText = null,
             tooltip = "Weather Widget: app files were removed — rebuild and restart " +
-                "(scripts/buildStart.sh)",
+                "(scripts/buildStart-desktop.sh)",
             clickCmd = "notify-send -u critical -a 'Weather Widget' 'Weather Widget' " +
-                "'App files were removed. Rebuild and restart: scripts/buildStart.sh'",
+                "'App files were removed. Rebuild and restart: scripts/buildStart-desktop.sh'",
         )
 
         /**
