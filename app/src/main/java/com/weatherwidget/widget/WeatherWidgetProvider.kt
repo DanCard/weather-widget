@@ -89,7 +89,8 @@ import kotlin.math.roundToInt
 @dagger.hilt.android.AndroidEntryPoint
 class WeatherWidgetProvider : AppWidgetProvider() {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @androidx.annotation.VisibleForTesting
+    internal var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private data class StartupQueryResult(
         val weatherList: List<ForecastEntity>,
@@ -975,7 +976,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
          * How long the transient no-hourly banner stays on the widget after a day tap that found no
          * hourly data for the active source.
          */
-        const val NO_HOURLY_MESSAGE_DURATION_MS = 5_000L
+        const val NO_HOURLY_MESSAGE_DURATION_MS = 8_000L
 
         /**
          * Buffer added when scheduling the clear repaint so it lands strictly AFTER the message

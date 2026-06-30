@@ -120,7 +120,7 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
         assertNotNull("A transient message should be displayed for the missing-hourly day", message)
         assertTrue(
             "Message should explain there is no hourly forecast: $message",
-            message!!.contains("hourly", ignoreCase = true),
+            message!!.contains("Data missing", ignoreCase = true),
         )
 
         // AND: Settings was NOT opened (the core regression).

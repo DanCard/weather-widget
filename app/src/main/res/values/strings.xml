@@ -183,6 +183,6 @@
     <!-- Transient widget message shown when a day is tapped but the active source has no hourly
          data for it. Framed as the refresh result. %1$s = tapped day (e.g. "Tue Jul 7"); %2$s =
          where that source's hourly data ends (e.g. "Mon Jul 6 at 3 PM"). -->
-    <string name="widget_no_hourly_refresh_none">Results of refresh:\nNo hourly forecast for %1$s — data ends %2$s</string>
-    <string name="widget_no_hourly_refresh_none_unknown">Results of refresh:\nNo hourly forecast available for %1$s</string>
+    <string name="widget_no_hourly_refresh_none">Results of refresh:\nData missing for %1$s, refresh triggered, data ends %2$s</string>
+    <string name="widget_no_hourly_refresh_none_unknown">Results of refresh:\nData missing for %1$s, refresh triggered</string>
 </resources>
