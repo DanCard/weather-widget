@@ -268,7 +268,7 @@ class WeatherWidgetWorker
         ): DailyActualsBySource {
             return try {
                 if (recompute) {
-                    val start = LocalDate.now().minusDays(30)
+                    val start = LocalDate.now().minusDays(2)
                     val yesterday = LocalDate.now().minusDays(1)
                     weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, start, yesterday, hourlyForecasts)
                 }

@@ -13,6 +13,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import com.weatherwidget.data.model.DailyExtreme
 import org.junit.Before
 import org.junit.Test
@@ -177,5 +178,25 @@ class ObservationRepositoryDailyMergeTest {
             .first { it.source == WeatherSource.NWS.id }
         assertEquals(5.0f, afterRun2.precipAmountMm!!, 0.01f) // 2.0 + 3.0 measured
         assertEquals(60f, afterRun2.highTemp, 0.1f)           // temps unchanged
+    }
+
+    @Test
+    fun `recomputeDailyExtremesFromStoredObservations skips days older than 9 days`() = runTest {
+        val tenDaysAgo = today.minusDays(10)
+        val t10 = tenDaysAgo.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+        val tenDaysAgoStart = tenDaysAgo.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+
+        val obs = TestData.observation(
+            stationId = "KNEAR", timestamp = t10, temperature = 80f, distanceKm = 1f,
+            api = WeatherSource.NWS.id,
+        )
+
+        db.observationDao().insertAll(listOf(obs))
+        
+        // Recomputation should skip this day since it is 10 days ago (older than 9-day cutoff)
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, tenDaysAgo, tenDaysAgo, emptyList())
+        
+        val extremes = db.dailyExtremeDao().getExtremesInRange(tenDaysAgoStart, tenDaysAgoStart, lat, lon)
+        assertTrue("Daily extreme should not be inserted or recomputed for a day older than 9 days", extremes.isEmpty())
     }
 }

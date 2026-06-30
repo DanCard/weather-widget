@@ -566,9 +566,17 @@ class ObservationRepository @Inject constructor(
         endDateInclusive: LocalDate,
         hourlyForecasts: List<HourlyForecastEntity>,
     ) {
+        val today = LocalDate.now()
+        // Do not recompute daily extremes for days older than 9 days, as their observations
+        // have been pruned (which would result in degenerate/corrupt daily extremes).
+        val cutoffDate = today.minusDays(9)
         var current = startDate
         while (!current.isAfter(endDateInclusive)) {
-            recomputeDailyExtremesForDay(latitude, longitude, current, hourlyForecasts)
+            if (!current.isBefore(cutoffDate)) {
+                recomputeDailyExtremesForDay(latitude, longitude, current, hourlyForecasts)
+            } else {
+                Log.d(TAG, "recomputeDailyExtremesFromStoredObservations: skipping pruned date $current")
+            }
             current = current.plusDays(1)
         }
     }

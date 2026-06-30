@@ -499,7 +499,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
      */
     private suspend fun backfillDailyExtremesIfNeeded(lat: Double, lon: Double) {
         val endDate = LocalDate.now()
-        val startDate = endDate.minusDays(30)
+        val startDate = endDate.minusDays(2)
         val startEpoch = startDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endEpoch = endDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startDate, endDate, emptyList())
