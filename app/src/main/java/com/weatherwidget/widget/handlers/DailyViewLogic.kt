@@ -459,7 +459,7 @@ object DailyViewLogic {
                     displaySource = displaySource,
                     weatherSourceId = weather?.source,
                 )
-            val cloudCoverPercent = cloudCoverRatioOverride?.let { (it * 100).toInt() }
+            val cloudCoverPercent = (cloudCoverRatioOverride * 100).toInt()
 
             val iconRes =
                 when {
@@ -570,7 +570,7 @@ object DailyViewLogic {
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
         weatherSourceId: String?,
-    ): Float? {
+    ): Float {
         // Delegate to the shared single source of truth (source-filtered, GENERIC_GAP-aware) so
         // Android and desktop compute the day's noon cloud cover identically.
         val mapped = hourlyForecasts.map {

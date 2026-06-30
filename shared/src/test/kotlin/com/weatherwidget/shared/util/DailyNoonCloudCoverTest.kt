@@ -3,7 +3,6 @@ package com.weatherwidget.shared.util
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,14 +34,13 @@ class DailyNoonCloudCoverTest {
     }
 
     @Test
-    fun neverBorrowsAnotherSourceWhenDisplayedSourceHasNoData() {
-        // Only OPEN_METEO has a noon reading; an NWS view must NOT fall back to it.
+    fun assumesZeroWhenDisplayedSourceHasNoNoonData() {
         val hourly = listOf(hour(12, 80, "OPEN_METEO"))
-        assertNull(resolve(hourly, "NWS"))
+        assertEquals(0, resolve(hourly, "NWS"))
     }
 
     @Test
-    fun picksTheReadingClosestToNoon() {
+    fun usesExactNoonReadingNotNearestHour() {
         val hourly = listOf(
             hour(10, 90, "NWS"),
             hour(12, 22, "NWS"),
@@ -52,21 +50,36 @@ class DailyNoonCloudCoverTest {
     }
 
     @Test
+    fun assumesZeroWhenNoonIsAbsentEvenIfOtherHoursExist() {
+        val hourly = listOf(
+            hour(7, 69, "NWS"),
+            hour(11, 65, "NWS"),
+            hour(13, 25, "NWS"),
+        )
+        assertEquals(0, resolve(hourly, "NWS"))
+    }
+
+    @Test
+    fun assumesZeroWhenNoonRowHasNullCloudCover() {
+        val hourly = listOf(hour(12, null, "NWS"))
+        assertEquals(0, resolve(hourly, "NWS"))
+    }
+
+    @Test
     fun genericGapRowUsesGenericHourly() {
         val hourly = listOf(
             hour(12, 50, "NWS"),
             hour(12, 35, WeatherSource.GENERIC_GAP.id),
         )
-        // A climate-normal (GENERIC_GAP) day reads the Generic hourly, not the displayed source's.
         assertEquals(35, resolve(hourly, "NWS", rowSource = WeatherSource.GENERIC_GAP.id))
     }
 
     @Test
-    fun ignoresOtherDates() {
+    fun assumesZeroForOtherDates() {
         val otherDay = date.plusDays(1).atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
         val hourly = listOf(
             HourlyForecast(otherDay, 70f, "Sunny", cloudCover = 99, source = "NWS"),
         )
-        assertNull(resolve(hourly, "NWS"))
+        assertEquals(0, resolve(hourly, "NWS"))
     }
 }

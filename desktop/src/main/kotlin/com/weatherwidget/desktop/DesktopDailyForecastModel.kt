@@ -308,7 +308,7 @@ object DesktopDailyForecastModel {
             iconName = gatedIconName,
             isToday = isToday,
             isPast = isPast,
-            cloudCoverRatio = noonCloudPercent?.div(100f),
+            cloudCoverRatio = noonCloudPercent / 100f,
             dailyRainLabelText = dailyRainLabelText,
             nightRainLabelText = nightRainLabelText,
             isClimateNormal = forecast?.isClimateNormal == true,

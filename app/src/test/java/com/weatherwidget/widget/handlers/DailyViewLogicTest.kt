@@ -1269,7 +1269,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `prepareGraphDays uses closest source scoped cloud cover when noon is absent`() {
+    fun `prepareGraphDays assumes zero cloud cover when noon is absent`() {
         val now = LocalDateTime.of(2030, 6, 15, 9, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(1)
@@ -1299,7 +1299,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals(0.65f, futureDay.cloudCoverRatioOverride)
+        assertEquals(0f, futureDay.cloudCoverRatioOverride)
     }
 
     @Test
