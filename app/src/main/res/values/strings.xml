@@ -180,9 +180,9 @@
     <string name="bug_report_error_empty_description">Please write a brief description of the issue before sending.</string>
     <string name="bug_report_collecting_diagnostics">Collecting diagnostic data...</string>
     <string name="view_icon_gallery">View Icon Gallery</string>
-    <!-- Transient widget message shown when a day is tapped but the active source has no hourly
-         data for it. Framed as the refresh result. %1$s = tapped day (e.g. "Tue Jul 7"); %2$s =
-         where that source's hourly data ends (e.g. "Mon Jul 6 at 3 PM"). -->
-    <string name="widget_no_hourly_refresh_none">Results of refresh:\nData missing for %1$s, refresh triggered, data ends %2$s</string>
-    <string name="widget_no_hourly_refresh_none_unknown">Results of refresh:\nData missing for %1$s, refresh triggered</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">Hourly temperature data missing for %1$s. A refresh will be triggered.</string>
+    <string name="widget_no_hourly_result_still_missing">Result of refresh: No new hourly temperature data was able to be retrieved for %1$s. Data ends %2$s</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">Result of refresh: No new hourly temperature data was able to be retrieved for %1$s.</string>
+    <string name="widget_no_hourly_result_available">Results of refresh:\nHourly data now available for %1$s</string>
 </resources>

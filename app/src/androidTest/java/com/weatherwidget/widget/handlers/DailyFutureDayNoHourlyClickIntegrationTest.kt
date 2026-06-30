@@ -119,8 +119,16 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
         val message = waitForTransientMessage()
         assertNotNull("A transient message should be displayed for the missing-hourly day", message)
         assertTrue(
-            "Message should explain there is no hourly forecast: $message",
-            message!!.contains("Data missing", ignoreCase = true),
+            "Message should explain data is missing and a refresh will run: $message",
+            message!!.contains("Hourly temperature data missing", ignoreCase = true),
+        )
+        assertTrue(
+            "Phase 1 should be pending, not a refresh result: $message",
+            message.contains("refresh will be triggered", ignoreCase = true),
+        )
+        assertTrue(
+            "Phase 1 should not yet show refresh results: $message",
+            !message.contains("Result of refresh"),
         )
 
         // AND: Settings was NOT opened (the core regression).

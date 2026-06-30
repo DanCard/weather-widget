@@ -10,6 +10,7 @@ object WidgetActions {
     const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
     const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
     const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
+    const val ACTION_NO_HOURLY_REFRESH_COMPLETE = "com.weatherwidget.ACTION_NO_HOURLY_REFRESH_COMPLETE"
     const val ACTION_SHOW_TOAST = "com.weatherwidget.ACTION_SHOW_TOAST"
     const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
     const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"

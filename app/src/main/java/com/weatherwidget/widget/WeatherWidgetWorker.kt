@@ -59,6 +59,14 @@ class WeatherWidgetWorker
             val backfillHours = inputData.getLong(KEY_OBSERVATION_BACKFILL_HOURS, DEFAULT_OBSERVATION_BACKFILL_HOURS)
             val backfillReason = inputData.getString(KEY_OBSERVATION_BACKFILL_REASON) ?: "unspecified"
             val forecastDays = inputData.getInt(KEY_FORECAST_DAYS, ForecastHorizon.BASELINE_DAYS)
+            val noHourlyWidgetId = inputData.getInt(KEY_NO_HOURLY_WIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+            val noHourlyDate = inputData.getString(KEY_NO_HOURLY_DATE)
+            val noHourlyLat = inputData.getDouble(KEY_NO_HOURLY_LAT, 0.0)
+            val noHourlyLon = inputData.getDouble(KEY_NO_HOURLY_LON, 0.0)
+            val shouldBroadcastNoHourlyComplete =
+                !uiOnlyRefresh &&
+                    noHourlyWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID &&
+                    !noHourlyDate.isNullOrBlank()
 
             val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
@@ -114,7 +122,7 @@ class WeatherWidgetWorker
 
 
 
-            return try {
+            try {
                 val startMs = SystemClock.elapsedRealtime()
 
                 // Build per-source fetch context up front so the repository can decide which
@@ -160,7 +168,7 @@ class WeatherWidgetWorker
                         forecastDays = forecastDays,
                     )
 
-                result.fold(
+                return result.fold(
                     onSuccess = { weatherList ->
                         val afterWeatherMs = SystemClock.elapsedRealtime()
                         Log.d(TAG, "doWork: Got ${weatherList.size} weather entries")
@@ -236,8 +244,35 @@ class WeatherWidgetWorker
                 throw e
             } catch (e: Exception) {
                 appLogDao.logException("SYNC_EXCEPTION", "Synchronization failed", e)
-                Result.retry()
+                return Result.retry()
+            } finally {
+                if (shouldBroadcastNoHourlyComplete) {
+                    broadcastNoHourlyRefreshComplete(
+                        widgetId = noHourlyWidgetId,
+                        dateStr = noHourlyDate!!,
+                        lat = noHourlyLat,
+                        lon = noHourlyLon,
+                    )
+                }
             }
+        }
+
+        private fun broadcastNoHourlyRefreshComplete(
+            widgetId: Int,
+            dateStr: String,
+            lat: Double,
+            lon: Double,
+        ) {
+            val completeIntent =
+                Intent(context, WeatherWidgetProvider::class.java).apply {
+                    action = WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                    putExtra("date", dateStr)
+                    putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, lat)
+                    putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LON, lon)
+                }
+            context.sendBroadcast(completeIntent)
+            Log.d(TAG, "broadcastNoHourlyRefreshComplete: widget=$widgetId date=$dateStr")
         }
 
         private suspend fun fetchForecastSnapshots(
@@ -704,6 +739,10 @@ class WeatherWidgetWorker
             const val KEY_BACKFILL_LAT = "backfill_lat"
             const val KEY_BACKFILL_LON = "backfill_lon"
             const val KEY_FORECAST_DAYS = "forecast_days"
+            const val KEY_NO_HOURLY_WIDGET_ID = "no_hourly_widget_id"
+            const val KEY_NO_HOURLY_DATE = "no_hourly_date"
+            const val KEY_NO_HOURLY_LAT = "no_hourly_lat"
+            const val KEY_NO_HOURLY_LON = "no_hourly_lon"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
         }
     }
