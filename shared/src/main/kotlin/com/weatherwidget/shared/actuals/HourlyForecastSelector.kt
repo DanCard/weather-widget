@@ -45,11 +45,7 @@ object HourlyForecastSelector {
     ): Map<Long, HourlyForecast> =
         rows.groupBy { it.dateTime }
             .mapNotNull { (dateTime, hourRows) ->
-                val sourceFiltered = when {
-                    hourRows.any { it.source == displaySourceId } -> hourRows.filter { it.source == displaySourceId }
-                    hourRows.any { it.source == GENERIC_GAP_SOURCE } -> hourRows.filter { it.source == GENERIC_GAP_SOURCE }
-                    else -> hourRows
-                }
+                val sourceFiltered = hourRows.filter { it.source == displaySourceId }
                 // Restrict to the user's actual site. A row with null coords (a consumer that didn't
                 // populate them) is kept rather than silently dropped.
                 val sameSite = sourceFiltered.filter { row ->

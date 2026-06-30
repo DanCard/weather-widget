@@ -39,8 +39,6 @@ internal object HourlyGraphViewCommon {
         val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
             .mapValues { entry ->
                 entry.value.find { it.source == displaySource.id }
-                    ?: entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                    ?: entry.value.firstOrNull()
             }
 
         val timeOffsets = when {

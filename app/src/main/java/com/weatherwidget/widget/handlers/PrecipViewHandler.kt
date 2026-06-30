@@ -333,6 +333,31 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             )
             buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
             graphHoursCount = hours.size
+
+            val (startHour, endHour) = computePrecipGraphWindow(centerTime, zoom)
+            val totalWindowHours = java.time.temporal.ChronoUnit.HOURS.between(startHour, endHour).toInt() + 1
+            val missingHours = (totalWindowHours - hours.size).coerceAtLeast(0)
+            if (missingHours > 0) {
+                appLogDao.log(
+                    "PRECIP_COVER_GAPS",
+                    "widget=$appWidgetId source=${displaySource.id} missing=$missingHours total=$totalWindowHours",
+                )
+                val cooldownMs = 15 * 60 * 1000L
+                if (stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)) {
+                    stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "hourly_gaps")
+                    appLogDao.log(
+                        "PRECIP_GAPS_REFRESH",
+                        "widget=$appWidgetId source=${displaySource.id} missing=$missingHours, requesting immediate API update",
+                        "INFO"
+                    )
+                    WeatherWidgetProvider.triggerImmediateUpdate(
+                        context = context,
+                        forceRefresh = true,
+                        reason = "hourly_gaps"
+                    )
+                }
+            }
+
             if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
                 Log.w(TAG, "buildPrecipHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
                     "centerTime=$centerTime zoom=$zoom offset=$hourlyOffset, skipping bitmap update")
@@ -452,13 +477,10 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
-        // Group by dateTime and prefer the selected source
         val forecastsByTime =
             hourlyForecasts.groupBy { it.dateTime }
                 .mapValues { entry ->
-                    val preferred = entry.value.find { it.source == displaySource.id }
-                    val gap = entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                    preferred ?: gap ?: entry.value.firstOrNull()
+                    entry.value.find { it.source == displaySource.id }
                 }
 
         val (startHour, endHour) = computePrecipGraphWindow(centerTime, zoom)

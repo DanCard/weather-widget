@@ -387,6 +387,20 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                         "missing=$missingHours total=$totalWindowHours " +
                         "ranges=${missingDescription ?: "-"} reason=${missingReason ?: "-"}",
                 )
+                val cooldownMs = 15 * 60 * 1000L
+                if (stateManager.shouldRefreshMissingData(appWidgetId, effectiveDisplaySource.id, "hourly_gaps", cooldownMs)) {
+                    stateManager.markMissingDataRefreshRequested(appWidgetId, effectiveDisplaySource.id, "hourly_gaps")
+                    appLogDao.log(
+                        "CLOUD_COVER_GAPS_REFRESH",
+                        "widget=$appWidgetId source=${effectiveDisplaySource.id} missing=$missingHours, requesting immediate API update",
+                        "INFO"
+                    )
+                    WeatherWidgetProvider.triggerImmediateUpdate(
+                        context = context,
+                        forceRefresh = true,
+                        reason = "hourly_gaps"
+                    )
+                }
             }
 
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
@@ -492,9 +506,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
         val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
             .mapValues { entry ->
-                val preferred = entry.value.find { it.source == displaySource.id }
-                val gap = entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                preferred ?: gap ?: entry.value.firstOrNull()
+                entry.value.find { it.source == displaySource.id }
             }
 
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)

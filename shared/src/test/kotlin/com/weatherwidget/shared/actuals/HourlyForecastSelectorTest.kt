@@ -63,10 +63,11 @@ class HourlyForecastSelectorTest {
     }
 
     @Test
-    fun `falls back to GENERIC_GAP when display source absent`() {
+    fun `does not fall back to GENERIC_GAP when display source absent`() {
         val hour = 1_000L
         val rows = listOf(fc(hour, 60f, source = "Generic", fetchedAt = 1_000L))
-        assertEquals(60f, select(rows, source = "NWS").getValue(hour).temperature, 0f)
+        val result = select(rows, source = "NWS")
+        org.junit.Assert.assertNull(result[hour])
     }
 
     @Test

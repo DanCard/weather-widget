@@ -424,6 +424,38 @@ internal object TemperatureStateResolver {
         val buildHourDataMs = System.currentTimeMillis() - buildHourDataStartMs
         val actualCount = hourData.count { it.isActual }
 
+        val zoneId = ZoneId.systemDefault()
+        val startHour = alignedCenter.minusHours(zoom.backHours)
+        val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        var missingCount = 0
+        var current = startHour
+        val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
+        while (current.isBefore(endHour) || current.isEqual(endHour)) {
+            val hourMs = current.atZone(zoneId).toInstant().toEpochMilli()
+            val forecast = forecastsByTime[hourMs]
+            if (forecast == null || forecast.source != displaySource.id) {
+                missingCount++
+            }
+            current = current.plusHours(1)
+        }
+
+        if (missingCount > 0) {
+            val cooldownMs = 15 * 60 * 1000L
+            if (stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)) {
+                stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "hourly_gaps")
+                database.appLogDao().log(
+                    "TEMP_GAPS_REFRESH",
+                    "widget=$appWidgetId source=${displaySource.id} missing=$missingCount, requesting immediate API update",
+                    "INFO"
+                )
+                WeatherWidgetProvider.triggerImmediateUpdate(
+                    context = context,
+                    forceRefresh = true,
+                    reason = "hourly_gaps"
+                )
+            }
+        }
+
         if (hourData.isEmpty() && hourlyForecasts.isNotEmpty()) {
             return GraphLoadOutcome.Empty("buildHourDataResult_empty")
         }

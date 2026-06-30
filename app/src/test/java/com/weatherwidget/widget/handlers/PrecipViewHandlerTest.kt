@@ -33,14 +33,12 @@ class PrecipViewHandlerTest {
             zoom = ZoomLevel.WIDE,
         )
 
-        // The fallback logic picks firstOrNull(), so it should NOT be empty here
-        // because the groupBy mapValues uses fallback. But if all data is outside
-        // the window, it will be empty.
-        // This test documents the actual behavior.
+        // The fallback logic is disabled, so it should be empty here
+        // because the target source has no data.
         assertTrue(
-            "result should be non-empty due to fallback (firstOrNull), " +
+            "result should be empty since fallback is disabled, " +
                 "actual size=${result.size}",
-            result.isNotEmpty(),
+            result.isEmpty(),
         )
     }
 
