@@ -23,8 +23,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.util.DailyRainLabels
+import com.weatherwidget.shared.util.DayClickResolver
+import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.WeatherConditionResolver
 import kotlin.math.roundToInt
+
+private const val TAG = "DailyForecastGraph"
 
 private val COLOR_FORECAST_SUNNY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_SUNNY)
 private val COLOR_FORECAST_CLOUDY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_CLOUDY)
@@ -42,7 +46,7 @@ fun DailyForecastGraph(
     state: DesktopDailyViewState,
     modifier: Modifier = Modifier,
     scale: Float = 1f,
-    onDayClick: (java.time.LocalDate) -> Unit = {},
+    onDayClick: (java.time.LocalDate, DayClickResolver.DayTapZone) -> Unit = { _, _ -> },
 ) {
     val textMeasurer = rememberTextMeasurer()
     val displayDays = state.days
@@ -53,11 +57,31 @@ fun DailyForecastGraph(
     if (displayDays.isEmpty()) return
 
     Canvas(
-        modifier = modifier.pointerInput(displayDays) {
+        modifier = modifier.pointerInput(displayDays, scale, textMeasurer) {
             detectTapGestures { offset ->
-                val dayWidth = size.width / displayDays.size
-                val index = (offset.x / dayWidth).toInt().coerceIn(0, displayDays.lastIndex)
-                onDayClick(displayDays[index].date)
+                val canvasW = size.width.toFloat()
+                val canvasH = size.height.toFloat()
+                val layout = computeDailyGraphTapLayout(
+                    days = displayDays,
+                    canvasWidth = canvasW,
+                    canvasHeight = canvasH,
+                    scale = scale,
+                    density = density,
+                    measureLowLabelHeight = { text, base ->
+                        textMeasurer.measure(text, TextStyle(fontSize = tempFontSize(text, base).sp)).size.height.toFloat()
+                    },
+                )
+                val index = (offset.x / layout.dayWidth).toInt().coerceIn(0, displayDays.lastIndex)
+                val zone = classifyDailyGraphTapZone(offset.x, offset.y, index, layout)
+                val day = displayDays[index]
+                Log.d(
+                    TAG,
+                    "dayClick date=${day.date} col=$index tap=(${offset.x.roundToInt()},${offset.y.roundToInt()}) " +
+                        "zone=$zone iconTop=${layout.iconTops.getOrNull(index)?.roundToInt()} " +
+                        "iconSize=${layout.iconSize.roundToInt()} strip=${layout.bottomStripHeightPx.roundToInt()} " +
+                        "iconName=${day.iconName}",
+                )
+                onDayClick(day.date, zone)
             }
         }
     ) {
@@ -536,6 +560,118 @@ private fun forecastColor(day: DesktopDailyDay): Color {
         flags.isSunny -> COLOR_FORECAST_SUNNY
         day.cloudCoverRatio != null && day.cloudCoverRatio < 0.6f -> COLOR_FORECAST_SUNNY
         else -> COLOR_FORECAST_CLOUDY
+    }
+}
+
+/** Layout inputs for daily-graph tap routing (icon bounds + bottom strip). */
+internal data class DailyGraphTapLayout(
+    val dayWidth: Float,
+    val iconSize: Float,
+    val iconTops: List<Float?>,
+    val bottomStripHeightPx: Float,
+    val canvasHeight: Float,
+)
+
+/**
+ * Bottom strip height for daily graph tap routing (icon + low label + day name), mirroring Android's
+ * `graph_bottom_day_zones` band.
+ */
+internal fun dailyGraphBottomStripHeightPx(
+    canvasWidth: Float,
+    dayCount: Int,
+    scale: Float,
+    density: Float,
+): Float {
+    val dayWidth = canvasWidth / dayCount.coerceAtLeast(1)
+    val iconSize = (30f * density * scale).coerceAtMost(dayWidth * 0.6f)
+    val lowLabelBand = 11f * scale * 1.4f + 4f * scale
+    val dayLabelBand = labelSizeFor(dayWidth).toFloat() * scale * 1.5f + 6f * scale
+    return lowLabelBand + iconSize + dayLabelBand + 6f * scale
+}
+
+/**
+ * Computes per-column weather-icon tops using the same geometry as the draw loop so taps on the
+ * rendered icon route to [DayClickResolver.DayTapZone.BOTTOM_ICON] even when the icon sits above
+ * the fixed bottom strip (tall bars / cold lows).
+ */
+internal fun computeDailyGraphTapLayout(
+    days: List<DesktopDailyDay>,
+    canvasWidth: Float,
+    canvasHeight: Float,
+    scale: Float,
+    density: Float,
+    measureLowLabelHeight: (text: String, baseSp: Float) -> Float = { _, base -> base * 1.4f },
+): DailyGraphTapLayout {
+    if (days.isEmpty()) {
+        return DailyGraphTapLayout(1f, 0f, emptyList(), 0f, canvasHeight)
+    }
+    val allTemps = days.flatMap {
+        listOfNotNull(
+            it.solidHigh,
+            it.solidLow,
+            it.forecastHigh,
+            it.forecastLow,
+            it.ghostHigh,
+            it.snapshotHigh,
+            it.snapshotLow,
+        )
+    }
+    val rawMin = allTemps.minOrNull() ?: 0f
+    val rawMax = allTemps.maxOrNull() ?: 100f
+    val rangePad = ((rawMax - rawMin) * 0.04f).coerceAtLeast(1f)
+    val minTemp = rawMin - rangePad
+    val maxTemp = rawMax + rangePad
+    val range = (maxTemp - minTemp).coerceAtLeast(1f)
+    val dayWidth = canvasWidth / days.size
+    val iconSize = (30f * density * scale).coerceAtMost(dayWidth * 0.6f)
+    val lowLabelBand = 11f * scale * 1.4f + 4f * scale
+    val dayLabelBand = labelSizeFor(dayWidth).toFloat() * scale * 1.5f + 6f * scale
+    val top = 2f * scale
+    val bottomReserve = lowLabelBand + iconSize + dayLabelBand + 6f * scale
+    val bottom = (canvasHeight - bottomReserve).coerceAtLeast(canvasHeight * 0.4f)
+    val graphHeight = (bottom - top).coerceAtLeast(1f)
+
+    fun yAt(temp: Float): Float = top + graphHeight * (1f - (temp - minTemp) / range)
+
+    val iconTops = days.map { day ->
+        val lowForLabel = com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
+            isToday = day.isToday,
+            solidLow = day.solidLow,
+            forecastLow = listOfNotNull(day.forecastLow, day.snapshotLow).minOrNull(),
+            nowHour = day.nowHour,
+        ) ?: return@map null
+        val lowLabelText = formatTemp(lowForLabel)
+        val lowTextHeight = measureLowLabelHeight(lowLabelText, 11f * scale)
+        val anchorLow = com.weatherwidget.shared.util.DailyDayValueResolver.iconAnchorLow(
+            solidLow = day.solidLow,
+            forecastLow = day.forecastLow,
+            snapshotLow = day.snapshotLow,
+        ) ?: lowForLabel
+        val iconTopMax = canvasHeight - dayLabelBand - lowTextHeight - 2f * scale - iconSize - 2f * scale
+        (yAt(anchorLow) + 4f * scale).coerceAtMost(iconTopMax)
+    }
+    val bottomStripHeightPx = dailyGraphBottomStripHeightPx(canvasWidth, days.size, scale, density)
+    return DailyGraphTapLayout(dayWidth, iconSize, iconTops, bottomStripHeightPx, canvasHeight)
+}
+
+internal fun classifyDailyGraphTapZone(
+    tapX: Float,
+    tapY: Float,
+    columnIndex: Int,
+    layout: DailyGraphTapLayout,
+): DayClickResolver.DayTapZone {
+    val iconTop = layout.iconTops.getOrNull(columnIndex)
+    if (iconTop != null) {
+        val centerX = layout.dayWidth * columnIndex + layout.dayWidth / 2f
+        val half = layout.iconSize / 2f
+        if (tapX in (centerX - half)..(centerX + half) && tapY in iconTop..(iconTop + layout.iconSize)) {
+            return DayClickResolver.DayTapZone.BOTTOM_ICON
+        }
+    }
+    return if (tapY >= layout.canvasHeight - layout.bottomStripHeightPx) {
+        DayClickResolver.DayTapZone.BOTTOM_ICON
+    } else {
+        DayClickResolver.DayTapZone.MAIN_COLUMN
     }
 }
 

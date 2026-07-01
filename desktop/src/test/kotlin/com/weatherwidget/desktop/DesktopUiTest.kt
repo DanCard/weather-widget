@@ -17,7 +17,10 @@ import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.ZoomStage
+import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.WeatherConditionResolver
+import com.weatherwidget.shared.util.WeatherTimeUtils
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -499,30 +502,33 @@ class DesktopUiTest {
 
     @Test
     fun testDayClickOpensFullDayWindow() {
-        val clickedDate = java.time.LocalDate.now().plusDays(1)
-        // Empty day list -> targetView falls back to "HOURLY"; the zoom reset is independent of it.
-        val fromTightZoom = dayClickConfig(stubConfig.copy(zoomFactor = 0f), clickedDate, emptyList())
-        val fromWideZoom = dayClickConfig(stubConfig.copy(zoomFactor = 1f), clickedDate, emptyList())
+        val now = java.time.LocalDateTime.of(2024, 6, 15, 10, 45)
+        val clickedDate = java.time.LocalDate.of(2024, 6, 16)
+        val wideZoom = DesktopGraphUtils.zoomFactorForStage(ZoomStage.WIDE)
+        val fromTightZoom = dayClickConfig(
+            stubConfig.copy(zoomFactor = 0f),
+            clickedDate,
+            emptyList(),
+            DayClickResolver.DayTapZone.MAIN_COLUMN,
+            now,
+        )
+        val fromWideZoom = dayClickConfig(
+            stubConfig.copy(zoomFactor = 1f),
+            clickedDate,
+            emptyList(),
+            DayClickResolver.DayTapZone.MAIN_COLUMN,
+            now,
+        )
 
-        // Prior zoom is ignored: both extremes snap to the day-view zoom (back + forward ≈ 24h).
-        assertEquals(DesktopGraphUtils.dayViewZoomFactor, fromTightZoom.zoomFactor)
-        assertEquals(DesktopGraphUtils.dayViewZoomFactor, fromWideZoom.zoomFactor)
+        assertEquals(wideZoom, fromTightZoom.zoomFactor)
+        assertEquals(wideZoom, fromWideZoom.zoomFactor)
         assertEquals(ViewMode.HOURLY, fromTightZoom.viewMode)
 
-        // The resulting window brackets the clicked day midnight→midnight. The window is
-        // [center - backHours, center + forwardHours] where center = now + hourlyOffset; reconstruct
-        // it and assert its left edge lands on the clicked day's midnight (within the ±1h rounding of
-        // a whole-hour offset) and it spans ~24h.
-        val zoom = DesktopGraphUtils.dayViewZoomFactor
-        val backHours = DesktopGraphUtils.backHoursFor(zoom)
-        val forwardHours = DesktopGraphUtils.forwardHoursFor(zoom)
-        val center = java.time.LocalDateTime.now().plusHours(fromTightZoom.hourlyOffset.toLong())
-        val windowStart = center.minusHours(backHours.toLong())
-        val expectedMidnight = clickedDate.atStartOfDay()
-        val startDriftHours =
-            java.time.Duration.between(expectedMidnight, windowStart).toMinutes() / 60.0
-        assertEquals(0.0, startDriftHours, 1.0)
-        assertEquals(DesktopGraphUtils.DAY_VIEW_SPAN_HOURS, backHours + forwardHours)
+        val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(
+            now.plusHours(fromTightZoom.hourlyOffset.toLong()),
+        )
+        assertEquals(clickedDate.atStartOfDay(), alignedCenter.minusHours(ZoomStage.WIDE.backHours))
+        assertEquals(clickedDate.plusDays(1).atStartOfDay(), alignedCenter.plusHours(ZoomStage.WIDE.forwardHours))
     }
 
     /** Minimal [DesktopDailyDay] for routing tests; only icon + precip carry the decision. */
@@ -564,26 +570,46 @@ class DesktopUiTest {
         val date = java.time.LocalDate.now()
         val rain = WeatherConditionResolver.IC_RAIN
         val cloudy = WeatherConditionResolver.IC_CLOUDY
+        val main = DayClickResolver.DayTapZone.MAIN_COLUMN
+        val bottom = DayClickResolver.DayTapZone.BOTTOM_ICON
 
-        // Rainy day clearing the 16% threshold -> precipitation graph.
         assertEquals(
             ViewMode.PRECIPITATION,
-            dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = 16))).viewMode,
+            dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = 16)), main).viewMode,
         )
-        // Rainy day below the threshold -> hourly temperature graph.
         assertEquals(
             ViewMode.HOURLY,
-            dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = 15))).viewMode,
+            dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = 15)), main).viewMode,
         )
-        // Cloudy day -> hourly (no cloud-cover routing on a daily tap), matching Android.
         assertEquals(
             ViewMode.HOURLY,
-            dayClickConfig(stubConfig, date, listOf(routingDay(date, cloudy, forecastPrecip = 90))).viewMode,
+            dayClickConfig(stubConfig, date, listOf(routingDay(date, cloudy, forecastPrecip = 90)), main).viewMode,
         )
-        // Snapshot precip is used when the forecast lacks it.
         assertEquals(
             ViewMode.PRECIPITATION,
-            dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = null, snapshotPrecip = 40))).viewMode,
+            dayClickConfig(
+                stubConfig,
+                date,
+                listOf(routingDay(date, rain, forecastPrecip = null, snapshotPrecip = 40)),
+                main,
+            ).viewMode,
         )
+        assertEquals(
+            ViewMode.CLOUD_COVER,
+            dayClickConfig(stubConfig, date, listOf(routingDay(date, cloudy, forecastPrecip = 0)), bottom).viewMode,
+        )
+    }
+
+    @Test
+    fun testDayClickPreservesZoomWhenNotEnteringFromDaily() {
+        val date = java.time.LocalDate.now()
+        val hourlyConfig = stubConfig.copy(viewMode = ViewMode.HOURLY, zoomFactor = 0.55f)
+        val result = dayClickConfig(
+            hourlyConfig,
+            date,
+            listOf(routingDay(date, WeatherConditionResolver.IC_CLEAR, forecastPrecip = 0)),
+            DayClickResolver.DayTapZone.MAIN_COLUMN,
+        )
+        assertEquals(0.55f, result.zoomFactor)
     }
 }

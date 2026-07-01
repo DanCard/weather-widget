@@ -1,125 +1,63 @@
 package com.weatherwidget.widget.handlers
 
-import com.weatherwidget.shared.util.WeatherConditionResolver
+import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
+import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.ViewMode
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
-import com.weatherwidget.util.WeatherTimeUtils
 
 /**
  * Pure decision logic for day-click behavior, extracted for testability.
  *
- * Daily and hourly icon taps share the same icon-home routing:
- * - Rain/storm/snow -> precipitation graph
- * - Cloud/mixed/mostly clear -> cloud cover graph
- * - Otherwise -> temperature graph
- *
- * Legacy rain heuristics remain for display decisions only.
+ * Routing and offset math delegate to [DayClickResolver] in `:shared`.
  */
 object DayClickHelper {
 
-    /**
-     * Determines whether a day has any rain forecast, considering both hourly
-     * analysis and daily precipitation probability.
-     *
-     * @param rainSummary the RainAnalyzer summary (non-null when rain is starting after a dry gap)
-     * @param dailyPrecipProbability the daily precipitation probability from ForecastEntity
-     * @return true if any rain indication exists above the display threshold
-     */
     fun hasRainForecast(rainSummary: String?, dailyPrecipProbability: Int?): Boolean {
-        // Use 8% as the threshold for daily precipitation to avoid showing "boring"
-        // flat rain graphs when the probability is low.
-        // If RainAnalyzer detected a specific start time (rainSummary), always prioritize that.
         return !rainSummary.isNullOrEmpty() || (dailyPrecipProbability != null && dailyPrecipProbability > 8)
     }
 
-    /**
-     * Past-day taps now open the temperature hourly graph rather than the forecast-history
-     * comparison activity, so the value the user saw at end-of-day is visible on the curve
-     * (instead of a daily_extreme number that can ratchet upward post-hoc).
-     */
     fun shouldShowHistory(@Suppress("UNUSED_PARAMETER") isPastDay: Boolean): Boolean = false
 
-    fun resolveDailyTargetViewMode(iconRes: Int?, precipProbability: Int?): ViewMode {
-        if (iconRes == null) return ViewMode.TEMPERATURE
-        return if (WeatherConditionResolver.shouldDailyClickShowPrecip(
-                WeatherIconMapper.isRainIndicator(iconRes),
+    fun resolveDailyTargetViewMode(iconRes: Int?, precipProbability: Int?): ViewMode =
+        mapDayClickView(
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.MAIN_COLUMN,
+                iconRes?.let(WeatherIconMapper::iconResToName),
                 precipProbability,
-            )
-        ) {
-            ViewMode.PRECIPITATION
-        } else {
-            ViewMode.TEMPERATURE
-        }
+            ),
+        )
+
+    fun resolveBottomRowTargetViewMode(iconRes: Int?): ViewMode =
+        mapDayClickView(
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.BOTTOM_ICON,
+                iconRes?.let(WeatherIconMapper::iconResToName),
+                precipProbability = null,
+            ),
+        )
+
+    private fun mapDayClickView(view: DayClickResolver.DayClickView): ViewMode = when (view) {
+        DayClickResolver.DayClickView.PRECIPITATION -> ViewMode.PRECIPITATION
+        DayClickResolver.DayClickView.CLOUD_COVER -> ViewMode.CLOUD_COVER
+        DayClickResolver.DayClickView.TEMPERATURE -> ViewMode.TEMPERATURE
     }
 
-    fun resolveBottomRowTargetViewMode(iconRes: Int?): ViewMode = iconRes?.let(::resolveIconHome) ?: ViewMode.TEMPERATURE
-
-    private fun resolveIconHome(iconRes: Int): ViewMode {
-        return when {
-            WeatherIconMapper.isRainIndicator(iconRes) -> ViewMode.PRECIPITATION
-            WeatherIconMapper.isCloudForecastEligible(iconRes) -> ViewMode.CLOUD_COVER
-            else -> ViewMode.TEMPERATURE
-        }
-    }
-
-    /**
-     * Resolves the action for tapping a bottom-row icon on an hourly graph.
-     *
-     * Each icon type has a "home" graph:
-     * - Rain/storm/snow → Precipitation
-     * - Cloud/mostly-clear → Cloud Cover
-     * - Clear/sunny/other → Temperature
-     *
-     * If already on the icon's home graph, returns null (caller should zoom).
-     * Otherwise returns the target ViewMode to navigate to.
-     */
     fun resolveHourlyBottomRowAction(
         iconRes: Int?,
         currentView: ViewMode,
     ): ViewMode? {
         if (iconRes == null) return null
-        val iconHome = resolveIconHome(iconRes)
+        val iconHome = resolveBottomRowTargetViewMode(iconRes)
         return if (iconHome == currentView) null else iconHome
     }
 
-    /**
-     * Calculates the hourly offset for centering the hourly graphs on a target day.
-     *
-     * For TODAY:
-     * Returns 0 to center the graph on the current hour.
-     *
-     * For FUTURE days:
-     * Returns the offset required to center the graph on noon of the target day.
-     *
-     * @param now the current date-time (will be truncated to the hour)
-     * @param targetDay the day being clicked
-     * @return hours between the current hour and the target center point
-     */
-    fun calculatePrecipitationOffset(now: LocalDateTime, targetDay: LocalDate): Int {
-        val today = now.toLocalDate()
-        if (targetDay == today) {
-            return 0
-        }
+    fun calculatePrecipitationOffset(now: LocalDateTime, targetDay: LocalDate): Int =
+        DayClickResolver.calculateHourlyOffset(now, targetDay)
 
-        val alignedNow = WeatherTimeUtils.alignToNearestHourHalfUp(now)
-        val targetCenter = targetDay.atTime(12, 0)
-        return Duration.between(alignedNow, targetCenter).toHours().toInt()
-    }
-
-    /**
-     * Hours from `now` to the midpoint of the target day's night, where night
-     * spans sunset of the target day to sunrise of the next day. Used to center
-     * the precipitation graph on a tapped night rain label.
-     *
-     * Polar regions (sunsetHour >= 24 or sunriseHour <= 0) collapse to the
-     * arithmetic midpoint of whatever sunrise/sunset values were returned —
-     * acceptable degradation for the widget's audience.
-     */
     fun calculateNightCenterOffset(
         now: LocalDateTime,
         targetDay: LocalDate,

@@ -162,15 +162,25 @@ app/src/main/java/com/weatherwidget/
 - Handle network errors gracefully with try-catch
 - Log API calls via `ApiLogger`
 
-## Evidence-First Debug Protocol
-For bug reports, regressions, "why is this happening?" analysis, and data mismatch investigations:
+## Evidence-First Protocol
+Applies to **all** agent work: bug reports, regressions, "why is this happening?" analysis, data
+mismatches, feature implementation, layout/rendering changes, behavior explanations, and any
+situations where the agent might assume or infer state instead of observing it.
 
 ### Hard Gate Rules
+- **Don't guess — verify.** Never assume what the runtime state is, what a widget is displaying,
+  what an API returned, or what code path executed. Check with logs, screenshots, `adb`, database
+  queries, or add targeted logging first.
 - Do not guess at root cause.
 - Do not propose or implement a fix until evidence is collected.
 - If database and logs are not accessible, stop and ask for the exact missing command/data needed.
-- For live widget questions about what icon/value/layout is currently showing on emulator/device, verify with runtime evidence first via adb.
-If logcat is missing considering adding logging and or asking user to reproduce.  A screenshot and analyzing it might be helpful.
+- For live widget questions about what icon/value/layout is currently showing on emulator/device,
+  verify with runtime evidence first via adb (screenshot, logcat, database dump).
+- If logcat is missing, consider adding logging and/or asking the user to reproduce. A screenshot
+  and analyzing it is often the fastest path to truth.
+- When implementing features or making changes that affect runtime behavior, verify the result on
+  device/emulator before declaring the work done — don't assume the code works because it looks
+  correct.
 
 ## Testing Guidelines
 

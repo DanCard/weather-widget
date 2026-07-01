@@ -36,6 +36,7 @@ import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.graph.ZoomStage
+import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.NoHourlyChecker
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.Log
@@ -79,46 +80,30 @@ private const val MIN_HOURLY_OFFSET = -720
 private const val MAX_HOURLY_OFFSET = 720
 
 /**
- * Whole-hour offset from now to the center of a full-day hourly window for [clickedDate]. The hourly
- * graphs render a window of `[center - backHours, center + forwardHours]` around `now + hourlyOffset`.
- * Anchoring `center = startOfDay + backHours` (with the day-view zoom whose back+forward ≈ 24h) makes
- * the window's left edge land on the day's midnight, so it frames the clicked day midnight→midnight.
- * Rounded to the nearest hour (not truncated) so the temperature graph's hour-alignment lands on the
- * intended center regardless of the current minute-of-hour.
- */
-private fun offsetToDayCenter(clickedDate: LocalDate, backHours: Int): Int {
-    val center = clickedDate.atStartOfDay().plusHours(backHours.toLong())
-    val minutes = java.time.Duration.between(LocalDateTime.now(), center).toMinutes()
-    return Math.round(minutes / 60.0).toInt()
-}
-
-/**
- * Config for opening the hourly view focused on [clickedDate]: frames the clicked day as a full
- * 24-hour window (midnight→midnight) by selecting the day-view zoom and anchoring the center so the
- * window's left edge is the day's midnight. Deliberately ignores whatever zoom the hourly graph was
- * last left at, so a clicked day always opens at a consistent full-day framing.
+ * Config for opening the hourly view focused on [clickedDate], matching Android day-click behavior:
+ * shared [DayClickResolver] routing/offset and [ZoomStage.WIDE] when entering from daily view.
  */
 internal fun dayClickConfig(
     config: DesktopConfig,
     clickedDate: LocalDate,
     days: List<DesktopDailyDay>,
+    zone: DayClickResolver.DayTapZone = DayClickResolver.DayTapZone.MAIN_COLUMN,
+    now: LocalDateTime = LocalDateTime.now(),
 ): DesktopConfig {
-    val zoom = DesktopGraphUtils.dayViewZoomFactor
-    val hours = offsetToDayCenter(clickedDate, DesktopGraphUtils.backHoursFor(zoom))
-    // Daily-tap routing matches Android (DayClickHelper.resolveDailyTargetViewMode): precipitation
-    // graph only when the day reads as rain AND its daily precip probability clears the threshold;
-    // otherwise the hourly temperature graph. A daily tap never routes to cloud cover. Gate on the
-    // same precip the displayed icon used (forecast, snapshot fallback).
     val clickedDay = days.find { it.date == clickedDate }
     val precipProb = clickedDay?.forecast?.precipProbability ?: clickedDay?.snapshot?.precipProbability
-    val targetView = when (WeatherConditionResolver.resolveDailyClickHome(clickedDay?.iconName, precipProb)) {
-        WeatherConditionResolver.IconHome.PRECIPITATION -> ViewMode.PRECIPITATION
-        else -> ViewMode.HOURLY
+    val targetView = when (
+        DayClickResolver.resolveView(zone, clickedDay?.iconName, precipProb)
+    ) {
+        DayClickResolver.DayClickView.PRECIPITATION -> ViewMode.PRECIPITATION
+        DayClickResolver.DayClickView.CLOUD_COVER -> ViewMode.CLOUD_COVER
+        DayClickResolver.DayClickView.TEMPERATURE -> ViewMode.HOURLY
     }
+    val wideZoom = DesktopGraphUtils.zoomFactorForStage(ZoomStage.WIDE)
     return config.copy(
         viewMode = targetView,
-        hourlyOffset = hours,
-        zoomFactor = zoom,
+        hourlyOffset = DayClickResolver.calculateHourlyOffset(now, clickedDate),
+        zoomFactor = if (config.viewMode == ViewMode.DAILY) wideZoom else config.zoomFactor,
     )
 }
 
@@ -723,6 +708,10 @@ private fun runApp() = application {
                     onNeedHistory = onNeedHistory,
                     onNeedForecastExtension = onNeedForecastExtension,
                     onNeedHourlyRefresh = onNeedHourlyRefresh,
+                    onDayClickAudit = { message ->
+                        Log.d("CLICK_DAILY", message)
+                        weatherDao.log("CLICK_DAILY", message, "DEBUG")
+                    },
                     historyFetchToast = historyFetchToast,
                     currentTempFetchError = currentTempFetchError,
                     onDismissCurrentTempError = {
@@ -758,6 +747,7 @@ internal fun WidgetPopup(
     onNeedHistory: (Int) -> Unit = {},
     onNeedForecastExtension: (Int) -> Unit = {},
     onNeedHourlyRefresh: (days: Int, onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _, _ -> },
+    onDayClickAudit: (String) -> Unit = {},
     historyFetchToast: String? = null,
     currentTempFetchError: String? = null,
     onDismissCurrentTempError: () -> Unit = {},
@@ -1072,11 +1062,24 @@ internal fun WidgetPopup(
                                 }
                             }
 
-                            val handleDayClick: (LocalDate) -> Unit = { clickedDate ->
+                            val handleDayClick: (LocalDate, DayClickResolver.DayTapZone) -> Unit = { clickedDate, zone ->
                                 val visibleSourceIds = config.visibleSources.toSet()
+                                val clickedDay = dailyState.days.find { it.date == clickedDate }
+                                val precipProb = clickedDay?.forecast?.precipProbability
+                                    ?: clickedDay?.snapshot?.precipProbability
+                                val targetView = DayClickResolver.resolveView(zone, clickedDay?.iconName, precipProb)
+                                val newOffset = DayClickResolver.calculateHourlyOffset(LocalDateTime.now(), clickedDate)
+                                val clickSource = when (zone) {
+                                    DayClickResolver.DayTapZone.MAIN_COLUMN -> "graph_day"
+                                    DayClickResolver.DayTapZone.BOTTOM_ICON -> "graph_bottom_day"
+                                }
+                                onDayClickAudit(
+                                    "date=$clickedDate zone=$zone targetView=$targetView offset=$newOffset " +
+                                        "icon=${clickedDay?.iconName} precip=$precipProb clickSource=$clickSource",
+                                )
                                 if (NoHourlyChecker.hasHourlyForDay(snapshot.hourly, clickedDate, visibleSourceIds)) {
                                     noHourlyMessage = null
-                                    onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days))
+                                    onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days, zone))
                                 } else {
                                     // Two-phase flow mirroring Android: show a pending banner, trigger
                                     // a refresh for the tapped day, then replace it with a result banner
@@ -1384,7 +1387,7 @@ private fun WidgetHeader(
 private fun DailyForecastTextMode(
     state: DesktopDailyViewState,
     modifier: Modifier = Modifier,
-    onDayClick: (LocalDate) -> Unit = {},
+    onDayClick: (LocalDate, DayClickResolver.DayTapZone) -> Unit = { _, _ -> },
 ) {
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         state.days.forEach { day ->
@@ -1393,7 +1396,9 @@ private fun DailyForecastTextMode(
                     .weight(1f)
                     .fillMaxHeight()
                     .testTag("day_tab_${day.date}")
-                    .clickable { onDayClick(day.date) }
+                    .clickable {
+                        onDayClick(day.date, DayClickResolver.DayTapZone.MAIN_COLUMN)
+                    }
                     .padding(horizontal = 4.dp, vertical = 2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,

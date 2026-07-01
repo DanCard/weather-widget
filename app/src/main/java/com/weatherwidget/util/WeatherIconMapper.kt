@@ -83,8 +83,12 @@ object WeatherIconMapper {
         WeatherConditionResolver.IC_CLOUDY_SLIGHT_CHANCE_RAIN to R.drawable.ic_weather_cloudy_slight_chance_rain,
     )
 
+    private val RES_TO_NAME: Map<Int, String> = NAME_TO_RES.entries.associate { (name, res) -> res to name }
+
     private fun iconNameToRes(iconName: String): Int =
         NAME_TO_RES[iconName] ?: R.drawable.ic_weather_unknown
+
+    fun iconResToName(iconRes: Int): String? = RES_TO_NAME[iconRes]
 
     fun getIconResource(
         condition: String?,
