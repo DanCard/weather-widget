@@ -145,9 +145,9 @@ fun TemperatureGraph(
     val cutoff = window.endMs
 
     val points = remember(hourly, start, cutoff) {
-        hourly.filter { it.dateTime in start..cutoff }
+        hourly.filter { it.dateTime >= start && it.dateTime < cutoff }
             .sortedBy { it.dateTime }
-            .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
+            .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours) }
     }
 
     // One painter per point. Icon spacing is decided by the hour-label filter in the bottom strip

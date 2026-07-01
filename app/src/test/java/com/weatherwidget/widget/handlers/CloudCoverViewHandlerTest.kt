@@ -26,11 +26,11 @@ class CloudCoverViewHandlerTest {
     }
 
     @Test
-    fun `buildWindowHourKeys spans backHours through forwardHours inclusive`() {
+    fun `buildWindowHourKeys spans backHours through forwardHours`() {
         val center = LocalDateTime.of(2026, 3, 14, 12, 0)
         val keys = CloudCoverViewHandler.buildWindowHourKeys(center, ZoomLevel.WIDE)
 
-        val expectedSize = (ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours + 1L).toInt()
+        val expectedSize = (ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours).toInt()
         assertEquals(expectedSize, keys.size)
 
         val expectedStart = center

@@ -78,7 +78,7 @@ class TemperatureGraphWindowTest {
         
         // 1. Compute window using desktop's helper
         val window = temperatureGraphHourWindow(nowMs, backHours, forwardHours, zone)
-        val points = hourly.filter { it.dateTime in window.startMs..window.endMs }.sortedBy { it.dateTime }
+        val points = hourly.filter { it.dateTime >= window.startMs && it.dateTime < window.endMs }.sortedBy { it.dateTime }
 
         // 2. Call the shared ActualTemperatureSeriesBuilder
         val series = ActualTemperatureSeriesBuilder.build(
@@ -105,6 +105,6 @@ class TemperatureGraphWindowTest {
         assertEquals(points.first().dateTime, actualPoints.first().timeMs)
 
         // Assert that the last point in the filtered hourly forecast matches the right edge of the window
-        assertEquals(window.endMs, points.last().dateTime)
+        assertEquals(window.endMs - 3_600_000L, points.last().dateTime)
     }
 }

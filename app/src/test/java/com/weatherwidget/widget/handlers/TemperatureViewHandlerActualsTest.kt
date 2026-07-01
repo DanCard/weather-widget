@@ -249,7 +249,7 @@ class TemperatureViewHandlerActualsTest {
     }
 
     @Test
-    fun `WIDE zoom covers 25 hours`() {
+    fun `WIDE zoom covers 24 hours`() {
         val forecasts = wideForecasts()
         val wideHours = buildHourDataList(
             hourlyForecasts = forecasts,
@@ -270,8 +270,8 @@ class TemperatureViewHandlerActualsTest {
             "WIDE (${wideHours.size}) should have more hours than NARROW (${narrowHours.size})",
             wideHours.size > narrowHours.size,
         )
-        assertEquals("WIDE should cover exactly 25 hours (12h back + 12h forward + center)", 25, wideHours.size)
-        assertTrue("NARROW should cover ≤5 hours", narrowHours.size <= 5)
+        assertEquals("WIDE should cover exactly 24 hours (12h back + 12h forward)", 24, wideHours.size)
+        assertEquals("NARROW should cover exactly 4 hours (2h back + 2h forward)", 4, narrowHours.size)
     }
 
     @Test

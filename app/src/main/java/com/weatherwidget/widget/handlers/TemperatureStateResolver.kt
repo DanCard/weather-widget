@@ -430,7 +430,7 @@ internal object TemperatureStateResolver {
         var missingCount = 0
         var current = startHour
         val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
-        while (current.isBefore(endHour) || current.isEqual(endHour)) {
+        while (current.isBefore(endHour)) {
             val hourMs = current.atZone(zoneId).toInstant().toEpochMilli()
             val forecast = forecastsByTime[hourMs]
             if (forecast == null || forecast.source != displaySource.id) {

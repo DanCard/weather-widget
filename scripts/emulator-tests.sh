@@ -461,8 +461,9 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
             local run_end=$(date +%s)
             local run_duration=$((run_end - run_start))
 
+            $ADB_BIN -s "$serial" shell am force-stop com.weatherwidget >/dev/null 2>&1 || true
             $ADB_BIN -s "$serial" shell am broadcast \
-                -a com.weatherwidget.ACTION_REFRESH -p com.weatherwidget >/dev/null 2>&1 || true
+                -a com.weatherwidget.ACTION_REFRESH -f 0x00000020 -p com.weatherwidget >/dev/null 2>&1 || true
 
             # Parse summary from am instrument output (format: "OK (158 tests)" or "Tests run: N, Failures: N")
             local total failed errors
@@ -1046,7 +1047,8 @@ fi
 if [ "$VERBOSE_MODE" = true ]; then
     echo -e "${BLUE}Triggering widget refresh to recover UI...${NC}"
 fi
-$ADB_BIN -s "$EMULATOR_SERIAL" shell am broadcast -a com.weatherwidget.ACTION_REFRESH -p com.weatherwidget >/dev/null 2>&1 || true
+$ADB_BIN -s "$EMULATOR_SERIAL" shell am force-stop com.weatherwidget >/dev/null 2>&1 || true
+$ADB_BIN -s "$EMULATOR_SERIAL" shell am broadcast -a com.weatherwidget.ACTION_REFRESH -f 0x00000020 -p com.weatherwidget >/dev/null 2>&1 || true
 
 # Return appropriate exit code
 if [ "$TEST_SUCCESS" = true ]; then

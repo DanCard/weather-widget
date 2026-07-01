@@ -82,14 +82,14 @@ class HourlyZoomCenteringRoboTest {
             zoom = ZoomLevel.WIDE,
         )
 
-        // With symmetric 12h back/12h forward, 12p should be in the center
-        assertEquals(25, hours.size)
+        // With exclusive end hour, size is 24, and index 12 is still the center (offset 0 / 12p)
+        assertEquals(24, hours.size)
         assertEquals("12p", hours[12].label)
     }
 
     private fun assertCenteredLabel(labels: List<String>, expected: String) {
-        assertEquals(listOf("10a", "11a", "12p", "1p", "2p"), labels)
-        assertEquals(expected, labels[labels.size / 2])
+        assertEquals(listOf("10a", "11a", "12p", "1p"), labels)
+        assertEquals(expected, labels[2])
     }
 
     private fun sampleHourlyForecasts(count: Int = 48): List<HourlyForecastEntity> {

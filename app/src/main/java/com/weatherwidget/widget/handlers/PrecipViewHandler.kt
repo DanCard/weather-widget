@@ -505,7 +505,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         val dateMode = zoom == com.weatherwidget.widget.ZoomLevel.THREE_DAY
         val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
-        while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
+        while (currentHour.isBefore(endHour)) {
             val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
             val forecast = forecastsByTime[hourMs]
 

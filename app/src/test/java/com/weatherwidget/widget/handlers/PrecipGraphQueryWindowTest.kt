@@ -94,7 +94,7 @@ class PrecipGraphQueryWindowTest {
             zoom = ZoomLevel.WIDE,
         )
 
-        val expectedCount = ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours + 1 // 25
+        val expectedCount = ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours // 24
         assertEquals(
             "WIDE window around offset ${offsetHours}h should yield $expectedCount hours",
             expectedCount,
@@ -166,7 +166,7 @@ class PrecipGraphQueryWindowTest {
             zoom = ZoomLevel.WIDE,
         )
 
-        val expectedCount = ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours + 1
+        val expectedCount = ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours
         assertEquals(
             "WIDE window around offset ${offsetHours}h should yield $expectedCount hours",
             expectedCount,

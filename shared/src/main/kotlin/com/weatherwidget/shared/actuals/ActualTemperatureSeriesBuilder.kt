@@ -126,7 +126,7 @@ object ActualTemperatureSeriesBuilder {
 
         val topHourPoints = mutableListOf<ActualTemperaturePoint>()
         var currentHour = startHour
-        while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
+        while (currentHour.isBefore(endHour)) {
             val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
             val forecast = forecastsByTime[hourMs]
             topHourPoints += ActualTemperaturePoint(

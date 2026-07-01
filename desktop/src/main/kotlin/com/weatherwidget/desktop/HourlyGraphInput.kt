@@ -151,7 +151,7 @@ internal fun rememberHourlyGraphSetup(
     val cutoff = center + forwardHours * 3_600_000L
 
     val points = remember(hourly, start, cutoff) {
-        hourly.filter { it.dateTime in (start - 3_600_000L)..cutoff }
+        hourly.filter { it.dateTime >= (start - 3_600_000L) && it.dateTime < cutoff }
             .sortedBy { it.dateTime }
             .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
     }
