@@ -58,7 +58,10 @@ object RefreshScheduler {
         if (reason == "manual_refresh") {
             return RefreshScheduleDecision(
                 shouldEnqueue = true,
-                policy = ExistingWorkPolicy.REPLACE,
+                // KEEP, not REPLACE: if a sync is already running it produces fresh data; cancelling it
+                // to run a duplicate segfaults ART on debuggable builds (see
+                // [[samsung_widget_dead_native_sigsegv]]).
+                policy = ExistingWorkPolicy.KEEP,
                 reason = reason,
             )
         }
@@ -82,7 +85,9 @@ object RefreshScheduler {
     fun enqueueForcedRefresh(
         context: Context,
         reason: String = "manual_refresh",
-        policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE,
+        // KEEP by default so a new forced refresh never cancels a running WeatherWidgetWorker (that
+        // cancellation segfaults ART on debuggable builds — see [[samsung_widget_dead_native_sigsegv]]).
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
         forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
     ) {
         if (isRefreshDisabledForTesting) {

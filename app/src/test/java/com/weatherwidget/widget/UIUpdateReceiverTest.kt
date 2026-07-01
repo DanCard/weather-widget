@@ -83,7 +83,9 @@ class UIUpdateReceiverTest {
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
                 eq(WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui"),
-                eq(ExistingWorkPolicy.REPLACE),
+                // APPEND_OR_REPLACE (not REPLACE): must never cancel a running "_ui" repaint, whose
+                // cancelled coroutine resume segfaults ART on debuggable builds.
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
                 any<OneTimeWorkRequest>()
             )
         }

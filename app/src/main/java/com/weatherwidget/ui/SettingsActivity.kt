@@ -100,14 +100,17 @@ class SettingsActivity : AppCompatActivity() {
                     .build()
 
             val workManager = WorkManager.getInstance(this)
+            // APPEND_OR_REPLACE (not REPLACE): a manual "Refresh now" must never cancel a running
+            // worker — that segfaults ART on debuggable builds ([[samsung_widget_dead_native_sigsegv]]).
+            // The fresh fetch still runs, queued after any in-flight one.
             workManager.enqueueUniqueWork(
                 WeatherWidgetProvider.WORK_NAME_ONE_TIME,
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
                 forecastRefreshWork,
             )
             workManager.enqueueUniqueWork(
                 WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP,
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
                 currentRefreshWork,
             )
 

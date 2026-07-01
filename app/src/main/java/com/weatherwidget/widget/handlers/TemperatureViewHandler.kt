@@ -169,6 +169,9 @@ object TemperatureViewHandler {
             HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
+        // Reset sticky visibility from DailyViewHandler
+        DailyViewHandler.bindTransientMessage(views, stateManager, appWidgetId, callerTag = "TEMPERATURE")
+
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE state=data${gateReason?.let { " reason=$it" } ?: ""} thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
 

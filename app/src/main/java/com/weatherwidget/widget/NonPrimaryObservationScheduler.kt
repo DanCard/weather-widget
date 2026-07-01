@@ -104,9 +104,11 @@ object NonPrimaryObservationScheduler {
                 val policy =
                     when (decision.action) {
                         ChargingLoopAction.ENQUEUE_DELAYED -> ExistingWorkPolicy.APPEND_OR_REPLACE
-                        ChargingLoopAction.REPLACE_DELAYED,
-                        ChargingLoopAction.REPLACE_IMMEDIATE,
-                        -> ExistingWorkPolicy.REPLACE
+                        // Replacing a *delayed* (not-yet-running) heartbeat is safe; an *immediate*
+                        // replace can cancel a running worker, whose cancelled resume segfaults ART on
+                        // debuggable builds ([[samsung_widget_dead_native_sigsegv]]).
+                        ChargingLoopAction.REPLACE_DELAYED -> ExistingWorkPolicy.REPLACE
+                        ChargingLoopAction.REPLACE_IMMEDIATE -> ExistingWorkPolicy.APPEND_OR_REPLACE
                         ChargingLoopAction.KEEP -> ExistingWorkPolicy.KEEP
                     }
                 workManager.enqueueUniqueWork(

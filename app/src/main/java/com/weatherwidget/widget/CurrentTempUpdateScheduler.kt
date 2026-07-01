@@ -60,7 +60,10 @@ object CurrentTempUpdateScheduler {
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP,
-                ExistingWorkPolicy.REPLACE,
+                // APPEND_OR_REPLACE (not REPLACE): never cancel a running current-temp worker — the
+                // cancelled coroutine resume segfaults ART on debuggable builds
+                // ([[samsung_widget_dead_native_sigsegv]]); the fetch still runs, after any in-flight one.
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
                 workRequest,
             )
             logSchedulerEvent(
@@ -141,9 +144,12 @@ object CurrentTempUpdateScheduler {
                 val policy =
                     when (decision.action) {
                         ChargingLoopAction.ENQUEUE_DELAYED -> ExistingWorkPolicy.APPEND_OR_REPLACE
-                        ChargingLoopAction.REPLACE_DELAYED,
-                        ChargingLoopAction.REPLACE_IMMEDIATE,
-                        -> ExistingWorkPolicy.REPLACE
+                        // Replacing a *delayed* (not-yet-running) heartbeat is safe. But an *immediate*
+                        // replace can cancel a currently-running current-temp worker, whose cancelled
+                        // coroutine resume segfaults ART on debuggable builds
+                        // ([[samsung_widget_dead_native_sigsegv]]); APPEND_OR_REPLACE runs after instead.
+                        ChargingLoopAction.REPLACE_DELAYED -> ExistingWorkPolicy.REPLACE
+                        ChargingLoopAction.REPLACE_IMMEDIATE -> ExistingWorkPolicy.APPEND_OR_REPLACE
                         ChargingLoopAction.KEEP -> ExistingWorkPolicy.KEEP
                     }
                 workManager.enqueueUniqueWork(

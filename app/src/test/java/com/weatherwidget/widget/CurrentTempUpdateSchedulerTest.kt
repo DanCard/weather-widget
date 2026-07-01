@@ -163,7 +163,7 @@ class CurrentTempUpdateSchedulerTest {
     }
 
     @Test
-    fun `immediate current temp update still replaces pending work`() {
+    fun `immediate current temp update does not cancel running work`() {
         CurrentTempUpdateScheduler.enqueueImmediateUpdate(
             context = context,
             reason = "manual_test",
@@ -173,7 +173,10 @@ class CurrentTempUpdateSchedulerTest {
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
                 eq(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP),
-                eq(ExistingWorkPolicy.REPLACE),
+                // APPEND_OR_REPLACE, not REPLACE: cancelling a running current-temp worker segfaults
+                // ART on debuggable builds. Callers are opportunistic (screen-on/power/opportunistic),
+                // so running after an in-flight fetch instead of cancelling it is fine.
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
                 any<OneTimeWorkRequest>(),
             )
         }

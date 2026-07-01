@@ -248,7 +248,7 @@ object DailyViewHandler : WidgetViewHandler {
                 centerDate = centerDate,
                 visibleDates = emptyList(),
             )
-            bindTransientMessage(views, stateManager, appWidgetId)
+            bindTransientMessage(views, stateManager, appWidgetId, callerTag = "DAILY")
             appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=warning thread=${Thread.currentThread().name}")
             appWidgetManager.updateAppWidget(appWidgetId, views)
             return
@@ -459,7 +459,7 @@ object DailyViewHandler : WidgetViewHandler {
             HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
-        bindTransientMessage(views, stateManager, appWidgetId)
+        bindTransientMessage(views, stateManager, appWidgetId, callerTag = "DAILY")
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
@@ -576,11 +576,12 @@ object DailyViewHandler : WidgetViewHandler {
      * clears at expiry without keeping a process alive.
      */
     @VisibleForTesting
-    internal fun bindTransientMessage(views: RemoteViews, stateManager: WidgetStateManager, appWidgetId: Int) {
+    internal fun bindTransientMessage(views: RemoteViews, stateManager: WidgetStateManager, appWidgetId: Int, callerTag: String) {
         val message = stateManager.getActiveTransientMessage(appWidgetId)
         if (message != null) {
             views.setTextViewText(R.id.widget_message_banner, message)
             views.setViewVisibility(R.id.widget_message_banner, View.VISIBLE)
+            Log.d(TAG, "bindTransientMessage: widget=$appWidgetId caller=$callerTag showing banner=\"$message\"")
         } else {
             views.setViewVisibility(R.id.widget_message_banner, View.GONE)
         }

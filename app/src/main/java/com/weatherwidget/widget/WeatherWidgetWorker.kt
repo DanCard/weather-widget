@@ -46,6 +46,11 @@ class WeatherWidgetWorker
                 return Result.success()
             }
 
+            // Durably record why any prior process died (LOW_MEMORY reap vs crash vs force-stop vs
+            // signal, with importance + plugged context alongside SYNC_START below). Once per process;
+            // this is our only durable trail for diagnosing a "dead" (frozen, unresponsive) widget.
+            ProcessExitLogger.logRecentExitsOnce(context, appLogDao)
+
             val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
             val forceRefresh = inputData.getBoolean(KEY_FORCE_REFRESH, false)
             val currentTempOnly = inputData.getBoolean(KEY_CURRENT_TEMP_ONLY, false)
@@ -125,6 +130,10 @@ class WeatherWidgetWorker
             try {
                 val startMs = SystemClock.elapsedRealtime()
 
+                // Pre-schedule the next debug fast-refresh BEFORE the risky work, so the crash-repro
+                // loop survives a mid-run native SIGSEGV (a crashing run never reaches its own tail).
+                maybeScheduleDebugFastRefresh()
+
                 // Build per-source fetch context up front so the repository can decide which
                 // sources are due according to ForecastFetchPolicy (charging/screen/active-aware).
                 val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -172,11 +181,18 @@ class WeatherWidgetWorker
                     onSuccess = { weatherList ->
                         val afterWeatherMs = SystemClock.elapsedRealtime()
                         Log.d(TAG, "doWork: Got ${weatherList.size} weather entries")
+                        // Durable per-stage breadcrumbs: doWork has crashed natively (SIGSEGV) mid-run
+                        // on some devices, killing the process before SYNC_PERF/paint_done can log. Because
+                        // each app_logs insert commits immediately, the LAST SYNC_STAGE row before a gap
+                        // pinpoints the crashing stage (fetch vs hourly vs backfill vs actuals vs render).
+                        // See [[samsung_widget_dead_native_sigsegv]]. Debug-only to avoid production noise.
+                        logStage("weather_fetched count=${weatherList.size}")
 
                         // Fetch forecast snapshots for comparison
                         val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
                         val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
                         val afterHourlyMs = SystemClock.elapsedRealtime()
+                        logStage("hourly_fetched count=${hourlyForecasts.size}")
 
                         // Backfill NWS history if this is a new location or no history exists
                         // ONLY perform if not a UI-only refresh to avoid blocking during frequent updates
@@ -185,6 +201,7 @@ class WeatherWidgetWorker
                             weatherRepository.backfillNwsObservationsIfNeeded(location.first, location.second)
                         }
                         val afterBackfillMs = SystemClock.elapsedRealtime()
+                        logStage("backfill_done")
 
                         val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
@@ -195,6 +212,7 @@ class WeatherWidgetWorker
 
                         appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
 
+                        logStage("actuals_recompute_start recompute=${!uiOnlyRefresh}")
                         val dailyActuals = fetchDailyActuals(
                             lat = location.first,
                             lon = location.second,
@@ -255,6 +273,42 @@ class WeatherWidgetWorker
                     )
                 }
             }
+        }
+
+        /**
+         * Durable per-stage breadcrumb inside a full [doWork] run. Debug-only (BuildConfig.DEBUG) so it
+         * adds no production log volume; each row commits immediately, so the last one before a gap in
+         * app_logs localizes a mid-run native crash to a stage. Tagged SYNC_STAGE for easy querying.
+         */
+        private suspend fun logStage(stage: String) {
+            if (!com.weatherwidget.BuildConfig.DEBUG) return
+            appLogDao.log("SYNC_STAGE", "stage=$stage thread=${Thread.currentThread().name}", "INFO")
+        }
+
+        /**
+         * Debug crash-repro loop: re-enqueue a delayed forced full refresh so doWork runs every
+         * [DEBUG_FAST_FULL_REFRESH_SECONDS]. No-op unless BuildConfig.DEBUG and the interval is > 0.
+         */
+        private fun maybeScheduleDebugFastRefresh() {
+            if (!com.weatherwidget.BuildConfig.DEBUG || DEBUG_FAST_FULL_REFRESH_SECONDS <= 0L) return
+            val request =
+                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                    .setInitialDelay(DEBUG_FAST_FULL_REFRESH_SECONDS, TimeUnit.SECONDS)
+                    .setInputData(
+                        Data.Builder()
+                            .putBoolean(KEY_FORCE_REFRESH, true)
+                            .putString(KEY_CURRENT_TEMP_REASON, "debug_fast_refresh")
+                            .build(),
+                    )
+                    .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                WORK_NAME_DEBUG_FAST_REFRESH,
+                // KEEP: keep the single pending repro request; never cancel a running one (that is the
+                // very crash this knob reproduces — [[samsung_widget_dead_native_sigsegv]]).
+                ExistingWorkPolicy.KEEP,
+                request,
+            )
+            Log.d(TAG, "Scheduled debug fast refresh in ${DEBUG_FAST_FULL_REFRESH_SECONDS}s")
         }
 
         private fun broadcastNoHourlyRefreshComplete(
@@ -724,6 +778,19 @@ class WeatherWidgetWorker
 
         companion object {
             private const val TAG = "WeatherWidgetWorker"
+
+            // DEBUG-ONLY crash-repro knob. When > 0 (and BuildConfig.DEBUG), every successful full
+            // background sync self-reschedules another forced full refresh this many seconds later, so
+            // the intermittent native SIGSEGV in doWork reproduces in minutes instead of hours. Because
+            // WorkManager persists the pending request, the loop survives a crash (the next run cold-
+            // starts the process and tries again). Set to 0 to disable. See
+            // [[samsung_widget_dead_native_sigsegv]].
+            // Set > 0 (debug only) to reproduce the cancellation-triggered native crash fast; 0 = off.
+            // Left at 0 now that the repro is understood (crash = REPLACE cancelling a running worker,
+            // ART-interpreter resumeWith segfault on debuggable builds).
+            private const val DEBUG_FAST_FULL_REFRESH_SECONDS = 0L
+            private const val WORK_NAME_DEBUG_FAST_REFRESH = "weather_widget_debug_fast_refresh"
+
             const val DEFAULT_LAT = 37.4220
             const val DEFAULT_LON = -122.0841
             const val KEY_UI_ONLY_REFRESH = "ui_only_refresh"

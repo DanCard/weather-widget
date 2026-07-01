@@ -88,7 +88,7 @@ class WidgetIntentRouterRobolectricTest {
     }
 
     @Test
-    fun `buildRefreshScheduleDecision uses replace for manual refresh`() {
+    fun `buildRefreshScheduleDecision keeps running work for manual refresh`() {
         val now = System.currentTimeMillis()
 
         val decision = RefreshScheduler.buildRefreshScheduleDecision(
@@ -99,7 +99,9 @@ class WidgetIntentRouterRobolectricTest {
         )
 
         assertTrue(decision.shouldEnqueue)
-        assertEquals(androidx.work.ExistingWorkPolicy.REPLACE, decision.policy)
+        // KEEP, not REPLACE: a manual refresh must never cancel a running worker (that segfaults ART
+        // on debuggable builds); an in-flight sync already produces fresh data.
+        assertEquals(androidx.work.ExistingWorkPolicy.KEEP, decision.policy)
         assertEquals("manual_refresh", decision.reason)
         assertNull(decision.skipReason)
     }

@@ -4,7 +4,7 @@
 There is also a Linux app that is intended to function similarly.
 
 ### Key Features
-- **Multiple API Sources**: Fetches from NWS (US-only, official government data), Open-Meteo (global, no API key), openweather api, and silurian.
+- **Multiple API Sources**: NWS (US-only, official government data), Open-Meteo (global, no API key), and Silurian are the default-visible sources; Tomorrow.io is debug-only (tight free quota). Visual Crossing and OpenWeatherMap remain in the `WeatherSource` enum but are hidden/deprecated. API clients live in `:shared` (`shared/.../data/remote/`), not `:app`.
 - **Resizable Widget**: Adapts layout from 1x1 (single day) to 8+ columns (7+ days)
 - **Multiple View Modes**: Daily view (forecast bars), Hourly view (temperature curve), and more
 - **Temperature Interpolation**: Smooth current temperature display using hourly forecast data
@@ -17,16 +17,17 @@ There is also a Linux app that is intended to function similarly.
 
 | Component | Technology |
 |-----------|------------|
-| Language | Kotlin 2.0.21 |
-| Build System | Gradle 8.13 with Kotlin DSL |
-| Min/Target SDK | 26 / 34 |
+| Language | Kotlin 2.3.10 |
+| Build System | Gradle 8.13 + AGP 9.1.0, Kotlin DSL |
+| Compile/Min/Target SDK | 35 / 26 / 35 |
 | Java Version | 21 |
-| DI Framework | Hilt 2.51.1 |
-| Database | Room 2.6.1 |
-| HTTP Client | Ktor 2.3.7 |
+| DI Framework | Hilt 2.59.2 |
+| Database | Room 2.7.0 |
+| HTTP Client | Ktor 2.3.7 (OkHttp engine) |
 | Background Work | WorkManager 2.9.0 |
-| Serialization | kotlinx.serialization 1.6.2 |
-| Testing | JUnit 4 + mockk 1.13.9 |
+| Serialization | kotlinx.serialization 1.7.3 |
+| Testing | JUnit 4 + Robolectric + mockk 1.13.9 |
+| Modules | `:app` (Android) · `:shared` (JVM weather/API code) · `:desktop` (Compose for Desktop) |
 
 ## Build Commands
 
@@ -64,9 +65,9 @@ app/src/main/java/com/weatherwidget/
 │   │   ├── ForecastSnapshotDao.kt
 │   │   ├── HourlyForecastDao.kt
 │   │   └── WeatherDatabase.kt
-│   ├── remote/             # API clients
-│   │   ├── NwsApi.kt       # National Weather Service API
-│   │   └── OpenMeteoApi.kt # Open-Meteo API
+│   │   (API clients moved to :shared — shared/.../data/remote/:
+│   │    NwsApi, OpenMeteoApi, SilurianApi, TomorrowIoApi, OpenWeatherMapApi;
+│   │    WeatherSource enum is in shared/.../data/model/)
 │   ├── repository/         # Data coordination layer
 │   │   └── WeatherRepository.kt
 │   └── ApiLogger.kt        # API call logging
@@ -235,6 +236,35 @@ The widget uses a two-tier update system to minimize battery impact:
 | **User Interaction** | Immediate | Direct DB read | N/A | Instant UI update + conditional fetch |
 | **Screen Unlock** | Immediate | Direct DB read | N/A | UI update + fetch if charging & stale |
 
+### NEVER cancel a running WeatherWidgetWorker (native-crash trap)
+Cancelling an in-flight `WeatherWidgetWorker` — most easily via `ExistingWorkPolicy.REPLACE`
+enqueuing a new request under a unique name whose worker is already running — resumes the cancelled
+coroutine's continuation and **segfaults the ART interpreter** (`SIGSEGV`/`SIGABRT` on the
+`DefaultDispatch` thread, inside `doWork`). This is fatal and, crucially, **invisible to the JVM
+crash logger** (native crashes never reach the `CRASH` app_logs row), so it long masqueraded as a
+"dead / unresponsive widget" or a "battery" problem. It bites hardest on `debuggable` builds (no
+AOT → everything runs in the interpreter).
+
+Rules when enqueuing widget work:
+- **Immediate/expedited unique work → `KEEP` or `APPEND_OR_REPLACE`, never `REPLACE`.** `KEEP` when a
+  duplicate is redundant (an in-flight sync already produces fresh data); `APPEND_OR_REPLACE` when the
+  latest state must still render/run (it runs *after* the current worker instead of killing it).
+- **`REPLACE` is only safe for delayed / not-yet-running work** (e.g. `_ui_delayed`, a `REPLACE_DELAYED`
+  heartbeat) — there is no live coroutine to cancel.
+- **Periodic work uses `ExistingPeriodicWorkPolicy.UPDATE`** (mutates params without cancelling the
+  running instance) — keep it that way.
+- Explicit `cancelUniqueWork(...)` (loop teardown in `ScreenOnReceiver`-driven `*.cancel()` and
+  `onDisabled`) can still hit a running worker at screen/power transitions — an accepted low-frequency
+  residual; do not add new cancel-by-name paths.
+
+Diagnosing: query `app_logs` for `PROC_EXIT` rows (see `ProcessExitLogger` — logs
+`ApplicationExitInfo`, the only in-app source that captures native/LMK/ANR deaths) and read
+tombstones via `adb shell dumpsys dropbox --print` (`data_app_native_crash` / `SYSTEM_TOMBSTONE`). A
+`SYNC_CANCELLED stopReason=1` immediately before a `PROC_EXIT reason=CRASH_NATIVE` is the signature.
+A crash-loop poisons WorkManager's queue (persisted work keeps retrying); clear it **without**
+`pm clear`: `am force-stop`, then `run-as com.weatherwidget rm -f no_backup/androidx.work.workdb{,-shm,-wal}`
+(the WorkManager DB is in `no_backup/`, not `databases/`; `weather_database` is untouched).
+
 ### Widget Size Adaptation
 - **1x1**: Today's high (+ current temp if space)
 - **1x3**: Yesterday, today, tomorrow (text only)
@@ -355,7 +385,10 @@ done
 
 ## Testing the Widget
 
-- No mocking framework — prefer pure function extraction for testability
+- **Prefer pure-function extraction for testability.** mockk (1.13.9) is available and used where
+  mocking Android/WorkManager interactions is unavoidable (e.g. `UIUpdateReceiverTest`,
+  `CurrentTempUpdateSchedulerTest` verify `enqueueUniqueWork` policies), but extract pure logic and
+  test it framework-free first.
 - See [arch/testing-strategy.md](arch/testing-strategy.md) for full analysis and rationale
 
 ### Emulator Inspection Preference

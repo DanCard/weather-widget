@@ -148,7 +148,7 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
 
         // AND: a daily render shows the message banner (the bind path the UI repaint runs).
         val bannerViews = RemoteViews(context.packageName, R.layout.widget_weather)
-        DailyViewHandler.bindTransientMessage(bannerViews, stateManager, testWidgetId)
+        DailyViewHandler.bindTransientMessage(bannerViews, stateManager, testWidgetId, callerTag = "DAILY")
         val bannerRoot = applyToRoot(bannerViews)
         assertEquals(
             "Message banner should be visible after a missing-hourly tap",

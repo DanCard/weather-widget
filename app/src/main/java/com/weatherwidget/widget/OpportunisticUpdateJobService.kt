@@ -61,7 +61,9 @@ class OpportunisticUpdateJobService : JobService() {
 
                         WorkManager.getInstance(applicationContext).enqueueUniqueWork(
                             WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui",
-                            androidx.work.ExistingWorkPolicy.REPLACE,
+                            // Same "_ui" worker as triggerUiOnlyUpdate: never cancel a running repaint
+                            // (segfaults ART on debuggable builds — [[samsung_widget_dead_native_sigsegv]]).
+                            androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE,
                             workRequest,
                         )
                     } else {

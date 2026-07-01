@@ -154,6 +154,7 @@ object CloudCoverViewHandler {
         views.setViewVisibility(R.id.header_date_center, View.GONE)
         views.setViewVisibility(R.id.header_date_right, View.GONE)
         // Reset sticky visibility from DailyViewHandler
+        DailyViewHandler.bindTransientMessage(views, stateManager, appWidgetId, callerTag = "CLOUD_COVER")
 
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
         views.setViewVisibility(R.id.graph_night_rain_zones, View.GONE)

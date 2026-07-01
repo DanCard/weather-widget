@@ -101,6 +101,7 @@ object PrecipViewHandler {
         views.setViewVisibility(R.id.header_date_center, View.GONE)
         views.setViewVisibility(R.id.header_date_right, View.GONE)
         // Reset sticky visibility from DailyViewHandler
+        DailyViewHandler.bindTransientMessage(views, stateManager, appWidgetId, callerTag = "PRECIPITATION")
 
         // Hide graph day zones (not used in precipitation mode)
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)

@@ -801,7 +801,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     .build()
                 WorkManager.getInstance(context).enqueueUniqueWork(
                     WORK_NAME_ONE_TIME + "_current_temp",
-                    ExistingWorkPolicy.REPLACE,
+                    // KEEP, not REPLACE: a current-temp fetch already in flight satisfies this request;
+                    // cancelling it segfaults ART (see [[samsung_widget_dead_native_sigsegv]]).
+                    ExistingWorkPolicy.KEEP,
                     tempWorkRequest
                 )
                 Log.d(TAG, "onReceive: Data is stale, triggering background fetch")
@@ -1063,18 +1065,27 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // name so it does not REPLACE/cancel the immediate UI refresh, and vice versa. Repeated
             // scheduling of the delayed clear keeps just the latest pending one (REPLACE).
             val uniqueName: String
+            val policy: ExistingWorkPolicy
             if (initialDelayMs > 0) {
                 builder.setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
                 uniqueName = WORK_NAME_ONE_TIME + "_ui_delayed"
+                // A delayed clear is not running yet, so REPLACE-ing it only swaps the pending request
+                // (no in-flight coroutine to cancel) and keeps just the latest clear.
+                policy = ExistingWorkPolicy.REPLACE
             } else {
                 builder.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 uniqueName = WORK_NAME_ONE_TIME + "_ui"
+                // NEVER cancel a running repaint: cancelling an in-flight WeatherWidgetWorker resumes
+                // its coroutine continuation and segfaults the ART interpreter on debuggable builds (see
+                // [[samsung_widget_dead_native_sigsegv]]). APPEND_OR_REPLACE still renders the latest
+                // state — it just runs after the current repaint finishes instead of killing it.
+                policy = ExistingWorkPolicy.APPEND_OR_REPLACE
             }
             val workRequest = builder.build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 uniqueName,
-                ExistingWorkPolicy.REPLACE,
+                policy,
                 workRequest,
             )
             Log.d(TAG, "triggerUiOnlyUpdate: Worker enqueued with id=${workRequest.id}")
