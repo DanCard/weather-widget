@@ -10,6 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.getForecastsInRange
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.testutil.WidgetStateTestUtils

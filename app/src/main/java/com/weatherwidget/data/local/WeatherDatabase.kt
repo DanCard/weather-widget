@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
-    version = 49,
+    version = 50,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -144,6 +144,24 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        // Data-only cleanup: rounds `forecasts` lat/lon onto the LocationMatch.quantize grid, the
+        // same treatment MIGRATION_47_48 gave the hourly tables. A fetch-coordinate jitter hop
+        // (~1.5 m) strands the old exact-key site with its last batch, which the daily view can
+        // then show days-stale. Unlike the hourly collapse we must NOT keep only the freshest row
+        // per key — `forecasts` intentionally holds one row per batch for accuracy/evolution
+        // history — so only rows colliding on the full rounded PK are deduped (fetchedAt is
+        // ms-precision, so genuine collisions are vanishingly rare). No schema change.
+        val MIGRATION_49_50 = object : Migration(49, 50) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "DELETE FROM `forecasts` WHERE rowid NOT IN (" +
+                        "SELECT MAX(rowid) FROM `forecasts` GROUP BY targetDate, forecastDate, source, fetchedAt, " +
+                        "ROUND(locationLat, 3), ROUND(locationLon, 3))",
+                )
+                db.execSQL("UPDATE `forecasts` SET `locationLat` = ROUND(`locationLat`, 3), `locationLon` = ROUND(`locationLon`, 3)")
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -206,7 +224,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

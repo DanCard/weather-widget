@@ -42,6 +42,8 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.getForecastsInRangeForSources
+import com.weatherwidget.data.local.getLatestForecastsInRangeForSources
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity

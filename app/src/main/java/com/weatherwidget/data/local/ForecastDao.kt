@@ -1,6 +1,7 @@
 package com.weatherwidget.data.local
 
 import androidx.room.*
+import com.weatherwidget.shared.actuals.DailyForecastSelector
 
 @Dao
 interface ForecastDao {
@@ -99,7 +100,7 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getForecastsInRange(
+    suspend fun getForecastsInRangeAllSites(
         startDate: Long,
         endDate: Long,
         lat: Double,
@@ -123,7 +124,7 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getForecastsInRangeForSources(
+    suspend fun getForecastsInRangeForSourcesAllSites(
         startDate: Long,
         endDate: Long,
         lat: Double,
@@ -148,7 +149,7 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getLatestForecastsInRangeBySource(
+    suspend fun getLatestForecastsInRangeBySourceAllSites(
         startDate: Long,
         endDate: Long,
         lat: Double,
@@ -177,7 +178,7 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getLatestForecastsInRangeForSources(
+    suspend fun getLatestForecastsInRangeForSourcesAllSites(
         startDate: Long,
         endDate: Long,
         lat: Double,
@@ -205,7 +206,7 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getLatestForecastsInRange(
+    suspend fun getLatestForecastsInRangeAllSites(
         startDate: Long,
         endDate: Long,
         lat: Double,
@@ -317,3 +318,40 @@ interface ForecastDao {
         lon: Double,
     ): List<ForecastEntity>
 }
+
+/**
+ * Site-collapsing wrappers over the `...AllSites` range queries. Those queries keep the freshest
+ * batch per EXACT (locationLat, locationLon) key inside the [LocationMatch.ROOM_WHERE] box, so a
+ * coordinate-jitter hop leaves the abandoned key's last batch alive alongside the live site — and
+ * whichever row happens to sort first gets displayed (seen on-device as a days-stale "tomorrow"
+ * high). The wrappers collapse to one row per (targetDate, source): same-site preferred, freshest
+ * batch wins. History-preserving queries (`getAllForecastsInRange*`, `getForecastsInRangeBySource`,
+ * `getForecastEvolution`) intentionally stay uncollapsed — they feed snapshot/evolution views.
+ */
+private fun collapseSites(rows: List<ForecastEntity>, lat: Double, lon: Double): List<ForecastEntity> =
+    DailyForecastSelector.selectFreshestPerDaySource(
+        rows,
+        centerLat = lat,
+        centerLon = lon,
+        targetDate = { it.targetDate },
+        source = { it.source },
+        locationLat = { it.locationLat },
+        locationLon = { it.locationLon },
+        batchFetchedAt = { it.batchFetchedAt },
+        fetchedAt = { it.fetchedAt },
+    )
+
+suspend fun ForecastDao.getForecastsInRange(startDate: Long, endDate: Long, lat: Double, lon: Double): List<ForecastEntity> =
+    collapseSites(getForecastsInRangeAllSites(startDate, endDate, lat, lon), lat, lon)
+
+suspend fun ForecastDao.getForecastsInRangeForSources(startDate: Long, endDate: Long, lat: Double, lon: Double, sources: List<String>): List<ForecastEntity> =
+    collapseSites(getForecastsInRangeForSourcesAllSites(startDate, endDate, lat, lon, sources), lat, lon)
+
+suspend fun ForecastDao.getLatestForecastsInRangeBySource(startDate: Long, endDate: Long, lat: Double, lon: Double, source: String): List<ForecastEntity> =
+    collapseSites(getLatestForecastsInRangeBySourceAllSites(startDate, endDate, lat, lon, source), lat, lon)
+
+suspend fun ForecastDao.getLatestForecastsInRangeForSources(startDate: Long, endDate: Long, lat: Double, lon: Double, sources: List<String>): List<ForecastEntity> =
+    collapseSites(getLatestForecastsInRangeForSourcesAllSites(startDate, endDate, lat, lon, sources), lat, lon)
+
+suspend fun ForecastDao.getLatestForecastsInRange(startDate: Long, endDate: Long, lat: Double, lon: Double): List<ForecastEntity> =
+    collapseSites(getLatestForecastsInRangeAllSites(startDate, endDate, lat, lon), lat, lon)

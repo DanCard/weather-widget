@@ -7,6 +7,9 @@ import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ClimateNormalEntity
 import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.getForecastsInRange
+import com.weatherwidget.data.local.getLatestForecastsInRange
+import com.weatherwidget.data.local.getLatestForecastsInRangeForSources
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -552,6 +555,11 @@ class ForecastRepository
             val todayDate = LocalDate.now()
             val todayEpoch = todayDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
             val now = ZonedDateTime.now()
+            // Coordinates go into the PK; write them quantized so jitter between fetches lands on
+            // the same key and REPLACE overwrites instead of stranding a stale per-precision site
+            // (same rationale as the hourly tables — see LocationMatch.quantize).
+            val keyLat = LocationMatch.quantize(latitude)
+            val keyLon = LocationMatch.quantize(longitude)
             val forecastsToSave = weatherForecasts.filter { forecast ->
                 val date = LocalDate.ofEpochDay(forecast.targetDate / WidgetConstants.MS_IN_A_DAY)
                 if (date.isBefore(todayDate) || forecast.isClimateNormal) return@filter false
@@ -581,8 +589,8 @@ class ForecastRepository
                 ForecastEntity(
                     targetDate = forecast.targetDate,
                     forecastDate = todayEpoch,
-                    locationLat = latitude,
-                    locationLon = longitude,
+                    locationLat = keyLat,
+                    locationLon = keyLon,
                     locationName = forecast.locationName,
                     highTemp = highTempSaved,
                     lowTemp = lowTempSaved,
@@ -664,8 +672,8 @@ class ForecastRepository
                     val bucketEnd = bucketStart + ForecastHistoryPolicy.bucketMs(sourceId, prioritySourceIds)
                     forecastDao.deleteForecastsInBucket(
                         source = sourceId,
-                        lat = latitude,
-                        lon = longitude,
+                        lat = keyLat,
+                        lon = keyLon,
                         targetDates = changedForecasts.map { it.targetDate },
                         bucketStart = bucketStart,
                         bucketEnd = bucketEnd,
@@ -719,8 +727,8 @@ class ForecastRepository
                         ForecastEntity(
                             targetDate = dateEpoch,
                             forecastDate = dateEpoch,
-                            locationLat = latitude,
-                            locationLon = longitude,
+                            locationLat = LocationMatch.quantize(latitude),
+                            locationLon = LocationMatch.quantize(longitude),
                             locationName = locationName,
                             highTemp = highTemp,
                             lowTemp = lowTemp,

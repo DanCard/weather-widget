@@ -195,6 +195,18 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 4) {
                 addColumnIfMissing(stmt, "observations", "isWebFallback", "INTEGER NOT NULL DEFAULT 0")
             }
+            // v5: round forecasts lat/lon onto the LocationMatch.quantize grid (the daily-view
+            // counterpart of the v3 hourly collapse). Unlike hourly, forecasts keeps per-batch
+            // history for accuracy/evolution, so dedupe ONLY true rounded-PK collisions
+            // (fetchedAt is ms-precision, so genuine collisions are vanishingly rare).
+            if (from < 5) {
+                stmt.execute(
+                    "DELETE FROM forecasts WHERE rowid NOT IN (" +
+                        "SELECT MAX(rowid) FROM forecasts GROUP BY targetDate, forecastDate, source, fetchedAt, " +
+                        "ROUND(locationLat, 3), ROUND(locationLon, 3))",
+                )
+                stmt.execute("UPDATE forecasts SET locationLat = ROUND(locationLat, 3), locationLon = ROUND(locationLon, 3)")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -228,6 +240,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 4
+        private const val SCHEMA_VERSION = 5
     }
 }

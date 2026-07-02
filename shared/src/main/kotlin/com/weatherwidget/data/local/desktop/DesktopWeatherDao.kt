@@ -107,12 +107,16 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
                     val todayEpoch = LocalDate.now(ZoneOffset.UTC).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                    // Quantize the storage key so coordinate jitter between fetches lands on the
+                    // same PK instead of stranding a stale per-precision site (see LocationMatch.quantize).
+                    val keyLat = LocationMatch.quantize(locationLat)
+                    val keyLon = LocationMatch.quantize(locationLon)
                     for (d in daily) {
                         val targetDate = LocalDate.parse(d.date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
                         stmt.setLong(1, targetDate)
                         stmt.setLong(2, todayEpoch) // simplified for desktop Tier 1
-                        stmt.setDouble(3, locationLat)
-                        stmt.setDouble(4, locationLon)
+                        stmt.setDouble(3, keyLat)
+                        stmt.setDouble(4, keyLon)
                         stmt.setString(5, "") // locationName
                         stmt.setFloat(6, d.highTemp)
                         stmt.setFloat(7, d.lowTemp)

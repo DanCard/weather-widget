@@ -134,7 +134,7 @@ class WeatherRepositoryTest {
             every { sharedPrefs.getLong("last_full_fetch_time", 0L) } answers {
                 capturedTimes.lastOrNull() ?: 0L
             }
-            coEvery { forecastDao.getForecastsInRange(any(), any(), any(), any()) } returns emptyList()
+            coEvery { forecastDao.getForecastsInRangeAllSites(any(), any(), any(), any()) } returns emptyList()
             coEvery { nwsApi.getGridPoint(any(), any()) } throws Exception("Forced failure")
             repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
             assertTrue("SharedPreferences should have been written to", capturedTimes.size >= 1)
@@ -153,7 +153,7 @@ class WeatherRepositoryTest {
                 createForecastEntity(tomorrow, 75, 55).copy(source = WeatherSource.OPEN_METEO.id, fetchedAt = recentFetch),
                 createForecastEntity(tomorrow, 75, 55).copy(source = WeatherSource.WEATHER_API.id, fetchedAt = recentFetch),
             )
-            coEvery { forecastDao.getLatestForecastsInRange(any(), any(), testLat, testLon) } returns cachedData
+            coEvery { forecastDao.getLatestForecastsInRangeAllSites(any(), any(), testLat, testLon) } returns cachedData
             val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
             assertTrue(result.isSuccess)
             assertEquals(6, result.getOrNull()?.size)
@@ -219,7 +219,7 @@ class WeatherRepositoryTest {
             every { sharedPrefs.edit() } returns editor
             every { sharedPrefs.getLong("last_full_fetch_time", 0L) } returns 0L
             every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
-            coEvery { forecastDao.getLatestForecastsInRange(any(), any(), testLat, testLon) } returns emptyList()
+            coEvery { forecastDao.getLatestForecastsInRangeAllSites(any(), any(), testLat, testLon) } returns emptyList()
 
             val result = repository.getWeatherData(
                 testLat,
