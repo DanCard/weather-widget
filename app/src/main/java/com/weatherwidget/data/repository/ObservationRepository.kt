@@ -601,7 +601,7 @@ class ObservationRepository @Inject constructor(
         }
         val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, effectiveHourly, latitude, longitude, personalStationWeight())
         val existingExtremes = dailyExtremeDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
-            .associateBy { it.source }
+            .groupBy { it.source }
 
         // Per-station breakdown — survives in app_logs so "why did the high jump?" investigations
         // don't need a live logcat capture.
@@ -662,44 +662,43 @@ class ObservationRepository @Inject constructor(
             }
         }
 
-        val isToday = date == LocalDate.now()
         val toInsert = mutableListOf<com.weatherwidget.data.local.DailyExtremeEntity>()
 
         newExtremes.forEach { new ->
-            val existing = existingExtremes[new.source]
-            when {
-                existing == null -> toInsert.add(new)
-
-                isToday -> {
-                    // Today: ratchet temps up to protect against transient drops in current
-                    // readings. Precip is a full re-sum of the day's data (authoritative, not
-                    // incremental), so we always take the new value when it changes.
-                    val updatedHigh = maxOf(existing.highTemp, new.highTemp)
-                    val updatedLow = minOf(existing.lowTemp, new.lowTemp)
-                    val tempChanged = updatedHigh > existing.highTemp || updatedLow < existing.lowTemp
-                    if (tempChanged || new.condition != existing.condition || precipChanged(new, existing)) {
-                        appLogDao.log("DAILY_EXTREME_UP", "date=$date src=${new.source} high=${existing.highTemp}->${updatedHigh} low=${existing.lowTemp}->${updatedLow} precip=${existing.precipAmountMm}->${new.precipAmountMm}", "DEBUG")
-                        toInsert.add(new.copy(highTemp = updatedHigh, lowTemp = updatedLow))
-                    } else {
-                        appLogDao.log("DAILY_EXTREME_STABLE", "date=$date src=${new.source} high=${existing.highTemp} low=${existing.lowTemp}", "DEBUG")
-                    }
+            // Overwrite for today and past days alike. Every recompute re-derives from the
+            // full day's stored observations with an idempotent time-aligned blend, so a
+            // real transient dip persists in the obs table and reappears in every re-blend;
+            // the old today-only min/max ratchet could only preserve values that stopped
+            // being reproducible from data — i.e. exactly the erroneous ones (a lone-station
+            // outlier low stayed pinned all day despite correct recomputes). Overwrite also
+            // matches desktop and lets self-healing migration replace stale rows left by
+            // the old per-station-spot-max algorithm.
+            //
+            // Heal EVERY location fragment of this (date, source) in the match box, not just
+            // the row at the recompute coordinates: the fetch and the widget display can
+            // resolve different coordinates (GPS fix vs default), and the display picks the
+            // fragment nearest ITS location — a recompute that only wrote its own fragment
+            // left the displayed one stale. All coordinates in the box read the same
+            // observation rows, so the blended extremes are identical for every fragment.
+            val fragments = existingExtremes[new.source].orEmpty()
+            if (fragments.isEmpty()) {
+                toInsert.add(new)
+                return@forEach
+            }
+            var changedAny = false
+            fragments.forEach { existing ->
+                if (new.highTemp != existing.highTemp || new.lowTemp != existing.lowTemp || new.condition != existing.condition || precipChanged(new, existing)) {
+                    changedAny = true
+                    appLogDao.log(
+                        "DAILY_EXTREME_OVERWRITE",
+                        "date=$date src=${new.source} at=${existing.locationLat},${existing.locationLon} high=${existing.highTemp}->${new.highTemp} low=${existing.lowTemp}->${new.lowTemp} precip=${existing.precipAmountMm}->${new.precipAmountMm}",
+                        "DEBUG",
+                    )
+                    toInsert.add(new.copy(locationLat = existing.locationLat, locationLon = existing.locationLon))
                 }
-
-                else -> {
-                    // Past day: overwrite. Observations are complete, the time-aligned blend is
-                    // idempotent, and self-healing migration relies on overwriting stale rows
-                    // left by the old per-station-spot-max algorithm.
-                    if (new.highTemp != existing.highTemp || new.lowTemp != existing.lowTemp || new.condition != existing.condition || precipChanged(new, existing)) {
-                        appLogDao.log(
-                            "DAILY_EXTREME_OVERWRITE",
-                            "date=$date src=${new.source} high=${existing.highTemp}->${new.highTemp} low=${existing.lowTemp}->${new.lowTemp} precip=${existing.precipAmountMm}->${new.precipAmountMm}",
-                            "DEBUG",
-                        )
-                        toInsert.add(new)
-                    } else {
-                        appLogDao.log("DAILY_EXTREME_STABLE", "date=$date src=${new.source} high=${new.highTemp} low=${new.lowTemp}", "DEBUG")
-                    }
-                }
+            }
+            if (!changedAny) {
+                appLogDao.log("DAILY_EXTREME_STABLE", "date=$date src=${new.source} high=${new.highTemp} low=${new.lowTemp} fragments=${fragments.size}", "DEBUG")
             }
         }
 

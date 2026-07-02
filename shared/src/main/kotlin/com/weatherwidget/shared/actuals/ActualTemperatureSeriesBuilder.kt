@@ -33,10 +33,12 @@ data class BlendObservationStats(
     val candidateTimeCount: Int,
     val emittedPointCount: Int,
     val dedupSkippedCount: Int,
+    val loneStationSkippedCount: Int = 0,
 ) {
     fun summary(): String =
         "rawObs=$rawObservationCount filteredObs=$filteredObservationCount stations=$stationCount " +
-            "candidateTimes=$candidateTimeCount emitted=$emittedPointCount dedupSkipped=$dedupSkippedCount"
+            "candidateTimes=$candidateTimeCount emitted=$emittedPointCount dedupSkipped=$dedupSkippedCount " +
+            "loneSkipped=$loneStationSkippedCount"
 }
 
 data class BlendObservationResult(
@@ -120,6 +122,7 @@ object ActualTemperatureSeriesBuilder {
             startMs = contextStartMs,
             endMs = contextEndMs,
             personalStationWeight = personalStationWeight,
+            zoneId = zoneId,
             onBlendDebug = onBlendDebug,
         )
         val blendedActuals = blendedActualsResult.observations
@@ -212,6 +215,7 @@ object ActualTemperatureSeriesBuilder {
         startMs: Long,
         endMs: Long,
         personalStationWeight: Double = 1.0,
+        zoneId: ZoneId = ZoneId.systemDefault(),
         onBlendDebug: ((() -> String) -> Unit)? = null,
     ): BlendObservationResult {
         val filtered = observations
@@ -240,8 +244,12 @@ object ActualTemperatureSeriesBuilder {
         val candidateTimes = filtered.map { it.timestamp }.distinct().sorted()
         val result = mutableListOf<ObservationReading>()
         val candidates = mutableListOf<DecayBlendInput>()
-        val zoneId = if (onBlendDebug != null) ZoneId.systemDefault() else null
         val timePattern = if (onBlendDebug != null) DateTimeFormatter.ofPattern("HH:mm") else null
+        // Dominance is per LOCAL day of the raw readings, so the daily aggregate (day-only obs)
+        // and the hourly graph (multi-day context window) compute the same dominant station and
+        // suppress the same lone-station candidates — keeping the two views' extrema in agreement.
+        val dominantByDay = if (byStation.size > 1) dominantStationByDay(filtered, zoneId) else emptyMap()
+        var loneStationSkipped = 0
 
         // Blend once per distinct observation timestamp (no time-bucket thinning). Observation data is
         // naturally sparse (NWS ~15 min, other sources hourly), so this is cheap, and — crucially — it
@@ -254,13 +262,15 @@ object ActualTemperatureSeriesBuilder {
             var hasInterpolated = false
             var bestAnchorTs = -1L
             var anchorStation: ObservationReading? = null
+            var soleContributorId: String? = null
 
-            for ((_, stationObs) in byStation) {
+            for ((stationId, stationObs) in byStation) {
                 val resolved = resolveStationValueAt(stationObs, targetTs, forecastSeries)
                 if (resolved != null) {
                     val ageMs = maxOf(0L, targetTs - resolved.anchorTs)
                     val isPersonal = resolved.stationType == PERSONAL_STATION_TYPE
                     candidates.add(DecayBlendInput(resolved.distanceKm, resolved.temperature, ageMs, isPersonal))
+                    soleContributorId = if (candidates.size == 1) stationId else null
                     if (resolved.anchorTs > bestAnchorTs) bestAnchorTs = resolved.anchorTs
                     if (anchorStation == null) anchorStation = stationObs.minByOrNull { it.distanceKm }
                     when (resolved.sourceKind) {
@@ -271,6 +281,30 @@ object ActualTemperatureSeriesBuilder {
             }
 
             if (candidates.isEmpty()) continue
+
+            // A timestamp covered by exactly ONE station gets that station's raw value (IDW with a
+            // single candidate is the identity), so a distant station's outlier can silently become
+            // the series min/max — e.g. a hills PWS with 3 pre-dawn readings that no other station's
+            // 3h interpolation reach covers set a daily low 5°F below every official station. Only
+            // the day's dominant station (best coverage) may stand alone; sparse stragglers must be
+            // corroborated. A single-station day is trivially dominant, so sources with one station
+            // (OPEN_METEO_MAIN, SILURIAN_MAIN) and full-day solo coverage are unaffected.
+            if (candidates.size == 1 && byStation.size > 1) {
+                val sole = soleContributorId
+                val dominant = dominantByDay[Instant.ofEpochMilli(targetTs).atZone(zoneId).toLocalDate()]
+                if (sole != null && sole != dominant) {
+                    loneStationSkipped++
+                    if (onBlendDebug != null && timePattern != null) {
+                        val loopTs = targetTs
+                        onBlendDebug.invoke {
+                            val timeStr = Instant.ofEpochMilli(loopTs).atZone(zoneId).format(timePattern)
+                            "skip t=$timeStr lone_station=$sole non-dominant (dominant=$dominant)"
+                        }
+                    }
+                    continue
+                }
+            }
+
             val anchor = anchorStation ?: continue
             val blendedTemp = blendCandidateTemperature(candidates, personalStationWeight) ?: continue
             val bestSourceKind = when {
@@ -279,7 +313,7 @@ object ActualTemperatureSeriesBuilder {
                 else -> "forecast_extrapolated"
             }
 
-            if (onBlendDebug != null && zoneId != null && timePattern != null) {
+            if (onBlendDebug != null && timePattern != null) {
                 val loopTs = targetTs
                 val loopCandidates = candidates.toList()
                 val loopTemp = blendedTemp
@@ -316,9 +350,27 @@ object ActualTemperatureSeriesBuilder {
                 candidateTimeCount = candidateTimes.size,
                 emittedPointCount = result.size,
                 dedupSkippedCount = 0, // thinning removed; retained as 0 for stat/summary compatibility
+                loneStationSkippedCount = loneStationSkipped,
             ),
         )
     }
+
+    /**
+     * The station allowed to stand alone at a candidate timestamp, per local calendar day: most
+     * readings that day, ties broken by smaller minimum distance, then stationId for determinism.
+     */
+    private fun dominantStationByDay(filtered: List<ObservationReading>, zoneId: ZoneId): Map<LocalDate, String> =
+        filtered
+            .groupBy { Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate() }
+            .mapValues { (_, dayObs) ->
+                dayObs.groupBy { it.stationId }.entries.maxWith(
+                    compareBy(
+                        { entry -> entry.value.size },
+                        { entry -> -entry.value.minOf { obs -> obs.distanceKm } },
+                        { entry -> entry.key },
+                    ),
+                ).key
+            }
 
     fun selectObservationSeries(
         observations: List<ObservationReading>,

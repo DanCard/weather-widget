@@ -49,6 +49,7 @@ object YesterdayDeltaCalculator {
             startMs = targetMs - toleranceMs,
             endMs = targetMs + toleranceMs,
             personalStationWeight = personalStationWeight,
+            zoneId = zoneId,
         ).observations
         if (blended.isEmpty()) return null
 

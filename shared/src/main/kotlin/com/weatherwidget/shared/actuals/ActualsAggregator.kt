@@ -50,6 +50,7 @@ object ActualsAggregator {
             startMs = contextStartMs,
             endMs = contextEndMs,
             personalStationWeight = personalStationWeight,
+            zoneId = zoneId,
             onBlendDebug = null,
         )
 
@@ -100,6 +101,7 @@ object ActualsAggregator {
                             dayStartMs = dayStartMs,
                             dayEndMs = dayEndMs,
                             personalStationWeight = personalStationWeight,
+                            zoneId = zoneId,
                         ) ?: return@mapNotNull null
 
                         val mostCommonCondition = dayObs
@@ -140,6 +142,7 @@ object ActualsAggregator {
         dayStartMs: Long,
         dayEndMs: Long,
         personalStationWeight: Double = 1.0,
+        zoneId: ZoneId = ZoneId.systemDefault(),
     ): Pair<Float, Float>? {
         if (dayObs.isEmpty()) return null
 
@@ -152,6 +155,7 @@ object ActualsAggregator {
             startMs = dayStartMs,
             endMs = dayEndMs,
             personalStationWeight = personalStationWeight,
+            zoneId = zoneId,
             onBlendDebug = null,
         )
         
