@@ -104,6 +104,9 @@ fun isOfflineException(e: Throwable): Boolean {
     val name = e::class.qualifiedName ?: ""
     if (name.contains("ConnectException") ||
         name.contains("UnknownHostException") ||
+        // Ktor CIO surfaces DNS failure as java.nio.channels.UnresolvedAddressException, whose
+        // message is null — the message fallbacks below can never catch it.
+        name.contains("UnresolvedAddressException") ||
         name.contains("SocketTimeoutException") ||
         name.contains("NoRouteToHostException") ||
         name.contains("NetworkUnreachableException")

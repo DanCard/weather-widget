@@ -56,6 +56,14 @@ class DataStatusTest {
     }
 
     @Test
+    fun `isOfflineException recognizes UnresolvedAddressException despite null message`() {
+        // Ktor CIO's DNS failure: class-name match is the only path (message is null).
+        val e = java.nio.channels.UnresolvedAddressException()
+        assertNull(e.message)
+        assertTrue(isOfflineException(e))
+    }
+
+    @Test
     fun `isOfflineException recognizes connection refused by message`() {
         val e = RuntimeException("Connection refused: connect")
         assertTrue(isOfflineException(e))

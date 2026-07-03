@@ -147,6 +147,87 @@ class RefreshDelayTest {
     }
 
     @Test
+    fun `network restored line recognizes StateChanged to connected global`() {
+        assertTrue(
+            isNetworkRestoredSignalLine(
+                "/org/freedesktop/NetworkManager: org.freedesktop.NetworkManager.StateChanged (uint32 70,)"
+            )
+        )
+    }
+
+    @Test
+    fun `network restored line recognizes Connectivity full property change`() {
+        assertTrue(
+            isNetworkRestoredSignalLine(
+                "/org/freedesktop/NetworkManager: org.freedesktop.DBus.Properties.PropertiesChanged " +
+                    "('org.freedesktop.NetworkManager', {'Connectivity': <uint32 4>, 'State': <uint32 70>}, @as [])"
+            )
+        )
+    }
+
+    @Test
+    fun `network restored line ignores disconnected and connecting states`() {
+        assertFalse(
+            isNetworkRestoredSignalLine(
+                "/org/freedesktop/NetworkManager: org.freedesktop.NetworkManager.StateChanged (uint32 20,)"
+            )
+        )
+        assertFalse(
+            isNetworkRestoredSignalLine(
+                "/org/freedesktop/NetworkManager: org.freedesktop.NetworkManager.StateChanged (uint32 40,)"
+            )
+        )
+        // Digit lookahead: a larger number containing "70" as a prefix must not match.
+        assertFalse(
+            isNetworkRestoredSignalLine(
+                "/org/freedesktop/NetworkManager: org.freedesktop.NetworkManager.StateChanged (uint32 700,)"
+            )
+        )
+    }
+
+    @Test
+    fun `network restored line ignores partial connectivity and unrelated signals`() {
+        assertFalse(
+            isNetworkRestoredSignalLine(
+                "/org/freedesktop/NetworkManager: org.freedesktop.DBus.Properties.PropertiesChanged " +
+                    "('org.freedesktop.NetworkManager', {'Connectivity': <uint32 2>}, @as [])"
+            )
+        )
+        assertFalse(
+            isNetworkRestoredSignalLine(
+                "/org/freedesktop/NetworkManager: org.freedesktop.NetworkManager.DeviceAdded " +
+                    "(objectpath '/org/freedesktop/NetworkManager/Devices/3',)"
+            )
+        )
+        // No cross-matching with the logind resume signal.
+        assertFalse(
+            isNetworkRestoredSignalLine(
+                "/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (false)"
+            )
+        )
+    }
+
+    @Test
+    fun `offline retry follows the backoff schedule then exhausts`() {
+        assertEquals(5_000L, offlineRetryDelayMs(attempt = 0, isOffline = true))
+        assertEquals(15_000L, offlineRetryDelayMs(attempt = 1, isOffline = true))
+        assertNull(offlineRetryDelayMs(attempt = 2, isOffline = true))
+    }
+
+    @Test
+    fun `offline retry never fires for non-offline failures`() {
+        assertNull(offlineRetryDelayMs(attempt = 0, isOffline = false))
+        assertNull(offlineRetryDelayMs(attempt = 1, isOffline = false))
+    }
+
+    @Test
+    fun `offline retry schedule is positive and non-decreasing`() {
+        assertTrue(OFFLINE_RETRY_DELAYS_MS.isNotEmpty())
+        assertTrue(OFFLINE_RETRY_DELAYS_MS.all { it > 0 })
+        assertEquals(OFFLINE_RETRY_DELAYS_MS, OFFLINE_RETRY_DELAYS_MS.sorted())
+    }
+
+    @Test
     fun `suspend jump detected when wall-clock gap far exceeds the heartbeat`() {
         // 6h elapsed against a 30s heartbeat => suspended.
         assertTrue(isSuspendJump(HEARTBEAT_INTERVAL_MS, 6 * 60 * 60 * 1000L, SUSPEND_JUMP_SLACK_MS))

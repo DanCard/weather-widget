@@ -83,6 +83,38 @@ fun isResumeSignalLine(line: String): Boolean =
 fun isSuspendJump(expectedElapsedMs: Long, actualElapsedMs: Long, slackMs: Long): Boolean =
     actualElapsedMs > expectedElapsedMs + slackMs
 
+// Network-restored detection. A catch-up fetch kicked right after resume/login often races the
+// network stack and fails with a DNS error; a failed fetch never updates lastSuccessfulFetch, so
+// re-running the launch refresh once connectivity returns re-fetches exactly what is still stale.
+// Primary recovery is a gdbus NetworkManager monitor (interrupt-driven, mirrors the logind resume
+// detector); [OFFLINE_RETRY_DELAYS_MS] is only belt-and-suspenders for a dead gdbus stream or NM
+// reporting connected before DNS actually resolves.
+const val NETWORK_RESTORE_DEBOUNCE_MS = 30_000L
+val OFFLINE_RETRY_DELAYS_MS = listOf(5_000L, 15_000L)
+
+/**
+ * Delay before offline-failure retry [attempt] (0-based), or null when the failure is not
+ * offline-classified or the schedule is exhausted (normal final-failure handling applies).
+ */
+fun offlineRetryDelayMs(attempt: Int, isOffline: Boolean): Long? =
+    if (isOffline) OFFLINE_RETRY_DELAYS_MS.getOrNull(attempt) else null
+
+/**
+ * True when a NetworkManager D-Bus signal line indicates full connectivity was (re)gained.
+ * Matches `gdbus monitor` output such as
+ * `/org/freedesktop/NetworkManager: org.freedesktop.NetworkManager.StateChanged (uint32 70,)`
+ * (NM_STATE_CONNECTED_GLOBAL) and `PropertiesChanged` lines containing `'Connectivity': <uint32 4>`
+ * (NM_CONNECTIVITY_FULL). State 70 requires a non-digit follower so a larger number cannot match.
+ */
+fun isNetworkRestoredSignalLine(line: String): Boolean {
+    if (line.contains("'Connectivity': <uint32 4>")) return true
+    if (!line.contains("StateChanged")) return false
+    val marker = "uint32 70"
+    val idx = line.indexOf(marker)
+    if (idx < 0) return false
+    return line.getOrNull(idx + marker.length)?.isDigit() != true
+}
+
 fun isPackaged(): Boolean = System.getProperty("jpackage.app-path") != null
 
 const val MIN_REFRESH_DELAY_MS = 10 * 60 * 1000L

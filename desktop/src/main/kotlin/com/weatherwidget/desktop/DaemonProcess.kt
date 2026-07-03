@@ -58,6 +58,7 @@ fun runDaemon() {
 
     var uiProcess: Process? = null
     var logindMonitor: Process? = null
+    var networkMonitor: Process? = null
 
     val daemonScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -65,6 +66,10 @@ fun runDaemon() {
     var weatherService: DesktopWeatherService? = null
     var repo: DesktopWeatherRepository? = null
     var lastResumeKickMs = 0L
+    var lastNetworkKickMs = 0L
+    // One catch-up refresh at a time, last-wins: a new kick (resume or network-restored) cancels a
+    // predecessor that may still be sleeping in its offline retry backoff.
+    var catchUpRefreshJob: Job? = null
 
     fun quit(killUi: Boolean = true) {
         Log.i(TAG, "Quitting daemon (killUi=$killUi)...")
@@ -72,8 +77,9 @@ fun runDaemon() {
         if (killUi) {
             uiProcess?.destroy()
         }
-        // Unblock the gdbus reader (coroutine cancellation can't interrupt its blocking read).
+        // Unblock the gdbus readers (coroutine cancellation can't interrupt their blocking reads).
         runCatching { logindMonitor?.destroy() }
+        runCatching { networkMonitor?.destroy() }
         daemonScope.cancel()
 
         kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
@@ -132,38 +138,57 @@ fun runDaemon() {
             )
 
             if (launchRefreshAction != LaunchRefreshAction.NONE) {
-                try {
-                    val result = when (launchRefreshAction) {
-                        LaunchRefreshAction.FULL_FORECAST -> {
-                            Log.i(TAG, "Refreshing full forecast from network...")
-                            activeRepo.refresh()
+                var attempt = 0
+                while (true) {
+                    try {
+                        val result = when (launchRefreshAction) {
+                            LaunchRefreshAction.FULL_FORECAST -> {
+                                Log.i(TAG, "Refreshing full forecast from network...")
+                                activeRepo.refresh()
+                            }
+                            LaunchRefreshAction.OBSERVATIONS -> {
+                                Log.i(TAG, "Refreshing current observations from network...")
+                                activeRepo.refreshObservations()
+                            }
+                            LaunchRefreshAction.NONE -> forecastState.value
                         }
-                        LaunchRefreshAction.OBSERVATIONS -> {
-                            Log.i(TAG, "Refreshing current observations from network...")
-                            activeRepo.refreshObservations()
+                        forecastState.value = result
+                        dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
+                        Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
+                        break
+                    } catch (e: CancellationException) {
+                        Log.i(TAG, "Refresh cancelled.")
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Refresh failed: ${e.message}")
+                        e.printStackTrace()
+                        val isOffline = isOfflineException(e)
+                        val retryDelayMs = offlineRetryDelayMs(attempt, isOffline)
+                        if (retryDelayMs != null) {
+                            // Offline right after resume/login usually means the network is still
+                            // coming up. Don't surface a failure yet: the UI keeps showing cached
+                            // data as Live, and the NetworkManager monitor is the primary recovery.
+                            weatherDao.log(
+                                "REFRESH_RETRY",
+                                "$reason fetch offline (${e.message}); retry #${attempt + 1} in ${retryDelayMs / 1000}s",
+                                "INFO"
+                            )
+                            delay(retryDelayMs)
+                            attempt++
+                            continue
                         }
-                        LaunchRefreshAction.NONE -> forecastState.value
+                        val failReason = if (isOffline) "offline" else "source_error"
+                        weatherDao.log("REFRESH_FAIL", "$reason fetch: $failReason ${e.message}", "WARN")
+                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.weatherSource)
+                        dataStatusState.value = deriveDataStatus(
+                            cachePresent = forecastState.value != null,
+                            lastFetchMs = lastSuccess,
+                            refreshFailed = true,
+                            failureIsOffline = isOffline,
+                        )
+                        Log.i(TAG, "DataStatus updated to: ${dataStatusState.value}")
+                        break
                     }
-                    forecastState.value = result
-                    dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
-                    Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
-                } catch (e: CancellationException) {
-                    Log.i(TAG, "Refresh cancelled.")
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "Refresh failed: ${e.message}")
-                    e.printStackTrace()
-                    val isOffline = isOfflineException(e)
-                    val failReason = if (isOffline) "offline" else "source_error"
-                    weatherDao.log("REFRESH_FAIL", "$reason fetch: $failReason ${e.message}", "WARN")
-                    val lastSuccess = weatherDao.getLastSuccessfulFetch(config.weatherSource)
-                    dataStatusState.value = deriveDataStatus(
-                        cachePresent = forecastState.value != null,
-                        lastFetchMs = lastSuccess,
-                        refreshFailed = true,
-                        failureIsOffline = isOffline,
-                    )
-                    Log.i(TAG, "DataStatus updated to: ${dataStatusState.value}")
                 }
             }
 
@@ -208,7 +233,32 @@ fun runDaemon() {
         lastResumeKickMs = now
         weatherDao.log("RESUME_DETECT", "resume detected ($reason) — kicking catch-up refresh", "INFO")
         Log.i(TAG, "Resume detected ($reason) — kicking catch-up refresh.")
-        daemonScope.launch { runLaunchRefresh(activeRepo, activeConfig, "resume:$reason") }
+        catchUpRefreshJob?.cancel()
+        catchUpRefreshJob = daemonScope.launch { runLaunchRefresh(activeRepo, activeConfig, "resume:$reason") }
+    }
+
+    // Called when NetworkManager reports full connectivity. Heals catch-up fetches that failed while
+    // the network was down (post-resume race, login autostart, mid-day Wi-Fi drop): a failed fetch
+    // never updated lastSuccessfulFetch, so runLaunchRefresh's staleness gate re-fetches exactly what
+    // is still missing and no-ops when everything is fresh. Debounced separately from resume kicks
+    // because Wi-Fi roams can flap the connectivity signal.
+    fun kickNetworkRestoredRefresh() {
+        val now = System.currentTimeMillis()
+        val activeRepo = repo
+        val activeConfig = currentConfig
+        if (activeRepo == null || activeConfig == null) {
+            weatherDao.log("NETWORK_DETECT", "kick skipped: no active repo/config yet", "WARN")
+            return
+        }
+        if (now - lastNetworkKickMs < NETWORK_RESTORE_DEBOUNCE_MS) {
+            weatherDao.log("NETWORK_DETECT", "kick ignored: debounced (${now - lastNetworkKickMs}ms since last kick)", "INFO")
+            return
+        }
+        lastNetworkKickMs = now
+        weatherDao.log("NETWORK_DETECT", "connectivity restored — kicking catch-up refresh", "INFO")
+        Log.i(TAG, "Network connectivity restored — kicking catch-up refresh.")
+        catchUpRefreshJob?.cancel()
+        catchUpRefreshJob = daemonScope.launch { runLaunchRefresh(activeRepo, activeConfig, "network:restored") }
     }
 
     fun startFetchLoops() {
@@ -575,6 +625,32 @@ fun runDaemon() {
             throw e
         } catch (e: Exception) {
             weatherDao.log("RESUME_DETECT", "gdbus logind monitor unavailable (${e.message}) — heartbeat fallback only", "WARN")
+        }
+    }
+
+    // Primary network-restored detector: NetworkManager emits StateChanged(70)/Connectivity=4 the
+    // moment connectivity returns, healing a catch-up fetch that raced the network stack and failed
+    // offline (post-resume, login autostart). Best-effort like the logind monitor: if the stream dies
+    // we log once and lean on the short offline retry backoff + periodic fetch loops.
+    daemonScope.launch(Dispatchers.IO) {
+        try {
+            val proc = ProcessBuilder(
+                "gdbus", "monitor", "--system",
+                "--dest", "org.freedesktop.NetworkManager",
+                "--object-path", "/org/freedesktop/NetworkManager",
+            ).redirectErrorStream(true).start()
+            networkMonitor = proc
+            weatherDao.log("NETWORK_DETECT", "gdbus NetworkManager monitor started (pid=${proc.pid()})", "INFO")
+            proc.inputStream.bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    if (isNetworkRestoredSignalLine(line)) kickNetworkRestoredRefresh()
+                }
+            }
+            weatherDao.log("NETWORK_DETECT", "gdbus NetworkManager monitor stream ended — retry backoff fallback only", "WARN")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            weatherDao.log("NETWORK_DETECT", "gdbus NetworkManager monitor unavailable (${e.message}) — retry backoff fallback only", "WARN")
         }
     }
 
