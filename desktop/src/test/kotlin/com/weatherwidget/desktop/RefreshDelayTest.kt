@@ -221,6 +221,14 @@ class RefreshDelayTest {
     }
 
     @Test
+    fun `network restore kick pause is a few seconds and under the debounce`() {
+        assertTrue(NETWORK_RESTORE_KICK_DELAY_MS >= 1_000L)
+        // Worst-case pause (delay + max jitter) must finish before the debounce window reopens,
+        // so a delayed kick can't still be pending when the next one is accepted.
+        assertTrue(NETWORK_RESTORE_KICK_DELAY_MS + NETWORK_RESTORE_KICK_JITTER_MS < NETWORK_RESTORE_DEBOUNCE_MS)
+    }
+
+    @Test
     fun `offline retry schedule is positive and non-decreasing`() {
         assertTrue(OFFLINE_RETRY_DELAYS_MS.isNotEmpty())
         assertTrue(OFFLINE_RETRY_DELAYS_MS.all { it > 0 })

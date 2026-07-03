@@ -92,6 +92,13 @@ fun isSuspendJump(expectedElapsedMs: Long, actualElapsedMs: Long, slackMs: Long)
 const val NETWORK_RESTORE_DEBOUNCE_MS = 30_000L
 val OFFLINE_RETRY_DELAYS_MS = listOf(5_000L, 15_000L)
 
+// Deliberate pause before the network-restored kick's first fetch: a weather refresh is low
+// priority, so don't join the thundering herd of every client re-fetching the instant the link
+// comes up. The jitter de-syncs us from other fixed-delay clients. Delay + jitter must stay well
+// under NETWORK_RESTORE_DEBOUNCE_MS so a kick finishes its pause before the next one is accepted.
+const val NETWORK_RESTORE_KICK_DELAY_MS = 3_000L
+const val NETWORK_RESTORE_KICK_JITTER_MS = 2_000L
+
 /**
  * Delay before offline-failure retry [attempt] (0-based), or null when the failure is not
  * offline-classified or the schedule is exhausted (normal final-failure handling applies).

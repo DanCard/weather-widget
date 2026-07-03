@@ -24,6 +24,11 @@ fun runDaemon() {
     // As the very first statement: java.awt.headless = true
     System.setProperty("java.awt.headless", "true")
 
+    // Never cache failed DNS lookups (JVM default: 10s). Right after the network returns, a
+    // negative entry cached during the outage would make the network-restored kick's first fetch
+    // fail from the cache even though the resolver is back.
+    java.security.Security.setProperty("networkaddress.cache.negative.ttl", "0")
+
     // Set thread name to WeatherDaemon
     Thread.currentThread().name = "WeatherDaemon"
 
@@ -255,10 +260,14 @@ fun runDaemon() {
             return
         }
         lastNetworkKickMs = now
-        weatherDao.log("NETWORK_DETECT", "connectivity restored — kicking catch-up refresh", "INFO")
-        Log.i(TAG, "Network connectivity restored — kicking catch-up refresh.")
+        val pauseMs = NETWORK_RESTORE_KICK_DELAY_MS + kotlin.random.Random.nextLong(NETWORK_RESTORE_KICK_JITTER_MS)
+        weatherDao.log("NETWORK_DETECT", "connectivity restored — catch-up refresh in ${pauseMs}ms", "INFO")
+        Log.i(TAG, "Network connectivity restored — catch-up refresh in ${pauseMs}ms.")
         catchUpRefreshJob?.cancel()
-        catchUpRefreshJob = daemonScope.launch { runLaunchRefresh(activeRepo, activeConfig, "network:restored") }
+        catchUpRefreshJob = daemonScope.launch {
+            delay(pauseMs)
+            runLaunchRefresh(activeRepo, activeConfig, "network:restored")
+        }
     }
 
     fun startFetchLoops() {
