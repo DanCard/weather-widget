@@ -634,12 +634,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
             val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
             val displaySourceId = stateManager.getCurrentDisplaySource(appWidgetId).id
-            val targetDate =
-                try {
-                    LocalDate.parse(dateStr)
-                } catch (_: Exception) {
-                    null
-                }
 
             triggerUiOnlyUpdate(context, reason = "show_no_hourly_pending")
             triggerImmediateUpdate(
@@ -647,9 +641,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 forceRefresh = true,
                 reason = "day_click_no_hourly",
                 extraInput = {
-                    if (targetDate != null) {
-                        putInt(WeatherWidgetWorker.KEY_FORECAST_DAYS, NoHourlyDayClickCoordinator.forecastDaysFor(targetDate))
-                    }
                     putString(WeatherWidgetWorker.KEY_TARGET_SOURCE, displaySourceId)
                     putInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, appWidgetId)
                     putString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE, dateStr)

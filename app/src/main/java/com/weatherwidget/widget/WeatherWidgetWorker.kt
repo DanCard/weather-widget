@@ -12,7 +12,6 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.LocationMatch
-import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.local.ForecastEntity
@@ -63,7 +62,6 @@ class WeatherWidgetWorker
             val backfillLon = inputData.getDouble(KEY_BACKFILL_LON, DEFAULT_LON)
             val backfillHours = inputData.getLong(KEY_OBSERVATION_BACKFILL_HOURS, DEFAULT_OBSERVATION_BACKFILL_HOURS)
             val backfillReason = inputData.getString(KEY_OBSERVATION_BACKFILL_REASON) ?: "unspecified"
-            val forecastDays = inputData.getInt(KEY_FORECAST_DAYS, ForecastHorizon.BASELINE_DAYS)
             val noHourlyWidgetId = inputData.getInt(KEY_NO_HOURLY_WIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
             val noHourlyDate = inputData.getString(KEY_NO_HOURLY_DATE)
             val noHourlyLat = inputData.getDouble(KEY_NO_HOURLY_LAT, 0.0)
@@ -174,7 +172,6 @@ class WeatherWidgetWorker
                         networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh),
                         targetSourceId = targetSourceId,
                         fetchContext = fetchContext,
-                        forecastDays = forecastDays,
                     )
 
                 return result.fold(
@@ -805,7 +802,6 @@ class WeatherWidgetWorker
             const val KEY_OBSERVATION_BACKFILL_REASON = "observation_backfill_reason"
             const val KEY_BACKFILL_LAT = "backfill_lat"
             const val KEY_BACKFILL_LON = "backfill_lon"
-            const val KEY_FORECAST_DAYS = "forecast_days"
             const val KEY_NO_HOURLY_WIDGET_ID = "no_hourly_widget_id"
             const val KEY_NO_HOURLY_DATE = "no_hourly_date"
             const val KEY_NO_HOURLY_LAT = "no_hourly_lat"

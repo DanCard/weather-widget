@@ -36,7 +36,6 @@ import com.weatherwidget.widget.ForecastFetchPolicy
 import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
-import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -145,7 +144,6 @@ class ForecastRepository
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
             fetchContext: ForecastFetchContext? = null,
-            forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
         ): Result<List<ForecastEntity>> {
             val fetchStartTime = System.currentTimeMillis()
             try {
@@ -191,7 +189,6 @@ class ForecastRepository
                     val (nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts, tomorrowIoForecasts) = fetchFromAllApis(
                         latitude, longitude, locationName, sourcesToFetch,
                         openWeatherMapApi != null,
-                        forecastDays,
                     )
 
                     // Determine the end of our real forecast coverage to fill in the rest with climate normals
@@ -298,7 +295,6 @@ class ForecastRepository
             locationName: String,
             sourcesToFetch: Set<WeatherSource>,
             hasOpenWeatherMapApi: Boolean,
-            forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
         ): FetchResult = coroutineScope {
             val nwsDeferred = if (WeatherSource.NWS in sourcesToFetch) async {
                 safeFetch("FETCH_NWS_FAIL", WeatherSource.NWS) {
@@ -336,7 +332,6 @@ class ForecastRepository
                     val result = openMeteoApi.getForecast(
                         latitude,
                         longitude,
-                        forecastDays,
                         historyDays = WeatherConfig.ACTUALS_HISTORY_DAYS
                     )
                     if (result.hourly.isNotEmpty()) {

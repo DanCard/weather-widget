@@ -1,60 +1,24 @@
 package com.weatherwidget.shared.config
 
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
-
 /**
  * Single source of truth for how many days of daily forecast we ask a weather API for, shared by
  * Android (`:app`) and the Linux desktop (`:desktop`) so the two can't drift.
  *
- * Two horizons:
- *  - [BASELINE_DAYS]: what every routine/scheduled fetch requests. Includes *today*, so a baseline
- *    of 8 reaches today + 7 days. This was raised from 7 specifically because a 7-day window
- *    (today + 6) drops the day exactly one week out — e.g. on a Saturday, *next* Saturday fell off
- *    the edge and the Open-Meteo bar went missing.
- *  - [MAX_DAYS]: the ceiling Open-Meteo's free `forecast` endpoint allows (`forecast_days` 0..16;
- *    17 is rejected). The on-demand extension fetches this once when the user navigates the daily
- *    view past the baseline edge, which unlocks all further forward navigation.
+ * Every fetch requests [MAX_DAYS]. This is a *request-formation* constant — the ceiling
+ * Open-Meteo's free `forecast` endpoint accepts (`forecast_days` 0..16; 17 is rejected) — not a
+ * statement about any source's real coverage. Sources return whatever they can (NWS ~7 days
+ * regardless of what's asked; Open-Meteo the full 16), so stored coverage per source is always the
+ * deepest that source currently provides, and days past a source's real coverage render as
+ * climate-normal filler by design. No per-source capability limits are encoded anywhere: if a
+ * provider extends its horizon, the app benefits on the next fetch with no code change; if this
+ * constant ever lags a raised Open-Meteo ceiling, we merely under-ask until it's bumped.
  *
- * [daysToCover] maps "I need the forecast to reach this target date" to a `forecast_days` value,
- * clamped into `[BASELINE_DAYS, MAX_DAYS]`. Both platforms' on-demand triggers call it so the math
- * is identical; [ForecastHorizonContract] pins the boundary behaviour for tests on both sides.
+ * History: fetches once used a 7-day window, which dropped the day exactly one week out (on a
+ * Saturday, *next* Saturday fell off the edge), then an 8-day baseline with on-demand 16-day
+ * extension triggers. Always requesting the max subsumed both and let the extension/coverage-gap
+ * machinery be deleted (see notes/260703-forecast-coverage-check-deep-dive.md).
  */
 object ForecastHorizon {
-    /** Routine fetch horizon, inclusive of today (8 ⇒ today + 7 days). */
-    const val BASELINE_DAYS = 8
-
-    /** Open-Meteo's maximum `forecast_days` (today + 15 days). */
+    /** Open-Meteo's maximum `forecast_days` (today + 15 days); what every fetch requests. */
     const val MAX_DAYS = 16
-
-    /**
-     * `forecast_days` needed so the daily forecast reaches [target] from [today], inclusive of both
-     * ends, clamped to `[BASELINE_DAYS, MAX_DAYS]`. A target at or before today + (BASELINE_DAYS-1)
-     * stays at the baseline; anything further requests more, never exceeding the API ceiling.
-     */
-    fun daysToCover(today: LocalDate, target: LocalDate): Int {
-        val span = ChronoUnit.DAYS.between(today, target).toInt() + 1 // inclusive of both endpoints
-        return span.coerceIn(BASELINE_DAYS, MAX_DAYS)
-    }
-
-    /**
-     * The on-demand extension decision, shared by both platforms so the trigger can't drift. Given
-     * the rightmost day the daily view can now show and how far *real* (non-climate-normal) forecast
-     * coverage currently reaches ([realCoverageMaxDate], or null when there's no real coverage yet),
-     * returns the `forecast_days` to fetch — always [MAX_DAYS], since one extension unlocks all
-     * further navigation — or null when current coverage already reaches the visible edge.
-     *
-     * Each platform supplies [realCoverageMaxDate] from its own store (the I/O is necessarily
-     * platform-specific); only this judgement on those inputs is shared.
-     */
-    fun extensionTarget(
-        today: LocalDate,
-        rightmostVisible: LocalDate,
-        realCoverageMaxDate: LocalDate?,
-    ): Int? {
-        val coverageDays = realCoverageMaxDate
-            ?.let { ChronoUnit.DAYS.between(today, it).toInt() + 1 } // inclusive of both endpoints
-            ?: 0
-        return if (daysToCover(today, rightmostVisible) > coverageDays) MAX_DAYS else null
-    }
 }

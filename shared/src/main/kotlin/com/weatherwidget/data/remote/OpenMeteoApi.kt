@@ -34,7 +34,7 @@ class OpenMeteoApi
         suspend fun getForecast(
             lat: Double,
             lon: Double,
-            days: Int = ForecastHorizon.BASELINE_DAYS,
+            days: Int = ForecastHorizon.MAX_DAYS,
             historyDays: Int = 0,
         ): ForecastResult {
             val response: String =

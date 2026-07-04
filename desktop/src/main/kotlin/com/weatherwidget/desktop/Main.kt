@@ -34,7 +34,6 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
-import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.DayClickResolver
@@ -267,54 +266,13 @@ private fun runApp() = application {
                 }
             }
         }
-        // On-demand forecast extension: fired by WidgetPopup when the daily view's rightmost visible
-        // day moves past what the baseline (8-day) fetch covers. The decision of whether/how-far to
-        // extend lives in the shared ForecastHorizon.extensionTarget (so Android and desktop can't
-        // drift); this callback just runs the fetch for the target it was handed. The repository's
-        // mutex makes rapid pans idempotent, and the in-flight flag avoids stacking UI launches.
-        var forecastExtendInFlight by remember { mutableStateOf(false) }
-        val onNeedForecastExtension: (Int) -> Unit = remember(repository) {
-            fn@{ targetDays: Int ->
-                val repo = repository ?: return@fn
-                if (forecastExtendInFlight) return@fn
-                forecastExtendInFlight = true
-                uiScope.launch {
-                    try {
-                        if (repo.ensureForecastDays(targetDays)) {
-                            repo.loadCached()?.let { forecast = it }
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "On-demand forecast extension failed: ${e.message}")
-                    } finally {
-                        forecastExtendInFlight = false
-                    }
-                }
-            }
-        }
-
-        // Refresh triggered by a daily-view tap on a day that has no hourly data. Fetches the day's
-        // forecast horizon, refreshes the in-memory forecast, and hands the resulting hourly list back
-        // to the caller (WidgetPopup) so it can decide whether data arrived and post a result banner.
-        // The completion callback always fires (even on failure / no-new-data) so the UI never strands
-        // on the pending banner.
-        val onNeedHourlyRefresh: (Int, (List<HourlyForecast>) -> Unit) -> Unit = remember(repository) {
-            fn@{ targetDays: Int, onComplete: (List<HourlyForecast>) -> Unit ->
-                val repo = repository ?: run { onComplete(forecast?.hourly ?: emptyList()); return@fn }
-                uiScope.launch {
-                    val resultHourly = try {
-                        if (repo.ensureForecastDays(targetDays)) {
-                            val refreshed = repo.loadCached()
-                            forecast = refreshed
-                            refreshed?.hourly ?: emptyList()
-                        } else {
-                            forecast?.hourly ?: emptyList()
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "No-hourly day-tap refresh failed: ${e.message}")
-                        forecast?.hourly ?: emptyList()
-                    }
-                    onComplete(resultHourly)
-                }
+        // Daily-view tap on a day that has no hourly data. Every fetch already requests the maximum
+        // forecast horizon, so there is nothing wider to fetch on tap — the two-phase pending→result
+        // banner resolves immediately from the in-memory forecast. The completion callback always
+        // fires so the UI never strands on the pending banner.
+        val onNeedHourlyRefresh: ((List<HourlyForecast>) -> Unit) -> Unit = remember(repository) {
+            { onComplete: (List<HourlyForecast>) -> Unit ->
+                onComplete(forecast?.hourly ?: emptyList())
             }
         }
 
@@ -707,7 +665,6 @@ private fun runApp() = application {
                     },
                     onRegisterArrowKeyHandler = { arrowKeyHandler = it },
                     onNeedHistory = onNeedHistory,
-                    onNeedForecastExtension = onNeedForecastExtension,
                     onNeedHourlyRefresh = onNeedHourlyRefresh,
                     onDayClickAudit = { message ->
                         Log.d("CLICK_DAILY", message)
@@ -746,8 +703,7 @@ internal fun WidgetPopup(
     onOpenHistory: () -> Unit = {},
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
     onNeedHistory: (Int) -> Unit = {},
-    onNeedForecastExtension: (Int) -> Unit = {},
-    onNeedHourlyRefresh: (days: Int, onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _, _ -> },
+    onNeedHourlyRefresh: (onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _ -> },
     onDayClickAudit: (String) -> Unit = {},
     historyFetchToast: String? = null,
     currentTempFetchError: String? = null,
@@ -997,22 +953,6 @@ internal fun WidgetPopup(
                                 dimensions = dimensions,
                             )
 
-                            // When the rightmost visible day moves past real (non-climate-normal)
-                            // forecast coverage, ask for an on-demand extension. The shared decision
-                            // (ForecastHorizon.extensionTarget) reads the actual coverage from the
-                            // loaded snapshot — so it's authoritative across relaunches — and returns
-                            // the days to fetch, or null when the edge is already covered. Keyed on the
-                            // edge date so it evaluates once per new edge (pan, arrow, or initial load).
-                            val rightmostVisibleDate = dailyState.days.lastOrNull()?.date
-                            LaunchedEffect(rightmostVisibleDate) {
-                                val edge = rightmostVisibleDate ?: return@LaunchedEffect
-                                val realCoverageMaxDate = snapshot.daily
-                                    .filter { !it.isClimateNormal }
-                                    .maxOfOrNull { LocalDate.parse(it.date) }
-                                ForecastHorizon.extensionTarget(LocalDate.now(), edge, realCoverageMaxDate)
-                                    ?.let(onNeedForecastExtension)
-                            }
-
                             // Sync both clamped values in one write so a simultaneous offset+zoom clamp
                             // doesn't clobber each other (two separate copy() calls off the same config would).
                             LaunchedEffect(dailyState.clampedDateOffset, dailyState.clampedExtraHistory) {
@@ -1082,13 +1022,13 @@ internal fun WidgetPopup(
                                     noHourlyMessage = null
                                     onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days, zone))
                                 } else {
-                                    // Two-phase flow mirroring Android: show a pending banner, trigger
-                                    // a refresh for the tapped day, then replace it with a result banner
-                                    // once the refresh completes (data arrived, or still missing).
+                                    // Two-phase flow mirroring Android: show a pending banner, resolve
+                                    // against the freshest in-memory hourly data, then replace it with a
+                                    // result banner (data present, or genuinely missing — fetches already
+                                    // request the maximum horizon, so there is nothing wider to pull).
                                     val dayLabel = NoHourlyChecker.formatDayLabel(clickedDate)
                                     noHourlyMessage = NoHourlyChecker.buildPendingMessage(dayLabel)
-                                    val targetDays = ForecastHorizon.daysToCover(LocalDate.now(), clickedDate)
-                                    onNeedHourlyRefresh(targetDays) { newHourly ->
+                                    onNeedHourlyRefresh { newHourly ->
                                         val hasData = NoHourlyChecker.hasHourlyForDay(newHourly, clickedDate, visibleSourceIds)
                                         val endLabel =
                                             if (!hasData) NoHourlyChecker.lastHourlyEndLabel(newHourly, visibleSourceIds)

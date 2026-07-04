@@ -2,7 +2,6 @@ package com.weatherwidget.widget.handlers
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -12,7 +11,6 @@ import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -67,12 +65,5 @@ class NoHourlyDayClickCoordinatorTest {
         assertTrue(message.contains("Results of refresh"))
         assertTrue(message.contains("now available", ignoreCase = true))
         assertTrue(message.contains(dayLabel))
-    }
-
-    @Test
-    fun `forecastDaysFor today plus 7 uses baseline horizon`() {
-        val today = LocalDate.of(2026, 6, 30)
-        val target = today.plusDays(7)
-        assertEquals(ForecastHorizon.BASELINE_DAYS, NoHourlyDayClickCoordinator.forecastDaysFor(target, today))
     }
 }

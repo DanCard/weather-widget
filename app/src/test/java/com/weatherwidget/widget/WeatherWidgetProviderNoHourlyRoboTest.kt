@@ -11,7 +11,6 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.ui.ForecastHistoryActivity
@@ -111,7 +110,6 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         val input = workSlot.captured.workSpec.input
         assertEquals(true, input.getBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, false))
         assertEquals(source.id, input.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE))
-        assertEquals(ForecastHorizon.BASELINE_DAYS, input.getInt(WeatherWidgetWorker.KEY_FORECAST_DAYS, -1))
         assertEquals(widgetId, input.getInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, -1))
         assertEquals(targetDay.toString(), input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE))
         assertEquals(lat, input.getDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LAT, 0.0), 0.001)

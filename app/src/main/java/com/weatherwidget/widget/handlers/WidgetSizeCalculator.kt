@@ -45,10 +45,10 @@ object WidgetSizeCalculator {
      *
      * Data backing the rightmost columns: at >8 columns the narrow skip-yesterday rule is off
      * (NavigationUtils.NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD), so a 10-column window is
-     * yesterday..+8. +7 is the routine baseline (ForecastHorizon.BASELINE_DAYS = 8 = today + 7);
-     * the +8 column (and NWS's +7, since NWS only returns ~today..+6) fall to the climate-normal
-     * filler, which is the intended long-range fallback for dates > today+2, plus the on-demand
-     * forecast extension the daily view triggers when its visible edge passes real coverage.
+     * yesterday..+8. Every fetch requests ForecastHorizon.MAX_DAYS, so Open-Meteo covers
+     * through today+15 while NWS reaches ~today+6; columns past a source's real coverage
+     * render the climate-normal filler, which is the intended terminal state (no on-demand
+     * extension exists — a gap a max-depth fetch didn't fill is unfillable).
      */
     private const val COLUMN_FIT_BIAS_DP = 30
 

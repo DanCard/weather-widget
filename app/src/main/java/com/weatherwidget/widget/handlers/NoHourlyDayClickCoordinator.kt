@@ -5,7 +5,6 @@ import android.content.Context
 import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.NoHourlyChecker
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
@@ -27,9 +26,6 @@ object NoHourlyDayClickCoordinator {
         } catch (_: Exception) {
             dateStr
         }
-
-    fun forecastDaysFor(targetDate: LocalDate, today: LocalDate = LocalDate.now()): Int =
-        ForecastHorizon.daysToCover(today, targetDate)
 
     fun buildPendingMessage(context: Context, dayLabel: String): String =
         context.getString(R.string.widget_no_hourly_pending, dayLabel)

@@ -9,7 +9,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
-import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.widget.BatteryFetchStrategy
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -17,11 +16,6 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 object RefreshScheduler {
     private const val TAG = "RefreshScheduler"
     private const val STALE_REFRESH_DEBOUNCE_MS = 30 * 1000L
-
-    // Coverage-staleness debounce: longer than the time-staleness one because a coverage gap persists
-    // across many renders until the fetch lands, and (for a source that genuinely caps below the
-    // baseline) we never want to busy-loop the network. One forced fetch per source per window.
-    private const val COVERAGE_REFRESH_DEBOUNCE_MS = 30 * 60 * 1000L
 
     @Volatile
     private var isRefreshDisabledForTesting = false
@@ -88,7 +82,6 @@ object RefreshScheduler {
         // KEEP by default so a new forced refresh never cancels a running WeatherWidgetWorker (that
         // cancellation segfaults ART on debuggable builds — see [[samsung_widget_dead_native_sigsegv]]).
         policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
-        forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
         initialDelayMs: Long = 0L,
     ) {
         if (isRefreshDisabledForTesting) {
@@ -102,7 +95,6 @@ object RefreshScheduler {
                     Data.Builder()
                         .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
                         .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
-                        .putInt(WeatherWidgetWorker.KEY_FORECAST_DAYS, forecastDays)
                         .build(),
                 )
                 .apply {
@@ -117,41 +109,6 @@ object RefreshScheduler {
             policy,
             workRequest,
         )
-    }
-
-    /**
-     * Forces a forecast refresh when the daily view finds a day *within the baseline horizon* that has
-     * no real forecast (it's showing GENERIC_GAP climate-normal filler). The normal fetch cadence is
-     * time-based — "fresh" means "fetched recently" — so a short-but-recent cache (e.g. a 7-day batch
-     * inherited right after upgrading to the 8-day baseline) is never re-fetched, leaving that day a
-     * generic green bar forever. This is the coverage-based complement: it requests [forecastDays] so
-     * the gap is filled. Debounced per source so it can't busy-loop the network. Logs only when it
-     * actually enqueues (callers may invoke this on every render).
-     */
-    suspend fun enqueueForecastCoverageRefresh(
-        context: Context,
-        sourceId: String,
-        forecastDays: Int,
-        appLogDao: AppLogDao? = null,
-    ) {
-        if (isRefreshDisabledForTesting) return
-        val nowMs = System.currentTimeMillis()
-        val prefs = context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE)
-        val key = "last_enqueue_coverage_$sourceId"
-        val lastEnqueueMs = prefs.getLong(key, -1L).takeIf { it >= 0L }
-        if (lastEnqueueMs != null && nowMs - lastEnqueueMs < COVERAGE_REFRESH_DEBOUNCE_MS) {
-            return
-        }
-        prefs.edit().putLong(key, nowMs).apply()
-        // Jittered short delay (see StartupFetchPolicy): callers may invoke this on every render,
-        // including right after process startup, so keep it out of the first-second startup scrum
-        // without meaningfully slowing a live render that's actively waiting on the coverage fix.
-        val delayMs = com.weatherwidget.widget.StartupFetchPolicy.historyRepairDelayMs()
-        appLogDao?.log(
-            "COVERAGE_REFRESH_ENQUEUE",
-            "source=$sourceId forecastDays=$forecastDays reason=coverage_gap_within_baseline delayMs=$delayMs",
-        )
-        enqueueForcedRefresh(context, reason = "coverage_gap", forecastDays = forecastDays, initialDelayMs = delayMs)
     }
 
     suspend fun refreshIfStale(

@@ -71,7 +71,7 @@ class OpenMeteoApiTest {
     }
 
     @Test
-    fun `getForecast requests the baseline forecast_days by default`() =
+    fun `getForecast requests the maximum forecast_days by default`() =
         runTest {
             val captured = mutableListOf<HttpRequestData>()
             val api = OpenMeteoApi(createCapturingClient(captured), json)
@@ -79,22 +79,9 @@ class OpenMeteoApiTest {
             api.getForecast(37.42, -122.08)
 
             val request = captured.single { it.url.host.contains("open-meteo") }
-            assertEquals(
-                ForecastHorizon.BASELINE_DAYS.toString(),
-                request.url.parameters["forecast_days"],
-            )
-        }
-
-    @Test
-    fun `getForecast forwards an explicit days value (on-demand extension)`() =
-        runTest {
-            val captured = mutableListOf<HttpRequestData>()
-            val api = OpenMeteoApi(createCapturingClient(captured), json)
-
-            api.getForecast(37.42, -122.08, days = ForecastHorizon.MAX_DAYS)
-
-            val request = captured.single { it.url.host.contains("open-meteo") }
+            // Literal "16" (not just the constant) so an accidental MAX_DAYS change trips this too.
             assertEquals("16", request.url.parameters["forecast_days"])
+            assertEquals(ForecastHorizon.MAX_DAYS.toString(), request.url.parameters["forecast_days"])
         }
 
     @Test

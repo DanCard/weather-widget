@@ -75,7 +75,7 @@ class DesktopNoHourlyDayClickTest {
 
     private fun renderTextModeDaily(
         onUpdateConfig: (DesktopConfig) -> Unit = {},
-        onNeedHourlyRefresh: (Int, (List<HourlyForecast>) -> Unit) -> Unit = { _, _ -> },
+        onNeedHourlyRefresh: ((List<HourlyForecast>) -> Unit) -> Unit = { _ -> },
     ) {
         composeTestRule.setContent {
             // 600dp wide → 9 day columns (offsets -1..+7); short height → text mode (no graph),
@@ -101,7 +101,7 @@ class DesktopNoHourlyDayClickTest {
         var pushedConfig: DesktopConfig? = null
         renderTextModeDaily(
             onUpdateConfig = { pushedConfig = it },
-            onNeedHourlyRefresh = { _, onComplete -> capturedComplete = onComplete },
+            onNeedHourlyRefresh = { onComplete -> capturedComplete = onComplete },
         )
 
         composeTestRule.onNodeWithTag("day_tab_$targetDate").performClick()
@@ -118,7 +118,7 @@ class DesktopNoHourlyDayClickTest {
     fun resultMessageShownWhenRefreshReturnsData() {
         var capturedComplete: ((List<HourlyForecast>) -> Unit)? = null
         renderTextModeDaily(
-            onNeedHourlyRefresh = { _, onComplete -> capturedComplete = onComplete },
+            onNeedHourlyRefresh = { onComplete -> capturedComplete = onComplete },
         )
 
         composeTestRule.onNodeWithTag("day_tab_$targetDate").performClick()
@@ -137,7 +137,7 @@ class DesktopNoHourlyDayClickTest {
     fun resultMessageShownWhenRefreshReturnsNoData() {
         var capturedComplete: ((List<HourlyForecast>) -> Unit)? = null
         renderTextModeDaily(
-            onNeedHourlyRefresh = { _, onComplete -> capturedComplete = onComplete },
+            onNeedHourlyRefresh = { onComplete -> capturedComplete = onComplete },
         )
 
         composeTestRule.onNodeWithTag("day_tab_$targetDate").performClick()

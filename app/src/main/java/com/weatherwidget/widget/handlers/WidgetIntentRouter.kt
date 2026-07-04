@@ -18,7 +18,6 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.DailyActualsBySource
@@ -229,35 +228,6 @@ suspend fun handleNavigation(
             "DAILY_NAV_APPLY",
             "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset->$newOffset source=${displaySource.id}"
         )
-
-        // Navigating forward past Open-Meteo's real (non-climate-normal) coverage → request an
-        // on-demand extension. Gated on Open-Meteo specifically (the only source that can extend; NWS
-        // et al. cap near a week of their own accord). The whether/how-far decision is the shared
-        // ForecastHorizon.extensionTarget (identical to desktop's); the widened batch is fetched by the
-        // forced-refresh worker via KEY_FORECAST_DAYS.
-        if (!isLeft) {
-            val (_, navRightmost) =
-                NavigationUtils.getVisibleDateRange(
-                    today = today,
-                    dateOffset = newOffset,
-                    numColumns = numColumns,
-                    skipYesterday = skipYesterday,
-                )
-            val meteoRealMax = weatherList
-                .filter { it.source == WeatherSource.OPEN_METEO.id && !it.isClimateNormal }
-                .maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }
-            ForecastHorizon.extensionTarget(today, navRightmost, meteoRealMax)?.let { target ->
-                appLogDao.log(
-                    "DAILY_NAV_EXTEND_FORECAST",
-                    "widget=$appWidgetId rightmost=$navRightmost meteoRealMax=$meteoRealMax requesting=$target"
-                )
-                RefreshScheduler.enqueueForcedRefresh(
-                    context,
-                    reason = "nav_extend_forecast",
-                    forecastDays = target,
-                )
-            }
-        }
 
         refreshDailyView(
             context = context,

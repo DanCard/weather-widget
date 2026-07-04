@@ -129,7 +129,7 @@ class OpenMeteoIntegrationTest {
             .map { it.url.parameters["forecast_days"] }
 
     @Test
-    fun `getWeatherData requests baseline days by default and the requested horizon on extension`() = runTest {
+    fun `getWeatherData requests the maximum horizon`() = runTest {
         val minimalResponse = """
             {
                 "daily": {
@@ -143,19 +143,10 @@ class OpenMeteoIntegrationTest {
         val captured = mutableListOf<HttpRequestData>()
         repository = createCapturingRepository(captured, minimalResponse)
 
-        // Baseline routine fetch.
         repository.getWeatherData(testLat, testLon, "Test", forceRefresh = true)
         assertEquals(
-            "default fetch requests the baseline horizon",
-            listOf(ForecastHorizon.BASELINE_DAYS.toString()),
-            captured.meteoForecastDays(),
-        )
-
-        // On-demand extension (the value the nav-past-edge worker carries via KEY_FORECAST_DAYS).
-        repository.getWeatherData(testLat, testLon, "Test", forceRefresh = true, forecastDays = ForecastHorizon.MAX_DAYS)
-        assertEquals(
-            "extension fetch forwards the requested 16-day horizon",
-            listOf(ForecastHorizon.BASELINE_DAYS.toString(), "16"),
+            "every fetch requests the maximum horizon",
+            listOf(ForecastHorizon.MAX_DAYS.toString()),
             captured.meteoForecastDays(),
         )
     }
