@@ -20,7 +20,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.HeaderPrecipCalculator
@@ -204,7 +204,7 @@ object DailyViewHandler : WidgetViewHandler {
             "DEBUG"
         )
 
-        // Past-day actuals are read from the daily_extremes cache, which can be wrong when a
+        // Past-day actuals are read from the daily_history cache, which can be wrong when a
         // day's observation coverage is incomplete (e.g. device powered off during the day).
         // Reuse the gap-aware hourly backfill — the same path the temperature graph uses — so
         // the daily view also fetches the missing NWS observations and recomputes the cache.
@@ -479,7 +479,7 @@ object DailyViewHandler : WidgetViewHandler {
     /**
      * Probe recent NWS observation coverage and enqueue the gap-aware observation backfill when
      * it is incomplete. This mirrors what the temperature graph does in [loadGraphHours]; without
-     * it, a past day whose daily_extremes row exists but was computed from a partial day of
+     * it, a past day whose daily_history row exists but was computed from a partial day of
      * observations (e.g. the device was off during the afternoon) never gets repaired from the
      * daily view, because the presence-only [computeMissingDataRefreshes] check treats it as
      * already populated. The shared backfill cooldown key prevents double-fetching with the graph.

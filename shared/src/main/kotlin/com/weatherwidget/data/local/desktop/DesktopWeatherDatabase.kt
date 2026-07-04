@@ -116,9 +116,10 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_time_loc ON observations(timestamp, locationLat, locationLon)")
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_api ON observations(api)")
 
-                // Daily Extremes
+                // Daily history: high/low extremes, observed day/night precip, and (from v6) the
+                // resolved forecast rain-chance % snapshotted while each day was current.
                 stmt.execute("""
-                    CREATE TABLE IF NOT EXISTS daily_extremes (
+                    CREATE TABLE IF NOT EXISTS daily_history (
                         date INTEGER NOT NULL,
                         source TEXT NOT NULL,
                         locationLat REAL NOT NULL,
@@ -130,10 +131,12 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         precipAmountMm REAL,
                         precipDayMm REAL,
                         precipNightMm REAL,
+                        forecastDayPrecipChance INTEGER,
+                        forecastNightPrecipChance INTEGER,
                         PRIMARY KEY (date, source, locationLat, locationLon)
                     )
                 """.trimIndent())
-                stmt.execute("CREATE INDEX IF NOT EXISTS idx_extremes_lookup ON daily_extremes(date, locationLat, locationLon)")
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_daily_history_lookup ON daily_history(date, locationLat, locationLon)")
 
                 // App log — persistent, queryable record of pipeline health (mirrors the Android
                 // app_logs table). timestamp is epoch ms so `datetime(timestamp/1000,'unixepoch',
@@ -207,6 +210,13 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 )
                 stmt.execute("UPDATE forecasts SET locationLat = ROUND(locationLat, 3), locationLon = ROUND(locationLon, 3)")
             }
+            // v6: daily_extremes -> daily_history (the table now also holds displayed forecast
+            // rain-chance snapshots, not just temperature extremes), plus the two chance columns.
+            if (from < 6) {
+                stmt.execute("ALTER TABLE daily_extremes RENAME TO daily_history")
+                addColumnIfMissing(stmt, "daily_history", "forecastDayPrecipChance", "INTEGER")
+                addColumnIfMissing(stmt, "daily_history", "forecastNightPrecipChance", "INTEGER")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -240,6 +250,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 5
+        private const val SCHEMA_VERSION = 6
     }
 }

@@ -12,7 +12,7 @@ import java.time.LocalDate
  * Unit tests for [DailyViewHandler.shouldProbeHistoryBackfill] — the gate that decides whether
  * the daily forecast view probes recent NWS observation coverage to repair an incomplete
  * historical actual (the bug where the daily view never re-fetched a partially-covered past day
- * because its daily_extremes row already existed).
+ * because its daily_history row already existed).
  */
 @Category(ShortDuration::class)
 class DailyHistoryBackfillGateTest {

@@ -13,7 +13,7 @@ import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -59,7 +59,7 @@ class CurrentTempTouchRoutingRoboTest {
         WidgetStateManager(context).clearWidgetState(appWidgetId)
     }
 
-    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyHistory(
         date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
         source = WeatherSource.NWS.id,
         locationLat = 0.0,

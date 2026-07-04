@@ -1,6 +1,6 @@
 package com.weatherwidget.stats
 
-import com.weatherwidget.data.local.DailyExtremeDao
+import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.stats.AccuracyPure
@@ -16,7 +16,7 @@ class AccuracyCalculator
     @Inject
     constructor(
         private val forecastDao: ForecastDao,
-        private val dailyExtremeDao: DailyExtremeDao,
+        private val dailyHistoryDao: DailyHistoryDao,
     ) {
         suspend fun calculateAccuracy(
             source: WeatherSource,
@@ -85,7 +85,7 @@ class AccuracyCalculator
             val startEpoch = startDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
             val endEpoch = endDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
-            val extremes = dailyExtremeDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
+            val extremes = dailyHistoryDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
                 .filter { it.source == source.id }
             val dailyActuals = ObservationResolver.extremesToDailyActuals(extremes)
 

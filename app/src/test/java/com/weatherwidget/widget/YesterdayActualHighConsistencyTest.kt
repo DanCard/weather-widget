@@ -13,7 +13,7 @@ import com.weatherwidget.widget.handlers.buildHourDataList
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -58,7 +58,7 @@ class YesterdayActualHighConsistencyTest {
         val observationRepository = ObservationRepository(
             context,
             db.observationDao(),
-            db.dailyExtremeDao(),
+            db.dailyHistoryDao(),
             db.appLogDao(),
             nwsApi,
             db.hourlyForecastDao()
@@ -75,7 +75,7 @@ class YesterdayActualHighConsistencyTest {
             weatherApi,
             silurianApi,
             widgetStateManager,
-            db.dailyExtremeDao(),
+            db.dailyHistoryDao(),
             observationRepository,
             tomorrowIoApi,
             openWeatherMapApi
@@ -97,7 +97,7 @@ class YesterdayActualHighConsistencyTest {
             widgetStateManager,
             db.climateNormalDao(),
             db.observationDao(),
-            db.dailyExtremeDao(),
+            db.dailyHistoryDao(),
             observationRepository,
             tomorrowIoApi,
             openWeatherMapApi,

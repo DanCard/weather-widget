@@ -1,6 +1,6 @@
 package com.weatherwidget.stats
 
-import com.weatherwidget.data.local.DailyExtremeEntity
+import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
@@ -26,7 +26,7 @@ import org.junit.experimental.categories.Category
 /**
  * Integration tests for AccuracyCalculator using a real in-memory Room database.
  *
- * Each test inserts DailyExtremeEntity (actuals) and ForecastEntity (1-day-ahead snapshot),
+ * Each test inserts DailyHistoryEntity (actuals) and ForecastEntity (1-day-ahead snapshot),
  * then verifies that getDailyAccuracyBreakdown() and calculateAccuracy() return correct values.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -43,7 +43,7 @@ class AccuracyCalculatorIntegrationTest {
     @Before
     fun setup() {
         db = TestDatabase.create()
-        calculator = AccuracyCalculator(db.forecastDao(), db.dailyExtremeDao())
+        calculator = AccuracyCalculator(db.forecastDao(), db.dailyHistoryDao())
     }
 
     @After
@@ -63,9 +63,9 @@ class AccuracyCalculatorIntegrationTest {
         lowTemp: Float,
         condition: String = "Clear",
     ) {
-        db.dailyExtremeDao().insertAll(
+        db.dailyHistoryDao().insertAll(
             listOf(
-                DailyExtremeEntity(
+                DailyHistoryEntity(
                     date = dateEpoch(date),
                     source = source.id,
                     locationLat = lat,

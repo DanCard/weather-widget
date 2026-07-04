@@ -3,7 +3,7 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetConstants
@@ -25,7 +25,7 @@ class NwsHistoryIntegrationTest {
     private val yesterday = today.minusDays(1)
     private val yesterdayStr = yesterday.toString()
 
-    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyHistory(
         date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
         source = WeatherSource.NWS.id,
         locationLat = 37.42,

@@ -1,6 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import org.junit.After
@@ -62,9 +62,9 @@ class DesktopWeatherDaoSourceIsolationTest {
     fun `getDailyActuals returns only the requested source`() {
         val date = java.time.LocalDate.parse("2026-06-18")
         val epoch = date.toEpochDay() * 86_400_000L
-        dao.upsertDailyExtremes(listOf(
-            DailyExtreme(epoch, "NWS", lat, lon, 79f, 61f, "Sunny", now),
-            DailyExtreme(epoch, "OPEN_METEO", lat, lon, 52f, 42f, "Cloudy", now),
+        dao.upsertDailyHistory(listOf(
+            DailyHistory(epoch, "NWS", lat, lon, 79f, 61f, "Sunny", now),
+            DailyHistory(epoch, "OPEN_METEO", lat, lon, 52f, 42f, "Cloudy", now),
         ))
 
         val nws = dao.getDailyActuals(epoch, epoch, lat, lon, "NWS")

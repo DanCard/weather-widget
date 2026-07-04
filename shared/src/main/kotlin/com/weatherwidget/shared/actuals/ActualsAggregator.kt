@@ -1,6 +1,6 @@
 package com.weatherwidget.shared.actuals
 
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -78,7 +78,7 @@ object ActualsAggregator {
         zoneId: ZoneId = ZoneId.systemDefault(),
         updatedAtMs: Long = System.currentTimeMillis(),
         personalStationWeight: Double = 1.0
-    ): List<DailyExtreme> {
+    ): List<DailyHistory> {
         val today = LocalDate.now(zoneId)
 
         return observations
@@ -116,7 +116,7 @@ object ActualsAggregator {
                             allowForecastFallback = !date.isBefore(today),
                         )
 
-                        DailyExtreme(
+                        DailyHistory(
                             date = date.toEpochDay() * 86_400_000L, // UTC midnight epoch millis approximation
                             source = sourceId,
                             locationLat = locationLat,

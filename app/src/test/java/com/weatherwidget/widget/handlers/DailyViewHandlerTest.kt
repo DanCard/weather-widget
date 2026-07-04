@@ -67,7 +67,7 @@ class DailyViewHandlerTest {
         precipDayMm: Float? = null,
         precipNightMm: Float? = null,
         source: String = WeatherSource.NWS.id
-    ) = com.weatherwidget.data.model.DailyExtreme(
+    ) = com.weatherwidget.data.model.DailyHistory(
         date = date.toEpochDay() * 86_400_000L,
         source = source,
         locationLat = 0.0,

@@ -219,6 +219,15 @@ class WeatherWidgetWorker
                         )
                         val afterActualsMs = SystemClock.elapsedRealtime()
 
+                        // Snapshot the resolved (as-displayed) rain chance into daily_history for
+                        // yesterday/today so history can later replay it (see
+                        // ForecastRepository.snapshotDisplayedRainChance). Gated with the actuals
+                        // recompute since that's what keeps daily_history rows current.
+                        if (!uiOnlyRefresh) {
+                            weatherRepository.snapshotDisplayedRainChance(location.first, location.second)
+                            weatherRepository.backfillForecastChanceSnapshotsIfNeeded(location.first, location.second)
+                        }
+
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_start uiOnly=$uiOnlyRefresh thread=${Thread.currentThread().name}")
                         val jobType = if (uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
                         updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, jobType, uiOnly = uiOnlyRefresh)

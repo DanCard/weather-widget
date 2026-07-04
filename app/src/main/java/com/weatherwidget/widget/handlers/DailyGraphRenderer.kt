@@ -11,7 +11,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.WeatherIconMapper
@@ -324,7 +324,7 @@ internal object DailyGraphRenderer {
         today: LocalDate,
         displaySource: WeatherSource,
         forecastWeather: ForecastEntity?,
-        dailyActual: DailyExtreme?,
+        dailyActual: DailyHistory?,
         todayDay: DailyForecastGraphRenderer.DayData,
         currentTemp: Float?,
         observedAt: Long?,

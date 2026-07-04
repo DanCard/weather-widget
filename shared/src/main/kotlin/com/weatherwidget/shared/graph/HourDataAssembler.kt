@@ -8,7 +8,7 @@ import java.time.ZoneId
  * Builds the graph's point list ([HourData]) from a shared [ActualTemperatureSeriesResult]. The
  * series already contains BOTH top-of-hour forecast anchors AND the sub-hourly observed points, so
  * mapping every point (not just top-of-hour) is what makes the labeled actual high/low reproduce the
- * daily view's `daily_extremes` — an off-hour peak/trough lands on its own point instead of
+ * daily view's `daily_history` — an off-hour peak/trough lands on its own point instead of
  * collapsing onto the nearest hour.
  *
  * Both the Android widget and the desktop app call this so their `hours` list (and therefore the

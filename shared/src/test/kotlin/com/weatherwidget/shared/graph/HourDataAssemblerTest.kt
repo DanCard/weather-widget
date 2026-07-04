@@ -28,7 +28,7 @@ class HourDataAssemblerTest {
     fun `maps every point including sub-hourly so an off-hour peak is preserved`() {
         // 13:00 anchor = 72.0, but the true observed peak is the OFF-HOUR 13:07 = 72.9. A naive
         // hourly-only assembly would drop 13:07 and label 72.0; the assembler must keep it so the
-        // labeled actual high equals the real peak (which is what daily_extremes stores).
+        // labeled actual high equals the real peak (which is what daily_history stores).
         val points = listOf(
             ActualTemperaturePoint(ms("2026-06-03T12:00:00"), forecastTemp = 70f, actualTemp = 69.5f, isActual = true, isObservedActual = true),
             ActualTemperaturePoint(ms("2026-06-03T13:00:00"), forecastTemp = 74f, actualTemp = 72.0f, isActual = true, isObservedActual = true),

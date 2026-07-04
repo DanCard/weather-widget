@@ -5,7 +5,7 @@ import android.location.Location
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.data.local.DailyExtremeDao
+import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -45,7 +45,7 @@ private const val DAYTIME_COVERAGE_HOUR = 14
  * Returns true when [date] is a *past* day whose NWS observations never reach the afternoon
  * ([daytimeHour]+), meaning the warm part of the day went unrecorded (e.g. the device was off)
  * and the cached daily high/low is likely wrong, so the day should be re-fetched. Days with no
- * observations at all are excluded here — those are caught by the daily_extremes row-presence
+ * observations at all are excluded here — those are caught by the daily_history row-presence
  * check — as are today and future days, whose coverage is legitimately still incomplete.
  */
 @VisibleForTesting
@@ -68,7 +68,7 @@ internal fun pastDayLacksAfternoonCoverage(
 class ObservationRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val observationDao: ObservationDao,
-    private val dailyExtremeDao: DailyExtremeDao,
+    private val dailyHistoryDao: DailyHistoryDao,
     private val appLogDao: AppLogDao,
     private val nwsApi: NwsApi,
     private val hourlyForecastDao: HourlyForecastDao,
@@ -243,12 +243,12 @@ class ObservationRepository @Inject constructor(
             if (currentHour >= 2) add(todayEpoch)
         }
         val existingDates =
-            dailyExtremeDao.getExtremesInRange(dayMinus2Epoch, todayEpoch, latitude, longitude)
+            dailyHistoryDao.getExtremesInRange(dayMinus2Epoch, todayEpoch, latitude, longitude)
                 .filter { it.source == WeatherSource.NWS.id }
                 .map { it.date }
                 .toSet()
         val missingDates = requiredDates - existingDates
-        // A daily_extremes row can exist yet be wrong when that day's observations don't reach the
+        // A daily_history row can exist yet be wrong when that day's observations don't reach the
         // afternoon (device off, partial coverage). Treat those present-but-incomplete past days as
         // needing a re-fetch too — the row-presence check above cannot see this.
         val incompleteDates = incompletelyCoveredPastDates(existingDates, latitude, longitude, localZone, today)
@@ -257,11 +257,11 @@ class ObservationRepository @Inject constructor(
         Log.d(TAG, "History check: requiredDates=${requiredDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} existingDates=${existingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} missingDates=${missingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} incompleteDates=${incompleteDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} hour=$currentHour")
 
         if (datesToBackfill.isEmpty()) {
-            Log.d(TAG, "Skipping backfill: required NWS daily_extremes rows exist with adequate coverage")
+            Log.d(TAG, "Skipping backfill: required NWS daily_history rows exist with adequate coverage")
             return
         }
 
-        Log.i(TAG, "Backfilling NWS daily_extremes for ${datesToBackfill.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} (missing or incomplete), fetching last ${WeatherConfig.NWS_BACKFILL_DAYS * 24} hours")
+        Log.i(TAG, "Backfilling NWS daily_history for ${datesToBackfill.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} (missing or incomplete), fetching last ${WeatherConfig.NWS_BACKFILL_DAYS * 24} hours")
         val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
         if (gridPoint == null) {
             Log.e(TAG, "Failed to get grid point for ($latitude, $longitude)")
@@ -323,7 +323,7 @@ class ObservationRepository @Inject constructor(
                     // A date is satisfied only once it has a row AND (for past days) the refetched
                     // observations now cover the afternoon — otherwise keep trying other stations.
                     val rowDates =
-                        dailyExtremeDao.getExtremesInRange(dayMinus2Epoch, todayEpoch, latitude, longitude)
+                        dailyHistoryDao.getExtremesInRange(dayMinus2Epoch, todayEpoch, latitude, longitude)
                             .filter { it.source == WeatherSource.NWS.id }
                             .map { it.date }
                             .toSet()
@@ -341,7 +341,7 @@ class ObservationRepository @Inject constructor(
         }
 
         if (remainingDates.isNotEmpty()) {
-            Log.w(TAG, "Backfill completed but official NWS daily_extremes still missing/incomplete for $remainingDates")
+            Log.w(TAG, "Backfill completed but official NWS daily_history still missing/incomplete for $remainingDates")
         }
     }
 
@@ -505,7 +505,7 @@ class ObservationRepository @Inject constructor(
         // Past days: read from DB cache
         val startDate = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endDate = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val pastExtremes = dailyExtremeDao.getExtremesInRange(startDate, endDate, latitude, longitude)
+        val pastExtremes = dailyHistoryDao.getExtremesInRange(startDate, endDate, latitude, longitude)
         val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, latitude, longitude)
 
         // Today: compute live from station observations using IDW blending (matches Hourly Graph)
@@ -549,7 +549,7 @@ class ObservationRepository @Inject constructor(
                 "todayObsRows=${todayObs.size} span=$obsSpanSummary live=[$liveSummary]",
         )
 
-        // Today: use live blender result directly. Do NOT merge with persisted daily_extremes —
+        // Today: use live blender result directly. Do NOT merge with persisted daily_history —
         // the persisted row is computed via IDW-of-per-station-max, which is a different algorithm
         // and routinely produces a different (higher) value than the IDW-by-hour blender used by
         // the Hourly Graph. Merging would re-introduce the 73.5° vs 73.1° discrepancy.
@@ -600,7 +600,7 @@ class ObservationRepository @Inject constructor(
             hourlyForecastDao.getHourlyForecasts(startTs, endTs, latitude, longitude)
         }
         val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, effectiveHourly, latitude, longitude, personalStationWeight())
-        val existingExtremes = dailyExtremeDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
+        val existingHistory = dailyHistoryDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
             .groupBy { it.source }
 
         // Per-station breakdown — survives in app_logs so "why did the high jump?" investigations
@@ -618,14 +618,14 @@ class ObservationRepository @Inject constructor(
         newExtremes.forEach { new ->
             val stationsStr = perSourceBreakdown[new.source] ?: "n/a"
             appLogDao.log(
-                "DAILY_EXTREME_BLEND",
+                "DAILY_HISTORY_BLEND",
                 "date=$date src=${new.source} computed_hi=${new.highTemp} computed_lo=${new.lowTemp} stations=[$stationsStr]",
                 "DEBUG",
             )
         }
 
         // EXTREMA_WINDOW_DIAG (one-shot probe for the daily-bar vs hourly-graph high/low mismatch):
-        // blend the NWS series two ways — day-isolated [startTs,endTs] (what daily_extremes uses) and a
+        // blend the NWS series two ways — day-isolated [startTs,endTs] (what daily_history uses) and a
         // wide ±24h window (closer to the hourly graph's blend context) — and log each argmax/argmin
         // timestamp. If the two windows agree, the window is NOT the cause (interpolation reach is only
         // 3h, so the ~3pm peak / ~5am trough are out of any edge's reach) and the gap lives in the
@@ -662,7 +662,7 @@ class ObservationRepository @Inject constructor(
             }
         }
 
-        val toInsert = mutableListOf<com.weatherwidget.data.local.DailyExtremeEntity>()
+        val toInsert = mutableListOf<com.weatherwidget.data.local.DailyHistoryEntity>()
 
         newExtremes.forEach { new ->
             // Overwrite for today and past days alike. Every recompute re-derives from the
@@ -680,7 +680,7 @@ class ObservationRepository @Inject constructor(
             // fragment nearest ITS location — a recompute that only wrote its own fragment
             // left the displayed one stale. All coordinates in the box read the same
             // observation rows, so the blended extremes are identical for every fragment.
-            val fragments = existingExtremes[new.source].orEmpty()
+            val fragments = existingHistory[new.source].orEmpty()
             if (fragments.isEmpty()) {
                 toInsert.add(new)
                 return@forEach
@@ -690,26 +690,36 @@ class ObservationRepository @Inject constructor(
                 if (new.highTemp != existing.highTemp || new.lowTemp != existing.lowTemp || new.condition != existing.condition || precipChanged(new, existing)) {
                     changedAny = true
                     appLogDao.log(
-                        "DAILY_EXTREME_OVERWRITE",
+                        "DAILY_HISTORY_OVERWRITE",
                         "date=$date src=${new.source} at=${existing.locationLat},${existing.locationLon} high=${existing.highTemp}->${new.highTemp} low=${existing.lowTemp}->${new.lowTemp} precip=${existing.precipAmountMm}->${new.precipAmountMm}",
                         "DEBUG",
                     )
-                    toInsert.add(new.copy(locationLat = existing.locationLat, locationLon = existing.locationLon))
+                    // This is a full-row REPLACE (insertAll uses OnConflictStrategy.REPLACE): carry
+                    // over the resolved forecast chance snapshot the day/night-chance writer stored,
+                    // since `new` (rebuilt from raw observations) never populates those fields itself.
+                    toInsert.add(
+                        new.copy(
+                            locationLat = existing.locationLat,
+                            locationLon = existing.locationLon,
+                            forecastDayPrecipChance = existing.forecastDayPrecipChance,
+                            forecastNightPrecipChance = existing.forecastNightPrecipChance,
+                        ),
+                    )
                 }
             }
             if (!changedAny) {
-                appLogDao.log("DAILY_EXTREME_STABLE", "date=$date src=${new.source} high=${new.highTemp} low=${new.lowTemp} fragments=${fragments.size}", "DEBUG")
+                appLogDao.log("DAILY_HISTORY_STABLE", "date=$date src=${new.source} high=${new.highTemp} low=${new.lowTemp} fragments=${fragments.size}", "DEBUG")
             }
         }
 
         if (toInsert.isNotEmpty()) {
-            dailyExtremeDao.insertAll(toInsert)
+            dailyHistoryDao.insertAll(toInsert)
         }
     }
 
     private fun precipChanged(
-        new: com.weatherwidget.data.local.DailyExtremeEntity,
-        existing: com.weatherwidget.data.local.DailyExtremeEntity,
+        new: com.weatherwidget.data.local.DailyHistoryEntity,
+        existing: com.weatherwidget.data.local.DailyHistoryEntity,
     ): Boolean =
         new.precipAmountMm != existing.precipAmountMm ||
             new.precipDayMm != existing.precipDayMm ||

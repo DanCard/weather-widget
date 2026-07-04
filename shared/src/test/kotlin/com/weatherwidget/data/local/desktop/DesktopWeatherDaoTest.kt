@@ -1,6 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
@@ -198,9 +198,9 @@ class DesktopWeatherDaoTest {
         val lon = -75.0
         val date = java.time.LocalDate.parse("2026-06-02")
             .toEpochDay() * 86_400_000L
-        dao.upsertDailyExtremes(
+        dao.upsertDailyHistory(
             listOf(
-                DailyExtreme(
+                DailyHistory(
                     date = date,
                     source = "NWS",
                     locationLat = lat,

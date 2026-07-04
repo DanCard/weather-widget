@@ -203,6 +203,8 @@ class DesktopWeatherRepository(
             // Derive actual daily highs/lows from the stored observation window — the actuals that
             // forecast-accuracy comparisons are measured against.
             val extremesCount = recomputeDailyExtremes(now)
+            snapshotDisplayedRainChance(now)
+            backfillForecastChanceSnapshotsIfNeeded(now)
 
             // Snapshot for history (Tier 1 simplification: 4h buckets)
             val snapshotBucket = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
@@ -243,6 +245,8 @@ class DesktopWeatherRepository(
             }
 
             val extremesCount = recomputeDailyExtremes(now)
+            snapshotDisplayedRainChance(now)
+            backfillForecastChanceSnapshotsIfNeeded(now)
             val cached = loadCached(now)
 
             weatherDao.log(
@@ -273,8 +277,8 @@ class DesktopWeatherRepository(
         }
     }
 
-    /** Reads the stored observation window, (re)computes daily_extremes, and returns the row count. */
-    private fun recomputeDailyExtremes(now: Long): Int {
+    /** Reads the stored observation window, (re)computes daily_history, and returns the row count. */
+    internal fun recomputeDailyExtremes(now: Long): Int {
         val windowStart = now - (HISTORY_WINDOW_DAYS + 1) * 86_400_000L
         val windowEnd = now + 86_400_000L
         val observations = weatherDao.getObservationsInRange(windowStart, windowEnd, latitude, longitude)
@@ -289,11 +293,146 @@ class DesktopWeatherRepository(
             personalStationWeight = personalStationWeight,
         )
 
-        weatherDao.upsertDailyExtremes(extremes)
-        return extremes.size
+        // extremes are rebuilt from scratch each recompute and never populate the forecast chance
+        // snapshot columns (written separately by snapshotDisplayedRainChance) — carry over any
+        // existing snapshot so this write doesn't clobber it (full-row REPLACE in upsertDailyHistory).
+        val existingBySource = weatherDao.getExtremesInRange(windowStart, windowEnd, latitude, longitude)
+            .groupBy { it.date to it.source }
+        val merged = extremes.map { new ->
+            val existing = existingBySource[new.date to new.source]?.firstOrNull()
+            if (existing == null) {
+                new
+            } else {
+                new.copy(
+                    forecastDayPrecipChance = existing.forecastDayPrecipChance,
+                    forecastNightPrecipChance = existing.forecastNightPrecipChance,
+                )
+            }
+        }
+
+        weatherDao.upsertDailyHistory(merged)
+        return merged.size
     }
 
-    private fun loadDailyActuals(daily: List<DailyForecast>): Map<String, DailyExtreme> {
+    /**
+     * Snapshots the resolved (as-displayed) day/night forecast rain chance into daily_history for
+     * yesterday and today, so that once a day rolls into history its rain label can replay what was
+     * actually shown instead of falling back to NWS's raw 6am/6pm period fields (see
+     * DailyRainLabels.resolveLiveDayNightChance / resolveDailyLabelPrecip). Call after every
+     * successful fetch.
+     *
+     * Each of a date's two windows (day: 8am-8pm, night: 8pm-8am next day) is only (re)written while
+     * still open. The live hourly_forecasts table is REPLACE'd on every fetch, so a PAST hour's row
+     * reflects the latest re-forecast for that hour, not what was actually shown at the time
+     * ("hindcast drift" — same reason the hourly graph reads hourly_forecast_history instead for its
+     * past segment). Recomputing a closed window from that drifted data would silently overwrite the
+     * correctly-archived snapshot with a different, wrong value days later. Once closed, a window's
+     * stored value is left untouched forever.
+     *
+     * Only updates daily_history rows that already exist (written by recomputeDailyExtremes) — a
+     * chance with nothing to attach to yet is caught by the next fetch cycle.
+     */
+    internal fun snapshotDisplayedRainChance(now: Long) {
+        val zoneId = ZoneId.systemDefault()
+        val today = Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate()
+        val yesterday = today.minusDays(1)
+        val startMs = yesterday.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMs = today.atStartOfDay(zoneId).toInstant().toEpochMilli()
+
+        val dailyRows = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
+            .filter { it.date == yesterday.toString() || it.date == today.toString() }
+        if (dailyRows.isEmpty()) return
+        // Today's night window runs 8pm today -> 8am TOMORROW, so the hourly range must extend a
+        // full day past `today`, not stop at tomorrow's midnight.
+        val hourlyRows = weatherDao.getHourlyForecasts(
+            latitude, longitude, weatherSource,
+            yesterday.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            today.plusDays(2).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+        )
+        val existingByDateSource = weatherDao.getExtremesInRange(startMs, endMs, latitude, longitude)
+            .groupBy { it.date to it.source }
+
+        val toUpsert = mutableListOf<DailyHistory>()
+        listOf(yesterday, today).forEach { date ->
+            val dayWindowOpen = now < date.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
+            val nightWindowOpen = now < date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+            if (!dayWindowOpen && !nightWindowOpen) return@forEach
+
+            val dateMs = date.toEpochDay() * 86_400_000L
+            dailyRows.filter { it.date == date.toString() }.forEach { row ->
+                val fragments = existingByDateSource[dateMs to weatherSource].orEmpty()
+                if (fragments.isEmpty()) return@forEach
+                val resolved = com.weatherwidget.shared.util.DailyRainLabels.resolveLiveDayNightChance(
+                    displaySourceId = weatherSource,
+                    daytimePrecipProbability = row.daytimePrecipProbability,
+                    nighttimePrecipProbability = row.nighttimePrecipProbability,
+                    precipProbability = row.precipProbability,
+                    hourly = hourlyRows,
+                    targetDate = date,
+                    zoneId = zoneId,
+                )
+                fragments.forEach { existing ->
+                    val newDay = if (dayWindowOpen) resolved.dayPrecip else existing.forecastDayPrecipChance
+                    val newNight = if (nightWindowOpen) resolved.nightPrecip else existing.forecastNightPrecipChance
+                    if (existing.forecastDayPrecipChance != newDay || existing.forecastNightPrecipChance != newNight) {
+                        toUpsert.add(
+                            existing.copy(
+                                forecastDayPrecipChance = newDay,
+                                forecastNightPrecipChance = newNight,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+        if (toUpsert.isNotEmpty()) weatherDao.upsertDailyHistory(toUpsert)
+    }
+
+    /**
+     * One-time backfill: fills the forecast chance snapshot columns for daily_history rows from
+     * before this feature existed, using the as-predicted hourly_forecast_history archive (never the
+     * live, REPLACE-overwritten hourly_forecasts table) — [DesktopWeatherDao.getHourlyHistory] already
+     * returns the freshest snapshot per hour, the same "latest forecast wins" rule the live hourly
+     * graph uses for its own hindcast segment.
+     *
+     * Best-effort: a day with no matching history rows (never fetched, or aged past the 30-day
+     * hourly_forecast_history retention) is simply left with null chances, same as today — no
+     * regression, just a missed enhancement for that day. Gated by a one-time marker in app_logs
+     * (reusing the existing pipeline-health log rather than a new config field or file) since a row's
+     * chances staying null forever would otherwise re-scan every call.
+     */
+    internal fun backfillForecastChanceSnapshotsIfNeeded(now: Long) {
+        if (weatherDao.getRecentLogsByTags(listOf(CHANCE_BACKFILL_DONE_TAG), limit = 1).isNotEmpty()) return
+        val zoneId = ZoneId.systemDefault()
+        val today = Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate()
+        val startMs = today.minusDays(CHANCE_BACKFILL_LOOKBACK_DAYS).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMs = today.atStartOfDay(zoneId).toInstant().toEpochMilli()
+
+        val rowsNeedingBackfill = weatherDao.getExtremesInRange(startMs, endMs, latitude, longitude)
+            .filter { it.forecastDayPrecipChance == null && it.forecastNightPrecipChance == null }
+
+        val toUpsert = mutableListOf<DailyHistory>()
+        for (row in rowsNeedingBackfill) {
+            val date = LocalDate.ofEpochDay(row.date / 86_400_000L)
+            val windowStartMs = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val windowEndMs = date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+            val historyRows = weatherDao.getHourlyHistory(latitude, longitude, row.source, windowStartMs, windowEndMs, now)
+            if (historyRows.isEmpty()) continue
+
+            val dayNight = com.weatherwidget.shared.util.DailyRainLabels.calculateDayNightPrecipProbabilities(
+                hourly = historyRows,
+                targetDate = date,
+                displaySourceId = row.source,
+                zoneId = zoneId,
+            )
+            if (dayNight.dayMax == null && dayNight.nightMax == null) continue
+            toUpsert.add(row.copy(forecastDayPrecipChance = dayNight.dayMax, forecastNightPrecipChance = dayNight.nightMax))
+        }
+        if (toUpsert.isNotEmpty()) weatherDao.upsertDailyHistory(toUpsert)
+        weatherDao.log(CHANCE_BACKFILL_DONE_TAG, "backfilled=${toUpsert.size} scanned=${rowsNeedingBackfill.size}")
+    }
+
+    private fun loadDailyActuals(daily: List<DailyForecast>): Map<String, DailyHistory> {
         if (daily.isEmpty()) return emptyMap()
         val dates = daily.map { LocalDate.parse(it.date) }
         val start = dates.min().minusDays(ACTUALS_HISTORY_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -381,5 +520,7 @@ class DesktopWeatherRepository(
         // from here and only deepens. Capped at the 30-day DB retention (cleanup deletes past that).
         private const val BASELINE_HISTORY_DAYS = 7
         private const val MAX_HISTORY_DAYS = 30
+        private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 30L
+        private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
     }
 }

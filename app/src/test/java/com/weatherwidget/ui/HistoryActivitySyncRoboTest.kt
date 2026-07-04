@@ -75,7 +75,7 @@ class HistoryActivitySyncRoboTest {
         
         // Manual injection of required DAOs (mocked) to avoid Hilt @Inject failures during onCreate
         activity.forecastDao = mockk(relaxed = true)
-        activity.dailyExtremeDao = mockk(relaxed = true)
+        activity.dailyHistoryDao = mockk(relaxed = true)
         activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
             coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
                 nwsStats = null,
@@ -132,7 +132,7 @@ class HistoryActivitySyncRoboTest {
         val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
         val activity = controller.get()
         activity.forecastDao = mockk(relaxed = true)
-        activity.dailyExtremeDao = mockk(relaxed = true)
+        activity.dailyHistoryDao = mockk(relaxed = true)
         activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
             coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
                 nwsStats = null,

@@ -16,7 +16,7 @@ class DesktopDailyForecastModelTest {
         dateOffset = -1
     )
 
-    private fun extreme(date: String, high: Float, low: Float, condition: String) = DailyExtreme(
+    private fun extreme(date: String, high: Float, low: Float, condition: String) = DailyHistory(
         date = LocalDate.parse(date).toEpochDay() * 86_400_000L,
         source = "NWS",
         locationLat = 37.4220,
@@ -114,7 +114,7 @@ class DesktopDailyForecastModelTest {
 
     // --- Scroll-wheel zoom (history-biased) ---------------------------------------------------
 
-    private fun actualsRange(startDate: String, days: Int): Map<String, DailyExtreme> {
+    private fun actualsRange(startDate: String, days: Int): Map<String, DailyHistory> {
         val start = LocalDate.parse(startDate)
         return (0 until days).associate { i ->
             val d = start.plusDays(i.toLong()).toString()

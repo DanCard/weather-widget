@@ -13,7 +13,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.widget.DailyForecastGraphRenderer
@@ -64,7 +64,7 @@ class DailyViewHandlerTodayDropIntegrationTest {
     private fun epoch(dateTime: String): Long =
         LocalDateTime.parse(dateTime).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyHistory(
         date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
         source = WeatherSource.NWS.id,
         locationLat = 0.0,

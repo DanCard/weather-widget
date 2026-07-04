@@ -1,6 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
@@ -163,8 +163,8 @@ class DesktopAccuracyTest {
         )
 
     private fun insertExtreme(target: LocalDate, high: Float, low: Float) {
-        dao.upsertDailyExtremes(listOf(
-            DailyExtreme(
+        dao.upsertDailyHistory(listOf(
+            DailyHistory(
                 date = target.toEpochDay() * MS_IN_A_DAY,
                 source = "NWS",
                 locationLat = lat,

@@ -196,4 +196,40 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate50To51_renamesDailyExtremesToDailyHistory_preservingDataAndAddingChanceColumns() {
+        // Seed a v50 database (table still named daily_extremes at this point) with one row.
+        helper.createDatabase(testDb, 50).apply {
+            execSQL(
+                "INSERT INTO daily_extremes (date, source, locationLat, locationLon, " +
+                    "highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm) " +
+                    "VALUES (1000, 'NWS', 37.42, -122.08, 75.0, 55.0, 'Sunny', 1000, 12.3, 8.1, 4.2)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 51, true, WeatherDatabase.MIGRATION_50_51)
+
+        // The pre-existing row survived the rename under the new table name.
+        db.query("SELECT highTemp, lowTemp, precipAmountMm FROM daily_history WHERE date = 1000").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(75.0f, c.getFloat(0), 0.01f)
+            assertEquals(55.0f, c.getFloat(1), 0.01f)
+            assertEquals(12.3f, c.getFloat(2), 0.01f)
+        }
+        // New chance columns exist, default null, and accept values.
+        db.query("SELECT forecastDayPrecipChance, forecastNightPrecipChance FROM daily_history WHERE date = 1000").use { c ->
+            assertTrue(c.moveToFirst())
+            assertTrue(c.isNull(0))
+            assertTrue(c.isNull(1))
+        }
+        db.execSQL("UPDATE daily_history SET forecastDayPrecipChance = 30, forecastNightPrecipChance = 14 WHERE date = 1000")
+        db.query("SELECT forecastDayPrecipChance, forecastNightPrecipChance FROM daily_history WHERE date = 1000").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(30, c.getInt(0))
+            assertEquals(14, c.getInt(1))
+        }
+        db.close()
+    }
 }

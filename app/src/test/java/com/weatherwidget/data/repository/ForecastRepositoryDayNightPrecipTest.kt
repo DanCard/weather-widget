@@ -30,7 +30,7 @@ class ForecastRepositoryDayNightPrecipTest {
             widgetStateManager = mockk(),
             climateNormalDao = mockk(),
             observationDao = mockk(),
-            dailyExtremeDao = mockk(),
+            dailyHistoryDao = mockk(),
             observationRepository = mockk(),
             nwsForecastMapper = mockk()
         )
@@ -97,7 +97,7 @@ class ForecastRepositoryDayNightPrecipTest {
             widgetStateManager = mockk(),
             climateNormalDao = mockk(),
             observationDao = mockk(),
-            dailyExtremeDao = mockk(),
+            dailyHistoryDao = mockk(),
             observationRepository = mockk(),
             nwsForecastMapper = mockk()
         )

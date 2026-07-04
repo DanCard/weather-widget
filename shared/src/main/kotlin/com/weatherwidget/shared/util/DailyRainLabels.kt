@@ -147,15 +147,47 @@ object DailyRainLabels {
     )
 
     /**
+     * The day/night precip % for a currently-live (non-past) date — the hourly 8am–8pm / 8pm–8am
+     * window max ([calculateDayNightPrecipProbabilities]), falling back to the row's period fields
+     * only when there are no hourly rows. This is deliberate for NWS too: NWS's native 12-hour
+     * periods run 6am/6pm, so its "tonight" chance excludes 6–8am rain that the app's 8pm–8am night
+     * window (and users) consider part of tonight — e.g. a 14% chance at 7am showed as 9%.
+     *
+     * Used both for the live daily label ([resolveDailyLabelPrecip]) and to snapshot the displayed
+     * value into daily_history while a day is still current, so history can later replay exactly
+     * what was shown instead of recomputing from hindcast hourly rows (see
+     * [com.weatherwidget.data.model.DailyHistory.forecastDayPrecipChance]).
+     */
+    fun resolveLiveDayNightChance(
+        displaySourceId: String,
+        daytimePrecipProbability: Int?,
+        nighttimePrecipProbability: Int?,
+        precipProbability: Int?,
+        hourly: List<HourlyForecast>,
+        targetDate: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): ResolvedDailyPrecip {
+        val dayNight = calculateDayNightPrecipProbabilities(
+            hourly = hourly,
+            targetDate = targetDate,
+            displaySourceId = displaySourceId,
+            zoneId = zoneId,
+        )
+        return ResolvedDailyPrecip(
+            dayPrecip = dayNight.dayMax ?: daytimePrecipProbability ?: precipProbability,
+            nightPrecip = dayNight.nightMax ?: nighttimePrecipProbability,
+        )
+    }
+
+    /**
      * Picks the day/night precip % shown on the daily label and used for the daily icon — the single
      * source of truth shared by Android and desktop so the two never drift (e.g. today showing 15% on
      * one and 2% on the other).
      *
-     * All sources use the hourly 8am–8pm / 8pm–8am window max
-     * ([calculateDayNightPrecipProbabilities]), falling back to the row's period fields only when
-     * there are no hourly rows. This is deliberate for NWS too: NWS's native 12-hour periods run
-     * 6am/6pm, so its "tonight" chance excludes 6–8am rain that the app's 8pm–8am night window
-     * (and users) consider part of tonight — e.g. a 14% chance at 7am showed as 9%.
+     * Past days prefer the value snapshotted into daily_history while the day was current
+     * ([storedDayPrecipChance]/[storedNightPrecipChance]), falling back to the row's raw period
+     * fields for history written before that snapshot existed. Non-past days always use
+     * [resolveLiveDayNightChance].
      */
     fun resolveDailyLabelPrecip(
         isPast: Boolean,
@@ -166,23 +198,27 @@ object DailyRainLabels {
         hourly: List<HourlyForecast>,
         targetDate: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        storedDayPrecipChance: Int? = null,
+        storedNightPrecipChance: Int? = null,
     ): ResolvedDailyPrecip {
         if (isPast) {
             // Past days use the raw day/night period split with NO precipProbability→daytime fallback:
             // an NWS night-only chance (daytime=null, precipProbability=15) would otherwise surface as
             // a spurious daytime label on the bar. It also keeps Android (source-tagged row present)
             // and desktop (forecast row absent for past days) on the same path.
-            return ResolvedDailyPrecip(daytimePrecipProbability, nighttimePrecipProbability)
+            return ResolvedDailyPrecip(
+                dayPrecip = storedDayPrecipChance ?: daytimePrecipProbability,
+                nightPrecip = storedNightPrecipChance ?: nighttimePrecipProbability,
+            )
         }
-        val dayNight = calculateDayNightPrecipProbabilities(
+        return resolveLiveDayNightChance(
+            displaySourceId = displaySourceId,
+            daytimePrecipProbability = daytimePrecipProbability,
+            nighttimePrecipProbability = nighttimePrecipProbability,
+            precipProbability = precipProbability,
             hourly = hourly,
             targetDate = targetDate,
-            displaySourceId = displaySourceId,
             zoneId = zoneId,
-        )
-        return ResolvedDailyPrecip(
-            dayPrecip = dayNight.dayMax ?: daytimePrecipProbability ?: precipProbability,
-            nightPrecip = dayNight.nightMax ?: nighttimePrecipProbability,
         )
     }
 

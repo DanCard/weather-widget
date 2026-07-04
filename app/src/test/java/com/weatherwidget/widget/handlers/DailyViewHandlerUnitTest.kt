@@ -3,7 +3,7 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ObservationResolver
@@ -20,7 +20,7 @@ import java.time.ZoneId
 @Category(ShortDuration::class)
 class DailyViewHandlerUnitTest {
 
-    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyHistory(
         date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
         source = WeatherSource.NWS.id,
         locationLat = 37.422,

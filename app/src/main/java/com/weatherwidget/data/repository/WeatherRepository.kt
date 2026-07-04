@@ -163,4 +163,10 @@ class WeatherRepository
             sinceMs: Long,
         ) = observationRepository.getMainObservationsWithComputedNwsBlend(latitude, longitude, sinceMs)
         suspend fun getRecentObservations(sinceMs: Long) = observationRepository.getRecentObservations(sinceMs)
+
+        suspend fun snapshotDisplayedRainChance(latitude: Double, longitude: Double) =
+            forecastRepository.snapshotDisplayedRainChance(latitude, longitude)
+
+        suspend fun backfillForecastChanceSnapshotsIfNeeded(latitude: Double, longitude: Double) =
+            forecastRepository.backfillForecastChanceSnapshotsIfNeeded(latitude, longitude)
     }

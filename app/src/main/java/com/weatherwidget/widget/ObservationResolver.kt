@@ -1,11 +1,11 @@
 package com.weatherwidget.widget
 
 import android.util.Log
-import com.weatherwidget.data.local.DailyExtremeEntity
+import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.LocationMatch
-import com.weatherwidget.data.local.toDailyExtreme
+import com.weatherwidget.data.local.toDailyHistory
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.toEntity
@@ -15,7 +15,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-typealias DailyActualMap = Map<LocalDate, com.weatherwidget.data.model.DailyExtreme>
+typealias DailyActualMap = Map<LocalDate, com.weatherwidget.data.model.DailyHistory>
 typealias DailyActualsBySource = Map<String, DailyActualMap>
 
 /**
@@ -87,7 +87,7 @@ object ObservationResolver {
     }
 
     /**
-     * Computes [DailyExtremeEntity] rows from raw observations, ready for dao.insertAll().
+     * Computes [DailyHistoryEntity] rows from raw observations, ready for dao.insertAll().
      * Groups by (date, source) and uses time-aligned IDW blending so the stored value matches
      * what the live widget displayed during that day.
      */
@@ -97,7 +97,7 @@ object ObservationResolver {
         locationLat: Double,
         locationLon: Double,
         personalStationWeight: Double = 1.0,
-    ): List<DailyExtremeEntity> {
+    ): List<DailyHistoryEntity> {
         val local = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
         val sharedExtremes = ActualsAggregator.aggregate(
@@ -115,13 +115,13 @@ object ObservationResolver {
 
     /**
      * Converts API-provided daily extreme values embedded in raw observations into
-     * [DailyExtremeEntity] rows. Observations without official max/min values are ignored.
+     * [DailyHistoryEntity] rows. Observations without official max/min values are ignored.
      */
     fun officialExtremesToDailyEntities(
         observations: List<ObservationEntity>,
         locationLat: Double,
         locationLon: Double,
-    ): List<DailyExtremeEntity> =
+    ): List<DailyHistoryEntity> =
         observations
             .filter { it.maxTempLast24h != null && it.minTempLast24h != null }
             .groupBy { obs ->
@@ -135,7 +135,7 @@ object ObservationResolver {
                 val (date, source) = key
                 val latestOfficialObservation = dayObs.maxByOrNull { it.timestamp } ?: return@mapNotNull null
 
-                DailyExtremeEntity(
+                DailyHistoryEntity(
                     date = date,
                     source = source,
                     locationLat = locationLat,
@@ -148,17 +148,17 @@ object ObservationResolver {
             }
 
     /**
-     * Maps a list of [DailyExtremeEntity] to [com.weatherwidget.data.model.DailyExtreme] objects.
+     * Maps a list of [DailyHistoryEntity] to [com.weatherwidget.data.model.DailyHistory] objects.
      */
-    fun extremesToDailyActuals(extremes: List<DailyExtremeEntity>): List<com.weatherwidget.data.model.DailyExtreme> =
-        extremes.map { it.toDailyExtreme() }
+    fun extremesToDailyActuals(extremes: List<DailyHistoryEntity>): List<com.weatherwidget.data.model.DailyHistory> =
+        extremes.map { it.toDailyHistory() }
 
     /**
-     * Maps a list of [DailyExtremeEntity] to a [DailyActualsBySource] map.
+     * Maps a list of [DailyHistoryEntity] to a [DailyActualsBySource] map.
      * Picks the extreme row closest to the provided [lat]/[lon] when multiple exist for one date/source.
      */
     fun extremesToDailyActualsBySource(
-        extremes: List<DailyExtremeEntity>,
+        extremes: List<DailyHistoryEntity>,
         lat: Double,
         lon: Double,
     ): DailyActualsBySource {
@@ -175,17 +175,17 @@ object ObservationResolver {
     }
 
     private fun sourceExtremesToDailyActualMap(
-        entities: List<DailyExtremeEntity>,
+        entities: List<DailyHistoryEntity>,
         lat: Double,
         lon: Double,
         local: ZoneId,
     ): DailyActualMap {
         return entities
-            .groupBy { it.toDailyExtreme().toLocalDate() }
+            .groupBy { it.toDailyHistory().toLocalDate() }
             .mapValues { (_, dateEntities) ->
                 dateEntities.minBy {
                     com.weatherwidget.shared.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
-                }.toDailyExtreme()
+                }.toDailyHistory()
             }
     }
 

@@ -118,8 +118,8 @@ class ActualTemperatureSeriesBuilderTest {
         )
 
         val actualTemps = result.points.filter { it.isActual && it.actualTemp != null }.map { it.actualTemp!! }
-        assertEquals("graph high should equal daily_extremes high", daily.highTemp, actualTemps.max(), 0.001f)
-        assertEquals("graph low should equal daily_extremes low", daily.lowTemp, actualTemps.min(), 0.001f)
+        assertEquals("graph high should equal daily_history high", daily.highTemp, actualTemps.max(), 0.001f)
+        assertEquals("graph low should equal daily_history low", daily.lowTemp, actualTemps.min(), 0.001f)
     }
 
     @Test

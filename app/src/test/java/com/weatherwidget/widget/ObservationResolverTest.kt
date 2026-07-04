@@ -1,6 +1,6 @@
 package com.weatherwidget.widget
 
-import com.weatherwidget.data.local.DailyExtremeEntity
+import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
@@ -13,7 +13,7 @@ import org.junit.experimental.categories.Category
 
 
 
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 @Category(ShortDuration::class)
 class ObservationResolverTest {
 
@@ -217,7 +217,7 @@ class ObservationResolverTest {
         assertEquals(60f, meteoEntity.highTemp, 0.01f)
     }
 
-    private fun extreme(date: java.time.LocalDate, high: Float, low: Float) = com.weatherwidget.data.model.DailyExtreme(
+    private fun extreme(date: java.time.LocalDate, high: Float, low: Float) = com.weatherwidget.data.model.DailyHistory(
         date = date.toEpochDay() * 86_400_000L,
         source = WeatherSource.NWS.id,
         locationLat = 37.42,
@@ -525,7 +525,7 @@ class ObservationResolverTest {
     @Test
     fun `extremesToDailyActuals maps all precip fields`() {
         val extremes = listOf(
-            DailyExtremeEntity(
+            DailyHistoryEntity(
                 date = 1_700_000_000_000L,
                 source = WeatherSource.NWS.id,
                 locationLat = 37.42,
@@ -551,7 +551,7 @@ class ObservationResolverTest {
     @Test
     fun `extremesToDailyActualsBySource maps all precip fields`() {
         val extremes = listOf(
-            DailyExtremeEntity(
+            DailyHistoryEntity(
                 date = 1_700_000_000_000L,
                 source = WeatherSource.NWS.id,
                 locationLat = 37.42,

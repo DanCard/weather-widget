@@ -10,13 +10,13 @@ import androidx.room.Index
  * to the highest and lowest stored observations for that local day.
  */
 @Entity(
-    tableName = "daily_extremes",
+    tableName = "daily_history",
     primaryKeys = ["date", "source", "locationLat", "locationLon"],
     indices = [
         Index(value = ["date", "locationLat", "locationLon"]),
     ],
 )
-data class DailyExtremeEntity(
+data class DailyHistoryEntity(
     val date: Long,             // UTC midnight epoch millis (e.g., 2026-03-18T00:00:00Z)
     val source: String,         // WeatherSource.id (NWS, OPEN_METEO, etc.)
     val locationLat: Double,
@@ -28,9 +28,14 @@ data class DailyExtremeEntity(
     val precipAmountMm: Float? = null, // Daily observed precipitation amount in mm (total)
     val precipDayMm: Float? = null, // Daytime (8AM-8PM) observed precipitation in mm
     val precipNightMm: Float? = null, // Nighttime (8PM-8AM) observed precipitation in mm
+    // Resolved (as-displayed) forecast rain chance %, snapshotted while the day was current so
+    // history replays what the widget showed instead of NWS's raw 6am/6pm period fields (see
+    // DailyRainLabels.resolveDailyLabelPrecip). Null for rows written before this feature.
+    val forecastDayPrecipChance: Int? = null,
+    val forecastNightPrecipChance: Int? = null,
 )
 
-fun DailyExtremeEntity.toDailyExtreme() = com.weatherwidget.data.model.DailyExtreme(
+fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
     date = date,
     source = source,
     locationLat = locationLat,
@@ -42,9 +47,11 @@ fun DailyExtremeEntity.toDailyExtreme() = com.weatherwidget.data.model.DailyExtr
     precipAmountMm = precipAmountMm,
     precipDayMm = precipDayMm,
     precipNightMm = precipNightMm,
+    forecastDayPrecipChance = forecastDayPrecipChance,
+    forecastNightPrecipChance = forecastNightPrecipChance,
 )
 
-fun com.weatherwidget.data.model.DailyExtreme.toEntity() = DailyExtremeEntity(
+fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     date = date,
     source = source,
     locationLat = locationLat,
@@ -56,4 +63,6 @@ fun com.weatherwidget.data.model.DailyExtreme.toEntity() = DailyExtremeEntity(
     precipAmountMm = precipAmountMm,
     precipDayMm = precipDayMm,
     precipNightMm = precipNightMm,
+    forecastDayPrecipChance = forecastDayPrecipChance,
+    forecastNightPrecipChance = forecastNightPrecipChance,
 )

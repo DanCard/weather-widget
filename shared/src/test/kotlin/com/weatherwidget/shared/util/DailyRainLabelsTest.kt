@@ -391,4 +391,77 @@ class DailyRainLabelsTest {
         assertNull(resolved.dayPrecip)
         assertEquals(15, resolved.nightPrecip)
     }
+
+    @Test
+    fun pastDayPrefersStoredSnapshotOverRawPeriodFields() {
+        // Once a day is history, the label should replay the value snapshotted into daily_history
+        // while the day was still live (e.g. 14%, the hourly window max) rather than falling back to
+        // NWS's raw period fields (9%), which is exactly the bug this storage feature fixes.
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = true,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 0,
+            nighttimePrecipProbability = 9,
+            precipProbability = null,
+            hourly = emptyList(),
+            targetDate = today.minusDays(1),
+            zoneId = zone,
+            storedDayPrecipChance = 2,
+            storedNightPrecipChance = 14,
+        )
+        assertEquals(2, resolved.dayPrecip)
+        assertEquals(14, resolved.nightPrecip)
+    }
+
+    @Test
+    fun pastDayFallsBackToPeriodFieldsWhenNoStoredSnapshot() {
+        // Rows written before this feature existed have null stored chances; must fall back to the
+        // legacy raw period fields rather than surfacing null/blank labels.
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = true,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 12,
+            nighttimePrecipProbability = 9,
+            precipProbability = null,
+            hourly = emptyList(),
+            targetDate = today.minusDays(1),
+            zoneId = zone,
+            storedDayPrecipChance = null,
+            storedNightPrecipChance = null,
+        )
+        assertEquals(12, resolved.dayPrecip)
+        assertEquals(9, resolved.nightPrecip)
+    }
+
+    @Test
+    fun resolveLiveDayNightChanceMatchesNonPastResolveDailyLabelPrecip() {
+        // Anti-drift: the function used to snapshot storage values must be identical to what the
+        // live (non-past) label path computes, for the same inputs.
+        val hourly = listOf(
+            hour(today, 14, 2),
+            hour(today.plusDays(1), 7, 14, source = WeatherSource.NWS.id),
+        )
+        val live = DailyRainLabels.resolveLiveDayNightChance(
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 15,
+            nighttimePrecipProbability = 9,
+            precipProbability = 99,
+            hourly = hourly,
+            targetDate = today,
+            zoneId = zone,
+        )
+        val viaResolve = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 15,
+            nighttimePrecipProbability = 9,
+            precipProbability = 99,
+            hourly = hourly,
+            targetDate = today,
+            zoneId = zone,
+        )
+        assertEquals(live, viaResolve)
+        assertEquals(2, live.dayPrecip)
+        assertEquals(14, live.nightPrecip)
+    }
 }

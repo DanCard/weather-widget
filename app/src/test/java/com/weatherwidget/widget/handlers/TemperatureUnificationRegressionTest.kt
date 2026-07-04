@@ -3,7 +3,7 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.util.DailyActualsEstimator
@@ -74,7 +74,7 @@ class TemperatureUnificationRegressionTest {
         // We now use the blended result as the source of truth for the Daily Actual
         val unifiedHigh = blendedResult.observations.maxOf { it.temperature }
         val dailyActuals = mapOf(
-            today to DailyExtreme(
+            today to DailyHistory(
                 date = today.toEpochDay() * 86_400_000L,
                 source = WeatherSource.NWS.id,
                 locationLat = TestData.LAT,

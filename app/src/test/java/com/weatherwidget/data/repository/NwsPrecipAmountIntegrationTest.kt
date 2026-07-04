@@ -55,7 +55,7 @@ class NwsPrecipAmountIntegrationTest {
             widgetStateManager = widgetStateManager,
             climateNormalDao = db.climateNormalDao(),
             observationDao = db.observationDao(),
-            dailyExtremeDao = mockk(relaxed = true),
+            dailyHistoryDao = mockk(relaxed = true),
             observationRepository = mockk(relaxed = true),
             tomorrowIoApi = mockk(relaxed = true),
             openWeatherMapApi = mockk(relaxed = true),

@@ -39,8 +39,8 @@ object DailyDayValueResolver {
      * - solidLow = min(actualLow, currentTemp) — if current dropped below stored low, reflect that
      * - ghostHigh = actualHigh — the high-water mark the ghost line reaches up to
      *
-     * @param actualHigh Observed daily high so far (from DailyExtreme)
-     * @param actualLow Observed daily low so far (from DailyExtreme)
+     * @param actualHigh Observed daily high so far (from DailyHistory)
+     * @param actualLow Observed daily low so far (from DailyHistory)
      * @param forecastHigh API daily forecast high
      * @param forecastLow API daily forecast low
      * @param currentTemp Most recently observed current temperature

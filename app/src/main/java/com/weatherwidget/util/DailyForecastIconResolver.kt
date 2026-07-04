@@ -59,6 +59,7 @@ object DailyForecastIconResolver {
         targetDate: LocalDate,
         isPast: Boolean,
         displaySource: WeatherSource,
+        actual: com.weatherwidget.data.model.DailyHistory? = null,
     ): com.weatherwidget.shared.util.DailyRainLabels.ResolvedDailyPrecip =
         com.weatherwidget.shared.util.DailyRainLabels.resolveDailyLabelPrecip(
             isPast = isPast,
@@ -76,6 +77,8 @@ object DailyForecastIconResolver {
                 )
             },
             targetDate = targetDate,
+            storedDayPrecipChance = actual?.forecastDayPrecipChance,
+            storedNightPrecipChance = actual?.forecastNightPrecipChance,
         )
 
     fun resolveIcon(

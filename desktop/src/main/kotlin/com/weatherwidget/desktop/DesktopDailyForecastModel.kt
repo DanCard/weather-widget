@@ -1,6 +1,6 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.ForecastResult
@@ -29,7 +29,7 @@ data class DesktopDailyDay(
     val date: LocalDate,
     val label: String,
     val forecast: DailyForecast?,
-    val actual: DailyExtreme?,
+    val actual: DailyHistory?,
     val snapshot: DailyForecastSnapshot?,
     val solidHigh: Float?,
     val solidLow: Float?,
@@ -174,7 +174,7 @@ object DesktopDailyForecastModel {
         today: LocalDate,
         now: LocalDateTime,
         forecast: DailyForecast?,
-        actual: DailyExtreme?,
+        actual: DailyHistory?,
         snapshots: List<DailyForecastSnapshot>,
         hourly: List<HourlyForecast>,
         currentTemp: Float?,
@@ -236,9 +236,11 @@ object DesktopDailyForecastModel {
 
         // Rain labels (text-building logic shared with the Android widget). The daytime label sits
         // on the bar; the night label tucks between columns. The day/night precip % is chosen by the
-        // shared resolveDailyLabelPrecip so desktop and Android pick identical values — the hourly
-        // 8am–8pm / 8pm–8am window max, with the row's period fields as fallback. Past days prefer
-        // observed actuals.
+        // shared resolveDailyLabelPrecip so desktop and Android pick identical values. Non-past days
+        // use the hourly 8am–8pm / 8pm–8am window max, with the row's period fields as fallback. Past
+        // days replay the value snapshotted into daily_history while the day was still live
+        // (actual?.forecastDayPrecipChance / forecastNightPrecipChance), falling back to the raw
+        // period fields for history written before that snapshot existed.
         // Past days have no live `forecast` row (the daily list holds only today + future), so the
         // forecast rain chance to keep visible in history comes from the day's snapshot instead.
         val resolvedPrecip = com.weatherwidget.shared.util.DailyRainLabels.resolveDailyLabelPrecip(
@@ -249,6 +251,8 @@ object DesktopDailyForecastModel {
             precipProbability = forecast?.precipProbability ?: displaySnapshot?.precipProbability,
             hourly = hourly,
             targetDate = date,
+            storedDayPrecipChance = actual?.forecastDayPrecipChance,
+            storedNightPrecipChance = actual?.forecastNightPrecipChance,
         )
         val forecastAmountMm = forecast?.precipAmountMm ?: snapshot?.precipAmountMm
         val dailyRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainLabel(

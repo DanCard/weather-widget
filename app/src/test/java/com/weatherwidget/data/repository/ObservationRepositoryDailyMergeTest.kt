@@ -1,6 +1,6 @@
 package com.weatherwidget.data.repository
 
-import com.weatherwidget.data.local.DailyExtremeEntity
+import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.LongDuration
@@ -14,7 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -57,7 +57,7 @@ class ObservationRepositoryDailyMergeTest {
         repository = ObservationRepository(
             context = context,
             observationDao = db.observationDao(),
-            dailyExtremeDao = db.dailyExtremeDao(),
+            dailyHistoryDao = db.dailyHistoryDao(),
             appLogDao = db.appLogDao(),
             nwsApi = mockk(relaxed = true),
             hourlyForecastDao = db.hourlyForecastDao(),
@@ -98,9 +98,9 @@ class ObservationRepositoryDailyMergeTest {
         // Stale persisted daily_extreme row holds 73.5° — the kind of value
         // computeDailyExtremes produces (IDW of per-station-max, weighted differently
         // from IDW-by-hour). This is what was incorrectly winning the merge before the fix.
-        db.dailyExtremeDao().insertAll(
+        db.dailyHistoryDao().insertAll(
             listOf(
-                DailyExtremeEntity(
+                DailyHistoryEntity(
                     date = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                     source = WeatherSource.NWS.id,
                     locationLat = lat,
@@ -129,12 +129,12 @@ class ObservationRepositoryDailyMergeTest {
         )
 
         val todayActual = result[WeatherSource.NWS.id]?.get(today)
-        assertNotNull("Expected an NWS DailyExtreme entry for today", todayActual)
+        assertNotNull("Expected an NWS DailyHistory entry for today", todayActual)
 
         // BEFORE fix: this is 73.5 (mergeDailyActual maxOf picks the persisted value).
         // AFTER  fix: this is ~73.1 (live blended wins, persisted is not consulted).
         assertEquals(
-            "Today's high must come from the live IDW blender, not the stale daily_extremes row",
+            "Today's high must come from the live IDW blender, not the stale daily_history row",
             73.1f,
             todayActual!!.highTemp,
             0.1f,
@@ -165,7 +165,7 @@ class ObservationRepositoryDailyMergeTest {
         // Run 1: station observations carry temps but no measured precip yet (the row is null).
         db.observationDao().insertAll(listOf(obs(t10, null), obs(t14, null)))
         repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList())
-        val afterRun1 = db.dailyExtremeDao().getExtremesInRange(yStart, yStart, lat, lon)
+        val afterRun1 = db.dailyHistoryDao().getExtremesInRange(yStart, yStart, lat, lon)
             .first { it.source == WeatherSource.NWS.id }
         assertNull("Precip should be null before measured precip arrives", afterRun1.precipAmountMm)
 
@@ -174,10 +174,60 @@ class ObservationRepositoryDailyMergeTest {
 
         // Run 2: only precip differs — the gate must persist it.
         repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList())
-        val afterRun2 = db.dailyExtremeDao().getExtremesInRange(yStart, yStart, lat, lon)
+        val afterRun2 = db.dailyHistoryDao().getExtremesInRange(yStart, yStart, lat, lon)
             .first { it.source == WeatherSource.NWS.id }
         assertEquals(5.0f, afterRun2.precipAmountMm!!, 0.01f) // 2.0 + 3.0 measured
         assertEquals(60f, afterRun2.highTemp, 0.1f)           // temps unchanged
+    }
+
+    /**
+     * Clobber regression: daily_history now also carries a forecastDayPrecipChance /
+     * forecastNightPrecipChance snapshot (written by ForecastRepository.snapshotDisplayedRainChance).
+     * The actuals recompute path does a full-row REPLACE (insertAll), so if it rebuilds the row from
+     * raw observations without carrying those columns over, the chance snapshot silently vanishes on
+     * the next recompute. This pins that the fragment-heal copy in recomputeDailyExtremesForDay
+     * preserves them.
+     */
+    @Test
+    fun `recompute preserves existing forecast chance snapshot when temps change`() = runTest {
+        val t10 = today.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+        val todayStart = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+
+        // Seed a daily_history row with a chance snapshot already stored, but a high that will
+        // differ from the observation-derived recompute (forcing the fragment-heal REPLACE path).
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = todayStart,
+                    source = WeatherSource.NWS.id,
+                    locationLat = lat,
+                    locationLon = lon,
+                    highTemp = 999f,
+                    lowTemp = 999f,
+                    condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                    forecastDayPrecipChance = 2,
+                    forecastNightPrecipChance = 14,
+                ),
+            ),
+        )
+
+        db.observationDao().insertAll(
+            listOf(
+                TestData.observation(
+                    stationId = "KNEAR", stationName = "Near", timestamp = t10,
+                    temperature = 70f, distanceKm = 1f, api = WeatherSource.NWS.id,
+                ),
+            ),
+        )
+
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, today, today, emptyList())
+
+        val afterRecompute = db.dailyHistoryDao().getExtremesInRange(todayStart, todayStart, lat, lon)
+            .first { it.source == WeatherSource.NWS.id }
+        assertEquals("Recompute should have changed the high temp", 70f, afterRecompute.highTemp, 0.1f)
+        assertEquals("Chance snapshot must survive the actuals REPLACE", 2, afterRecompute.forecastDayPrecipChance)
+        assertEquals("Chance snapshot must survive the actuals REPLACE", 14, afterRecompute.forecastNightPrecipChance)
     }
 
     @Test
@@ -196,7 +246,7 @@ class ObservationRepositoryDailyMergeTest {
         // Recomputation should skip this day since it is 10 days ago (older than 9-day cutoff)
         repository.recomputeDailyExtremesFromStoredObservations(lat, lon, tenDaysAgo, tenDaysAgo, emptyList())
         
-        val extremes = db.dailyExtremeDao().getExtremesInRange(tenDaysAgoStart, tenDaysAgoStart, lat, lon)
+        val extremes = db.dailyHistoryDao().getExtremesInRange(tenDaysAgoStart, tenDaysAgoStart, lat, lon)
         assertTrue("Daily extreme should not be inserted or recomputed for a day older than 9 days", extremes.isEmpty())
     }
 }

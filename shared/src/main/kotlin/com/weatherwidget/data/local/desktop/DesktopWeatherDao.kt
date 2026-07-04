@@ -1,6 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
@@ -217,14 +217,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
-    fun upsertDailyExtremes(extremes: List<DailyExtreme>) {
+    fun upsertDailyHistory(extremes: List<DailyHistory>) {
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {
                 val sql = """
-                    INSERT OR REPLACE INTO daily_extremes 
-                    (date, source, locationLat, locationLon, highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO daily_history
+                    (date, source, locationLat, locationLon, highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     for (ex in extremes) {
@@ -239,6 +239,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableFloat(9, ex.precipAmountMm)
                         stmt.setNullableFloat(10, ex.precipDayMm)
                         stmt.setNullableFloat(11, ex.precipNightMm)
+                        stmt.setNullableInt(12, ex.forecastDayPrecipChance)
+                        stmt.setNullableInt(13, ex.forecastNightPrecipChance)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -258,7 +260,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.execute("DELETE FROM hourly_forecasts WHERE fetchedAt < $beforeEpochMs")
                 stmt.execute("DELETE FROM hourly_forecast_history WHERE fetchedAt < $beforeEpochMs")
                 stmt.execute("DELETE FROM observations WHERE fetchedAt < $beforeEpochMs")
-                stmt.execute("DELETE FROM daily_extremes WHERE updatedAt < $beforeEpochMs")
+                stmt.execute("DELETE FROM daily_history WHERE updatedAt < $beforeEpochMs")
                 stmt.execute("DELETE FROM app_logs WHERE timestamp < $beforeEpochMs")
                 stmt.execute("DELETE FROM station_cache WHERE updatedAt < $beforeEpochMs")
             }
@@ -507,6 +509,41 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setDouble(2, locationLon)
                 stmt.setString(3, source)
                 stmt.setLong(4, minFetchedAt)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(HourlyForecast(
+                        dateTime = rs.getLong("dateTime"),
+                        temperature = rs.getFloat("temperature"),
+                        condition = rs.getString("condition"),
+                        precipProbability = rs.getNullableInt("precipProbability"),
+                        cloudCover = rs.getNullableInt("cloudCover"),
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        source = source,
+                        fetchedAt = rs.getLong("fetchedAt"),
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
+    /** Plain dateTime-range read of the LIVE hourly_forecasts table (no history blend). */
+    fun getHourlyForecasts(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): List<HourlyForecast> {
+        val result = mutableListOf<HourlyForecast>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT * FROM hourly_forecasts
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND dateTime >= ? AND dateTime <= ?
+                ORDER BY dateTime ASC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                stmt.setLong(4, startMs)
+                stmt.setLong(5, endMs)
                 val rs = stmt.executeQuery()
                 while (rs.next()) {
                     result.add(HourlyForecast(
@@ -853,11 +890,11 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
-    fun getExtremesInRange(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double): List<DailyExtreme> {
-        val result = mutableListOf<DailyExtreme>()
+    fun getExtremesInRange(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double): List<DailyHistory> {
+        val result = mutableListOf<DailyHistory>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT * FROM daily_extremes
+                SELECT * FROM daily_history
                 WHERE ${LocationMatch.JDBC_WHERE} AND date >= ? AND date <= ?
                 ORDER BY date ASC
             """.trimIndent()
@@ -868,7 +905,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setLong(4, endEpoch)
                 val rs = stmt.executeQuery()
                 while (rs.next()) {
-                    result.add(DailyExtreme(
+                    result.add(DailyHistory(
                         date = rs.getLong("date"),
                         source = rs.getString("source"),
                         locationLat = rs.getDouble("locationLat"),
@@ -880,6 +917,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         precipDayMm = rs.getNullableFloat("precipDayMm"),
                         precipNightMm = rs.getNullableFloat("precipNightMm"),
+                        forecastDayPrecipChance = rs.getNullableInt("forecastDayPrecipChance"),
+                        forecastNightPrecipChance = rs.getNullableInt("forecastNightPrecipChance"),
                     ))
                 }
             }
@@ -887,7 +926,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
-    fun getDailyActuals(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): Map<String, DailyExtreme> {
+    fun getDailyActuals(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): Map<String, DailyHistory> {
         return getExtremesInRange(startEpoch, endEpoch, locationLat, locationLon)
             .filter { it.source == source }
             .associateBy { LocalDate.ofEpochDay(it.date / 86_400_000L).toString() }

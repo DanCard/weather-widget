@@ -14,7 +14,7 @@ import java.time.format.DateTimeFormatter
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 
 @Category(ShortDuration::class)
 class TripleLinePrecisionTest {
@@ -22,7 +22,7 @@ class TripleLinePrecisionTest {
     private val today = LocalDate.now()
     private val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyHistory(
         date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
         source = WeatherSource.OPEN_METEO.id,
         locationLat = 0.0,

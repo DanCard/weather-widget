@@ -3,7 +3,7 @@ package com.weatherwidget.util
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestData.dateEpoch
 import org.junit.Assert.assertEquals
@@ -32,7 +32,7 @@ class DailyActualsEstimatorTest {
         fetchedAt = System.currentTimeMillis()
     )
 
-    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyExtreme(
+    private fun extreme(date: LocalDate, high: Float, low: Float) = DailyHistory(
         date = date.toEpochDay() * 86_400_000L,
         source = "OPEN_METEO",
         locationLat = 0.0,

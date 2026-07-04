@@ -448,7 +448,7 @@ suspend fun handleToggleView(
         // Past days: read from DB cache
         val startDate = today.minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val endDate = today.minusDays(1).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
-        val pastExtremes = database.dailyExtremeDao().getExtremesInRange(startDate, endDate, lat, lon)
+        val pastExtremes = database.dailyHistoryDao().getExtremesInRange(startDate, endDate, lat, lon)
         val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, lat, lon)
 
         // Today: compute live from raw station observations (exclude synthetic NWS_BLEND).
@@ -463,7 +463,7 @@ suspend fun handleToggleView(
         val hourlyForecasts = database.hourlyForecastDao().getHourlyForecasts(hourlyLookbackStart, hourlyLookaheadEnd, lat, lon)
         val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs, hourlyForecasts, lat, lon, personalStationWeight)
 
-        // Today must stay live-only. Persisted daily_extremes can contain a different high
+        // Today must stay live-only. Persisted daily_history can contain a different high
         // than the time-aligned live blender, which makes SET_VIEW renders disagree with
         // worker refreshes after returning from the temperature graph.
         return ObservationResolver.mergeDailyActualsBySource(

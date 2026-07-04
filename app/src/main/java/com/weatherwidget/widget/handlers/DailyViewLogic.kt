@@ -217,6 +217,7 @@ object DailyViewLogic {
                 targetDate = date,
                 isPast = isPast,
                 displaySource = displaySource,
+                actual = dailyActuals[date],
             )
             val dayPrecipForIcon = resolvedPrecip.dayPrecip
             val nightPrecipForIcon = resolvedPrecip.nightPrecip
@@ -447,6 +448,7 @@ object DailyViewLogic {
                 targetDate = date,
                 isPast = isPastDate,
                 displaySource = displaySource,
+                actual = actual,
             )
             val dayPrecipForIcon = resolvedPrecip.dayPrecip
             val nightPrecipForIcon = resolvedPrecip.nightPrecip

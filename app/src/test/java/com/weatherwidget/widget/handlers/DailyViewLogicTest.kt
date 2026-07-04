@@ -4,7 +4,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.WeatherIconMapper
@@ -39,7 +39,7 @@ class DailyViewLogicTest {
         precipDayMm: Float? = null,
         precipNightMm: Float? = null,
         source: String = WeatherSource.NWS.id
-    ) = DailyExtreme(
+    ) = DailyHistory(
         date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
         source = source,
         locationLat = 0.0,
@@ -675,6 +675,48 @@ class DailyViewLogicTest {
         val futureDay = result.first { it.date == future }
         assertEquals("95%", futureDay.rainData.dailyRainLabelText)
         assertEquals("80%", futureDay.rainData.nightRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays past day night rain label replays stored snapshot over raw NWS period field`() {
+        // Regression (2026-07-04): the past day's daily_history row has forecastNightPrecipChance=14
+        // (the hourly window-max value archived while the day was still live). The weather row's raw
+        // NWS period field (nighttimePrecipProbability=9) must NOT win once the day is history.
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val weatherByDate = mapOf(
+            yesterday to createWeather(
+                date = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 9,
+                daytimePrecipProbability = 0,
+                nighttimePrecipProbability = 9,
+            ),
+        )
+        val dailyActuals = mapOf(
+            yesterday to extreme(yesterday, 70f, 55f).copy(
+                forecastDayPrecipChance = 0,
+                forecastNightPrecipChance = 14,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val pastDay = result.first { it.date == yesterday }
+        assertEquals("14%", pastDay.rainData.nightRainLabelText)
     }
 
     @Test

@@ -5,7 +5,7 @@ import android.location.Location
 import android.os.SystemClock
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.data.local.DailyExtremeDao
+import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
@@ -60,7 +60,7 @@ class CurrentTempRepository
         private val weatherApi: WeatherApi,
         private val silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
-        private val dailyExtremeDao: DailyExtremeDao,
+        private val dailyHistoryDao: DailyHistoryDao,
         private val observationRepository: ObservationRepository,
         private val tomorrowIoApi: TomorrowIoApi? = null,
         private val openWeatherMapApi: OpenWeatherMapApi? = null,

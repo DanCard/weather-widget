@@ -11,7 +11,7 @@ import java.time.ZoneId
 
 /**
  * Unit tests for [pastDayLacksAfternoonCoverage], the coverage check that lets the background
- * NWS backfill self-heal a past day whose daily_extremes row exists but was computed from a
+ * NWS backfill self-heal a past day whose daily_history row exists but was computed from a
  * partial (overnight-only) slice of observations — the emulator bug where 2026-05-31 showed a
  * 54° high because the device was off from 05:20 onward.
  */
@@ -59,7 +59,7 @@ class PastDayCoverageTest {
 
     @Test
     fun `day with no observations is not flagged here`() {
-        // Absent days are handled by the daily_extremes row-presence check, not this function.
+        // Absent days are handled by the daily_history row-presence check, not this function.
         val date = LocalDate.of(2026, 5, 31)
 
         assertFalse(pastDayLacksAfternoonCoverage(emptyList(), date, zone, today, daytimeHour = 14))

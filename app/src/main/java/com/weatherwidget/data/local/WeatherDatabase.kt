@@ -10,8 +10,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
-    version = 50,
+    entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
+    version = 51,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -29,7 +29,7 @@ abstract class WeatherDatabase : RoomDatabase() {
 
     abstract fun apiUsageDao(): ApiUsageDao
 
-    abstract fun dailyExtremeDao(): DailyExtremeDao
+    abstract fun dailyHistoryDao(): DailyHistoryDao
 
     companion object {
         @Volatile
@@ -75,7 +75,9 @@ abstract class WeatherDatabase : RoomDatabase() {
         }
 
         /**
-         * Adds precipitation columns to observations and daily_extremes tables.
+         * Adds precipitation columns to observations and daily_extremes tables (renamed to
+         * daily_history in MIGRATION_50_51 — this migration predates the rename and must keep
+         * operating on the table's actual name at the time, `daily_extremes`).
          * Handles databases created at v45 with or without precipAmountMm (the column was
          * added mid-v45 lifecycle). Uses conditional ALTER to be idempotent.
          */
@@ -162,6 +164,24 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        // Renames daily_extremes -> daily_history (the table now also holds displayed forecast
+        // rain-chance snapshots, not just temperature extremes) and adds the two chance columns.
+        // SQLite's ALTER TABLE RENAME does not rename dependent indices, so the old
+        // index_daily_extremes_* index must be dropped and recreated under Room's expected name
+        // for the new table name or schema validation will fail post-migration.
+        val MIGRATION_50_51 = object : Migration(50, 51) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `daily_extremes` RENAME TO `daily_history`")
+                db.execSQL("DROP INDEX IF EXISTS `index_daily_extremes_date_locationLat_locationLon`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_daily_history_date_locationLat_locationLon` " +
+                        "ON `daily_history` (`date`, `locationLat`, `locationLon`)",
+                )
+                db.execSQL("ALTER TABLE `daily_history` ADD COLUMN `forecastDayPrecipChance` INTEGER")
+                db.execSQL("ALTER TABLE `daily_history` ADD COLUMN `forecastNightPrecipChance` INTEGER")
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -224,7 +244,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

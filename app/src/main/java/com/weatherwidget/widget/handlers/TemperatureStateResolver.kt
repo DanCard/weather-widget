@@ -162,8 +162,8 @@ internal object TemperatureStateResolver {
         }
 
         // HOURLY_DAY_EXTREMA: per-day actual high/low the hourly graph derives from its rendered points,
-        // for direct comparison against the daily bar's persisted daily_extremes (logged as
-        // DAILY_EXTREME_BLEND). Diagnoses the "daily bar 72.4 vs hourly 72.9" divergence: same blend
+        // for direct comparison against the daily bar's persisted daily_history (logged as
+        // DAILY_HISTORY_BLEND). Diagnoses the "daily bar 72.4 vs hourly 72.9" divergence: same blend
         // function, but the two pipelines feed it different obs windows. Logs the actual-point count and
         // window span too so we can see whether a window/interpolation edge is moving the max.
         run {

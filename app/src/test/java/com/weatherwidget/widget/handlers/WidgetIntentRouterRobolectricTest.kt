@@ -1,6 +1,6 @@
 package com.weatherwidget.widget.handlers
 
-import com.weatherwidget.data.local.DailyExtremeEntity
+import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -13,7 +13,7 @@ import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.widget.handlers.RefreshScheduler
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import com.weatherwidget.data.model.DailyExtreme
+import com.weatherwidget.data.model.DailyHistory
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -297,9 +297,9 @@ class WidgetIntentRouterRobolectricTest {
                     )
                 )
             )
-            db.dailyExtremeDao().insertAll(
+            db.dailyHistoryDao().insertAll(
                 listOf(
-                    DailyExtremeEntity(
+                    DailyHistoryEntity(
                         date = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                         source = WeatherSource.NWS.id,
                         locationLat = lat,
@@ -317,7 +317,7 @@ class WidgetIntentRouterRobolectricTest {
 
             assertNotNull("Expected live NWS actual for today", actual)
             assertEquals(
-                "SET_VIEW daily actuals must ignore persisted daily_extremes for today",
+                "SET_VIEW daily actuals must ignore persisted daily_history for today",
                 82.56303f,
                 actual!!.highTemp,
                 0.001f,

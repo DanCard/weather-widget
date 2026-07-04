@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import com.weatherwidget.R
-import com.weatherwidget.data.local.DailyExtremeDao
+import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -49,7 +49,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     lateinit var forecastDao: ForecastDao
 
     @Inject
-    lateinit var dailyExtremeDao: DailyExtremeDao
+    lateinit var dailyHistoryDao: DailyHistoryDao
 
     @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
@@ -140,7 +140,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private var graphMode = GraphMode.EVOLUTION
     private var cachedSnapshots: List<ForecastEntity> = emptyList()
     private var cachedActualWeather: ForecastEntity? = null
-    private var cachedAppActual: com.weatherwidget.data.local.DailyExtremeEntity? = null
+    private var cachedAppActual: com.weatherwidget.data.local.DailyHistoryEntity? = null
     private var cachedDate: LocalDate? = null
     private var cachedRequestedSource: WeatherSource? = null
     private lateinit var targetDate: String
@@ -285,7 +285,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                             forecastDao.getForecastForDate(targetDateEpoch, lat, lon)
                     }
 
-                val appActuals = dailyExtremeDao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon)
+                val appActuals = dailyHistoryDao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon)
                 val sortedAppActuals = appActuals.sortedBy {
                     com.weatherwidget.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
                 }
@@ -331,7 +331,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private fun displayData(
         snapshots: List<ForecastEntity>,
         actualWeather: ForecastEntity?,
-        appActual: com.weatherwidget.data.local.DailyExtremeEntity?,
+        appActual: com.weatherwidget.data.local.DailyHistoryEntity?,
         date: LocalDate,
         requestedSource: WeatherSource?,
     ) {
@@ -494,7 +494,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     /**
-     * Recomputes daily_extremes from already-stored observations before falling back to a
+     * Recomputes daily_history from already-stored observations before falling back to a
      * background refresh for dates that still have no recoverable actuals.
      */
     private suspend fun backfillDailyExtremesIfNeeded(lat: Double, lon: Double) {
@@ -503,8 +503,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val startEpoch = startDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endEpoch = endDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startDate, endDate, emptyList())
-        val existingExtremes = dailyExtremeDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
-        val existingDates = existingExtremes.filter { it.source == WeatherSource.NWS.id }.map { it.date }.toSet()
+        val existingHistory = dailyHistoryDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
+        val existingDates = existingHistory.filter { it.source == WeatherSource.NWS.id }.map { it.date }.toSet()
         val nwsForecastDates =
             forecastDao.getForecastsInRangeBySource(startEpoch, endEpoch, lat, lon, WeatherSource.NWS.id)
                 .map { it.targetDate }
@@ -513,7 +513,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val missingDates = nwsForecastDates - existingDates
         if (missingDates.isEmpty()) return
 
-        Log.d(TAG, "Still missing NWS daily_extremes after local recompute for ${missingDates.size} date(s): $missingDates")
+        Log.d(TAG, "Still missing NWS daily_history after local recompute for ${missingDates.size} date(s): $missingDates")
         // Opening history surfaces gaps in stored actuals; trigger a widget refresh so the
         // background fetch backfills them before the user looks at another day.
         WeatherWidgetProvider.triggerImmediateUpdate(

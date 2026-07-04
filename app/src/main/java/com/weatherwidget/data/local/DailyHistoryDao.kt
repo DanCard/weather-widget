@@ -6,13 +6,13 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 @Dao
-interface DailyExtremeDao {
+interface DailyHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(extremes: List<DailyExtremeEntity>)
+    suspend fun insertAll(extremes: List<DailyHistoryEntity>)
 
     @Query(
         """
-        SELECT * FROM daily_extremes
+        SELECT * FROM daily_history
         WHERE date >= :startDate
           AND date <= :endDate
           AND ${LocationMatch.ROOM_WHERE}
@@ -24,8 +24,8 @@ interface DailyExtremeDao {
         endDate: Long,
         lat: Double,
         lon: Double,
-    ): List<DailyExtremeEntity>
+    ): List<DailyHistoryEntity>
 
-    @Query("DELETE FROM daily_extremes WHERE updatedAt < :cutoffMs")
+    @Query("DELETE FROM daily_history WHERE updatedAt < :cutoffMs")
     suspend fun deleteOldExtremes(cutoffMs: Long)
 }

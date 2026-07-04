@@ -8,7 +8,7 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.ObservationDao
-import com.weatherwidget.data.local.DailyExtremeDao
+import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -41,7 +41,7 @@ class WeatherRepositoryTest {
     private lateinit var widgetStateManager: WidgetStateManager
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var observationDao: ObservationDao
-    private lateinit var dailyExtremeDao: DailyExtremeDao
+    private lateinit var dailyHistoryDao: DailyHistoryDao
 
     private lateinit var forecastRepository: ForecastRepository
     private lateinit var currentTempRepository: CurrentTempRepository
@@ -68,7 +68,7 @@ class WeatherRepositoryTest {
         widgetStateManager = mockk(relaxed = true)
         climateNormalDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
-        dailyExtremeDao = mockk(relaxed = true)
+        dailyHistoryDao = mockk(relaxed = true)
 
         forecastRepository = ForecastRepository(
             context,
@@ -84,7 +84,7 @@ class WeatherRepositoryTest {
             widgetStateManager,
             climateNormalDao,
             observationDao,
-            dailyExtremeDao,
+            dailyHistoryDao,
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
@@ -248,7 +248,7 @@ class WeatherRepositoryTest {
             forecastDao.deleteOldForecasts(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
             hourlyForecastDao.deleteOldForecasts(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
             observationDao.deleteOldObservations(match { it in (expected10DayCutoff - tolerance)..(expected10DayCutoff + tolerance) })
-            dailyExtremeDao.deleteOldExtremes(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
+            dailyHistoryDao.deleteOldExtremes(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
         }
     }
 

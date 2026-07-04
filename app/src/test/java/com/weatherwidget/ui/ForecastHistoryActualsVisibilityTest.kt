@@ -7,7 +7,7 @@ import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
-import com.weatherwidget.data.local.DailyExtremeEntity
+import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.stats.ComparisonStatistics
@@ -56,7 +56,7 @@ class ForecastHistoryActualsVisibilityTest {
         val activity = controller.get()
         
         activity.forecastDao = mockk(relaxed = true)
-        activity.dailyExtremeDao = mockk(relaxed = true)
+        activity.dailyHistoryDao = mockk(relaxed = true)
         activity.accuracyCalculator = mockk(relaxed = true)
 
         // Mock data to ensure it WOULD show if not for the date check
@@ -74,7 +74,7 @@ class ForecastHistoryActualsVisibilityTest {
             fetchedAt = System.currentTimeMillis()
         )
         
-        val mockAppActual = DailyExtremeEntity(
+        val mockAppActual = DailyHistoryEntity(
             date = targetDateEpoch,
             locationLat = 37.0,
             locationLon = -122.0,
@@ -87,7 +87,7 @@ class ForecastHistoryActualsVisibilityTest {
 
         coEvery { activity.forecastDao.getForecastEvolution(any(), any(), any()) } returns listOf(mockActual)
         coEvery { activity.forecastDao.getForecastForDate(any(), any(), any()) } returns mockActual
-        coEvery { activity.dailyExtremeDao.getExtremesInRange(any(), any(), any(), any()) } returns listOf(mockAppActual)
+        coEvery { activity.dailyHistoryDao.getExtremesInRange(any(), any(), any(), any()) } returns listOf(mockAppActual)
 
         controller.setup()
         ShadowLooper.idleMainLooper()
