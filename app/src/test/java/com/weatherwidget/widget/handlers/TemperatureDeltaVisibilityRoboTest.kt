@@ -162,8 +162,11 @@ class TemperatureDeltaVisibilityRoboTest {
         assertFalse("Delta badge should be hidden for negligible delta", state.header.isDeltaVisible)
     }
 
+    // HeaderDeltaGate contract: the delta is a valid number independent of graph navigation, so it
+    // stays visible while the window includes now or extends into the future, and hides only once
+    // the window has scrolled entirely into the past (mirrors GhostLineGate's future-yes/past-no).
     @Test
-    fun `delta badge is hidden when now line is not visible`() = runBlocking {
+    fun `delta badge stays visible when scrolled into the future`() = runBlocking {
         val now = LocalDateTime.now()
 
         val hourly = listOf(
@@ -191,6 +194,39 @@ class TemperatureDeltaVisibilityRoboTest {
 
         val state = resolveState(hourly, now, 72.0f, centerTime = now.plusHours(24))
 
-        assertFalse("Delta badge should be hidden when NOW line is not visible", state.header.isDeltaVisible)
+        assertTrue("Delta badge should stay visible when scrolled into the future", state.header.isDeltaVisible)
+    }
+
+    @Test
+    fun `delta badge is hidden when scrolled fully into the past`() = runBlocking {
+        val now = LocalDateTime.now()
+
+        val hourly = listOf(
+            com.weatherwidget.data.local.HourlyForecastEntity(
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
+                locationLat = 37.0,
+                locationLon = -122.0,
+                temperature = 70.0f,
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                fetchedAt = System.currentTimeMillis(),
+            ),
+            com.weatherwidget.data.local.HourlyForecastEntity(
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
+                locationLat = 37.0,
+                locationLon = -122.0,
+                temperature = 70.0f,
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                fetchedAt = System.currentTimeMillis(),
+            ),
+        )
+
+        // 48h back is fully past even at the widest zoom's forward span.
+        val state = resolveState(hourly, now, 72.0f, centerTime = now.minusHours(48))
+
+        assertFalse("Delta badge should be hidden once the window is fully in the past", state.header.isDeltaVisible)
     }
 }
