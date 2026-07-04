@@ -151,15 +151,14 @@ object DailyRainLabels {
      * source of truth shared by Android and desktop so the two never drift (e.g. today showing 15% on
      * one and 2% on the other).
      *
-     * For an NWS row displayed as NWS, NWS's own 12-hour daytime/nighttime *period* chance is more
-     * representative than the sparse hourly max, so it is used directly. Otherwise the hourly
-     * 8am–8pm / 8pm–8am window max ([calculateDayNightPrecipProbabilities]) is used, falling back to
-     * the row's period fields. (Faithful lift of the logic that previously lived inline in Android's
-     * DailyViewLogic; desktop previously reimplemented a divergent subset.)
+     * All sources use the hourly 8am–8pm / 8pm–8am window max
+     * ([calculateDayNightPrecipProbabilities]), falling back to the row's period fields only when
+     * there are no hourly rows. This is deliberate for NWS too: NWS's native 12-hour periods run
+     * 6am/6pm, so its "tonight" chance excludes 6–8am rain that the app's 8pm–8am night window
+     * (and users) consider part of tonight — e.g. a 14% chance at 7am showed as 9%.
      */
     fun resolveDailyLabelPrecip(
         isPast: Boolean,
-        rowSourceId: String?,
         displaySourceId: String,
         daytimePrecipProbability: Int?,
         nighttimePrecipProbability: Int?,
@@ -169,20 +168,11 @@ object DailyRainLabels {
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): ResolvedDailyPrecip {
         if (isPast) {
-            // Past days use the raw day/night period split with NO precipProbability→daytime fallback.
-            // This must take precedence over the NWS-direct branch below: an NWS night-only chance
-            // (daytime=null, precipProbability=15) would otherwise surface as a spurious daytime label
-            // on the bar. It also keeps Android (source-tagged row present → would hit the NWS-direct
-            // branch) and desktop (forecast row absent for past days) on the same path.
+            // Past days use the raw day/night period split with NO precipProbability→daytime fallback:
+            // an NWS night-only chance (daytime=null, precipProbability=15) would otherwise surface as
+            // a spurious daytime label on the bar. It also keeps Android (source-tagged row present)
+            // and desktop (forecast row absent for past days) on the same path.
             return ResolvedDailyPrecip(daytimePrecipProbability, nighttimePrecipProbability)
-        }
-        val useDirectNwsPeriodPrecip =
-            rowSourceId == WeatherSource.NWS.id && displaySourceId == WeatherSource.NWS.id
-        if (useDirectNwsPeriodPrecip) {
-            return ResolvedDailyPrecip(
-                dayPrecip = daytimePrecipProbability ?: precipProbability,
-                nightPrecip = nighttimePrecipProbability,
-            )
         }
         val dayNight = calculateDayNightPrecipProbabilities(
             hourly = hourly,
@@ -191,7 +181,7 @@ object DailyRainLabels {
             zoneId = zoneId,
         )
         return ResolvedDailyPrecip(
-            dayPrecip = dayNight.dayMax ?: daytimePrecipProbability,
+            dayPrecip = dayNight.dayMax ?: daytimePrecipProbability ?: precipProbability,
             nightPrecip = dayNight.nightMax ?: nighttimePrecipProbability,
         )
     }

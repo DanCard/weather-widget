@@ -276,13 +276,14 @@ class DailyRainLabelsTest {
     // ---- resolveDailyLabelPrecip (Android/desktop parity for the daily rain %) ----
 
     @Test
-    fun directNwsUsesPeriodChanceOverSparseHourlyMax() {
-        // The real bug: NWS shown as NWS. Hourly 8am-8pm max is a sparse 2%, but NWS's native daytime
-        // period chance is 15% — that 15% must win (this is the desktop "2%" vs Android "15%" gap).
+    fun nwsUsesHourlyWindowMaxLikeOtherSources() {
+        // NWS shown as NWS gets NO special treatment: the hourly 8am-8pm window max wins over NWS's
+        // native period chance. (Deliberate reversal of the old NWS-direct branch — NWS periods run
+        // 6am/6pm, so trusting them made the effective night cutoff 6am instead of the app-wide 8am
+        // and dropped 6-8am rain from "tonight".)
         val hourly = listOf(hour(today, 14, 2))
         val resolved = DailyRainLabels.resolveDailyLabelPrecip(
             isPast = false,
-            rowSourceId = WeatherSource.NWS.id,
             displaySourceId = WeatherSource.NWS.id,
             daytimePrecipProbability = 15,
             nighttimePrecipProbability = 8,
@@ -291,15 +292,36 @@ class DailyRainLabelsTest {
             targetDate = today,
             zoneId = zone,
         )
-        assertEquals(15, resolved.dayPrecip)
-        assertEquals(8, resolved.nightPrecip)
+        assertEquals(2, resolved.dayPrecip)
+        assertEquals(8, resolved.nightPrecip) // no hourly night rows -> period fallback
     }
 
     @Test
-    fun directNwsFallsBackToDailyPrecipWhenPeriodChanceMissing() {
+    fun nightWindowIncludesEarlyMorningHoursNwsPeriodExcludes() {
+        // Regression (2026-07-04): NWS hourly said 14% at 7am but the night label showed NWS's
+        // "Tonight" period chance of 9% — NWS periods end at 6am, orphaning 6-8am rain. The night
+        // window max (8pm-8am) must win over the period field.
+        val hourly = listOf(
+            hour(today.plusDays(1), 5, 9),
+            hour(today.plusDays(1), 7, 14),
+        )
         val resolved = DailyRainLabels.resolveDailyLabelPrecip(
             isPast = false,
-            rowSourceId = WeatherSource.NWS.id,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 0,
+            nighttimePrecipProbability = 9,
+            precipProbability = null,
+            hourly = hourly,
+            targetDate = today,
+            zoneId = zone,
+        )
+        assertEquals(14, resolved.nightPrecip)
+    }
+
+    @Test
+    fun fallsBackToDailyPrecipWhenHourlyAndPeriodChanceMissing() {
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
             displaySourceId = WeatherSource.NWS.id,
             daytimePrecipProbability = null,
             nighttimePrecipProbability = null,
@@ -321,7 +343,6 @@ class DailyRainLabelsTest {
         )
         val resolved = DailyRainLabels.resolveDailyLabelPrecip(
             isPast = false,
-            rowSourceId = WeatherSource.OPEN_METEO.id,
             displaySourceId = WeatherSource.OPEN_METEO.id,
             daytimePrecipProbability = 99, // period fields ignored when hourly has rows
             nighttimePrecipProbability = 99,
@@ -340,7 +361,6 @@ class DailyRainLabelsTest {
         // mirror Android's past-day path (period fields, no hourly recompute).
         val resolved = DailyRainLabels.resolveDailyLabelPrecip(
             isPast = true,
-            rowSourceId = WeatherSource.OPEN_METEO.id,
             displaySourceId = WeatherSource.OPEN_METEO.id,
             daytimePrecipProbability = 12,
             nighttimePrecipProbability = 7,
@@ -355,13 +375,11 @@ class DailyRainLabelsTest {
 
     @Test
     fun pastNwsNightOnlyChanceDoesNotLeakIntoDaytimeLabel() {
-        // Regression: a past NWS-as-NWS day with a night-only chance (daytime=null, night=15,
-        // precipProbability=15). The isPast branch must win over the NWS-direct branch so the night
-        // chance does NOT surface as a spurious daytime label (parity with desktop). Android previously
-        // hit the NWS-direct `daytime ?: precipProbability` fallback → bogus daytime 15%.
+        // Regression: a past NWS day with a night-only chance (daytime=null, night=15,
+        // precipProbability=15). The isPast branch must NOT apply the `?: precipProbability` daytime
+        // fallback, so the night chance does not surface as a spurious daytime label on the bar.
         val resolved = DailyRainLabels.resolveDailyLabelPrecip(
             isPast = true,
-            rowSourceId = WeatherSource.NWS.id,
             displaySourceId = WeatherSource.NWS.id,
             daytimePrecipProbability = null,
             nighttimePrecipProbability = 15,

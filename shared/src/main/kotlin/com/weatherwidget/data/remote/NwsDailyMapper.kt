@@ -190,8 +190,10 @@ object NwsDailyMapper {
                 condition = condition,
                 precipProbability = precipProbability,
                 precipAmountMm = acc.precipAmountMap[date],
-                // NWS's native 12-hour period chances — preferred over the sparse hourly max for the
-                // daily rain label (see DailyRainLabels.resolveDailyLabelPrecip).
+                // NWS's native 12-hour period chances — used by the daily rain label only as a
+                // fallback when hourly rows are missing, and by the past-day path (see
+                // DailyRainLabels.resolveDailyLabelPrecip). Note NWS periods run 6am/6pm, not the
+                // app's 8am/8pm day/night boundary.
                 daytimePrecipProbability = acc.daytimePrecipProbabilityMap[date],
                 nighttimePrecipProbability = acc.nighttimePrecipProbabilityMap[date],
             )

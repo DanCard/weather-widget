@@ -640,7 +640,10 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `prepareGraphDays future NWS rain label uses direct daytime chance instead of legacy daily chance`() {
+    fun `prepareGraphDays future NWS rain label uses hourly window max with period fallback`() {
+        // NWS no longer gets its native 12h period chance directly (periods run 6am/6pm and clipped
+        // 6-8am rain out of "tonight"): the hourly 8am-8pm max wins for day, and night falls back to
+        // the period field only because there are no night hourly rows here.
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(2)
@@ -670,7 +673,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals("30%", futureDay.rainData.dailyRainLabelText)
+        assertEquals("95%", futureDay.rainData.dailyRainLabelText)
         assertEquals("80%", futureDay.rainData.nightRainLabelText)
     }
 

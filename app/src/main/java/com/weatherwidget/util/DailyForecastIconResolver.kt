@@ -50,8 +50,8 @@ object DailyForecastIconResolver {
 
     /**
      * Day/night precip % used for the daily label and icon, via the shared selection so Android and
-     * desktop stay identical (NWS-as-NWS uses NWS's native period chance; otherwise the hourly
-     * window max with period fallback). Maps the Android hourly entities to the shared model.
+     * desktop stay identical (hourly 8am–8pm / 8pm–8am window max, period fields as fallback).
+     * Maps the Android hourly entities to the shared model.
      */
     fun resolveDailyLabelPrecip(
         weather: ForecastEntity?,
@@ -62,7 +62,6 @@ object DailyForecastIconResolver {
     ): com.weatherwidget.shared.util.DailyRainLabels.ResolvedDailyPrecip =
         com.weatherwidget.shared.util.DailyRainLabels.resolveDailyLabelPrecip(
             isPast = isPast,
-            rowSourceId = weather?.source,
             displaySourceId = displaySource.id,
             daytimePrecipProbability = weather?.daytimePrecipProbability,
             nighttimePrecipProbability = weather?.nighttimePrecipProbability,
