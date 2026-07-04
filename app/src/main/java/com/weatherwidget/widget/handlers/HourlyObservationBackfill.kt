@@ -99,6 +99,10 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
 
     val lat = observations.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
     val lon = observations.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+    // Jittered short delay: avoids landing in the first-second startup scrum (see
+    // StartupFetchPolicy) without meaningfully slowing the interactive missing-hourly-data banner
+    // flow, which already tolerates a several-second wait.
+    val delayMs = com.weatherwidget.widget.StartupFetchPolicy.historyRepairDelayMs()
     val request =
         OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
             .setInputData(
@@ -121,6 +125,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
                     .setRequiredNetworkType(NetworkType.CONNECTED)
                     .build(),
             )
+            .setInitialDelay(delayMs, java.util.concurrent.TimeUnit.MILLISECONDS)
             .build()
 
     WorkManager.getInstance(context).enqueueUniqueWork(
@@ -131,7 +136,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     stateManager.markMissingActualsRefreshRequested(appWidgetId, HOURLY_BACKFILL_SOURCE_KEY)
     database.appLogDao().log(
         "OBS_HOURLY_BACKFILL_REQ",
-        "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason} graphStart=$graphStart graphEnd=$graphEnd",
+        "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason} graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs",
         "INFO",
     )
 }

@@ -135,7 +135,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         val startupToken = WidgetPerfLogger.newToken("startup")
         val onUpdateStartMs = SystemClock.elapsedRealtime()
-        launchAsync {
+        launchAsync(context) {
             val dbOpenStartMs = SystemClock.elapsedRealtime()
             val database = WeatherDatabase.getDatabase(context)
             val dbOpenMs = SystemClock.elapsedRealtime() - dbOpenStartMs
@@ -438,11 +438,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     private suspend fun checkStalenessAndFetch(context: Context): Long {
         val staleCheckStartMs = SystemClock.elapsedRealtime()
         if (DataFreshness.isDataStale(context)) {
-            Log.d(TAG, "onUpdate: Data is stale, deferring background fetch until after startup paint")
+            val dataAgeMinutes = DataFreshness.getDataAgeMinutes(context)
+            val delayMs = StartupFetchPolicy.primaryFetchDelayMs(dataAgeMinutes)
+            Log.d(TAG, "onUpdate: Data is stale (ageMinutes=$dataAgeMinutes), deferring background fetch by ${delayMs}ms")
             triggerImmediateUpdate(
                 context,
                 reason = "on_update_stale",
-                initialDelayMs = STARTUP_STALE_REFRESH_DELAY_MS,
+                initialDelayMs = delayMs,
             )
         } else {
             Log.d(TAG, "onUpdate: Data is fresh, skipped fetch")
@@ -458,7 +460,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
         Log.d(TAG, "onAppWidgetOptionsChanged: widgetId=$appWidgetId")
-        val job = launchAsync {
+        val job = launchAsync(context) {
             WidgetIntentRouter.handleResize(context, appWidgetId, repository)
         }
         WidgetUpdateTracker.trackJob(appWidgetId, job, WidgetUpdateTracker.JobType.INTERACTION)
@@ -545,7 +547,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, index=$index, targetView=$targetViewName, hourlyOffset=$targetOffset, clickSource=$clickSource")
 
         val receiveTimeMs = System.currentTimeMillis()
-        launchAsync {
+        launchAsync(context) {
             val coroutineStartMs = System.currentTimeMillis()
             val database = WeatherDatabase.getDatabase(context)
             database.appLogDao().log("CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, targetView=$targetViewName, offset=$targetOffset, clickSource=$clickSource")
@@ -707,7 +709,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "handleNoHourlyRefreshCompleteAction: widget=$appWidgetId date=$dateStr")
 
         val receiveTimeMs = System.currentTimeMillis()
-        launchAsync {
+        launchAsync(context) {
             val database = WeatherDatabase.getDatabase(context)
             val stateManager = stateManager(context)
             val dayLabel = NoHourlyDayClickCoordinator.formatDayLabel(dateStr)
@@ -762,7 +764,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val uiOnly = intent.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false)
         Log.d(TAG, "onReceive: Refresh triggered (uiOnly=$uiOnly)")
 
-        launchAsync {
+        launchAsync(context) {
             UIUpdateScheduler(context).scheduleNextUpdate()
             
             val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -822,7 +824,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "onReceive: Navigation action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             val isLeft = intent.action == WidgetActions.ACTION_NAV_LEFT
-            launchAsync {
+            launchAsync(context) {
                 WidgetIntentRouter.handleNavigation(context, appWidgetId, isLeft, repository)
             }
         }
@@ -835,7 +837,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val appWidgetId = getWidgetId(intent)
         Log.d(TAG, "onReceive: Toggle API action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            launchAsync {
+            launchAsync(context) {
                 WidgetIntentRouter.handleToggleApi(context, appWidgetId, repository)
                 restartHeartbeats(context)
             }
@@ -851,7 +853,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             val interactionSource = intent.getStringExtra(WidgetActions.EXTRA_INTERACTION_SOURCE) ?: "unknown"
             val receiveTimeMs = System.currentTimeMillis()
-            launchAsync {
+            launchAsync(context) {
                 val database = WeatherDatabase.getDatabase(context)
                 val handlerStartMs = SystemClock.elapsedRealtime()
                 WidgetIntentRouter.handleToggleView(context, appWidgetId, repository)
@@ -881,7 +883,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val appWidgetId = getWidgetId(intent)
         Log.d(TAG, "onReceive: Toggle Precip action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            launchAsync {
+            launchAsync(context) {
                 WidgetIntentRouter.handleTogglePrecip(context, appWidgetId, repository)
                 restartHeartbeats(context)
             }
@@ -907,7 +909,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             return
         }
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            launchAsync {
+            launchAsync(context) {
                 WidgetIntentRouter.handleCycleZoom(context, appWidgetId, zoomCenterOffset, repository)
                 restartHeartbeats(context)
             }
@@ -923,7 +925,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val targetOffset = intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)
         Log.d(TAG, "onReceive: Set View action for widget $appWidgetId, target=$targetViewName, offset=$targetOffset")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            launchAsync {
+            launchAsync(context) {
                 val targetMode =
                     try {
                         ViewMode.valueOf(targetViewName)
@@ -950,8 +952,37 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
     private fun stateManager(context: Context) = WidgetStateManager(context)
 
-    private fun launchAsync(block: suspend CoroutineScope.() -> Unit): Job {
+    /**
+     * Runs [block] off the broadcast thread via goAsync(). Widget PendingIntents carry
+     * FLAG_RECEIVER_FOREGROUND, giving the broadcast only ~10s before the system ANRs and kills
+     * the process — goAsync() does NOT extend that deadline, it only lets onReceive return early.
+     * A watchdog finishes the PendingResult early (best-effort) at [GO_ASYNC_WATCHDOG_MS] if
+     * [block] is still running, trading the broadcast's foreground-priority shield for avoiding a
+     * guaranteed ANR kill; [block] keeps running in [scope] and paints whenever it completes.
+     */
+    @VisibleForTesting
+    internal fun launchAsync(context: Context, block: suspend CoroutineScope.() -> Unit): Job {
         val pendingResult = goAsync()
+        val finished = java.util.concurrent.atomic.AtomicBoolean(false)
+        fun finishOnce(reason: String) {
+            if (finished.compareAndSet(false, true)) {
+                finishPendingResultSafely(pendingResult, "launchAsync:$reason")
+            }
+        }
+        val watchdog = scope.launch {
+            delay(GO_ASYNC_WATCHDOG_MS)
+            Log.w(TAG, "launchAsync: watchdog firing after ${GO_ASYNC_WATCHDOG_MS}ms; finishing broadcast early, work continues in background")
+            try {
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "CLICK_WATCHDOG",
+                    "goAsync watchdog fired after ${GO_ASYNC_WATCHDOG_MS}ms; finished broadcast early to avoid ANR kill, work continues",
+                    "WARN",
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "launchAsync: failed to log watchdog event", e)
+            }
+            finishOnce("watchdog")
+        }
         return scope.launch {
             try {
                 block()
@@ -960,7 +991,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             } catch (e: Exception) {
                 Log.e(TAG, "launchAsync failed", e)
             } finally {
-                finishPendingResultSafely(pendingResult, "launchAsync")
+                watchdog.cancel()
+                finishOnce("completed")
             }
         }
     }
@@ -1004,6 +1036,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         private const val STARTUP_DEBOUNCE_MS = 500L
 
         /**
+         * Deadline for the [launchAsync] watchdog to finish the PendingResult early if [block]
+         * hasn't completed. Kept safely under the ~10s foreground-broadcast ANR deadline.
+         */
+        const val GO_ASYNC_WATCHDOG_MS = 8_000L
+
+        /**
          * Enqueue the periodic forecast worker. Interval is charging/battery-aware via
          * [ForecastFetchPolicy.periodicTickMinutes]. Safe to call repeatedly — uses
          * ExistingPeriodicWorkPolicy.UPDATE so the interval refreshes on each call.
@@ -1044,7 +1082,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
 
         const val HOUR_ZONE_COUNT = 13
-        private const val STARTUP_STALE_REFRESH_DELAY_MS = 1_500L
 
         internal fun needsDailyStartupData(viewModes: Collection<ViewMode>): Boolean =
             viewModes.any { it == ViewMode.DAILY }

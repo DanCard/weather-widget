@@ -89,6 +89,7 @@ object RefreshScheduler {
         // cancellation segfaults ART on debuggable builds — see [[samsung_widget_dead_native_sigsegv]]).
         policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
         forecastDays: Int = ForecastHorizon.BASELINE_DAYS,
+        initialDelayMs: Long = 0L,
     ) {
         if (isRefreshDisabledForTesting) {
             Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason)")
@@ -104,6 +105,11 @@ object RefreshScheduler {
                         .putInt(WeatherWidgetWorker.KEY_FORECAST_DAYS, forecastDays)
                         .build(),
                 )
+                .apply {
+                    if (initialDelayMs > 0) {
+                        setInitialDelay(initialDelayMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    }
+                }
                 .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(
@@ -137,11 +143,15 @@ object RefreshScheduler {
             return
         }
         prefs.edit().putLong(key, nowMs).apply()
+        // Jittered short delay (see StartupFetchPolicy): callers may invoke this on every render,
+        // including right after process startup, so keep it out of the first-second startup scrum
+        // without meaningfully slowing a live render that's actively waiting on the coverage fix.
+        val delayMs = com.weatherwidget.widget.StartupFetchPolicy.historyRepairDelayMs()
         appLogDao?.log(
             "COVERAGE_REFRESH_ENQUEUE",
-            "source=$sourceId forecastDays=$forecastDays reason=coverage_gap_within_baseline",
+            "source=$sourceId forecastDays=$forecastDays reason=coverage_gap_within_baseline delayMs=$delayMs",
         )
-        enqueueForcedRefresh(context, reason = "coverage_gap", forecastDays = forecastDays)
+        enqueueForcedRefresh(context, reason = "coverage_gap", forecastDays = forecastDays, initialDelayMs = delayMs)
     }
 
     suspend fun refreshIfStale(
