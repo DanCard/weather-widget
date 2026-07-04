@@ -77,11 +77,11 @@ internal fun updateHourlyTextMode(
 internal fun temperatureDeltaHiddenReason(
     currentTemp: Float?,
     appliedDelta: Float?,
-    isNowLineVisible: Boolean,
+    isDeltaWindowVisible: Boolean,
 ): String? =
     when {
         currentTemp == null -> "current_temp_missing"
-        !isNowLineVisible -> "now_line_hidden"
+        !isDeltaWindowVisible -> "scrolled_into_past"
         appliedDelta == null -> "no_delta"
         kotlin.math.abs(appliedDelta) < 0.1f -> "below_threshold"
         else -> null
@@ -104,6 +104,7 @@ internal fun buildHeaderStateLog(
     precipVisible: Boolean,
     precipProbability: Int?,
     isNowLineVisible: Boolean?,
+    isDeltaWindowVisible: Boolean? = null,
     offset: Int,
     zoom: ZoomLevel?,
     resolveMs: Long,
@@ -115,7 +116,8 @@ internal fun buildHeaderStateLog(
         "observedTemp=${formatTemp(observedTemp)} appliedDelta=${formatTemp(appliedDelta)} " +
         "deltaVisible=$deltaVisible deltaHiddenReason=${deltaHiddenReason ?: "none"} " +
         "precipVisible=$precipVisible precipProbability=${precipProbability ?: "none"} " +
-        "isNowLineVisible=${isNowLineVisible ?: "n/a"} offset=$offset zoom=${zoom?.name ?: "n/a"} resolveMs=$resolveMs"
+        "isNowLineVisible=${isNowLineVisible ?: "n/a"} isDeltaWindowVisible=${isDeltaWindowVisible ?: "n/a"} " +
+        "offset=$offset zoom=${zoom?.name ?: "n/a"} resolveMs=$resolveMs"
 
 private fun formatLocation(location: Pair<Double, Double>?): String {
     if (location == null) return "none"

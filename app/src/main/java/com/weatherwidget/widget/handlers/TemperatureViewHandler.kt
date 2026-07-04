@@ -15,6 +15,7 @@ import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
+import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.widget.GraphRepaintGate
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -74,13 +75,14 @@ object TemperatureViewHandler {
         if (uiOnly) {
             val zoom = stateManager.getZoomLevel(appWidgetId)
             val nowForWindow = LocalDateTime.now()
+            val windowEndTime = centerTime.plusHours(zoom.forwardHours)
             val nowInWindow = !nowForWindow.isBefore(centerTime.minusHours(zoom.backHours)) &&
-                !nowForWindow.isAfter(centerTime.plusHours(zoom.forwardHours))
+                !nowForWindow.isAfter(windowEndTime)
             if (!nowInWindow) {
                 updateHeaderCurrentTemp(
                     context, appWidgetManager, appWidgetId, stateManager, displaySource, dimensions,
                     currentTempHourlyForecasts, lastObservedTemp, observedAt, nowForWindow,
-                    showDelta = false,
+                    showDelta = HeaderDeltaGate.isWindowVisible(windowEndTime, nowForWindow),
                 )
                 appLogDao.log(
                     WidgetPerfLogger.TAG_WIDGET_PAINT,
@@ -203,11 +205,12 @@ object TemperatureViewHandler {
             deltaHiddenReason = temperatureDeltaHiddenReason(
                 currentTemp = resolutionResult.currentTempResolution.displayTemp,
                 appliedDelta = resolutionResult.currentTempResolution.appliedDelta,
-                isNowLineVisible = resolutionResult.isNowLineVisible
+                isDeltaWindowVisible = resolutionResult.isDeltaWindowVisible
             ),
             precipVisible = resolutionResult.state.header.isPrecipVisible,
             precipProbability = resolutionResult.headerPrecipProbability,
             isNowLineVisible = resolutionResult.isNowLineVisible,
+            isDeltaWindowVisible = resolutionResult.isDeltaWindowVisible,
             offset = resolutionResult.state.hourlyOffset,
             zoom = resolutionResult.state.zoom,
             resolveMs = resolutionResult.resolveMs
@@ -237,7 +240,7 @@ object TemperatureViewHandler {
                     currentLon = resolutionResult.lon,
                     numColumns = dimensions.cols,
                     widthDp = dimensions.widthDp,
-                    isNowLineVisible = resolutionResult.isNowLineVisible,
+                    isDeltaWindowVisible = resolutionResult.isDeltaWindowVisible,
                     quickResolution = resolutionResult.currentTempResolution,
                     storedDeltaState = storedDeltaState,
                     smoothedForecasts = resolutionResult.smoothedForecasts,
@@ -361,7 +364,7 @@ object TemperatureViewHandler {
         val currentLon: Double,
         val numColumns: Int,
         val widthDp: Int,
-        val isNowLineVisible: Boolean,
+        val isDeltaWindowVisible: Boolean,
         val quickResolution: CurrentTemperatureResolution,
         val storedDeltaState: CurrentTemperatureDeltaState?,
         val smoothedForecasts: Map<Long, Float>?,
@@ -391,7 +394,7 @@ object TemperatureViewHandler {
             }
             refined.updatedDeltaState?.let { params.stateManager.setCurrentTempDeltaState(params.appWidgetId, params.displaySource, it) }
 
-            if (!shouldApplyRefinedHeaderUpdate(params.quickResolution, refined, params.isNowLineVisible)) {
+            if (!shouldApplyRefinedHeaderUpdate(params.quickResolution, refined, params.isDeltaWindowVisible)) {
                 return@launch
             }
 
@@ -410,7 +413,7 @@ object TemperatureViewHandler {
             val currentTempPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, appContext.resources.displayMetrics)
             partialViews.setTextViewTextSize(com.weatherwidget.R.id.current_temp, android.util.TypedValue.COMPLEX_UNIT_PX, currentTempPx)
 
-            if (appliedDelta != null && kotlin.math.abs(appliedDelta) >= DELTA_VISIBILITY_THRESHOLD && params.isNowLineVisible) {
+            if (appliedDelta != null && kotlin.math.abs(appliedDelta) >= DELTA_VISIBILITY_THRESHOLD && params.isDeltaWindowVisible) {
                 partialViews.setTextViewText(com.weatherwidget.R.id.current_temp_delta, String.format("%+.1f", appliedDelta))
                 val deltaPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, appContext.resources.displayMetrics)
                 partialViews.setTextViewTextSize(com.weatherwidget.R.id.current_temp_delta, android.util.TypedValue.COMPLEX_UNIT_PX, deltaPx)
@@ -426,7 +429,7 @@ object TemperatureViewHandler {
     private fun shouldApplyRefinedHeaderUpdate(
         quickResolution: CurrentTemperatureResolution,
         refined: CurrentTemperatureResolution,
-        isNowLineVisible: Boolean,
+        isDeltaWindowVisible: Boolean,
     ): Boolean {
         val qTemp = quickResolution.displayTemp
         val rTemp = refined.displayTemp
@@ -439,11 +442,11 @@ object TemperatureViewHandler {
         val qDelta = quickResolution.appliedDelta
         val rDelta = refined.appliedDelta
         val quickDeltaVisible =
-            isNowLineVisible &&
+            isDeltaWindowVisible &&
                 qDelta != null &&
                 kotlin.math.abs(qDelta) >= DELTA_VISIBILITY_THRESHOLD
         val refinedDeltaVisible =
-            isNowLineVisible &&
+            isDeltaWindowVisible &&
                 rDelta != null &&
                 kotlin.math.abs(rDelta) >= DELTA_VISIBILITY_THRESHOLD
         val deltaChanged =

@@ -23,6 +23,7 @@ import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
+import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -56,7 +57,8 @@ internal object TemperatureStateResolver {
         val lat: Double,
         val lon: Double,
         val smoothedForecasts: Map<Long, Float>,
-        val isNowLineVisible: Boolean
+        val isNowLineVisible: Boolean,
+        val isDeltaWindowVisible: Boolean,
     )
 
     suspend fun resolve(
@@ -221,7 +223,13 @@ internal object TemperatureStateResolver {
         val currentTemp = currentTempResolution.displayTemp
         val isNowLineVisible = graphHours.any { it.isCurrentHour }
         val delta = currentTempResolution.appliedDelta
-        val deltaVisible = currentTemp != null && isNowLineVisible && delta != null && abs(delta) >= DELTA_VISIBILITY_THRESHOLD
+        // Delta stays visible on future scroll (no "now" in window yet reached) and hides only once
+        // the window has scrolled entirely into the past, matching the ghost line's own visibility
+        // (see GhostLineGate) rather than the stricter "now must be on screen" isNowLineVisible check.
+        val graphWindowEndTime = graphHours.lastOrNull()?.dateTime
+        val isDeltaWindowVisible = graphWindowEndTime != null &&
+            HeaderDeltaGate.isVisible(graphWindowEndTime, now, delta, DELTA_VISIBILITY_THRESHOLD)
+        val deltaVisible = currentTemp != null && isDeltaWindowVisible
 
         val sourceIndicator = HeaderFormatter.formatSourceIndicator(
             centerTime = centerTime,
@@ -345,7 +353,8 @@ internal object TemperatureStateResolver {
             lat = lat,
             lon = lon,
             smoothedForecasts = smoothedForecasts,
-            isNowLineVisible = isNowLineVisible
+            isNowLineVisible = isNowLineVisible,
+            isDeltaWindowVisible = isDeltaWindowVisible,
         )
     }
 
@@ -543,7 +552,8 @@ internal object TemperatureStateResolver {
             lat = lat,
             lon = lon,
             smoothedForecasts = emptyMap(),
-            isNowLineVisible = false
+            isNowLineVisible = false,
+            isDeltaWindowVisible = false,
         )
     }
 
@@ -577,7 +587,8 @@ internal object TemperatureStateResolver {
             lat = lat,
             lon = lon,
             smoothedForecasts = smoothedForecasts,
-            isNowLineVisible = false
+            isNowLineVisible = false,
+            isDeltaWindowVisible = false,
         )
     }
 

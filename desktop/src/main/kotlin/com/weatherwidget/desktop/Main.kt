@@ -35,6 +35,7 @@ import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
 import com.weatherwidget.shared.config.ForecastHorizon
+import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.NoHourlyChecker
@@ -1208,7 +1209,21 @@ private fun WidgetHeader(
         WeatherSource.fromDisplaySource(config.weatherSource)
     }
     val displayTemp = forecast.currentTemp
-    val deltaTemp = forecast.appliedDelta?.takeIf { kotlin.math.abs(it) >= 0.1f }
+    // Mirrors Android's HeaderDeltaGate: on the hourly graph, hide the delta only once the visible
+    // window has scrolled entirely into the past (matches the ghost line's own future-yes/past-no
+    // visibility). The daily view has no such window concept, so it stays always-on there, same as
+    // Android's daily header.
+    val deltaWindowVisible = if (config.viewMode.isHourly) {
+        val backHours = DesktopGraphUtils.backHoursFor(config.zoomFactor)
+        val forwardHours = DesktopGraphUtils.forwardHoursFor(config.zoomFactor)
+        val centerMs = nowEpoch + config.hourlyOffset * 3_600_000L
+        val windowEndMs = temperatureGraphHourWindow(centerMs, backHours, forwardHours, zoneId).endMs
+        val windowEndTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(windowEndMs), zoneId)
+        HeaderDeltaGate.isVisible(windowEndTime, nowLocal, forecast.appliedDelta)
+    } else {
+        forecast.appliedDelta?.let { kotlin.math.abs(it) >= 0.1f } ?: false
+    }
+    val deltaTemp = forecast.appliedDelta?.takeIf { deltaWindowVisible }
 
     val currentHourData = forecast.hourly.find {
         it.dateTime >= nowEpoch - 3_600_000L && it.dateTime <= nowEpoch + 3_600_000L
