@@ -35,7 +35,6 @@ object TestData {
         dateOfPrediction = dateEpoch(dateOfPrediction),
         locationLat = lat,
         locationLon = lon,
-        locationName = LOCATION_NAME,
         highTemp = highTemp,
         lowTemp = lowTemp,
         condition = condition,

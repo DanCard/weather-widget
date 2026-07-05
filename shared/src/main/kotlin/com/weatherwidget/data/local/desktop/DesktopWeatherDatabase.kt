@@ -33,7 +33,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         dateOfPrediction INTEGER NOT NULL,
                         locationLat REAL NOT NULL,
                         locationLon REAL NOT NULL,
-                        locationName TEXT NOT NULL DEFAULT '',
                         highTemp REAL,
                         lowTemp REAL,
                         condition TEXT NOT NULL,
@@ -273,6 +272,20 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     stmt.execute("ALTER TABLE forecasts RENAME COLUMN forecastDate TO dateOfPrediction")
                 }
             }
+            if (from < 10) {
+                val rs = stmt.executeQuery("PRAGMA table_info(forecasts)")
+                var hasLocationName = false
+                while (rs.next()) {
+                    if (rs.getString("name") == "locationName") {
+                        hasLocationName = true
+                        break
+                    }
+                }
+                rs.close()
+                if (hasLocationName) {
+                    stmt.execute("ALTER TABLE forecasts DROP COLUMN locationName")
+                }
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -313,6 +326,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 9
+        private const val SCHEMA_VERSION = 10
     }
 }

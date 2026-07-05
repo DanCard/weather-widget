@@ -143,7 +143,7 @@ class OpenMeteoIntegrationTest {
         val captured = mutableListOf<HttpRequestData>()
         repository = createCapturingRepository(captured, minimalResponse)
 
-        repository.getWeatherData(testLat, testLon, "Test", forceRefresh = true)
+        repository.getWeatherData(testLat, testLon, forceRefresh = true)
         assertEquals(
             "every fetch requests the maximum horizon",
             listOf(ForecastHorizon.MAX_DAYS.toString()),
@@ -183,7 +183,7 @@ class OpenMeteoIntegrationTest {
         repository = createRepository(mockResponse)
 
         // Trigger full network fetch
-        repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
+        repository.getWeatherData(testLat, testLon, forceRefresh = true)
 
         // Query the 'forecasts' table (snapshots)
         val snapshots = db.forecastDao().getForecastsInRange(dateEpoch(today), dateEpoch(tomorrow), testLat, testLon)
@@ -242,7 +242,7 @@ class OpenMeteoIntegrationTest {
         """.trimIndent()
 
         repository = createRepository(mockResponse)
-        repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
+        repository.getWeatherData(testLat, testLon, forceRefresh = true)
 
         data class HistRow(val dateTime: Long, val timestampToGroupPredictions: Long, val cloudCover: Int?, val fetchedAt: Long)
         val rows = mutableListOf<HistRow>()

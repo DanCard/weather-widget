@@ -118,7 +118,7 @@ class NwsMiddayOverrideTest {
             NwsApi.HourlyForecastPeriod(OffsetDateTime.parse("${tomorrow}T18:00:00-08:00").toInstant().toEpochMilli(), tomorrow, 18, 58f, "Slight Chance Light Rain")
         )
         coEvery { nwsApi.getObservationStations(any()) } returns emptyList()
-        val result = repository.fetchFromNws(testLat, testLon, testLocationName)
+        val result = repository.fetchFromNws(testLat, testLon)
         val tomorrowEntry = result.find { it.targetDate == dateEpoch(tomorrow) }
         assertEquals("Fog then Partly Sunny", tomorrowEntry?.condition)
     }

@@ -218,7 +218,6 @@ class WeatherWidgetProviderNoHourlyRoboTest {
                         dateOfPrediction = LocalDate.now().toEpochDay() * 24 * 60 * 60 * 1000L,
                         locationLat = lat,
                         locationLon = lon,
-                        locationName = "Mountain View, CA",
                         highTemp = 78f,
                         lowTemp = 55f,
                         condition = "Sunny",

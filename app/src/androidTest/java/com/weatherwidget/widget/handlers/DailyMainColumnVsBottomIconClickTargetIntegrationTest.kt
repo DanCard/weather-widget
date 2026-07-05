@@ -59,7 +59,6 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
                     dateOfPrediction = dateEpoch(todayStr),
                     locationLat = WeatherWidgetWorker.DEFAULT_LAT,
                     locationLon = WeatherWidgetWorker.DEFAULT_LON,
-                    locationName = "Mountain View, CA",
                     highTemp = 72f,
                     lowTemp = 54f,
                     condition = "Cloudy",

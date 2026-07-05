@@ -99,10 +99,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO forecasts
-                    (targetDate, dateOfPrediction, locationLat, locationLon, locationName, highTemp, lowTemp, condition,
+                    (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition,
                      nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
                      daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
@@ -117,19 +117,18 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setLong(2, todayEpoch) // simplified for desktop Tier 1
                         stmt.setDouble(3, keyLat)
                         stmt.setDouble(4, keyLon)
-                        stmt.setString(5, "") // locationName
-                        stmt.setFloat(6, d.highTemp)
-                        stmt.setFloat(7, d.lowTemp)
-                        stmt.setString(8, d.condition)
-                        stmt.setString(9, d.iconToken)
-                        stmt.setInt(10, if (d.isClimateNormal) 1 else 0)
-                        stmt.setString(11, source)
-                        stmt.setNullableInt(12, d.precipProbability)
-                        stmt.setNullableFloat(13, d.precipAmountMm)
-                        stmt.setNullableInt(14, d.daytimePrecipProbability)
-                        stmt.setNullableInt(15, d.nighttimePrecipProbability)
+                        stmt.setFloat(5, d.highTemp)
+                        stmt.setFloat(6, d.lowTemp)
+                        stmt.setString(7, d.condition)
+                        stmt.setString(8, d.iconToken)
+                        stmt.setInt(9, if (d.isClimateNormal) 1 else 0)
+                        stmt.setString(10, source)
+                        stmt.setNullableInt(11, d.precipProbability)
+                        stmt.setNullableFloat(12, d.precipAmountMm)
+                        stmt.setNullableInt(13, d.daytimePrecipProbability)
+                        stmt.setNullableInt(14, d.nighttimePrecipProbability)
+                        stmt.setLong(15, now)
                         stmt.setLong(16, now)
-                        stmt.setLong(17, now)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()

@@ -426,7 +426,6 @@ class DailyViewGraphClickAlignmentTest {
             dateOfPrediction = dateEpoch(date),
             locationLat = 37.7749,
             locationLon = -122.4194,
-            locationName = "Test",
             highTemp = 70f,
             lowTemp = 50f,
             condition = "Clear",

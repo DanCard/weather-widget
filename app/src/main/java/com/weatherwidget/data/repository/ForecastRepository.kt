@@ -144,7 +144,6 @@ class ForecastRepository
         suspend fun getWeatherData(
             latitude: Double,
             longitude: Double,
-            locationName: String,
             forceRefresh: Boolean = false,
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
@@ -191,8 +190,8 @@ class ForecastRepository
                         shouldForceSource(source) || isStale(source, cachedForecasts, fetchContext)
                     }.toSet() - WeatherSource.GENERIC_GAP
 
-                    val (nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts, tomorrowIoForecasts) = fetchFromAllApis(
-                        latitude, longitude, locationName, sourcesToFetch,
+                    val freshForecasts = fetchFromAllApis(
+                        latitude, longitude, sourcesToFetch,
                         openWeatherMapApi != null,
                     )
 
@@ -569,13 +568,12 @@ class ForecastRepository
        private suspend fun fetchFromAllApis(
             latitude: Double,
             longitude: Double,
-            locationName: String,
             sourcesToFetch: Set<WeatherSource>,
             hasOpenWeatherMapApi: Boolean,
         ): FetchResult = coroutineScope {
             val nwsDeferred = if (WeatherSource.NWS in sourcesToFetch) async {
                 safeFetch("FETCH_NWS_FAIL", WeatherSource.NWS) {
-                    fetchFromNws(latitude, longitude, locationName)
+                    fetchFromNws(latitude, longitude)
                 }
             } else null
 
@@ -587,7 +585,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_WEATHER_MAP.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.OPEN_WEATHER_MAP.id, result.hourly)
+                        mapDailyForecast(day, latitude, longitude, WeatherSource.OPEN_WEATHER_MAP.id, result.hourly)
                     }
                 }
             } else null
@@ -599,7 +597,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.VISUAL_CROSSING.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.VISUAL_CROSSING.id, result.hourly)
+                        mapDailyForecast(day, latitude, longitude, WeatherSource.VISUAL_CROSSING.id, result.hourly)
                     }
                 }
             } else null
@@ -615,7 +613,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_METEO.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.OPEN_METEO.id, result.hourly)
+                        mapDailyForecast(day, latitude, longitude, WeatherSource.OPEN_METEO.id, result.hourly)
                     }
                 }
             } else null
@@ -627,7 +625,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.WEATHER_API.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.WEATHER_API.id, result.hourly)
+                        mapDailyForecast(day, latitude, longitude, WeatherSource.WEATHER_API.id, result.hourly)
                     }
                 }
             } else null
@@ -652,7 +650,6 @@ class ForecastRepository
 
                         latitude,
                         longitude,
-                        locationName,
                         WeatherSource.SILURIAN.id,
                         result.hourly,
                     )
@@ -669,7 +666,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.TOMORROW_IO.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.TOMORROW_IO.id, result.hourly)
+                        mapDailyForecast(day, latitude, longitude, WeatherSource.TOMORROW_IO.id, result.hourly)
                     }
                 }
             } else null
@@ -694,8 +691,8 @@ class ForecastRepository
             FetchResult(nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts, tomorrowIoForecasts)
         }
 
-        internal suspend fun fetchFromNws(latitude: Double, longitude: Double, locationName: String): List<ForecastEntity> {
-            val (forecastEntities, hourlyEntities) = nwsForecastMapper.fetchFromNws(latitude, longitude, locationName)
+        internal suspend fun fetchFromNws(latitude: Double, longitude: Double): List<ForecastEntity> {
+            val (forecastEntities, hourlyEntities) = nwsForecastMapper.fetchFromNws(latitude, longitude)
             if (hourlyEntities.isNotEmpty()) {
                 saveHourlyEntities(hourlyEntities)
             }
@@ -772,7 +769,6 @@ class ForecastRepository
             day: DailyForecast,
             latitude: Double,
             longitude: Double,
-            locationName: String,
             sourceId: String,
             hourlyForecasts: List<HourlyForecast> = emptyList(),
         ): ForecastEntity {
@@ -802,7 +798,6 @@ class ForecastRepository
                 dateOfPrediction = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                 locationLat = latitude,
                 locationLon = longitude,
-                locationName = locationName,
                 highTemp = day.highTemp,
                 lowTemp = day.lowTemp,
                 condition = day.condition,
@@ -863,7 +858,6 @@ class ForecastRepository
                     dateOfPrediction = todayEpoch,
                     locationLat = keyLat,
                     locationLon = keyLon,
-                    locationName = forecast.locationName,
                     highTemp = highTempSaved,
                     lowTemp = lowTempSaved,
                     condition = forecast.condition,
@@ -1203,8 +1197,7 @@ class ForecastRepository
             }
 
             val coveredDates = liveSourceData.map { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }.toSet()
-            val locationName = liveSourceData.firstOrNull()?.locationName ?: ""
-            val gapData = gapFiller.gapRows(latitude, longitude, locationName, coveredDates, today, CACHE_FORECAST_DAYS)
+            val gapData = gapFiller.gapRows(latitude, longitude, coveredDates, today, CACHE_FORECAST_DAYS)
 
             val latestSourceByDate = liveSourceData.groupBy { it.targetDate }.mapValues { (_, rows) -> rows.first() }
             val latestGapByDate = gapData.groupBy { it.targetDate }.mapValues { (_, rows) -> rows.first() }

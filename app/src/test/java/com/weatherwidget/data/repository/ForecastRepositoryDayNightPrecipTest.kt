@@ -72,7 +72,6 @@ class ForecastRepositoryDayNightPrecipTest {
             day = daily,
             latitude = 0.0,
             longitude = 0.0,
-            locationName = "Test",
             sourceId = WeatherSource.OPEN_METEO.id,
             hourlyForecasts = hourly
         )
@@ -114,7 +113,6 @@ class ForecastRepositoryDayNightPrecipTest {
             day = daily,
             latitude = 0.0,
             longitude = 0.0,
-            locationName = "Test",
             sourceId = WeatherSource.OPEN_METEO.id,
             hourlyForecasts = emptyList()
         )

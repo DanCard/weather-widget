@@ -256,4 +256,28 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate54To55_dropsLocationNameColumn() {
+        helper.createDatabase(testDb, 54).apply {
+            execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, " +
+                    "locationName, highTemp, lowTemp, condition, nativeDailyIconToken, isClimateNormal, " +
+                    "source, precipProbability, daytimePrecipProbability, nighttimePrecipProbability, " +
+                    "periodStartTime, periodEndTime, precipAmountMm, batchFetchedAt, fetchedAt) " +
+                    "VALUES (100, 99, 37.42, -122.08, 'HQ', 70.0, 50.0, 'Sunny', NULL, 0, 'NWS', " +
+                    "NULL, NULL, NULL, NULL, NULL, NULL, 123, 123)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 55, true, WeatherDatabase.MIGRATION_54_55)
+
+        db.query("SELECT targetDate, dateOfPrediction FROM forecasts WHERE targetDate = 100").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(100L, c.getLong(0))
+            assertEquals(99L, c.getLong(1))
+        }
+        db.close()
+    }
 }

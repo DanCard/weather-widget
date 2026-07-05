@@ -60,7 +60,7 @@ class ClimateGapFillerTest {
 
     @Test
     fun `gapRows returns empty when normals not cached (offline-safe)`() = runTest {
-        val gaps = gapFiller.gapRows(lat, lon, "Test", coveredDates = emptySet(), today, horizonDays = 3)
+        val gaps = gapFiller.gapRows(lat, lon, coveredDates = emptySet(), today, horizonDays = 3)
         assertTrue(gaps.isEmpty())
     }
 
@@ -68,7 +68,7 @@ class ClimateGapFillerTest {
     fun `gapRows fills today through horizon with cached normals`() = runTest {
         seedNormals()
 
-        val gaps = gapFiller.gapRows(lat, lon, "Test", coveredDates = emptySet(), today, horizonDays = 3)
+        val gaps = gapFiller.gapRows(lat, lon, coveredDates = emptySet(), today, horizonDays = 3)
 
         assertEquals((0..3).map { today.plusDays(it.toLong()) }, gaps.map(::targetDateOf))
     }
@@ -77,7 +77,7 @@ class ClimateGapFillerTest {
     fun `gapRows produces the expected field values`() = runTest {
         seedNormals(high = 70f, low = 50f)
 
-        val gap = gapFiller.gapRows(lat, lon, "Test Location", coveredDates = emptySet(), today, horizonDays = 0).single()
+        val gap = gapFiller.gapRows(lat, lon, coveredDates = emptySet(), today, horizonDays = 0).single()
 
         assertEquals(WeatherSource.GENERIC_GAP.id, gap.source)
         assertEquals(0L, gap.fetchedAt)

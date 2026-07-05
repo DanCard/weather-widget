@@ -148,7 +148,7 @@ class NwsPrecipAmountIntegrationTest {
             ),
         )
 
-        repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
+        repository.getWeatherData(testLat, testLon, forceRefresh = true)
 
         val allForecasts = db.forecastDao()
             .getForecastsInRangeBySource(
@@ -238,7 +238,7 @@ class NwsPrecipAmountIntegrationTest {
             ),
         )
 
-        repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
+        repository.getWeatherData(testLat, testLon, forceRefresh = true)
 
         val latestTomorrow = db.forecastDao()
             .getForecastsInRangeBySource(
@@ -302,7 +302,7 @@ class NwsPrecipAmountIntegrationTest {
             ),
         )
 
-        repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
+        repository.getWeatherData(testLat, testLon, forceRefresh = true)
 
         val latestTomorrow = db.forecastDao()
             .getForecastsInRangeBySource(

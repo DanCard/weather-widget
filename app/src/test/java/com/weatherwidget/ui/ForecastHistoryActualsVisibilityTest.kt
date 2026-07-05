@@ -66,7 +66,6 @@ class ForecastHistoryActualsVisibilityTest {
             dateOfPrediction = targetDateEpoch,
             locationLat = 37.0,
             locationLon = -122.0,
-            locationName = "Test",
             highTemp = 80f,
             lowTemp = 60f,
             condition = "Clear",

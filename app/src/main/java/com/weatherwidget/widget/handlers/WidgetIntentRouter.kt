@@ -752,7 +752,6 @@ suspend fun handleResize(
                 .groupBy { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) },
             lat,
             lon,
-            locationName = finalWeatherList.firstOrNull { it.source != WeatherSource.GENERIC_GAP.id }?.locationName ?: "",
             today,
             horizonDays = DAILY_FORECAST_DAYS,
         )

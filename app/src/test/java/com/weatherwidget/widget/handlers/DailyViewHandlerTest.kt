@@ -1623,7 +1623,6 @@ class DailyViewHandlerTest {
             dateOfPrediction = dateEpoch(date),
             locationLat = 37.7749,
             locationLon = -122.4194,
-            locationName = "Test",
             highTemp = highTemp,
             lowTemp = lowTemp,
             condition = "Clear",

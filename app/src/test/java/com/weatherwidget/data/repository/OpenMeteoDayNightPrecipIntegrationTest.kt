@@ -135,7 +135,7 @@ class OpenMeteoDayNightPrecipIntegrationTest {
         repository = createRepository(mockResponse)
 
         // Trigger full network fetch
-        repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
+        repository.getWeatherData(testLat, testLon, forceRefresh = true)
 
         // Query the 'forecasts' table
         val snapshots = db.forecastDao().getForecastsInRange(dateEpoch(todayStr), dateEpoch(tomorrowStr), testLat, testLon)

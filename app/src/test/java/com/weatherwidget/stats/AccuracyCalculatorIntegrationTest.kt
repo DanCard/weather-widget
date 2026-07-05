@@ -98,7 +98,6 @@ class AccuracyCalculatorIntegrationTest {
                     dateOfPrediction = dateEpoch(forecastDate),
                     locationLat = lat,
                     locationLon = lon,
-                    locationName = "Test",
                     highTemp = highTemp,
                     lowTemp = lowTemp,
                     condition = "Clear",

@@ -99,7 +99,6 @@ class DailyViewHandlerFallbackTest {
             dateOfPrediction = dateEpoch(date),
             locationLat = 0.0,
             locationLon = 0.0,
-            locationName = "Test",
             highTemp = high,
             lowTemp = low,
             condition = "Clear",

@@ -251,7 +251,6 @@ class PrecipProbabilityTouchRoutingRoboTest {
                 dateOfPrediction = today.minusDays(1).toEpochDay() * 86_400_000L,
                 locationLat = 37.0,
                 locationLon = -122.0,
-                locationName = "Test",
                 highTemp = 68f,
                 lowTemp = 52f,
                 condition = "Clear",

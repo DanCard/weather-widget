@@ -183,7 +183,6 @@ class WeatherGapIntegrationTest {
         dateOfPrediction = dateEpoch(dateOfPrediction),
         locationLat = lat,
         locationLon = lon,
-        locationName = "Test",
         highTemp = highTemp,
         lowTemp = lowTemp,
         condition = if (isClimateNormal) "Historical Avg" else "Sunny",

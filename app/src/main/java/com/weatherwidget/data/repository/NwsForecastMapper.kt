@@ -44,7 +44,6 @@ class NwsForecastMapper @Inject constructor(
     suspend fun fetchFromNws(
         latitude: Double,
         longitude: Double,
-        locationName: String,
     ): Pair<List<ForecastEntity>, List<HourlyForecastEntity>> = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
         val forecastDeferred = async { nwsApi.getForecast(grid) }
@@ -146,7 +145,6 @@ class NwsForecastMapper @Inject constructor(
                 dateOfPrediction = todayDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                 locationLat = latitude,
                 locationLon = longitude,
-                locationName = locationName,
                 highTemp = temperatures.first,
                 lowTemp = temperatures.second,
                 condition = acc.conditionMap[dateString] ?: "Unknown",

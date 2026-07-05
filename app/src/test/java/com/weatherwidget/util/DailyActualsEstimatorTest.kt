@@ -24,7 +24,6 @@ class DailyActualsEstimatorTest {
         dateOfPrediction = dateEpoch("2026-02-25"),
         locationLat = 0.0,
         locationLon = 0.0,
-        locationName = "Test",
         highTemp = 68f,
         lowTemp = 38f,
         condition = "Cloudy",

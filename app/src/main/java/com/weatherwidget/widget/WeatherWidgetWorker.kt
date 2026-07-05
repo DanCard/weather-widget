@@ -168,7 +168,6 @@ class WeatherWidgetWorker
                     weatherRepository.getWeatherData(
                         latitude = location.first,
                         longitude = location.second,
-                        locationName = getLocationName(location.first, location.second),
                         forceRefresh = forceRefresh && !uiOnlyRefresh,
                         networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh),
                         targetSourceId = targetSourceId,
@@ -353,7 +352,7 @@ class WeatherWidgetWorker
                 val grouped = (pastSnapshots + recentSnapshots).groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
 
                 val gapFiller = ClimateGapFiller(WeatherDatabase.getDatabase(context).climateNormalDao())
-                gapFiller.appendGapsToSnapshots(grouped, lat, lon, getLocationName(lat, lon), today, horizonDays = 7L)
+                gapFiller.appendGapsToSnapshots(grouped, lat, lon, today, horizonDays = 7L)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch forecast snapshots", e)
                 emptyMap()
@@ -711,7 +710,6 @@ class WeatherWidgetWorker
                 weatherRepository.getWeatherData(
                     latitude = location.first,
                     longitude = location.second,
-                    locationName = getLocationName(location.first, location.second),
                     networkAllowed = false,
                 ).getOrDefault(emptyList())
             val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)

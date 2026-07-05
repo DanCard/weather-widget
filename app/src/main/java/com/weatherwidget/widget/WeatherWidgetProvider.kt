@@ -304,7 +304,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     grouped,
                     latestWeather.locationLat,
                     latestWeather.locationLon,
-                    latestWeather.locationName,
                     today,
                     horizonDays = 7L,
                 )

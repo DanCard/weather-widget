@@ -181,10 +181,10 @@ class DesktopAccuracyTest {
         db.getConnection().use { conn ->
             val sql = """
                 INSERT OR REPLACE INTO forecasts
-                (targetDate, dateOfPrediction, locationLat, locationLon, locationName, highTemp, lowTemp, condition,
+                (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition,
                  nativeDailyIconToken, isClimateNormal, source, precipProbability, daytimePrecipProbability,
                  nighttimePrecipProbability, periodStartTime, periodEndTime, precipAmountMm, batchFetchedAt, fetchedAt)
-                VALUES (?, ?, ?, ?, '', ?, ?, 'Sunny', NULL, 0, 'NWS', NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, 'Sunny', NULL, 0, 'NWS', NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 val now = System.currentTimeMillis()

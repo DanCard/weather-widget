@@ -68,7 +68,6 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
                         dateOfPrediction = dateEpoch(LocalDate.now().toString()),
                         locationLat = WeatherWidgetWorker.DEFAULT_LAT,
                         locationLon = WeatherWidgetWorker.DEFAULT_LON,
-                        locationName = "Mountain View, CA",
                         highTemp = 78f,
                         lowTemp = 55f,
                         condition = "Sunny",

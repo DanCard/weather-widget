@@ -139,7 +139,6 @@ class WeatherGapTest {
             dateOfPrediction = dateEpoch(date),
             locationLat = testLat,
             locationLon = testLon,
-            locationName = testLocationName,
             highTemp = high.toFloat(),
             lowTemp = low.toFloat(),
             condition = if (isClimateNormal) "Climate Avg" else "Sunny",

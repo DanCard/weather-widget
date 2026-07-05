@@ -136,7 +136,7 @@ class WeatherRepositoryTest {
             }
             coEvery { forecastDao.getForecastsInRangeAllSites(any(), any(), any(), any()) } returns emptyList()
             coEvery { nwsApi.getGridPoint(any(), any()) } throws Exception("Forced failure")
-            repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
+            repository.getWeatherData(testLat, testLon, forceRefresh = true)
             assertTrue("SharedPreferences should have been written to", capturedTimes.size >= 1)
         }
 
@@ -154,7 +154,7 @@ class WeatherRepositoryTest {
                 createForecastEntity(tomorrow, 75, 55).copy(source = WeatherSource.WEATHER_API.id, fetchedAt = recentFetch),
             )
             coEvery { forecastDao.getLatestForecastsInRangeAllSites(any(), any(), testLat, testLon) } returns cachedData
-            val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
+            val result = repository.getWeatherData(testLat, testLon, forceRefresh = false)
             assertTrue(result.isSuccess)
             assertEquals(6, result.getOrNull()?.size)
             coVerify(exactly = 0) { nwsApi.getGridPoint(any(), any()) }
@@ -224,7 +224,6 @@ class WeatherRepositoryTest {
             val result = repository.getWeatherData(
                 testLat,
                 testLon,
-                testLocationName,
                 forceRefresh = true,
                 targetSourceId = WeatherSource.OPEN_METEO.id,
             )
@@ -259,7 +258,6 @@ class WeatherRepositoryTest {
             dateOfPrediction = dateEpoch(date),
             locationLat = testLat,
             locationLon = testLon,
-            locationName = testLocationName,
             highTemp = high.toFloat(),
             lowTemp = low.toFloat(),
             condition = "Sunny",

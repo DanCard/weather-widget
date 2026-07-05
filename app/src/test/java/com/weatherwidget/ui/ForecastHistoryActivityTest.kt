@@ -225,7 +225,6 @@ class ForecastHistoryActivityTest {
             dateOfPrediction = dateEpoch("2026-02-28"),
             locationLat = 37.0,
             locationLon = -122.0,
-            locationName = "",
             highTemp = 77f,
             lowTemp = 56f,
             condition = "Sunny",

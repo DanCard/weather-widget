@@ -93,7 +93,7 @@ class WeatherRepositoryRateLimitIntegrationTest {
     fun `rate limit resets to 0 on exception`() = runTest {
         FetchMetadata.setLastFullFetchTime(context, System.currentTimeMillis())
         val repo = buildRepo()
-        repo.getWeatherData(LAT, LON, LOCATION_NAME, forceRefresh = true)
+        repo.getWeatherData(LAT, LON, forceRefresh = true)
         assertEquals(0L, FetchMetadata.getLastFullFetchTime(context))
     }
 }

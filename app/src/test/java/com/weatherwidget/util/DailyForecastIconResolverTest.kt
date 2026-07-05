@@ -362,7 +362,6 @@ class DailyForecastIconResolverTest {
         dateOfPrediction = LocalDate.of(2030, 6, 15).toEpochDay(),
         locationLat = 37.42,
         locationLon = -122.08,
-        locationName = "Test",
         highTemp = 70f,
         lowTemp = 50f,
         condition = condition,

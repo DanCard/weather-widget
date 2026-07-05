@@ -31,7 +31,6 @@ class ClimateGapFiller(private val climateNormalDao: ClimateNormalDao) {
     suspend fun gapRows(
         latitude: Double,
         longitude: Double,
-        locationName: String,
         coveredDates: Set<LocalDate>,
         today: LocalDate,
         horizonDays: Long,
@@ -44,7 +43,6 @@ class ClimateGapFiller(private val climateNormalDao: ClimateNormalDao) {
                 dateOfPrediction = epochMs,
                 locationLat = LocationMatch.quantize(latitude),
                 locationLon = LocationMatch.quantize(longitude),
-                locationName = locationName,
                 highTemp = gap.highTemp,
                 lowTemp = gap.lowTemp,
                 condition = "Historical Avg",
@@ -69,10 +67,7 @@ class ClimateGapFiller(private val climateNormalDao: ClimateNormalDao) {
         horizonDays: Long,
     ): List<ForecastEntity> {
         val covered = coveredDates(rows, today, horizonDays)
-        val locationName = rows.firstOrNull { it.source != WeatherSource.GENERIC_GAP.id }?.locationName
-            ?: rows.firstOrNull()?.locationName
-            ?: ""
-        val gaps = gapRows(latitude, longitude, locationName, covered, today, horizonDays)
+        val gaps = gapRows(latitude, longitude, covered, today, horizonDays)
         return if (gaps.isEmpty()) rows else rows + gaps
     }
 
@@ -81,12 +76,11 @@ class ClimateGapFiller(private val climateNormalDao: ClimateNormalDao) {
         snapshots: Map<LocalDate, List<ForecastEntity>>,
         latitude: Double,
         longitude: Double,
-        locationName: String,
         today: LocalDate,
         horizonDays: Long,
     ): Map<LocalDate, List<ForecastEntity>> {
         val covered = coveredDates(snapshots.values.flatten(), today, horizonDays)
-        val gaps = gapRows(latitude, longitude, locationName, covered, today, horizonDays)
+        val gaps = gapRows(latitude, longitude, covered, today, horizonDays)
         if (gaps.isEmpty()) return snapshots
         val result = snapshots.toMutableMap()
         for (gap in gaps) {

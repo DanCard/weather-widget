@@ -16,7 +16,6 @@ data class ForecastEntity(
     val dateOfPrediction: Long, // When forecast prediction was generated (UTC midnight epoch millis, e.g. 1-day-ahead)
     val locationLat: Double,
     val locationLon: Double,
-    val locationName: String = "", // Human-readable location name
     val highTemp: Float?,
     val lowTemp: Float?,
     val condition: String,

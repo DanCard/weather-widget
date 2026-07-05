@@ -34,14 +34,13 @@ class WeatherRepository
         suspend fun getWeatherData(
             latitude: Double,
             longitude: Double,
-            locationName: String,
             forceRefresh: Boolean = false,
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
             fetchContext: ForecastFetchContext? = null,
         ): Result<List<ForecastEntity>> {
             return forecastRepository.getWeatherData(
-                latitude, longitude, locationName, forceRefresh, networkAllowed, targetSourceId, fetchContext
+                latitude, longitude, forceRefresh, networkAllowed, targetSourceId, fetchContext
             )
         }
 
@@ -114,8 +113,8 @@ class WeatherRepository
         ) = forecastRepository.saveForecastSnapshot(weatherForecasts, latitude, longitude, sourceId, batchFetchedAt)
         
         @androidx.annotation.VisibleForTesting
-        internal suspend fun fetchFromNws(latitude: Double, longitude: Double, locationName: String) = 
-            forecastRepository.fetchFromNws(latitude, longitude, locationName)
+        internal suspend fun fetchFromNws(latitude: Double, longitude: Double) = 
+            forecastRepository.fetchFromNws(latitude, longitude)
             
         @androidx.annotation.VisibleForTesting
         internal fun getHistoricalPois() = currentTempRepository.getHistoricalPois()
