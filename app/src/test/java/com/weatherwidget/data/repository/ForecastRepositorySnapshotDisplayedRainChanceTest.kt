@@ -196,4 +196,167 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
 
         assertEquals("Closed day window must not be overwritten by drifted hourly data", 5, stored.forecastDayPrecipChance)
     }
+
+    @Test
+    fun `freezes forecast overlay and noon cloud for today`() = runTest {
+        db.forecastDao().insertAll(
+            listOf(
+                TestData.forecast(
+                    targetDate = today.toString(), forecastDate = today.toString(),
+                    source = WeatherSource.NWS.id, lat = lat, lon = lon,
+                    highTemp = 80f, lowTemp = 55f,
+                ).copy(precipAmountMm = 1.5f),
+            ),
+        )
+        db.hourlyForecastDao().insertAll(
+            listOf(
+                TestData.hourly(
+                    dateTime = today.atTime(12, 0).toString(),
+                    source = WeatherSource.NWS.id, lat = lat, lon = lon,
+                ).copy(cloudCover = 60),
+            ),
+        )
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                    source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                ),
+            ),
+        )
+
+        repository.snapshotDisplayedRainChance(lat, lon)
+
+        val stored = db.dailyHistoryDao().getExtremesInRange(
+            today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            lat, lon,
+        ).first { it.source == WeatherSource.NWS.id }
+
+        assertEquals(80f, stored.forecastHighTemp)
+        assertEquals(55f, stored.forecastLowTemp)
+        assertEquals(1.5f, stored.forecastPrecipAmountMm)
+        assertEquals(60, stored.noonCloudPercent)
+    }
+
+    @Test
+    fun `incomplete evening batch does not clobber frozen overlay`() = runTest {
+        // NWS evening batches drop lowTemp once the day's low has passed. The values a complete
+        // batch froze earlier today must survive; a missing hourly noon reading must not erase
+        // the frozen noon cloud either.
+        db.forecastDao().insertAll(
+            listOf(
+                TestData.forecast(
+                    targetDate = today.toString(), forecastDate = today.toString(),
+                    source = WeatherSource.NWS.id, lat = lat, lon = lon,
+                    highTemp = 80f, lowTemp = null,
+                ),
+            ),
+        )
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                    source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                    forecastHighTemp = 75f, forecastLowTemp = 50f,
+                    forecastPrecipAmountMm = 2f, noonCloudPercent = 30,
+                ),
+            ),
+        )
+
+        repository.snapshotDisplayedRainChance(lat, lon)
+
+        val stored = db.dailyHistoryDao().getExtremesInRange(
+            today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            lat, lon,
+        ).first { it.source == WeatherSource.NWS.id }
+
+        assertEquals(75f, stored.forecastHighTemp)
+        assertEquals(50f, stored.forecastLowTemp)
+        assertEquals(2f, stored.forecastPrecipAmountMm)
+        assertEquals(30, stored.noonCloudPercent)
+    }
+
+    @Test
+    fun `closed overlay window is never overwritten by a later forecast`() = runTest {
+        val yesterday = today.minusDays(1)
+        db.forecastDao().insertAll(
+            listOf(
+                TestData.forecast(
+                    targetDate = yesterday.toString(), forecastDate = yesterday.toString(),
+                    source = WeatherSource.NWS.id, lat = lat, lon = lon,
+                    highTemp = 80f, lowTemp = 60f,
+                ),
+            ),
+        )
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                    source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                    forecastHighTemp = 75f, forecastLowTemp = 50f, // archived while yesterday was live
+                ),
+            ),
+        )
+
+        repository.snapshotDisplayedRainChance(lat, lon)
+
+        val stored = db.dailyHistoryDao().getExtremesInRange(
+            yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            lat, lon,
+        ).first { it.source == WeatherSource.NWS.id }
+
+        assertEquals("Closed overlay window must keep the archived high", 75f, stored.forecastHighTemp)
+        assertEquals("Closed overlay window must keep the archived low", 50f, stored.forecastLowTemp)
+    }
+
+    @Test
+    fun `backfill fills frozen overlay from the most recent complete retained batch`() = runTest {
+        val past = today.minusDays(3)
+        val pastStart = past.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        // Latest batch is incomplete (null low) — the backfill must use the older complete one,
+        // matching the past-day reader's selection.
+        db.forecastDao().insertAll(
+            listOf(
+                TestData.forecast(
+                    targetDate = past.toString(), forecastDate = past.toString(),
+                    source = WeatherSource.NWS.id, lat = lat, lon = lon,
+                    highTemp = 72f, lowTemp = null, fetchedAt = 2000L,
+                ),
+                TestData.forecast(
+                    targetDate = past.toString(), forecastDate = past.toString(),
+                    source = WeatherSource.NWS.id, lat = lat, lon = lon,
+                    highTemp = 71f, lowTemp = 53f, fetchedAt = 1000L,
+                ).copy(precipAmountMm = 0.5f),
+            ),
+        )
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = pastStart,
+                    source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                ),
+            ),
+        )
+
+        repository.backfillFrozenDisplayColumnsIfNeeded(lat, lon)
+
+        val stored = db.dailyHistoryDao().getExtremesInRange(pastStart, pastStart, lat, lon)
+            .first { it.source == WeatherSource.NWS.id }
+        assertEquals(71f, stored.forecastHighTemp)
+        assertEquals(53f, stored.forecastLowTemp)
+        assertEquals(0.5f, stored.forecastPrecipAmountMm)
+        // hourly_forecast_history is empty in this harness — noon cloud stays null, best-effort.
+        assertNull(stored.noonCloudPercent)
+    }
 }

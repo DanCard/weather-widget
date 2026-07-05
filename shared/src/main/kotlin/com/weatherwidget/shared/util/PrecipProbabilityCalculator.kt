@@ -32,14 +32,23 @@ object PrecipProbabilityCalculator {
         fallbackDailyProbability: Int?,
         referenceTime: LocalDateTime,
     ): Int? {
-        val sourceForecasts = hourlyForecasts.filter { it.source == displaySourceId && it.precipProbability != null }
+        val sourceForecasts = hourlyForecasts.filter { (it.source == null || it.source == displaySourceId) && it.precipProbability != null }
         val candidateForecasts = sourceForecasts.ifEmpty {
             hourlyForecasts.filter { it.source == fallbackSourceId && it.precipProbability != null }
         }
         if (candidateForecasts.isEmpty()) return fallbackDailyProbability
 
+        val zoneId = ZoneId.systemDefault()
         val selectedForecasts = candidateForecasts
-            .groupBy { it.dateTime }
+            .groupBy {
+                Instant.ofEpochMilli(it.dateTime)
+                    .atZone(zoneId)
+                    .toLocalDateTime()
+                    .truncatedTo(ChronoUnit.HOURS)
+                    .atZone(zoneId)
+                    .toInstant()
+                    .toEpochMilli()
+            }
             .mapValues { (_, items) -> items.maxOf { checkNotNull(it.precipProbability) } }
 
         var maxInterpolatedProbability: Float? = null
@@ -59,11 +68,10 @@ object PrecipProbabilityCalculator {
             return maxInterpolatedProbability.roundToInt()
         }
 
-        val zoneId = ZoneId.systemDefault()
-        val windowStartMs = referenceTime.atZone(zoneId).toInstant().toEpochMilli()
+        val windowStartHourMs = referenceTime.truncatedTo(ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
         val windowEndMs = referenceTime.plusHours(LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
         val exactPointFallback = selectedForecasts
-            .filterKeys { it in windowStartMs until windowEndMs }
+            .filterKeys { it in windowStartHourMs until windowEndMs }
             .values
             .maxOrNull()
 

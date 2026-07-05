@@ -274,6 +274,71 @@ class DailyViewLogicTest {
     }
 
     @Test
+    fun `past day prefers frozen overlay from daily_history over snapshot table`() {
+        val now = LocalDateTime.of(2026, 5, 9, 12, 0)
+        val today = now.toLocalDate()
+        val pastWed = today.minusDays(3)
+        val pastWedStr = pastWed.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+        )
+        val dailyActuals = mapOf(
+            pastWed to extreme(pastWed, 72.9f, 56.5f).copy(
+                forecastHighTemp = 74f,
+                forecastLowTemp = 52f,
+            ),
+        )
+        // Bait: the snapshot table must lose to the frozen daily_history values.
+        val snapshot = createWeather(date = pastWedStr, highTemp = 72f, lowTemp = 53f)
+        val forecastSnapshots = mapOf(pastWed to listOf(snapshot))
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val past = result.find { it.date == pastWed }!!
+        assertEquals("Past forecastHigh must come from the frozen daily_history value", 74f, past.dashedLineHigh)
+        assertEquals("Past forecastLow must come from the frozen daily_history value", 52f, past.dashedLineLow)
+    }
+
+    @Test
+    fun `past day frozen noon cloud drives cloud ratio without any hourly data`() {
+        val now = LocalDateTime.of(2026, 5, 9, 12, 0)
+        val today = now.toLocalDate()
+        val pastWed = today.minusDays(3)
+        val dailyActuals = mapOf(
+            pastWed to extreme(pastWed, 72.9f, 56.5f).copy(noonCloudPercent = 60),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = mapOf(today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE))),
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(), // hourly aged out — the frozen value must carry the day
+            dailyActuals = dailyActuals,
+        )
+
+        val past = result.find { it.date == pastWed }!!
+        assertEquals(0.6f, past.cloudCoverRatioOverride)
+    }
+
+    @Test
     fun `past day skips NWS latest-batch with null lowTemp and uses older usable NWS batch`() {
         val now = LocalDateTime.of(2026, 5, 9, 12, 0)
         val today = now.toLocalDate()

@@ -169,4 +169,7 @@ class WeatherRepository
 
         suspend fun backfillForecastChanceSnapshotsIfNeeded(latitude: Double, longitude: Double) =
             forecastRepository.backfillForecastChanceSnapshotsIfNeeded(latitude, longitude)
+
+        suspend fun backfillFrozenDisplayColumnsIfNeeded(latitude: Double, longitude: Double) =
+            forecastRepository.backfillFrozenDisplayColumnsIfNeeded(latitude, longitude)
     }

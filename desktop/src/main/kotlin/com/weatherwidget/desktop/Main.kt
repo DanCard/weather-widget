@@ -34,6 +34,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
+import com.weatherwidget.shared.util.PrecipProbabilityCalculator
 import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.DayClickResolver
@@ -1165,10 +1166,18 @@ private fun WidgetHeader(
     }
     val deltaTemp = forecast.appliedDelta?.takeIf { deltaWindowVisible }
 
-    val currentHourData = forecast.hourly.find {
-        it.dateTime >= nowEpoch - 3_600_000L && it.dateTime <= nowEpoch + 3_600_000L
+    val todayForecast = remember(forecast.daily, nowLocal) {
+        forecast.daily.firstOrNull { it.date == nowLocal.toLocalDate().toString() }
     }
-    val precipProb = currentHourData?.precipProbability?.takeIf { it > 0 }
+    val precipProb = remember(forecast.hourly, displaySource, todayForecast, nowLocal) {
+        PrecipProbabilityCalculator.getNext8HourPrecipProbability(
+            hourlyForecasts = forecast.hourly,
+            displaySourceId = displaySource.id,
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            fallbackDailyProbability = todayForecast?.precipProbability,
+            referenceTime = nowLocal
+        )?.takeIf { it > 0 }
+    }
     val isHourly = config.viewMode.isHourly
 
     Column(modifier = Modifier.fillMaxWidth()) {

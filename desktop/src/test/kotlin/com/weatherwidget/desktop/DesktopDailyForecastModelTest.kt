@@ -75,6 +75,66 @@ class DesktopDailyForecastModelTest {
     }
 
     @Test
+    fun `past day prefers frozen overlay and noon cloud from daily_history over snapshots`() {
+        val now = LocalDateTime.parse("2026-06-03T07:00:00")
+        val state = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = ForecastResult(
+                currentTemp = 72.4f,
+                currentCondition = "Sunny",
+                daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+                dailyActuals = mapOf(
+                    "2026-06-01" to extreme("2026-06-01", 77f, 56f, "Fair").copy(
+                        forecastHighTemp = 74f,
+                        forecastLowTemp = 52f,
+                        noonCloudPercent = 60,
+                    ),
+                ),
+                dailySnapshots = mapOf(
+                    // Bait: the snapshot table must lose to the frozen daily_history values.
+                    "2026-06-01" to listOf(
+                        DailyForecastSnapshot("2026-06-01", 75f, 57f, "Cloudy", fetchedAt = 1L),
+                    ),
+                ),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        )
+
+        val jun1 = state.days.find { it.date == LocalDate.parse("2026-06-01") }!!
+        assertEquals(74f, jun1.forecastHigh)
+        assertEquals(52f, jun1.forecastLow)
+        assertEquals(0.6f, jun1.cloudCoverRatio!!, 0.001f)
+    }
+
+    @Test
+    fun `past day falls back to snapshot when frozen columns are null`() {
+        val now = LocalDateTime.parse("2026-06-03T07:00:00")
+        val state = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = ForecastResult(
+                currentTemp = 72.4f,
+                currentCondition = "Sunny",
+                daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+                dailyActuals = mapOf(
+                    "2026-06-01" to extreme("2026-06-01", 77f, 56f, "Fair"),
+                ),
+                dailySnapshots = mapOf(
+                    "2026-06-01" to listOf(
+                        DailyForecastSnapshot("2026-06-01", 75f, 57f, "Cloudy", fetchedAt = 1L),
+                    ),
+                ),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        )
+
+        val jun1 = state.days.find { it.date == LocalDate.parse("2026-06-01") }!!
+        assertEquals(75f, jun1.forecastHigh)
+        assertEquals(57f, jun1.forecastLow)
+    }
+
+    @Test
     fun `today thermostat tracks high-water mark via ghostHigh`() {
         // Evening case: the day already peaked above the current reading, so the solid mercury
         // sits at the current temp while the ghost preserves the day's high.

@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 51,
+    version = 52,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -182,6 +182,18 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        // Frozen forecast-overlay + noon-cloud columns (see DailyHistoryFreeze): the daily bar
+        // view's remaining external display inputs, archived per day so past days render from
+        // daily_history alone once the forecasts / hourly tables age out.
+        val MIGRATION_51_52 = object : Migration(51, 52) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `daily_history` ADD COLUMN `forecastHighTemp` REAL")
+                db.execSQL("ALTER TABLE `daily_history` ADD COLUMN `forecastLowTemp` REAL")
+                db.execSQL("ALTER TABLE `daily_history` ADD COLUMN `forecastPrecipAmountMm` REAL")
+                db.execSQL("ALTER TABLE `daily_history` ADD COLUMN `noonCloudPercent` INTEGER")
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -244,7 +256,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

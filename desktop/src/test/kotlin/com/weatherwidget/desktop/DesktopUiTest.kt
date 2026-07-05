@@ -178,6 +178,129 @@ class DesktopUiTest {
     }
 
     @Test
+    fun testHeaderDisplaysUpcomingRainWhenCurrentHourIsZero() {
+        val now = System.currentTimeMillis()
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.DAILY),
+                forecast = stubForecast.copy(
+                    hourly = listOf(
+                        HourlyForecast(now, 70f, "Cloudy", precipProbability = 0),
+                        HourlyForecast(now + 3 * 3_600_000L, 68f, "Rain", precipProbability = 70)
+                    )
+                ),
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(now),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        // Even though current hour is 0%, the header detects 70% in the next 8-hour window
+        composeTestRule.onNodeWithText("70%").assertExists()
+    }
+
+    @Test
+    fun testHeaderSelectsPeakRainChanceWithinNext8Hours() {
+        val now = System.currentTimeMillis()
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
+                forecast = stubForecast.copy(
+                    hourly = listOf(
+                        HourlyForecast(now, 70f, "Cloudy", precipProbability = 30),
+                        HourlyForecast(now + 2 * 3_600_000L, 68f, "Rain", precipProbability = 85),
+                        HourlyForecast(now + 5 * 3_600_000L, 65f, "Rain", precipProbability = 40)
+                    )
+                ),
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(now),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithText("85%").assertExists()
+    }
+
+    @Test
+    fun testHeaderHidesRainTextWhenNoRainInNext8Hours() {
+        val now = System.currentTimeMillis()
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.DAILY),
+                forecast = stubForecast.copy(
+                    daily = listOf(
+                        DailyForecast(java.time.LocalDate.now().toString(), 75f, 55f, "Sunny", precipProbability = 0)
+                    ),
+                    hourly = listOf(
+                        HourlyForecast(now, 70f, "Sunny", precipProbability = 0),
+                        HourlyForecast(now + 3 * 3_600_000L, 72f, "Sunny", precipProbability = 0)
+                    )
+                ),
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(now),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithText("0%").assertDoesNotExist()
+    }
+
+    @Test
+    fun testHeaderFallsBackToDailyPrecipWhenHourlyIsEmpty() {
+        val now = System.currentTimeMillis()
+        val todayStr = java.time.LocalDate.now().toString()
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.DAILY),
+                forecast = stubForecast.copy(
+                    daily = listOf(
+                        DailyForecast(todayStr, 75f, 55f, "Rain", precipProbability = 45)
+                    ),
+                    hourly = emptyList()
+                ),
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(now),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithText("45%").assertExists()
+    }
+
+    @Test
+    fun testHeaderExcludesRainOutsideNext8HourWindow() {
+        val now = System.currentTimeMillis()
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.DAILY),
+                forecast = stubForecast.copy(
+                    hourly = listOf(
+                        HourlyForecast(now + 7 * 3_600_000L, 68f, "Rain", precipProbability = 60),
+                        HourlyForecast(now + 10 * 3_600_000L, 65f, "Rain", precipProbability = 95)
+                    )
+                ),
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(now),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        // Peak in next 8h window is 60%, 95% at +10h is excluded
+        composeTestRule.onNodeWithText("60%").assertExists()
+        composeTestRule.onNodeWithText("95%").assertDoesNotExist()
+    }
+
+    @Test
     fun testHourlyNavigationStepsByHalfTheVisibleSpan() {
         var updatedConfig: DesktopConfig? = null
         composeTestRule.setContent {

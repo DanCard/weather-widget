@@ -226,6 +226,7 @@ class WeatherWidgetWorker
                         if (!uiOnlyRefresh) {
                             weatherRepository.snapshotDisplayedRainChance(location.first, location.second)
                             weatherRepository.backfillForecastChanceSnapshotsIfNeeded(location.first, location.second)
+                            weatherRepository.backfillFrozenDisplayColumnsIfNeeded(location.first, location.second)
                         }
 
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_start uiOnly=$uiOnlyRefresh thread=${Thread.currentThread().name}")

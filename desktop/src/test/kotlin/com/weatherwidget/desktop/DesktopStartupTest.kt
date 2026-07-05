@@ -178,4 +178,55 @@ class DesktopStartupTest {
         // Verify it shows the loading message rather than crashing
         composeTestRule.onNodeWithText("Loading…").assertExists()
     }
+
+    /**
+     * Verifies that initializing DesktopWeatherDatabase on a legacy v5 database
+     * migrates cleanly to v6 without SQLITE_LOCKED or SQLITE_ERROR.
+     */
+    @Test
+    fun testDatabaseMigrationFromV5ToV6() {
+        val tempDir = Files.createTempDirectory("weather-db-migration-test")
+        val dbPath = tempDir.resolve("weather.db")
+
+        // 1. Create a legacy v5 DB with daily_extremes table
+        val url = "jdbc:sqlite:${dbPath.toAbsolutePath()}"
+        java.sql.DriverManager.getConnection(url).use { conn ->
+            conn.createStatement().use { stmt ->
+                stmt.execute("""
+                    CREATE TABLE daily_extremes (
+                        date INTEGER NOT NULL,
+                        source TEXT NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        highTemp REAL,
+                        lowTemp REAL,
+                        condition TEXT NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        precipAmountMm REAL,
+                        precipDayMm REAL,
+                        precipNightMm REAL,
+                        PRIMARY KEY (date, source, locationLat, locationLon)
+                    )
+                """.trimIndent())
+                stmt.execute("PRAGMA user_version = 5")
+            }
+        }
+
+        // 2. Initialize DesktopWeatherDatabase on the legacy v5 database
+        val db = com.weatherwidget.data.local.desktop.DesktopWeatherDatabase(dbPath)
+        db.initialize()
+
+        // 3. Verify table daily_history exists and contains the new chance columns
+        db.getConnection().use { conn ->
+            conn.createStatement().use { stmt ->
+                val rs = stmt.executeQuery("PRAGMA table_info(daily_history)")
+                val columns = mutableListOf<String>()
+                while (rs.next()) {
+                    columns.add(rs.getString("name"))
+                }
+                assertTrue(columns.contains("forecastDayPrecipChance"))
+                assertTrue(columns.contains("forecastNightPrecipChance"))
+            }
+        }
+    }
 }

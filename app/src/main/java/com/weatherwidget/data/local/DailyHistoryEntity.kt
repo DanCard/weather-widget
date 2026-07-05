@@ -33,6 +33,13 @@ data class DailyHistoryEntity(
     // DailyRainLabels.resolveDailyLabelPrecip). Null for rows written before this feature.
     val forecastDayPrecipChance: Int? = null,
     val forecastNightPrecipChance: Int? = null,
+    // Frozen forecast-overlay values (yellow accuracy bar) and noon cloud %, snapshotted while the
+    // day was current so the daily bar view can render past days from this row alone (see
+    // DailyHistoryFreeze). High/low move as a unit. Null for rows written before this feature.
+    val forecastHighTemp: Float? = null,
+    val forecastLowTemp: Float? = null,
+    val forecastPrecipAmountMm: Float? = null,
+    val noonCloudPercent: Int? = null,
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -49,6 +56,10 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     precipNightMm = precipNightMm,
     forecastDayPrecipChance = forecastDayPrecipChance,
     forecastNightPrecipChance = forecastNightPrecipChance,
+    forecastHighTemp = forecastHighTemp,
+    forecastLowTemp = forecastLowTemp,
+    forecastPrecipAmountMm = forecastPrecipAmountMm,
+    noonCloudPercent = noonCloudPercent,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -65,4 +76,8 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     precipNightMm = precipNightMm,
     forecastDayPrecipChance = forecastDayPrecipChance,
     forecastNightPrecipChance = forecastNightPrecipChance,
+    forecastHighTemp = forecastHighTemp,
+    forecastLowTemp = forecastLowTemp,
+    forecastPrecipAmountMm = forecastPrecipAmountMm,
+    noonCloudPercent = noonCloudPercent,
 )

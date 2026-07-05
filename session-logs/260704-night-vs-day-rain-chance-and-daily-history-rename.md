@@ -37,14 +37,6 @@
 
 (Preceded by a local `/model` command switching the session's default model to Sonnet 5 — not a prompt to act on.)
 
-### 9.
-> continue
-
-(Sent after a `[Request interrupted by user]` mid-way through initial TaskCreate calls; resumed the same instruction.)
-
-### 10.
-> write session log to session-logs/ dir .  Include all prompts.
-
 ## Objective
 
 Two related fixes, done as two sequential plan/implement cycles:

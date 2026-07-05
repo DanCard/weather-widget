@@ -24,6 +24,14 @@ data class DailyHistory(
     // DailyRainLabels.resolveDailyLabelPrecip). Null for rows written before this feature.
     val forecastDayPrecipChance: Int? = null,
     val forecastNightPrecipChance: Int? = null,
+    // Frozen forecast-overlay values (yellow accuracy bar) and noon cloud %, snapshotted while the
+    // day was current so the daily bar view can render past days from this row alone — without the
+    // forecasts / hourly tables whose retention may be shorter (see DailyHistoryFreeze). High/low
+    // move as a unit (both null or both set). Null for rows written before this feature.
+    val forecastHighTemp: Float? = null,
+    val forecastLowTemp: Float? = null,
+    val forecastPrecipAmountMm: Float? = null,
+    val noonCloudPercent: Int? = null,
 ) {
     fun toLocalDate(): LocalDate =
         LocalDate.ofEpochDay(date / 86_400_000L)

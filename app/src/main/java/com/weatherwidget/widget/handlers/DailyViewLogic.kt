@@ -360,21 +360,34 @@ object DailyViewLogic {
                 finalLow = actual?.lowTemp
 
                 if (showComparison) {
-                    // For past-day forecast comparison, ONLY use real snapshots from the
-                    // displaySource — skip GENERIC_GAP (climate-normal fallback rows) and
-                    // any isClimateNormal=true row, and require both highTemp and lowTemp.
-                    // NWS evening batches drop lowTemp once the day's low has passed, so
-                    // we must look back at older NWS batches with both values populated.
-                    val pastForecast = forecasts
-                        .filter { it.source == displaySource.id }
-                        .filter { !it.isClimateNormal }
-                        .filter { it.highTemp != null && it.lowTemp != null }
-                        .maxByOrNull { it.fetchedAt }
-                    fHigh = pastForecast?.highTemp
-                    fLow = pastForecast?.lowTemp
+                    // Prefer the overlay frozen into daily_history while the day was live (see
+                    // DailyHistoryFreeze) — it survives the forecasts table's retention and can't
+                    // hindcast-drift. High/low are written as a unit, so checking both guards
+                    // against ever mixing a frozen value with a snapshot one.
+                    val frozenHigh = actual?.forecastHighTemp
+                    val frozenLow = actual?.forecastLowTemp
+                    if (frozenHigh != null && frozenLow != null) {
+                        fHigh = frozenHigh
+                        fLow = frozenLow
+                        Log.v(TAG, "prepareGraphDays: past day $date overlay from frozen daily_history high=$frozenHigh low=$frozenLow")
+                    } else {
+                        // Pre-feature rows: fall back to the snapshot table. ONLY use real
+                        // snapshots from the displaySource — skip GENERIC_GAP (climate-normal
+                        // fallback rows) and any isClimateNormal=true row, and require both
+                        // highTemp and lowTemp. NWS evening batches drop lowTemp once the day's
+                        // low has passed, so we must look back at older NWS batches with both
+                        // values populated.
+                        val pastForecast = forecasts
+                            .filter { it.source == displaySource.id }
+                            .filter { !it.isClimateNormal }
+                            .filter { it.highTemp != null && it.lowTemp != null }
+                            .maxByOrNull { it.fetchedAt }
+                        fHigh = pastForecast?.highTemp
+                        fLow = pastForecast?.lowTemp
 
-                    if (fHigh == null || fLow == null) {
-                        Log.d(TAG, "prepareGraphDays: past day $date has no usable forecast snapshot from ${displaySource.id}; skipping forecast overlay")
+                        if (fHigh == null || fLow == null) {
+                            Log.d(TAG, "prepareGraphDays: past day $date has no usable forecast snapshot from ${displaySource.id}; skipping forecast overlay")
+                        }
                     }
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
@@ -454,20 +467,25 @@ object DailyViewLogic {
             val nightPrecipForIcon = resolvedPrecip.nightPrecip
 
 
+            // Past days prefer the noon cloud % frozen into daily_history while the day was live
+            // (see DailyHistoryFreeze); live derivation stays for today/future and pre-feature rows.
+            val storedNoonCloud = if (isPastDate) actual?.noonCloudPercent else null
             val cloudCoverRatioOverride =
-                resolveNoonCloudCoverRatio(
-                    date = date,
-                    hourlyForecasts = hourlyForecasts,
-                    displaySource = displaySource,
-                    weatherSourceId = weather?.source,
-                )
+                storedNoonCloud?.let { it / 100f }
+                    ?: resolveNoonCloudCoverRatio(
+                        date = date,
+                        hourlyForecasts = hourlyForecasts,
+                        displaySource = displaySource,
+                        weatherSourceId = weather?.source,
+                    )
             val measuredCloudCoverPercent =
-                resolveMeasuredNoonCloudCoverPercent(
-                    date = date,
-                    hourlyForecasts = hourlyForecasts,
-                    displaySource = displaySource,
-                    weatherSourceId = weather?.source,
-                )
+                storedNoonCloud
+                    ?: resolveMeasuredNoonCloudCoverPercent(
+                        date = date,
+                        hourlyForecasts = hourlyForecasts,
+                        displaySource = displaySource,
+                        weatherSourceId = weather?.source,
+                    )
 
             val iconRes =
                 when {
@@ -497,7 +515,7 @@ object DailyViewLogic {
                 TAG,
                 "cloudDecision: date=$date isPast=$isPastDate weatherPresent=${weather != null}" +
                     " actualPresent=${actual != null} iconRes=$iconRes isMixed=${WeatherIconMapper.isMixed(iconRes)}" +
-                    " cloudCoverRatioOverride=$cloudCoverRatioOverride hasOverlay=${fHigh != null && fLow != null}",
+                    " cloudCoverRatioOverride=$cloudCoverRatioOverride storedNoonCloud=$storedNoonCloud hasOverlay=${fHigh != null && fLow != null}",
             )
 
             val rawRainSummary = if (!isPastDate) {
@@ -520,7 +538,13 @@ object DailyViewLogic {
                 date = date,
                 today = today,
                 isPastDate = isPastDate,
-                precipAmountMm = weather?.precipAmountMm,
+                // Past days: the forecast row is usually gone; prefer the amount frozen into
+                // daily_history while the day was live (see DailyHistoryFreeze).
+                precipAmountMm = if (isPastDate) {
+                    actual?.forecastPrecipAmountMm ?: weather?.precipAmountMm
+                } else {
+                    weather?.precipAmountMm
+                },
                 dayPrecipProbability = dayPrecipForIcon,
                 allowTodayRainChanceLabel = allowTodayRainChanceLabel,
                 observedPrecipAmountMm = actual?.precipDayMm ?: actual?.precipAmountMm,

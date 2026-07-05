@@ -223,8 +223,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO daily_history
-                    (date, source, locationLat, locationLon, highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (date, source, locationLat, locationLon, highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     for (ex in extremes) {
@@ -241,6 +241,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableFloat(11, ex.precipNightMm)
                         stmt.setNullableInt(12, ex.forecastDayPrecipChance)
                         stmt.setNullableInt(13, ex.forecastNightPrecipChance)
+                        stmt.setNullableFloat(14, ex.forecastHighTemp)
+                        stmt.setNullableFloat(15, ex.forecastLowTemp)
+                        stmt.setNullableFloat(16, ex.forecastPrecipAmountMm)
+                        stmt.setNullableInt(17, ex.noonCloudPercent)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -919,6 +923,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         precipNightMm = rs.getNullableFloat("precipNightMm"),
                         forecastDayPrecipChance = rs.getNullableInt("forecastDayPrecipChance"),
                         forecastNightPrecipChance = rs.getNullableInt("forecastNightPrecipChance"),
+                        forecastHighTemp = rs.getNullableFloat("forecastHighTemp"),
+                        forecastLowTemp = rs.getNullableFloat("forecastLowTemp"),
+                        forecastPrecipAmountMm = rs.getNullableFloat("forecastPrecipAmountMm"),
+                        noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
                     ))
                 }
             }

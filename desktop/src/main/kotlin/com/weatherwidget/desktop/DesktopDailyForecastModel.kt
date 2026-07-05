@@ -209,8 +209,18 @@ object DesktopDailyForecastModel {
             isPast -> {
                 solidHigh = actual?.highTemp
                 solidLow = actual?.lowTemp
-                forecastHigh = snapshot?.highTemp ?: forecast?.highTemp
-                forecastLow = snapshot?.lowTemp ?: forecast?.lowTemp
+                // Prefer the overlay frozen into daily_history while the day was live (see
+                // DailyHistoryFreeze) — it survives the forecasts table's retention and can't
+                // hindcast-drift. High/low are written as a unit, so checking both guards against
+                // mixing a frozen value with a snapshot one. Pre-feature rows fall back to the
+                // snapshot table.
+                if (actual?.forecastHighTemp != null && actual.forecastLowTemp != null) {
+                    forecastHigh = actual.forecastHighTemp
+                    forecastLow = actual.forecastLowTemp
+                } else {
+                    forecastHigh = snapshot?.highTemp ?: forecast?.highTemp
+                    forecastLow = snapshot?.lowTemp ?: forecast?.lowTemp
+                }
             }
             isToday -> {
                 val todayValues = com.weatherwidget.shared.util.DailyDayValueResolver.resolveTodayLineValues(
@@ -254,7 +264,9 @@ object DesktopDailyForecastModel {
             storedDayPrecipChance = actual?.forecastDayPrecipChance,
             storedNightPrecipChance = actual?.forecastNightPrecipChance,
         )
-        val forecastAmountMm = forecast?.precipAmountMm ?: snapshot?.precipAmountMm
+        // Past days prefer the amount frozen into daily_history while the day was live.
+        val forecastAmountMm = (if (isPast) actual?.forecastPrecipAmountMm else null)
+            ?: forecast?.precipAmountMm ?: snapshot?.precipAmountMm
         val dailyRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainLabel(
             date = date,
             today = today,
@@ -275,13 +287,16 @@ object DesktopDailyForecastModel {
         // Source-filtered noon cloud cover (shared with Android) drives both the bar split ratio and
         // the daily icon. The GENERIC_GAP exception applies only to climate-normal future days.
         val rowSourceId = if (forecast?.isClimateNormal == true) WeatherSource.GENERIC_GAP.id else null
-        val measuredNoonCloudPercent = com.weatherwidget.shared.util.DailyNoonCloudCover
-            .resolveMeasuredNoonCloudCoverPercent(
-                hourly = hourly,
-                date = date,
-                displaySourceId = displaySourceId,
-                rowSourceId = rowSourceId,
-            )
+        // Past days prefer the noon cloud % frozen into daily_history while the day was live (see
+        // DailyHistoryFreeze); live derivation stays for today/future and pre-feature rows.
+        val measuredNoonCloudPercent = (if (isPast) actual?.noonCloudPercent else null)
+            ?: com.weatherwidget.shared.util.DailyNoonCloudCover
+                .resolveMeasuredNoonCloudCoverPercent(
+                    hourly = hourly,
+                    date = date,
+                    displaySourceId = displaySourceId,
+                    rowSourceId = rowSourceId,
+                )
         val noonCloudPercentForBar = measuredNoonCloudPercent ?: 0
         val rawCondition = forecast?.condition ?: actual?.condition ?: displaySnapshot?.condition
         // Daily icon noon is daytime (isNight = false). Thread the measured noon cloud % in, then

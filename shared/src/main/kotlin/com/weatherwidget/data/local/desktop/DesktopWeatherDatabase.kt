@@ -116,8 +116,10 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_time_loc ON observations(timestamp, locationLat, locationLon)")
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_api ON observations(api)")
 
-                // Daily history: high/low extremes, observed day/night precip, and (from v6) the
-                // resolved forecast rain-chance % snapshotted while each day was current.
+                // Daily history: high/low extremes, observed day/night precip, (from v6) the
+                // resolved forecast rain-chance % snapshotted while each day was current, and
+                // (from v7) the frozen forecast overlay + noon cloud % (DailyHistoryFreeze) so the
+                // daily bar view can render past days from this table alone.
                 stmt.execute("""
                     CREATE TABLE IF NOT EXISTS daily_history (
                         date INTEGER NOT NULL,
@@ -133,6 +135,10 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         precipNightMm REAL,
                         forecastDayPrecipChance INTEGER,
                         forecastNightPrecipChance INTEGER,
+                        forecastHighTemp REAL,
+                        forecastLowTemp REAL,
+                        forecastPrecipAmountMm REAL,
+                        noonCloudPercent INTEGER,
                         PRIMARY KEY (date, source, locationLat, locationLon)
                     )
                 """.trimIndent())
@@ -176,6 +182,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 // Migration / Versioning
                 val rs = stmt.executeQuery("PRAGMA user_version")
                 val currentVersion = if (rs.next()) rs.getInt(1) else 0
+                rs.close()
                 if (currentVersion == 0) {
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
@@ -213,12 +220,38 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             // v6: daily_extremes -> daily_history (the table now also holds displayed forecast
             // rain-chance snapshots, not just temperature extremes), plus the two chance columns.
             if (from < 6) {
-                stmt.execute("ALTER TABLE daily_extremes RENAME TO daily_history")
+                if (hasTable(stmt, "daily_extremes")) {
+                    if (!hasTable(stmt, "daily_history")) {
+                        stmt.execute("ALTER TABLE daily_extremes RENAME TO daily_history")
+                    } else {
+                        stmt.execute("""
+                            INSERT OR IGNORE INTO daily_history (date, source, locationLat, locationLon, highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm)
+                            SELECT date, source, locationLat, locationLon, highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm FROM daily_extremes
+                        """.trimIndent())
+                        stmt.execute("DROP TABLE daily_extremes")
+                    }
+                }
                 addColumnIfMissing(stmt, "daily_history", "forecastDayPrecipChance", "INTEGER")
                 addColumnIfMissing(stmt, "daily_history", "forecastNightPrecipChance", "INTEGER")
             }
+            // v7: frozen forecast-overlay + noon-cloud columns (DailyHistoryFreeze) — the daily bar
+            // view's remaining external display inputs, archived so past days render from this row
+            // alone once the forecasts / hourly tables age out.
+            if (from < 7) {
+                addColumnIfMissing(stmt, "daily_history", "forecastHighTemp", "REAL")
+                addColumnIfMissing(stmt, "daily_history", "forecastLowTemp", "REAL")
+                addColumnIfMissing(stmt, "daily_history", "forecastPrecipAmountMm", "REAL")
+                addColumnIfMissing(stmt, "daily_history", "noonCloudPercent", "INTEGER")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
+    }
+
+    private fun hasTable(stmt: java.sql.Statement, table: String): Boolean {
+        val rs = stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='$table'")
+        val exists = rs.next()
+        rs.close()
+        return exists
     }
 
     private fun addColumnIfMissing(stmt: java.sql.Statement, table: String, column: String, type: String) {
@@ -250,6 +283,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 6
+        private const val SCHEMA_VERSION = 7
     }
 }

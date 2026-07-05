@@ -144,6 +144,168 @@ class DesktopSnapshotDisplayedRainChanceTest {
     }
 
     @Test
+    fun `snapshot freezes forecast overlay and noon cloud for today`() {
+        dao.upsertForecasts(
+            lat, lon, source,
+            listOf(
+                DailyForecast(
+                    date = today.toString(), highTemp = 80f, lowTemp = 55f, condition = "Clear",
+                    source = source, precipAmountMm = 1.5f,
+                ),
+            ),
+        )
+        dao.upsertHourlyForecasts(
+            lat, lon, source,
+            listOf(
+                HourlyForecast(today.atTime(12, 0).atZone(zone).toInstant().toEpochMilli(), 70f, "Clear", cloudCover = 60),
+            ),
+        )
+        dao.upsertDailyHistory(
+            listOf(
+                DailyHistory(
+                    date = today.toEpochDay() * 86_400_000L, source = source,
+                    locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                ),
+            ),
+        )
+
+        repository.snapshotDisplayedRainChance(System.currentTimeMillis())
+
+        val stored = dao.getExtremesInRange(today.toEpochDay() * 86_400_000L, today.toEpochDay() * 86_400_000L, lat, lon)
+            .first { it.source == source }
+        assertEquals(80f, stored.forecastHighTemp!!, 0.01f)
+        assertEquals(55f, stored.forecastLowTemp!!, 0.01f)
+        assertEquals(1.5f, stored.forecastPrecipAmountMm!!, 0.01f)
+        assertEquals(60, stored.noonCloudPercent)
+    }
+
+    @Test
+    fun `degenerate forecast row does not clobber frozen overlay`() {
+        // A collapsed high==low row (NWS evening degeneration) must not replace the values a
+        // complete batch froze earlier in the day; missing hourly noon data must not erase the
+        // frozen noon cloud either.
+        dao.upsertForecasts(
+            lat, lon, source,
+            listOf(
+                DailyForecast(
+                    date = today.toString(), highTemp = 62f, lowTemp = 62f, condition = "Clear",
+                    source = source,
+                ),
+            ),
+        )
+        dao.upsertDailyHistory(
+            listOf(
+                DailyHistory(
+                    date = today.toEpochDay() * 86_400_000L, source = source,
+                    locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                    forecastHighTemp = 75f, forecastLowTemp = 50f,
+                    forecastPrecipAmountMm = 2f, noonCloudPercent = 30,
+                ),
+            ),
+        )
+
+        repository.snapshotDisplayedRainChance(System.currentTimeMillis())
+
+        val stored = dao.getExtremesInRange(today.toEpochDay() * 86_400_000L, today.toEpochDay() * 86_400_000L, lat, lon)
+            .first { it.source == source }
+        assertEquals(75f, stored.forecastHighTemp!!, 0.01f)
+        assertEquals(50f, stored.forecastLowTemp!!, 0.01f)
+        assertEquals(2f, stored.forecastPrecipAmountMm!!, 0.01f)
+        assertEquals(30, stored.noonCloudPercent)
+    }
+
+    @Test
+    fun `closed overlay window is never overwritten by a later forecast`() {
+        val yesterday = today.minusDays(1)
+        dao.upsertForecasts(
+            lat, lon, source,
+            listOf(
+                DailyForecast(
+                    date = yesterday.toString(), highTemp = 80f, lowTemp = 60f, condition = "Clear",
+                    source = source,
+                ),
+            ),
+        )
+        dao.upsertDailyHistory(
+            listOf(
+                DailyHistory(
+                    date = yesterday.toEpochDay() * 86_400_000L, source = source,
+                    locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                    forecastHighTemp = 75f, forecastLowTemp = 50f, // archived while yesterday was live
+                ),
+            ),
+        )
+
+        repository.snapshotDisplayedRainChance(System.currentTimeMillis())
+
+        val stored = dao.getExtremesInRange(yesterday.toEpochDay() * 86_400_000L, yesterday.toEpochDay() * 86_400_000L, lat, lon)
+            .first { it.source == source }
+        assertEquals("Closed overlay window must keep the archived high", 75f, stored.forecastHighTemp!!, 0.01f)
+        assertEquals("Closed overlay window must keep the archived low", 50f, stored.forecastLowTemp!!, 0.01f)
+    }
+
+    @Test
+    fun `backfill fills frozen overlay and noon cloud from retained tables`() {
+        val past = today.minusDays(3)
+        val pastStart = past.toEpochDay() * 86_400_000L
+        dao.upsertForecasts(
+            lat, lon, source,
+            listOf(
+                DailyForecast(
+                    date = past.toString(), highTemp = 71f, lowTemp = 53f, condition = "Clear",
+                    source = source, precipAmountMm = 0.5f,
+                ),
+            ),
+        )
+        // getDailyForecastSnapshots excludes the newest batch (it's the live forecast, not a
+        // snapshot). In production a past date's batches are never the newest overall; recreate
+        // that by adding a fresher today-batch.
+        Thread.sleep(5)
+        dao.upsertForecasts(
+            lat, lon, source,
+            listOf(
+                DailyForecast(
+                    date = today.toString(), highTemp = 80f, lowTemp = 60f, condition = "Clear",
+                    source = source,
+                ),
+            ),
+        )
+        dao.upsertHourlyForecastHistory(
+            lat, lon, source, snapshotBucket = 0L,
+            listOf(
+                HourlyForecast(past.atTime(12, 0).atZone(zone).toInstant().toEpochMilli(), 70f, "Cloudy", cloudCover = 45),
+            ),
+        )
+        dao.upsertDailyHistory(
+            listOf(
+                DailyHistory(
+                    date = pastStart, source = source,
+                    locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                ),
+            ),
+        )
+
+        repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis())
+
+        val stored = dao.getExtremesInRange(pastStart, pastStart, lat, lon).first { it.source == source }
+        assertEquals(71f, stored.forecastHighTemp!!, 0.01f)
+        assertEquals(53f, stored.forecastLowTemp!!, 0.01f)
+        assertEquals(0.5f, stored.forecastPrecipAmountMm!!, 0.01f)
+        assertEquals(45, stored.noonCloudPercent)
+
+        // Second run is a no-op (one-shot marker), even for still-null rows.
+        repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis())
+    }
+
+    @Test
     fun `recompute preserves existing forecast chance snapshot when temps change`() {
         val t10 = today.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
         val todayStart = today.toEpochDay() * 86_400_000L
@@ -155,6 +317,8 @@ class DesktopSnapshotDisplayedRainChanceTest {
                     highTemp = 999f, lowTemp = 999f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     forecastDayPrecipChance = 2, forecastNightPrecipChance = 14,
+                    forecastHighTemp = 75f, forecastLowTemp = 50f,
+                    forecastPrecipAmountMm = 2.5f, noonCloudPercent = 60,
                 ),
             ),
         )
@@ -175,5 +339,9 @@ class DesktopSnapshotDisplayedRainChanceTest {
         assertEquals("Recompute should have changed the high temp", 70f, stored.highTemp, 0.1f)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 2, stored.forecastDayPrecipChance)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 14, stored.forecastNightPrecipChance)
+        assertEquals("Frozen overlay must survive the actuals REPLACE", 75f, stored.forecastHighTemp!!, 0.01f)
+        assertEquals("Frozen overlay must survive the actuals REPLACE", 50f, stored.forecastLowTemp!!, 0.01f)
+        assertEquals("Frozen amount must survive the actuals REPLACE", 2.5f, stored.forecastPrecipAmountMm!!, 0.01f)
+        assertEquals("Frozen noon cloud must survive the actuals REPLACE", 60, stored.noonCloudPercent)
     }
 }

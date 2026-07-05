@@ -695,14 +695,19 @@ class ObservationRepository @Inject constructor(
                         "DEBUG",
                     )
                     // This is a full-row REPLACE (insertAll uses OnConflictStrategy.REPLACE): carry
-                    // over the resolved forecast chance snapshot the day/night-chance writer stored,
-                    // since `new` (rebuilt from raw observations) never populates those fields itself.
+                    // over the resolved forecast chance snapshot and the frozen display columns the
+                    // freeze writer stored, since `new` (rebuilt from raw observations) never
+                    // populates those fields itself.
                     toInsert.add(
                         new.copy(
                             locationLat = existing.locationLat,
                             locationLon = existing.locationLon,
                             forecastDayPrecipChance = existing.forecastDayPrecipChance,
                             forecastNightPrecipChance = existing.forecastNightPrecipChance,
+                            forecastHighTemp = existing.forecastHighTemp,
+                            forecastLowTemp = existing.forecastLowTemp,
+                            forecastPrecipAmountMm = existing.forecastPrecipAmountMm,
+                            noonCloudPercent = existing.noonCloudPercent,
                         ),
                     )
                 }

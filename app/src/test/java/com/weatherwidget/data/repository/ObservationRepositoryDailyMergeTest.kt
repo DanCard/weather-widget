@@ -208,6 +208,10 @@ class ObservationRepositoryDailyMergeTest {
                     updatedAt = System.currentTimeMillis(),
                     forecastDayPrecipChance = 2,
                     forecastNightPrecipChance = 14,
+                    forecastHighTemp = 75f,
+                    forecastLowTemp = 50f,
+                    forecastPrecipAmountMm = 2.5f,
+                    noonCloudPercent = 60,
                 ),
             ),
         )
@@ -228,6 +232,10 @@ class ObservationRepositoryDailyMergeTest {
         assertEquals("Recompute should have changed the high temp", 70f, afterRecompute.highTemp, 0.1f)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 2, afterRecompute.forecastDayPrecipChance)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 14, afterRecompute.forecastNightPrecipChance)
+        assertEquals("Frozen overlay must survive the actuals REPLACE", 75f, afterRecompute.forecastHighTemp)
+        assertEquals("Frozen overlay must survive the actuals REPLACE", 50f, afterRecompute.forecastLowTemp)
+        assertEquals("Frozen amount must survive the actuals REPLACE", 2.5f, afterRecompute.forecastPrecipAmountMm)
+        assertEquals("Frozen noon cloud must survive the actuals REPLACE", 60, afterRecompute.noonCloudPercent)
     }
 
     @Test
