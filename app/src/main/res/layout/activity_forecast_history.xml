@@ -380,6 +380,21 @@
                     android:text="@string/loading_accuracy_summary"
                     android:textSize="13sp"
                     android:textColor="@color/widget_text_secondary" />
+
+                <Button
+                    android:id="@+id/detailed_stats_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/rounded_button_gray"
+                    android:minHeight="32dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:text="@string/view_detailed_statistics"
+                    android:textAllCaps="false"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
             </LinearLayout>
 
             <LinearLayout

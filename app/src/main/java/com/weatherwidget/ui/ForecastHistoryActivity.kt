@@ -64,7 +64,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         const val EXTRA_SOURCE = "source"
         private const val TAG = "ForecastHistoryActivity"
 
-        private const val MAX_HISTORY_DAYS_BACK = 30L
+        private const val MAX_HISTORY_DAYS_BACK = 395L // 13 months
 
         /**
          * Determines whether clicking the mode button should launch hourly view
@@ -184,6 +184,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.settings_button).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        findViewById<Button>(R.id.detailed_stats_button).setOnClickListener {
+            startActivity(Intent(this, StatisticsActivity::class.java))
         }
 
         val visibleSources = effectiveVisibleSources()

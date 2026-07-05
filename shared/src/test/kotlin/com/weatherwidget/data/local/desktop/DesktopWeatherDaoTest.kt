@@ -271,11 +271,11 @@ class DesktopWeatherDaoTest {
         // carries temp/condition/cloud but dropped precip probability; an older snapshot supplies the
         // precip, which is coalesced in.
         dao.upsertHourlyForecastHistory(
-            lat, lon, source, snapshotBucket = 1_780_500_000_000L,
+            lat, lon, source, timestampToGroupPredictions = 1_780_500_000_000L,
             listOf(HourlyForecast(hour, 60f, "Cloudy", precipProbability = 20, cloudCover = null)),
         )
         dao.upsertHourlyForecastHistory(
-            lat, lon, source, snapshotBucket = 1_780_675_200_000L,
+            lat, lon, source, timestampToGroupPredictions = 1_780_675_200_000L,
             listOf(HourlyForecast(hour, 64f, "Sunny", precipProbability = null, cloudCover = 75)),
         )
 

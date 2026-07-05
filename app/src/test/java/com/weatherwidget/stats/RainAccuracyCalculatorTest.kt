@@ -22,7 +22,7 @@ class RainAccuracyCalculatorTest {
 
     private fun historyRow(
         dateTime: LocalDateTime,
-        snapshotBucket: Long,
+        timestampToGroupPredictions: Long,
         precipAmountMm: Float?,
         source: String = WeatherSource.NWS.id,
     ) = HourlyForecastHistoryEntity(
@@ -32,9 +32,9 @@ class RainAccuracyCalculatorTest {
         temperature = 60f,
         condition = "Rain",
         source = source,
-        snapshotBucket = snapshotBucket,
+        timestampToGroupPredictions = timestampToGroupPredictions,
         precipAmountMm = precipAmountMm,
-        fetchedAt = snapshotBucket,
+        fetchedAt = timestampToGroupPredictions,
     )
 
     private fun observation(
@@ -81,8 +81,8 @@ class RainAccuracyCalculatorTest {
     fun `latestSnapshotPrecipByHour keeps the most recent snapshot per hour`() {
         val hour = day.atTime(10, 0)
         val rows = listOf(
-            historyRow(hour, snapshotBucket = 100, precipAmountMm = 1f),
-            historyRow(hour, snapshotBucket = 200, precipAmountMm = 4f), // newer -> wins
+            historyRow(hour, timestampToGroupPredictions = 100, precipAmountMm = 1f),
+            historyRow(hour, timestampToGroupPredictions = 200, precipAmountMm = 4f), // newer -> wins
         )
         val byHour = RainAccuracyCalculator.latestSnapshotPrecipByHour(rows, zone)
         assertEquals(mapOf(hour to 4f), byHour)

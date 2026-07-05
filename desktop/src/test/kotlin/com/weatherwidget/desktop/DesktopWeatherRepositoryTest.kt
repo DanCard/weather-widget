@@ -177,4 +177,44 @@ class DesktopWeatherRepositoryTest {
         val expected = ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)[java.time.MonthDay.from(gapDay)]!!
         assertEquals(expected.first, byDate[gapDay]!!.highTemp, 0.001f)
     }
+
+    @Test
+    fun `cleanup preserves data within 18 months and deletes older data`() = runTest {
+        val now = System.currentTimeMillis()
+        val dayMs = 24 * 3600 * 1000L
+        val recentTime = now - (100 * dayMs) // 100 days old (within 18 months)
+        val boundaryTime = now - (500 * dayMs) // 500 days old (within 18 months)
+        val oldTime = now - (600 * dayMs) // 600 days old (> 547 days / 18 months)
+
+        val obs = listOf(
+            DesktopObservationEntity(
+                stationId = "STATION_100", stationName = "Station 100", timestamp = recentTime,
+                temperature = 70f, condition = "Clear", locationLat = 37.4220, locationLon = -122.0841,
+                fetchedAt = recentTime, api = "NWS"
+            ),
+            DesktopObservationEntity(
+                stationId = "STATION_500", stationName = "Station 500", timestamp = boundaryTime,
+                temperature = 65f, condition = "Cloudy", locationLat = 37.4220, locationLon = -122.0841,
+                fetchedAt = boundaryTime, api = "NWS"
+            ),
+            DesktopObservationEntity(
+                stationId = "STATION_600", stationName = "Station 600", timestamp = oldTime,
+                temperature = 60f, condition = "Rain", locationLat = 37.4220, locationLon = -122.0841,
+                fetchedAt = oldTime, api = "NWS"
+            )
+        )
+        dao.upsertObservations(obs)
+
+        // Trigger cleanup using the 18-month (547-day) cutoff
+        dao.cleanup(now - (547L * dayMs))
+
+        val remaining = dao.getObservationsInRange(now - (700 * dayMs), now, 37.4220, -122.0841)
+        val remainingStations = remaining.map { it.stationId }.toSet()
+
+        assertTrue("100-day-old observation should be retained", remainingStations.contains("STATION_100"))
+        assertTrue("500-day-old observation should be retained", remainingStations.contains("STATION_500"))
+        assertFalse("600-day-old observation should be deleted by 18-month cutoff", remainingStations.contains("STATION_600"))
+    }
 }
+
+

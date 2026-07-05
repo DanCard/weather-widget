@@ -85,7 +85,7 @@ class ForecastRepositoryBackfillChanceSnapshotTest {
                 HourlyForecastHistoryEntity(
                     dateTime = yesterday.plusDays(1).atTime(7, 0).atZone(zone).toInstant().toEpochMilli(),
                     locationLat = lat, locationLon = lon, temperature = 52f, condition = "Rain",
-                    source = WeatherSource.NWS.id, snapshotBucket = 0L, precipProbability = 14,
+                    source = WeatherSource.NWS.id, timestampToGroupPredictions = 0L, precipProbability = 14,
                     fetchedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -150,7 +150,7 @@ class ForecastRepositoryBackfillChanceSnapshotTest {
                 HourlyForecastHistoryEntity(
                     dateTime = yesterday.plusDays(1).atTime(7, 0).atZone(zone).toInstant().toEpochMilli(),
                     locationLat = lat, locationLon = lon, temperature = 52f, condition = "Rain",
-                    source = WeatherSource.NWS.id, snapshotBucket = 0L, precipProbability = 14,
+                    source = WeatherSource.NWS.id, timestampToGroupPredictions = 0L, precipProbability = 14,
                     fetchedAt = System.currentTimeMillis(),
                 ),
             ),

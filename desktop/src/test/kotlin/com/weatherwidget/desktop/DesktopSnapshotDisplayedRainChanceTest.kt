@@ -277,7 +277,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
         dao.upsertHourlyForecastHistory(
-            lat, lon, source, snapshotBucket = 0L,
+            lat, lon, source, timestampToGroupPredictions = 0L,
             listOf(
                 HourlyForecast(past.atTime(12, 0).atZone(zone).toInstant().toEpochMilli(), 70f, "Cloudy", cloudCover = 45),
             ),
@@ -303,6 +303,52 @@ class DesktopSnapshotDisplayedRainChanceTest {
 
         // Second run is a no-op (one-shot marker), even for still-null rows.
         repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis())
+    }
+
+    @Test
+    fun `backfill fills missing overlay without touching an already-frozen noon cloud`() {
+        // First post-migration fetch order: the live writer freezes yesterday's noon cloud (its
+        // window is still open) before the backfill scans — the backfill must still fill the
+        // overlay for that row instead of skipping it, and must not clobber the frozen noon cloud.
+        val past = today.minusDays(2)
+        val pastStart = past.toEpochDay() * 86_400_000L
+        dao.upsertForecasts(
+            lat, lon, source,
+            listOf(
+                DailyForecast(
+                    date = past.toString(), highTemp = 79f, lowTemp = 57f, condition = "Clear",
+                    source = source,
+                ),
+            ),
+        )
+        Thread.sleep(5)
+        dao.upsertForecasts(
+            lat, lon, source,
+            listOf(
+                DailyForecast(
+                    date = today.toString(), highTemp = 80f, lowTemp = 60f, condition = "Clear",
+                    source = source,
+                ),
+            ),
+        )
+        dao.upsertDailyHistory(
+            listOf(
+                DailyHistory(
+                    date = pastStart, source = source,
+                    locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                    noonCloudPercent = 19, // frozen live; overlay window had already closed
+                ),
+            ),
+        )
+
+        repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis())
+
+        val stored = dao.getExtremesInRange(pastStart, pastStart, lat, lon).first { it.source == source }
+        assertEquals(79f, stored.forecastHighTemp!!, 0.01f)
+        assertEquals(57f, stored.forecastLowTemp!!, 0.01f)
+        assertEquals("Frozen noon cloud must survive the backfill", 19, stored.noonCloudPercent)
     }
 
     @Test

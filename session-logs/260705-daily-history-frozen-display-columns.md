@@ -45,6 +45,19 @@ freeze "what was displayed" while the day is live, replay it afterward.
   `hourly_forecast_history` noon rows. Android pref-gated; desktop app_logs-tag-gated
   (`FROZEN_DISPLAY_BACKFILL_DONE`), mirroring the chance backfill exactly.
 
+## Emulator verification + backfill fix (later same day)
+
+Verified on emulator-5554: migration to v52 clean, live writer froze all four sources for today,
+backfill filled 175/177. Found and fixed a transition-window bug: the live writer runs before the
+backfill and freezes *yesterday's* noon cloud (window still open), which made the backfill's
+all-columns-null row filter skip that row's overlay forever. Backfill is now **per-column** (fills
+what's null, `?:`-preserves what's set); regression tests added on both platforms. Re-ran on the
+emulator (cleared the one-shot pref, aged fetchedAt): the four 07-04 rows gained their overlay
+with noon cloud untouched. Note: phones updated with the pre-fix build keep that one-day gap
+(flag already set) — invisible, since the reader falls back to snapshots which share the same
+retention. Also learned: `am broadcast` does not wake a force-stopped package — `am start` the
+activity first.
+
 ## Gotcha found while testing
 
 `DesktopWeatherDao.getDailyForecastSnapshots` deliberately **excludes the newest batch** for the

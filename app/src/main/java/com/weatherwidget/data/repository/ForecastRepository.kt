@@ -454,8 +454,11 @@ class ForecastRepository
             val startMs = today.minusDays(CHANCE_BACKFILL_LOOKBACK_DAYS).toEpochDay() * WidgetConstants.MS_IN_A_DAY
             val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
+            // Per-column: a row can already carry noon cloud but no overlay (the live writer runs
+            // before this backfill, and yesterday's noon-cloud window is still open on the first
+            // post-migration fetch) — an all-columns-null row gate would skip its overlay forever.
             val rowsNeedingBackfill = dailyHistoryDao.getExtremesInRange(startMs, endMs, latitude, longitude)
-                .filter { it.forecastHighTemp == null && it.forecastLowTemp == null && it.noonCloudPercent == null }
+                .filter { (it.forecastHighTemp == null && it.forecastLowTemp == null) || it.noonCloudPercent == null }
             if (rowsNeedingBackfill.isEmpty()) {
                 prefs.edit().putBoolean(PREF_FROZEN_DISPLAY_BACKFILL_DONE, true).apply()
                 return
@@ -512,15 +515,15 @@ class ForecastRepository
                     )
                 }
 
-                if (overlay == null && noonCloud == null) continue
-                toInsert.add(
-                    row.copy(
-                        forecastHighTemp = overlay?.highTemp,
-                        forecastLowTemp = overlay?.lowTemp,
-                        forecastPrecipAmountMm = overlay?.precipAmountMm,
-                        noonCloudPercent = noonCloud,
-                    ),
+                // Fill only what's missing — never overwrite a value the live writer already froze.
+                val updated = row.copy(
+                    forecastHighTemp = row.forecastHighTemp ?: overlay?.highTemp,
+                    forecastLowTemp = row.forecastLowTemp ?: overlay?.lowTemp,
+                    forecastPrecipAmountMm = row.forecastPrecipAmountMm ?: overlay?.precipAmountMm,
+                    noonCloudPercent = row.noonCloudPercent ?: noonCloud,
                 )
+                if (updated == row) continue
+                toInsert.add(updated)
             }
             if (toInsert.isNotEmpty()) dailyHistoryDao.insertAll(toInsert)
             appLogDao.log("FROZEN_DISPLAY_BACKFILL", "backfilled=${toInsert.size} scanned=${rowsNeedingBackfill.size}")
@@ -956,7 +959,7 @@ class ForecastRepository
                     // fast cadence. See ForecastHistoryPolicy and ForecastEvolutionRenderer's
                     // SNAPSHOT_BUCKET_HOURS (a display-only collapse, unaffected by a wider cadence).
                     val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
-                    val bucketStart = ForecastHistoryPolicy.snapshotBucket(System.currentTimeMillis(), sourceId, prioritySourceIds)
+                    val bucketStart = ForecastHistoryPolicy.timestampToGroupPredictions(System.currentTimeMillis(), sourceId, prioritySourceIds)
                     val bucketEnd = bucketStart + ForecastHistoryPolicy.bucketMs(sourceId, prioritySourceIds)
                     forecastDao.deleteForecastsInBucket(
                         source = sourceId,
@@ -1129,7 +1132,7 @@ class ForecastRepository
                     temperature = e.temperature,
                     condition = e.condition,
                     source = e.source,
-                    snapshotBucket = ForecastHistoryPolicy.snapshotBucket(e.fetchedAt, e.source, prioritySourceIds),
+                    timestampToGroupPredictions = ForecastHistoryPolicy.timestampToGroupPredictions(e.fetchedAt, e.source, prioritySourceIds),
                     precipProbability = e.precipProbability,
                     cloudCover = e.cloudCover,
                     precipAmountMm = e.precipAmountMm,
@@ -1276,13 +1279,14 @@ class ForecastRepository
 
         suspend fun cleanOldData() {
             val oneMonthAgoTimestamp = System.currentTimeMillis() - 1000L * 60 * 60 * 24 * 30 // 30 days
+            val thirteenMonthsAgoTimestamp = System.currentTimeMillis() - 1000L * 60 * 60 * 24 * 395 // 13 months (395 days)
             val tenDaysAgoTimestamp = System.currentTimeMillis() - 1000L * 60 * 60 * 24 * 10 // 10 days
             val logsCutoffTimestamp = System.currentTimeMillis() - 1000L * 60 * 60 * 72 // 72 hours
             forecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
             hourlyForecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
             hourlyForecastHistoryDao.deleteOldHistory(oneMonthAgoTimestamp)
             observationDao.deleteOldObservations(tenDaysAgoTimestamp)
-            dailyHistoryDao.deleteOldExtremes(oneMonthAgoTimestamp)
+            dailyHistoryDao.deleteOldExtremes(thirteenMonthsAgoTimestamp)
             appLogDao.deleteOldLogs(logsCutoffTimestamp)
         }
     }

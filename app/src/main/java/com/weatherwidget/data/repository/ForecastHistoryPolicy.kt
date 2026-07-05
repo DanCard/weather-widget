@@ -25,8 +25,8 @@ object ForecastHistoryPolicy {
     fun bucketMs(sourceId: String, prioritySourceIds: Set<String>): Long =
         if (sourceId in prioritySourceIds) PRIMARY_BUCKET_MS else NON_PRIMARY_BUCKET_MS
 
-    /** Floor of [nowMs] to the start of [sourceId]'s current snapshot bucket. */
-    fun snapshotBucket(nowMs: Long, sourceId: String, prioritySourceIds: Set<String>): Long {
+    /** Floor of [nowMs] to the start of [sourceId]'s current prediction group timestamp. */
+    fun timestampToGroupPredictions(nowMs: Long, sourceId: String, prioritySourceIds: Set<String>): Long {
         val width = bucketMs(sourceId, prioritySourceIds)
         return (nowMs / width) * width
     }

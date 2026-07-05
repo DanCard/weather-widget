@@ -55,13 +55,13 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
-    fun upsertHourlyForecastHistory(locationLat: Double, locationLon: Double, source: String, snapshotBucket: Long, hourly: List<HourlyForecast>) {
+    fun upsertHourlyForecastHistory(locationLat: Double, locationLon: Double, source: String, timestampToGroupPredictions: Long, hourly: List<HourlyForecast>) {
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {
                 val sql = """
                     INSERT OR REPLACE INTO hourly_forecast_history 
-                    (dateTime, locationLat, locationLon, temperature, condition, source, snapshotBucket, precipProbability, cloudCover, precipAmountMm, fetchedAt)
+                    (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, precipAmountMm, fetchedAt)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
@@ -76,7 +76,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setFloat(4, h.temperature)
                         stmt.setString(5, h.condition)
                         stmt.setString(6, source)
-                        stmt.setLong(7, snapshotBucket)
+                        stmt.setLong(7, timestampToGroupPredictions)
                         stmt.setNullableInt(8, h.precipProbability)
                         stmt.setNullableInt(9, h.cloudCover)
                         stmt.setNullableFloat(10, h.precipAmountMm)
@@ -580,7 +580,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt, source, locationLat, locationLon
                 FROM hourly_forecast_history
                 WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR (source = 'Generic' AND dateTime > ?)) AND dateTime >= ? AND dateTime <= ?
-                ORDER BY dateTime ASC, (source = ?) DESC, snapshotBucket DESC
+                ORDER BY dateTime ASC, (source = ?) DESC, timestampToGroupPredictions DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, locationLat)

@@ -10,7 +10,7 @@ import java.time.LocalDate
  * to show and how to look up actuals.
  */
 object ForecastHistoryViewLogic {
-    const val MAX_HISTORY_DAYS_BACK = 30L
+    const val MAX_HISTORY_DAYS_BACK = 395L // 13 months
 
     enum class GraphMode { EVOLUTION, ERROR }
 

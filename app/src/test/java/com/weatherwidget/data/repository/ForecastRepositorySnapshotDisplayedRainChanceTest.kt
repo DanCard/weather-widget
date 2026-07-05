@@ -359,4 +359,41 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
         // hourly_forecast_history is empty in this harness — noon cloud stays null, best-effort.
         assertNull(stored.noonCloudPercent)
     }
+
+    @Test
+    fun `backfill fills missing overlay without touching an already-frozen noon cloud`() = runTest {
+        // First post-migration fetch order: the live writer freezes yesterday's noon cloud (its
+        // window is still open) before the backfill scans — the backfill must still fill the
+        // overlay for that row instead of skipping it, and must not clobber the frozen noon cloud.
+        val past = today.minusDays(2)
+        val pastStart = past.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        db.forecastDao().insertAll(
+            listOf(
+                TestData.forecast(
+                    targetDate = past.toString(), forecastDate = past.toString(),
+                    source = WeatherSource.NWS.id, lat = lat, lon = lon,
+                    highTemp = 79f, lowTemp = 57f,
+                ),
+            ),
+        )
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = pastStart,
+                    source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
+                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                    noonCloudPercent = 19, // frozen live; overlay window had already closed
+                ),
+            ),
+        )
+
+        repository.backfillFrozenDisplayColumnsIfNeeded(lat, lon)
+
+        val stored = db.dailyHistoryDao().getExtremesInRange(pastStart, pastStart, lat, lon)
+            .first { it.source == WeatherSource.NWS.id }
+        assertEquals(79f, stored.forecastHighTemp)
+        assertEquals(57f, stored.forecastLowTemp)
+        assertEquals("Frozen noon cloud must survive the backfill", 19, stored.noonCloudPercent)
+    }
 }

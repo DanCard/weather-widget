@@ -5,7 +5,7 @@ import androidx.room.*
 @Dao
 interface HourlyForecastHistoryDao {
     /**
-     * Hourly forecast as predicted in a specific [snapshotBucket]. Lets a future feature reconstruct
+     * Hourly forecast as predicted in a specific [timestampToGroupPredictions]. Lets a future feature reconstruct
      * "what the forecast said for hour H as of bucket B" (e.g. yesterday's prediction for today).
      */
     @Query(
@@ -13,7 +13,7 @@ interface HourlyForecastHistoryDao {
         SELECT * FROM hourly_forecast_history
         WHERE ${LocationMatch.ROOM_WHERE}
         AND source = :source
-        AND snapshotBucket = :snapshotBucket
+        AND timestampToGroupPredictions = :timestampToGroupPredictions
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
         ORDER BY dateTime ASC
@@ -25,7 +25,7 @@ interface HourlyForecastHistoryDao {
         lat: Double,
         lon: Double,
         source: String,
-        snapshotBucket: Long,
+        timestampToGroupPredictions: Long,
     ): List<HourlyForecastHistoryEntity>
 
     /**
@@ -39,8 +39,8 @@ interface HourlyForecastHistoryDao {
         WHERE ${LocationMatch.ROOM_WHERE}
         AND source = :source
         AND dateTime >= :startDateTime AND dateTime < :endDateTime
-        AND snapshotBucket >= :bucketStart AND snapshotBucket < :bucketEnd
-        ORDER BY dateTime ASC, snapshotBucket DESC
+        AND timestampToGroupPredictions >= :bucketStart AND timestampToGroupPredictions < :bucketEnd
+        ORDER BY dateTime ASC, timestampToGroupPredictions DESC
     """,
     )
     suspend fun getHistoryInRangeForBucketWindow(
@@ -58,8 +58,8 @@ interface HourlyForecastHistoryDao {
         SELECT * FROM hourly_forecast_history
         WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime AND dateTime < :endDateTime
-        AND snapshotBucket >= :bucketStart AND snapshotBucket < :bucketEnd
-        ORDER BY dateTime ASC, snapshotBucket DESC
+        AND timestampToGroupPredictions >= :bucketStart AND timestampToGroupPredictions < :bucketEnd
+        ORDER BY dateTime ASC, timestampToGroupPredictions DESC
     """,
     )
     suspend fun getHistoryInRangeForBucketWindowAllSources(

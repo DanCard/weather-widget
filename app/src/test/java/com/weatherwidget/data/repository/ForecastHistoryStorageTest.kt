@@ -46,7 +46,7 @@ class ForecastHistoryStorageTest {
             temperature = temp,
             condition = "Sunny",
             source = source,
-            snapshotBucket = bucket,
+            timestampToGroupPredictions = bucket,
             precipProbability = null,
             cloudCover = 40,
             precipAmountMm = null,

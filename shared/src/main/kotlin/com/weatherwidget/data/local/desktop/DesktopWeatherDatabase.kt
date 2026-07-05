@@ -81,15 +81,15 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         temperature REAL NOT NULL,
                         condition TEXT NOT NULL,
                         source TEXT NOT NULL,
-                        snapshotBucket INTEGER NOT NULL,
+                        timestampToGroupPredictions INTEGER NOT NULL,
                         precipProbability INTEGER,
                         cloudCover INTEGER,
                         precipAmountMm REAL,
                         fetchedAt INTEGER NOT NULL,
-                        PRIMARY KEY (dateTime, source, locationLat, locationLon, snapshotBucket)
+                        PRIMARY KEY (dateTime, source, locationLat, locationLon, timestampToGroupPredictions)
                     )
                 """.trimIndent())
-                stmt.execute("CREATE INDEX IF NOT EXISTS idx_hourly_history_lookup ON hourly_forecast_history(locationLat, locationLon, source, snapshotBucket)")
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_hourly_history_lookup ON hourly_forecast_history(locationLat, locationLon, source, timestampToGroupPredictions)")
 
                 // Observations
                 stmt.execute("""
@@ -200,7 +200,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             // key and round survivors onto the grid LocationMatch.quantize now writes to.
             if (from < 3) {
                 dedupeQuantizeHourly(stmt, "hourly_forecasts", "")
-                dedupeQuantizeHourly(stmt, "hourly_forecast_history", ", h.snapshotBucket")
+                dedupeQuantizeHourly(stmt, "hourly_forecast_history", ", h.timestampToGroupPredictions")
             }
             if (from < 4) {
                 addColumnIfMissing(stmt, "observations", "isWebFallback", "INTEGER NOT NULL DEFAULT 0")
@@ -243,6 +243,22 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 addColumnIfMissing(stmt, "daily_history", "forecastPrecipAmountMm", "REAL")
                 addColumnIfMissing(stmt, "daily_history", "noonCloudPercent", "INTEGER")
             }
+            if (from < 8) {
+                val rs = stmt.executeQuery("PRAGMA table_info(hourly_forecast_history)")
+                var hasSnapshotBucket = false
+                while (rs.next()) {
+                    if (rs.getString("name") == "snapshotBucket") {
+                        hasSnapshotBucket = true
+                        break
+                    }
+                }
+                rs.close()
+                if (hasSnapshotBucket) {
+                    stmt.execute("DROP INDEX IF EXISTS idx_hourly_history_lookup")
+                    stmt.execute("ALTER TABLE hourly_forecast_history RENAME COLUMN snapshotBucket TO timestampToGroupPredictions")
+                    stmt.execute("CREATE INDEX IF NOT EXISTS idx_hourly_history_lookup ON hourly_forecast_history(locationLat, locationLon, source, timestampToGroupPredictions)")
+                }
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -269,7 +285,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     /** Keep the freshest row per (dateTime, source[, snapshotBucket], rounded lat/lon), then round
      *  the surviving coordinates so future REPLACE upserts overwrite instead of fragmenting. */
     private fun dedupeQuantizeHourly(stmt: java.sql.Statement, table: String, bucketCol: String) {
-        val bucketJoin = if (bucketCol.isEmpty()) "" else " AND h2.snapshotBucket = h.snapshotBucket"
+        val bucketJoin = if (bucketCol.isEmpty()) "" else " AND h2.timestampToGroupPredictions = h.timestampToGroupPredictions"
         stmt.execute(
             "DELETE FROM $table WHERE rowid NOT IN (" +
                 "SELECT rowid FROM $table h WHERE fetchedAt = (" +
@@ -283,6 +299,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 7
+        private const val SCHEMA_VERSION = 8
     }
 }

@@ -30,12 +30,12 @@ class ForecastHistoryPolicyTest {
     }
 
     @Test
-    fun `snapshotBucket floors to the bucket boundary`() {
+    fun `timestampToGroupPredictions floors to the bucket boundary`() {
         val fiveHours = 5L * 60 * 60 * 1000
         // Priority: 4h buckets -> floor(5h) = 4h boundary.
-        assertEquals(4L * 60 * 60 * 1000, ForecastHistoryPolicy.snapshotBucket(fiveHours, "NWS", priority))
+        assertEquals(4L * 60 * 60 * 1000, ForecastHistoryPolicy.timestampToGroupPredictions(fiveHours, "NWS", priority))
         // Non-priority: 12h buckets -> floor(5h) = 0.
-        assertEquals(0L, ForecastHistoryPolicy.snapshotBucket(fiveHours, nonPriority, priority))
+        assertEquals(0L, ForecastHistoryPolicy.timestampToGroupPredictions(fiveHours, nonPriority, priority))
     }
 
     @Test
@@ -45,9 +45,9 @@ class ForecastHistoryPolicyTest {
         val t1 = base + 3L * 60 * 60 * 1000   // +3h (same 4h priority bucket as t0)
         val t2 = base + 5L * 60 * 60 * 1000   // +5h (next 4h priority bucket)
 
-        val b0 = ForecastHistoryPolicy.snapshotBucket(t0, "NWS", priority)
-        val b1 = ForecastHistoryPolicy.snapshotBucket(t1, "NWS", priority)
-        val b2 = ForecastHistoryPolicy.snapshotBucket(t2, "NWS", priority)
+        val b0 = ForecastHistoryPolicy.timestampToGroupPredictions(t0, "NWS", priority)
+        val b1 = ForecastHistoryPolicy.timestampToGroupPredictions(t1, "NWS", priority)
+        val b2 = ForecastHistoryPolicy.timestampToGroupPredictions(t2, "NWS", priority)
 
         assertEquals("0-4h fetches collapse to one snapshot", b0, b1)
         assertEquals(base, b0)
@@ -61,8 +61,8 @@ class ForecastHistoryPolicyTest {
         val t11 = base + 11L * 60 * 60 * 1000 // +11h
         // For a non-priority source both fall in the same 12h bucket (would be different 4h buckets).
         assertEquals(
-            ForecastHistoryPolicy.snapshotBucket(t5, nonPriority, priority),
-            ForecastHistoryPolicy.snapshotBucket(t11, nonPriority, priority),
+            ForecastHistoryPolicy.timestampToGroupPredictions(t5, nonPriority, priority),
+            ForecastHistoryPolicy.timestampToGroupPredictions(t11, nonPriority, priority),
         )
     }
 }

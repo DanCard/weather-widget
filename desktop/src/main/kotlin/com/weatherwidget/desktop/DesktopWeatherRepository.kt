@@ -87,7 +87,7 @@ class DesktopWeatherRepository(
         
         // Cover the widest zoom-out (6 days back) so the actual line spans the whole window,
         // matching the hourly read above. Observations exist ~7-14 days back (NWS HISTORY_DAYS=7,
-        // 30-day retention); only the read window was capping the actual line at 2 days.
+        // 18-month retention); only the read window was capping the actual line at 2 days.
         val obsStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
         val obsEnd = now + (2 * 3600 * 1000L) // Include some cushion
         val observations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
@@ -208,15 +208,15 @@ class DesktopWeatherRepository(
             backfillFrozenDisplayColumnsIfNeeded(now)
 
             // Snapshot for history (Tier 1 simplification: 4h buckets)
-            val snapshotBucket = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
-            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, snapshotBucket, result.hourly)
+            val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
+            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, result.hourly)
 
             // Best-effort: ensure climate normals are cached for the future-day fallback. One network
             // fetch per location, then served from cache; never fails the main refresh.
             ensureClimateNormals()
 
-            // Cleanup old data (> 30 days)
-            weatherDao.cleanup(now - (30L * 24 * 3600 * 1000))
+            // Cleanup old data (> 18 months / 547 days)
+            weatherDao.cleanup(now - (DB_RETENTION_DAYS * 24 * 3600 * 1000L))
 
             // Persistent pipeline-health summary
             weatherDao.log(
@@ -438,7 +438,7 @@ class DesktopWeatherRepository(
      * returns the freshest snapshot per hour, the same "latest forecast wins" rule the live hourly
      * graph uses for its own hindcast segment.
      *
-     * Best-effort: a day with no matching history rows (never fetched, or aged past the 30-day
+     * Best-effort: a day with no matching history rows (never fetched, or aged past the 18-month
      * hourly_forecast_history retention) is simply left with null chances, same as today — no
      * regression, just a missed enhancement for that day. Gated by a one-time marker in app_logs
      * (reusing the existing pipeline-health log rather than a new config field or file) since a row's
@@ -497,8 +497,11 @@ class DesktopWeatherRepository(
         val startMs = today.minusDays(CHANCE_BACKFILL_LOOKBACK_DAYS).atStartOfDay(zoneId).toInstant().toEpochMilli()
         val endMs = today.atStartOfDay(zoneId).toInstant().toEpochMilli()
 
+        // Per-column: a row can already carry noon cloud but no overlay (the live writer runs
+        // before this backfill, and yesterday's noon-cloud window is still open on the first
+        // post-migration fetch) — an all-columns-null row gate would skip its overlay forever.
         val rowsNeedingBackfill = weatherDao.getExtremesInRange(startMs, endMs, latitude, longitude)
-            .filter { it.forecastHighTemp == null && it.forecastLowTemp == null && it.noonCloudPercent == null }
+            .filter { (it.forecastHighTemp == null && it.forecastLowTemp == null) || it.noonCloudPercent == null }
 
         val snapshotsBySource = rowsNeedingBackfill.map { it.source }.distinct().associateWith { source ->
             weatherDao.getDailyForecastSnapshots(startMs, endMs, latitude, longitude, source)
@@ -525,15 +528,15 @@ class DesktopWeatherRepository(
                 )
             }
 
-            if (overlay == null && noonCloud == null) continue
-            toUpsert.add(
-                row.copy(
-                    forecastHighTemp = overlay?.highTemp,
-                    forecastLowTemp = overlay?.lowTemp,
-                    forecastPrecipAmountMm = overlay?.precipAmountMm,
-                    noonCloudPercent = noonCloud,
-                ),
+            // Fill only what's missing — never overwrite a value the live writer already froze.
+            val updated = row.copy(
+                forecastHighTemp = row.forecastHighTemp ?: overlay?.highTemp,
+                forecastLowTemp = row.forecastLowTemp ?: overlay?.lowTemp,
+                forecastPrecipAmountMm = row.forecastPrecipAmountMm ?: overlay?.precipAmountMm,
+                noonCloudPercent = row.noonCloudPercent ?: noonCloud,
             )
+            if (updated == row) continue
+            toUpsert.add(updated)
         }
         if (toUpsert.isNotEmpty()) weatherDao.upsertDailyHistory(toUpsert)
         weatherDao.log(FROZEN_DISPLAY_BACKFILL_DONE_TAG, "backfilled=${toUpsert.size} scanned=${rowsNeedingBackfill.size}")
@@ -620,14 +623,15 @@ class DesktopWeatherRepository(
 
     companion object {
         private const val HISTORY_WINDOW_DAYS = 7L
-        private const val ACTUALS_HISTORY_DAYS = 31L
+        private const val ACTUALS_HISTORY_DAYS = 547L
         private const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L
         private const val GAP_HORIZON_DAYS = 16L
         // The launch backfill / normal refresh always cover ~7 days back, so on-demand history starts
-        // from here and only deepens. Capped at the 30-day DB retention (cleanup deletes past that).
+        // from here and only deepens. Capped at the 18-month DB retention (cleanup deletes past that).
         private const val BASELINE_HISTORY_DAYS = 7
-        private const val MAX_HISTORY_DAYS = 30
-        private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 30L
+        private const val MAX_HISTORY_DAYS = 547
+        private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 547L
+        private const val DB_RETENTION_DAYS = 547L // 18 months (~547 days)
         private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
         private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = "FROZEN_DISPLAY_BACKFILL_DONE"
     }

@@ -40,6 +40,7 @@
     <string name="api_source_openmeteo_desc">Open-Meteo — shown as Meteo (global coverage)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — shown as WAPI (global coverage)</string>
     <string name="statistics">Statistics</string>
+    <string name="view_detailed_statistics">Detailed Statistics</string>
     <string name="forecast_accuracy_summary_title">Forecast Accuracy (Last 30 Days)</string>
     <string name="loading_accuracy_summary">Loading forecast accuracy...</string>
     <string name="error_loading_accuracy_summary">Unable to load forecast accuracy right now.</string>

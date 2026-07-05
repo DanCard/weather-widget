@@ -96,7 +96,7 @@ class RainAccuracyCalculator
                 rows
                     .groupBy { hourOf(it.dateTime, zoneId) }
                     .mapNotNull { (hour, hourRows) ->
-                        val amount = hourRows.maxByOrNull { it.snapshotBucket }?.precipAmountMm
+                        val amount = hourRows.maxByOrNull { it.timestampToGroupPredictions }?.precipAmountMm
                             ?: return@mapNotNull null
                         hour to amount
                     }

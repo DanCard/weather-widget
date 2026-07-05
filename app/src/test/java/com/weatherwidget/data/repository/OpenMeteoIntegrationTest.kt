@@ -244,10 +244,10 @@ class OpenMeteoIntegrationTest {
         repository = createRepository(mockResponse)
         repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
 
-        data class HistRow(val dateTime: Long, val snapshotBucket: Long, val cloudCover: Int?, val fetchedAt: Long)
+        data class HistRow(val dateTime: Long, val timestampToGroupPredictions: Long, val cloudCover: Int?, val fetchedAt: Long)
         val rows = mutableListOf<HistRow>()
         db.query(
-            "SELECT dateTime, snapshotBucket, cloudCover, fetchedAt FROM hourly_forecast_history " +
+            "SELECT dateTime, timestampToGroupPredictions, cloudCover, fetchedAt FROM hourly_forecast_history " +
                 "WHERE source = ? ORDER BY dateTime",
             arrayOf<Any?>("OPEN_METEO"),
         ).use { c ->
@@ -255,7 +255,7 @@ class OpenMeteoIntegrationTest {
                 rows.add(
                     HistRow(
                         dateTime = c.getLong(0),
-                        snapshotBucket = c.getLong(1),
+                        timestampToGroupPredictions = c.getLong(1),
                         cloudCover = if (c.isNull(2)) null else c.getInt(2),
                         fetchedAt = c.getLong(3),
                     ),
@@ -270,10 +270,10 @@ class OpenMeteoIntegrationTest {
         // Each row's bucket = policy applied to its real fetchedAt, and 4h-aligned (primary source).
         rows.forEach { r ->
             assertEquals(
-                ForecastHistoryPolicy.snapshotBucket(r.fetchedAt, "OPEN_METEO", setOf("OPEN_METEO")),
-                r.snapshotBucket,
+                ForecastHistoryPolicy.timestampToGroupPredictions(r.fetchedAt, "OPEN_METEO", setOf("OPEN_METEO")),
+                r.timestampToGroupPredictions,
             )
-            assertEquals("primary bucket must be 4h-aligned", 0L, r.snapshotBucket % ForecastHistoryPolicy.PRIMARY_BUCKET_MS)
+            assertEquals("primary bucket must be 4h-aligned", 0L, r.timestampToGroupPredictions % ForecastHistoryPolicy.PRIMARY_BUCKET_MS)
         }
     }
 }
