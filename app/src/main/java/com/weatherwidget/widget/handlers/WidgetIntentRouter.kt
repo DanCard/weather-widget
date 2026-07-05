@@ -17,6 +17,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.WeatherTimeUtils
@@ -158,12 +159,18 @@ suspend fun handleNavigation(
         val ctx = resolveRefreshContext(context, "daily_nav")
         val appLogDao = ctx.database.appLogDao()
 
-        val historyStart = LocalDate.now().minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
-        val forecastEnd = LocalDate.now().plusDays(DAILY_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
-
-        val weatherList = ctx.forecastDao.getForecastsInRange(historyStart, forecastEnd, ctx.location.lat, ctx.location.lon)
-
         val today = LocalDate.now()
+        val historyStart = today.minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val forecastEnd = today.plusDays(DAILY_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+
+        val weatherList = ClimateGapFiller(ctx.database.climateNormalDao()).appendGaps(
+            ctx.forecastDao.getForecastsInRange(historyStart, forecastEnd, ctx.location.lat, ctx.location.lon),
+            ctx.location.lat,
+            ctx.location.lon,
+            today,
+            horizonDays = DAILY_FORECAST_DAYS,
+        )
+
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
@@ -729,13 +736,26 @@ suspend fun handleResize(
 
         val forecastDao = database.forecastDao()
         val hourlyDao = database.hourlyForecastDao()
+        val gapFiller = ClimateGapFiller(database.climateNormalDao())
 
-        val finalWeatherList = weatherList ?: forecastDao.getForecastsInRange(historyStart, forecastEnd, lat, lon)
+        val finalWeatherList = gapFiller.appendGaps(
+            weatherList ?: forecastDao.getForecastsInRange(historyStart, forecastEnd, lat, lon),
+            lat,
+            lon,
+            today,
+            horizonDays = DAILY_FORECAST_DAYS,
+        )
         val pastSnapshots = forecastDao.getLatestForecastsInRange(historyStart, pastSnapshotEnd, lat, lon)
         val recentSnapshots = forecastDao.getAllForecastsInRange(recentSnapshotStart, forecastEnd, lat, lon)
-        val forecastSnapshots =
+        val forecastSnapshots = gapFiller.appendGapsToSnapshots(
             (pastSnapshots + recentSnapshots)
-                .groupBy { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }
+                .groupBy { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) },
+            lat,
+            lon,
+            locationName = finalWeatherList.firstOrNull { it.source != WeatherSource.GENERIC_GAP.id }?.locationName ?: "",
+            today,
+            horizonDays = DAILY_FORECAST_DAYS,
+        )
 
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()

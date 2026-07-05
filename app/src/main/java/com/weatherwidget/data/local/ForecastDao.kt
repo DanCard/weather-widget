@@ -281,6 +281,14 @@ interface ForecastDao {
     suspend fun deleteOldForecastsBySource(cutoffTime: Long, source: String)
 
     /**
+     * Permanent, idempotent purge of climate-normal gap rows — they're synthesized at read time now
+     * (see ClimateGapFiller) and never (re)persisted, but leftover rows from before that change need
+     * a one-time cleanup during the upgrade window.
+     */
+    @Query("DELETE FROM forecasts WHERE source = :source OR isClimateNormal = 1")
+    suspend fun deleteClimateNormalRows(source: String)
+
+    /**
      * Removes existing rows for the given targets whose fetchedAt falls in a snapshot bucket window
      * [bucketStart, bucketEnd). Used to cap daily forecast-history cadence (4h primary / 8h other):
      * delete the earlier in-bucket snapshot before inserting the latest, so at most one row per

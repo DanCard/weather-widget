@@ -16,7 +16,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.MonthDay
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 
@@ -599,24 +598,14 @@ class DesktopWeatherRepository(
         val normals = ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
         val existing = daily.map { LocalDate.parse(it.date) }.toSet()
         val today = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
-        val gaps = mutableListOf<DailyForecast>()
-        var date = today
-        val end = today.plusDays(GAP_HORIZON_DAYS)
-        while (!date.isAfter(end)) {
-            if (date !in existing) {
-                normals[MonthDay.from(date)]?.let { (high, low) ->
-                    gaps.add(
-                        DailyForecast(
-                            date = date.toString(),
-                            highTemp = high,
-                            lowTemp = low,
-                            condition = "Historical Avg",
-                            isClimateNormal = true,
-                        ),
-                    )
-                }
-            }
-            date = date.plusDays(1)
+        val gaps = ClimateNormals.fillGaps(existing, normals, today, GAP_HORIZON_DAYS).map { gap ->
+            DailyForecast(
+                date = gap.date.toString(),
+                highTemp = gap.highTemp,
+                lowTemp = gap.lowTemp,
+                condition = "Historical Avg",
+                isClimateNormal = true,
+            )
         }
         return if (gaps.isEmpty()) daily else daily + gaps
     }

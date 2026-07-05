@@ -49,6 +49,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.DailyActualsBySource
@@ -142,6 +143,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val forecastDao = database.forecastDao()
             val hourlyDao = database.hourlyForecastDao()
             val appLogDao = database.appLogDao()
+            val gapFiller = ClimateGapFiller(database.climateNormalDao())
             val latestDbLifecycle = appLogDao.getLatestDatabaseLifecycleEvent()
             WidgetPerfLogger.logIfSlow(
                 appLogDao = appLogDao,
@@ -198,6 +200,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         latestWeather = latestWeather,
                         activeSourceList = activeSourceList,
                         needsDailyData = needsDailyData,
+                        gapFiller = gapFiller,
                     )
                     renderStartupWidgets(
                         context = context,
@@ -261,6 +264,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         latestWeather: ForecastEntity,
         activeSourceList: List<String>,
         needsDailyData: Boolean,
+        gapFiller: ClimateGapFiller,
     ): StartupQueryResult = coroutineScope {
         val today = LocalDate.now()
         val historyStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
@@ -294,8 +298,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     latestWeather.locationLon,
                     activeSourceList,
                 )
-                (pastSnapshots + recentSnapshots)
+                val grouped = (pastSnapshots + recentSnapshots)
                     .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+                gapFiller.appendGapsToSnapshots(
+                    grouped,
+                    latestWeather.locationLat,
+                    latestWeather.locationLon,
+                    latestWeather.locationName,
+                    today,
+                    horizonDays = 7L,
+                )
             } else {
                 emptyMap()
             }
@@ -338,7 +350,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
 
         val forecastQueryStartMs = SystemClock.elapsedRealtime()
-        val weatherList = weatherListDeferred.await()
+        val weatherList = gapFiller.appendGaps(
+            weatherListDeferred.await(),
+            latestWeather.locationLat,
+            latestWeather.locationLon,
+            today,
+            horizonDays = 7L,
+        )
         val forecastQueryMs = SystemClock.elapsedRealtime() - forecastQueryStartMs
         Log.d(TAG, "loadStartupData: forecastQueryMs=$forecastQueryMs count=${weatherList.size}")
 

@@ -38,6 +38,11 @@ class WeatherRepositoryRateLimitIntegrationTest {
     ): WeatherRepository {
         val widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
         every { widgetStateManager.isSourceVisible(any()) } returns true
+        // Every individual source fetch is wrapped in ForecastRepository.safeFetch, which catches and
+        // contains per-source failures — so throwing from the per-API mocks above never reaches
+        // getWeatherData's outer catch. Force a failure at the one point in the fetch orchestration
+        // that ISN'T contained, to genuinely exercise "an exception during fetch resets the rate limit".
+        every { widgetStateManager.getVisibleSourcesOrder() } throws Exception("widget state unavailable")
         val forecastRepo = ForecastRepository(
             context,
             db.forecastDao(),

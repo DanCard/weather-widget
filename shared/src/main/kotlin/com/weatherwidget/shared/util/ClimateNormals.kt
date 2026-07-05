@@ -96,4 +96,34 @@ object ClimateNormals {
         }
         return result
     }
+
+    /** One climate-normal-derived fallback day, for a date not covered by a real forecast. */
+    data class GapDay(val date: LocalDate, val highTemp: Float, val lowTemp: Float)
+
+    /**
+     * One [GapDay] per date in `[today, today+horizonDays]` not already in [coveredDates] and having
+     * a normal for its [MonthDay] in [normalsByMonthDay]. Empty normals (nothing cached yet) yields an
+     * empty list — callers should treat that as "no fallback available", not an error.
+     */
+    fun fillGaps(
+        coveredDates: Set<LocalDate>,
+        normalsByMonthDay: Map<MonthDay, Pair<Float, Float>>,
+        today: LocalDate,
+        horizonDays: Long,
+    ): List<GapDay> {
+        if (normalsByMonthDay.isEmpty()) return emptyList()
+
+        val gaps = mutableListOf<GapDay>()
+        var date = today
+        val end = today.plusDays(horizonDays)
+        while (!date.isAfter(end)) {
+            if (date !in coveredDates) {
+                normalsByMonthDay[MonthDay.from(date)]?.let { (high, low) ->
+                    gaps.add(GapDay(date, high, low))
+                }
+            }
+            date = date.plusDays(1)
+        }
+        return gaps
+    }
 }

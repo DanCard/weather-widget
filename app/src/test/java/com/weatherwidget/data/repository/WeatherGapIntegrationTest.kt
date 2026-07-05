@@ -1,9 +1,11 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.local.ClimateNormalEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
+import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -87,35 +89,46 @@ class WeatherGapIntegrationTest {
     @After
     fun tearDown() = db.close()
 
+    /** Seeds the 12 monthly-mean rows read-time gap-fill (ClimateGapFiller) needs — never real ForecastEntity rows. */
+    private suspend fun seedNormals(high: Float = 66f, low: Float = 46f) {
+        val locationKey = ClimateNormals.locationKey(lat, lon)
+        db.climateNormalDao().insertAll(
+            (1..12).map { month ->
+                ClimateNormalEntity(
+                    monthDay = "${month.toString().padStart(2, '0')}-15",
+                    locationKey = locationKey,
+                    highTemp = high,
+                    lowTemp = low,
+                )
+            },
+        )
+    }
+
     @Test
     fun `getCachedDataBySource returns provider for overlapping dates and generic for provider gaps`() = runTest {
+        seedNormals()
         val providerBatchFetchedAt = 1_000L
-        val gapBatchFetchedAt = 2_000L
         db.forecastDao().insertAll(
             listOf(
                 forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, batchFetchedAt = providerBatchFetchedAt, fetchedAt = 10_000L),
-                forecast(todayStr, WeatherSource.GENERIC_GAP, 65f, 45f, isClimateNormal = true, batchFetchedAt = gapBatchFetchedAt, fetchedAt = 20_000L),
                 forecast(tomorrowStr, WeatherSource.SILURIAN, 71f, 51f, batchFetchedAt = providerBatchFetchedAt, fetchedAt = 10_001L),
-                forecast(dayAfterTomorrowStr, WeatherSource.GENERIC_GAP, 67f, 47f, isClimateNormal = true, batchFetchedAt = gapBatchFetchedAt, fetchedAt = 20_001L),
             ),
         )
 
         val result = repository.getCachedDataBySource(lat, lon, WeatherSource.SILURIAN)
 
-        assertEquals(listOf(dateEpoch(todayStr), dateEpoch(tomorrowStr), dateEpoch(dayAfterTomorrowStr)), result.map { it.targetDate })
+        // Generation now extends out to the full cache horizon (not just "the next day"), so assert
+        // per-date rather than an exact list.
         assertEquals(WeatherSource.SILURIAN.id, result.first { it.targetDate == dateEpoch(todayStr) }.source)
         assertEquals(WeatherSource.SILURIAN.id, result.first { it.targetDate == dateEpoch(tomorrowStr) }.source)
         assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dateEpoch(dayAfterTomorrowStr) }.source)
+        assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dateEpoch(threeDaysOutStr) }.source)
     }
 
     @Test
     fun `getCachedDataBySource preserves generic fallback marker for widget styling`() = runTest {
-        db.forecastDao().insertAll(
-            listOf(
-                forecast(todayStr, WeatherSource.WEATHER_API, 72f, 52f),
-                forecast(tomorrowStr, WeatherSource.GENERIC_GAP, 68f, 48f, isClimateNormal = true),
-            ),
-        )
+        seedNormals()
+        db.forecastDao().insertAll(listOf(forecast(todayStr, WeatherSource.WEATHER_API, 72f, 52f)))
 
         val result = repository.getCachedDataBySource(lat, lon, WeatherSource.WEATHER_API)
 
@@ -126,6 +139,7 @@ class WeatherGapIntegrationTest {
 
     @Test
     fun `getCachedDataBySource keeps old source history but current selection follows newest shorter same-day horizon`() = runTest {
+        seedNormals()
         val olderBatchFetchedAt = 1_000L
         val newerBatchFetchedAt = 2_000L
         val sameDayForecastDate = todayStr
@@ -139,9 +153,6 @@ class WeatherGapIntegrationTest {
 
                 forecast(todayStr, WeatherSource.SILURIAN, 74f, 54f, forecastDate = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_000L),
                 forecast(tomorrowStr, WeatherSource.SILURIAN, 75f, 55f, forecastDate = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_001L),
-
-                forecast(dayAfterTomorrowStr, WeatherSource.GENERIC_GAP, 66f, 46f, isClimateNormal = true, forecastDate = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_100L),
-                forecast(threeDaysOutStr, WeatherSource.GENERIC_GAP, 67f, 47f, isClimateNormal = true, forecastDate = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_101L),
             ),
         )
 
@@ -150,9 +161,10 @@ class WeatherGapIntegrationTest {
 
         val result = repository.getCachedDataBySource(lat, lon, WeatherSource.SILURIAN)
 
-        assertEquals(listOf(dateEpoch(todayStr), dateEpoch(tomorrowStr), dateEpoch(dayAfterTomorrowStr), dateEpoch(threeDaysOutStr)), result.map { it.targetDate })
         assertEquals(74f, result.first { it.targetDate == dateEpoch(todayStr) }.highTemp)
         assertEquals(75f, result.first { it.targetDate == dateEpoch(tomorrowStr) }.highTemp)
+        // The newest batch only re-forecast today+tomorrow; day-after and beyond fall back to the
+        // read-time climate-normal fill (never a leftover persisted gap row).
         assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dateEpoch(dayAfterTomorrowStr) }.source)
         assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dateEpoch(threeDaysOutStr) }.source)
     }

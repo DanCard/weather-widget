@@ -18,6 +18,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.DailyActualsBySource
 import dagger.assisted.Assisted
@@ -349,7 +350,10 @@ class WeatherWidgetWorker
 
                 val pastSnapshots = weatherRepository.getLatestForecastsInRange(pastStart, pastEnd, lat, lon)
                 val recentSnapshots = weatherRepository.getAllForecastsInRange(recentStart, recentEnd, lat, lon)
-                (pastSnapshots + recentSnapshots).groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+                val grouped = (pastSnapshots + recentSnapshots).groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+
+                val gapFiller = ClimateGapFiller(WeatherDatabase.getDatabase(context).climateNormalDao())
+                gapFiller.appendGapsToSnapshots(grouped, lat, lon, getLocationName(lat, lon), today, horizonDays = 7L)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch forecast snapshots", e)
                 emptyMap()

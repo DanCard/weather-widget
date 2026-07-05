@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
+import com.weatherwidget.data.local.ClimateNormalEntity
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
@@ -13,6 +14,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.testutil.TestData.dateEpoch
+import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
@@ -106,19 +108,29 @@ class WeatherGapTest {
     }
 
     @Test
-    fun `getCachedDataBySource merges provider data with generic gap data`() =
+    fun `getCachedDataBySource merges provider data with read-time climate-normal gap fill`() =
         runTest {
             val nwsData = listOf(createForecastEntity(today, 70, 50, "NWS"))
-            val gapData = listOf(
-                createForecastEntity(today, 65, 45, WeatherSource.GENERIC_GAP.id, isClimateNormal = true),
-                createForecastEntity(tomorrow, 66, 46, WeatherSource.GENERIC_GAP.id, isClimateNormal = true),
-            )
             coEvery { forecastDao.getForecastsInRangeBySource(any(), any(), testLat, testLon, "NWS") } returns nwsData
-            coEvery { forecastDao.getForecastsInRangeBySource(any(), any(), testLat, testLon, WeatherSource.GENERIC_GAP.id) } returns gapData
+
+            val locationKey = ClimateNormals.locationKey(testLat, testLon)
+            coEvery { climateNormalDao.getNormalsForLocation(locationKey) } returns
+                (1..12).map { month ->
+                    ClimateNormalEntity(
+                        monthDay = "${month.toString().padStart(2, '0')}-15",
+                        locationKey = locationKey,
+                        highTemp = 66f,
+                        lowTemp = 46f,
+                    )
+                }
+
             val result = repository.getCachedDataBySource(testLat, testLon, WeatherSource.NWS)
-            assertEquals(2, result.size)
+
             assertEquals("NWS", result.find { it.targetDate == dateEpoch(today) }?.source)
             assertEquals(WeatherSource.GENERIC_GAP.id, result.find { it.targetDate == dateEpoch(tomorrow) }?.source)
+            // Generation now extends out to the full cache horizon, not just "tomorrow" — no persisted
+            // gap row is ever read back, so every future day's fallback comes from the cached normals.
+            assertTrue(result.size > 2)
         }
 
     private fun createForecastEntity(date: String, high: Int, low: Int, source: String, isClimateNormal: Boolean = false) =

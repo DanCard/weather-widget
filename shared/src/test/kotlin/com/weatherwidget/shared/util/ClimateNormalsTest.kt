@@ -77,4 +77,56 @@ class ClimateNormalsTest {
     fun `locationKey rounds to one tenth`() {
         assertEquals("37.4_-122.1", ClimateNormals.locationKey(37.4244, -122.1428))
     }
+
+    @Test
+    fun `fillGaps skips covered dates`() {
+        val today = LocalDate.of(2026, 3, 1)
+        val normals = mapOf(MonthDay.of(3, 1) to (60f to 40f), MonthDay.of(3, 2) to (61f to 41f))
+        val covered = setOf(LocalDate.of(2026, 3, 1))
+
+        val gaps = ClimateNormals.fillGaps(covered, normals, today, horizonDays = 1)
+
+        assertEquals(listOf(LocalDate.of(2026, 3, 2)), gaps.map { it.date })
+        assertEquals(61f, gaps.single().highTemp, 0.001f)
+        assertEquals(41f, gaps.single().lowTemp, 0.001f)
+    }
+
+    @Test
+    fun `fillGaps horizon bounds are inclusive`() {
+        val today = LocalDate.of(2026, 3, 1)
+        val normals = (1..3).associate { MonthDay.of(3, it) to (60f to 40f) }
+
+        val gaps = ClimateNormals.fillGaps(emptySet(), normals, today, horizonDays = 2)
+
+        assertEquals(
+            listOf(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 3)),
+            gaps.map { it.date },
+        )
+    }
+
+    @Test
+    fun `fillGaps returns empty for empty normals`() {
+        val gaps = ClimateNormals.fillGaps(emptySet(), emptyMap(), LocalDate.of(2026, 3, 1), horizonDays = 5)
+        assertTrue(gaps.isEmpty())
+    }
+
+    @Test
+    fun `fillGaps skips a date with no normal for its MonthDay`() {
+        val today = LocalDate.of(2026, 3, 1)
+        val normals = mapOf(MonthDay.of(3, 1) to (60f to 40f)) // no entry for 3/2
+
+        val gaps = ClimateNormals.fillGaps(emptySet(), normals, today, horizonDays = 1)
+
+        assertEquals(listOf(LocalDate.of(2026, 3, 1)), gaps.map { it.date })
+    }
+
+    @Test
+    fun `fillGaps with no covered dates fills today through horizon`() {
+        val today = LocalDate.of(2026, 3, 1)
+        val normals = (1..5).associate { MonthDay.of(3, it) to (60f to 40f) }
+
+        val gaps = ClimateNormals.fillGaps(emptySet(), normals, today, horizonDays = 4)
+
+        assertEquals((1..5).map { LocalDate.of(2026, 3, it) }, gaps.map { it.date })
+    }
 }
