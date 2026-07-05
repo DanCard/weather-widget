@@ -1681,7 +1681,7 @@ class DailyViewLogicTest {
     ): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),
-            forecastDate = dateEpoch(date),
+            dateOfPrediction = dateEpoch(date),
             locationLat = 37.7749,
             locationLon = -122.4194,
             locationName = "Test",

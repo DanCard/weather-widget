@@ -99,7 +99,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO forecasts
-                    (targetDate, forecastDate, locationLat, locationLon, locationName, highTemp, lowTemp, condition,
+                    (targetDate, dateOfPrediction, locationLat, locationLon, locationName, highTemp, lowTemp, condition,
                      nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
                      daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -944,7 +944,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<DesktopForecastRow>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT targetDate, forecastDate, source, highTemp, lowTemp, fetchedAt FROM forecasts
+                SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt FROM forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate >= ? AND targetDate <= ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -957,7 +957,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 while (rs.next()) {
                     result.add(DesktopForecastRow(
                         targetDate = rs.getLong("targetDate"),
-                        forecastDate = rs.getLong("forecastDate"),
+                        dateOfPrediction = rs.getLong("dateOfPrediction"),
                         source = rs.getString("source"),
                         highTemp = rs.getNullableFloat("highTemp"),
                         lowTemp = rs.getNullableFloat("lowTemp"),
@@ -978,9 +978,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<DesktopForecastRow>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT targetDate, forecastDate, source, highTemp, lowTemp, fetchedAt FROM forecasts
+                SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt FROM forecasts
                 WHERE targetDate = ? AND ${LocationMatch.JDBC_WHERE}
-                ORDER BY forecastDate ASC, batchFetchedAt ASC, fetchedAt ASC
+                ORDER BY dateOfPrediction ASC, batchFetchedAt ASC, fetchedAt ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setLong(1, targetDate)
@@ -990,7 +990,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 while (rs.next()) {
                     result.add(DesktopForecastRow(
                         targetDate = rs.getLong("targetDate"),
-                        forecastDate = rs.getLong("forecastDate"),
+                        dateOfPrediction = rs.getLong("dateOfPrediction"),
                         source = rs.getString("source"),
                         highTemp = rs.getNullableFloat("highTemp"),
                         lowTemp = rs.getNullableFloat("lowTemp"),

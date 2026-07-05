@@ -56,7 +56,7 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
             db.forecastDao().insertForecast(
                 ForecastEntity(
                     targetDate = dateEpoch(todayStr),
-                    forecastDate = dateEpoch(todayStr),
+                    dateOfPrediction = dateEpoch(todayStr),
                     locationLat = WeatherWidgetWorker.DEFAULT_LAT,
                     locationLon = WeatherWidgetWorker.DEFAULT_LON,
                     locationName = "Mountain View, CA",

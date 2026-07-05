@@ -359,7 +359,7 @@ class DailyForecastIconResolverTest {
         precipProbability: Int? = null,
     ) = ForecastEntity(
         targetDate = LocalDate.of(2030, 6, 15).toEpochDay(),
-        forecastDate = LocalDate.of(2030, 6, 15).toEpochDay(),
+        dateOfPrediction = LocalDate.of(2030, 6, 15).toEpochDay(),
         locationLat = 37.42,
         locationLon = -122.08,
         locationName = "Test",

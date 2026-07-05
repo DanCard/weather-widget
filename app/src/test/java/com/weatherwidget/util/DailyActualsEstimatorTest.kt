@@ -21,7 +21,7 @@ class DailyActualsEstimatorTest {
     private val displaySource = WeatherSource.OPEN_METEO
     private val fallbackWeather = ForecastEntity(
         targetDate = dateEpoch("2026-02-25"),
-        forecastDate = dateEpoch("2026-02-25"),
+        dateOfPrediction = dateEpoch("2026-02-25"),
         locationLat = 0.0,
         locationLon = 0.0,
         locationName = "Test",

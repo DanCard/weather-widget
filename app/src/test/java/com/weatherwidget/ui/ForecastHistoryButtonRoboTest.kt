@@ -53,7 +53,7 @@ class ForecastHistoryButtonRoboTest {
         db.forecastDao().insertForecast(
             ForecastEntity(
                 targetDate = dateEpoch(today),
-                forecastDate = dateEpoch(yesterday),
+                dateOfPrediction = dateEpoch(yesterday),
                 locationLat = lat,
                 locationLon = lon,
                 highTemp = 72f,
@@ -117,12 +117,12 @@ class ForecastHistoryButtonRoboTest {
     @Test
     fun buttonShowsEvolution_whenPastDateAndSnapshotsExist() = runBlocking {
         val targetDate = LocalDate.now().minusDays(2).toString()
-        val forecastDate = LocalDate.now().minusDays(3).toString()
+        val dateOfPrediction = LocalDate.now().minusDays(3).toString()
 
         db.forecastDao().insertForecast(
             ForecastEntity(
                 targetDate = dateEpoch(targetDate),
-                forecastDate = dateEpoch(forecastDate),
+                dateOfPrediction = dateEpoch(dateOfPrediction),
                 locationLat = lat,
                 locationLon = lon,
                 highTemp = 68f,

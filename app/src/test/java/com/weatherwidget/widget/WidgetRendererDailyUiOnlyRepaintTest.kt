@@ -145,7 +145,7 @@ class WidgetRendererDailyUiOnlyRepaintTest {
     private fun createWeather(date: String, highTemp: Float, lowTemp: Float): ForecastEntity =
         ForecastEntity(
             targetDate = dateEpoch(date),
-            forecastDate = dateEpoch(date),
+            dateOfPrediction = dateEpoch(date),
             locationLat = 37.7749,
             locationLon = -122.4194,
             locationName = "Test",

@@ -215,7 +215,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
                 listOf(
                     ForecastEntity(
                         targetDate = targetDay.toEpochDay() * 24 * 60 * 60 * 1000L,
-                        forecastDate = LocalDate.now().toEpochDay() * 24 * 60 * 60 * 1000L,
+                        dateOfPrediction = LocalDate.now().toEpochDay() * 24 * 60 * 60 * 1000L,
                         locationLat = lat,
                         locationLon = lon,
                         locationName = "Mountain View, CA",

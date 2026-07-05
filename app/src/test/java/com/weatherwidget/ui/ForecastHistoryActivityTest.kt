@@ -222,7 +222,7 @@ class ForecastHistoryActivityTest {
         val targetDate = "2026-02-28"
         val base = ForecastEntity(
             targetDate = dateEpoch(targetDate),
-            forecastDate = dateEpoch("2026-02-28"),
+            dateOfPrediction = dateEpoch("2026-02-28"),
             locationLat = 37.0,
             locationLon = -122.0,
             locationName = "",

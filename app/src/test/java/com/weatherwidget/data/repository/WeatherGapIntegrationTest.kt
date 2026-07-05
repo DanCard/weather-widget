@@ -146,13 +146,13 @@ class WeatherGapIntegrationTest {
 
         db.forecastDao().insertAll(
             listOf(
-                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, forecastDate = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_000L),
-                forecast(tomorrowStr, WeatherSource.SILURIAN, 71f, 51f, forecastDate = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_001L),
-                forecast(dayAfterTomorrowStr, WeatherSource.SILURIAN, 72f, 52f, forecastDate = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_002L),
-                forecast(threeDaysOutStr, WeatherSource.SILURIAN, 73f, 53f, forecastDate = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_003L),
+                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_000L),
+                forecast(tomorrowStr, WeatherSource.SILURIAN, 71f, 51f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_001L),
+                forecast(dayAfterTomorrowStr, WeatherSource.SILURIAN, 72f, 52f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_002L),
+                forecast(threeDaysOutStr, WeatherSource.SILURIAN, 73f, 53f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_003L),
 
-                forecast(todayStr, WeatherSource.SILURIAN, 74f, 54f, forecastDate = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_000L),
-                forecast(tomorrowStr, WeatherSource.SILURIAN, 75f, 55f, forecastDate = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_001L),
+                forecast(todayStr, WeatherSource.SILURIAN, 74f, 54f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_000L),
+                forecast(tomorrowStr, WeatherSource.SILURIAN, 75f, 55f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_001L),
             ),
         )
 
@@ -175,12 +175,12 @@ class WeatherGapIntegrationTest {
         highTemp: Float,
         lowTemp: Float,
         isClimateNormal: Boolean = false,
-        forecastDate: String = todayStr,
+        dateOfPrediction: String = todayStr,
         batchFetchedAt: Long = System.currentTimeMillis(),
         fetchedAt: Long = System.currentTimeMillis(),
     ) = com.weatherwidget.data.local.ForecastEntity(
         targetDate = dateEpoch(date),
-        forecastDate = dateEpoch(forecastDate),
+        dateOfPrediction = dateEpoch(dateOfPrediction),
         locationLat = lat,
         locationLon = lon,
         locationName = "Test",

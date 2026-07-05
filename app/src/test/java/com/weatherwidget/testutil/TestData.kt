@@ -19,7 +19,7 @@ object TestData {
 
     fun forecast(
         targetDate: String = "2026-02-20",
-        forecastDate: String = "2026-02-20",
+        dateOfPrediction: String = "2026-02-20",
         source: String = "NWS",
         highTemp: Float? = 65f,
         lowTemp: Float? = 45f,
@@ -32,7 +32,7 @@ object TestData {
         lon: Double = LON,
     ) = ForecastEntity(
         targetDate = dateEpoch(targetDate),
-        forecastDate = dateEpoch(forecastDate),
+        dateOfPrediction = dateEpoch(dateOfPrediction),
         locationLat = lat,
         locationLon = lon,
         locationName = LOCATION_NAME,

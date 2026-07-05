@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 53,
+    version = 54,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -205,6 +205,17 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_53_54 = object : Migration(53, 54) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt`")
+                db.execSQL("ALTER TABLE `forecasts` RENAME COLUMN `forecastDate` TO `dateOfPrediction`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt` " +
+                        "ON `forecasts` (`targetDate`, `source`, `locationLat`, `locationLon`, `batchFetchedAt`)",
+                )
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -267,7 +278,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

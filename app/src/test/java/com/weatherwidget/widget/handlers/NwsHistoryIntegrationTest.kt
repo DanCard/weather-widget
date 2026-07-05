@@ -40,7 +40,7 @@ class NwsHistoryIntegrationTest {
     fun nws_history_bar_uses_source_specific_actuals() = runBlocking {
         val partialForecast = ForecastEntity(
             targetDate = dateEpoch(yesterdayStr),
-            forecastDate = dateEpoch(yesterdayStr),
+            dateOfPrediction = dateEpoch(yesterdayStr),
             highTemp = 77f,
             lowTemp = 50f,
             condition = "Sunny",
@@ -80,7 +80,7 @@ class NwsHistoryIntegrationTest {
     fun history_comparison_prefers_complete_snapshots_over_latest_partial() = runBlocking {
         val completeForecast = ForecastEntity(
             targetDate = dateEpoch(yesterdayStr),
-            forecastDate = dateEpoch(yesterday.minusDays(1).toString()),
+            dateOfPrediction = dateEpoch(yesterday.minusDays(1).toString()),
             highTemp = 75f,
             lowTemp = 50f,
             condition = "Cloudy",
@@ -92,7 +92,7 @@ class NwsHistoryIntegrationTest {
 
         val partialForecast = ForecastEntity(
             targetDate = dateEpoch(yesterdayStr),
-            forecastDate = dateEpoch(yesterdayStr),
+            dateOfPrediction = dateEpoch(yesterdayStr),
             highTemp = 77f,
             lowTemp = null,
             condition = "Sunny",
@@ -127,7 +127,7 @@ class NwsHistoryIntegrationTest {
         val todayStr = today.toString()
         val middayWeather = ForecastEntity(
             targetDate = dateEpoch(todayStr),
-            forecastDate = dateEpoch(todayStr),
+            dateOfPrediction = dateEpoch(todayStr),
             highTemp = 66f,
             lowTemp = null,
             condition = "Sunny",

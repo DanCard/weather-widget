@@ -42,7 +42,7 @@ class TripleLinePrecisionTest {
         // This simulates our new change where snapshots are no longer rounded for Today.
         val forecastFromSnapshot = ForecastEntity(
             targetDate = dateEpoch(todayStr),
-            forecastDate = dateEpoch(todayStr),
+            dateOfPrediction = dateEpoch(todayStr),
             locationLat = 0.0,
             locationLon = 0.0,
             highTemp = 72.4f, // Precise decimal

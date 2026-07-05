@@ -480,7 +480,7 @@ class CurrentTempTouchRoutingRoboTest {
         fetchedAt: Long,
     ) = ForecastEntity(
         targetDate = date.toEpochDay() * 86_400_000L,
-        forecastDate = date.minusDays(1).toEpochDay() * 86_400_000L,
+        dateOfPrediction = date.minusDays(1).toEpochDay() * 86_400_000L,
         locationLat = 37.0,
         locationLon = -122.0,
         locationName = "Test",

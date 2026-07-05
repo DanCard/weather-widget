@@ -60,7 +60,7 @@ class DailyHistoryClickIntegrationTest : IsolatedIntegrationTest("daily_history_
                 listOf(
                     ForecastEntity(
                         targetDate = dateEpoch(threeDaysAgo.toString()),
-                        forecastDate = dateEpoch(threeDaysAgo.toString()),
+                        dateOfPrediction = dateEpoch(threeDaysAgo.toString()),
                         locationLat = WeatherWidgetWorker.DEFAULT_LAT,
                         locationLon = WeatherWidgetWorker.DEFAULT_LON,
                         locationName = "Mountain View, CA",

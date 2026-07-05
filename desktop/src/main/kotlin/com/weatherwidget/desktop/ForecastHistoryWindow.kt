@@ -486,7 +486,7 @@ private fun loadHistory(
 
     val rows = dao.getForecastEvolution(targetEpoch, lat, lon).filter { it.source == source.id }
     val points = rows.map { row ->
-        val forecastDate = LocalDate.ofEpochDay(row.forecastDate / MS_IN_A_DAY)
+        val forecastDate = LocalDate.ofEpochDay(row.dateOfPrediction / MS_IN_A_DAY)
         EvolutionPoint(
             forecastDate = forecastDate.toString(),
             fetchedAt = row.fetchedAt,

@@ -6,7 +6,7 @@ import com.weatherwidget.shared.util.Log
 /**
  * Collapses the candidate daily-forecast rows the persistence layer returns into exactly one row
  * per (targetDate, source). The daily sibling of [HourlyForecastSelector], for the same reason:
- * `forecasts` is keyed on float `(targetDate, forecastDate, locationLat, locationLon, source,
+ * `forecasts` is keyed on float `(targetDate, dateOfPrediction, locationLat, locationLon, source,
  * fetchedAt)`, so GPS/geocoding jitter splits one physical site into several per-precision key
  * silos that new fetches never overwrite. The [LocationMatch.ROOM_WHERE]/[LocationMatch.JDBC_WHERE]
  * proximity box (~7 mi) used at read time gathers ALL of them, and the DAO's freshest-batch

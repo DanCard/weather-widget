@@ -143,7 +143,7 @@ class NwsForecastMapper @Inject constructor(
             val (pStart, pEnd) = acc.periodTimeMap[dateString] ?: (null to null)
             ForecastEntity(
                 targetDate = LocalDate.parse(dateString).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                forecastDate = todayDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                dateOfPrediction = todayDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                 locationLat = latitude,
                 locationLon = longitude,
                 locationName = locationName,

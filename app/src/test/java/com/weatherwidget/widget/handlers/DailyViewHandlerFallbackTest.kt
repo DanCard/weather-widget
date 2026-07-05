@@ -96,7 +96,7 @@ class DailyViewHandlerFallbackTest {
     ): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),
-            forecastDate = dateEpoch(date),
+            dateOfPrediction = dateEpoch(date),
             locationLat = 0.0,
             locationLon = 0.0,
             locationName = "Test",

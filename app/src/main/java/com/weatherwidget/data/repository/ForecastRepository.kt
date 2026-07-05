@@ -799,7 +799,7 @@ class ForecastRepository
 
             return ForecastEntity(
                 targetDate = targetDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                dateOfPrediction = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                 locationLat = latitude,
                 locationLon = longitude,
                 locationName = locationName,
@@ -860,7 +860,7 @@ class ForecastRepository
 
                 ForecastEntity(
                     targetDate = forecast.targetDate,
-                    forecastDate = todayEpoch,
+                    dateOfPrediction = todayEpoch,
                     locationLat = keyLat,
                     locationLon = keyLon,
                     locationName = forecast.locationName,

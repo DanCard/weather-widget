@@ -38,7 +38,7 @@ interface ForecastDao {
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
         AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY forecastDate DESC, batchFetchedAt DESC, fetchedAt DESC
+        ORDER BY dateOfPrediction DESC, batchFetchedAt DESC, fetchedAt DESC
         LIMIT 1
     """,
     )
@@ -52,7 +52,7 @@ interface ForecastDao {
         """
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
-        AND forecastDate = :forecastDate
+        AND dateOfPrediction = :dateOfPrediction
         AND ${LocationMatch.ROOM_WHERE}
         ORDER BY batchFetchedAt DESC, fetchedAt DESC
         LIMIT 1
@@ -60,7 +60,7 @@ interface ForecastDao {
     )
     suspend fun getSpecificForecast(
         targetDate: Long,
-        forecastDate: Long,
+        dateOfPrediction: Long,
         lat: Double,
         lon: Double,
     ): ForecastEntity?
@@ -69,7 +69,7 @@ interface ForecastDao {
         """
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
-        AND forecastDate = :forecastDate
+        AND dateOfPrediction = :dateOfPrediction
         AND ${LocationMatch.ROOM_WHERE}
         AND source = :source
         ORDER BY fetchedAt DESC
@@ -78,7 +78,7 @@ interface ForecastDao {
     )
     suspend fun getForecastForDateBySource(
         targetDate: Long,
-        forecastDate: Long,
+        dateOfPrediction: Long,
         lat: Double,
         lon: Double,
         source: String,
@@ -254,7 +254,7 @@ interface ForecastDao {
         AND source = :source
         AND targetDate >= :startDate
         AND targetDate <= :endDate
-        ORDER BY targetDate ASC, forecastDate DESC, batchFetchedAt DESC, fetchedAt DESC
+        ORDER BY targetDate ASC, dateOfPrediction DESC, batchFetchedAt DESC, fetchedAt DESC
     """,
     )
     suspend fun getForecastsInRangeBySource(
@@ -317,7 +317,7 @@ interface ForecastDao {
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
         AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY forecastDate ASC, batchFetchedAt ASC, fetchedAt ASC
+        ORDER BY dateOfPrediction ASC, batchFetchedAt ASC, fetchedAt ASC
     """,
     )
     suspend fun getForecastEvolution(

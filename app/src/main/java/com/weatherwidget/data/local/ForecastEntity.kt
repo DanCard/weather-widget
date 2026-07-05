@@ -5,7 +5,7 @@ import androidx.room.Index
 
 @Entity(
     tableName = "forecasts",
-    primaryKeys = ["targetDate", "forecastDate", "locationLat", "locationLon", "source", "fetchedAt"],
+    primaryKeys = ["targetDate", "dateOfPrediction", "locationLat", "locationLon", "source", "fetchedAt"],
     indices = [
         Index(value = ["locationLat", "locationLon"]),
         Index(value = ["targetDate", "source", "locationLat", "locationLon", "batchFetchedAt"]),
@@ -13,7 +13,7 @@ import androidx.room.Index
 )
 data class ForecastEntity(
     val targetDate: Long, // Date being forecasted (UTC midnight epoch millis)
-    val forecastDate: Long, // When forecast was made (UTC midnight epoch millis, 1-day-ahead)
+    val dateOfPrediction: Long, // When forecast prediction was generated (UTC midnight epoch millis, e.g. 1-day-ahead)
     val locationLat: Double,
     val locationLon: Double,
     val locationName: String = "", // Human-readable location name

@@ -136,7 +136,7 @@ class WeatherGapTest {
     private fun createForecastEntity(date: String, high: Int, low: Int, source: String, isClimateNormal: Boolean = false) =
         ForecastEntity(
             targetDate = dateEpoch(date),
-            forecastDate = dateEpoch(date),
+            dateOfPrediction = dateEpoch(date),
             locationLat = testLat,
             locationLon = testLon,
             locationName = testLocationName,

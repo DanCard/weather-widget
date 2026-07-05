@@ -39,7 +39,7 @@ class ForecastSnapshotDaoTest {
 
     @Test
     fun `composite key allows multiple snapshots per target date with different fetchedAt`() = runTest {
-        val base = TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-20")
+        val base = TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-20")
         dao.insertForecast(base.copy(fetchedAt = 1000L, highTemp = 65f))
         dao.insertForecast(base.copy(fetchedAt = 2000L, highTemp = 68f))
 
@@ -48,12 +48,12 @@ class ForecastSnapshotDaoTest {
 
     @Test
     fun `getForecastForDate returns most recent forecast date first`() = runTest {
-        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-19", fetchedAt = 1000L))
-        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-20", fetchedAt = 2000L, highTemp = 70f))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-19", fetchedAt = 1000L))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-20", fetchedAt = 2000L, highTemp = 70f))
 
         val result = dao.getForecastForDate(dateEpoch("2026-02-21"), LAT, LON)
         assertNotNull(result)
-        assertEquals(dateEpoch("2026-02-20"), result!!.forecastDate)
+        assertEquals(dateEpoch("2026-02-20"), result!!.dateOfPrediction)
         assertEquals(70f, result.highTemp)
     }
 
@@ -80,8 +80,8 @@ class ForecastSnapshotDaoTest {
 
     @Test
     fun `getForecastForDateBySource filters by source`() = runTest {
-        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-20", source = "NWS", highTemp = 65f, fetchedAt = 1000L))
-        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-20", source = "OPEN_METEO", highTemp = 67f, fetchedAt = 1000L))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-20", source = "NWS", highTemp = 65f, fetchedAt = 1000L))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-20", source = "OPEN_METEO", highTemp = 67f, fetchedAt = 1000L))
 
         val nws = dao.getForecastForDateBySource(dateEpoch("2026-02-21"), dateEpoch("2026-02-20"), LAT, LON, "NWS")
         assertEquals(65f, nws!!.highTemp)
@@ -92,14 +92,14 @@ class ForecastSnapshotDaoTest {
 
     @Test
     fun `getForecastEvolution returns chronological order`() = runTest {
-        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-19", fetchedAt = 1000L))
-        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-18", fetchedAt = 500L))
-        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-20", fetchedAt = 2000L))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-19", fetchedAt = 1000L))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-18", fetchedAt = 500L))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-20", fetchedAt = 2000L))
 
         val evolution = dao.getForecastEvolution(dateEpoch("2026-02-21"), LAT, LON)
         assertEquals(3, evolution.size)
-        assertEquals(dateEpoch("2026-02-18"), evolution[0].forecastDate)
-        assertEquals(dateEpoch("2026-02-20"), evolution[2].forecastDate)
+        assertEquals(dateEpoch("2026-02-18"), evolution[0].dateOfPrediction)
+        assertEquals(dateEpoch("2026-02-20"), evolution[2].dateOfPrediction)
     }
 
     // --- Regression tests for past-day forecast bar bug ---
@@ -199,7 +199,7 @@ class ForecastSnapshotDaoTest {
             val date = today.plusDays(offset)
             dao.insertForecast(TestData.forecast(
                 targetDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                forecastDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                dateOfPrediction = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 source = "NWS",
                 batchFetchedAt = 1000L + offset,
                 fetchedAt = 1000L + offset,

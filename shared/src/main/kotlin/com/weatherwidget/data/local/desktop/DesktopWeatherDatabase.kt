@@ -30,7 +30,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 stmt.execute("""
                     CREATE TABLE IF NOT EXISTS forecasts (
                         targetDate INTEGER NOT NULL,
-                        forecastDate INTEGER NOT NULL,
+                        dateOfPrediction INTEGER NOT NULL,
                         locationLat REAL NOT NULL,
                         locationLon REAL NOT NULL,
                         locationName TEXT NOT NULL DEFAULT '',
@@ -48,7 +48,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         precipAmountMm REAL,
                         batchFetchedAt INTEGER NOT NULL,
                         fetchedAt INTEGER NOT NULL,
-                        PRIMARY KEY (targetDate, forecastDate, locationLat, locationLon, source, fetchedAt)
+                        PRIMARY KEY (targetDate, dateOfPrediction, locationLat, locationLon, source, fetchedAt)
                     )
                 """.trimIndent())
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_forecasts_location ON forecasts(locationLat, locationLon)")
@@ -212,7 +212,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 5) {
                 stmt.execute(
                     "DELETE FROM forecasts WHERE rowid NOT IN (" +
-                        "SELECT MAX(rowid) FROM forecasts GROUP BY targetDate, forecastDate, source, fetchedAt, " +
+                        "SELECT MAX(rowid) FROM forecasts GROUP BY targetDate, dateOfPrediction, source, fetchedAt, " +
                         "ROUND(locationLat, 3), ROUND(locationLon, 3))",
                 )
                 stmt.execute("UPDATE forecasts SET locationLat = ROUND(locationLat, 3), locationLon = ROUND(locationLon, 3)")
@@ -259,6 +259,20 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     stmt.execute("CREATE INDEX IF NOT EXISTS idx_hourly_history_lookup ON hourly_forecast_history(locationLat, locationLon, source, timestampToGroupPredictions)")
                 }
             }
+            if (from < 9) {
+                val rs = stmt.executeQuery("PRAGMA table_info(forecasts)")
+                var hasForecastDate = false
+                while (rs.next()) {
+                    if (rs.getString("name") == "forecastDate") {
+                        hasForecastDate = true
+                        break
+                    }
+                }
+                rs.close()
+                if (hasForecastDate) {
+                    stmt.execute("ALTER TABLE forecasts RENAME COLUMN forecastDate TO dateOfPrediction")
+                }
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -299,6 +313,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 8
+        private const val SCHEMA_VERSION = 9
     }
 }

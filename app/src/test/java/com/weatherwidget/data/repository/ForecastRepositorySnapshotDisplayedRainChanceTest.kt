@@ -72,7 +72,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
             listOf(
                 TestData.forecast(
                     targetDate = today.toString(),
-                    forecastDate = today.toString(),
+                    dateOfPrediction = today.toString(),
                     source = WeatherSource.NWS.id,
                     lat = lat,
                     lon = lon,
@@ -125,7 +125,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
             listOf(
                 TestData.forecast(
                     targetDate = today.toString(),
-                    forecastDate = today.toString(),
+                    dateOfPrediction = today.toString(),
                     source = WeatherSource.NWS.id,
                     lat = lat,
                     lon = lon,
@@ -154,7 +154,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
             listOf(
                 TestData.forecast(
                     targetDate = yesterday.toString(),
-                    forecastDate = yesterday.toString(),
+                    dateOfPrediction = yesterday.toString(),
                     source = WeatherSource.NWS.id,
                     lat = lat,
                     lon = lon,
@@ -202,7 +202,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
         db.forecastDao().insertAll(
             listOf(
                 TestData.forecast(
-                    targetDate = today.toString(), forecastDate = today.toString(),
+                    targetDate = today.toString(), dateOfPrediction = today.toString(),
                     source = WeatherSource.NWS.id, lat = lat, lon = lon,
                     highTemp = 80f, lowTemp = 55f,
                 ).copy(precipAmountMm = 1.5f),
@@ -249,7 +249,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
         db.forecastDao().insertAll(
             listOf(
                 TestData.forecast(
-                    targetDate = today.toString(), forecastDate = today.toString(),
+                    targetDate = today.toString(), dateOfPrediction = today.toString(),
                     source = WeatherSource.NWS.id, lat = lat, lon = lon,
                     highTemp = 80f, lowTemp = null,
                 ),
@@ -288,7 +288,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
         db.forecastDao().insertAll(
             listOf(
                 TestData.forecast(
-                    targetDate = yesterday.toString(), forecastDate = yesterday.toString(),
+                    targetDate = yesterday.toString(), dateOfPrediction = yesterday.toString(),
                     source = WeatherSource.NWS.id, lat = lat, lon = lon,
                     highTemp = 80f, lowTemp = 60f,
                 ),
@@ -327,12 +327,12 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
         db.forecastDao().insertAll(
             listOf(
                 TestData.forecast(
-                    targetDate = past.toString(), forecastDate = past.toString(),
+                    targetDate = past.toString(), dateOfPrediction = past.toString(),
                     source = WeatherSource.NWS.id, lat = lat, lon = lon,
                     highTemp = 72f, lowTemp = null, fetchedAt = 2000L,
                 ),
                 TestData.forecast(
-                    targetDate = past.toString(), forecastDate = past.toString(),
+                    targetDate = past.toString(), dateOfPrediction = past.toString(),
                     source = WeatherSource.NWS.id, lat = lat, lon = lon,
                     highTemp = 71f, lowTemp = 53f, fetchedAt = 1000L,
                 ).copy(precipAmountMm = 0.5f),
@@ -370,7 +370,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
         db.forecastDao().insertAll(
             listOf(
                 TestData.forecast(
-                    targetDate = past.toString(), forecastDate = past.toString(),
+                    targetDate = past.toString(), dateOfPrediction = past.toString(),
                     source = WeatherSource.NWS.id, lat = lat, lon = lon,
                     highTemp = 79f, lowTemp = 57f,
                 ),

@@ -347,7 +347,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         val evolutionPoints =
             snapshots.map { snapshot ->
-                val forecastDate = LocalDate.ofEpochDay(snapshot.forecastDate / WidgetConstants.MS_IN_A_DAY)
+                val forecastDate = LocalDate.ofEpochDay(snapshot.dateOfPrediction / WidgetConstants.MS_IN_A_DAY)
                 val daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, date).toInt()
                 EvolutionPoint(
                     forecastDate = forecastDate.toString(),

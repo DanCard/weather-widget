@@ -61,7 +61,7 @@ class DailyViewHandlerUnitTest {
             displaySource = WeatherSource.NWS,
             forecastWeather = ForecastEntity(
                 targetDate = today.toEpochDay() * 86_400_000L,
-                forecastDate = today.toEpochDay() * 86_400_000L,
+                dateOfPrediction = today.toEpochDay() * 86_400_000L,
                 locationLat = 37.422,
                 locationLon = -122.0841,
                 highTemp = 83f,

@@ -101,7 +101,7 @@ class AccuracyCalculator
                 val forecast = forecasts
                     .filter {
                         it.targetDate == targetEpochVal &&
-                                it.forecastDate == forecastEpoch &&
+                                it.dateOfPrediction == forecastEpoch &&
                                 it.source == source.id
                     }
                     .maxByOrNull { it.fetchedAt }

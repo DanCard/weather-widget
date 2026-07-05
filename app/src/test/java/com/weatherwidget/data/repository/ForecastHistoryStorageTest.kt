@@ -84,7 +84,7 @@ class ForecastHistoryStorageTest {
 
         fun fc(targetDate: Long, fetchedAt: Long, source: String = "NWS") = ForecastEntity(
             targetDate = targetDate,
-            forecastDate = 0L,
+            dateOfPrediction = 0L,
             locationLat = lat,
             locationLon = lon,
             highTemp = 70f,

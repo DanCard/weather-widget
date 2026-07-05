@@ -95,7 +95,7 @@ class AccuracyCalculatorIntegrationTest {
             listOf(
                 ForecastEntity(
                     targetDate = dateEpoch(targetDate),
-                    forecastDate = dateEpoch(forecastDate),
+                    dateOfPrediction = dateEpoch(forecastDate),
                     locationLat = lat,
                     locationLon = lon,
                     locationName = "Test",

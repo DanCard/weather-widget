@@ -63,7 +63,7 @@ class ForecastHistoryActualsVisibilityTest {
         val targetDateEpoch = todayDate.toEpochDay() * 86400000L
         val mockActual = ForecastEntity(
             targetDate = targetDateEpoch,
-            forecastDate = targetDateEpoch,
+            dateOfPrediction = targetDateEpoch,
             locationLat = 37.0,
             locationLon = -122.0,
             locationName = "Test",

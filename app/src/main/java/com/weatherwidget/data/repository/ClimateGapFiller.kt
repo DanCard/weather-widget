@@ -41,7 +41,7 @@ class ClimateGapFiller(private val climateNormalDao: ClimateNormalDao) {
             val epochMs = gap.date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
             ForecastEntity(
                 targetDate = epochMs,
-                forecastDate = epochMs,
+                dateOfPrediction = epochMs,
                 locationLat = LocationMatch.quantize(latitude),
                 locationLon = LocationMatch.quantize(longitude),
                 locationName = locationName,

@@ -33,7 +33,7 @@ class DesktopAccuracyCalculator(private val dao: DesktopWeatherDao) {
             val forecastEpoch = targetDate.minusDays(1).toEpochDay() * MS_IN_A_DAY
 
             val forecast = forecasts
-                .filter { it.targetDate == targetEpoch && it.forecastDate == forecastEpoch }
+                .filter { it.targetDate == targetEpoch && it.dateOfPrediction == forecastEpoch }
                 .maxByOrNull { it.fetchedAt }
                 ?: continue
 

@@ -79,7 +79,7 @@ data class DesktopLogEntity(
  */
 data class DesktopForecastRow(
     val targetDate: Long,
-    val forecastDate: Long,
+    val dateOfPrediction: Long,
     val source: String,
     val highTemp: Float?,
     val lowTemp: Float?,

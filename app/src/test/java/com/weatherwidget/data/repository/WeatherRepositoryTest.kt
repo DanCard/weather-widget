@@ -256,7 +256,7 @@ class WeatherRepositoryTest {
     private fun createForecastEntity(date: String, high: Int, low: Int, source: String = "NWS") =
         ForecastEntity(
             targetDate = dateEpoch(date),
-            forecastDate = dateEpoch(date),
+            dateOfPrediction = dateEpoch(date),
             locationLat = testLat,
             locationLon = testLon,
             locationName = testLocationName,
