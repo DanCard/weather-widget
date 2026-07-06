@@ -188,6 +188,7 @@ internal fun ObservationsWindow(
                     ) {
                         Text(
                             "Stations",
+                            fontSize = 24.sp,
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.weight(1f).padding(start = 8.dp)
                         )
@@ -207,7 +208,7 @@ internal fun ObservationsWindow(
                                 ),
                                 modifier = Modifier.padding(horizontal = 4.dp)
                             ) {
-                                Text(currentSource.shortDisplayName)
+                                Text(currentSource.shortDisplayName, fontSize = 18.sp)
                             }
                         }
 
@@ -224,7 +225,7 @@ internal fun ObservationsWindow(
                                 ) {
                                     LogFilter.entries.forEach { filter ->
                                         DropdownMenuItem(
-                                            text = { Text(filter.label) },
+                                            text = { Text(filter.label, fontSize = 18.sp) },
                                             leadingIcon = {
                                                 if (filter == logFilter) {
                                                     Icon(
@@ -286,7 +287,7 @@ internal fun ObservationsWindow(
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {
-                            Text("Observations", modifier = Modifier.padding(12.dp))
+                            Text("Observations", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
                         }
                         Tab(
                             selected = selectedTab == 1,
@@ -294,7 +295,7 @@ internal fun ObservationsWindow(
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {
-                            Text("Fetch Logs", modifier = Modifier.padding(12.dp))
+                            Text("Fetch Logs", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
                         }
                     }
 
@@ -332,7 +333,7 @@ private fun ObservationList(observations: List<DesktopObservationEntity>) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             obs.stationName,
-                            fontSize = 16.sp,
+                            fontSize = 21.sp,
                             color = Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -341,14 +342,14 @@ private fun ObservationList(observations: List<DesktopObservationEntity>) {
                         if (obs.condition.isNotBlank()) {
                             Text(
                                 obs.condition,
-                                fontSize = 13.sp,
+                                fontSize = 17.sp,
                                 color = ObsStyle.textSecondary,
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             )
                         }
                         Text(
                             String.format("%.1f°", obs.temperature),
-                            fontSize = 24.sp,
+                            fontSize = 32.sp,
                             fontWeight = FontWeight.Bold,
                             color = trayTempToColor(obs.temperature)
                         )
@@ -356,10 +357,10 @@ private fun ObservationList(observations: List<DesktopObservationEntity>) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val distanceStr = if (obs.distanceKm > 0) String.format("%.1f mi", obs.distanceKm * 0.621371f) else "Local"
                         val originStr = if (obs.isWebFallback) "Web" else "API"
-                        Text("${obs.stationId} • $distanceStr • ", fontSize = 14.sp, color = ObsStyle.textSecondary)
+                        Text("${obs.stationId} • $distanceStr • ", fontSize = 18.sp, color = ObsStyle.textSecondary)
                         Text(
                             "${obs.stationType} ($originStr)",
-                            fontSize = 12.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (obs.stationType == "OFFICIAL") ObsStyle.typeOfficial else ObsStyle.typePersonal
                         )
@@ -367,15 +368,15 @@ private fun ObservationList(observations: List<DesktopObservationEntity>) {
                     Text(
                         buildAnnotatedString {
                             withStyle(SpanStyle(color = ObsStyle.textSecondary)) { append("Reported ") }
-                            withStyle(SpanStyle(color = ObsStyle.timeReported, fontSize = 21.sp)) {
+                            withStyle(SpanStyle(color = ObsStyle.timeReported, fontSize = 32.sp)) {
                                 append(timeFormatter.format(Instant.ofEpochMilli(obs.timestamp)))
                             }
                             withStyle(SpanStyle(color = ObsStyle.textSecondary)) { append(" • Fetched ") }
-                            withStyle(SpanStyle(color = ObsStyle.timeFetched, fontSize = 21.sp)) {
+                            withStyle(SpanStyle(color = ObsStyle.timeFetched, fontSize = 32.sp)) {
                                 append(timeFormatter.format(Instant.ofEpochMilli(obs.fetchedAt)))
                             }
                         },
-                        fontSize = 14.sp
+                        fontSize = 18.sp
                     )
                 }
             }
@@ -384,7 +385,7 @@ private fun ObservationList(observations: List<DesktopObservationEntity>) {
         if (observations.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No recent observations found", color = ObsStyle.textSecondary)
+                    Text("No recent observations found", fontSize = 18.sp, color = ObsStyle.textSecondary)
                 }
             }
         }

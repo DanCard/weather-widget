@@ -28,14 +28,14 @@ internal fun LogList(logs: List<DesktopLogEntity>, modifier: Modifier = Modifier
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         timeFormatter.format(Instant.ofEpochMilli(log.timestamp)),
-                        fontSize = 11.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = ObsStyle.accent
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         log.tag,
-                        fontSize = 10.sp,
+                        fontSize = 13.sp,
                         modifier = Modifier
                             .background(
                                 if (log.tag.contains("FAIL")) Color.Red.copy(alpha = 0.2f) else Color.Green.copy(alpha = 0.2f),
@@ -44,7 +44,7 @@ internal fun LogList(logs: List<DesktopLogEntity>, modifier: Modifier = Modifier
                             .padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
-                Text(log.message, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                Text(log.message, fontSize = 17.sp, modifier = Modifier.padding(top = 2.dp))
                 HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = ObsStyle.divider)
             }
         }
@@ -52,7 +52,7 @@ internal fun LogList(logs: List<DesktopLogEntity>, modifier: Modifier = Modifier
         if (logs.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No logs found", color = ObsStyle.textSecondary)
+                    Text("No logs found", fontSize = 18.sp, color = ObsStyle.textSecondary)
                 }
             }
         }

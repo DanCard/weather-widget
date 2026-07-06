@@ -126,7 +126,7 @@ internal object DailyForecastRainLabelRenderer {
         val rainText = day.rainData.dailyRainLabelText ?: return null
         val localRainPaint = createScaledRainPaint(day, day.rainData.dailyPrecipProbability, RainLabelType.DAY, layout.density, paints)
         val textWidth = localRainPaint.measureText(rainText)
-        val highBaseline = DailyForecastGraphRenderer.resolveHighLabelBaseline(day, layout) ?: return null
+        val highBaseline = DailyForecastGraphRenderer.resolveHighLabelBaseline(day, layout, paints) ?: return null
         val tempPaint = when {
             day.isToday -> paints.todayTempTextPaint
             day.isPast -> paints.pastTempTextPaint

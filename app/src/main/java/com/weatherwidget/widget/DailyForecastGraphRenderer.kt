@@ -833,60 +833,45 @@ object DailyForecastGraphRenderer {
         }
 
         if (day.solidLineHigh != null) {
-            val labelOffset = (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density)
             val basePaint = when {
                 day.isToday -> paints.todayTempTextPaint
                 day.isPast -> paints.pastTempTextPaint
                 else -> paints.tempTextPaint
             }
-            val y = highY ?: lowY?.let { it - layout.minBarHeightPx } ?: run {
-                Log.w(TAG, "drawDayBars: both highY and lowY null for high label date=${day.date}; falling back to graphTop")
-                layout.graphTop
-            }
-
             // History — and today once its high is settled (past the 5pm cutoff) — can label BOTH the
             // actual (thermostat color) and the forecast (forecast-bar color) when the forecast missed
-            // by enough AND there's vertical room (DualHighLabel). Today's "actual" is the observed peak
+            // by enough AND there's vertical room (DualHighLabel). The plan (shared with the rain-label
+            // resolvers) decides that and carries both baselines. Today's "actual" is the observed peak
             // (effectiveHigh) and its forecast label sits over the live-forecast bar (tripleBarOffset),
             // whereas a past day's forecast overlay sits at forecastBarOffset.
-            val todayHighSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isHighTrackingActual(
-                isToday = day.isToday,
-                solidHigh = day.solidLineHigh,
-                ghostHigh = day.ghostLineHigh,
-                nowHour = day.nowHour,
-            )
-            val actualHigh = if (day.isToday) (day.effectiveHigh() ?: day.solidLineHigh) else day.solidLineHigh
-            val forecastHigh = if (day.isPast || todayHighSettled) day.dashedLineHigh else null
-            val actualBaseline = if (day.isToday) layout.tempToY(actualHigh) - labelOffset else y - labelOffset
-            val forecastLabelX = centerX + (if (day.isToday) layout.tripleBarOffset else layout.forecastBarOffset)
-            val forecastBaseline = forecastHigh?.let { layout.tempToY(it) - labelOffset }
-            // Label height for the room test; fontMetrics is null under stubbed-Paint unit tests,
-            // so fall back to textSize there. Only needed when a forecast label is in play.
-            val twoLabelHeight = (basePaint.fontMetrics?.let { it.descent - it.ascent } ?: basePaint.textSize) *
-                DualHighLabel.TWO_LABEL_FONT_SCALE
-            val showBoth = forecastHigh != null && forecastBaseline != null &&
-                DualHighLabel.showBoth(actualHigh, forecastHigh, actualBaseline, forecastBaseline, twoLabelHeight)
-
-            if (showBoth) {
+            val plan = resolveHighLabelPlan(day, layout, paints)
+            if (plan != null && plan.showBoth && plan.forecastHigh != null && plan.forecastBaseline != null) {
                 // Dual highs render for past days and settled-today, so both labels are outlined.
                 val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-                drawTempLabel(canvas, formatTempLabel(actualHigh), centerX, actualBaseline, basePaint,
+                val forecastLabelX = centerX + (if (day.isToday) layout.tripleBarOffset else layout.forecastBarOffset)
+                drawTempLabel(canvas, formatTempLabel(plan.actualHigh), centerX, plan.actualBaseline, basePaint,
                     extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
-                drawTempLabel(canvas, formatTempLabel(forecastHigh), forecastLabelX, forecastBaseline,
+                drawTempLabel(canvas, formatTempLabel(plan.forecastHigh), forecastLabelX, plan.forecastBaseline,
                     basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor, drawOutline = true,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
             } else {
                 val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
                 val highLabel = formatTempLabel(displayHigh)
-                val labelY = if (day.isToday) layout.tempToY(day.effectiveHigh() ?: day.solidLineHigh) else y
+                // The single label sits at the headline (effective) high — the plan's anchorBaseline
+                // when no dual label is shown.
+                val labelBaseline = plan?.anchorBaseline ?: run {
+                    Log.w(TAG, "drawDayBars: high label plan null despite non-null solidLineHigh date=${day.date}")
+                    val labelOffset = (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density)
+                    (highY ?: layout.graphTop) - labelOffset
+                }
                 // Once today's high is settled (past the 5pm cutoff) the single number tracks the
                 // observed actual — recolor it the thermostat (observed) color so it reads as a real
                 // reading, not a forecast. Mirrors effectiveHigh()'s own actual-vs-forecast branch.
-                val highColorOverride = if (todayHighSettled) COLOR_OBSERVED_RED else null
+                val highColorOverride = if (plan?.todayHighSettled == true) COLOR_OBSERVED_RED else null
                 // History and today get the thin outline (today's headline sits over the triple bars);
                 // future days stay plain.
-                drawTempLabel(canvas, highLabel, centerX, labelY - labelOffset, basePaint,
+                drawTempLabel(canvas, highLabel, centerX, labelBaseline, basePaint,
                     colorOverride = highColorOverride, drawOutline = day.isPast || day.isToday,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
             }
@@ -1056,30 +1041,96 @@ object DailyForecastGraphRenderer {
 
     // ── Baseline resolvers (shared by bars and rain labels) ────────────────
 
+    /**
+     * The high label(s) a column draws, and the anchor the daily rain % rides above. A past day (or
+     * settled-today) can print BOTH the observed actual high and the forecast high (DualHighLabel);
+     * when it does, the two labels sit at different heights and the rain % must clear the TOPMOST
+     * (warmer) of the two — anchoring only to the actual wedges the % between them (see the "yesterday
+     * 15%" report). Single-label days anchor to the headline effective high. Shared by [drawDayBars]
+     * and the rain-label resolvers so the dual-high decision is made in exactly one place.
+     */
+    internal data class HighLabelPlan(
+        val showBoth: Boolean,
+        val todayHighSettled: Boolean,
+        /** Observed-actual (or headline) high, drawn at column center. */
+        val actualHigh: Float,
+        /** Forecast high, drawn offset to the side — only when [showBoth]. */
+        val forecastHigh: Float?,
+        val actualBaseline: Float,
+        val forecastBaseline: Float?,
+        /** Warmer of the drawn highs (== [actualHigh] when single) — the value the rain % sits above. */
+        val anchorHigh: Float,
+        /** Topmost drawn high-label baseline — the rain %'s vertical anchor. */
+        val anchorBaseline: Float,
+    )
+
+    internal fun resolveHighLabelPlan(
+        day: DayData,
+        layout: LayoutInfo,
+        paints: PaintSet,
+    ): HighLabelPlan? {
+        day.solidLineHigh ?: return null
+        val effective = day.effectiveHigh() ?: return null
+        val labelOffset = (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density)
+        val basePaint = when {
+            day.isToday -> paints.todayTempTextPaint
+            day.isPast -> paints.pastTempTextPaint
+            else -> paints.tempTextPaint
+        }
+        val todayHighSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isHighTrackingActual(
+            isToday = day.isToday,
+            solidHigh = day.solidLineHigh,
+            ghostHigh = day.ghostLineHigh,
+            nowHour = day.nowHour,
+        )
+        // actualHigh == effective in every case (past: solid == effective; today: actual IS effective),
+        // so the actual label baseline is always the headline (effective) baseline.
+        val actualHigh = effective
+        val effectiveBaseline = layout.tempToY(effective) - labelOffset
+        val forecastHigh = if (day.isPast || todayHighSettled) day.dashedLineHigh else null
+        val forecastBaseline = forecastHigh?.let { layout.tempToY(it) - labelOffset }
+        // Label height for the room test; fontMetrics is null under stubbed-Paint unit tests, so fall
+        // back to textSize there. Only needed when a forecast label is in play.
+        val twoLabelHeight = (basePaint.fontMetrics?.let { it.descent - it.ascent } ?: basePaint.textSize) *
+            DualHighLabel.TWO_LABEL_FONT_SCALE
+        val showBoth = forecastHigh != null && forecastBaseline != null &&
+            DualHighLabel.showBoth(actualHigh, forecastHigh, effectiveBaseline, forecastBaseline, twoLabelHeight)
+        val anchorHigh = if (showBoth && forecastHigh != null) maxOf(actualHigh, forecastHigh) else effective
+        val anchorBaseline = if (showBoth && forecastBaseline != null) minOf(effectiveBaseline, forecastBaseline) else effectiveBaseline
+        return HighLabelPlan(
+            showBoth = showBoth,
+            todayHighSettled = todayHighSettled,
+            actualHigh = actualHigh,
+            forecastHigh = forecastHigh,
+            actualBaseline = effectiveBaseline,
+            forecastBaseline = forecastBaseline,
+            anchorHigh = anchorHigh,
+            anchorBaseline = anchorBaseline,
+        )
+    }
+
     internal fun resolveHighLabelBaseline(
         day: DayData,
         layout: LayoutInfo,
-    ): Float? {
-        day.solidLineHigh ?: return null
-        val absoluteHigh = day.effectiveHigh() ?: return null
-        val labelY = layout.tempToY(absoluteHigh)
-        return labelY - (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density)
-    }
+        paints: PaintSet,
+    ): Float? = resolveHighLabelPlan(day, layout, paints)?.anchorBaseline
 
     /**
-     * The fit-to-width font scale the high-temp label is actually drawn at. The rain label multiplies
-     * the full-size temp metrics by this so it anchors to the high label's *rendered* top, not its
-     * full-size top — otherwise a shrunk wide temp (e.g. dual-label "75.6°" in a narrow column) leaves
-     * a large gap above the high. The 2% dual-label shrink is immaterial next to the fit factor, so we
-     * pass extraScale = 1.
+     * The fit-to-width font scale the anchored high-temp label is actually drawn at. The rain label
+     * multiplies the full-size temp metrics by this so it anchors to that label's *rendered* top, not
+     * its full-size top — otherwise a shrunk wide temp (e.g. dual-label "75.6°" in a narrow column)
+     * leaves a large gap above the high. Uses the topmost (anchor) high's text so a dual-label day
+     * measures the label the rain actually sits above. The 2% dual-label shrink is immaterial next to
+     * the fit factor, so we pass extraScale = 1.
      */
     internal fun resolveHighLabelDrawScale(
         day: DayData,
         layout: LayoutInfo,
         paints: PaintSet,
     ): Float {
-        val highValue = day.effectiveHigh() ?: day.solidLineHigh ?: return 1f
-        val highText = formatTempLabel(highValue)
+        val anchorHigh = resolveHighLabelPlan(day, layout, paints)?.anchorHigh
+            ?: day.effectiveHigh() ?: day.solidLineHigh ?: return 1f
+        val highText = formatTempLabel(anchorHigh)
         val tempPaint = when {
             day.isToday -> paints.todayTempTextPaint
             day.isPast -> paints.pastTempTextPaint

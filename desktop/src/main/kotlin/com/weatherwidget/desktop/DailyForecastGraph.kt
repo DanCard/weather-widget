@@ -271,7 +271,6 @@ fun DailyForecastGraph(
                 val aSize = tempFontSize(aText, dualBaseFor(dualActualHigh, dualForecastHigh))
                 val aLayout = textMeasurer.measure(aText, TextStyle(fontSize = aSize.sp, color = COLOR_OBSERVED))
                 val aY = (yAt(dualActualHigh) - aLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
-                highLabelTopAtCenter = aY
                 drawOutlinedText(textMeasurer, aLayout, Offset(centerX - aLayout.size.width / 2f, aY))
 
                 val fText = formatTemp(dualForecastHigh)
@@ -279,6 +278,9 @@ fun DailyForecastGraph(
                 val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
                 val fY = (yAt(dualForecastHigh) - fLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
                 drawOutlinedText(textMeasurer, fLayout, Offset(centerX + tripleOffset - fLayout.size.width / 2f, fY))
+                // Rain % anchors above the TOPMOST of the two high labels (warmer temp = higher on
+                // screen) so it clears BOTH instead of wedging between them (matches Android).
+                highLabelTopAtCenter = minOf(aY, fY)
             } else {
                 // Single label uses the shared effectiveHigh() so the headline rule matches Android
                 // exactly: today = max(observed, live-forecast, ghost) — deliberately EXCLUDING the
