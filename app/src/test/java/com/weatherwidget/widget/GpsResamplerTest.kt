@@ -102,15 +102,16 @@ class GpsResamplerTest : RobolectricTest() {
         logged.filter { it.tag == GpsResampler.LOG_TAG }.map { it.message }
 
     @Test
-    fun `battery gate skips sampling when unplugged below threshold`() = runTest {
+    fun `unplugged below threshold does not skip but uses passive location`() = runTest {
         setBattery(charging = false, level = 60)
+        bindWidgetAt(101, 34.0522, -118.2437)
 
         resampler(fix = fix(40.7128, -74.0060)).resample(context)
 
-        assertTrue(providerCalls.isEmpty())
-        assertTrue(healed.isEmpty())
-        assertEquals(1, outcomes().size)
-        assertTrue(outcomes()[0].startsWith("outcome=skipped_battery"))
+        assertEquals(listOf(false), providerCalls)
+        assertEquals(listOf(Triple(40.7128, -74.0060, "Testville")), healed)
+        val healedLog = logged.single { it.tag == GpsResampler.LOG_TAG }
+        assertTrue(healedLog.message.startsWith("outcome=healed trigger=worker"))
     }
 
     @Test

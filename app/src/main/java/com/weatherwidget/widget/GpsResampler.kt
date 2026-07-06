@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.Location
-import android.os.BatteryManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -17,7 +16,6 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.SharedLocationResolver
-import com.weatherwidget.shared.util.BatteryTier
 import com.weatherwidget.ui.LocationUpdater
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -25,8 +23,8 @@ import kotlin.coroutines.resume
 /**
  * Samples a fresh GPS fix and auto-heals every widget's configured location when the fix is no
  * longer same-site with what's stored ([LocationMatch.sameSite][com.weatherwidget.data.local.LocationMatch]).
- * This is the only place the app actively powers up GPS in the background, so it is gated on
- * charging or battery > [BatteryTier.TIER_HIGH_THRESHOLD].
+ * This is the only place the app actively powers up GPS in the background. It only requests active
+ * GPS fixes when charging. When on battery (not charging), it uses Fused Location's last known location.
  *
  * The GPS acquisition, permission check, and heal application are injected so the decision
  * pipeline is unit-testable without Play services or WorkManager; production wiring in
@@ -46,17 +44,12 @@ class GpsResampler(
     },
 ) {
     /**
-     * Background entry point (worker): battery gate → permission check → GPS fix → [healIfNeeded].
+     * Background entry point (worker): permission check → GPS fix → [healIfNeeded].
      */
     suspend fun resample(context: Context) {
         val batteryStatus: Intent? =
             context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
-        if (!shouldSample(isCharging, batteryLevel)) {
-            appLogDao.log(LOG_TAG, "outcome=skipped_battery level=$batteryLevel charging=$isCharging")
-            return
-        }
 
         if (!permissionChecker(context, Manifest.permission.ACCESS_FINE_LOCATION)) {
             appLogDao.log(LOG_TAG, "outcome=skipped_no_permission")
@@ -70,9 +63,13 @@ class GpsResampler(
         } else {
             true
         }
-        val mode = if (hasBackgroundLocation) "active_fix" else "last_location"
 
-        val location = locationProvider(context, hasBackgroundLocation)
+        // Only use active high-accuracy fix when charging and background location is available.
+        // When in battery mode (not charging), always use passive last-known location (best-effort).
+        val useActiveFix = isCharging && hasBackgroundLocation
+        val mode = if (useActiveFix) "active_fix" else "last_location"
+
+        val location = locationProvider(context, useActiveFix)
         if (location == null) {
             appLogDao.log(LOG_TAG, "outcome=no_fix mode=$mode")
             return
@@ -109,10 +106,6 @@ class GpsResampler(
 
         /** app_logs tag; one row per resample attempt with an outcome= token. */
         const val LOG_TAG = "GPS_RESAMPLE"
-
-        /** Battery gate for actively powering up GPS in the background. */
-        fun shouldSample(isEffectivelyCharging: Boolean, batteryLevel: Int): Boolean =
-            isEffectivelyCharging || batteryLevel > BatteryTier.TIER_HIGH_THRESHOLD
 
         /**
          * Production location source: active high-accuracy fix with a lastLocation fallback, or
