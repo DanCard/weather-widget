@@ -29,6 +29,7 @@ import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.CurrentTemperatureResolver
+import com.weatherwidget.widget.GpsResampler
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.Module
@@ -328,4 +329,11 @@ object AppModule {
         nominatimApi: NominatimApi,
         ipGeolocationApi: IpGeolocationApi,
     ): SharedLocationResolver = SharedLocationResolver(nominatimApi, ipGeolocationApi)
+
+    @Provides
+    @Singleton
+    fun provideGpsResampler(
+        appLogDao: AppLogDao,
+        sharedLocationResolver: SharedLocationResolver,
+    ): GpsResampler = GpsResampler(appLogDao, sharedLocationResolver)
 }

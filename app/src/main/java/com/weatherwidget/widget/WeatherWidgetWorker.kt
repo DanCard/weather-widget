@@ -20,13 +20,6 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.data.repository.SharedLocationResolver
-import com.weatherwidget.ui.LocationUpdater
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.google.android.gms.tasks.CancellationTokenSource
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 import com.weatherwidget.widget.DailyActualsBySource
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -46,7 +39,7 @@ class WeatherWidgetWorker
         private val weatherRepository: WeatherRepository,
         private val widgetStateManager: WidgetStateManager,
         private val appLogDao: AppLogDao,
-        private val sharedLocationResolver: SharedLocationResolver,
+        private val gpsResampler: GpsResampler,
     ) : CoroutineWorker(context, workerParams) {
         override suspend fun doWork(): Result {
             if (WeatherDatabase.isTestingMode()) {
@@ -144,9 +137,9 @@ class WeatherWidgetWorker
                 // Piggyback GPS resample when charging or battery > 70%
                 if (!uiOnlyRefresh && !currentTempOnly && !nonPrimaryCurrentTempOnly && !observationBackfillMode) {
                     try {
-                        sampleGpsAndMaybeUpdateLocation()
+                        gpsResampler.resample(context)
                     } catch (e: Exception) {
-                        Log.w(TAG, "sampleGpsAndMaybeUpdateLocation failed", e)
+                        Log.w(TAG, "GPS resample failed", e)
                     }
                 }
 
@@ -751,89 +744,6 @@ class WeatherWidgetWorker
                 todayStartMs2,
             )
             updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, WidgetUpdateTracker.JobType.BACKGROUND_SYNC)
-        }
-
-        private suspend fun sampleGpsAndMaybeUpdateLocation() {
-            // Check battery/charging gate
-            val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-            val isPlugged = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
-            if (!isPlugged && batteryLevel <= com.weatherwidget.shared.util.BatteryTier.TIER_HIGH_THRESHOLD) {
-                return
-            }
-
-            // Check permissions
-            val hasFineLocation = androidx.core.content.ContextCompat.checkSelfPermission(
-                context, android.Manifest.permission.ACCESS_FINE_LOCATION
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            
-            if (!hasFineLocation) {
-                return
-            }
-
-            val hasBackgroundLocation = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                androidx.core.content.ContextCompat.checkSelfPermission(
-                    context, android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            } else {
-                true
-            }
-
-            val client = LocationServices.getFusedLocationProviderClient(context)
-            val location = if (hasBackgroundLocation) {
-                try {
-                    val cancellationToken = CancellationTokenSource()
-                    val task = client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
-                    suspendCancellableCoroutine<android.location.Location?> { cont ->
-                        task.addOnCompleteListener { t ->
-                            if (t.isSuccessful && t.result != null) {
-                                cont.resume(t.result)
-                            } else {
-                                cont.resume(null)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "getCurrentLocation failed in background, trying lastLocation", e)
-                    try {
-                        val task = client.lastLocation
-                        suspendCancellableCoroutine<android.location.Location?> { cont ->
-                            task.addOnCompleteListener { t ->
-                                cont.resume(if (t.isSuccessful) t.result else null)
-                            }
-                        }
-                    } catch (ex: Exception) {
-                        null
-                    }
-                }
-            } else {
-                // Degrade to passive getLastLocation (best-effort)
-                try {
-                    val task = client.lastLocation
-                    suspendCancellableCoroutine<android.location.Location?> { cont ->
-                        task.addOnCompleteListener { t ->
-                            cont.resume(if (t.isSuccessful) t.result else null)
-                        }
-                    }
-                } catch (e: Exception) {
-                    null
-                }
-            }
-
-            if (location != null) {
-                val lat = location.latitude
-                val lon = location.longitude
-                if (LocationUpdater.shouldHealTo(context, lat, lon)) {
-                    val label = try {
-                        sharedLocationResolver.fromCoordinates(lat, lon).label
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Location label lookup failed in background for ($lat, $lon)", e)
-                        String.format("%.4f, %.4f", lat, lon)
-                    }
-                    Log.i(TAG, "GPS resample triggered auto-heal to ($lat, $lon) label=$label")
-                    LocationUpdater.applyToAllWidgets(context, lat, lon, label)
-                }
-            }
         }
 
         private suspend fun manageCurrentTempLoopAfterRun(

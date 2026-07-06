@@ -57,11 +57,16 @@ object LocationUpdater {
 
     /**
      * Writes [lat]/[lon] to all widgets, records the POI, and force-refreshes. Mirrors the path that
-     * the Settings "save location" button has always used.
+     * the Settings "save location" button has always used. [ids] defaults to every placed widget;
+     * tests pass synthetic ids so they never rewrite a real widget's configured location.
      */
-    fun applyToAllWidgets(context: Context, lat: Double, lon: Double, label: String) {
-        val ids = getWidgetIds(context)
-
+    fun applyToAllWidgets(
+        context: Context,
+        lat: Double,
+        lon: Double,
+        label: String,
+        ids: IntArray = getWidgetIds(context),
+    ) {
         // 1. Update all widgets' configured location.
         val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
         val editor = widgetPrefs.edit()

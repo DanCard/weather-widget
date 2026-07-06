@@ -19,7 +19,7 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.repository.SharedLocationResolver
+import com.weatherwidget.widget.GpsResampler
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -30,7 +30,7 @@ import androidx.appcompat.app.AlertDialog
 class MainActivity : AppCompatActivity() {
 
     @Inject
-    lateinit var sharedLocationResolver: SharedLocationResolver
+    lateinit var gpsResampler: GpsResampler
 
     @Inject
     lateinit var appLogDao: AppLogDao
@@ -210,20 +210,12 @@ class MainActivity : AppCompatActivity() {
             client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
                 .addOnSuccessListener { location ->
                     if (location == null) return@addOnSuccessListener
-                    if (!LocationUpdater.shouldHealTo(this, location.latitude, location.longitude)) return@addOnSuccessListener
                     val lat = location.latitude
                     val lon = location.longitude
                     lifecycleScope.launch {
-                        val label = try {
-                            sharedLocationResolver.fromCoordinates(lat, lon).label
-                        } catch (e: Exception) {
-                            // Don't fail silently: a revoked permission or geocoder error would otherwise
-                            // just show raw coordinates with no clue why. Surface it to logcat/bug report.
-                            Log.w("MainActivity", "Location label lookup failed for ($lat, $lon); using raw coordinates", e)
-                            String.format("%.4f, %.4f", lat, lon)
+                        if (gpsResampler.healIfNeeded(this@MainActivity, lat, lon, trigger = "foreground")) {
+                            Toast.makeText(this@MainActivity, getString(R.string.location_updated_from_gps), Toast.LENGTH_SHORT).show()
                         }
-                        LocationUpdater.applyToAllWidgets(this@MainActivity, lat, lon, label)
-                        Toast.makeText(this@MainActivity, getString(R.string.location_updated_from_gps), Toast.LENGTH_SHORT).show()
                     }
                 }
         }
