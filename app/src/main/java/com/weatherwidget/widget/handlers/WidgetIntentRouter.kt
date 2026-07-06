@@ -709,6 +709,14 @@ suspend fun handleResize(
                 extraMetadata = extraMetadata,
             )
         }
+        // WIDGET_RENDER_OK: same greppable "last good full paint" breadcrumb emitted by the onUpdate
+        // path (see WeatherWidgetProvider.renderStartupWidgets). Reached only if the refresh above did
+        // not throw, so it marks a successful full-content repaint via the refresh/cache path (e.g. the
+        // direct cache repaint that now self-heals a blank widget on every ACTION_REFRESH).
+        ctx.database.appLogDao().log(
+            "WIDGET_RENDER_OK",
+            "widget=$appWidgetId view=$viewMode path=$reason action=$actionTag",
+        )
     }
 
     /**

@@ -430,6 +430,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         "HOURLY_PAINT_TRACE",
                         "phase=startup_done widget=$appWidgetId view=$viewMode",
                     )
+                    // WIDGET_RENDER_OK: the single greppable "this widget last painted full content, and
+                    // via which path" breadcrumb (path=onUpdate here; path=<reason> in the refresh/cache
+                    // path). When a widget is later found blank, one query over app_logs for this tag
+                    // dates the last good paint and tells us whether onUpdate simply stopped firing
+                    // (launcher dropped the views / process frozen) vs. a cancelled or errored render.
+                    appLogDao.log(
+                        "WIDGET_RENDER_OK",
+                        "widget=$appWidgetId view=$viewMode path=onUpdate token=$startupToken",
+                    )
                 } catch (e: CancellationException) {
                     appLogDao.log(
                         "HOURLY_PAINT_TRACE",
@@ -792,16 +801,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             )
             val needsNetworkFetch = !uiOnly && WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)
 
-            if (!needsNetworkFetch) {
-                triggerUiOnlyUpdate(context, reason = "refresh_action_ui_only")
-                Log.d(TAG, "onReceive: UI-only refresh path (uiOnly=$uiOnly, stale=$isDataStale)")
-            } else {
-                // Repaint every widget from cache right now so the refresh shows current cached data in
-                // ~0.5s instead of waiting on the forced network sync (~7s). This is a direct render
-                // (not a second worker) so its DB read completes before the fetch below starts writing
-                // — a UI-only worker raced the fetch's writes and still painted ~5s late.
-                WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
+            // Always repaint every widget directly from cache, immediately, on every refresh — this is
+            // the self-heal for a widget stuck on a blank/initialLayout surface. It is a DIRECT render
+            // (not a WorkManager job), so it runs even while the app is frozen/dozing — the exact
+            // condition under which the old triggerUiOnlyUpdate() worker was deferred and the blank
+            // persisted until the app was manually opened. Cache-only (~0.5s, no network), so it is
+            // cheap enough to run unconditionally regardless of charging/staleness. The network branch
+            // below still fires (and previously provided this same repaint) only when data is stale.
+            WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
+            Log.d(TAG, "onReceive: direct cache repaint of all widgets (uiOnly=$uiOnly, stale=$isDataStale)")
 
+            if (needsNetworkFetch) {
                 val tempWorkRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInputData(
                         Data.Builder()
