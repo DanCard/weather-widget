@@ -28,16 +28,9 @@ object HeaderPrecipCalculator {
 
     const val NIGHT_SCALE = 0.72f
 
-    fun getPrecipScaleFactor(precipProb: Int): Float = when {
-        precipProb <= 1  -> 0.3f
-        precipProb <= 2  -> 0.4f
-        precipProb <= 4  -> 0.5f
-        precipProb <= 8  -> 0.6f
-        precipProb <= 16 -> 0.7f
-        precipProb <= 32 -> 0.8f
-        precipProb <= 64 -> 0.9f
-        else             -> 1.0f
-    }
+    /** Delegates to the shared step table so the header and the daily rain labels never drift. */
+    fun getPrecipScaleFactor(precipProb: Int): Float =
+        com.weatherwidget.shared.util.DailyRainLabels.precipProbabilityScaleFactor(precipProb)
 
     fun getPrecipTextSize(precipProb: Int): Float {
         return HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * getPrecipScaleFactor(precipProb)

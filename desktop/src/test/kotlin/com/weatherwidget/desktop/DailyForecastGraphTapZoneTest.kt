@@ -40,6 +40,9 @@ class DailyForecastGraphTapZoneTest {
         cloudCoverRatio = 0.35f,
         dailyRainLabelText = null,
         nightRainLabelText = null,
+        dayPrecipProbability = null,
+        nightPrecipProbability = null,
+        daysFromToday = 1,
         isClimateNormal = false,
     )
 

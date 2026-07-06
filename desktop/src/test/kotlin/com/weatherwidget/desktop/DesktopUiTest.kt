@@ -685,7 +685,9 @@ class DesktopUiTest {
         ghostHigh = null, snapshotHigh = null, snapshotLow = null,
         iconCondition = null, iconName = iconName,
         isToday = true, isPast = false, cloudCoverRatio = null,
-        dailyRainLabelText = null, nightRainLabelText = null, isClimateNormal = false,
+        dailyRainLabelText = null, nightRainLabelText = null,
+        dayPrecipProbability = null, nightPrecipProbability = null, daysFromToday = 0,
+        isClimateNormal = false,
     )
 
     @Test

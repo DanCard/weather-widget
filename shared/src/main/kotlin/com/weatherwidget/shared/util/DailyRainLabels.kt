@@ -53,6 +53,56 @@ object DailyRainLabels {
     const val NIGHT_TUCK_ROOMY_RIGHT_DP = 2.5f
     const val NIGHT_TUCK_ROOMY_DOWN_DP = 2.5f
 
+    // ── Rain-label font scaling (shared so Android and desktop size labels identically) ───────────
+
+    /** Distance-scale slope: how aggressively far-out low-confidence labels shrink. */
+    const val RAIN_FONT_SCALE_K = 0.6f
+    /** Distance normalizer (days); the distance term saturates around this horizon. */
+    const val RAIN_FONT_SCALE_MAX_DAYS = 7f
+    /** Floor on the day count fed to the distance term so today/tomorrow aren't over-shrunk. */
+    const val RAIN_FONT_DISTANCE_MIN_DAYS = 1.5f
+
+    /**
+     * Probability→font-scale step table for a rain label (0.3 at a trace chance up to 1.0 above ~64%).
+     * Higher chance ⇒ larger label. Shared by the daily rain labels and the header precip text so the
+     * two never drift.
+     */
+    fun precipProbabilityScaleFactor(precipProbability: Int): Float = when {
+        precipProbability <= 1  -> 0.3f
+        precipProbability <= 2  -> 0.4f
+        precipProbability <= 4  -> 0.5f
+        precipProbability <= 8  -> 0.6f
+        precipProbability <= 16 -> 0.7f
+        precipProbability <= 32 -> 0.8f
+        precipProbability <= 64 -> 0.9f
+        else                    -> 1.0f
+    }
+
+    /**
+     * Font *scale* (a multiplier on the renderer's base rain-label text size) for a daily rain label.
+     * - **Future / today:** probability-weighted AND distance-weighted — a far-out low-confidence
+     *   drizzle shrinks, a near-term or near-certain day stays near full size.
+     * - **Past (history):** probability-weighted ONLY — a settled day has no "days into the future",
+     *   so the distance term is dropped and history sizes exactly like a same-probability future day
+     *   at zero distance.
+     *
+     * Night labels multiply the result by [NIGHT_SCALE] at the call site; each renderer also applies
+     * its own base size and any reduced-fit shrink.
+     */
+    fun rainLabelFontScale(
+        isPastDate: Boolean,
+        precipProbability: Int?,
+        daysFromToday: Int,
+    ): Float {
+        val prob = precipProbability ?: 0
+        val probScale = precipProbabilityScaleFactor(prob)
+        if (isPastDate) return probScale
+        val probFraction = prob.toFloat() / 100f
+        val effectiveDays = daysFromToday.toFloat().coerceAtLeast(RAIN_FONT_DISTANCE_MIN_DAYS)
+        val distanceScale = 1f - RAIN_FONT_SCALE_K * (1f - probFraction) * (effectiveDays / RAIN_FONT_SCALE_MAX_DAYS)
+        return probScale * distanceScale
+    }
+
     /** Max precip probability over the daytime (8am–8pm) and nighttime (8pm–8am) windows. */
     data class DayNightPrecip(
         val dayMax: Int?,

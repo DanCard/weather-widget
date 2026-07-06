@@ -359,7 +359,11 @@ fun DailyForecastGraph(
             // Daytime rain label: sits on top of the bar, above the high-temp label.
             val rainText = day.dailyRainLabelText
             if (rainText != null) {
-                val rainLayout = textMeasurer.measure(rainText, TextStyle(fontSize = (9f * scale).sp, color = COLOR_FORECAST_RAINY))
+                // Probability-weighted (and, for future/today, distance-weighted) font size — the same
+                // shared rule Android uses, applied to the desktop base size. History scales by
+                // probability only (no distance term).
+                val rainScale = DailyRainLabels.rainLabelFontScale(day.isPast, day.dayPrecipProbability, day.daysFromToday)
+                val rainLayout = textMeasurer.measure(rainText, TextStyle(fontSize = (9f * scale * rainScale).sp, color = COLOR_FORECAST_RAINY))
                 // Anchor to the high label's actual rendered top (shared rule: rain bottom = high top -
                 // gap; negative gap = slight overlap). Falls back to a small inset only if no high label.
                 val gapPx = DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP * scale
@@ -416,8 +420,10 @@ fun DailyForecastGraph(
                     val hNudgePx = effectiveNudgeDp * scale
                     val shiftedCenterX = centerX + dayWidth / 2f - hNudgePx + 1f * scale + roomyRightPx
 
-                    // Base rain layout
-                    var finalPaintStyle = TextStyle(fontSize = (11f * scale * DailyRainLabels.NIGHT_SCALE).sp, color = COLOR_FORECAST_RAINY)
+                    // Base rain layout. Same probability/distance font scaling as the day label,
+                    // times NIGHT_SCALE (history = probability only, no distance term).
+                    val nightFontScale = DailyRainLabels.rainLabelFontScale(day.isPast, day.nightPrecipProbability, day.daysFromToday)
+                    var finalPaintStyle = TextStyle(fontSize = (11f * scale * DailyRainLabels.NIGHT_SCALE * nightFontScale).sp, color = COLOR_FORECAST_RAINY)
                     var finalLayout = textMeasurer.measure(nightText, finalPaintStyle)
                     val edgeMargin = 2f * scale
                     val halfWidth = finalLayout.size.width / 2f
@@ -427,7 +433,7 @@ fun DailyForecastGraph(
                     val canShiftStandard = (shiftedCenterX + halfWidth <= size.width - edgeMargin) && (shiftedCenterX - halfWidth >= edgeMargin)
                     if (!canShiftStandard) {
                         // Try reduced scaling (extraScale = 0.85f)
-                        val reducedStyle = TextStyle(fontSize = (11f * scale * DailyRainLabels.NIGHT_SCALE * 0.85f).sp, color = COLOR_FORECAST_RAINY)
+                        val reducedStyle = TextStyle(fontSize = (11f * scale * DailyRainLabels.NIGHT_SCALE * nightFontScale * 0.85f).sp, color = COLOR_FORECAST_RAINY)
                         val reducedLayout = textMeasurer.measure(nightText, reducedStyle)
                         val reducedHalfWidth = reducedLayout.size.width / 2f
                         if (shiftedCenterX + reducedHalfWidth <= size.width - edgeMargin && shiftedCenterX - reducedHalfWidth >= edgeMargin) {

@@ -569,7 +569,12 @@ object DailyViewLogic {
                     dashedLineLow = fLow,
                     rainData = DailyForecastGraphRenderer.RainData(
                         rainSummary = rainSummary,
-                        dailyPrecipProbability = precip,
+                        // Size the day rain label off the SAME day chance it displays (and the icon
+                        // uses) — resolvedPrecip.dayPrecip — not the raw daily precipProbability. The
+                        // two diverge (e.g. an 8am–8pm window max vs a night-inclusive daily field), so
+                        // sizing off the raw value shrank a "15%" day label below an equal-chance night
+                        // label once history became probability-scaled. Mirrors nighttimePrecipProbability.
+                        dailyPrecipProbability = dayPrecipForIcon,
                         nighttimePrecipProbability = nightPrecipForIcon,
                         dailyPrecipAmountMm = weather?.precipAmountMm,
                         dailyRainLabelText = dailyRainLabelText,

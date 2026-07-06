@@ -13,9 +13,7 @@ import com.weatherwidget.widget.DailyForecastGraphRenderer.RainAboveHighPlacemen
 
 internal object DailyForecastRainLabelRenderer {
     private const val TAG = "DailyRainLabelRenderer"
-    private const val RAIN_FONT_SCALE_K = 0.6f
-    private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
-    // Placement constants live in :shared so Android and desktop stay identical (single tweak point).
+    // Placement + font-scale constants live in :shared so Android and desktop stay identical.
     private const val RAIN_HIGH_TEMP_GAP_DP = DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP
     private const val RAIN_LABEL_EDGE_MARGIN_DP = DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP
     private const val NIGHT_SCALE = DailyRainLabels.NIGHT_SCALE
@@ -406,17 +404,10 @@ internal object DailyForecastRainLabelRenderer {
         extraScale: Float = 1.0f,
     ): Paint {
         val nightScale = if (labelType == RainLabelType.NIGHT) NIGHT_SCALE else 1.0f
-        // Past days show observed amounts, not probability-weighted forecasts.
-        // Skip probability and distance scaling so actuals render at base size.
-        val combinedScale = if (day.isPast) {
-            0.85f
-        } else {
-            val probFraction = (probability ?: 0).toFloat() / 100f
-            val probScale = HeaderPrecipCalculator.getPrecipScaleFactor(probability ?: 0)
-            val effectiveDays = day.daysFromToday.toFloat().coerceAtLeast(1.5f)
-            val distanceScale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - probFraction) * (effectiveDays / RAIN_FONT_SCALE_MAX_DAYS)
-            probScale * distanceScale
-        }
+        // Probability-weighted for every day; future/today additionally distance-weighted. History
+        // uses the same probability scaling as future minus the distance term (shared rule) — so a
+        // history chance% sizes like the equivalent near-term forecast chance%, not a flat size.
+        val combinedScale = DailyRainLabels.rainLabelFontScale(day.isPast, probability, day.daysFromToday)
         val finalTextSize = paints.rainTextPaint.textSize * combinedScale * extraScale * nightScale
 
         return Paint(paints.rainTextPaint).apply {

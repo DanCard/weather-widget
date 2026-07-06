@@ -32,6 +32,42 @@ class DailyRainLabelsTest {
         assertEquals(9, DailyRainLabels.getMinimumPrecipProbabilityNight(2))
     }
 
+    // ---- rain-label font scale ----
+
+    @Test
+    fun probabilityScaleFactorStepsUpWithChance() {
+        assertEquals(0.3f, DailyRainLabels.precipProbabilityScaleFactor(1), 1e-6f)
+        assertEquals(0.7f, DailyRainLabels.precipProbabilityScaleFactor(15), 1e-6f)
+        assertEquals(0.9f, DailyRainLabels.precipProbabilityScaleFactor(50), 1e-6f)
+        assertEquals(1.0f, DailyRainLabels.precipProbabilityScaleFactor(90), 1e-6f)
+    }
+
+    @Test
+    fun historyFontScaleIsProbabilityOnly() {
+        // Past days ignore the distance term entirely: the scale is exactly the probability factor
+        // regardless of the (meaningless for history) daysFromToday value.
+        assertEquals(
+            DailyRainLabels.precipProbabilityScaleFactor(15),
+            DailyRainLabels.rainLabelFontScale(isPastDate = true, precipProbability = 15, daysFromToday = -1),
+            1e-6f,
+        )
+        assertEquals(
+            DailyRainLabels.rainLabelFontScale(isPastDate = true, precipProbability = 15, daysFromToday = -1),
+            DailyRainLabels.rainLabelFontScale(isPastDate = true, precipProbability = 15, daysFromToday = -9),
+            1e-6f,
+        )
+    }
+
+    @Test
+    fun futureFontScaleShrinksWithDistance() {
+        val near = DailyRainLabels.rainLabelFontScale(isPastDate = false, precipProbability = 15, daysFromToday = 1)
+        val far = DailyRainLabels.rainLabelFontScale(isPastDate = false, precipProbability = 15, daysFromToday = 6)
+        assertEquals(true, far < near)
+        // A near-certain day is barely distance-shrunk (probFraction≈1 zeroes the distance term).
+        val certainFar = DailyRainLabels.rainLabelFontScale(isPastDate = false, precipProbability = 100, daysFromToday = 6)
+        assertEquals(DailyRainLabels.precipProbabilityScaleFactor(100), certainFar, 1e-6f)
+    }
+
     // ---- formatPrecipAmount ----
 
     @Test

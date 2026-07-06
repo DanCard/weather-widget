@@ -53,6 +53,11 @@ data class DesktopDailyDay(
     val dailyRainLabelText: String?,
     /** Nighttime rain label tucked between columns (observed amount or prob%). */
     val nightRainLabelText: String?,
+    /** Resolved day/night precip chance driving the rain-label FONT SIZE (shared scaling rule). */
+    val dayPrecipProbability: Int?,
+    val nightPrecipProbability: Int?,
+    /** Signed offset from today (today=0, tomorrow=1, yesterday=-1); feeds the distance font term. */
+    val daysFromToday: Int,
     val isClimateNormal: Boolean,
     /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
     val nowHour: Int? = null,
@@ -331,6 +336,9 @@ object DesktopDailyForecastModel {
             cloudCoverRatio = noonCloudPercentForBar / 100f,
             dailyRainLabelText = dailyRainLabelText,
             nightRainLabelText = nightRainLabelText,
+            dayPrecipProbability = resolvedPrecip.dayPrecip,
+            nightPrecipProbability = resolvedPrecip.nightPrecip,
+            daysFromToday = java.time.temporal.ChronoUnit.DAYS.between(today, date).toInt(),
             isClimateNormal = forecast?.isClimateNormal == true,
             nowHour = if (isToday) now.hour else null,
         )
