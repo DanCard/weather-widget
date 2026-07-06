@@ -423,6 +423,21 @@ class DesktopWeatherRepository(
                         forecastPrecipAmountMm = frozen.forecastPrecipAmountMm,
                         noonCloudPercent = frozen.noonCloudPercent,
                     )
+                    // Persist the rain-chance transition (Log.d persists; Log.v would not). The frozen
+                    // day/night chance is captured from the live hourly-window max while the window is
+                    // open, so this desktop install and the Android one can freeze different values if a
+                    // provider revises the chance between their independent fetches (e.g. NWS 14%->15%).
+                    // Logging the resolved input + before->after + timestamp lets us reconstruct which
+                    // value each install captured and when, if the two databases ever diverge.
+                    if (newDay != existing.forecastDayPrecipChance || newNight != existing.forecastNightPrecipChance) {
+                        Log.d(
+                            "DesktopWeatherRepository",
+                            "freezeRainChance: date=$date src=$weatherSource dayWin=$dayWindowOpen nightWin=$nightWindowOpen" +
+                                " resolvedDay=${resolved.dayPrecip} resolvedNight=${resolved.nightPrecip}" +
+                                " day=${existing.forecastDayPrecipChance}->$newDay" +
+                                " night=${existing.forecastNightPrecipChance}->$newNight",
+                        )
+                    }
                     if (updated != existing) toUpsert.add(updated)
                 }
             }

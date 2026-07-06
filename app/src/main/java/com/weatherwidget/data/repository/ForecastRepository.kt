@@ -328,11 +328,29 @@ class ForecastRepository
                         Log.v(
                             TAG,
                             "freezeDisplay: date=$date src=${row.source} overlayOpen=$overlayOpen noonCloudOpen=$noonCloudOpen" +
+                                " dayWin=$dayWindowOpen nightWin=$nightWindowOpen" +
+                                " dayChance=${existing.forecastDayPrecipChance}->$newDay(resolved=${resolved.dayPrecip})" +
+                                " nightChance=${existing.forecastNightPrecipChance}->$newNight(resolved=${resolved.nightPrecip})" +
                                 " high=${existing.forecastHighTemp}->${updated.forecastHighTemp}" +
                                 " low=${existing.forecastLowTemp}->${updated.forecastLowTemp}" +
                                 " amount=${existing.forecastPrecipAmountMm}->${updated.forecastPrecipAmountMm}" +
                                 " noonCloud=${existing.noonCloudPercent}->${updated.noonCloudPercent}",
                         )
+                        // Persist the rain-chance transition to app_logs (VERBOSE above is logcat-only).
+                        // The frozen day/night chance is captured from the live hourly-window max while
+                        // the window is open, so two independently-fetching installs can freeze
+                        // different values if a provider revises the chance between their fetches (e.g.
+                        // NWS 14%->15%). Logging the resolved input + before->after + timestamp lets us
+                        // reconstruct which value each install captured and when, if they ever diverge.
+                        if (newDay != existing.forecastDayPrecipChance || newNight != existing.forecastNightPrecipChance) {
+                            appLogDao.log(
+                                "FREEZE_RAIN_CHANCE",
+                                "date=$date src=${row.source} dayWin=$dayWindowOpen nightWin=$nightWindowOpen" +
+                                    " resolvedDay=${resolved.dayPrecip} resolvedNight=${resolved.nightPrecip}" +
+                                    " day=${existing.forecastDayPrecipChance}->$newDay" +
+                                    " night=${existing.forecastNightPrecipChance}->$newNight",
+                            )
+                        }
                         if (updated != existing) toInsert.add(updated)
                     }
                 }
