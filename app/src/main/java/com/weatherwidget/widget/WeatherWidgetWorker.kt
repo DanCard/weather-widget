@@ -20,6 +20,13 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.data.repository.SharedLocationResolver
+import com.weatherwidget.ui.LocationUpdater
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import com.weatherwidget.widget.DailyActualsBySource
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -39,6 +46,7 @@ class WeatherWidgetWorker
         private val weatherRepository: WeatherRepository,
         private val widgetStateManager: WidgetStateManager,
         private val appLogDao: AppLogDao,
+        private val sharedLocationResolver: SharedLocationResolver,
     ) : CoroutineWorker(context, workerParams) {
         override suspend fun doWork(): Result {
             if (WeatherDatabase.isTestingMode()) {
@@ -133,6 +141,15 @@ class WeatherWidgetWorker
                 // loop survives a mid-run native SIGSEGV (a crashing run never reaches its own tail).
                 maybeScheduleDebugFastRefresh()
 
+                // Piggyback GPS resample when charging or battery > 70%
+                if (!uiOnlyRefresh && !currentTempOnly && !nonPrimaryCurrentTempOnly && !observationBackfillMode) {
+                    try {
+                        sampleGpsAndMaybeUpdateLocation()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "sampleGpsAndMaybeUpdateLocation failed", e)
+                    }
+                }
+
                 // Build per-source fetch context up front so the repository can decide which
                 // sources are due according to ForecastFetchPolicy (charging/screen/active-aware).
                 val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -146,11 +163,8 @@ class WeatherWidgetWorker
                 // once the table seeded to the default, every refresh re-fetched the default and the
                 // configured location (used only for rendering) was never honored — pinning the
                 // widget to the wrong place permanently.
+                val location = ActiveLocationResolver.resolve(context, stateManager, WeatherDatabase.getDatabase(context).forecastDao())
                 val configuredLocation = appWidgetIds.toList().firstNotNullOfOrNull { id -> stateManager.getWidgetLocation(id) }
-                val location =
-                    configuredLocation
-                        ?: weatherRepository.getLatestLocation()
-                        ?: (DEFAULT_LAT to DEFAULT_LON)
                 Log.d(TAG, "doWork: Location = $location (configured=${configuredLocation != null})")
                 val activeSourceList = appWidgetIds.map { id ->
                     stateManager.getCurrentDisplaySource(id).id
@@ -517,7 +531,7 @@ class WeatherWidgetWorker
                     )
                     resultMessage = "skipped_policy_blocked"
                 } else {
-                    val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
+                    val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
                     val fetchStartMs = SystemClock.elapsedRealtime()
                     val refreshResult =
                         weatherRepository.refreshCurrentTemperature(
@@ -607,7 +621,7 @@ class WeatherWidgetWorker
                 if (nonActiveSources.isEmpty()) {
                     resultMessage = "no_non_active_visible_sources"
                 } else {
-                    val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
+                    val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
                     val fetchStartMs = SystemClock.elapsedRealtime()
                     
                     var successCount = 0
@@ -705,7 +719,7 @@ class WeatherWidgetWorker
         }
 
         private suspend fun refreshWidgetsFromCache() {
-            val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
+            val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
             val weatherList =
                 weatherRepository.getWeatherData(
                     latitude = location.first,
@@ -737,6 +751,89 @@ class WeatherWidgetWorker
                 todayStartMs2,
             )
             updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, WidgetUpdateTracker.JobType.BACKGROUND_SYNC)
+        }
+
+        private suspend fun sampleGpsAndMaybeUpdateLocation() {
+            // Check battery/charging gate
+            val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val isPlugged = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
+            if (!isPlugged && batteryLevel <= com.weatherwidget.shared.util.BatteryTier.TIER_HIGH_THRESHOLD) {
+                return
+            }
+
+            // Check permissions
+            val hasFineLocation = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            
+            if (!hasFineLocation) {
+                return
+            }
+
+            val hasBackgroundLocation = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+
+            val client = LocationServices.getFusedLocationProviderClient(context)
+            val location = if (hasBackgroundLocation) {
+                try {
+                    val cancellationToken = CancellationTokenSource()
+                    val task = client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
+                    suspendCancellableCoroutine<android.location.Location?> { cont ->
+                        task.addOnCompleteListener { t ->
+                            if (t.isSuccessful && t.result != null) {
+                                cont.resume(t.result)
+                            } else {
+                                cont.resume(null)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "getCurrentLocation failed in background, trying lastLocation", e)
+                    try {
+                        val task = client.lastLocation
+                        suspendCancellableCoroutine<android.location.Location?> { cont ->
+                            task.addOnCompleteListener { t ->
+                                cont.resume(if (t.isSuccessful) t.result else null)
+                            }
+                        }
+                    } catch (ex: Exception) {
+                        null
+                    }
+                }
+            } else {
+                // Degrade to passive getLastLocation (best-effort)
+                try {
+                    val task = client.lastLocation
+                    suspendCancellableCoroutine<android.location.Location?> { cont ->
+                        task.addOnCompleteListener { t ->
+                            cont.resume(if (t.isSuccessful) t.result else null)
+                        }
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            if (location != null) {
+                val lat = location.latitude
+                val lon = location.longitude
+                if (LocationUpdater.shouldHealTo(context, lat, lon)) {
+                    val label = try {
+                        sharedLocationResolver.fromCoordinates(lat, lon).label
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Location label lookup failed in background for ($lat, $lon)", e)
+                        String.format("%.4f, %.4f", lat, lon)
+                    }
+                    Log.i(TAG, "GPS resample triggered auto-heal to ($lat, $lon) label=$label")
+                    LocationUpdater.applyToAllWidgets(context, lat, lon, label)
+                }
+            }
         }
 
         private suspend fun manageCurrentTempLoopAfterRun(

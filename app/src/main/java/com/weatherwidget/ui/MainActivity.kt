@@ -200,29 +200,32 @@ class MainActivity : AppCompatActivity() {
             this, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
         if (!fineLocationGranted) return
-        if (!LocationUpdater.allWidgetsAtDefault(this)) return
 
         val client = LocationServices.getFusedLocationProviderClient(this)
-        val cancellationToken = CancellationTokenSource()
-        client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
-            .addOnSuccessListener { location ->
-                if (location == null) return@addOnSuccessListener
-                // Re-check: the user may have set a location between request and callback.
-                if (!LocationUpdater.allWidgetsAtDefault(this)) return@addOnSuccessListener
-                val lat = location.latitude
-                val lon = location.longitude
-                lifecycleScope.launch {
-                    val label = try {
-                        sharedLocationResolver.fromCoordinates(lat, lon).label
-                    } catch (e: Exception) {
-                        // Don't fail silently: a revoked permission or geocoder error would otherwise
-                        // just show raw coordinates with no clue why. Surface it to logcat/bug report.
-                        Log.w("MainActivity", "Location label lookup failed for ($lat, $lon); using raw coordinates", e)
-                        String.format("%.4f, %.4f", lat, lon)
-                    }
-                    LocationUpdater.applyToAllWidgets(this@MainActivity, lat, lon, label)
-                    Toast.makeText(this@MainActivity, getString(R.string.location_updated_from_gps), Toast.LENGTH_SHORT).show()
-                }
+        client.lastLocation.addOnSuccessListener { lastLoc ->
+            if (lastLoc != null && !LocationUpdater.shouldHealTo(this, lastLoc.latitude, lastLoc.longitude)) {
+                return@addOnSuccessListener
             }
+            val cancellationToken = CancellationTokenSource()
+            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
+                .addOnSuccessListener { location ->
+                    if (location == null) return@addOnSuccessListener
+                    if (!LocationUpdater.shouldHealTo(this, location.latitude, location.longitude)) return@addOnSuccessListener
+                    val lat = location.latitude
+                    val lon = location.longitude
+                    lifecycleScope.launch {
+                        val label = try {
+                            sharedLocationResolver.fromCoordinates(lat, lon).label
+                        } catch (e: Exception) {
+                            // Don't fail silently: a revoked permission or geocoder error would otherwise
+                            // just show raw coordinates with no clue why. Surface it to logcat/bug report.
+                            Log.w("MainActivity", "Location label lookup failed for ($lat, $lon); using raw coordinates", e)
+                            String.format("%.4f, %.4f", lat, lon)
+                        }
+                        LocationUpdater.applyToAllWidgets(this@MainActivity, lat, lon, label)
+                        Toast.makeText(this@MainActivity, getString(R.string.location_updated_from_gps), Toast.LENGTH_SHORT).show()
+                    }
+                }
+        }
     }
 }

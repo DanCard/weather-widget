@@ -6,9 +6,11 @@ import android.content.Context
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetStateManager
 
 /**
  * Single source of truth for applying a chosen location to every placed widget. Shared by the
@@ -21,6 +23,19 @@ object LocationUpdater {
         AppWidgetManager.getInstance(context).getAppWidgetIds(
             ComponentName(context, WeatherWidgetProvider::class.java),
         )
+
+    /**
+     * Checks if any widget location needs to be auto-healed to the fresh location (i.e. is not same-site).
+     */
+    fun shouldHealTo(context: Context, freshLat: Double, freshLon: Double): Boolean {
+        val ids = getWidgetIds(context)
+        if (ids.isEmpty()) return false
+        val stateManager = WidgetStateManager(context)
+        return ids.any { id ->
+            val loc = stateManager.getWidgetLocation(id) ?: (WeatherWidgetWorker.DEFAULT_LAT to WeatherWidgetWorker.DEFAULT_LON)
+            !LocationMatch.sameSite(loc.first, loc.second, freshLat, freshLon)
+        }
+    }
 
     /**
      * True when every placed widget is still pinned to the hard default coordinates (or has no

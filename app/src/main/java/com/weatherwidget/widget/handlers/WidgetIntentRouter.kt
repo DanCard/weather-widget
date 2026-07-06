@@ -22,6 +22,7 @@ import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.DailyActualsBySource
+import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -62,13 +63,11 @@ object WidgetIntentRouter {
         val location: LocationResult,
     )
 
-    private fun resolveLocation(latestWeather: ForecastEntity?): LocationResult {
-        if (latestWeather == null) {
-            Log.w(TAG, "resolveLocation: no weather data, falling back to default coordinates")
-        }
+    private suspend fun resolveLocation(context: Context, forecastDao: ForecastDao, latestWeather: ForecastEntity?): LocationResult {
+        val latLon = ActiveLocationResolver.resolve(context, WidgetStateManager(context), forecastDao)
         return LocationResult(
-            lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT,
-            lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON,
+            lat = latLon.first,
+            lon = latLon.second,
             fetchedAt = latestWeather?.fetchedAt,
         )
     }
@@ -81,7 +80,7 @@ object WidgetIntentRouter {
         val database = WeatherDatabase.getDatabase(context)
         val forecastDao = database.forecastDao()
         val latestWeather = forecastDao.getLatestWeather()
-        val loc = resolveLocation(latestWeather)
+        val loc = resolveLocation(context, forecastDao, latestWeather)
         RefreshScheduler.refreshIfStale(context, loc.fetchedAt, staleReason, appLogDao)
         return RefreshContext(database, forecastDao, loc)
     }
