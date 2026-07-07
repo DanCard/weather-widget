@@ -7,9 +7,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.R
-import com.weatherwidget.util.DeviceUtils
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,20 +23,18 @@ class SettingsActivityInstrumentedTest {
     }
 
     @Test
-    fun emulatorShowsLocationSettings() {
-        // This test ensures the location settings block is shown on emulators, 
-        // as emulators do not have a standard "real" GPS provider in the way
-        // that physical devices do, and we require manual coordinate entry to test location logic.
-        org.junit.Assume.assumeTrue("Test must be run on an emulator", DeviceUtils.isEmulator())
-
+    fun locationSettingsSectionIsVisibleOnAllDevices() {
+        // The section hosts the "Set Location…" entry to the shared setup screen; since location
+        // pinning (LocationMode.FIXED) made manual choices safe on GPS devices, it must be
+        // visible everywhere — emulators and physical phones alike.
         val intent = Intent(context, SettingsActivity::class.java)
         val scenario = ActivityScenario.launch<SettingsActivity>(intent)
 
         scenario.onActivity { activity ->
             val locationSection = activity.findViewById<View>(R.id.location_settings_section)
             assertEquals(
-                "Location settings section should be visible on emulator", 
-                View.VISIBLE, 
+                "Location settings section should be visible",
+                View.VISIBLE,
                 locationSection.visibility
             )
         }

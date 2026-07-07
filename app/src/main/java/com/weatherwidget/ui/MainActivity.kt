@@ -14,8 +14,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.google.android.gms.tasks.CancellationTokenSource
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
@@ -189,11 +187,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Self-heals widgets that are stuck at the hard default location (the symptom of the old
-     * `lastLocation`-returns-null bug). When fine-location permission is granted and every widget is
-     * still at the default, actively resolve a fresh GPS fix here in the foreground (where GPS is
-     * reliable) and apply it to all widgets. No-ops once a real location is set, so it never
-     * overwrites a location the user chose deliberately.
+     * Self-heals widgets whose stored location has drifted from where the device actually is.
+     * Reads only the cached Fused last-known location — never an active GPS fix, which would
+     * trigger Samsung's "app got your precise location" notice. If the cache is empty this
+     * no-ops, and [GpsResampler.healIfNeeded] skips when the user pinned a location
+     * ([LocationMode.FIXED][com.weatherwidget.util.LocationMode]) so deliberate choices are
+     * never overwritten.
      */
     private fun maybeAutoHealLocationFromGps() {
         val fineLocationGranted = ContextCompat.checkSelfPermission(
@@ -202,22 +201,15 @@ class MainActivity : AppCompatActivity() {
         if (!fineLocationGranted) return
 
         val client = LocationServices.getFusedLocationProviderClient(this)
-        client.lastLocation.addOnSuccessListener { lastLoc ->
-            if (lastLoc != null && !LocationUpdater.shouldHealTo(this, lastLoc.latitude, lastLoc.longitude)) {
-                return@addOnSuccessListener
-            }
-            val cancellationToken = CancellationTokenSource()
-            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
-                .addOnSuccessListener { location ->
-                    if (location == null) return@addOnSuccessListener
-                    val lat = location.latitude
-                    val lon = location.longitude
-                    lifecycleScope.launch {
-                        if (gpsResampler.healIfNeeded(this@MainActivity, lat, lon, trigger = "foreground")) {
-                            Toast.makeText(this@MainActivity, getString(R.string.location_updated_from_gps), Toast.LENGTH_SHORT).show()
-                        }
-                    }
+        client.lastLocation.addOnSuccessListener { location ->
+            if (location == null) return@addOnSuccessListener
+            val lat = location.latitude
+            val lon = location.longitude
+            lifecycleScope.launch {
+                if (gpsResampler.healIfNeeded(this@MainActivity, lat, lon, trigger = "foreground")) {
+                    Toast.makeText(this@MainActivity, getString(R.string.location_updated_from_gps), Toast.LENGTH_SHORT).show()
                 }
+            }
         }
     }
 }

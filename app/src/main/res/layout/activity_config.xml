@@ -13,6 +13,7 @@
         android:padding="24dp">
 
         <TextView
+            android:id="@+id/config_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/configure_widget"
@@ -46,7 +47,14 @@
                 android:id="@+id/use_gps_button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/use_current_location"
+                android:text="@string/use_precise_location" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/follow_device_explainer"
+                android:textColor="#999999"
+                android:textSize="12sp"
                 android:layout_marginBottom="16dp" />
 
             <View
@@ -58,27 +66,26 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/or_enter_zip"
+                android:text="@string/or_search_location"
                 android:textColor="#CCCCCC"
                 android:textSize="14sp"
                 android:layout_marginBottom="12dp" />
 
             <EditText
-                android:id="@+id/zip_code_input"
+                android:id="@+id/location_search_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="@string/zip_code_hint"
+                android:hint="@string/location_search_hint"
                 android:textColor="#FFFFFF"
                 android:textColorHint="#666666"
-                android:inputType="number"
-                android:maxLength="5"
+                android:inputType="textPostalAddress"
                 android:layout_marginBottom="16dp" />
 
             <Button
-                android:id="@+id/use_zip_button"
+                android:id="@+id/search_location_button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/use_zip_code" />
+                android:text="@string/search_location" />
 
             <LinearLayout
                 android:id="@+id/coordinates_section"
@@ -136,6 +143,14 @@
                     android:layout_height="wrap_content"
                     android:text="@string/use_coordinates" />
             </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/pinned_location_explainer"
+                android:textColor="#999999"
+                android:textSize="12sp"
+                android:layout_marginTop="16dp" />
         </LinearLayout>
 
     </LinearLayout>

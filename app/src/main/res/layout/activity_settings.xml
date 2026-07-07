@@ -267,40 +267,11 @@
                         android:layout_marginBottom="12dp"
                         android:text="No location set" />
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="16dp">
-
-                        <EditText
-                            android:id="@+id/lat_input"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:hint="@string/latitude_hint"
-                            android:textColor="#FFFFFF"
-                            android:textColorHint="#666666"
-                            android:inputType="numberDecimal|numberSigned"
-                            android:layout_marginEnd="8dp" />
-
-                        <EditText
-                            android:id="@+id/lon_input"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:hint="@string/longitude_hint"
-                            android:textColor="#FFFFFF"
-                            android:textColorHint="#666666"
-                            android:inputType="numberDecimal|numberSigned"
-                            android:layout_marginStart="8dp" />
-                    </LinearLayout>
-
                     <Button
-                        android:id="@+id/save_location_button"
+                        android:id="@+id/set_location_button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/save_location" />
+                        android:text="@string/set_location_button" />
                 </LinearLayout>
             </LinearLayout>
 

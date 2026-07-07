@@ -5,9 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.location.Location
-import android.os.BatteryManager
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.AppLogEntity
@@ -16,6 +14,7 @@ import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.ui.ConfigActivity
+import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -36,7 +35,7 @@ class GpsResamplerTest : RobolectricTest() {
     private lateinit var resolver: SharedLocationResolver
     private val logged = mutableListOf<AppLogEntity>()
     private val healed = mutableListOf<Triple<Double, Double, String>>()
-    private val providerCalls = mutableListOf<Boolean>()
+    private var providerCalls = 0
 
     @Before
     fun setUp() {
@@ -55,16 +54,15 @@ class GpsResamplerTest : RobolectricTest() {
     private fun resampler(
         fix: Location?,
         fineGranted: Boolean = true,
-        backgroundGranted: Boolean = true,
     ) = GpsResampler(
         appLogDao = appLogDao,
         sharedLocationResolver = resolver,
-        locationProvider = { _, useActiveFix ->
-            providerCalls.add(useActiveFix)
+        locationProvider = { _ ->
+            providerCalls++
             fix
         },
         permissionChecker = { _, permission ->
-            if (permission == Manifest.permission.ACCESS_FINE_LOCATION) fineGranted else backgroundGranted
+            if (permission == Manifest.permission.ACCESS_FINE_LOCATION) fineGranted else true
         },
         applyHeal = { _, lat, lon, label -> healed.add(Triple(lat, lon, label)) },
     )
@@ -74,18 +72,6 @@ class GpsResamplerTest : RobolectricTest() {
             latitude = lat
             longitude = lon
         }
-
-    private fun setBattery(charging: Boolean, level: Int) {
-        val battery = Intent(Intent.ACTION_BATTERY_CHANGED).apply {
-            putExtra(
-                BatteryManager.EXTRA_STATUS,
-                if (charging) BatteryManager.BATTERY_STATUS_CHARGING else BatteryManager.BATTERY_STATUS_DISCHARGING,
-            )
-            putExtra(BatteryManager.EXTRA_PLUGGED, if (charging) BatteryManager.BATTERY_PLUGGED_AC else 0)
-            putExtra(BatteryManager.EXTRA_LEVEL, level)
-        }
-        context.sendStickyBroadcast(battery)
-    }
 
     private fun bindWidgetAt(widgetId: Int, lat: Double, lon: Double) {
         val info = AppWidgetProviderInfo().apply {
@@ -102,54 +88,27 @@ class GpsResamplerTest : RobolectricTest() {
         logged.filter { it.tag == GpsResampler.LOG_TAG }.map { it.message }
 
     @Test
-    fun `unplugged below threshold does not skip but uses passive location`() = runTest {
-        setBattery(charging = false, level = 60)
-        bindWidgetAt(101, 34.0522, -118.2437)
-
-        resampler(fix = fix(40.7128, -74.0060)).resample(context)
-
-        assertEquals(listOf(false), providerCalls)
-        assertEquals(listOf(Triple(40.7128, -74.0060, "Testville")), healed)
-        val healedLog = logged.single { it.tag == GpsResampler.LOG_TAG }
-        assertTrue(healedLog.message.startsWith("outcome=healed trigger=worker"))
-    }
-
-    @Test
     fun `missing fine location permission skips sampling`() = runTest {
-        setBattery(charging = true, level = 50)
-
         resampler(fix = fix(40.7128, -74.0060), fineGranted = false).resample(context)
 
-        assertTrue(providerCalls.isEmpty())
+        assertEquals(0, providerCalls)
         assertTrue(healed.isEmpty())
         assertEquals(listOf("outcome=skipped_no_permission"), outcomes())
     }
 
     @Test
-    fun `missing background permission degrades to passive last location`() = runTest {
-        setBattery(charging = true, level = 50)
-
-        resampler(fix = null, backgroundGranted = false).resample(context)
-
-        assertEquals(listOf(false), providerCalls)
-        assertEquals(listOf("outcome=no_fix mode=last_location"), outcomes())
-    }
-
-    @Test
-    fun `no fix leaves breadcrumb and does not heal`() = runTest {
-        setBattery(charging = true, level = 50)
+    fun `empty location cache leaves breadcrumb and does not heal`() = runTest {
         bindWidgetAt(101, 34.0522, -118.2437)
 
         resampler(fix = null).resample(context)
 
-        assertEquals(listOf(true), providerCalls)
+        assertEquals(1, providerCalls)
         assertTrue(healed.isEmpty())
-        assertEquals(listOf("outcome=no_fix mode=active_fix"), outcomes())
+        assertEquals(listOf("outcome=no_fix mode=last_location"), outcomes())
     }
 
     @Test
     fun `same-site fix does not heal`() = runTest {
-        setBattery(charging = true, level = 50)
         bindWidgetAt(101, 34.0522, -118.2437)
 
         // Within LocationMatch.SAME_SITE_TOLERANCE_DEG (0.002) of the configured location.
@@ -161,8 +120,7 @@ class GpsResamplerTest : RobolectricTest() {
     }
 
     @Test
-    fun `differing fix heals all widgets with resolved label`() = runTest {
-        setBattery(charging = true, level = 50)
+    fun `differing cached fix heals all widgets with resolved label`() = runTest {
         bindWidgetAt(101, 34.0522, -118.2437)
 
         resampler(fix = fix(40.7128, -74.0060)).resample(context)
@@ -176,13 +134,45 @@ class GpsResamplerTest : RobolectricTest() {
 
     @Test
     fun `label lookup failure still heals with raw coordinate label`() = runTest {
-        setBattery(charging = true, level = 50)
         bindWidgetAt(101, 34.0522, -118.2437)
         coEvery { resolver.fromCoordinates(any(), any()) } throws RuntimeException("geocoder down")
 
         resampler(fix = fix(40.7128, -74.0060)).resample(context)
 
         assertEquals(listOf(Triple(40.7128, -74.0060, "40.7128, -74.0060")), healed)
+    }
+
+    @Test
+    fun `fixed mode skips worker resample without reading location`() = runTest {
+        bindWidgetAt(101, 34.0522, -118.2437)
+        LocationMode.set(context, LocationMode.FIXED)
+
+        resampler(fix = fix(40.7128, -74.0060)).resample(context)
+
+        assertEquals(0, providerCalls)
+        assertTrue(healed.isEmpty())
+        assertEquals(listOf("outcome=skipped_pinned trigger=worker"), outcomes())
+    }
+
+    @Test
+    fun `fixed mode skips foreground healIfNeeded`() = runTest {
+        bindWidgetAt(101, 34.0522, -118.2437)
+        LocationMode.set(context, LocationMode.FIXED)
+
+        assertFalse(resampler(fix = null).healIfNeeded(context, 40.7128, -74.0060, trigger = "foreground"))
+
+        assertTrue(healed.isEmpty())
+        assertEquals(listOf("outcome=skipped_pinned trigger=foreground"), outcomes())
+    }
+
+    @Test
+    fun `explicit follow_device mode heals like the absent-key default`() = runTest {
+        bindWidgetAt(101, 34.0522, -118.2437)
+        LocationMode.set(context, LocationMode.FOLLOW_DEVICE)
+
+        resampler(fix = fix(40.7128, -74.0060)).resample(context)
+
+        assertEquals(listOf(Triple(40.7128, -74.0060, "Testville")), healed)
     }
 
     @Test

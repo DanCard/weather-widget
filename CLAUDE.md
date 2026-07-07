@@ -45,7 +45,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
 
 - Display yesterday's actual data alongside predictions
 - Graphical display when widget size permits
-- Location via GPS or zip code (default: Google HQ)
+- Location via the setup screen (`ConfigActivity`, also reachable from Settings → "Set Location…"): precise device location, city/address/ZIP search (Nominatim), or manual coordinates (default: Google HQ).
+- **Never request an active GPS fix from background/automatic paths** (`getCurrentLocation`/`PRIORITY_HIGH_ACCURACY`) — it triggers Samsung's "app got your precise location" warning; background paths use only passive `lastLocation` reads. The ONE exception: the user-initiated "Use precise device location" button in `ConfigActivity` (foreground, explicit tap).
+- **Location mode** (`location_mode` in `weather_prefs`, via `LocationMode`): `follow_device` (default; GPS auto-heal keeps widgets tracking the device) or `fixed` (search/coordinate choices pin the location; both heal paths skip with `GPS_RESAMPLE outcome=skipped_pinned`).
 - Visual style: Apple glass aesthetic
 
 ## Widget UI Layout

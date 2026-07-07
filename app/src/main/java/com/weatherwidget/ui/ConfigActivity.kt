@@ -4,12 +4,11 @@ import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Geocoder
 import android.os.Build
 import android.os.Bundle
-import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -24,7 +23,7 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
-import com.weatherwidget.util.DeviceUtils
+import com.weatherwidget.util.LocationMode
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -32,9 +31,21 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import javax.inject.Inject
 
+/**
+ * The location setup screen, serving two entry points:
+ * - Widget configuration (APPWIDGET_CONFIGURE): saves to the single widget's prefs and completes
+ *   the RESULT_OK handshake.
+ * - Settings ("Set Location…", launched with [EXTRA_GLOBAL_CONFIG]): applies to all widgets via
+ *   [LocationUpdater.applyToAllWidgets] and finishes without a result.
+ *
+ * "Use precise device location" sets [LocationMode.FOLLOW_DEVICE] (background auto-heal keeps
+ * widgets tracking the device); search results and manual coordinates set [LocationMode.FIXED],
+ * which pins the choice against the auto-heal.
+ */
 @AndroidEntryPoint
 class ConfigActivity : AppCompatActivity() {
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+    private var isGlobalMode = false
 
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
@@ -51,43 +62,59 @@ class ConfigActivity : AppCompatActivity() {
 
         setResult(RESULT_CANCELED)
 
+        isGlobalMode = intent?.getBooleanExtra(EXTRA_GLOBAL_CONFIG, false) ?: false
         appWidgetId = intent?.extras?.getInt(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID,
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
-        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID && !isGlobalMode) {
             finish()
             return
+        }
+
+        if (isGlobalMode) {
+            findViewById<TextView>(R.id.config_title).setText(R.string.widget_location_title)
         }
 
         setupViews()
     }
 
     private fun setupViews() {
-        val zipCodeInput = findViewById<EditText>(R.id.zip_code_input)
         val useGpsButton = findViewById<Button>(R.id.use_gps_button)
-        val useZipButton = findViewById<Button>(R.id.use_zip_button)
+        val searchInput = findViewById<EditText>(R.id.location_search_input)
+        val searchButton = findViewById<Button>(R.id.search_location_button)
         val latInput = findViewById<EditText>(R.id.lat_input)
         val lonInput = findViewById<EditText>(R.id.lon_input)
         val useCoordinatesButton = findViewById<Button>(R.id.use_coordinates_button)
-        val coordinatesSection = findViewById<View>(R.id.coordinates_section)
-
-        // Hide coordinates section if it's a device that reports standard GPS
-        if (DeviceUtils.reportsStandardGps(this)) {
-            coordinatesSection.visibility = View.GONE
-        }
 
         useGpsButton.setOnClickListener {
             checkAndRequestLocationPermissions()
         }
 
-        useZipButton.setOnClickListener {
-            val zipCode = zipCodeInput.text.toString()
-            if (zipCode.length == 5) {
-                saveZipCodeLocation(zipCode)
-            } else {
-                Toast.makeText(this, "Please enter a valid 5-digit ZIP code", Toast.LENGTH_SHORT).show()
+        searchButton.setOnClickListener {
+            val query = searchInput.text.toString().trim()
+            if (query.isEmpty()) {
+                Toast.makeText(this, getString(R.string.location_search_hint), Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            searchButton.isEnabled = false
+            lifecycleScope.launch {
+                val results = sharedLocationResolver.searchText(query)
+                searchButton.isEnabled = true
+                if (results.isEmpty()) {
+                    Toast.makeText(this@ConfigActivity, getString(R.string.location_search_no_results), Toast.LENGTH_SHORT).show()
+                } else {
+                    // A single match still goes through the dialog so the user confirms the label.
+                    AlertDialog.Builder(this@ConfigActivity)
+                        .setTitle(query)
+                        .setItems(results.map { it.label }.toTypedArray()) { _, which ->
+                            val chosen = results[which]
+                            saveChosenLocation(chosen.lat, chosen.lon, chosen.label, LocationMode.FIXED)
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                }
             }
         }
 
@@ -99,10 +126,10 @@ class ConfigActivity : AppCompatActivity() {
                     try {
                         val resolved = sharedLocationResolver.fromCoordinates(lat, lon)
                         Toast.makeText(this@ConfigActivity, "Location: ${resolved.label}", Toast.LENGTH_LONG).show()
-                        saveLocation(lat, lon)
+                        saveChosenLocation(lat, lon, resolved.label, LocationMode.FIXED)
                     } catch (e: Exception) {
                         Toast.makeText(this@ConfigActivity, "Saving coordinates (Label lookup offline)", Toast.LENGTH_SHORT).show()
-                        saveLocation(lat, lon)
+                        saveChosenLocation(lat, lon, null, LocationMode.FIXED)
                     }
                 }
             } else {
@@ -110,8 +137,6 @@ class ConfigActivity : AppCompatActivity() {
             }
         }
     }
-
-
 
     private fun checkAndRequestLocationPermissions() {
         val fineLocationGranted = ContextCompat.checkSelfPermission(
@@ -191,19 +216,20 @@ class ConfigActivity : AppCompatActivity() {
             return
         }
 
+        val useGpsButton = findViewById<Button>(R.id.use_gps_button)
+        useGpsButton.isEnabled = false
+        Toast.makeText(this, getString(R.string.getting_location), Toast.LENGTH_SHORT).show()
+
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        // Actively request a fresh fix. `lastLocation` returns only a cached value that is
-        // frequently null (after reboot, or when no app has requested location recently), which
-        // previously caused a silent fallback to the default coordinates (Google HQ). That is why
-        // widgets ended up "stuck" at the default even with location permission granted.
-        // `getCurrentLocation` computes a new fix from GPS/network, falling back to the cached
-        // `lastLocation` and only then to the hard default.
-        val cancellationToken = CancellationTokenSource()
-        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
+        // Active fix, deliberately: this is the ONE exception to the app's passive-lastLocation
+        // rule. Samsung's "app got your precise location" notice targets background access; here
+        // the user explicitly tapped "Use precise device location" in a foreground screen, so a
+        // fresh fix is expected. Every background path must stay passive (see GpsResampler).
+        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token)
             .addOnSuccessListener { location ->
                 if (location != null) {
-                    saveLocation(location.latitude, location.longitude)
+                    saveChosenLocation(location.latitude, location.longitude, null, LocationMode.FOLLOW_DEVICE)
                 } else {
                     fallBackToLastLocation(fusedLocationClient)
                 }
@@ -214,8 +240,8 @@ class ConfigActivity : AppCompatActivity() {
     }
 
     /**
-     * Last-resort location resolution: try the cached fix, then the hard default. Only reached when
-     * an active [FusedLocationProviderClient.getCurrentLocation] request yields nothing.
+     * Last-resort resolution when the active fix yields nothing: cached fix, then hard default.
+     * Still FOLLOW_DEVICE — the auto-heal can later replace the placeholder with a real fix.
      */
     private fun fallBackToLastLocation(
         fusedLocationClient: com.google.android.gms.location.FusedLocationProviderClient,
@@ -225,45 +251,47 @@ class ConfigActivity : AppCompatActivity() {
                 Manifest.permission.ACCESS_FINE_LOCATION,
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            saveLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON)
+            saveChosenLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, null, LocationMode.FOLLOW_DEVICE)
             return
         }
         fusedLocationClient.lastLocation
             .addOnSuccessListener { cached ->
                 if (cached != null) {
-                    saveLocation(cached.latitude, cached.longitude)
+                    saveChosenLocation(cached.latitude, cached.longitude, null, LocationMode.FOLLOW_DEVICE)
                 } else {
                     Toast.makeText(this, "Could not get current location. Using default.", Toast.LENGTH_SHORT).show()
-                    saveLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON)
+                    saveChosenLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, null, LocationMode.FOLLOW_DEVICE)
                 }
             }
             .addOnFailureListener {
                 Toast.makeText(this, "Could not get current location. Using default.", Toast.LENGTH_SHORT).show()
-                saveLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON)
+                saveChosenLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, null, LocationMode.FOLLOW_DEVICE)
             }
     }
 
-    private fun saveZipCodeLocation(zipCode: String) {
-        try {
-            val geocoder = Geocoder(this, Locale.getDefault())
+    /**
+     * Single save sink for all four options. Records the location mode, then routes to the
+     * per-widget prefs (widget config) or to every widget (Settings entry, [isGlobalMode]).
+     */
+    private fun saveChosenLocation(lat: Double, lon: Double, label: String?, mode: String) {
+        LocationMode.set(this, mode)
 
-            @Suppress("DEPRECATION")
-            val addresses = geocoder.getFromLocationName(zipCode, 1)
-            if (!addresses.isNullOrEmpty()) {
-                val address = addresses[0]
-                saveLocation(address.latitude, address.longitude)
+        if (isGlobalMode) {
+            if (label != null) {
+                finishGlobalSave(lat, lon, label, mode)
             } else {
-                Toast.makeText(this, "Could not find location for ZIP code", Toast.LENGTH_SHORT).show()
+                lifecycleScope.launch {
+                    val resolvedLabel = try {
+                        sharedLocationResolver.fromCoordinates(lat, lon).label
+                    } catch (e: Exception) {
+                        String.format(Locale.US, "%.4f, %.4f", lat, lon)
+                    }
+                    finishGlobalSave(lat, lon, resolvedLabel, mode)
+                }
             }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Error looking up ZIP code", Toast.LENGTH_SHORT).show()
+            return
         }
-    }
 
-    private fun saveLocation(
-        lat: Double,
-        lon: Double,
-    ) {
         val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(this, PREFS_NAME)
         prefs.edit()
             .putFloat("${KEY_LAT_PREFIX}$appWidgetId", lat.toFloat())
@@ -271,11 +299,21 @@ class ConfigActivity : AppCompatActivity() {
             .apply()
 
         lifecycleScope.launch {
-            appLogDao.log("CONFIG", "Widget $appWidgetId configured with lat=$lat, lon=$lon")
+            appLogDao.log("CONFIG", "Widget $appWidgetId configured with lat=$lat, lon=$lon mode=$mode")
         }
 
         triggerWidgetUpdate()
         finishWithSuccess()
+    }
+
+    private fun finishGlobalSave(lat: Double, lon: Double, label: String, mode: String) {
+        // applyToAllWidgets enqueues its own force-refresh worker.
+        LocationUpdater.applyToAllWidgets(this, lat, lon, label)
+        lifecycleScope.launch {
+            appLogDao.log("CONFIG", "Global location set lat=$lat lon=$lon mode=$mode label=$label")
+        }
+        Toast.makeText(this, getString(R.string.location_saved_success), Toast.LENGTH_SHORT).show()
+        finish()
     }
 
     private fun triggerWidgetUpdate() {
@@ -295,5 +333,8 @@ class ConfigActivity : AppCompatActivity() {
         const val PREFS_NAME = "weather_widget_prefs"
         const val KEY_LAT_PREFIX = "widget_lat_"
         const val KEY_LON_PREFIX = "widget_lon_"
+
+        /** Launch extra: no widget id; saves apply to all widgets and no RESULT_OK is set. */
+        const val EXTRA_GLOBAL_CONFIG = "extra_global_config"
     }
 }

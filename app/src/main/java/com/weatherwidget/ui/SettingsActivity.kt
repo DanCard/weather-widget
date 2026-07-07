@@ -40,17 +40,13 @@ import java.util.UUID
 
 import javax.inject.Inject
 
-import com.weatherwidget.data.repository.SharedLocationResolver
+import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
-import com.weatherwidget.util.DeviceUtils
 
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
-
-    @Inject
-    lateinit var sharedLocationResolver: SharedLocationResolver
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -359,34 +355,39 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun setupLocationSettings() {
-        val locationSection = findViewById<View>(R.id.location_settings_section)
-        
-        // Hide location settings if it's a device that reports standard GPS
-        if (DeviceUtils.reportsStandardGps(this)) {
-            locationSection.visibility = View.GONE
-            return
+        findViewById<Button>(R.id.set_location_button).setOnClickListener {
+            startActivity(
+                Intent(this, ConfigActivity::class.java)
+                    .putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
+            )
         }
+        refreshLocationLabel()
+    }
 
-        locationSection.visibility = View.VISIBLE
-        val latInput = findViewById<EditText>(R.id.lat_input)
-        val lonInput = findViewById<EditText>(R.id.lon_input)
-        val saveButton = findViewById<Button>(R.id.save_location_button)
+    override fun onResume() {
+        super.onResume()
+        // Refresh after returning from the location setup screen.
+        refreshLocationLabel()
+    }
+
+    /**
+     * Shows the effective location (first widget → last historical POI → hard default) and
+     * whether it's pinned ([LocationMode.FIXED]) or follows the device.
+     */
+    private fun refreshLocationLabel() {
         val locationLabel = findViewById<TextView>(R.id.current_location_label)
 
-        // Get list of active widget IDs
         val appWidgetManager = AppWidgetManager.getInstance(this)
         val widgetIds = appWidgetManager.getAppWidgetIds(
             android.content.ComponentName(this, WeatherWidgetProvider::class.java)
         )
 
-        // Find current location: try first active widget, then fallback to default POI
         var currentLat: Double? = null
         var currentLon: Double? = null
         var labelText = "No location set"
 
         if (widgetIds.isNotEmpty()) {
-            val firstWidgetId = widgetIds[0]
-            val widgetLocation = widgetStateManager.getWidgetLocation(firstWidgetId)
+            val widgetLocation = widgetStateManager.getWidgetLocation(widgetIds[0])
             if (widgetLocation != null) {
                 currentLat = widgetLocation.first
                 currentLon = widgetLocation.second
@@ -418,38 +419,14 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         if (currentLat == null || currentLon == null) {
-            // Ultimate fallback to Mountain View
-            currentLat = WeatherWidgetWorker.DEFAULT_LAT
-            currentLon = WeatherWidgetWorker.DEFAULT_LON
-            labelText = "Default Location: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLon)}"
+            labelText = "Default Location: ${String.format("%.4f", WeatherWidgetWorker.DEFAULT_LAT)}, ${String.format("%.4f", WeatherWidgetWorker.DEFAULT_LON)}"
         }
 
-        latInput.setText(currentLat.toString())
-        lonInput.setText(currentLon.toString())
-        locationLabel.text = labelText
-
-        saveButton.setOnClickListener {
-            val lat = latInput.text.toString().toDoubleOrNull()
-            val lon = lonInput.text.toString().toDoubleOrNull()
-            if (lat != null && lat in -90.0..90.0 && lon != null && lon in -180.0..180.0) {
-                lifecycleScope.launch {
-                    try {
-                        val resolved = sharedLocationResolver.fromCoordinates(lat, lon)
-                        locationLabel.text = "Saved Location: ${resolved.label}"
-                        saveLocationGlobally(lat, lon, resolved.label, widgetIds)
-                    } catch (e: Exception) {
-                        locationLabel.text = "Saved Location: ${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
-                        saveLocationGlobally(lat, lon, "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}", widgetIds)
-                    }
-                }
-            } else {
-                Toast.makeText(this, getString(R.string.invalid_coordinates_range), Toast.LENGTH_SHORT).show()
-            }
+        val modeSuffix = if (LocationMode.get(this) == LocationMode.FIXED) {
+            getString(R.string.location_mode_pinned)
+        } else {
+            getString(R.string.location_mode_follow)
         }
-    }
-
-    private fun saveLocationGlobally(lat: Double, lon: Double, label: String, widgetIds: IntArray) {
-        LocationUpdater.applyToAllWidgets(this, lat, lon, label)
-        Toast.makeText(this, getString(R.string.location_saved_success), Toast.LENGTH_SHORT).show()
+        locationLabel.text = "$labelText • $modeSuffix"
     }
 }
