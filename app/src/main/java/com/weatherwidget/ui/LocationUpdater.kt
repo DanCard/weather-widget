@@ -6,7 +6,9 @@ import android.content.Context
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.weatherwidget.R
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -53,6 +55,60 @@ object LocationUpdater {
             val lon = prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$id", Float.NaN)
             (lat.isNaN() || lon.isNaN()) || (lat == defaultLat && lon == defaultLon)
         }
+    }
+
+    /**
+     * Human-readable summary of the effective location (first widget → last historical POI →
+     * hard default) plus whether it's pinned or follows the device. Shown on both the Settings
+     * screen and the location setup screen ([ConfigActivity]).
+     */
+    fun describeCurrentLocation(context: Context): String {
+        var currentLat: Double? = null
+        var currentLon: Double? = null
+        var labelText = "No location set"
+
+        val ids = getWidgetIds(context)
+        if (ids.isNotEmpty()) {
+            val widgetLocation = WidgetStateManager(context).getWidgetLocation(ids[0])
+            if (widgetLocation != null) {
+                currentLat = widgetLocation.first
+                currentLon = widgetLocation.second
+                labelText = "Widget Location: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLon)}"
+            }
+        }
+
+        if (currentLat == null || currentLon == null) {
+            // Fallback to historical_pois default POI
+            val weatherPrefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
+            val lastPoi = weatherPrefs.getString("historical_pois", null)
+                ?.split(";")
+                ?.lastOrNull()
+                ?.split("|")
+                ?.takeLast(3)
+                ?.let { parts ->
+                    if (parts.size == 3) {
+                        parts[1].toDoubleOrNull()?.let { lat -> parts[2].toDoubleOrNull()?.let { lon -> lat to lon } }
+                    } else {
+                        null
+                    }
+                }
+            if (lastPoi != null) {
+                currentLat = lastPoi.first
+                currentLon = lastPoi.second
+                labelText = "Default Location: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLon)}"
+            }
+        }
+
+        if (currentLat == null || currentLon == null) {
+            labelText = "Default Location: ${String.format("%.4f", WeatherWidgetWorker.DEFAULT_LAT)}, ${String.format("%.4f", WeatherWidgetWorker.DEFAULT_LON)}"
+        }
+
+        val modeSuffix = if (LocationMode.get(context) == LocationMode.FIXED) {
+            context.getString(R.string.location_mode_pinned)
+        } else {
+            context.getString(R.string.location_mode_follow)
+        }
+        return "$labelText • $modeSuffix"
     }
 
     /**

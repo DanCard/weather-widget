@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -78,6 +79,15 @@ class ConfigActivity : AppCompatActivity() {
         }
 
         setupViews()
+
+        // Initial widget setup defaults to the precise-location flow: most users want the widget
+        // to follow the device, so kick off permissions → fix right away. Denying the permission
+        // (or the search/coordinate options) remains available on the screen behind the prompt.
+        // Never auto-start from the Settings entry (savedInstanceState guard avoids re-firing on
+        // configuration changes).
+        if (!isGlobalMode && savedInstanceState == null) {
+            checkAndRequestLocationPermissions()
+        }
     }
 
     private fun setupViews() {
@@ -87,6 +97,14 @@ class ConfigActivity : AppCompatActivity() {
         val latInput = findViewById<EditText>(R.id.lat_input)
         val lonInput = findViewById<EditText>(R.id.lon_input)
         val useCoordinatesButton = findViewById<Button>(R.id.use_coordinates_button)
+
+        findViewById<TextView>(R.id.current_location_label).text =
+            LocationUpdater.describeCurrentLocation(this)
+
+        // Leave without changes; the widget-add handshake keeps the RESULT_CANCELED set in onCreate.
+        findViewById<ImageButton>(R.id.config_back_button).setOnClickListener {
+            finish()
+        }
 
         useGpsButton.setOnClickListener {
             checkAndRequestLocationPermissions()

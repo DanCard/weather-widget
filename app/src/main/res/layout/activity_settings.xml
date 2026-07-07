@@ -230,7 +230,8 @@
                     android:layout_height="wrap_content"
                     android:background="@drawable/rounded_button_blue"
                     android:text="@string/view_icon_gallery"
-                    android:textColor="#FFFFFF" />
+                    android:textColor="#FFFFFF"
+                    android:textSize="21sp" />
             </LinearLayout>
 
             <!-- Default Location Section -->
@@ -271,7 +272,12 @@
                         android:id="@+id/set_location_button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/set_location_button" />
+                        android:background="@drawable/rounded_button_green"
+                        android:paddingTop="16dp"
+                        android:paddingBottom="16dp"
+                        android:text="@string/set_location_button"
+                        android:textColor="#1A1A1A"
+                        android:textSize="21sp" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -306,9 +312,10 @@
                     android:id="@+id/submit_bug_report_button"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/rounded_button_blue"
+                    android:background="@drawable/rounded_button_yellow"
                     android:text="@string/submit_bug_report"
-                    android:textColor="#FFFFFF" />
+                    android:textColor="#1A1A1A"
+                    android:textSize="21sp" />
             </LinearLayout>
 
         </LinearLayout>

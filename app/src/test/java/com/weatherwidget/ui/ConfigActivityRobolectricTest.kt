@@ -201,6 +201,55 @@ class ConfigActivityRobolectricTest {
         assertEquals(LocationMode.FIXED, LocationMode.get(context))
     }
 
+    @Test
+    fun `initial widget setup auto-starts the precise location flow`() {
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        ActivityScenario.launch<ConfigActivity>(intent).onActivity { activity ->
+            val requested = shadowOf(activity).lastRequestedPermission
+            assertNotNull("expected auto-started permission request", requested)
+            assertTrue(requested.requestedPermissions.contains(android.Manifest.permission.ACCESS_FINE_LOCATION))
+        }
+    }
+
+    @Test
+    fun `settings entry does not auto-start the precise location flow`() {
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
+        }
+        ActivityScenario.launch<ConfigActivity>(intent).onActivity { activity ->
+            assertEquals(null, shadowOf(activity).lastRequestedPermission)
+        }
+    }
+
+    @Test
+    fun `back button exits without saving and keeps RESULT_CANCELED`() {
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        ActivityScenario.launch<ConfigActivity>(intent).onActivity { activity ->
+            activity.findViewById<android.widget.ImageButton>(R.id.config_back_button).performClick()
+            assertTrue(activity.isFinishing)
+            assertEquals(Activity.RESULT_CANCELED, shadowOf(activity).resultCode)
+        }
+
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        assertTrue(prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN).isNaN())
+    }
+
+    @Test
+    fun `screen shows the current location and mode`() {
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
+        }
+        ActivityScenario.launch<ConfigActivity>(intent).onActivity { activity ->
+            val text = activity.findViewById<android.widget.TextView>(R.id.current_location_label).text.toString()
+            assertTrue("expected location summary in: $text", text.contains("Default Location"))
+            assertTrue("expected mode suffix in: $text", text.contains("Follows device"))
+        }
+    }
+
     private fun bindWidget(id: Int, lat: Double, lon: Double) {
         val info = AppWidgetProviderInfo().apply {
             provider = ComponentName(context, WeatherWidgetProvider::class.java)
