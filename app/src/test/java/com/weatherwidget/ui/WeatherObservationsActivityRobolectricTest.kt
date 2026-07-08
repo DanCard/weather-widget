@@ -181,6 +181,43 @@ class WeatherObservationsActivityRobolectricTest {
         }
     }
 
+    // Regression: the device had recently been in Austin, so a fresh (<24h) KATT observation stored
+    // under the Austin location lingered in the table. The observations list is location-blind no
+    // longer — it must scope to the current (Bay Area) widget location and drop the Austin row, which
+    // otherwise showed up mid-list with a bogus "3.6 mi" (its distance was computed back in Austin).
+    @Test
+    fun `nws mode excludes observations fetched at a different location`() {
+        runBlocking {
+            database.observationDao().insertAll(
+                listOf(
+                    ObservationEntity(
+                        stationId = "KATT",
+                        stationName = "Austin City Austin Camp Mabry",
+                        timestamp = now - 30_000L,
+                        temperature = 91.0f,
+                        condition = "Clear",
+                        locationLat = 30.32079,
+                        locationLon = -97.76048,
+                        distanceKm = 5.8f,
+                        stationType = "OFFICIAL",
+                        fetchedAt = now - 30_000L,
+                        api = "NWS",
+                    ),
+                ),
+            )
+        }
+
+        val scenario = launchActivity()
+
+        scenario.onActivity { activity ->
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val stationIds = adapter.items.map { it.stationId }
+
+            assertFalse("Austin observation must not leak into the Bay Area list", stationIds.contains("KATT"))
+            assertEquals(listOf("AW020", "KNUQ"), stationIds)
+        }
+    }
+
     @Test
     fun `visible activity reloads observations when new current observations are inserted`() {
         val scenario = launchActivity()

@@ -752,6 +752,18 @@ class ObservationRepository @Inject constructor(
     suspend fun getRecentObservations(sinceMs: Long): List<ObservationEntity> =
         observationDao.getRecentObservations(sinceMs)
 
+    /**
+     * Recent observations scoped to the given location's ~0.1° box (see [LocationMatch]). Prefer this
+     * over [getRecentObservations] anywhere a location is known, so observations fetched under a
+     * previously-visited location don't leak into the current location's list.
+     */
+    suspend fun getRecentObservationsNear(
+        sinceMs: Long,
+        latitude: Double,
+        longitude: Double,
+    ): List<ObservationEntity> =
+        observationDao.getRecentObservationsNear(sinceMs, latitude, longitude)
+
     suspend fun getMainObservationsWithComputedNwsBlend(
         latitude: Double,
         longitude: Double,

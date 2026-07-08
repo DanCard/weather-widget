@@ -14,6 +14,24 @@ interface ObservationDao {
     @Query("SELECT * FROM observations WHERE timestamp >= :sinceMs ORDER BY timestamp DESC")
     suspend fun getRecentObservations(sinceMs: Long): List<ObservationEntity>
 
+    // Location-scoped variant of getRecentObservations. Each row stores the device location it was
+    // fetched under (locationLat/locationLon), so filtering by the current location keeps stale
+    // observations from a previously-visited place (e.g. Austin rows lingering in the 24h window
+    // after the device moved to the Bay Area) out of the current location's list.
+    @Query(
+        """
+        SELECT * FROM observations
+        WHERE timestamp >= :sinceMs
+          AND ${LocationMatch.ROOM_WHERE}
+        ORDER BY timestamp DESC
+    """,
+    )
+    suspend fun getRecentObservationsNear(
+        sinceMs: Long,
+        lat: Double,
+        lon: Double,
+    ): List<ObservationEntity>
+
     @Query("SELECT MAX(fetchedAt) FROM observations")
     fun observeLatestFetchedAt(): Flow<Long?>
 

@@ -279,10 +279,22 @@ class WeatherObservationsActivity : AppCompatActivity() {
         loadObservationsJob?.cancel()
         loadObservationsJob = lifecycleScope.launch(ioDispatcher) {
             try {
+                // Each observation row records the device location it was fetched under, and the 24h
+                // window can straddle a move between locations (e.g. Austin → Bay Area), so scope the
+                // list to the current location. Fall back to the unscoped query only if no location is
+                // resolvable at all.
+                val location = activeLocation ?: weatherRepository.getLatestLocation()
+                suspend fun recentObservations(sinceMs: Long): List<ObservationEntity> =
+                    if (location != null) {
+                        observationRepository.getRecentObservationsNear(sinceMs, location.first, location.second)
+                    } else {
+                        observationRepository.getRecentObservations(sinceMs)
+                    }
+
                 val observations = if (currentSource == WeatherSource.NWS) {
                     // Fetch detailed multi-station observations from the last 24 hours
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                    observationRepository.getRecentObservations(sinceMs)
+                    recentObservations(sinceMs)
                         .filter { WeatherObservationsSupport.matchesObservationSource(it.stationId, currentSource) }
                         .groupBy { it.stationId }
                         .map { it.value.first() }
@@ -290,7 +302,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 } else {
                     // For other sources, show POIs if they exist, or fallback to the latest single reading
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                    val pois = observationRepository.getRecentObservations(sinceMs)
+                    val pois = recentObservations(sinceMs)
                         .filter { WeatherObservationsSupport.matchesObservationSource(it.stationId, currentSource) }
                         .groupBy { it.stationId }
                         .map { it.value.first() }
