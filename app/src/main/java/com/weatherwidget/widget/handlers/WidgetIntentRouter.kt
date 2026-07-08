@@ -23,6 +23,7 @@ import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ActiveLocationResolver
+import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -461,13 +462,17 @@ suspend fun handleToggleView(
         // Uses time-aligned IDW so the value matches what the live widget displayed.
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val todayObs = database.observationDao().getObservationsInRange(todayStartMs, tomorrowMs, lat, lon)
+        // Reach back across midnight (not today-only) so stations whose feed lapsed before midnight
+        // still bracket today's early-morning candidates; otherwise a lone cold outlier dominates the
+        // low and this SET_VIEW render disagrees with the hourly graph. aggregate indexes today below.
+        val contextObs = database.observationDao()
+            .getObservationsInRange(todayStartMs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS, tomorrowMs, lat, lon)
             .filter { it.stationId != "NWS_BLEND" }
         val now = LocalDateTime.now()
         val hourlyLookbackStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zone).toInstant().toEpochMilli()
         val hourlyLookaheadEnd = now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zone).toInstant().toEpochMilli()
         val hourlyForecasts = database.hourlyForecastDao().getHourlyForecasts(hourlyLookbackStart, hourlyLookaheadEnd, lat, lon)
-        val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs, hourlyForecasts, lat, lon, personalStationWeight)
+        val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(contextObs, hourlyForecasts, lat, lon, personalStationWeight)
 
         // Today must stay live-only. Persisted daily_history can contain a different high
         // than the time-aligned live blender, which makes SET_VIEW renders disagree with

@@ -18,6 +18,7 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.util.SpatialInterpolator
 import java.time.Instant
 import com.weatherwidget.widget.DailyActualsBySource
@@ -89,6 +90,10 @@ class ObservationRepository @Inject constructor(
 
     companion object {
         private const val MAX_RETRIES = 5
+
+        // Synoptic (web) fallback is a heavier out-of-band fetch, so it is limited to the
+        // nearest N stations by distance rather than all MAX_RETRIES candidates.
+        private const val MAX_WEB_FALLBACK_STATIONS = 3
     }
 
     internal suspend fun fetchNwsCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
@@ -291,7 +296,7 @@ class ObservationRepository @Inject constructor(
                 val isStale = latestObs == null || runCatching { OffsetDateTime.parse(latestObs.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
 
                 var isWeb = false
-                val finalObservations = if (index < 2 && isStale && synopticApi != null) {
+                val finalObservations = if (index < MAX_WEB_FALLBACK_STATIONS && isStale && synopticApi != null) {
                     val fallbackReason = if (observations.isEmpty()) "empty" else "stale"
                     appLogDao.log("NWS_DAILY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
                     Log.i(TAG, "Daily backfill NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
@@ -424,7 +429,7 @@ class ObservationRepository @Inject constructor(
                 val isStale = latestObs == null || runCatching { OffsetDateTime.parse(latestObs.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
 
                 var isWeb = false
-                val finalObservations = if (index < 2 && isStale && synopticApi != null) {
+                val finalObservations = if (index < MAX_WEB_FALLBACK_STATIONS && isStale && synopticApi != null) {
                     val fallbackReason = if (observations.isEmpty()) "empty" else "stale"
                     appLogDao.log("OBS_HOURLY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
                     Log.i(TAG, "Hourly NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
@@ -508,14 +513,19 @@ class ObservationRepository @Inject constructor(
         val pastExtremes = dailyHistoryDao.getExtremesInRange(startDate, endDate, latitude, longitude)
         val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, latitude, longitude)
 
-        // Today: compute live from station observations using IDW blending (matches Hourly Graph)
+        // Today: compute live from station observations using IDW blending (matches Hourly Graph).
+        // Fetch a ±context window reaching back across midnight (not today-only) so stations whose
+        // feed lapsed before midnight still bracket today's early-morning candidates. A today-only
+        // window drops that coverage and lets a lone cold outlier dominate the low, so the daily
+        // column diverged from the hourly graph. Extremes are still indexed by today's date below.
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val todayObs = observationDao.getObservationsInRange(todayStartMs, tomorrowMs, latitude, longitude)
+        val contextObs = observationDao.getObservationsInRange(todayStartMs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS, tomorrowMs, latitude, longitude)
             .filter { it.stationId != "NWS_BLEND" }
+        val todayObs = contextObs.filter { it.timestamp in todayStartMs until tomorrowMs }
 
         val todayBlendedActuals = ObservationResolver.aggregateObservationsToDailyBySource(
-            observations = todayObs,
+            observations = contextObs,
             hourlyForecasts = hourlyForecasts,
             locationLat = latitude,
             locationLon = longitude,
@@ -591,15 +601,24 @@ class ObservationRepository @Inject constructor(
         val dateMillis = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val startTs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val endTs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val dayObs = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
+        // Blend over a ±context window (not the day in isolation) so a station whose feed lapsed
+        // near midnight still participates at the day's edge timestamps, matching the hourly graph.
+        // computeDailyExtremes returns a row for every day present in the context obs, so filter
+        // back to the target day; dayObs (day-only) still drives the empty check and the log.
+        val contextStartTs = startTs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS
+        val contextEndTs = endTs + ActualsAggregator.DAILY_BLEND_CONTEXT_MS
+        val contextObs = observationDao.getObservationsInRange(contextStartTs, contextEndTs, latitude, longitude)
+        val dayObs = contextObs.filter { it.timestamp in startTs until endTs }
         if (dayObs.isEmpty()) return
 
-        // Backfill paths pass no forecasts; load the day's hourly forecasts so sources without
-        // measured observation precip (NWS) can fall back to forecast-derived rain in the blend.
+        // Backfill paths pass no forecasts; load hourly forecasts across the same context window so
+        // sources without measured observation precip (NWS) can fall back to forecast-derived rain.
         val effectiveHourly = hourlyForecasts.ifEmpty {
-            hourlyForecastDao.getHourlyForecasts(startTs, endTs, latitude, longitude)
+            hourlyForecastDao.getHourlyForecasts(contextStartTs, contextEndTs, latitude, longitude)
         }
-        val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, effectiveHourly, latitude, longitude, personalStationWeight())
+        val newExtremes = ObservationResolver
+            .computeDailyExtremes(contextObs, effectiveHourly, latitude, longitude, personalStationWeight())
+            .filter { it.date == dateMillis }
         val existingHistory = dailyHistoryDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
             .groupBy { it.source }
 

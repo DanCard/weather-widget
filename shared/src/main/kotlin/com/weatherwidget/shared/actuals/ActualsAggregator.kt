@@ -17,6 +17,18 @@ object ActualsAggregator {
     private const val DAY_START_HOUR = 8
     private const val DAY_END_HOUR = 20
 
+    // Daily extremes blend the temperature series over a window that extends this far past each
+    // side of the calendar day, so stations whose feed lapsed near midnight still participate in
+    // the day's edge timestamps (interpolation reach is only ~3h). Extrema are still taken from
+    // the target day alone. This keeps the daily low/high in step with the hourly graph, which
+    // blends over its multi-day render window; a day-isolated window instead dropped such stations
+    // and let a lone cold outlier dominate. See daily_vs_hourly_actual_extrema_mismatch.
+    //
+    // Public and authoritative: every Android caller that fetches observations to feed aggregate()
+    // (daily_history recompute AND the live-today display paths) must reach back at least this far
+    // across midnight, or the widen is defeated by a too-narrow query. One constant = no drift.
+    const val DAILY_BLEND_CONTEXT_MS = 24 * 3600_000L
+
     data class DailyPrecip(val total: Float?, val day: Float?, val night: Float?)
 
     /**
@@ -91,15 +103,24 @@ object ActualsAggregator {
                     .mapNotNull { (date, dayObs) ->
                         val dayStartMs = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
                         val dayEndMs = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-                        
+
+                        // Feed the blend a ±context window drawn from the source's full observation
+                        // list (not just this day's rows) so the contributing station set matches the
+                        // hourly graph. Extrema are still extracted from the target day only.
+                        val windowStartMs = dayStartMs - DAILY_BLEND_CONTEXT_MS
+                        val windowEndMs = dayEndMs + DAILY_BLEND_CONTEXT_MS
+                        val windowObs = obsList.filter { it.timestamp in windowStartMs until windowEndMs }
+
                         val (highTemp, lowTemp) = blendDailyExtremesViaSeries(
-                            dayObs = dayObs,
+                            contextObs = windowObs,
                             hourlyForecasts = sourceHourly,
                             sourceId = sourceId,
                             locationLat = locationLat,
                             locationLon = locationLon,
                             dayStartMs = dayStartMs,
                             dayEndMs = dayEndMs,
+                            windowStartMs = windowStartMs,
+                            windowEndMs = windowEndMs,
                             personalStationWeight = personalStationWeight,
                             zoneId = zoneId,
                         ) ?: return@mapNotNull null
@@ -134,32 +155,36 @@ object ActualsAggregator {
     }
 
     private fun blendDailyExtremesViaSeries(
-        dayObs: List<ObservationReading>,
+        contextObs: List<ObservationReading>,
         hourlyForecasts: List<HourlyForecast>,
         sourceId: String,
         locationLat: Double,
         locationLon: Double,
         dayStartMs: Long,
         dayEndMs: Long,
+        windowStartMs: Long,
+        windowEndMs: Long,
         personalStationWeight: Double = 1.0,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): Pair<Float, Float>? {
-        if (dayObs.isEmpty()) return null
+        if (contextObs.isEmpty()) return null
 
         val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
-            observations = dayObs,
+            observations = contextObs,
             hourlyForecasts = hourlyForecasts,
             displaySourceId = sourceId,
             userLat = locationLat,
             userLon = locationLon,
-            startMs = dayStartMs,
-            endMs = dayEndMs,
+            startMs = windowStartMs,
+            endMs = windowEndMs,
             personalStationWeight = personalStationWeight,
             zoneId = zoneId,
             onBlendDebug = null,
         )
-        
-        val series = result.observations
+
+        // Extrema belong to the target calendar day; the wider blend window only stabilises the
+        // station set at the day's edges, it must not leak neighbouring days into the high/low.
+        val series = result.observations.filter { it.timestamp in dayStartMs until dayEndMs }
         if (series.isEmpty()) return null
         val high = series.maxOf { it.temperature }
         val low = series.minOf { it.temperature }
