@@ -89,3 +89,7 @@ genmon/genmon-weather-bin
 
 # Scratch screenshots in project root
 *.png
+
+# Play Store service-account key (fastlane upload credential — never commit)
+fastlane/play-store-api-key.json
+

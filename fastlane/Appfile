@@ -1,0 +1,5 @@
+# Path to the service account JSON key file obtained from Google Developer Console
+json_key_file("fastlane/play-store-api-key.json")
+
+# Default package name
+package_name("com.weatherwidget")
