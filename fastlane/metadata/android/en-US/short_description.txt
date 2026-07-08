@@ -1,0 +1,1 @@
+Resizable weather widget that shows how accurate the forecast actually was.

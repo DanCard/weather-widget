@@ -1,0 +1,57 @@
+# Fastlane lanes for Play Store publishing.
+#
+# Auth: fastlane/Appfile -> fastlane/play-store-api-key.json (gitignored service account).
+#
+# versionCode workflow: bump versionCode (and versionName) in app/build.gradle.kts before every
+# upload — Play rejects a reused versionCode. `beta`/`production` fail fast if the versionCode
+# already exists on any track.
+
+default_platform(:android)
+
+platform :android do
+  desc "Build a signed release AAB (requires RELEASE_STORE_* signing props / release.keystore)"
+  lane :build do
+    gradle(task: "bundle", build_type: "Release", project_dir: ".")
+  end
+
+  desc "Validate service-account auth and metadata without uploading anything"
+  lane :validate do
+    validate_play_store_json_key(json_key: "fastlane/play-store-api-key.json")
+    upload_to_play_store(
+      track: "internal",
+      validate_only: true,
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      skip_upload_changelogs: false,
+    )
+  end
+
+  desc "Build and upload to the internal testing track with listing metadata"
+  lane :beta do
+    build
+    upload_to_play_store(
+      track: "internal",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Build and upload to production (use after beta has soaked)"
+  lane :production do
+    build
+    upload_to_play_store(
+      track: "production",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+    )
+  end
+
+  desc "Push only listing metadata/changelogs (no binary)"
+  lane :metadata do
+    upload_to_play_store(
+      track: "internal",
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+    )
+  end
+end

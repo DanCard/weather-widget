@@ -50,11 +50,11 @@
 
             <ImageView
                 android:layout_width="match_parent"
-                android:layout_height="120dp"
-                android:src="@drawable/widget_preview"
-                android:scaleType="centerInside"
-                android:background="#000000"
-                android:padding="8dp" />
+                android:layout_height="220dp"
+                android:src="@drawable/widget_preview_real"
+                android:scaleType="fitCenter"
+                android:adjustViewBounds="true"
+                android:contentDescription="@string/main_how_to_add_title" />
         </LinearLayout>
 
         <LinearLayout
@@ -88,6 +88,9 @@
                 android:id="@+id/grant_permission_button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="@drawable/rounded_button_green"
+                android:textColor="#1A1A1A"
+                android:textSize="21sp"
                 android:text="@string/grant_location_permission"
                 android:layout_marginBottom="8dp" />
         </LinearLayout>

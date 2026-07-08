@@ -60,10 +60,20 @@ object CurrentTemperatureResolver {
         smoothIterations: Int = HEADER_SMOOTH_ITERATIONS,
         now: Long = System.currentTimeMillis(),
     ): Map<Long, Float> {
+        // pickBestForecast returns null for buckets with rows from neither the display source nor
+        // GENERIC_GAP (per-source strictness); drop those buckets rather than assert them present.
+        val bucketCount = hourlyForecasts.groupBy { it.dateTime }.size
         val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
-            .mapValues { (_, rows) -> pickBestForecast(rows, displaySourceId) }
+            .mapNotNull { (time, rows) -> pickBestForecast(rows, displaySourceId)?.let { time to it } }
+            .toMap()
+        if (forecastsByTime.size < bucketCount) {
+            verboseLog(
+                "computeSmoothedForecasts: dropped ${bucketCount - forecastsByTime.size}/$bucketCount " +
+                    "hour buckets with no rows for source=$displaySourceId",
+            )
+        }
         val sortedTimes = forecastsByTime.keys.sorted()
-        val rawTemps = sortedTimes.map { forecastsByTime[it]!!.temperature }
+        val rawTemps = sortedTimes.map { forecastsByTime.getValue(it).temperature }
         val smoothedTemps = TemperatureInterpolator.smoothValuesPreservingAllExtrema(
             rawTemps,
             iterations = smoothIterations,

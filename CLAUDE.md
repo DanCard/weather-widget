@@ -26,9 +26,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
 - **Open-Meteo** API (free, no API key required)
 - Both APIs fetched and stored equally (composite keys allow comparison)
 - Widget toggles between sources via tap on API indicator
-- User can set API preference in Settings:
-  - **Alternate** (default): Pseudo-random initial source (varies daily + by widget ID)
-  - **NWS Primary** or **Open-Meteo Primary**: Preferred source with fallback
+- Additional key-based sources (Silurian, Tomorrow.io, WeatherAPI, Visual Crossing, OpenWeatherMap);
+  users may enter their own keys in Settings. Release builds deliberately ship with keys baked from
+  `local.properties` (decision 2026-07-08: out-of-the-box premium sources over quota-theft risk;
+  usage is tracked in `api_usage_stats`).
+- Settings → "Weather Data Sources" enables/disables and **orders** sources. "Primary" = the
+  displayed source (`getActiveDisplaySourceIds()`); non-selected APIs are throttled. The old
+  Alternate/NWS-Primary/Open-Meteo-Primary preference no longer exists.
 
 ## Widget Sizing Behavior
 
@@ -88,14 +92,9 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 - Percent of days within ±3°F
 - Accuracy score (0-5 scale, 5 = perfect)
 
-**Display Modes (configurable in Settings):**
-| Mode | Description |
-|------|-------------|
-| FORECAST_BAR (default) | Yellow bar overlay showing predicted range alongside actual |
-| ACCURACY_DOT | Colored dot next to high temp (green ≤2°, yellow ≤5°, red >5°) |
-| SIDE_BY_SIDE | Shows "72° (N:68°)" with source abbreviation |
-| DIFFERENCE | Shows "72° (N:+4)" with temp difference |
-| NONE | No forecast comparison shown |
+**Display:** past days always render the forecast overlay (yellow bar) alongside the actual range
+for accuracy comparison. (The old configurable display modes — ACCURACY_DOT, SIDE_BY_SIDE,
+DIFFERENCE, NONE — were removed; there is no display-mode setting.)
 
 **Key Files:**
 - `AccuracyCalculator.kt` - Calculates accuracy statistics with separate high/low and bias
@@ -115,15 +114,14 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 
 ## Database Schema
 
-- **Version**: 9 (last updated: 2026-02-02)
-- **WeatherEntity**: Main weather data table
-  - Composite primary key: `(date, source)` to store both NWS and Open-Meteo data
-  - `stationId` field (nullable): NWS observation station ID (e.g., "KSFO") - only populated for actual observations (`isActual = true`)
-- **ForecastSnapshotEntity**: Historical forecast predictions
-  - Composite primary key: `(targetDate, forecastDate, locationLat, locationLon, source)`
-- **HourlyForecastEntity**: Hourly temperature data for interpolation
-  - `temperature` field: Float (changed from Int in migration 6→7)
-- **Migration path**: Supports migrations from version 1-8
+- **Version**: 55 (see `WeatherDatabase.kt` for the authoritative version and migration list —
+  this file goes stale fast; trust the code)
+- Main tables: `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `daily_history`,
+  `observations`, `climate_normals`, `app_logs`, `api_usage_stats`
+- `forecasts.targetDate` is UTC midnight (query WITHOUT `'localtime'`);
+  `app_logs.timestamp` is epoch millis (use `'localtime'`)
+- Coordinate-keyed tables quantize lat/lon on write and select via the shared `LocationMatch`
+  proximity box to avoid GPS-jitter fragmentation
 
 ## Update Strategy
 
