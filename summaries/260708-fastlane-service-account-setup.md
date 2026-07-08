@@ -21,6 +21,9 @@ Configured a Google Play Developer service account for automated publishing via 
 - Saved credentials to `fastlane/play-store-api-key.json`.
 - Configured `fastlane/Appfile` to link the JSON key file and set the package name (`ai.dcar.caldatewidget`).
 - Verified the key file is ignored via `.gitignore` (`fastlane/play-store-api-key.json`).
+- Updated `versionCode` to `26070801` (matching the date-based naming scheme) and version name to `1.0.1` to override the previous release on Play Store (`26062501`).
+- Added a `beta` lane in `fastlane/Fastfile` to build and upload directly to the Open Testing track.
+- Successfully built, signed, and uploaded the `1.0.1` release (`26070801.aab`) to the Google Play Open Testing track via Fastlane, including screenshots and release notes.
 
 ### weather-widget
 - Created the `fastlane/` directory.
@@ -39,3 +42,4 @@ Configured a Google Play Developer service account for automated publishing via 
   fastlane/play-store-api-key.json
   ```
 - Verified that `git status --ignored` registers the key file as ignored.
+
