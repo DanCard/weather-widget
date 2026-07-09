@@ -288,6 +288,53 @@
                     android:layout_height="wrap_content" />
             </LinearLayout>
 
+            <!-- Language Section (Android 13+ per-app locale; kept gone on older versions) -->
+            <LinearLayout
+                android:id="@+id/language_settings_section"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/language_title"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="24dp"
+                    android:background="@drawable/bg_surface_card"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:text="@string/app_language_description"
+                        android:textColor="@color/widget_text_secondary"
+                        android:textSize="14sp" />
+
+                    <Button
+                        android:id="@+id/app_language_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/rounded_button_navy"
+                        android:paddingTop="16dp"
+                        android:paddingBottom="16dp"
+                        android:text="@string/app_language_button"
+                        android:textColor="#FFFFFF"
+                        android:textSize="21sp" />
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- Feedback & Bug Reports Section -->
             <TextView
                 android:layout_width="wrap_content"

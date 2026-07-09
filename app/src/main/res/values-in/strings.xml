@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Widget Cuaca</string>
+    <string name="widget_description">Widget cuaca yang dapat diubah ukurannya, menampilkan kondisi saat ini dan prakiraan</string>
+    <string name="configure_widget">Konfigurasi widget</string>
+    <string name="select_data_source">Pilih sumber data cuaca</string>
+    <string name="use_current_location">Gunakan lokasi saat ini</string>
+    <string name="widget_location_title">Lokasi widget</string>
+    <string name="use_precise_location">Gunakan lokasi perangkat yang akurat</string>
+    <string name="follow_device_explainer">Widget akan mengikuti lokasi perangkat Anda</string>
+    <string name="or_search_location">Atau cari berdasarkan kota, alamat, atau kode pos:</string>
+    <string name="location_search_hint">Kota, alamat, atau kode pos</string>
+    <string name="search_location">Cari</string>
+    <string name="location_search_no_results">Tidak ada hasil — periksa ejaan atau jaringan</string>
+    <string name="getting_location">Mendapatkan lokasi…</string>
+    <string name="use_this_location">Gunakan lokasi ini</string>
+    <string name="location_found_label">Lokasi perangkat ditemukan: %1$s</string>
+    <string name="location_fix_failed">Tidak dapat memperoleh lokasi perangkat — pilih opsi di bawah</string>
+    <string name="pinned_location_explainer">Memilih lokasi hasil pencarian atau koordinat akan menyematkannya. Widget berhenti mengikuti perangkat sampai Anda mengetuk \"Gunakan lokasi perangkat yang akurat\" lagi.</string>
+    <string name="set_location_button">Atur lokasi…</string>
+    <string name="location_mode_pinned">Disematkan</string>
+    <string name="location_mode_follow">Mengikuti perangkat</string>
+    <string name="offline">Offline</string>
+    <string name="tap_to_configure">Ketuk untuk mengonfigurasi</string>
+    <string name="settings">Setelan</string>
+    <string name="app_logs">Log aplikasi</string>
+    <string name="back">Kembali</string>
+    <string name="refresh">Segarkan</string>
+    <string name="refresh_now">Segarkan data</string>
+    <string name="refresh_now_enqueued_toast">Penyegaran data dimasukkan ke antrean</string>
+    <string name="nav_previous">Hari sebelumnya</string>
+    <string name="nav_next">Hari berikutnya</string>
+    <string name="weather_icon_desc">Ikon kondisi cuaca</string>
+    <string name="home_forecast">Kembali ke prakiraan harian</string>
+    <string name="api_preference">Sumber data cuaca</string>
+    <string name="api_preference_description">Pilih API cuaca yang diutamakan (beralih ke yang lain jika tidak tersedia)</string>
+    <string name="api_alternate">Bergantian - Berputar antara NWS, Open-Meteo, dan WeatherAPI</string>
+    <string name="api_prefer_nws">Utamakan NWS - National Weather Service (hanya AS)</string>
+    <string name="api_prefer_openmeteo">Utamakan Open-Meteo - Cakupan global</string>
+    <string name="api_prefer_weatherapi">Utamakan WeatherAPI - Cakupan global</string>
+    <string name="api_sources_title">Sumber data cuaca</string>
+    <string name="api_sources_description">Aktifkan/nonaktifkan dan urutkan ulang sumber. Sumber yang dinonaktifkan dikecualikan dari pergantian di widget dan pengambilan latar belakang sampai diaktifkan kembali.</string>
+    <string name="must_keep_one_source">Setidaknya satu sumber harus tetap aktif</string>
+    <string name="personal_stations_title">Stasiun cuaca pribadi</string>
+    <string name="personal_stations_description" formatted="false">Stasiun pribadi (halaman rumah) sering membaca terlalu tinggi saat terkena matahari. Atur seberapa besar kontribusinya terhadap suhu terukur dikurangi. 0% = tanpa pengurangan: stasiun pribadi dihitung sama dengan stasiun resmi. 100% = stasiun pribadi diabaikan.</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · tanpa pengurangan</string>
+    <string name="personal_stations_ignored" formatted="false">100% · diabaikan</string>
+    <string name="api_source_silurian_desc">Silurian.ai — ditampilkan sebagai Silur (cakupan global)</string>
+    <string name="api_source_nws_desc">National Weather Service (hanya AS)</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — ditampilkan sebagai Tmrw (cakupan global)</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — ditampilkan sebagai VisCr (cakupan global)</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — ditampilkan sebagai Meteo (cakupan global)</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — ditampilkan sebagai WAPI (cakupan global)</string>
+    <string name="statistics">Statistik</string>
+    <string name="view_detailed_statistics">Statistik terperinci</string>
+    <string name="forecast_accuracy_summary_title">Akurasi prakiraan (30 hari terakhir)</string>
+    <string name="loading_accuracy_summary">Memuat akurasi prakiraan...</string>
+    <string name="error_loading_accuracy_summary">Tidak dapat memuat akurasi prakiraan saat ini.</string>
+    <string name="data_freshness_unknown">Kesegaran data: Tidak diketahui</string>
+    <string name="data_freshness_format">Terakhir diperbarui: %1$s</string>
+    <string name="freshness_last_updated">Terakhir diperbarui: %1$s yang lalu</string>
+    <string name="refresh_policy_charging">Kebijakan penyegaran: Setiap 30 mnt (mengisi daya)</string>
+    <string name="refresh_policy_battery_high">Kebijakan penyegaran: Setiap 4 jam (baterai %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">Kebijakan penyegaran: Setiap 8 jam (baterai %1$d%%)</string>
+    <string name="refresh_policy_battery_low">Kebijakan penyegaran: Dijeda (baterai %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">Pengambilan prakiraan: Setiap 1 jam saat mengisi daya (API utama)</string>
+    <string name="forecast_policy_charging_90m">Pengambilan prakiraan: Setiap 90 mnt saat mengisi daya (API sekunder)</string>
+    <string name="forecast_policy_charging_2h">Pengambilan prakiraan: Setiap 2 jam saat mengisi daya (API ke-3+)</string>
+    <string name="forecast_policy_battery_high">Pengambilan prakiraan: Setiap 4 jam (baterai %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">Pengambilan prakiraan: Setiap 8 jam (baterai %1$d%%)</string>
+    <string name="forecast_policy_battery_low">Pengambilan prakiraan: Dijeda (baterai %1$d%%)</string>
+    <string name="freshness_just_now">baru saja</string>
+    <string name="forecast_history">"Riwayat prakiraan untuk "</string>
+    <string name="forecast_history_summary_single">%1$d snapshot prakiraan %2$s</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI snapshot</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$d titik pengisi iklim</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">Aktual API %1$s: %2$s / %3$s</string>
+    <string name="forecast_history_location_actual">Aktual lokasi: %1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">Belum ada data riwayat prakiraan.\nSnapshot prakiraan disimpan setiap hari. Kembali besok untuk perbandingan akurasi pertama Anda.</string>
+    <string name="forecast_history_no_data_fallback_source">sumber terpilih</string>
+    <string name="forecast_history_prev_day">Hari sebelumnya</string>
+    <string name="forecast_history_next_day">Hari berikutnya</string>
+    <string name="forecast_history_subtitle">Riwayat prakiraan</string>
+    <string name="freshness_forecast_fetch_ago">Pengambilan prakiraan: %1$s yang lalu</string>
+    <string name="freshness_forecast_fetch_never">Pengambilan prakiraan: belum pernah</string>
+    <string name="freshness_displayed_data">Data yang ditampilkan (%1$s): diambil %2$s yang lalu</string>
+    <string name="forecast_mode_evolution">Mode: Evolusi</string>
+    <string name="forecast_mode_error">Mode: Galat</string>
+    <string name="forecast_mode_hourly">Mode: Suhu</string>
+    <string name="forecast_evolution_high_title">Evolusi suhu tertinggi</string>
+    <string name="forecast_evolution_low_title">Evolusi suhu terendah</string>
+    <string name="forecast_error_high_title">Galat suhu tertinggi</string>
+    <string name="forecast_error_low_title">Galat suhu terendah</string>
+    <string name="forecast_show_hourly">Prakiraan suhu</string>
+    <string name="forecast_show_evolution">Kembali ke riwayat prakiraan</string>
+    <string name="forecast_hourly_title">Prakiraan suhu</string>
+    <string name="forecast_hourly_subtitle">Detail per jam</string>
+    <string name="forecast_hourly_no_data">Tidak ada prakiraan suhu per jam untuk tanggal ini.</string>
+    <string name="forecast_hourly_legend">Sekarang</string>
+    <string name="forecast_history_no_data_for_source">Tidak ada riwayat prakiraan untuk tanggal ini (%1$s).</string>
+    <string name="forecast_error_requires_actuals">Tampilan galat tersedia setelah suhu aktual hari ini tercatat.</string>
+    <string name="legend_actual">Aktual API</string>
+    <string name="legend_zero_error">Galat nol</string>
+    <string name="view_app_logs">Lihat log aplikasi</string>
+    <string name="clear_app_logs">Hapus log</string>
+    <string name="app_logs_refresh_current">Segarkan suhu saat ini</string>
+    <string name="app_logs_force_refresh">Paksa</string>
+    <string name="app_logs_refreshing_toast">Penyegaran suhu saat ini dimasukkan ke antrean</string>
+    <string name="app_logs_cleared">Log dihapus</string>
+    <string name="app_logs_share">Bagikan</string>
+    <string name="app_logs_share_chooser">Bagikan log</string>
+    <string name="app_logs_share_empty">Tidak ada log untuk dibagikan</string>
+    <string name="app_logs_share_subject">Log Widget Cuaca</string>
+    <string name="no_app_logs">Belum ada log aplikasi.</string>
+    <string name="app_logs_filter_hint">Filter log (tag/pesan/level)</string>
+    <string name="app_logs_db_stats">DB: %1$.1f MB (%2$d log, %3$d snapshot)</string>
+    <string name="app_logs_all_levels">Semua level</string>
+    <string name="app_logs_showing">Menampilkan %1$d (%2$s)</string>
+    <string name="app_logs_showing_filtered">Menampilkan %1$d yang cocok dengan \"%2$s\" (%3$s)</string>
+    <string name="icon_preview_title">Galeri ikon</string>
+    <string name="icon_preview_description">Galeri lengkap semua ikon cuaca yang digunakan di widget.</string>
+    <string name="gallery_icon_pc_slight_rain_new">Berawan sebagian, hujan ringan (baru)</string>
+    <string name="gallery_icon_rain">Hujan</string>
+    <string name="gallery_icon_chance_rain">Kemungkinan hujan</string>
+    <string name="gallery_icon_slight_rain">Sedikit kemungkinan hujan</string>
+    <string name="gallery_icon_snow">Salju</string>
+    <string name="gallery_icon_storm">Badai</string>
+    <string name="gallery_icon_cloudy">Berawan</string>
+    <string name="gallery_icon_clear">Cerah</string>
+    <string name="gallery_icon_mostly_clear">Sebagian besar cerah</string>
+    <string name="gallery_icon_horizon_sun">Matahari terbit/terbenam</string>
+    <string name="gallery_icon_mostly_cloudy">Sebagian besar berawan</string>
+    <string name="gallery_icon_partly_cloudy">Berawan sebagian</string>
+    <string name="gallery_icon_night">Malam</string>
+    <string name="gallery_icon_mostly_cloudy_night">Sebagian besar berawan (malam)</string>
+    <string name="gallery_icon_partly_cloudy_night">Berawan sebagian (malam)</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">Berawan sebagian, kemungkinan hujan</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">Berawan sebagian, hujan ringan</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">Berawan sebagian, kemungkinan hujan (malam)</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">Berawan sebagian, hujan ringan (malam)</string>
+    <string name="gallery_icon_fog">Kabut</string>
+    <string name="gallery_icon_fog_sunny">Kabut cerah</string>
+    <string name="gallery_icon_fog_light">Kabut tipis</string>
+    <string name="gallery_icon_fog_dense">Kabut tebal</string>
+    <string name="gallery_icon_fog_cloudy">Kabut berawan</string>
+    <string name="gallery_icon_fog_night">Kabut (malam)</string>
+    <string name="gallery_icon_fog_light_night">Kabut tipis (malam)</string>
+    <string name="gallery_icon_wind">Angin</string>
+
+    <string name="gallery_icon_unknown">Tidak diketahui</string>
+
+    <string name="main_welcome">Selamat datang di Widget Cuaca</string>
+    <string name="main_how_to_add_title">Cara menambahkan widget</string>
+    <string name="main_how_to_add_desc">1. Tekan lama area kosong di layar utama.\n2. Ketuk \"Widget\".\n3. Temukan \"Weather Widget\" dan seret ke layar Anda.</string>
+    <string name="main_location_disclosure_title">Pemberitahuan lokasi</string>
+    <string name="main_location_disclosure_desc">Widget Cuaca mengumpulkan data lokasi untuk menyediakan prakiraan cuaca lokal bahkan saat aplikasi ditutup atau tidak digunakan. Data ini hanya digunakan secara lokal di perangkat Anda untuk mengambil cuaca yang akurat bagi posisi Anda saat ini.</string>
+    <string name="background_location_disclosure_title">Akses lokasi di latar belakang</string>
+    <string name="background_location_disclosure_desc">Untuk menyediakan pembaruan cuaca otomatis di widget, aplikasi ini memerlukan akses ke lokasi Anda bahkan saat di latar belakang.\n\nDi layar berikutnya, pilih \"Izinkan sepanjang waktu\" untuk mengaktifkan pembaruan latar belakang.</string>
+    <string name="grant_location_permission">Beri izin lokasi</string>
+    <string name="open_settings">Buka setelan</string>
+    <string name="api_keys_title">Kunci API</string>
+    <string name="api_keys_description">Masukkan kunci API Anda sendiri untuk layanan terbatas. Layanan gratis (NWS, Open-Meteo) tidak memerlukan kunci.</string>
+    <string name="api_key_hint">Masukkan kunci API</string>
+    <string name="get_api_key">Dapatkan kunci…</string>
+    <string name="get_api_key_no_browser">Tidak ada browser. Daftar di: %1$s</string>
+    <string name="privacy_policy_title">Kebijakan Privasi</string>
+    <string name="allow">Izinkan</string>
+    <string name="no_thanks">Tidak, terima kasih</string>
+    <string name="privacy_policy_body">Widget Cuaca mengumpulkan data lokasi untuk menyediakan prakiraan cuaca lokal. Lokasi Anda hanya digunakan untuk mengambil data cuaca daerah Anda dan tidak pernah disimpan atau dibagikan kepada pihak ketiga, kecuali penyedia API cuaca (NWS, Open-Meteo, dll.) untuk mengambil prakiraan.\n\nKami menggunakan Firebase Crashlytics untuk memantau stabilitas aplikasi. Data ini dianonimkan.\n\nAnda dapat mencabut izin lokasi kapan saja di Setelan Android.\n\nAda pertanyaan? Kunjungi: https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">Atau masukkan koordinat:</string>
+    <string name="latitude_hint">Lintang (mis. 37.422)</string>
+    <string name="longitude_hint">Bujur (mis. -122.0841)</string>
+    <string name="use_coordinates">Gunakan koordinat</string>
+    <string name="save_location">Simpan lokasi</string>
+    <string name="default_location_title">Lokasi default</string>
+    <string name="location_saved_success">Lokasi diperbarui untuk semua widget</string>
+    <string name="location_updated_from_gps">Lokasi diperbarui dari GPS</string>
+    <string name="invalid_coordinates_range">Masukkan koordinat yang valid (lintang -90 hingga 90, bujur -180 hingga 180)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">Masukan &amp; laporan bug</string>
+    <string name="feedback_and_bug_reports_description">Menemukan masalah atau ingin menyarankan perbaikan? Kirim laporan bug terperinci dengan diagnostik sistem opsional.</string>
+    <string name="submit_bug_report">Kirim laporan bug</string>
+    <string name="bug_report_title">Kirim laporan bug</string>
+    <string name="bug_report_description_hint">Jelaskan bug-nya (apa yang terjadi dan apa yang Anda harapkan). Lampirkan tangkapan layar jika masalahnya visual!</string>
+    <string name="bug_report_include_logs">Sertakan log diagnostik aplikasi (kejadian terbaru)</string>
+    <string name="bug_report_include_metadata">Sertakan konfigurasi widget &amp; statistik DB</string>
+    <string name="bug_report_diagnostics_preview">Pratinjau diagnostik</string>
+    <string name="bug_report_device_info">Info perangkat</string>
+    <string name="bug_report_db_stats">Statistik basis data</string>
+    <string name="bug_report_active_widgets">Widget aktif</string>
+    <string name="bug_report_location_info">Setelan lokasi</string>
+    <string name="bug_report_send">Kirim laporan bug</string>
+    <string name="bug_report_error_empty_description">Tulis deskripsi singkat tentang masalah sebelum mengirim.</string>
+    <string name="bug_report_collecting_diagnostics">Mengumpulkan data diagnostik...</string>
+    <string name="view_icon_gallery">Lihat galeri ikon</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">Data suhu per jam untuk %1$s tidak ada. Penyegaran akan dijalankan.</string>
+    <string name="widget_no_hourly_result_still_missing">Hasil penyegaran: Tidak ada data suhu per jam baru yang dapat diambil untuk %1$s. Data berakhir %2$s</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">Hasil penyegaran: Tidak ada data suhu per jam baru yang dapat diambil untuk %1$s.</string>
+    <string name="widget_no_hourly_result_available">Hasil penyegaran:\nData per jam kini tersedia untuk %1$s</string>
+    <string name="units_title">Satuan</string>
+    <string name="use_celsius_label">Gunakan Celsius</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">Bahasa</string>
+    <string name="app_language_description">Pilih bahasa aplikasi ini. Membuka setelan bahasa per aplikasi Android.</string>
+    <string name="app_language_button">Ubah bahasa aplikasi…</string>
+    <string name="app_language_settings_unavailable">Setelan bahasa per aplikasi tidak tersedia di perangkat ini</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">Hari ini</string>
+    <string name="widget_loading">Memuat...</string>
+    <string name="widget_tap_to_refresh">Ketuk untuk menyegarkan</string>
+    <string name="current_stations_desc">Stasiun saat ini</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">Lokasi: %1$s</string>
+    <string name="saving_coordinates_offline">Menyimpan koordinat (pencarian nama offline)</string>
+    <string name="location_permission_required">Izin lokasi diperlukan untuk GPS</string>
+    <string name="location_fix_failed_default">Tidak dapat memperoleh lokasi saat ini. Menggunakan default.</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">Belum ada lokasi yang diatur</string>
+    <string name="widget_location_format">Lokasi widget: %1$s, %2$s</string>
+    <string name="default_location_format">Lokasi default: %1$s, %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">Observasi saat ini</string>
+    <string name="obs_subtitle_nearby_stations">Data waktu nyata dari stasiun terdekat</string>
+    <string name="obs_subtitle_none_found">Tidak ditemukan observasi terbaru untuk %1$s.</string>
+    <string name="obs_subtitle_latest_reading">Pembacaan terbaru dari %1$s</string>
+    <string name="obs_no_location_to_refresh">Tidak ada lokasi untuk disegarkan</string>
+    <string name="obs_refreshed_source">%1$s disegarkan</string>
+    <string name="obs_reported_prefix">"Dilaporkan "</string>
+    <string name="obs_fetched_separator">" • Diambil "</string>
+    <string name="station_origin_web">Web</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">Log pengambilan</string>
+    <string name="loading_logs">Memuat log...</string>
+    <string name="close">Tutup</string>
+    <string name="name_location_title">Beri nama lokasi</string>
+    <string name="name_location_message">Beri lokasi ini nama khusus (mis. Rumah, Kantor, Sekolah)</string>
+    <string name="save">Simpan</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">Ringkasan akurasi 30 hari</string>
+    <string name="stats_loading">Memuat...</string>
+    <string name="stats_daily_breakdown">Rincian akurasi harian</string>
+    <string name="stats_rain_accuracy">Akurasi hujan siang/malam</string>
+    <string name="stats_no_weather_data">Belum ada data cuaca.</string>
+    <string name="stats_no_history_yet">Belum ada data riwayat prakiraan.\n\nSnapshot prakiraan disimpan setiap hari. Kembali besok untuk perbandingan akurasi pertama Anda!</string>
+    <string name="stats_source_line">%1$s: Tertinggi ±%2$s, Terendah ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: Belum ada data</string>
+    <string name="stats_error_loading">Gagal memuat statistik: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (%1$s terlalu rendah)"</string>
+    <string name="bias_high_suffix">" (%1$s terlalu tinggi)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"Tertinggi ±%1$s  Terendah ±%2$s"</string>
+    <string name="accuracy_within_line">"%% dalam %1$s: %2$s  Prakiraan: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">Aktual lokasi:</string>
+    <string name="label_forecast">Prakiraan:</string>
+    <string name="label_error">Galat:</string>
+    <string name="label_rain_day">Siang (8.00–20.00):</string>
+    <string name="label_rain_night">Malam (20.00–8.00):</string>
+    <string name="rain_pred_act_format">prakiraan %1$s / aktual %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">Suhu tertinggi</string>
+    <string name="forecast_history_low_temp_title">Suhu terendah</string>
+    <string name="legend_location_actual">Aktual lokasi</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">Pindah ke atas</string>
+    <string name="move_down">Pindah ke bawah</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">Gagal memulai berbagi</string>
+    <string name="bug_report_email_subject">Laporan bug Widget Cuaca</string>
+</resources>

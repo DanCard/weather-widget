@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">วิดเจ็ตสภาพอากาศ</string>
+    <string name="widget_description">วิดเจ็ตสภาพอากาศที่ปรับขนาดได้ แสดงสภาพอากาศปัจจุบันและพยากรณ์</string>
+    <string name="configure_widget">ตั้งค่าวิดเจ็ต</string>
+    <string name="select_data_source">เลือกแหล่งข้อมูลสภาพอากาศ</string>
+    <string name="use_current_location">ใช้ตำแหน่งปัจจุบัน</string>
+    <string name="widget_location_title">ตำแหน่งของวิดเจ็ต</string>
+    <string name="use_precise_location">ใช้ตำแหน่งที่แม่นยำของอุปกรณ์</string>
+    <string name="follow_device_explainer">วิดเจ็ตจะติดตามตำแหน่งของอุปกรณ์ของคุณ</string>
+    <string name="or_search_location">หรือค้นหาด้วยชื่อเมือง ที่อยู่ หรือรหัสไปรษณีย์:</string>
+    <string name="location_search_hint">เมือง ที่อยู่ หรือรหัสไปรษณีย์</string>
+    <string name="search_location">ค้นหา</string>
+    <string name="location_search_no_results">ไม่พบผลลัพธ์ — ตรวจสอบการสะกดหรือเครือข่าย</string>
+    <string name="getting_location">กำลังหาตำแหน่ง…</string>
+    <string name="use_this_location">ใช้ตำแหน่งนี้</string>
+    <string name="location_found_label">พบตำแหน่งอุปกรณ์: %1$s</string>
+    <string name="location_fix_failed">ไม่สามารถหาตำแหน่งอุปกรณ์ได้ — เลือกตัวเลือกด้านล่าง</string>
+    <string name="pinned_location_explainer">การเลือกตำแหน่งที่ค้นหาหรือพิกัดจะปักหมุดตำแหน่งนั้น วิดเจ็ตจะหยุดติดตามอุปกรณ์จนกว่าคุณจะแตะ \"ใช้ตำแหน่งที่แม่นยำของอุปกรณ์\" อีกครั้ง</string>
+    <string name="set_location_button">ตั้งค่าตำแหน่ง…</string>
+    <string name="location_mode_pinned">ปักหมุดแล้ว</string>
+    <string name="location_mode_follow">ติดตามอุปกรณ์</string>
+    <string name="offline">ออฟไลน์</string>
+    <string name="tap_to_configure">แตะเพื่อตั้งค่า</string>
+    <string name="settings">การตั้งค่า</string>
+    <string name="app_logs">บันทึกของแอป</string>
+    <string name="back">กลับ</string>
+    <string name="refresh">รีเฟรช</string>
+    <string name="refresh_now">รีเฟรชข้อมูล</string>
+    <string name="refresh_now_enqueued_toast">จัดคิวรีเฟรชข้อมูลแล้ว</string>
+    <string name="nav_previous">วันก่อนหน้า</string>
+    <string name="nav_next">วันถัดไป</string>
+    <string name="weather_icon_desc">ไอคอนสภาพอากาศ</string>
+    <string name="home_forecast">กลับไปยังพยากรณ์รายวัน</string>
+    <string name="api_preference">แหล่งข้อมูลสภาพอากาศ</string>
+    <string name="api_preference_description">เลือก API สภาพอากาศที่ต้องการ (ใช้ตัวอื่นแทนหากไม่พร้อมใช้งาน)</string>
+    <string name="api_alternate">สลับ - หมุนเวียนระหว่าง NWS, Open-Meteo และ WeatherAPI</string>
+    <string name="api_prefer_nws">เลือก NWS - กรมอุตุนิยมวิทยาแห่งชาติสหรัฐฯ (เฉพาะสหรัฐฯ)</string>
+    <string name="api_prefer_openmeteo">เลือก Open-Meteo - ครอบคลุมทั่วโลก</string>
+    <string name="api_prefer_weatherapi">เลือก WeatherAPI - ครอบคลุมทั่วโลก</string>
+    <string name="api_sources_title">แหล่งข้อมูลสภาพอากาศ</string>
+    <string name="api_sources_description">เปิด/ปิดและจัดลำดับแหล่งข้อมูล แหล่งข้อมูลที่ปิดจะถูกยกเว้นจากการสลับบนวิดเจ็ตและการดึงข้อมูลเบื้องหลังจนกว่าจะเปิดอีกครั้ง</string>
+    <string name="must_keep_one_source">ต้องเปิดใช้งานอย่างน้อยหนึ่งแหล่งข้อมูล</string>
+    <string name="personal_stations_title">สถานีตรวจอากาศส่วนบุคคล</string>
+    <string name="personal_stations_description" formatted="false">สถานีส่วนบุคคล (หลังบ้าน) มักวัดค่าสูงเกินเมื่อโดนแดด กำหนดว่าจะลดน้ำหนักของสถานีเหล่านี้ในอุณหภูมิที่วัดได้เท่าใด 0% = ไม่ลด: สถานีส่วนบุคคลนับเท่ากับสถานีทางการ 100% = ไม่นับสถานีส่วนบุคคล</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · ไม่ลด</string>
+    <string name="personal_stations_ignored" formatted="false">100% · ไม่นับ</string>
+    <string name="api_source_silurian_desc">Silurian.ai — แสดงเป็น Silur (ครอบคลุมทั่วโลก)</string>
+    <string name="api_source_nws_desc">กรมอุตุนิยมวิทยาแห่งชาติสหรัฐฯ (เฉพาะสหรัฐฯ)</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — แสดงเป็น Tmrw (ครอบคลุมทั่วโลก)</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — แสดงเป็น VisCr (ครอบคลุมทั่วโลก)</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — แสดงเป็น Meteo (ครอบคลุมทั่วโลก)</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — แสดงเป็น WAPI (ครอบคลุมทั่วโลก)</string>
+    <string name="statistics">สถิติ</string>
+    <string name="view_detailed_statistics">สถิติโดยละเอียด</string>
+    <string name="forecast_accuracy_summary_title">ความแม่นยำของพยากรณ์ (30 วันล่าสุด)</string>
+    <string name="loading_accuracy_summary">กำลังโหลดความแม่นยำของพยากรณ์...</string>
+    <string name="error_loading_accuracy_summary">ไม่สามารถโหลดความแม่นยำของพยากรณ์ได้ในขณะนี้</string>
+    <string name="data_freshness_unknown">ความใหม่ของข้อมูล: ไม่ทราบ</string>
+    <string name="data_freshness_format">อัปเดตล่าสุด: %1$s</string>
+    <string name="freshness_last_updated">อัปเดตล่าสุด: %1$s ที่แล้ว</string>
+    <string name="refresh_policy_charging">นโยบายรีเฟรช: ทุก 30 นาที (กำลังชาร์จ)</string>
+    <string name="refresh_policy_battery_high">นโยบายรีเฟรช: ทุก 4 ชม. (แบตเตอรี่ %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">นโยบายรีเฟรช: ทุก 8 ชม. (แบตเตอรี่ %1$d%%)</string>
+    <string name="refresh_policy_battery_low">นโยบายรีเฟรช: หยุดชั่วคราว (แบตเตอรี่ %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">ดึงพยากรณ์: ทุก 1 ชม. ขณะชาร์จ (API หลัก)</string>
+    <string name="forecast_policy_charging_90m">ดึงพยากรณ์: ทุก 90 นาที ขณะชาร์จ (API รอง)</string>
+    <string name="forecast_policy_charging_2h">ดึงพยากรณ์: ทุก 2 ชม. ขณะชาร์จ (API ที่ 3+)</string>
+    <string name="forecast_policy_battery_high">ดึงพยากรณ์: ทุก 4 ชม. (แบตเตอรี่ %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">ดึงพยากรณ์: ทุก 8 ชม. (แบตเตอรี่ %1$d%%)</string>
+    <string name="forecast_policy_battery_low">ดึงพยากรณ์: หยุดชั่วคราว (แบตเตอรี่ %1$d%%)</string>
+    <string name="freshness_just_now">เมื่อสักครู่</string>
+    <string name="forecast_history">"ประวัติพยากรณ์ของ "</string>
+    <string name="forecast_history_summary_single">สแนปช็อตพยากรณ์ %2$s จำนวน %1$d รายการ</string>
+    <string name="forecast_history_summary_combined">สแนปช็อต NWS %1$d + Visual Crossing %2$d + Open-Meteo %3$d + WeatherAPI %4$d รายการ</string>
+    <string name="forecast_history_summary_climate_fill"> • จุดเติมข้อมูลภูมิอากาศ %1$d จุด</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">ค่าจริงจาก API %1$s: %2$s / %3$s</string>
+    <string name="forecast_history_location_actual">ค่าจริงของตำแหน่ง: %1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">ยังไม่มีข้อมูลพยากรณ์ย้อนหลัง\nสแนปช็อตพยากรณ์ถูกบันทึกทุกวัน กลับมาพรุ่งนี้เพื่อดูการเปรียบเทียบความแม่นยำครั้งแรกของคุณ</string>
+    <string name="forecast_history_no_data_fallback_source">แหล่งข้อมูลที่เลือก</string>
+    <string name="forecast_history_prev_day">วันก่อนหน้า</string>
+    <string name="forecast_history_next_day">วันถัดไป</string>
+    <string name="forecast_history_subtitle">ประวัติพยากรณ์</string>
+    <string name="freshness_forecast_fetch_ago">ดึงพยากรณ์: %1$s ที่แล้ว</string>
+    <string name="freshness_forecast_fetch_never">ดึงพยากรณ์: ยังไม่เคย</string>
+    <string name="freshness_displayed_data">ข้อมูลที่แสดง (%1$s): ดึงเมื่อ %2$s ที่แล้ว</string>
+    <string name="forecast_mode_evolution">โหมด: วิวัฒนาการ</string>
+    <string name="forecast_mode_error">โหมด: ค่าคลาดเคลื่อน</string>
+    <string name="forecast_mode_hourly">โหมด: อุณหภูมิ</string>
+    <string name="forecast_evolution_high_title">วิวัฒนาการอุณหภูมิสูงสุด</string>
+    <string name="forecast_evolution_low_title">วิวัฒนาการอุณหภูมิต่ำสุด</string>
+    <string name="forecast_error_high_title">ค่าคลาดเคลื่อนอุณหภูมิสูงสุด</string>
+    <string name="forecast_error_low_title">ค่าคลาดเคลื่อนอุณหภูมิต่ำสุด</string>
+    <string name="forecast_show_hourly">พยากรณ์อุณหภูมิ</string>
+    <string name="forecast_show_evolution">กลับไปยังประวัติพยากรณ์</string>
+    <string name="forecast_hourly_title">พยากรณ์อุณหภูมิ</string>
+    <string name="forecast_hourly_subtitle">รายละเอียดรายชั่วโมง</string>
+    <string name="forecast_hourly_no_data">ไม่มีพยากรณ์อุณหภูมิรายชั่วโมงสำหรับวันที่นี้</string>
+    <string name="forecast_hourly_legend">ตอนนี้</string>
+    <string name="forecast_history_no_data_for_source">ไม่มีประวัติพยากรณ์สำหรับวันที่นี้ (%1$s)</string>
+    <string name="forecast_error_requires_actuals">มุมมองค่าคลาดเคลื่อนจะใช้ได้หลังจากบันทึกอุณหภูมิจริงของวันนี้แล้ว</string>
+    <string name="legend_actual">ค่าจริงจาก API</string>
+    <string name="legend_zero_error">ค่าคลาดเคลื่อนศูนย์</string>
+    <string name="view_app_logs">ดูบันทึกของแอป</string>
+    <string name="clear_app_logs">ล้างบันทึก</string>
+    <string name="app_logs_refresh_current">รีเฟรชอุณหภูมิปัจจุบัน</string>
+    <string name="app_logs_force_refresh">บังคับ</string>
+    <string name="app_logs_refreshing_toast">จัดคิวรีเฟรชอุณหภูมิปัจจุบันแล้ว</string>
+    <string name="app_logs_cleared">ล้างบันทึกแล้ว</string>
+    <string name="app_logs_share">แชร์</string>
+    <string name="app_logs_share_chooser">แชร์บันทึก</string>
+    <string name="app_logs_share_empty">ไม่มีบันทึกให้แชร์</string>
+    <string name="app_logs_share_subject">บันทึกของวิดเจ็ตสภาพอากาศ</string>
+    <string name="no_app_logs">ยังไม่มีบันทึกของแอป</string>
+    <string name="app_logs_filter_hint">กรองบันทึก (แท็ก/ข้อความ/ระดับ)</string>
+    <string name="app_logs_db_stats">DB: %1$.1f MB (บันทึก %2$d รายการ, สแนปช็อต %3$d รายการ)</string>
+    <string name="app_logs_all_levels">ทุกระดับ</string>
+    <string name="app_logs_showing">กำลังแสดง %1$d (%2$s)</string>
+    <string name="app_logs_showing_filtered">กำลังแสดง %1$d ที่ตรงกับ \"%2$s\" (%3$s)</string>
+    <string name="icon_preview_title">แกลเลอรีไอคอน</string>
+    <string name="icon_preview_description">แกลเลอรีครบชุดของไอคอนสภาพอากาศทั้งหมดที่ใช้ในวิดเจ็ต</string>
+    <string name="gallery_icon_pc_slight_rain_new">เมฆบางส่วน ฝนเล็กน้อย (ใหม่)</string>
+    <string name="gallery_icon_rain">ฝน</string>
+    <string name="gallery_icon_chance_rain">มีโอกาสฝนตก</string>
+    <string name="gallery_icon_slight_rain">โอกาสฝนตกเล็กน้อย</string>
+    <string name="gallery_icon_snow">หิมะ</string>
+    <string name="gallery_icon_storm">พายุฝนฟ้าคะนอง</string>
+    <string name="gallery_icon_cloudy">เมฆมาก</string>
+    <string name="gallery_icon_clear">ท้องฟ้าแจ่มใส/แดดจัด</string>
+    <string name="gallery_icon_mostly_clear">ส่วนใหญ่แจ่มใส</string>
+    <string name="gallery_icon_horizon_sun">พระอาทิตย์ขึ้น/ตก</string>
+    <string name="gallery_icon_mostly_cloudy">เมฆเป็นส่วนมาก</string>
+    <string name="gallery_icon_partly_cloudy">เมฆบางส่วน</string>
+    <string name="gallery_icon_night">กลางคืน</string>
+    <string name="gallery_icon_mostly_cloudy_night">เมฆเป็นส่วนมาก (กลางคืน)</string>
+    <string name="gallery_icon_partly_cloudy_night">เมฆบางส่วน (กลางคืน)</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">เมฆบางส่วน มีโอกาสฝนตก</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">เมฆบางส่วน ฝนเล็กน้อย</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">เมฆบางส่วน มีโอกาสฝนตก (กลางคืน)</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">เมฆบางส่วน ฝนเล็กน้อย (กลางคืน)</string>
+    <string name="gallery_icon_fog">หมอก</string>
+    <string name="gallery_icon_fog_sunny">หมอกมีแดด</string>
+    <string name="gallery_icon_fog_light">หมอกบาง</string>
+    <string name="gallery_icon_fog_dense">หมอกหนา</string>
+    <string name="gallery_icon_fog_cloudy">หมอกมีเมฆ</string>
+    <string name="gallery_icon_fog_night">หมอก (กลางคืน)</string>
+    <string name="gallery_icon_fog_light_night">หมอกบาง (กลางคืน)</string>
+    <string name="gallery_icon_wind">ลม</string>
+
+    <string name="gallery_icon_unknown">ไม่ทราบ</string>
+
+    <string name="main_welcome">ยินดีต้อนรับสู่วิดเจ็ตสภาพอากาศ</string>
+    <string name="main_how_to_add_title">วิธีเพิ่มวิดเจ็ต</string>
+    <string name="main_how_to_add_desc">1. กดค้างที่พื้นที่ว่างบนหน้าจอหลัก\n2. แตะ \"วิดเจ็ต\"\n3. หา \"Weather Widget\" แล้วลากไปยังหน้าจอ</string>
+    <string name="main_location_disclosure_title">การเปิดเผยข้อมูลตำแหน่ง</string>
+    <string name="main_location_disclosure_desc">วิดเจ็ตสภาพอากาศเก็บข้อมูลตำแหน่งเพื่อให้พยากรณ์อากาศท้องถิ่นแม้แอปจะปิดอยู่หรือไม่ได้ใช้งาน ข้อมูลนี้ใช้เฉพาะภายในอุปกรณ์ของคุณเพื่อดึงสภาพอากาศที่แม่นยำของตำแหน่งปัจจุบัน</string>
+    <string name="background_location_disclosure_title">การเข้าถึงตำแหน่งเบื้องหลัง</string>
+    <string name="background_location_disclosure_desc">เพื่ออัปเดตสภาพอากาศอัตโนมัติในวิดเจ็ต แอปนี้ต้องเข้าถึงตำแหน่งของคุณแม้อยู่เบื้องหลัง\n\nในหน้าจอถัดไป โปรดเลือก \"อนุญาตตลอดเวลา\" เพื่อเปิดการอัปเดตเบื้องหลัง</string>
+    <string name="grant_location_permission">ให้สิทธิ์ตำแหน่ง</string>
+    <string name="open_settings">เปิดการตั้งค่า</string>
+    <string name="api_keys_title">คีย์ API</string>
+    <string name="api_keys_description">ใส่คีย์ API ของคุณเองสำหรับบริการที่จำกัด บริการฟรี (NWS, Open-Meteo) ไม่ต้องใช้คีย์</string>
+    <string name="api_key_hint">ใส่คีย์ API</string>
+    <string name="get_api_key">รับคีย์…</string>
+    <string name="get_api_key_no_browser">ไม่มีเบราว์เซอร์ สมัครได้ที่: %1$s</string>
+    <string name="privacy_policy_title">นโยบายความเป็นส่วนตัว</string>
+    <string name="allow">อนุญาต</string>
+    <string name="no_thanks">ไม่ ขอบคุณ</string>
+    <string name="privacy_policy_body">วิดเจ็ตสภาพอากาศเก็บข้อมูลตำแหน่งเพื่อให้พยากรณ์อากาศท้องถิ่น ตำแหน่งของคุณใช้เพื่อดึงข้อมูลสภาพอากาศในพื้นที่ของคุณเท่านั้น และจะไม่ถูกเก็บหรือแชร์กับบุคคลที่สาม ยกเว้นผู้ให้บริการ API สภาพอากาศ (NWS, Open-Meteo ฯลฯ) เพื่อดึงพยากรณ์\n\nเราใช้ Firebase Crashlytics ตรวจสอบความเสถียรของแอป ข้อมูลนี้ถูกทำให้ไม่ระบุตัวตน\n\nคุณเพิกถอนสิทธิ์ตำแหน่งได้ทุกเมื่อในการตั้งค่า Android\n\nมีคำถาม ไปที่: https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">หรือใส่พิกัด:</string>
+    <string name="latitude_hint">ละติจูด (เช่น 37.422)</string>
+    <string name="longitude_hint">ลองจิจูด (เช่น -122.0841)</string>
+    <string name="use_coordinates">ใช้พิกัด</string>
+    <string name="save_location">บันทึกตำแหน่ง</string>
+    <string name="default_location_title">ตำแหน่งเริ่มต้น</string>
+    <string name="location_saved_success">อัปเดตตำแหน่งของวิดเจ็ตทั้งหมดแล้ว</string>
+    <string name="location_updated_from_gps">อัปเดตตำแหน่งจาก GPS แล้ว</string>
+    <string name="invalid_coordinates_range">โปรดใส่พิกัดที่ถูกต้อง (ละติจูด -90 ถึง 90, ลองจิจูด -180 ถึง 180)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">ความคิดเห็น &amp; รายงานข้อบกพร่อง</string>
+    <string name="feedback_and_bug_reports_description">พบปัญหาหรืออยากเสนอการปรับปรุง? ส่งรายงานข้อบกพร่องโดยละเอียดพร้อมการวินิจฉัยระบบ (ไม่บังคับ)</string>
+    <string name="submit_bug_report">ส่งรายงานข้อบกพร่อง</string>
+    <string name="bug_report_title">ส่งรายงานข้อบกพร่อง</string>
+    <string name="bug_report_description_hint">อธิบายข้อบกพร่อง (เกิดอะไรขึ้นและคุณคาดหวังอะไร) หากเป็นปัญหาการแสดงผล โปรดแนบภาพหน้าจอ!</string>
+    <string name="bug_report_include_logs">แนบบันทึกวินิจฉัยของแอป (เหตุการณ์ล่าสุด)</string>
+    <string name="bug_report_include_metadata">แนบการตั้งค่าวิดเจ็ต &amp; สถิติ DB</string>
+    <string name="bug_report_diagnostics_preview">ดูตัวอย่างการวินิจฉัย</string>
+    <string name="bug_report_device_info">ข้อมูลอุปกรณ์</string>
+    <string name="bug_report_db_stats">สถิติฐานข้อมูล</string>
+    <string name="bug_report_active_widgets">วิดเจ็ตที่ใช้งานอยู่</string>
+    <string name="bug_report_location_info">การตั้งค่าตำแหน่ง</string>
+    <string name="bug_report_send">ส่งรายงานข้อบกพร่อง</string>
+    <string name="bug_report_error_empty_description">โปรดเขียนคำอธิบายปัญหาสั้น ๆ ก่อนส่ง</string>
+    <string name="bug_report_collecting_diagnostics">กำลังรวบรวมข้อมูลวินิจฉัย...</string>
+    <string name="view_icon_gallery">ดูแกลเลอรีไอคอน</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">ไม่มีข้อมูลอุณหภูมิรายชั่วโมงของ %1$s จะทำการรีเฟรช</string>
+    <string name="widget_no_hourly_result_still_missing">ผลการรีเฟรช: ไม่สามารถดึงข้อมูลอุณหภูมิรายชั่วโมงใหม่ของ %1$s ได้ ข้อมูลสิ้นสุดที่ %2$s</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">ผลการรีเฟรช: ไม่สามารถดึงข้อมูลอุณหภูมิรายชั่วโมงใหม่ของ %1$s ได้</string>
+    <string name="widget_no_hourly_result_available">ผลการรีเฟรช:\nข้อมูลรายชั่วโมงของ %1$s พร้อมใช้งานแล้ว</string>
+    <string name="units_title">หน่วย</string>
+    <string name="use_celsius_label">ใช้เซลเซียส</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">ภาษา</string>
+    <string name="app_language_description">เลือกภาษาของแอปนี้ จะเปิดการตั้งค่าภาษาแยกตามแอปของ Android</string>
+    <string name="app_language_button">เปลี่ยนภาษาของแอป…</string>
+    <string name="app_language_settings_unavailable">อุปกรณ์นี้ไม่รองรับการตั้งค่าภาษาแยกตามแอป</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">วันนี้</string>
+    <string name="widget_loading">กำลังโหลด...</string>
+    <string name="widget_tap_to_refresh">แตะเพื่อรีเฟรช</string>
+    <string name="current_stations_desc">สถานีปัจจุบัน</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">ตำแหน่ง: %1$s</string>
+    <string name="saving_coordinates_offline">กำลังบันทึกพิกัด (การค้นหาชื่อออฟไลน์)</string>
+    <string name="location_permission_required">GPS ต้องการสิทธิ์ตำแหน่ง</string>
+    <string name="location_fix_failed_default">ไม่สามารถหาตำแหน่งปัจจุบันได้ ใช้ค่าเริ่มต้นแทน</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">ยังไม่ได้ตั้งตำแหน่ง</string>
+    <string name="widget_location_format">ตำแหน่งวิดเจ็ต: %1$s, %2$s</string>
+    <string name="default_location_format">ตำแหน่งเริ่มต้น: %1$s, %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">การตรวจวัดปัจจุบัน</string>
+    <string name="obs_subtitle_nearby_stations">ข้อมูลเรียลไทม์จากสถานีใกล้เคียง</string>
+    <string name="obs_subtitle_none_found">ไม่พบการตรวจวัดล่าสุดของ %1$s</string>
+    <string name="obs_subtitle_latest_reading">ค่าล่าสุดจาก %1$s</string>
+    <string name="obs_no_location_to_refresh">ไม่มีตำแหน่งให้รีเฟรช</string>
+    <string name="obs_refreshed_source">รีเฟรช %1$s แล้ว</string>
+    <string name="obs_reported_prefix">"รายงานเมื่อ "</string>
+    <string name="obs_fetched_separator">" • ดึงเมื่อ "</string>
+    <string name="station_origin_web">เว็บ</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">บันทึกการดึงข้อมูล</string>
+    <string name="loading_logs">กำลังโหลดบันทึก...</string>
+    <string name="close">ปิด</string>
+    <string name="name_location_title">ตั้งชื่อตำแหน่ง</string>
+    <string name="name_location_message">ตั้งชื่อตำแหน่งนี้ตามต้องการ (เช่น บ้าน ที่ทำงาน โรงเรียน)</string>
+    <string name="save">บันทึก</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">สรุปความแม่นยำ 30 วัน</string>
+    <string name="stats_loading">กำลังโหลด...</string>
+    <string name="stats_daily_breakdown">ความแม่นยำรายวัน</string>
+    <string name="stats_rain_accuracy">ความแม่นยำฝนกลางวัน/กลางคืน</string>
+    <string name="stats_no_weather_data">ยังไม่มีข้อมูลสภาพอากาศ</string>
+    <string name="stats_no_history_yet">ยังไม่มีข้อมูลพยากรณ์ย้อนหลัง\n\nสแนปช็อตพยากรณ์กำลังถูกบันทึกทุกวัน กลับมาพรุ่งนี้เพื่อดูการเปรียบเทียบความแม่นยำครั้งแรกของคุณ!</string>
+    <string name="stats_source_line">%1$s: สูงสุด ±%2$s, ต่ำสุด ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: ยังไม่มีข้อมูล</string>
+    <string name="stats_error_loading">เกิดข้อผิดพลาดในการโหลดสถิติ: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (ต่ำไป %1$s)"</string>
+    <string name="bias_high_suffix">" (สูงไป %1$s)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"สูงสุด ±%1$s  ต่ำสุด ±%2$s"</string>
+    <string name="accuracy_within_line">"%% ภายใน %1$s: %2$s  พยากรณ์: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">ค่าจริงของตำแหน่ง:</string>
+    <string name="label_forecast">พยากรณ์:</string>
+    <string name="label_error">ค่าคลาดเคลื่อน:</string>
+    <string name="label_rain_day">กลางวัน (8:00–20:00):</string>
+    <string name="label_rain_night">กลางคืน (20:00–8:00):</string>
+    <string name="rain_pred_act_format">พยากรณ์ %1$s / จริง %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">อุณหภูมิสูงสุด</string>
+    <string name="forecast_history_low_temp_title">อุณหภูมิต่ำสุด</string>
+    <string name="legend_location_actual">ค่าจริงของตำแหน่ง</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">เลื่อนขึ้น</string>
+    <string name="move_down">เลื่อนลง</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">ไม่สามารถเริ่มการแชร์ได้</string>
+    <string name="bug_report_email_subject">รายงานข้อบกพร่องวิดเจ็ตสภาพอากาศ</string>
+</resources>

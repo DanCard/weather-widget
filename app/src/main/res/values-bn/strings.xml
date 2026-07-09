@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">আবহাওয়া উইজেট</string>
+    <string name="widget_description">আকার পরিবর্তনযোগ্য আবহাওয়া উইজেট, যা বর্তমান অবস্থা ও পূর্বাভাস দেখায়</string>
+    <string name="configure_widget">উইজেট কনফিগার করুন</string>
+    <string name="select_data_source">আবহাওয়া ডেটা উৎস নির্বাচন করুন</string>
+    <string name="use_current_location">বর্তমান অবস্থান ব্যবহার করুন</string>
+    <string name="widget_location_title">উইজেটের অবস্থান</string>
+    <string name="use_precise_location">ডিভাইসের নির্ভুল অবস্থান ব্যবহার করুন</string>
+    <string name="follow_device_explainer">উইজেটগুলি আপনার ডিভাইসের অবস্থান অনুসরণ করবে</string>
+    <string name="or_search_location">অথবা শহর, ঠিকানা বা পোস্টকোড দিয়ে খুঁজুন:</string>
+    <string name="location_search_hint">শহর, ঠিকানা বা পোস্টকোড</string>
+    <string name="search_location">খুঁজুন</string>
+    <string name="location_search_no_results">কোনো মিল নেই — বানান বা নেটওয়ার্ক পরীক্ষা করুন</string>
+    <string name="getting_location">অবস্থান নেওয়া হচ্ছে…</string>
+    <string name="use_this_location">এই অবস্থান ব্যবহার করুন</string>
+    <string name="location_found_label">ডিভাইসের অবস্থান পাওয়া গেছে: %1$s</string>
+    <string name="location_fix_failed">ডিভাইসের অবস্থান পাওয়া যায়নি — নিচে একটি বিকল্প বেছে নিন</string>
+    <string name="pinned_location_explainer">খোঁজা অবস্থান বা স্থানাঙ্ক নির্বাচন করলে সেটি পিন হয়ে যায়। আপনি আবার \"ডিভাইসের নির্ভুল অবস্থান ব্যবহার করুন\" ট্যাপ না করা পর্যন্ত উইজেট ডিভাইস অনুসরণ বন্ধ রাখবে।</string>
+    <string name="set_location_button">অবস্থান নির্ধারণ…</string>
+    <string name="location_mode_pinned">পিন করা</string>
+    <string name="location_mode_follow">ডিভাইস অনুসরণ করে</string>
+    <string name="offline">অফলাইন</string>
+    <string name="tap_to_configure">কনফিগার করতে ট্যাপ করুন</string>
+    <string name="settings">সেটিংস</string>
+    <string name="app_logs">অ্যাপ লগ</string>
+    <string name="back">ফিরে যান</string>
+    <string name="refresh">রিফ্রেশ</string>
+    <string name="refresh_now">ডেটা রিফ্রেশ করুন</string>
+    <string name="refresh_now_enqueued_toast">ডেটা রিফ্রেশ সারিতে যুক্ত হয়েছে</string>
+    <string name="nav_previous">আগের দিনগুলি</string>
+    <string name="nav_next">পরের দিনগুলি</string>
+    <string name="weather_icon_desc">আবহাওয়া অবস্থার আইকন</string>
+    <string name="home_forecast">দৈনিক পূর্বাভাসে ফিরুন</string>
+    <string name="api_preference">আবহাওয়া ডেটা উৎস</string>
+    <string name="api_preference_description">কোন আবহাওয়া API পছন্দ করবেন তা বেছে নিন (অনুপলব্ধ হলে অন্যটি ব্যবহৃত হবে)</string>
+    <string name="api_alternate">পর্যায়ক্রমে - NWS, Open-Meteo ও WeatherAPI-এর মধ্যে ঘুরিয়ে</string>
+    <string name="api_prefer_nws">NWS পছন্দ - জাতীয় আবহাওয়া পরিষেবা (শুধু যুক্তরাষ্ট্র)</string>
+    <string name="api_prefer_openmeteo">Open-Meteo পছন্দ - বিশ্বব্যাপী কভারেজ</string>
+    <string name="api_prefer_weatherapi">WeatherAPI পছন্দ - বিশ্বব্যাপী কভারেজ</string>
+    <string name="api_sources_title">আবহাওয়া ডেটা উৎসসমূহ</string>
+    <string name="api_sources_description">উৎস চালু/বন্ধ করুন এবং ক্রম বদলান। বন্ধ করা উৎস আবার চালু না করা পর্যন্ত উইজেট টগল ও ব্যাকগ্রাউন্ড আনা থেকে বাদ থাকে।</string>
+    <string name="must_keep_one_source">কমপক্ষে একটি উৎস চালু থাকতে হবে</string>
+    <string name="personal_stations_title">ব্যক্তিগত আবহাওয়া স্টেশন</string>
+    <string name="personal_stations_description" formatted="false">ব্যক্তিগত (বাড়ির) স্টেশন রোদে প্রায়ই বেশি তাপমাত্রা দেখায়। পরিমাপকৃত তাপমাত্রায় এদের অবদান কতটা কমাবেন তা নির্ধারণ করুন। 0% = কোনো ছাড় নয়: ব্যক্তিগত স্টেশন সরকারি স্টেশনের সমান গণ্য হয়। 100% = ব্যক্তিগত স্টেশন উপেক্ষা করা হয়।</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · কোনো ছাড় নয়</string>
+    <string name="personal_stations_ignored" formatted="false">100% · উপেক্ষিত</string>
+    <string name="api_source_silurian_desc">Silurian.ai — Silur হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
+    <string name="api_source_nws_desc">জাতীয় আবহাওয়া পরিষেবা (শুধু যুক্তরাষ্ট্র)</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — Tmrw হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — Meteo হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — WAPI হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
+    <string name="statistics">পরিসংখ্যান</string>
+    <string name="view_detailed_statistics">বিস্তারিত পরিসংখ্যান</string>
+    <string name="forecast_accuracy_summary_title">পূর্বাভাসের নির্ভুলতা (শেষ ৩০ দিন)</string>
+    <string name="loading_accuracy_summary">পূর্বাভাসের নির্ভুলতা লোড হচ্ছে...</string>
+    <string name="error_loading_accuracy_summary">এখন পূর্বাভাসের নির্ভুলতা লোড করা যাচ্ছে না।</string>
+    <string name="data_freshness_unknown">ডেটার সতেজতা: অজানা</string>
+    <string name="data_freshness_format">সর্বশেষ আপডেট: %1$s</string>
+    <string name="freshness_last_updated">সর্বশেষ আপডেট: %1$s আগে</string>
+    <string name="refresh_policy_charging">রিফ্রেশ নীতি: প্রতি ৩০ মিনিটে (চার্জিং)</string>
+    <string name="refresh_policy_battery_high">রিফ্রেশ নীতি: প্রতি ৪ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">রিফ্রেশ নীতি: প্রতি ৮ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
+    <string name="refresh_policy_battery_low">রিফ্রেশ নীতি: স্থগিত (ব্যাটারি %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">পূর্বাভাস আনা: চার্জিংয়ে প্রতি ১ ঘণ্টায় (প্রাথমিক API)</string>
+    <string name="forecast_policy_charging_90m">পূর্বাভাস আনা: চার্জিংয়ে প্রতি ৯০ মিনিটে (দ্বিতীয় API)</string>
+    <string name="forecast_policy_charging_2h">পূর্বাভাস আনা: চার্জিংয়ে প্রতি ২ ঘণ্টায় (৩য়+ API)</string>
+    <string name="forecast_policy_battery_high">পূর্বাভাস আনা: প্রতি ৪ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">পূর্বাভাস আনা: প্রতি ৮ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
+    <string name="forecast_policy_battery_low">পূর্বাভাস আনা: স্থগিত (ব্যাটারি %1$d%%)</string>
+    <string name="freshness_just_now">এইমাত্র</string>
+    <string name="forecast_history">"পূর্বাভাসের ইতিহাস: "</string>
+    <string name="forecast_history_summary_single">%1$dটি %2$s পূর্বাভাস স্ন্যাপশট</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI স্ন্যাপশট</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$dটি জলবায়ু-পূরণ বিন্দু</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">%1$s API প্রকৃত: %2$s / %3$s</string>
+    <string name="forecast_history_location_actual">অবস্থানের প্রকৃত: %1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">এখনও কোনো ঐতিহাসিক পূর্বাভাস ডেটা নেই।\nপূর্বাভাস স্ন্যাপশট প্রতিদিন সংরক্ষিত হয়। প্রথম নির্ভুলতা তুলনার জন্য আগামীকাল আবার দেখুন।</string>
+    <string name="forecast_history_no_data_fallback_source">নির্বাচিত উৎস</string>
+    <string name="forecast_history_prev_day">আগের দিন</string>
+    <string name="forecast_history_next_day">পরের দিন</string>
+    <string name="forecast_history_subtitle">পূর্বাভাসের ইতিহাস</string>
+    <string name="freshness_forecast_fetch_ago">পূর্বাভাস আনা: %1$s আগে</string>
+    <string name="freshness_forecast_fetch_never">পূর্বাভাস আনা: কখনো নয়</string>
+    <string name="freshness_displayed_data">প্রদর্শিত ডেটা (%1$s): %2$s আগে আনা</string>
+    <string name="forecast_mode_evolution">মোড: বিবর্তন</string>
+    <string name="forecast_mode_error">মোড: ত্রুটি</string>
+    <string name="forecast_mode_hourly">মোড: তাপমাত্রা</string>
+    <string name="forecast_evolution_high_title">সর্বোচ্চ তাপমাত্রার বিবর্তন</string>
+    <string name="forecast_evolution_low_title">সর্বনিম্ন তাপমাত্রার বিবর্তন</string>
+    <string name="forecast_error_high_title">সর্বোচ্চ তাপমাত্রার ত্রুটি</string>
+    <string name="forecast_error_low_title">সর্বনিম্ন তাপমাত্রার ত্রুটি</string>
+    <string name="forecast_show_hourly">তাপমাত্রার পূর্বাভাস</string>
+    <string name="forecast_show_evolution">পূর্বাভাসের ইতিহাসে ফিরুন</string>
+    <string name="forecast_hourly_title">তাপমাত্রার পূর্বাভাস</string>
+    <string name="forecast_hourly_subtitle">ঘণ্টাভিত্তিক বিবরণ</string>
+    <string name="forecast_hourly_no_data">এই তারিখের জন্য ঘণ্টাভিত্তিক তাপমাত্রার পূর্বাভাস নেই।</string>
+    <string name="forecast_hourly_legend">এখন</string>
+    <string name="forecast_history_no_data_for_source">এই তারিখের জন্য কোনো পূর্বাভাস ইতিহাস নেই (%1$s)।</string>
+    <string name="forecast_error_requires_actuals">এই দিনের প্রকৃত তাপমাত্রা রেকর্ড হওয়ার পরে ত্রুটি ভিউ পাওয়া যাবে।</string>
+    <string name="legend_actual">API প্রকৃত</string>
+    <string name="legend_zero_error">শূন্য ত্রুটি</string>
+    <string name="view_app_logs">অ্যাপ লগ দেখুন</string>
+    <string name="clear_app_logs">লগ মুছুন</string>
+    <string name="app_logs_refresh_current">বর্তমান তাপমাত্রা রিফ্রেশ করুন</string>
+    <string name="app_logs_force_refresh">জোর করুন</string>
+    <string name="app_logs_refreshing_toast">বর্তমান তাপমাত্রা রিফ্রেশ সারিতে যুক্ত হয়েছে</string>
+    <string name="app_logs_cleared">লগ মুছে ফেলা হয়েছে</string>
+    <string name="app_logs_share">শেয়ার করুন</string>
+    <string name="app_logs_share_chooser">লগ শেয়ার করুন</string>
+    <string name="app_logs_share_empty">শেয়ার করার মতো কোনো লগ নেই</string>
+    <string name="app_logs_share_subject">আবহাওয়া উইজেট লগ</string>
+    <string name="no_app_logs">এখনও কোনো অ্যাপ লগ নেই।</string>
+    <string name="app_logs_filter_hint">লগ ফিল্টার করুন (ট্যাগ/বার্তা/স্তর)</string>
+    <string name="app_logs_db_stats">DB: %1$.1f MB (%2$dটি লগ, %3$dটি স্ন্যাপশট)</string>
+    <string name="app_logs_all_levels">সব স্তর</string>
+    <string name="app_logs_showing">%1$dটি দেখানো হচ্ছে (%2$s)</string>
+    <string name="app_logs_showing_filtered">\"%2$s\"-এর সাথে মেলা %1$dটি দেখানো হচ্ছে (%3$s)</string>
+    <string name="icon_preview_title">আইকন গ্যালারি</string>
+    <string name="icon_preview_description">উইজেটে ব্যবহৃত সব আবহাওয়া আইকনের পূর্ণাঙ্গ গ্যালারি।</string>
+    <string name="gallery_icon_pc_slight_rain_new">আংশিক মেঘলা, হালকা বৃষ্টি (নতুন)</string>
+    <string name="gallery_icon_rain">বৃষ্টি</string>
+    <string name="gallery_icon_chance_rain">বৃষ্টির সম্ভাবনা</string>
+    <string name="gallery_icon_slight_rain">সামান্য বৃষ্টির সম্ভাবনা</string>
+    <string name="gallery_icon_snow">তুষার</string>
+    <string name="gallery_icon_storm">ঝড়</string>
+    <string name="gallery_icon_cloudy">মেঘলা</string>
+    <string name="gallery_icon_clear">পরিষ্কার/রৌদ্রোজ্জ্বল</string>
+    <string name="gallery_icon_mostly_clear">বেশিরভাগ পরিষ্কার</string>
+    <string name="gallery_icon_horizon_sun">সূর্যোদয়/সূর্যাস্ত</string>
+    <string name="gallery_icon_mostly_cloudy">বেশিরভাগ মেঘলা</string>
+    <string name="gallery_icon_partly_cloudy">আংশিক মেঘলা</string>
+    <string name="gallery_icon_night">রাত</string>
+    <string name="gallery_icon_mostly_cloudy_night">বেশিরভাগ মেঘলা (রাত)</string>
+    <string name="gallery_icon_partly_cloudy_night">আংশিক মেঘলা (রাত)</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">আংশিক মেঘলা, বৃষ্টির সম্ভাবনা</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">আংশিক মেঘলা, হালকা বৃষ্টি</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">আংশিক মেঘলা, বৃষ্টির সম্ভাবনা (রাত)</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">আংশিক মেঘলা, হালকা বৃষ্টি (রাত)</string>
+    <string name="gallery_icon_fog">কুয়াশা</string>
+    <string name="gallery_icon_fog_sunny">কুয়াশা ও রোদ</string>
+    <string name="gallery_icon_fog_light">হালকা কুয়াশা</string>
+    <string name="gallery_icon_fog_dense">ঘন কুয়াশা</string>
+    <string name="gallery_icon_fog_cloudy">কুয়াশা ও মেঘ</string>
+    <string name="gallery_icon_fog_night">কুয়াশা (রাত)</string>
+    <string name="gallery_icon_fog_light_night">হালকা কুয়াশা (রাত)</string>
+    <string name="gallery_icon_wind">বাতাস</string>
+
+    <string name="gallery_icon_unknown">অজানা</string>
+
+    <string name="main_welcome">আবহাওয়া উইজেটে স্বাগতম</string>
+    <string name="main_how_to_add_title">উইজেট যেভাবে যোগ করবেন</string>
+    <string name="main_how_to_add_desc">1. হোম স্ক্রিনের খালি জায়গায় চেপে ধরুন।\n2. \"উইজেট\" ট্যাপ করুন।\n3. \"Weather Widget\" খুঁজে স্ক্রিনে টেনে আনুন।</string>
+    <string name="main_location_disclosure_title">অবস্থান সংক্রান্ত ঘোষণা</string>
+    <string name="main_location_disclosure_desc">অ্যাপ বন্ধ বা অব্যবহৃত থাকলেও স্থানীয় আবহাওয়ার পূর্বাভাস দিতে আবহাওয়া উইজেট অবস্থান ডেটা সংগ্রহ করে। এই ডেটা শুধু আপনার ডিভাইসে স্থানীয়ভাবে, আপনার বর্তমান অবস্থানের সঠিক আবহাওয়া আনতে ব্যবহৃত হয়।</string>
+    <string name="background_location_disclosure_title">ব্যাকগ্রাউন্ডে অবস্থানে প্রবেশাধিকার</string>
+    <string name="background_location_disclosure_desc">উইজেটে স্বয়ংক্রিয় আবহাওয়া আপডেট দিতে এই অ্যাপের ব্যাকগ্রাউন্ডেও আপনার অবস্থানে প্রবেশাধিকার দরকার।\n\nপরের স্ক্রিনে ব্যাকগ্রাউন্ড আপডেট চালু করতে অনুগ্রহ করে \"সবসময় অনুমতি দিন\" নির্বাচন করুন।</string>
+    <string name="grant_location_permission">অবস্থানের অনুমতি দিন</string>
+    <string name="open_settings">সেটিংস খুলুন</string>
+    <string name="api_keys_title">API কী</string>
+    <string name="api_keys_description">সীমাবদ্ধ পরিষেবার জন্য নিজের API কী লিখুন। বিনামূল্যের পরিষেবায় (NWS, Open-Meteo) কী লাগে না।</string>
+    <string name="api_key_hint">API কী লিখুন</string>
+    <string name="get_api_key">কী নিন…</string>
+    <string name="get_api_key_no_browser">কোনো ব্রাউজার নেই। সাইন আপ করুন: %1$s</string>
+    <string name="privacy_policy_title">গোপনীয়তা নীতি</string>
+    <string name="allow">অনুমতি দিন</string>
+    <string name="no_thanks">না, ধন্যবাদ</string>
+    <string name="privacy_policy_body">আবহাওয়া উইজেট স্থানীয় আবহাওয়ার পূর্বাভাস দিতে অবস্থান ডেটা সংগ্রহ করে। আপনার অবস্থান শুধু আপনার এলাকার আবহাওয়া ডেটা আনতে ব্যবহৃত হয় এবং পূর্বাভাস পেতে আবহাওয়া API প্রদানকারী (NWS, Open-Meteo ইত্যাদি) ছাড়া কখনো সংরক্ষিত বা তৃতীয় পক্ষের সাথে শেয়ার করা হয় না।\n\nঅ্যাপের স্থিতিশীলতা পর্যবেক্ষণে আমরা Firebase Crashlytics ব্যবহার করি। এই ডেটা বেনামি করা হয়।\n\nআপনি Android সেটিংসে যেকোনো সময় অবস্থানের অনুমতি প্রত্যাহার করতে পারেন।\n\nপ্রশ্ন থাকলে দেখুন: https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">অথবা স্থানাঙ্ক লিখুন:</string>
+    <string name="latitude_hint">অক্ষাংশ (যেমন 37.422)</string>
+    <string name="longitude_hint">দ্রাঘিমাংশ (যেমন -122.0841)</string>
+    <string name="use_coordinates">স্থানাঙ্ক ব্যবহার করুন</string>
+    <string name="save_location">অবস্থান সংরক্ষণ করুন</string>
+    <string name="default_location_title">ডিফল্ট অবস্থান</string>
+    <string name="location_saved_success">সব উইজেটের জন্য অবস্থান আপডেট হয়েছে</string>
+    <string name="location_updated_from_gps">GPS থেকে অবস্থান আপডেট হয়েছে</string>
+    <string name="invalid_coordinates_range">অনুগ্রহ করে বৈধ স্থানাঙ্ক লিখুন (অক্ষাংশ -90 থেকে 90, দ্রাঘিমাংশ -180 থেকে 180)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">মতামত &amp; বাগ রিপোর্ট</string>
+    <string name="feedback_and_bug_reports_description">কোনো সমস্যা পেয়েছেন বা উন্নতির পরামর্শ দিতে চান? ঐচ্ছিক সিস্টেম ডায়াগনস্টিকসহ বিস্তারিত বাগ রিপোর্ট পাঠান।</string>
+    <string name="submit_bug_report">বাগ রিপোর্ট পাঠান</string>
+    <string name="bug_report_title">বাগ রিপোর্ট পাঠান</string>
+    <string name="bug_report_description_hint">বাগটি বর্ণনা করুন (কী হয়েছে এবং কী আশা করেছিলেন)। দৃশ্যমান সমস্যা হলে স্ক্রিনশট যুক্ত করুন!</string>
+    <string name="bug_report_include_logs">ডায়াগনস্টিক অ্যাপ লগ যুক্ত করুন (সাম্প্রতিক ঘটনা)</string>
+    <string name="bug_report_include_metadata">উইজেট কনফিগারেশন &amp; DB পরিসংখ্যান যুক্ত করুন</string>
+    <string name="bug_report_diagnostics_preview">ডায়াগনস্টিক প্রিভিউ</string>
+    <string name="bug_report_device_info">ডিভাইসের তথ্য</string>
+    <string name="bug_report_db_stats">ডেটাবেস পরিসংখ্যান</string>
+    <string name="bug_report_active_widgets">সক্রিয় উইজেট</string>
+    <string name="bug_report_location_info">অবস্থান সেটিং</string>
+    <string name="bug_report_send">বাগ রিপোর্ট পাঠান</string>
+    <string name="bug_report_error_empty_description">পাঠানোর আগে অনুগ্রহ করে সমস্যার সংক্ষিপ্ত বর্ণনা লিখুন।</string>
+    <string name="bug_report_collecting_diagnostics">ডায়াগনস্টিক ডেটা সংগ্রহ হচ্ছে...</string>
+    <string name="view_icon_gallery">আইকন গ্যালারি দেখুন</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">%1$s-এর ঘণ্টাভিত্তিক তাপমাত্রার ডেটা নেই। একটি রিফ্রেশ চালু হবে।</string>
+    <string name="widget_no_hourly_result_still_missing">রিফ্রেশের ফলাফল: %1$s-এর জন্য নতুন ঘণ্টাভিত্তিক তাপমাত্রার ডেটা আনা যায়নি। ডেটা শেষ হয় %2$s</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">রিফ্রেশের ফলাফল: %1$s-এর জন্য নতুন ঘণ্টাভিত্তিক তাপমাত্রার ডেটা আনা যায়নি।</string>
+    <string name="widget_no_hourly_result_available">রিফ্রেশের ফলাফল:\n%1$s-এর ঘণ্টাভিত্তিক ডেটা এখন উপলব্ধ</string>
+    <string name="units_title">একক</string>
+    <string name="use_celsius_label">সেলসিয়াস ব্যবহার করুন</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">ভাষা</string>
+    <string name="app_language_description">এই অ্যাপের ভাষা বেছে নিন। Android-এর অ্যাপ-প্রতি ভাষা সেটিং খোলে।</string>
+    <string name="app_language_button">অ্যাপের ভাষা পরিবর্তন করুন…</string>
+    <string name="app_language_settings_unavailable">এই ডিভাইসে অ্যাপ-প্রতি ভাষা সেটিং উপলব্ধ নয়</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">আজ</string>
+    <string name="widget_loading">লোড হচ্ছে...</string>
+    <string name="widget_tap_to_refresh">রিফ্রেশ করতে ট্যাপ করুন</string>
+    <string name="current_stations_desc">বর্তমান স্টেশন</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">অবস্থান: %1$s</string>
+    <string name="saving_coordinates_offline">স্থানাঙ্ক সংরক্ষণ হচ্ছে (নাম খোঁজা অফলাইন)</string>
+    <string name="location_permission_required">GPS-এর জন্য অবস্থানের অনুমতি প্রয়োজন</string>
+    <string name="location_fix_failed_default">বর্তমান অবস্থান পাওয়া যায়নি। ডিফল্ট ব্যবহার হচ্ছে।</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">কোনো অবস্থান নির্ধারিত নেই</string>
+    <string name="widget_location_format">উইজেটের অবস্থান: %1$s, %2$s</string>
+    <string name="default_location_format">ডিফল্ট অবস্থান: %1$s, %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">বর্তমান পর্যবেক্ষণ</string>
+    <string name="obs_subtitle_nearby_stations">কাছের স্টেশন থেকে রিয়েল-টাইম ডেটা</string>
+    <string name="obs_subtitle_none_found">%1$s-এর জন্য সাম্প্রতিক কোনো পর্যবেক্ষণ পাওয়া যায়নি।</string>
+    <string name="obs_subtitle_latest_reading">%1$s থেকে সর্বশেষ রিডিং</string>
+    <string name="obs_no_location_to_refresh">রিফ্রেশ করার মতো কোনো অবস্থান নেই</string>
+    <string name="obs_refreshed_source">%1$s রিফ্রেশ হয়েছে</string>
+    <string name="obs_reported_prefix">"রিপোর্ট "</string>
+    <string name="obs_fetched_separator">" • আনা "</string>
+    <string name="station_origin_web">ওয়েব</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">ফেচ লগ</string>
+    <string name="loading_logs">লগ লোড হচ্ছে...</string>
+    <string name="close">বন্ধ করুন</string>
+    <string name="name_location_title">অবস্থানের নাম দিন</string>
+    <string name="name_location_message">এই অবস্থানকে একটি নিজস্ব নাম দিন (যেমন বাড়ি, অফিস, স্কুল)</string>
+    <string name="save">সংরক্ষণ</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">৩০ দিনের নির্ভুলতার সারাংশ</string>
+    <string name="stats_loading">লোড হচ্ছে...</string>
+    <string name="stats_daily_breakdown">দৈনিক নির্ভুলতার বিবরণ</string>
+    <string name="stats_rain_accuracy">দিন/রাত বৃষ্টির নির্ভুলতা</string>
+    <string name="stats_no_weather_data">এখনও কোনো আবহাওয়া ডেটা নেই।</string>
+    <string name="stats_no_history_yet">এখনও কোনো ঐতিহাসিক পূর্বাভাস ডেটা নেই।\n\nপূর্বাভাস স্ন্যাপশট প্রতিদিন সংরক্ষিত হচ্ছে। প্রথম নির্ভুলতা তুলনার জন্য আগামীকাল আবার দেখুন!</string>
+    <string name="stats_source_line">%1$s: সর্বোচ্চ ±%2$s, সর্বনিম্ন ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: এখনও কোনো ডেটা নেই</string>
+    <string name="stats_error_loading">পরিসংখ্যান লোডে ত্রুটি: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (%1$s কম)"</string>
+    <string name="bias_high_suffix">" (%1$s বেশি)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"সর্বোচ্চ ±%1$s  সর্বনিম্ন ±%2$s"</string>
+    <string name="accuracy_within_line">"%1$s-এর মধ্যে %%: %2$s  পূর্বাভাস: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">অবস্থানের প্রকৃত:</string>
+    <string name="label_forecast">পূর্বাভাস:</string>
+    <string name="label_error">ত্রুটি:</string>
+    <string name="label_rain_day">দিন (৮টা–২০টা):</string>
+    <string name="label_rain_night">রাত (২০টা–৮টা):</string>
+    <string name="rain_pred_act_format">পূর্বা. %1$s / প্রকৃত %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">সর্বোচ্চ তাপমাত্রা</string>
+    <string name="forecast_history_low_temp_title">সর্বনিম্ন তাপমাত্রা</string>
+    <string name="legend_location_actual">অবস্থানের প্রকৃত</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">উপরে সরান</string>
+    <string name="move_down">নিচে সরান</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">শেয়ার শুরু করা যায়নি</string>
+    <string name="bug_report_email_subject">আবহাওয়া উইজেট বাগ রিপোর্ট</string>
+</resources>

@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">أداة الطقس</string>
+    <string name="widget_description">أداة طقس قابلة لتغيير الحجم تعرض الأحوال الحالية والتوقعات</string>
+    <string name="configure_widget">تهيئة الأداة</string>
+    <string name="select_data_source">اختر مصدر بيانات الطقس</string>
+    <string name="use_current_location">استخدام الموقع الحالي</string>
+    <string name="widget_location_title">موقع الأداة</string>
+    <string name="use_precise_location">استخدام الموقع الدقيق للجهاز</string>
+    <string name="follow_device_explainer">ستتبع الأدوات موقع جهازك</string>
+    <string name="or_search_location">أو ابحث بالمدينة أو العنوان أو الرمز البريدي:</string>
+    <string name="location_search_hint">المدينة أو العنوان أو الرمز البريدي</string>
+    <string name="search_location">بحث</string>
+    <string name="location_search_no_results">لا توجد نتائج — تحقق من الإملاء أو الشبكة</string>
+    <string name="getting_location">جارٍ تحديد الموقع…</string>
+    <string name="use_this_location">استخدام هذا الموقع</string>
+    <string name="location_found_label">تم العثور على موقع الجهاز: %1$s</string>
+    <string name="location_fix_failed">تعذر الحصول على موقع الجهاز — اختر خيارًا أدناه</string>
+    <string name="pinned_location_explainer">اختيار موقع من البحث أو إحداثيات يثبّته. تتوقف الأدوات عن تتبع الجهاز حتى تنقر \"استخدام الموقع الدقيق للجهاز\" مرة أخرى.</string>
+    <string name="set_location_button">تعيين الموقع…</string>
+    <string name="location_mode_pinned">مثبّت</string>
+    <string name="location_mode_follow">يتبع الجهاز</string>
+    <string name="offline">غير متصل</string>
+    <string name="tap_to_configure">انقر للتهيئة</string>
+    <string name="settings">الإعدادات</string>
+    <string name="app_logs">سجلات التطبيق</string>
+    <string name="back">رجوع</string>
+    <string name="refresh">تحديث</string>
+    <string name="refresh_now">تحديث البيانات</string>
+    <string name="refresh_now_enqueued_toast">تمت جدولة تحديث البيانات</string>
+    <string name="nav_previous">الأيام السابقة</string>
+    <string name="nav_next">الأيام التالية</string>
+    <string name="weather_icon_desc">رمز حالة الطقس</string>
+    <string name="home_forecast">العودة إلى التوقعات اليومية</string>
+    <string name="api_preference">مصدر بيانات الطقس</string>
+    <string name="api_preference_description">اختر واجهة برمجة الطقس المفضلة (يُستخدم غيرها عند عدم توفرها)</string>
+    <string name="api_alternate">بالتناوب - التبديل بين NWS وOpen-Meteo وWeatherAPI</string>
+    <string name="api_prefer_nws">تفضيل NWS - خدمة الطقس الوطنية (الولايات المتحدة فقط)</string>
+    <string name="api_prefer_openmeteo">تفضيل Open-Meteo - تغطية عالمية</string>
+    <string name="api_prefer_weatherapi">تفضيل WeatherAPI - تغطية عالمية</string>
+    <string name="api_sources_title">مصادر بيانات الطقس</string>
+    <string name="api_sources_description">فعّل/عطّل المصادر وأعد ترتيبها. تُستبعد المصادر المعطّلة من تبديل الأداة والجلب في الخلفية حتى يُعاد تفعيلها.</string>
+    <string name="must_keep_one_source">يجب أن يبقى مصدر واحد على الأقل مفعّلًا</string>
+    <string name="personal_stations_title">محطات الطقس الشخصية</string>
+    <string name="personal_stations_description" formatted="false">المحطات الشخصية (المنزلية) غالبًا ما تعطي قراءات مرتفعة في الشمس. حدد مقدار خصم مساهمتها في درجة الحرارة المقاسة. 0% = بلا خصم: تُحسب المحطات الشخصية مثل الرسمية. 100% = تُتجاهل المحطات الشخصية.</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · بلا خصم</string>
+    <string name="personal_stations_ignored" formatted="false">100% · متجاهَلة</string>
+    <string name="api_source_silurian_desc">Silurian.ai — يظهر باسم Silur (تغطية عالمية)</string>
+    <string name="api_source_nws_desc">خدمة الطقس الوطنية (الولايات المتحدة فقط)</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — يظهر باسم Tmrw (تغطية عالمية)</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — يظهر باسم VisCr (تغطية عالمية)</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — يظهر باسم Meteo (تغطية عالمية)</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — يظهر باسم WAPI (تغطية عالمية)</string>
+    <string name="statistics">الإحصاءات</string>
+    <string name="view_detailed_statistics">إحصاءات مفصّلة</string>
+    <string name="forecast_accuracy_summary_title">دقة التوقعات (آخر 30 يومًا)</string>
+    <string name="loading_accuracy_summary">جارٍ تحميل دقة التوقعات...</string>
+    <string name="error_loading_accuracy_summary">يتعذر تحميل دقة التوقعات حاليًا.</string>
+    <string name="data_freshness_unknown">حداثة البيانات: غير معروفة</string>
+    <string name="data_freshness_format">آخر تحديث: %1$s</string>
+    <string name="freshness_last_updated">آخر تحديث: قبل %1$s</string>
+    <string name="refresh_policy_charging">سياسة التحديث: كل 30 دقيقة (أثناء الشحن)</string>
+    <string name="refresh_policy_battery_high">سياسة التحديث: كل 4 ساعات (البطارية %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">سياسة التحديث: كل 8 ساعات (البطارية %1$d%%)</string>
+    <string name="refresh_policy_battery_low">سياسة التحديث: متوقفة مؤقتًا (البطارية %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">جلب التوقعات: كل ساعة أثناء الشحن (الواجهة الأساسية)</string>
+    <string name="forecast_policy_charging_90m">جلب التوقعات: كل 90 دقيقة أثناء الشحن (الواجهة الثانوية)</string>
+    <string name="forecast_policy_charging_2h">جلب التوقعات: كل ساعتين أثناء الشحن (الواجهة الثالثة+)</string>
+    <string name="forecast_policy_battery_high">جلب التوقعات: كل 4 ساعات (البطارية %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">جلب التوقعات: كل 8 ساعات (البطارية %1$d%%)</string>
+    <string name="forecast_policy_battery_low">جلب التوقعات: متوقف مؤقتًا (البطارية %1$d%%)</string>
+    <string name="freshness_just_now">للتو</string>
+    <string name="forecast_history">"سجل التوقعات لـ "</string>
+    <string name="forecast_history_summary_single">%1$d لقطة توقعات %2$s</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI لقطة</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$d نقطة تعبئة مناخية</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">فعلي واجهة %1$s: %2$s / %3$s</string>
+    <string name="forecast_history_location_actual">فعلي الموقع: %1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">لا توجد بيانات توقعات تاريخية بعد.\nتُحفظ لقطات التوقعات يوميًا. عد غدًا لأول مقارنة للدقة.</string>
+    <string name="forecast_history_no_data_fallback_source">المصدر المحدد</string>
+    <string name="forecast_history_prev_day">اليوم السابق</string>
+    <string name="forecast_history_next_day">اليوم التالي</string>
+    <string name="forecast_history_subtitle">سجل التوقعات</string>
+    <string name="freshness_forecast_fetch_ago">جلب التوقعات: قبل %1$s</string>
+    <string name="freshness_forecast_fetch_never">جلب التوقعات: أبدًا</string>
+    <string name="freshness_displayed_data">البيانات المعروضة (%1$s): جُلبت قبل %2$s</string>
+    <string name="forecast_mode_evolution">الوضع: التطور</string>
+    <string name="forecast_mode_error">الوضع: الخطأ</string>
+    <string name="forecast_mode_hourly">الوضع: درجة الحرارة</string>
+    <string name="forecast_evolution_high_title">تطور درجة الحرارة العظمى</string>
+    <string name="forecast_evolution_low_title">تطور درجة الحرارة الصغرى</string>
+    <string name="forecast_error_high_title">خطأ درجة الحرارة العظمى</string>
+    <string name="forecast_error_low_title">خطأ درجة الحرارة الصغرى</string>
+    <string name="forecast_show_hourly">توقعات درجة الحرارة</string>
+    <string name="forecast_show_evolution">العودة إلى سجل التوقعات</string>
+    <string name="forecast_hourly_title">توقعات درجة الحرارة</string>
+    <string name="forecast_hourly_subtitle">تفاصيل بالساعة</string>
+    <string name="forecast_hourly_no_data">لا تتوفر توقعات درجة الحرارة بالساعة لهذا التاريخ.</string>
+    <string name="forecast_hourly_legend">الآن</string>
+    <string name="forecast_history_no_data_for_source">لا يوجد سجل توقعات لهذا التاريخ (%1$s).</string>
+    <string name="forecast_error_requires_actuals">يتوفر عرض الخطأ بعد تسجيل درجات الحرارة الفعلية لهذا اليوم.</string>
+    <string name="legend_actual">فعلي الواجهة</string>
+    <string name="legend_zero_error">خطأ صفري</string>
+    <string name="view_app_logs">عرض سجلات التطبيق</string>
+    <string name="clear_app_logs">مسح السجلات</string>
+    <string name="app_logs_refresh_current">تحديث الحالية</string>
+    <string name="app_logs_force_refresh">إجباري</string>
+    <string name="app_logs_refreshing_toast">تمت جدولة تحديث درجة الحرارة الحالية</string>
+    <string name="app_logs_cleared">تم مسح السجلات</string>
+    <string name="app_logs_share">مشاركة</string>
+    <string name="app_logs_share_chooser">مشاركة السجلات</string>
+    <string name="app_logs_share_empty">لا توجد سجلات للمشاركة</string>
+    <string name="app_logs_share_subject">سجلات أداة الطقس</string>
+    <string name="no_app_logs">لا توجد سجلات للتطبيق بعد.</string>
+    <string name="app_logs_filter_hint">تصفية السجلات (وسم/رسالة/مستوى)</string>
+    <string name="app_logs_db_stats">قاعدة البيانات: %1$.1f م.ب (%2$d سجل، %3$d لقطة)</string>
+    <string name="app_logs_all_levels">كل المستويات</string>
+    <string name="app_logs_showing">عرض %1$d (%2$s)</string>
+    <string name="app_logs_showing_filtered">عرض %1$d مطابقة لـ \"%2$s\" (%3$s)</string>
+    <string name="icon_preview_title">معرض الرموز</string>
+    <string name="icon_preview_description">معرض شامل لكل رموز الطقس المستخدمة في الأداة.</string>
+    <string name="gallery_icon_pc_slight_rain_new">غائم جزئيًا مع مطر خفيف (جديد)</string>
+    <string name="gallery_icon_rain">مطر</string>
+    <string name="gallery_icon_chance_rain">احتمال مطر</string>
+    <string name="gallery_icon_slight_rain">احتمال مطر ضئيل</string>
+    <string name="gallery_icon_snow">ثلج</string>
+    <string name="gallery_icon_storm">عاصفة</string>
+    <string name="gallery_icon_cloudy">غائم</string>
+    <string name="gallery_icon_clear">صافٍ/مشمس</string>
+    <string name="gallery_icon_mostly_clear">صافٍ غالبًا</string>
+    <string name="gallery_icon_horizon_sun">شروق/غروب</string>
+    <string name="gallery_icon_mostly_cloudy">غائم غالبًا</string>
+    <string name="gallery_icon_partly_cloudy">غائم جزئيًا</string>
+    <string name="gallery_icon_night">ليل</string>
+    <string name="gallery_icon_mostly_cloudy_night">غائم غالبًا (ليلًا)</string>
+    <string name="gallery_icon_partly_cloudy_night">غائم جزئيًا (ليلًا)</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">غائم جزئيًا مع احتمال مطر</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">غائم جزئيًا مع مطر خفيف</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">غائم جزئيًا مع احتمال مطر (ليلًا)</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">غائم جزئيًا مع مطر خفيف (ليلًا)</string>
+    <string name="gallery_icon_fog">ضباب</string>
+    <string name="gallery_icon_fog_sunny">ضباب مشمس</string>
+    <string name="gallery_icon_fog_light">ضباب خفيف</string>
+    <string name="gallery_icon_fog_dense">ضباب كثيف</string>
+    <string name="gallery_icon_fog_cloudy">ضباب غائم</string>
+    <string name="gallery_icon_fog_night">ضباب (ليلًا)</string>
+    <string name="gallery_icon_fog_light_night">ضباب خفيف (ليلًا)</string>
+    <string name="gallery_icon_wind">رياح</string>
+
+    <string name="gallery_icon_unknown">غير معروف</string>
+
+    <string name="main_welcome">مرحبًا بك في أداة الطقس</string>
+    <string name="main_how_to_add_title">كيفية إضافة الأداة</string>
+    <string name="main_how_to_add_desc">1. اضغط مطولًا على مكان فارغ في الشاشة الرئيسية.\n2. انقر \"الأدوات\".\n3. ابحث عن \"Weather Widget\" واسحبها إلى شاشتك.</string>
+    <string name="main_location_disclosure_title">الإفصاح عن الموقع</string>
+    <string name="main_location_disclosure_desc">تجمع أداة الطقس بيانات الموقع لتقديم توقعات طقس محلية حتى عندما يكون التطبيق مغلقًا أو غير مستخدم. تُستخدم هذه البيانات محليًا على جهازك فقط لجلب طقس دقيق لموقعك الحالي.</string>
+    <string name="background_location_disclosure_title">الوصول إلى الموقع في الخلفية</string>
+    <string name="background_location_disclosure_desc">لتقديم تحديثات طقس تلقائية في الأداة، يحتاج هذا التطبيق إلى الوصول إلى موقعك حتى في الخلفية.\n\nفي الشاشة التالية، يرجى اختيار \"السماح طوال الوقت\" لتفعيل تحديثات الخلفية.</string>
+    <string name="grant_location_permission">منح إذن الموقع</string>
+    <string name="open_settings">فتح الإعدادات</string>
+    <string name="api_keys_title">مفاتيح API</string>
+    <string name="api_keys_description">أدخل مفاتيح API الخاصة بك للخدمات المقيّدة. الخدمات المجانية (NWS وOpen-Meteo) لا تتطلب مفاتيح.</string>
+    <string name="api_key_hint">أدخل مفتاح API</string>
+    <string name="get_api_key">الحصول على مفتاح…</string>
+    <string name="get_api_key_no_browser">لا يتوفر متصفح. سجّل عبر: %1$s</string>
+    <string name="privacy_policy_title">سياسة الخصوصية</string>
+    <string name="allow">السماح</string>
+    <string name="no_thanks">لا، شكرًا</string>
+    <string name="privacy_policy_body">تجمع أداة الطقس بيانات الموقع لتقديم توقعات طقس محلية. يُستخدم موقعك فقط لجلب بيانات الطقس لمنطقتك، ولا يُخزَّن أو يُشارك مع أطراف ثالثة أبدًا باستثناء مزوّدي واجهات الطقس (NWS وOpen-Meteo وغيرهما) لجلب التوقعات.\n\nنستخدم Firebase Crashlytics لمراقبة استقرار التطبيق. هذه البيانات مجهولة الهوية.\n\nيمكنك إلغاء أذونات الموقع في أي وقت من إعدادات Android.\n\nللاستفسارات، تفضل بزيارة: https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">أو أدخل الإحداثيات:</string>
+    <string name="latitude_hint">خط العرض (مثل 37.422)</string>
+    <string name="longitude_hint">خط الطول (مثل -122.0841)</string>
+    <string name="use_coordinates">استخدام الإحداثيات</string>
+    <string name="save_location">حفظ الموقع</string>
+    <string name="default_location_title">الموقع الافتراضي</string>
+    <string name="location_saved_success">تم تحديث الموقع لكل الأدوات</string>
+    <string name="location_updated_from_gps">تم تحديث الموقع من GPS</string>
+    <string name="invalid_coordinates_range">يرجى إدخال إحداثيات صحيحة (خط العرض من -90 إلى 90، خط الطول من -180 إلى 180)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">الملاحظات &amp; تقارير الأخطاء</string>
+    <string name="feedback_and_bug_reports_description">واجهت مشكلة أو تريد اقتراح تحسين؟ أرسل تقرير خطأ مفصلًا مع تشخيص اختياري للنظام.</string>
+    <string name="submit_bug_report">إرسال تقرير خطأ</string>
+    <string name="bug_report_title">إرسال تقرير خطأ</string>
+    <string name="bug_report_description_hint">صف الخطأ (ماذا حدث وماذا كنت تتوقع). أرفق لقطة شاشة إذا كانت المشكلة بصرية!</string>
+    <string name="bug_report_include_logs">تضمين سجلات التشخيص للتطبيق (الأحداث الأخيرة)</string>
+    <string name="bug_report_include_metadata">تضمين تهيئة الأداة &amp; إحصاءات قاعدة البيانات</string>
+    <string name="bug_report_diagnostics_preview">معاينة التشخيص</string>
+    <string name="bug_report_device_info">معلومات الجهاز</string>
+    <string name="bug_report_db_stats">إحصاءات قاعدة البيانات</string>
+    <string name="bug_report_active_widgets">الأدوات النشطة</string>
+    <string name="bug_report_location_info">إعداد الموقع</string>
+    <string name="bug_report_send">إرسال تقرير الخطأ</string>
+    <string name="bug_report_error_empty_description">يرجى كتابة وصف موجز للمشكلة قبل الإرسال.</string>
+    <string name="bug_report_collecting_diagnostics">جارٍ جمع بيانات التشخيص...</string>
+    <string name="view_icon_gallery">عرض معرض الرموز</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">بيانات درجة الحرارة بالساعة مفقودة لـ %1$s. سيُشغَّل تحديث.</string>
+    <string name="widget_no_hourly_result_still_missing">نتيجة التحديث: تعذر جلب بيانات جديدة لدرجة الحرارة بالساعة لـ %1$s. تنتهي البيانات %2$s</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">نتيجة التحديث: تعذر جلب بيانات جديدة لدرجة الحرارة بالساعة لـ %1$s.</string>
+    <string name="widget_no_hourly_result_available">نتائج التحديث:\nبيانات الساعة متاحة الآن لـ %1$s</string>
+    <string name="units_title">الوحدات</string>
+    <string name="use_celsius_label">استخدام درجة مئوية</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">اللغة</string>
+    <string name="app_language_description">اختر لغة هذا التطبيق. يفتح إعداد اللغة لكل تطبيق في Android.</string>
+    <string name="app_language_button">تغيير لغة التطبيق…</string>
+    <string name="app_language_settings_unavailable">إعداد اللغة لكل تطبيق غير متاح على هذا الجهاز</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">اليوم</string>
+    <string name="widget_loading">جارٍ التحميل...</string>
+    <string name="widget_tap_to_refresh">انقر للتحديث</string>
+    <string name="current_stations_desc">المحطات الحالية</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">الموقع: %1$s</string>
+    <string name="saving_coordinates_offline">جارٍ حفظ الإحداثيات (البحث عن الاسم غير متصل)</string>
+    <string name="location_permission_required">إذن الموقع مطلوب لـ GPS</string>
+    <string name="location_fix_failed_default">تعذر الحصول على الموقع الحالي. سيُستخدم الافتراضي.</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">لم يُعيَّن موقع</string>
+    <string name="widget_location_format">موقع الأداة: %1$s، %2$s</string>
+    <string name="default_location_format">الموقع الافتراضي: %1$s، %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">الأرصاد الحالية</string>
+    <string name="obs_subtitle_nearby_stations">بيانات فورية من المحطات القريبة</string>
+    <string name="obs_subtitle_none_found">لم يُعثر على أرصاد حديثة لـ %1$s.</string>
+    <string name="obs_subtitle_latest_reading">آخر قراءة من %1$s</string>
+    <string name="obs_no_location_to_refresh">لا يوجد موقع متاح للتحديث</string>
+    <string name="obs_refreshed_source">تم تحديث %1$s</string>
+    <string name="obs_reported_prefix">"أُبلغ "</string>
+    <string name="obs_fetched_separator">" • جُلب "</string>
+    <string name="station_origin_web">ويب</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">سجلات الجلب</string>
+    <string name="loading_logs">جارٍ تحميل السجلات...</string>
+    <string name="close">إغلاق</string>
+    <string name="name_location_title">تسمية الموقع</string>
+    <string name="name_location_message">امنح هذا الموقع اسمًا مخصصًا (مثل المنزل، العمل، المدرسة)</string>
+    <string name="save">حفظ</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">ملخص الدقة لـ 30 يومًا</string>
+    <string name="stats_loading">جارٍ التحميل...</string>
+    <string name="stats_daily_breakdown">تفصيل الدقة اليومي</string>
+    <string name="stats_rain_accuracy">دقة المطر نهارًا/ليلًا</string>
+    <string name="stats_no_weather_data">لا تتوفر بيانات طقس بعد.</string>
+    <string name="stats_no_history_yet">لا توجد بيانات توقعات تاريخية بعد.\n\nتُحفظ لقطات التوقعات يوميًا. عد غدًا لأول مقارنة للدقة!</string>
+    <string name="stats_source_line">%1$s: العظمى ±%2$s، الصغرى ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: لا بيانات بعد</string>
+    <string name="stats_error_loading">خطأ في تحميل الإحصاءات: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (%1$s أقل)"</string>
+    <string name="bias_high_suffix">" (%1$s أعلى)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"العظمى ±%1$s  الصغرى ±%2$s"</string>
+    <string name="accuracy_within_line">"%% ضمن %1$s: %2$s  التوقعات: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">فعلي الموقع:</string>
+    <string name="label_forecast">التوقع:</string>
+    <string name="label_error">الخطأ:</string>
+    <string name="label_rain_day">نهارًا (8ص–8م):</string>
+    <string name="label_rain_night">ليلًا (8م–8ص):</string>
+    <string name="rain_pred_act_format">متوقع %1$s / فعلي %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">درجة الحرارة العظمى</string>
+    <string name="forecast_history_low_temp_title">درجة الحرارة الصغرى</string>
+    <string name="legend_location_actual">فعلي الموقع</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">نقل لأعلى</string>
+    <string name="move_down">نقل لأسفل</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">فشل بدء المشاركة</string>
+    <string name="bug_report_email_subject">تقرير خطأ أداة الطقس</string>
+</resources>

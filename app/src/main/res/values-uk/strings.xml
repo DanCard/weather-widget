@@ -199,6 +199,12 @@
     <string name="units_title">Одиниці</string>
     <string name="use_celsius_label">Використовувати градуси Цельсія</string>
 
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">Мова</string>
+    <string name="app_language_description">Виберіть мову цього застосунку. Відкриває налаштування мови для окремих застосунків Android.</string>
+    <string name="app_language_button">Змінити мову застосунку…</string>
+    <string name="app_language_settings_unavailable">Налаштування мови для окремих застосунків недоступне на цьому пристрої</string>
+
     <string name="today">Сьогодні</string>
     <string name="widget_loading">Завантаження...</string>
     <string name="widget_tap_to_refresh">Торкніться, щоб оновити</string>

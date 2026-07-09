@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tiện ích Thời tiết</string>
+    <string name="widget_description">Tiện ích thời tiết có thể đổi kích thước, hiển thị điều kiện hiện tại và dự báo</string>
+    <string name="configure_widget">Cấu hình tiện ích</string>
+    <string name="select_data_source">Chọn nguồn dữ liệu thời tiết</string>
+    <string name="use_current_location">Dùng vị trí hiện tại</string>
+    <string name="widget_location_title">Vị trí của tiện ích</string>
+    <string name="use_precise_location">Dùng vị trí chính xác của thiết bị</string>
+    <string name="follow_device_explainer">Các tiện ích sẽ đi theo vị trí thiết bị của bạn</string>
+    <string name="or_search_location">Hoặc tìm theo thành phố, địa chỉ hay mã bưu chính:</string>
+    <string name="location_search_hint">Thành phố, địa chỉ hoặc mã bưu chính</string>
+    <string name="search_location">Tìm kiếm</string>
+    <string name="location_search_no_results">Không tìm thấy — kiểm tra chính tả hoặc mạng</string>
+    <string name="getting_location">Đang lấy vị trí…</string>
+    <string name="use_this_location">Dùng vị trí này</string>
+    <string name="location_found_label">Đã tìm thấy vị trí thiết bị: %1$s</string>
+    <string name="location_fix_failed">Không lấy được vị trí thiết bị — hãy chọn một tùy chọn bên dưới</string>
+    <string name="pinned_location_explainer">Chọn một vị trí đã tìm hoặc tọa độ sẽ ghim vị trí đó. Các tiện ích ngừng đi theo thiết bị cho đến khi bạn nhấn lại \"Dùng vị trí chính xác của thiết bị\".</string>
+    <string name="set_location_button">Đặt vị trí…</string>
+    <string name="location_mode_pinned">Đã ghim</string>
+    <string name="location_mode_follow">Đi theo thiết bị</string>
+    <string name="offline">Ngoại tuyến</string>
+    <string name="tap_to_configure">Nhấn để cấu hình</string>
+    <string name="settings">Cài đặt</string>
+    <string name="app_logs">Nhật ký ứng dụng</string>
+    <string name="back">Quay lại</string>
+    <string name="refresh">Làm mới</string>
+    <string name="refresh_now">Làm mới dữ liệu</string>
+    <string name="refresh_now_enqueued_toast">Đã xếp hàng làm mới dữ liệu</string>
+    <string name="nav_previous">Những ngày trước</string>
+    <string name="nav_next">Những ngày sau</string>
+    <string name="weather_icon_desc">Biểu tượng điều kiện thời tiết</string>
+    <string name="home_forecast">Quay về dự báo hằng ngày</string>
+    <string name="api_preference">Nguồn dữ liệu thời tiết</string>
+    <string name="api_preference_description">Chọn API thời tiết ưu tiên (dùng API khác nếu không khả dụng)</string>
+    <string name="api_alternate">Luân phiên - Xoay vòng giữa NWS, Open-Meteo và WeatherAPI</string>
+    <string name="api_prefer_nws">Ưu tiên NWS - Cơ quan Thời tiết Quốc gia (chỉ Hoa Kỳ)</string>
+    <string name="api_prefer_openmeteo">Ưu tiên Open-Meteo - Phủ sóng toàn cầu</string>
+    <string name="api_prefer_weatherapi">Ưu tiên WeatherAPI - Phủ sóng toàn cầu</string>
+    <string name="api_sources_title">Nguồn dữ liệu thời tiết</string>
+    <string name="api_sources_description">Bật/tắt và sắp xếp lại các nguồn. Nguồn bị tắt sẽ bị loại khỏi việc chuyển đổi trên tiện ích và tải nền cho đến khi được bật lại.</string>
+    <string name="must_keep_one_source">Phải giữ ít nhất một nguồn được bật</string>
+    <string name="personal_stations_title">Trạm thời tiết cá nhân</string>
+    <string name="personal_stations_description" formatted="false">Trạm cá nhân (sân vườn) thường đo cao hơn khi có nắng. Giảm mức đóng góp của chúng vào nhiệt độ đo được. 0% = không giảm: trạm cá nhân được tính như trạm chính thức. 100% = bỏ qua trạm cá nhân.</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · không giảm</string>
+    <string name="personal_stations_ignored" formatted="false">100% · bỏ qua</string>
+    <string name="api_source_silurian_desc">Silurian.ai — hiển thị là Silur (phủ sóng toàn cầu)</string>
+    <string name="api_source_nws_desc">Cơ quan Thời tiết Quốc gia (chỉ Hoa Kỳ)</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — hiển thị là Tmrw (phủ sóng toàn cầu)</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — hiển thị là VisCr (phủ sóng toàn cầu)</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — hiển thị là Meteo (phủ sóng toàn cầu)</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — hiển thị là WAPI (phủ sóng toàn cầu)</string>
+    <string name="statistics">Thống kê</string>
+    <string name="view_detailed_statistics">Thống kê chi tiết</string>
+    <string name="forecast_accuracy_summary_title">Độ chính xác dự báo (30 ngày qua)</string>
+    <string name="loading_accuracy_summary">Đang tải độ chính xác dự báo...</string>
+    <string name="error_loading_accuracy_summary">Hiện không thể tải độ chính xác dự báo.</string>
+    <string name="data_freshness_unknown">Độ mới của dữ liệu: Không rõ</string>
+    <string name="data_freshness_format">Cập nhật lần cuối: %1$s</string>
+    <string name="freshness_last_updated">Cập nhật lần cuối: %1$s trước</string>
+    <string name="refresh_policy_charging">Chính sách làm mới: Mỗi 30 phút (đang sạc)</string>
+    <string name="refresh_policy_battery_high">Chính sách làm mới: Mỗi 4 giờ (pin %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">Chính sách làm mới: Mỗi 8 giờ (pin %1$d%%)</string>
+    <string name="refresh_policy_battery_low">Chính sách làm mới: Tạm dừng (pin %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">Tải dự báo: Mỗi 1 giờ khi sạc (API chính)</string>
+    <string name="forecast_policy_charging_90m">Tải dự báo: Mỗi 90 phút khi sạc (API phụ)</string>
+    <string name="forecast_policy_charging_2h">Tải dự báo: Mỗi 2 giờ khi sạc (API thứ 3+)</string>
+    <string name="forecast_policy_battery_high">Tải dự báo: Mỗi 4 giờ (pin %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">Tải dự báo: Mỗi 8 giờ (pin %1$d%%)</string>
+    <string name="forecast_policy_battery_low">Tải dự báo: Tạm dừng (pin %1$d%%)</string>
+    <string name="freshness_just_now">vừa xong</string>
+    <string name="forecast_history">"Lịch sử dự báo cho "</string>
+    <string name="forecast_history_summary_single">%1$d ảnh chụp dự báo %2$s</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI ảnh chụp</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$d điểm bù khí hậu</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">Thực tế API %1$s: %2$s / %3$s</string>
+    <string name="forecast_history_location_actual">Thực tế tại vị trí: %1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">Chưa có dữ liệu dự báo lịch sử.\nẢnh chụp dự báo được lưu hằng ngày. Hãy quay lại vào ngày mai để xem so sánh độ chính xác đầu tiên.</string>
+    <string name="forecast_history_no_data_fallback_source">nguồn đã chọn</string>
+    <string name="forecast_history_prev_day">Ngày trước</string>
+    <string name="forecast_history_next_day">Ngày sau</string>
+    <string name="forecast_history_subtitle">Lịch sử dự báo</string>
+    <string name="freshness_forecast_fetch_ago">Tải dự báo: %1$s trước</string>
+    <string name="freshness_forecast_fetch_never">Tải dự báo: chưa bao giờ</string>
+    <string name="freshness_displayed_data">Dữ liệu hiển thị (%1$s): đã tải %2$s trước</string>
+    <string name="forecast_mode_evolution">Chế độ: Diễn biến</string>
+    <string name="forecast_mode_error">Chế độ: Sai số</string>
+    <string name="forecast_mode_hourly">Chế độ: Nhiệt độ</string>
+    <string name="forecast_evolution_high_title">Diễn biến nhiệt độ cao nhất</string>
+    <string name="forecast_evolution_low_title">Diễn biến nhiệt độ thấp nhất</string>
+    <string name="forecast_error_high_title">Sai số nhiệt độ cao nhất</string>
+    <string name="forecast_error_low_title">Sai số nhiệt độ thấp nhất</string>
+    <string name="forecast_show_hourly">Dự báo nhiệt độ</string>
+    <string name="forecast_show_evolution">Quay về lịch sử dự báo</string>
+    <string name="forecast_hourly_title">Dự báo nhiệt độ</string>
+    <string name="forecast_hourly_subtitle">Chi tiết theo giờ</string>
+    <string name="forecast_hourly_no_data">Không có dự báo nhiệt độ theo giờ cho ngày này.</string>
+    <string name="forecast_hourly_legend">Bây giờ</string>
+    <string name="forecast_history_no_data_for_source">Không có lịch sử dự báo cho ngày này (%1$s).</string>
+    <string name="forecast_error_requires_actuals">Chế độ xem sai số khả dụng sau khi nhiệt độ thực tế của ngày này được ghi nhận.</string>
+    <string name="legend_actual">Thực tế API</string>
+    <string name="legend_zero_error">Sai số bằng 0</string>
+    <string name="view_app_logs">Xem nhật ký ứng dụng</string>
+    <string name="clear_app_logs">Xóa nhật ký</string>
+    <string name="app_logs_refresh_current">Làm mới nhiệt độ hiện tại</string>
+    <string name="app_logs_force_refresh">Buộc</string>
+    <string name="app_logs_refreshing_toast">Đã xếp hàng làm mới nhiệt độ hiện tại</string>
+    <string name="app_logs_cleared">Đã xóa nhật ký</string>
+    <string name="app_logs_share">Chia sẻ</string>
+    <string name="app_logs_share_chooser">Chia sẻ nhật ký</string>
+    <string name="app_logs_share_empty">Không có nhật ký để chia sẻ</string>
+    <string name="app_logs_share_subject">Nhật ký Tiện ích Thời tiết</string>
+    <string name="no_app_logs">Chưa có nhật ký ứng dụng.</string>
+    <string name="app_logs_filter_hint">Lọc nhật ký (thẻ/thông điệp/mức)</string>
+    <string name="app_logs_db_stats">CSDL: %1$.1f MB (%2$d nhật ký, %3$d ảnh chụp)</string>
+    <string name="app_logs_all_levels">Tất cả các mức</string>
+    <string name="app_logs_showing">Hiển thị %1$d (%2$s)</string>
+    <string name="app_logs_showing_filtered">Hiển thị %1$d khớp với \"%2$s\" (%3$s)</string>
+    <string name="icon_preview_title">Thư viện biểu tượng</string>
+    <string name="icon_preview_description">Thư viện đầy đủ mọi biểu tượng thời tiết dùng trong tiện ích.</string>
+    <string name="gallery_icon_pc_slight_rain_new">Ít mây, mưa nhỏ (mới)</string>
+    <string name="gallery_icon_rain">Mưa</string>
+    <string name="gallery_icon_chance_rain">Có thể mưa</string>
+    <string name="gallery_icon_slight_rain">Khả năng mưa thấp</string>
+    <string name="gallery_icon_snow">Tuyết</string>
+    <string name="gallery_icon_storm">Dông</string>
+    <string name="gallery_icon_cloudy">Nhiều mây</string>
+    <string name="gallery_icon_clear">Quang đãng/Nắng</string>
+    <string name="gallery_icon_mostly_clear">Chủ yếu quang đãng</string>
+    <string name="gallery_icon_horizon_sun">Bình minh/Hoàng hôn</string>
+    <string name="gallery_icon_mostly_cloudy">Chủ yếu nhiều mây</string>
+    <string name="gallery_icon_partly_cloudy">Ít mây</string>
+    <string name="gallery_icon_night">Ban đêm</string>
+    <string name="gallery_icon_mostly_cloudy_night">Chủ yếu nhiều mây (đêm)</string>
+    <string name="gallery_icon_partly_cloudy_night">Ít mây (đêm)</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">Ít mây, có thể mưa</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">Ít mây, mưa nhỏ</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">Ít mây, có thể mưa (đêm)</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">Ít mây, mưa nhỏ (đêm)</string>
+    <string name="gallery_icon_fog">Sương mù</string>
+    <string name="gallery_icon_fog_sunny">Sương mù có nắng</string>
+    <string name="gallery_icon_fog_light">Sương mù nhẹ</string>
+    <string name="gallery_icon_fog_dense">Sương mù dày</string>
+    <string name="gallery_icon_fog_cloudy">Sương mù nhiều mây</string>
+    <string name="gallery_icon_fog_night">Sương mù (đêm)</string>
+    <string name="gallery_icon_fog_light_night">Sương mù nhẹ (đêm)</string>
+    <string name="gallery_icon_wind">Gió</string>
+
+    <string name="gallery_icon_unknown">Không rõ</string>
+
+    <string name="main_welcome">Chào mừng đến với Tiện ích Thời tiết</string>
+    <string name="main_how_to_add_title">Cách thêm tiện ích</string>
+    <string name="main_how_to_add_desc">1. Nhấn giữ một chỗ trống trên màn hình chính.\n2. Nhấn \"Tiện ích\".\n3. Tìm \"Weather Widget\" và kéo vào màn hình.</string>
+    <string name="main_location_disclosure_title">Thông báo về vị trí</string>
+    <string name="main_location_disclosure_desc">Tiện ích Thời tiết thu thập dữ liệu vị trí để cung cấp dự báo thời tiết địa phương ngay cả khi ứng dụng đã đóng hoặc không sử dụng. Dữ liệu này chỉ được dùng cục bộ trên thiết bị của bạn để lấy thời tiết chính xác cho vị trí hiện tại.</string>
+    <string name="background_location_disclosure_title">Truy cập vị trí trong nền</string>
+    <string name="background_location_disclosure_desc">Để cập nhật thời tiết tự động trong tiện ích, ứng dụng này cần truy cập vị trí của bạn ngay cả khi chạy nền.\n\nỞ màn hình tiếp theo, hãy chọn \"Luôn cho phép\" để bật cập nhật nền.</string>
+    <string name="grant_location_permission">Cấp quyền vị trí</string>
+    <string name="open_settings">Mở cài đặt</string>
+    <string name="api_keys_title">Khóa API</string>
+    <string name="api_keys_description">Nhập khóa API riêng của bạn cho các dịch vụ hạn chế. Dịch vụ miễn phí (NWS, Open-Meteo) không cần khóa.</string>
+    <string name="api_key_hint">Nhập khóa API</string>
+    <string name="get_api_key">Lấy khóa…</string>
+    <string name="get_api_key_no_browser">Không có trình duyệt. Đăng ký tại: %1$s</string>
+    <string name="privacy_policy_title">Chính sách quyền riêng tư</string>
+    <string name="allow">Cho phép</string>
+    <string name="no_thanks">Không, cảm ơn</string>
+    <string name="privacy_policy_body">Tiện ích Thời tiết thu thập dữ liệu vị trí để cung cấp dự báo thời tiết địa phương. Vị trí của bạn chỉ được dùng để lấy dữ liệu thời tiết cho khu vực của bạn và không bao giờ được lưu trữ hay chia sẻ với bên thứ ba, ngoại trừ các nhà cung cấp API thời tiết (NWS, Open-Meteo, v.v.) để lấy dự báo.\n\nChúng tôi dùng Firebase Crashlytics để theo dõi độ ổn định của ứng dụng. Dữ liệu này được ẩn danh.\n\nBạn có thể thu hồi quyền vị trí bất cứ lúc nào trong Cài đặt Android.\n\nCó thắc mắc, hãy truy cập: https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">Hoặc nhập tọa độ:</string>
+    <string name="latitude_hint">Vĩ độ (vd: 37.422)</string>
+    <string name="longitude_hint">Kinh độ (vd: -122.0841)</string>
+    <string name="use_coordinates">Dùng tọa độ</string>
+    <string name="save_location">Lưu vị trí</string>
+    <string name="default_location_title">Vị trí mặc định</string>
+    <string name="location_saved_success">Đã cập nhật vị trí cho tất cả tiện ích</string>
+    <string name="location_updated_from_gps">Đã cập nhật vị trí từ GPS</string>
+    <string name="invalid_coordinates_range">Vui lòng nhập tọa độ hợp lệ (vĩ độ -90 đến 90, kinh độ -180 đến 180)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">Phản hồi &amp; báo cáo lỗi</string>
+    <string name="feedback_and_bug_reports_description">Gặp sự cố hoặc muốn đề xuất cải tiến? Gửi báo cáo lỗi chi tiết kèm chẩn đoán hệ thống (tùy chọn).</string>
+    <string name="submit_bug_report">Gửi báo cáo lỗi</string>
+    <string name="bug_report_title">Gửi báo cáo lỗi</string>
+    <string name="bug_report_description_hint">Mô tả lỗi (điều gì đã xảy ra và bạn mong đợi gì). Nếu là lỗi hiển thị, hãy đính kèm ảnh chụp màn hình!</string>
+    <string name="bug_report_include_logs">Bao gồm nhật ký chẩn đoán của ứng dụng (sự kiện gần đây)</string>
+    <string name="bug_report_include_metadata">Bao gồm cấu hình tiện ích &amp; thống kê CSDL</string>
+    <string name="bug_report_diagnostics_preview">Xem trước chẩn đoán</string>
+    <string name="bug_report_device_info">Thông tin thiết bị</string>
+    <string name="bug_report_db_stats">Thống kê cơ sở dữ liệu</string>
+    <string name="bug_report_active_widgets">Tiện ích đang hoạt động</string>
+    <string name="bug_report_location_info">Cài đặt vị trí</string>
+    <string name="bug_report_send">Gửi báo cáo lỗi</string>
+    <string name="bug_report_error_empty_description">Vui lòng mô tả ngắn gọn sự cố trước khi gửi.</string>
+    <string name="bug_report_collecting_diagnostics">Đang thu thập dữ liệu chẩn đoán...</string>
+    <string name="view_icon_gallery">Xem thư viện biểu tượng</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">Thiếu dữ liệu nhiệt độ theo giờ cho %1$s. Sẽ kích hoạt làm mới.</string>
+    <string name="widget_no_hourly_result_still_missing">Kết quả làm mới: Không lấy được dữ liệu nhiệt độ theo giờ mới cho %1$s. Dữ liệu kết thúc %2$s</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">Kết quả làm mới: Không lấy được dữ liệu nhiệt độ theo giờ mới cho %1$s.</string>
+    <string name="widget_no_hourly_result_available">Kết quả làm mới:\nDữ liệu theo giờ cho %1$s đã sẵn sàng</string>
+    <string name="units_title">Đơn vị</string>
+    <string name="use_celsius_label">Dùng độ C</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">Ngôn ngữ</string>
+    <string name="app_language_description">Chọn ngôn ngữ cho ứng dụng này. Mở cài đặt ngôn ngữ theo ứng dụng của Android.</string>
+    <string name="app_language_button">Đổi ngôn ngữ ứng dụng…</string>
+    <string name="app_language_settings_unavailable">Cài đặt ngôn ngữ theo ứng dụng không khả dụng trên thiết bị này</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">Hôm nay</string>
+    <string name="widget_loading">Đang tải...</string>
+    <string name="widget_tap_to_refresh">Nhấn để làm mới</string>
+    <string name="current_stations_desc">Trạm hiện tại</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">Vị trí: %1$s</string>
+    <string name="saving_coordinates_offline">Đang lưu tọa độ (tra cứu tên ngoại tuyến)</string>
+    <string name="location_permission_required">GPS cần quyền vị trí</string>
+    <string name="location_fix_failed_default">Không lấy được vị trí hiện tại. Dùng mặc định.</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">Chưa đặt vị trí</string>
+    <string name="widget_location_format">Vị trí tiện ích: %1$s, %2$s</string>
+    <string name="default_location_format">Vị trí mặc định: %1$s, %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">Quan trắc hiện tại</string>
+    <string name="obs_subtitle_nearby_stations">Dữ liệu thời gian thực từ các trạm lân cận</string>
+    <string name="obs_subtitle_none_found">Không tìm thấy quan trắc gần đây cho %1$s.</string>
+    <string name="obs_subtitle_latest_reading">Số liệu mới nhất từ %1$s</string>
+    <string name="obs_no_location_to_refresh">Không có vị trí để làm mới</string>
+    <string name="obs_refreshed_source">Đã làm mới %1$s</string>
+    <string name="obs_reported_prefix">"Báo lúc "</string>
+    <string name="obs_fetched_separator">" • Lấy lúc "</string>
+    <string name="station_origin_web">Web</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">Nhật ký tải</string>
+    <string name="loading_logs">Đang tải nhật ký...</string>
+    <string name="close">Đóng</string>
+    <string name="name_location_title">Đặt tên vị trí</string>
+    <string name="name_location_message">Đặt cho vị trí này một tên tùy chỉnh (vd: Nhà, Cơ quan, Trường học)</string>
+    <string name="save">Lưu</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">Tóm tắt độ chính xác 30 ngày</string>
+    <string name="stats_loading">Đang tải...</string>
+    <string name="stats_daily_breakdown">Phân tích độ chính xác theo ngày</string>
+    <string name="stats_rain_accuracy">Độ chính xác mưa ngày/đêm</string>
+    <string name="stats_no_weather_data">Chưa có dữ liệu thời tiết.</string>
+    <string name="stats_no_history_yet">Chưa có dữ liệu dự báo lịch sử.\n\nẢnh chụp dự báo đang được lưu hằng ngày. Hãy quay lại vào ngày mai để xem so sánh độ chính xác đầu tiên!</string>
+    <string name="stats_source_line">%1$s: Cao ±%2$s, Thấp ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: Chưa có dữ liệu</string>
+    <string name="stats_error_loading">Lỗi tải thống kê: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (%1$s thấp)"</string>
+    <string name="bias_high_suffix">" (%1$s cao)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"Cao ±%1$s  Thấp ±%2$s"</string>
+    <string name="accuracy_within_line">"%% trong khoảng %1$s: %2$s  Dự báo: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">Thực tế tại vị trí:</string>
+    <string name="label_forecast">Dự báo:</string>
+    <string name="label_error">Sai số:</string>
+    <string name="label_rain_day">Ngày (8h–20h):</string>
+    <string name="label_rain_night">Đêm (20h–8h):</string>
+    <string name="rain_pred_act_format">dự báo %1$s / thực tế %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">Nhiệt độ cao nhất</string>
+    <string name="forecast_history_low_temp_title">Nhiệt độ thấp nhất</string>
+    <string name="legend_location_actual">Thực tế tại vị trí</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">Chuyển lên</string>
+    <string name="move_down">Chuyển xuống</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">Không khởi động được tính năng chia sẻ</string>
+    <string name="bug_report_email_subject">Báo cáo lỗi Tiện ích Thời tiết</string>
+</resources>

@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Widget Meteo</string>
+    <string name="widget_description">Un widget meteo ridimensionabile che mostra le condizioni attuali e le previsioni</string>
+    <string name="configure_widget">Configura widget</string>
+    <string name="select_data_source">Seleziona la fonte dei dati meteo</string>
+    <string name="use_current_location">Usa la posizione attuale</string>
+    <string name="widget_location_title">Posizione del widget</string>
+    <string name="use_precise_location">Usa la posizione precisa del dispositivo</string>
+    <string name="follow_device_explainer">I widget seguiranno la posizione del tuo dispositivo</string>
+    <string name="or_search_location">Oppure cerca per città, indirizzo o CAP:</string>
+    <string name="location_search_hint">Città, indirizzo o CAP</string>
+    <string name="search_location">Cerca</string>
+    <string name="location_search_no_results">Nessun risultato — controlla l\'ortografia o la rete</string>
+    <string name="getting_location">Rilevamento posizione…</string>
+    <string name="use_this_location">Usa questa posizione</string>
+    <string name="location_found_label">Posizione del dispositivo trovata: %1$s</string>
+    <string name="location_fix_failed">Impossibile ottenere la posizione del dispositivo — scegli un\'opzione qui sotto</string>
+    <string name="pinned_location_explainer">Scegliere una posizione cercata o delle coordinate la blocca. I widget smettono di seguire il dispositivo finché non tocchi di nuovo \"Usa la posizione precisa del dispositivo\".</string>
+    <string name="set_location_button">Imposta posizione…</string>
+    <string name="location_mode_pinned">Bloccata</string>
+    <string name="location_mode_follow">Segue il dispositivo</string>
+    <string name="offline">Offline</string>
+    <string name="tap_to_configure">Tocca per configurare</string>
+    <string name="settings">Impostazioni</string>
+    <string name="app_logs">Log dell\'app</string>
+    <string name="back">Indietro</string>
+    <string name="refresh">Aggiorna</string>
+    <string name="refresh_now">Aggiorna dati</string>
+    <string name="refresh_now_enqueued_toast">Aggiornamento dati in coda</string>
+    <string name="nav_previous">Giorni precedenti</string>
+    <string name="nav_next">Giorni successivi</string>
+    <string name="weather_icon_desc">Icona delle condizioni meteo</string>
+    <string name="home_forecast">Torna alle previsioni giornaliere</string>
+    <string name="api_preference">Fonte dei dati meteo</string>
+    <string name="api_preference_description">Scegli quale API meteo preferire (se non disponibile viene usata un\'altra)</string>
+    <string name="api_alternate">Alterna - Ruota tra NWS, Open-Meteo e WeatherAPI</string>
+    <string name="api_prefer_nws">Preferisci NWS - National Weather Service (solo USA)</string>
+    <string name="api_prefer_openmeteo">Preferisci Open-Meteo - Copertura globale</string>
+    <string name="api_prefer_weatherapi">Preferisci WeatherAPI - Copertura globale</string>
+    <string name="api_sources_title">Fonti dei dati meteo</string>
+    <string name="api_sources_description">Attiva/disattiva e riordina le fonti. Le fonti disattivate sono escluse dai widget e dai recuperi in background finché non vengono riattivate.</string>
+    <string name="must_keep_one_source">Almeno una fonte deve restare attiva</string>
+    <string name="personal_stations_title">Stazioni meteo personali</string>
+    <string name="personal_stations_description" formatted="false">Le stazioni personali (da giardino) spesso sovrastimano al sole. Riduci quanto contano per la temperatura misurata. 0% = nessuna riduzione: le stazioni personali contano come quelle ufficiali. 100% = le stazioni personali vengono ignorate.</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · nessuna riduzione</string>
+    <string name="personal_stations_ignored" formatted="false">100% · ignorate</string>
+    <string name="api_source_silurian_desc">Silurian.ai — mostrato come Silur (copertura globale)</string>
+    <string name="api_source_nws_desc">National Weather Service (solo USA)</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — mostrato come Tmrw (copertura globale)</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — mostrato come VisCr (copertura globale)</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — mostrato come Meteo (copertura globale)</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — mostrato come WAPI (copertura globale)</string>
+    <string name="statistics">Statistiche</string>
+    <string name="view_detailed_statistics">Statistiche dettagliate</string>
+    <string name="forecast_accuracy_summary_title">Accuratezza delle previsioni (ultimi 30 giorni)</string>
+    <string name="loading_accuracy_summary">Caricamento accuratezza previsioni...</string>
+    <string name="error_loading_accuracy_summary">Impossibile caricare l\'accuratezza delle previsioni al momento.</string>
+    <string name="data_freshness_unknown">Aggiornamento dati: sconosciuto</string>
+    <string name="data_freshness_format">Ultimo aggiornamento: %1$s</string>
+    <string name="freshness_last_updated">Ultimo aggiornamento: %1$s fa</string>
+    <string name="refresh_policy_charging">Aggiornamento: ogni 30 min (in carica)</string>
+    <string name="refresh_policy_battery_high">Aggiornamento: ogni 4 h (batteria %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">Aggiornamento: ogni 8 h (batteria %1$d%%)</string>
+    <string name="refresh_policy_battery_low">Aggiornamento: in pausa (batteria %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">Recupero previsioni: ogni ora in carica (API primaria)</string>
+    <string name="forecast_policy_charging_90m">Recupero previsioni: ogni 90 min in carica (API secondaria)</string>
+    <string name="forecast_policy_charging_2h">Recupero previsioni: ogni 2 h in carica (3ª+ API)</string>
+    <string name="forecast_policy_battery_high">Recupero previsioni: ogni 4 h (batteria %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">Recupero previsioni: ogni 8 h (batteria %1$d%%)</string>
+    <string name="forecast_policy_battery_low">Recupero previsioni: in pausa (batteria %1$d%%)</string>
+    <string name="freshness_just_now">proprio ora</string>
+    <string name="forecast_history">"Cronologia delle previsioni per "</string>
+    <string name="forecast_history_summary_single">%1$d istantanee di previsione %2$s</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI istantanee</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$d punti di riempimento climatico</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">Reale API %1$s: %2$s / %3$s</string>
+    <string name="forecast_history_location_actual">Reale della località: %1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">Non ci sono ancora dati storici delle previsioni.\nLe istantanee delle previsioni vengono salvate ogni giorno. Torna domani per il tuo primo confronto di accuratezza.</string>
+    <string name="forecast_history_no_data_fallback_source">fonte selezionata</string>
+    <string name="forecast_history_prev_day">Giorno precedente</string>
+    <string name="forecast_history_next_day">Giorno successivo</string>
+    <string name="forecast_history_subtitle">Cronologia delle previsioni</string>
+    <string name="freshness_forecast_fetch_ago">Recupero previsioni: %1$s fa</string>
+    <string name="freshness_forecast_fetch_never">Recupero previsioni: mai</string>
+    <string name="freshness_displayed_data">Dati mostrati (%1$s): recuperati %2$s fa</string>
+    <string name="forecast_mode_evolution">Modalità: Evoluzione</string>
+    <string name="forecast_mode_error">Modalità: Errore</string>
+    <string name="forecast_mode_hourly">Modalità: Temperatura</string>
+    <string name="forecast_evolution_high_title">Evoluzione della temperatura massima</string>
+    <string name="forecast_evolution_low_title">Evoluzione della temperatura minima</string>
+    <string name="forecast_error_high_title">Errore della temperatura massima</string>
+    <string name="forecast_error_low_title">Errore della temperatura minima</string>
+    <string name="forecast_show_hourly">Previsione della temperatura</string>
+    <string name="forecast_show_evolution">Torna alla cronologia delle previsioni</string>
+    <string name="forecast_hourly_title">Previsione della temperatura</string>
+    <string name="forecast_hourly_subtitle">Dettaglio orario</string>
+    <string name="forecast_hourly_no_data">Nessuna previsione oraria della temperatura disponibile per questa data.</string>
+    <string name="forecast_hourly_legend">Ora</string>
+    <string name="forecast_history_no_data_for_source">Nessuna cronologia di previsioni per questa data (%1$s).</string>
+    <string name="forecast_error_requires_actuals">La vista degli errori è disponibile dopo la registrazione delle temperature reali di questo giorno.</string>
+    <string name="legend_actual">Reale API</string>
+    <string name="legend_zero_error">Errore zero</string>
+    <string name="view_app_logs">Vedi log dell\'app</string>
+    <string name="clear_app_logs">Cancella log</string>
+    <string name="app_logs_refresh_current">Aggiorna attuale</string>
+    <string name="app_logs_force_refresh">Forza</string>
+    <string name="app_logs_refreshing_toast">Aggiornamento temperatura attuale in coda</string>
+    <string name="app_logs_cleared">Log cancellati</string>
+    <string name="app_logs_share">Condividi</string>
+    <string name="app_logs_share_chooser">Condividi log</string>
+    <string name="app_logs_share_empty">Nessun log da condividere</string>
+    <string name="app_logs_share_subject">Log del Widget Meteo</string>
+    <string name="no_app_logs">Ancora nessun log dell\'app.</string>
+    <string name="app_logs_filter_hint">Filtra log (tag/messaggio/livello)</string>
+    <string name="app_logs_db_stats">DB: %1$.1f MB (%2$d log, %3$d istantanee)</string>
+    <string name="app_logs_all_levels">Tutti i livelli</string>
+    <string name="app_logs_showing">Mostrati %1$d (%2$s)</string>
+    <string name="app_logs_showing_filtered">Mostrati %1$d corrispondenti a \"%2$s\" (%3$s)</string>
+    <string name="icon_preview_title">Galleria icone</string>
+    <string name="icon_preview_description">Galleria completa di tutte le icone meteo usate nel widget.</string>
+    <string name="gallery_icon_pc_slight_rain_new">Parzialmente nuvoloso, pioggia debole (nuovo)</string>
+    <string name="gallery_icon_rain">Pioggia</string>
+    <string name="gallery_icon_chance_rain">Possibile pioggia</string>
+    <string name="gallery_icon_slight_rain">Lieve possibilità di pioggia</string>
+    <string name="gallery_icon_snow">Neve</string>
+    <string name="gallery_icon_storm">Temporale</string>
+    <string name="gallery_icon_cloudy">Nuvoloso</string>
+    <string name="gallery_icon_clear">Sereno/Soleggiato</string>
+    <string name="gallery_icon_mostly_clear">Prevalentemente sereno</string>
+    <string name="gallery_icon_horizon_sun">Alba/Tramonto</string>
+    <string name="gallery_icon_mostly_cloudy">Prevalentemente nuvoloso</string>
+    <string name="gallery_icon_partly_cloudy">Parzialmente nuvoloso</string>
+    <string name="gallery_icon_night">Notte</string>
+    <string name="gallery_icon_mostly_cloudy_night">Prevalentemente nuvoloso (notte)</string>
+    <string name="gallery_icon_partly_cloudy_night">Parzialmente nuvoloso (notte)</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">Parzialmente nuvoloso, possibile pioggia</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">Parzialmente nuvoloso, pioggia debole</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">Parzialmente nuvoloso, possibile pioggia (notte)</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">Parzialmente nuvoloso, pioggia debole (notte)</string>
+    <string name="gallery_icon_fog">Nebbia</string>
+    <string name="gallery_icon_fog_sunny">Nebbia con sole</string>
+    <string name="gallery_icon_fog_light">Nebbia leggera</string>
+    <string name="gallery_icon_fog_dense">Nebbia fitta</string>
+    <string name="gallery_icon_fog_cloudy">Nebbia con nuvole</string>
+    <string name="gallery_icon_fog_night">Nebbia (notte)</string>
+    <string name="gallery_icon_fog_light_night">Nebbia leggera (notte)</string>
+    <string name="gallery_icon_wind">Vento</string>
+
+    <string name="gallery_icon_unknown">Sconosciuto</string>
+
+    <string name="main_welcome">Benvenuto in Widget Meteo</string>
+    <string name="main_how_to_add_title">Come aggiungere il widget</string>
+    <string name="main_how_to_add_desc">1. Tieni premuto uno spazio vuoto nella schermata iniziale.\n2. Tocca \"Widget\".\n3. Trova \"Weather Widget\" e trascinalo sullo schermo.</string>
+    <string name="main_location_disclosure_title">Informativa sulla posizione</string>
+    <string name="main_location_disclosure_desc">Widget Meteo raccoglie dati sulla posizione per fornire previsioni locali anche quando l\'app è chiusa o non in uso. Questi dati vengono usati solo localmente sul tuo dispositivo per ottenere il meteo accurato della tua posizione attuale.</string>
+    <string name="background_location_disclosure_title">Accesso alla posizione in background</string>
+    <string name="background_location_disclosure_desc">Per fornire aggiornamenti meteo automatici nel widget, questa app deve accedere alla tua posizione anche in background.\n\nNella schermata successiva seleziona \"Consenti sempre\" per abilitare gli aggiornamenti in background.</string>
+    <string name="grant_location_permission">Concedi autorizzazione alla posizione</string>
+    <string name="open_settings">Apri impostazioni</string>
+    <string name="api_keys_title">Chiavi API</string>
+    <string name="api_keys_description">Inserisci le tue chiavi API per i servizi con restrizioni. I servizi gratuiti (NWS, Open-Meteo) non richiedono chiavi.</string>
+    <string name="api_key_hint">Inserisci chiave API</string>
+    <string name="get_api_key">Ottieni chiave…</string>
+    <string name="get_api_key_no_browser">Nessun browser disponibile. Registrati su: %1$s</string>
+    <string name="privacy_policy_title">Informativa sulla privacy</string>
+    <string name="allow">Consenti</string>
+    <string name="no_thanks">No grazie</string>
+    <string name="privacy_policy_body">Widget Meteo raccoglie dati sulla posizione per fornire previsioni meteo locali. La tua posizione viene usata solo per ottenere i dati meteo della tua zona e non viene mai memorizzata o condivisa con terzi, tranne i provider di API meteo (NWS, Open-Meteo, ecc.) per recuperare le previsioni.\n\nUsiamo Firebase Crashlytics per monitorare la stabilità dell\'app. Questi dati sono anonimizzati.\n\nPuoi revocare le autorizzazioni alla posizione in qualsiasi momento nelle Impostazioni di Android.\n\nPer domande, visita: https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">Oppure inserisci le coordinate:</string>
+    <string name="latitude_hint">Latitudine (es. 37.422)</string>
+    <string name="longitude_hint">Longitudine (es. -122.0841)</string>
+    <string name="use_coordinates">Usa coordinate</string>
+    <string name="save_location">Salva posizione</string>
+    <string name="default_location_title">Posizione predefinita</string>
+    <string name="location_saved_success">Posizione aggiornata per tutti i widget</string>
+    <string name="location_updated_from_gps">Posizione aggiornata dal GPS</string>
+    <string name="invalid_coordinates_range">Inserisci coordinate valide (lat da -90 a 90, lon da -180 a 180)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">Feedback &amp; segnalazioni bug</string>
+    <string name="feedback_and_bug_reports_description">Hai riscontrato un problema o vuoi suggerire un miglioramento? Invia una segnalazione dettagliata con diagnostica di sistema opzionale.</string>
+    <string name="submit_bug_report">Invia segnalazione bug</string>
+    <string name="bug_report_title">Invia segnalazione bug</string>
+    <string name="bug_report_description_hint">Descrivi il bug (cosa è successo e cosa ti aspettavi). Allega uno screenshot se è un problema visivo!</string>
+    <string name="bug_report_include_logs">Includi log diagnostici dell\'app (eventi recenti)</string>
+    <string name="bug_report_include_metadata">Includi configurazione widget &amp; statistiche DB</string>
+    <string name="bug_report_diagnostics_preview">Anteprima diagnostica</string>
+    <string name="bug_report_device_info">Informazioni dispositivo</string>
+    <string name="bug_report_db_stats">Statistiche database</string>
+    <string name="bug_report_active_widgets">Widget attivi</string>
+    <string name="bug_report_location_info">Impostazione posizione</string>
+    <string name="bug_report_send">Invia segnalazione bug</string>
+    <string name="bug_report_error_empty_description">Scrivi una breve descrizione del problema prima di inviare.</string>
+    <string name="bug_report_collecting_diagnostics">Raccolta dati diagnostici...</string>
+    <string name="view_icon_gallery">Vedi galleria icone</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">Dati orari della temperatura mancanti per %1$s. Verrà avviato un aggiornamento.</string>
+    <string name="widget_no_hourly_result_still_missing">Risultato dell\'aggiornamento: nessun nuovo dato orario della temperatura recuperato per %1$s. I dati terminano %2$s</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">Risultato dell\'aggiornamento: nessun nuovo dato orario della temperatura recuperato per %1$s.</string>
+    <string name="widget_no_hourly_result_available">Risultato dell\'aggiornamento:\nDati orari ora disponibili per %1$s</string>
+    <string name="units_title">Unità</string>
+    <string name="use_celsius_label">Usa Celsius</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">Lingua</string>
+    <string name="app_language_description">Scegli la lingua di questa app. Apre l\'impostazione della lingua per app di Android.</string>
+    <string name="app_language_button">Cambia lingua dell\'app…</string>
+    <string name="app_language_settings_unavailable">Impostazione della lingua per app non disponibile su questo dispositivo</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">Oggi</string>
+    <string name="widget_loading">Caricamento...</string>
+    <string name="widget_tap_to_refresh">Tocca per aggiornare</string>
+    <string name="current_stations_desc">Stazioni attuali</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">Posizione: %1$s</string>
+    <string name="saving_coordinates_offline">Salvataggio coordinate (ricerca nome offline)</string>
+    <string name="location_permission_required">Autorizzazione alla posizione necessaria per il GPS</string>
+    <string name="location_fix_failed_default">Impossibile ottenere la posizione attuale. Uso quella predefinita.</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">Nessuna posizione impostata</string>
+    <string name="widget_location_format">Posizione del widget: %1$s, %2$s</string>
+    <string name="default_location_format">Posizione predefinita: %1$s, %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">Osservazioni attuali</string>
+    <string name="obs_subtitle_nearby_stations">Dati in tempo reale dalle stazioni vicine</string>
+    <string name="obs_subtitle_none_found">Nessuna osservazione recente trovata per %1$s.</string>
+    <string name="obs_subtitle_latest_reading">Ultima lettura da %1$s</string>
+    <string name="obs_no_location_to_refresh">Nessuna posizione disponibile da aggiornare</string>
+    <string name="obs_refreshed_source">%1$s aggiornato</string>
+    <string name="obs_reported_prefix">"Rilevato "</string>
+    <string name="obs_fetched_separator">" • Recuperato "</string>
+    <string name="station_origin_web">Web</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">Log di recupero</string>
+    <string name="loading_logs">Caricamento log...</string>
+    <string name="close">Chiudi</string>
+    <string name="name_location_title">Assegna nome alla posizione</string>
+    <string name="name_location_message">Dai a questa posizione un nome personalizzato (es. Casa, Lavoro, Scuola)</string>
+    <string name="save">Salva</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">Riepilogo accuratezza a 30 giorni</string>
+    <string name="stats_loading">Caricamento...</string>
+    <string name="stats_daily_breakdown">Dettaglio giornaliero dell\'accuratezza</string>
+    <string name="stats_rain_accuracy">Accuratezza pioggia giorno/notte</string>
+    <string name="stats_no_weather_data">Ancora nessun dato meteo disponibile.</string>
+    <string name="stats_no_history_yet">Non ci sono ancora dati storici delle previsioni.\n\nLe istantanee delle previsioni vengono salvate ogni giorno. Torna domani per il tuo primo confronto di accuratezza!</string>
+    <string name="stats_source_line">%1$s: Max ±%2$s, Min ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: ancora nessun dato</string>
+    <string name="stats_error_loading">Errore nel caricamento delle statistiche: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (%1$s in meno)"</string>
+    <string name="bias_high_suffix">" (%1$s in più)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"Max ±%1$s  Min ±%2$s"</string>
+    <string name="accuracy_within_line">"%% entro %1$s: %2$s  Previsioni: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">Reale della località:</string>
+    <string name="label_forecast">Previsione:</string>
+    <string name="label_error">Errore:</string>
+    <string name="label_rain_day">Giorno (8–20):</string>
+    <string name="label_rain_night">Notte (20–8):</string>
+    <string name="rain_pred_act_format">prev %1$s / reale %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">Temperatura massima</string>
+    <string name="forecast_history_low_temp_title">Temperatura minima</string>
+    <string name="legend_location_actual">Reale della località</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">Sposta su</string>
+    <string name="move_down">Sposta giù</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">Impossibile avviare la condivisione</string>
+    <string name="bug_report_email_subject">Segnalazione bug del Widget Meteo</string>
+</resources>

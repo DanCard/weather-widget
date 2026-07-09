@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Wetter-Widget</string>
+    <string name="widget_description">Ein größenveränderbares Wetter-Widget mit aktuellen Bedingungen und Vorhersage</string>
+    <string name="configure_widget">Widget konfigurieren</string>
+    <string name="select_data_source">Wetterdatenquelle auswählen</string>
+    <string name="use_current_location">Aktuellen Standort verwenden</string>
+    <string name="widget_location_title">Widget-Standort</string>
+    <string name="use_precise_location">Genauen Gerätestandort verwenden</string>
+    <string name="follow_device_explainer">Widgets folgen dem Standort deines Geräts</string>
+    <string name="or_search_location">Oder nach Stadt, Adresse oder PLZ suchen:</string>
+    <string name="location_search_hint">Stadt, Adresse oder PLZ</string>
+    <string name="search_location">Suchen</string>
+    <string name="location_search_no_results">Keine Treffer — Schreibweise oder Netzwerk prüfen</string>
+    <string name="getting_location">Standort wird ermittelt…</string>
+    <string name="use_this_location">Diesen Standort verwenden</string>
+    <string name="location_found_label">Gerätestandort gefunden: %1$s</string>
+    <string name="location_fix_failed">Gerätestandort konnte nicht ermittelt werden — wähle unten eine Option</string>
+    <string name="pinned_location_explainer">Die Wahl eines gesuchten Standorts oder von Koordinaten fixiert ihn. Widgets folgen dem Gerät nicht mehr, bis du erneut \"Genauen Gerätestandort verwenden\" antippst.</string>
+    <string name="set_location_button">Standort festlegen…</string>
+    <string name="location_mode_pinned">Fixiert</string>
+    <string name="location_mode_follow">Folgt dem Gerät</string>
+    <string name="offline">Offline</string>
+    <string name="tap_to_configure">Zum Konfigurieren tippen</string>
+    <string name="settings">Einstellungen</string>
+    <string name="app_logs">App-Protokolle</string>
+    <string name="back">Zurück</string>
+    <string name="refresh">Aktualisieren</string>
+    <string name="refresh_now">Daten aktualisieren</string>
+    <string name="refresh_now_enqueued_toast">Datenaktualisierung eingereiht</string>
+    <string name="nav_previous">Vorherige Tage</string>
+    <string name="nav_next">Nächste Tage</string>
+    <string name="weather_icon_desc">Wetterzustandssymbol</string>
+    <string name="home_forecast">Zurück zur Tagesvorhersage</string>
+    <string name="api_preference">Wetterdatenquelle</string>
+    <string name="api_preference_description">Wähle die bevorzugte Wetter-API (bei Nichtverfügbarkeit wird eine andere verwendet)</string>
+    <string name="api_alternate">Abwechselnd - Zwischen NWS, Open-Meteo und WeatherAPI rotieren</string>
+    <string name="api_prefer_nws">NWS bevorzugen - National Weather Service (nur USA)</string>
+    <string name="api_prefer_openmeteo">Open-Meteo bevorzugen - Weltweite Abdeckung</string>
+    <string name="api_prefer_weatherapi">WeatherAPI bevorzugen - Weltweite Abdeckung</string>
+    <string name="api_sources_title">Wetterdatenquellen</string>
+    <string name="api_sources_description">Quellen aktivieren/deaktivieren und neu anordnen. Deaktivierte Quellen sind von Widget-Umschaltungen und Hintergrundabrufen ausgeschlossen, bis sie wieder aktiviert werden.</string>
+    <string name="must_keep_one_source">Mindestens eine Quelle muss aktiviert bleiben</string>
+    <string name="personal_stations_title">Private Wetterstationen</string>
+    <string name="personal_stations_description" formatted="false">Private Stationen (im Garten) zeigen in der Sonne oft zu viel an. Lege fest, wie stark sie bei der gemessenen Temperatur abgewertet werden. 0% = keine Abwertung: private Stationen zählen wie offizielle Stationen. 100% = private Stationen werden ignoriert.</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · keine Abwertung</string>
+    <string name="personal_stations_ignored" formatted="false">100% · ignoriert</string>
+    <string name="api_source_silurian_desc">Silurian.ai — angezeigt als Silur (weltweite Abdeckung)</string>
+    <string name="api_source_nws_desc">National Weather Service (nur USA)</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — angezeigt als Tmrw (weltweite Abdeckung)</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — angezeigt als VisCr (weltweite Abdeckung)</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — angezeigt als Meteo (weltweite Abdeckung)</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — angezeigt als WAPI (weltweite Abdeckung)</string>
+    <string name="statistics">Statistiken</string>
+    <string name="view_detailed_statistics">Detaillierte Statistiken</string>
+    <string name="forecast_accuracy_summary_title">Vorhersagegenauigkeit (letzte 30 Tage)</string>
+    <string name="loading_accuracy_summary">Vorhersagegenauigkeit wird geladen...</string>
+    <string name="error_loading_accuracy_summary">Vorhersagegenauigkeit kann derzeit nicht geladen werden.</string>
+    <string name="data_freshness_unknown">Datenaktualität: Unbekannt</string>
+    <string name="data_freshness_format">Zuletzt aktualisiert: %1$s</string>
+    <string name="freshness_last_updated">Zuletzt aktualisiert: vor %1$s</string>
+    <string name="refresh_policy_charging">Aktualisierung: Alle 30 Min. (lädt)</string>
+    <string name="refresh_policy_battery_high">Aktualisierung: Alle 4 Std. (Akku %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">Aktualisierung: Alle 8 Std. (Akku %1$d%%)</string>
+    <string name="refresh_policy_battery_low">Aktualisierung: Pausiert (Akku %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">Vorhersage-Abruf: Stündlich beim Laden (primäre API)</string>
+    <string name="forecast_policy_charging_90m">Vorhersage-Abruf: Alle 90 Min. beim Laden (sekundäre API)</string>
+    <string name="forecast_policy_charging_2h">Vorhersage-Abruf: Alle 2 Std. beim Laden (3.+ API)</string>
+    <string name="forecast_policy_battery_high">Vorhersage-Abruf: Alle 4 Std. (Akku %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">Vorhersage-Abruf: Alle 8 Std. (Akku %1$d%%)</string>
+    <string name="forecast_policy_battery_low">Vorhersage-Abruf: Pausiert (Akku %1$d%%)</string>
+    <string name="freshness_just_now">gerade eben</string>
+    <string name="forecast_history">"Vorhersageverlauf für "</string>
+    <string name="forecast_history_summary_single">%1$d %2$s-Vorhersage-Schnappschüsse</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI Schnappschüsse</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$d Klima-Füllpunkte</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">%1$s-API tatsächlich: %2$s / %3$s</string>
+    <string name="forecast_history_location_actual">Standort tatsächlich: %1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">Noch keine historischen Vorhersagedaten verfügbar.\nVorhersage-Schnappschüsse werden täglich gespeichert. Schau morgen für deinen ersten Genauigkeitsvergleich vorbei.</string>
+    <string name="forecast_history_no_data_fallback_source">gewählte Quelle</string>
+    <string name="forecast_history_prev_day">Vorheriger Tag</string>
+    <string name="forecast_history_next_day">Nächster Tag</string>
+    <string name="forecast_history_subtitle">Vorhersageverlauf</string>
+    <string name="freshness_forecast_fetch_ago">Vorhersage-Abruf: vor %1$s</string>
+    <string name="freshness_forecast_fetch_never">Vorhersage-Abruf: nie</string>
+    <string name="freshness_displayed_data">Angezeigte Daten (%1$s): vor %2$s abgerufen</string>
+    <string name="forecast_mode_evolution">Modus: Entwicklung</string>
+    <string name="forecast_mode_error">Modus: Fehler</string>
+    <string name="forecast_mode_hourly">Modus: Temperatur</string>
+    <string name="forecast_evolution_high_title">Entwicklung der Höchsttemperatur</string>
+    <string name="forecast_evolution_low_title">Entwicklung der Tiefsttemperatur</string>
+    <string name="forecast_error_high_title">Fehler der Höchsttemperatur</string>
+    <string name="forecast_error_low_title">Fehler der Tiefsttemperatur</string>
+    <string name="forecast_show_hourly">Temperaturvorhersage</string>
+    <string name="forecast_show_evolution">Zurück zum Vorhersageverlauf</string>
+    <string name="forecast_hourly_title">Temperaturvorhersage</string>
+    <string name="forecast_hourly_subtitle">Stündliche Details</string>
+    <string name="forecast_hourly_no_data">Keine stündliche Temperaturvorhersage für dieses Datum verfügbar.</string>
+    <string name="forecast_hourly_legend">Jetzt</string>
+    <string name="forecast_history_no_data_for_source">Kein Vorhersageverlauf für dieses Datum (%1$s).</string>
+    <string name="forecast_error_requires_actuals">Die Fehleransicht ist verfügbar, sobald tatsächliche Temperaturen für diesen Tag erfasst wurden.</string>
+    <string name="legend_actual">API tatsächlich</string>
+    <string name="legend_zero_error">Null Fehler</string>
+    <string name="view_app_logs">App-Protokolle anzeigen</string>
+    <string name="clear_app_logs">Protokolle löschen</string>
+    <string name="app_logs_refresh_current">Aktuelle aktualisieren</string>
+    <string name="app_logs_force_refresh">Erzwingen</string>
+    <string name="app_logs_refreshing_toast">Aktualisierung der aktuellen Temperatur eingereiht</string>
+    <string name="app_logs_cleared">Protokolle gelöscht</string>
+    <string name="app_logs_share">Teilen</string>
+    <string name="app_logs_share_chooser">Protokolle teilen</string>
+    <string name="app_logs_share_empty">Keine Protokolle zum Teilen</string>
+    <string name="app_logs_share_subject">Wetter-Widget-Protokolle</string>
+    <string name="no_app_logs">Noch keine App-Protokolle.</string>
+    <string name="app_logs_filter_hint">Protokolle filtern (Tag/Nachricht/Stufe)</string>
+    <string name="app_logs_db_stats">DB: %1$.1f MB (%2$d Protokolle, %3$d Schnappschüsse)</string>
+    <string name="app_logs_all_levels">Alle Stufen</string>
+    <string name="app_logs_showing">%1$d angezeigt (%2$s)</string>
+    <string name="app_logs_showing_filtered">%1$d passend zu \"%2$s\" (%3$s)</string>
+    <string name="icon_preview_title">Symbolgalerie</string>
+    <string name="icon_preview_description">Umfassende Galerie aller im Widget verwendeten Wettersymbole.</string>
+    <string name="gallery_icon_pc_slight_rain_new">Teils bewölkt, leichter Regen (Neu)</string>
+    <string name="gallery_icon_rain">Regen</string>
+    <string name="gallery_icon_chance_rain">Regen möglich</string>
+    <string name="gallery_icon_slight_rain">Geringe Regenchance</string>
+    <string name="gallery_icon_snow">Schnee</string>
+    <string name="gallery_icon_storm">Gewitter</string>
+    <string name="gallery_icon_cloudy">Bewölkt</string>
+    <string name="gallery_icon_clear">Klar/Sonnig</string>
+    <string name="gallery_icon_mostly_clear">Überwiegend klar</string>
+    <string name="gallery_icon_horizon_sun">Sonnenaufgang/-untergang</string>
+    <string name="gallery_icon_mostly_cloudy">Überwiegend bewölkt</string>
+    <string name="gallery_icon_partly_cloudy">Teils bewölkt</string>
+    <string name="gallery_icon_night">Nacht</string>
+    <string name="gallery_icon_mostly_cloudy_night">Überwiegend bewölkt (Nacht)</string>
+    <string name="gallery_icon_partly_cloudy_night">Teils bewölkt (Nacht)</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">Teils bewölkt, Regen möglich</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">Teils bewölkt, leichter Regen</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">Teils bewölkt, Regen möglich (Nacht)</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">Teils bewölkt, leichter Regen (Nacht)</string>
+    <string name="gallery_icon_fog">Nebel</string>
+    <string name="gallery_icon_fog_sunny">Nebel, sonnig</string>
+    <string name="gallery_icon_fog_light">Leichter Nebel</string>
+    <string name="gallery_icon_fog_dense">Dichter Nebel</string>
+    <string name="gallery_icon_fog_cloudy">Nebel, bewölkt</string>
+    <string name="gallery_icon_fog_night">Nebel (Nacht)</string>
+    <string name="gallery_icon_fog_light_night">Leichter Nebel (Nacht)</string>
+    <string name="gallery_icon_wind">Wind</string>
+
+    <string name="gallery_icon_unknown">Unbekannt</string>
+
+    <string name="main_welcome">Willkommen beim Wetter-Widget</string>
+    <string name="main_how_to_add_title">So fügst du das Widget hinzu</string>
+    <string name="main_how_to_add_desc">1. Halte eine leere Stelle auf dem Startbildschirm gedrückt.\n2. Tippe auf \"Widgets\".\n3. Suche \"Weather Widget\" und ziehe es auf deinen Bildschirm.</string>
+    <string name="main_location_disclosure_title">Standort-Hinweis</string>
+    <string name="main_location_disclosure_desc">Das Wetter-Widget erfasst Standortdaten, um lokale Wettervorhersagen bereitzustellen, auch wenn die App geschlossen ist oder nicht verwendet wird. Diese Daten werden nur lokal auf deinem Gerät verwendet, um genaues Wetter für deine aktuelle Position abzurufen.</string>
+    <string name="background_location_disclosure_title">Standortzugriff im Hintergrund</string>
+    <string name="background_location_disclosure_desc">Für automatische Wetteraktualisierungen im Widget benötigt diese App Zugriff auf deinen Standort, auch im Hintergrund.\n\nWähle auf dem nächsten Bildschirm bitte \"Immer zulassen\", um Hintergrundaktualisierungen zu aktivieren.</string>
+    <string name="grant_location_permission">Standortberechtigung erteilen</string>
+    <string name="open_settings">Einstellungen öffnen</string>
+    <string name="api_keys_title">API-Schlüssel</string>
+    <string name="api_keys_description">Gib eigene API-Schlüssel für eingeschränkte Dienste ein. Kostenlose Dienste (NWS, Open-Meteo) benötigen keine Schlüssel.</string>
+    <string name="api_key_hint">API-Schlüssel eingeben</string>
+    <string name="get_api_key">Schlüssel holen…</string>
+    <string name="get_api_key_no_browser">Kein Browser verfügbar. Registrierung unter: %1$s</string>
+    <string name="privacy_policy_title">Datenschutzerklärung</string>
+    <string name="allow">Zulassen</string>
+    <string name="no_thanks">Nein danke</string>
+    <string name="privacy_policy_body">Das Wetter-Widget erfasst Standortdaten, um lokale Wettervorhersagen bereitzustellen. Dein Standort wird nur verwendet, um Wetterdaten für deine Region abzurufen, und wird niemals gespeichert oder an Dritte weitergegeben, außer an Wetter-API-Anbieter (NWS, Open-Meteo usw.) zum Abrufen von Vorhersagen.\n\nWir verwenden Firebase Crashlytics zur Überwachung der App-Stabilität. Diese Daten sind anonymisiert.\n\nDu kannst Standortberechtigungen jederzeit in den Android-Einstellungen widerrufen.\n\nBei Fragen besuche: https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">Oder Koordinaten eingeben:</string>
+    <string name="latitude_hint">Breitengrad (z. B. 37.422)</string>
+    <string name="longitude_hint">Längengrad (z. B. -122.0841)</string>
+    <string name="use_coordinates">Koordinaten verwenden</string>
+    <string name="save_location">Standort speichern</string>
+    <string name="default_location_title">Standard-Standort</string>
+    <string name="location_saved_success">Standort für alle Widgets aktualisiert</string>
+    <string name="location_updated_from_gps">Standort per GPS aktualisiert</string>
+    <string name="invalid_coordinates_range">Bitte gültige Koordinaten eingeben (-90 bis 90 Breite, -180 bis 180 Länge)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">Feedback &amp; Fehlerberichte</string>
+    <string name="feedback_and_bug_reports_description">Problem entdeckt oder Verbesserungsvorschlag? Sende einen detaillierten Fehlerbericht mit optionaler Systemdiagnose.</string>
+    <string name="submit_bug_report">Fehlerbericht senden</string>
+    <string name="bug_report_title">Fehlerbericht senden</string>
+    <string name="bug_report_description_hint">Beschreibe den Fehler (was passiert ist und was du erwartet hast). Bei visuellen Problemen bitte einen Screenshot anhängen!</string>
+    <string name="bug_report_include_logs">Diagnose-App-Protokolle einschließen (letzte Ereignisse)</string>
+    <string name="bug_report_include_metadata">Widget-Konfiguration &amp; DB-Statistiken einschließen</string>
+    <string name="bug_report_diagnostics_preview">Diagnose-Vorschau</string>
+    <string name="bug_report_device_info">Geräteinformationen</string>
+    <string name="bug_report_db_stats">Datenbank-Statistiken</string>
+    <string name="bug_report_active_widgets">Aktive Widgets</string>
+    <string name="bug_report_location_info">Standort-Einstellung</string>
+    <string name="bug_report_send">Fehlerbericht senden</string>
+    <string name="bug_report_error_empty_description">Bitte beschreibe das Problem kurz, bevor du den Bericht sendest.</string>
+    <string name="bug_report_collecting_diagnostics">Diagnosedaten werden gesammelt...</string>
+    <string name="view_icon_gallery">Symbolgalerie anzeigen</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">Stündliche Temperaturdaten für %1$s fehlen. Eine Aktualisierung wird ausgelöst.</string>
+    <string name="widget_no_hourly_result_still_missing">Ergebnis der Aktualisierung: Keine neuen stündlichen Temperaturdaten für %1$s abrufbar. Daten enden %2$s</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">Ergebnis der Aktualisierung: Keine neuen stündlichen Temperaturdaten für %1$s abrufbar.</string>
+    <string name="widget_no_hourly_result_available">Ergebnis der Aktualisierung:\nStündliche Daten für %1$s jetzt verfügbar</string>
+    <string name="units_title">Einheiten</string>
+    <string name="use_celsius_label">Celsius verwenden</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">Sprache</string>
+    <string name="app_language_description">Wähle die Sprache dieser App. Öffnet die Android-Einstellung für App-Sprachen.</string>
+    <string name="app_language_button">App-Sprache ändern…</string>
+    <string name="app_language_settings_unavailable">Die Einstellung für App-Sprachen ist auf diesem Gerät nicht verfügbar</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">Heute</string>
+    <string name="widget_loading">Lädt...</string>
+    <string name="widget_tap_to_refresh">Zum Aktualisieren tippen</string>
+    <string name="current_stations_desc">Aktuelle Stationen</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">Standort: %1$s</string>
+    <string name="saving_coordinates_offline">Koordinaten werden gespeichert (Namenssuche offline)</string>
+    <string name="location_permission_required">Standortberechtigung für GPS erforderlich</string>
+    <string name="location_fix_failed_default">Aktueller Standort nicht ermittelbar. Standard wird verwendet.</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">Kein Standort festgelegt</string>
+    <string name="widget_location_format">Widget-Standort: %1$s, %2$s</string>
+    <string name="default_location_format">Standard-Standort: %1$s, %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">Aktuelle Beobachtungen</string>
+    <string name="obs_subtitle_nearby_stations">Echtzeitdaten von Stationen in der Nähe</string>
+    <string name="obs_subtitle_none_found">Keine aktuellen Beobachtungen für %1$s gefunden.</string>
+    <string name="obs_subtitle_latest_reading">Neueste Messung von %1$s</string>
+    <string name="obs_no_location_to_refresh">Kein Standort zum Aktualisieren verfügbar</string>
+    <string name="obs_refreshed_source">%1$s aktualisiert</string>
+    <string name="obs_reported_prefix">"Gemeldet "</string>
+    <string name="obs_fetched_separator">" • Abgerufen "</string>
+    <string name="station_origin_web">Web</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">Abruf-Protokolle</string>
+    <string name="loading_logs">Protokolle werden geladen...</string>
+    <string name="close">Schließen</string>
+    <string name="name_location_title">Standort benennen</string>
+    <string name="name_location_message">Gib diesem Standort einen eigenen Namen (z. B. Zuhause, Arbeit, Schule)</string>
+    <string name="save">Speichern</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">30-Tage-Genauigkeitsübersicht</string>
+    <string name="stats_loading">Lädt...</string>
+    <string name="stats_daily_breakdown">Tägliche Genauigkeitsaufschlüsselung</string>
+    <string name="stats_rain_accuracy">Tag/Nacht-Regengenauigkeit</string>
+    <string name="stats_no_weather_data">Noch keine Wetterdaten verfügbar.</string>
+    <string name="stats_no_history_yet">Noch keine historischen Vorhersagedaten verfügbar.\n\nVorhersage-Schnappschüsse werden täglich gespeichert. Schau morgen für deinen ersten Genauigkeitsvergleich vorbei!</string>
+    <string name="stats_source_line">%1$s: Max ±%2$s, Min ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: Noch keine Daten</string>
+    <string name="stats_error_loading">Fehler beim Laden der Statistiken: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (%1$s zu niedrig)"</string>
+    <string name="bias_high_suffix">" (%1$s zu hoch)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"Max ±%1$s  Min ±%2$s"</string>
+    <string name="accuracy_within_line">"%% innerhalb %1$s: %2$s  Vorhersagen: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">Standort tatsächlich:</string>
+    <string name="label_forecast">Vorhersage:</string>
+    <string name="label_error">Fehler:</string>
+    <string name="label_rain_day">Tag (8–20 Uhr):</string>
+    <string name="label_rain_night">Nacht (20–8 Uhr):</string>
+    <string name="rain_pred_act_format">progn. %1$s / tats. %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">Höchsttemperatur</string>
+    <string name="forecast_history_low_temp_title">Tiefsttemperatur</string>
+    <string name="legend_location_actual">Standort tatsächlich</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">Nach oben</string>
+    <string name="move_down">Nach unten</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">Teilen konnte nicht gestartet werden</string>
+    <string name="bug_report_email_subject">Wetter-Widget-Fehlerbericht</string>
+</resources>

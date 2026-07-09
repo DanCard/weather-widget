@@ -199,6 +199,12 @@
     <string name="units_title">Unidades</string>
     <string name="use_celsius_label">Usar grados Celsius</string>
 
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">Idioma</string>
+    <string name="app_language_description">Elige el idioma de esta app. Abre el ajuste de idioma por aplicación de Android.</string>
+    <string name="app_language_button">Cambiar idioma de la app…</string>
+    <string name="app_language_settings_unavailable">El ajuste de idioma por aplicación no está disponible en este dispositivo</string>
+
     <string name="today">Hoy</string>
     <string name="widget_loading">Cargando...</string>
     <string name="widget_tap_to_refresh">Toca para actualizar</string>

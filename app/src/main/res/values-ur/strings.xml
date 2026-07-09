@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">موسمی ویجٹ</string>
+    <string name="widget_description">سائز تبدیل ہونے والا موسمی ویجٹ جو موجودہ حالات اور پیشن گوئی دکھاتا ہے</string>
+    <string name="configure_widget">ویجٹ ترتیب دیں</string>
+    <string name="select_data_source">موسمی ڈیٹا ماخذ منتخب کریں</string>
+    <string name="use_current_location">موجودہ مقام استعمال کریں</string>
+    <string name="widget_location_title">ویجٹ کا مقام</string>
+    <string name="use_precise_location">آلے کا درست مقام استعمال کریں</string>
+    <string name="follow_device_explainer">ویجٹس آپ کے آلے کے مقام کی پیروی کریں گے</string>
+    <string name="or_search_location">یا شہر، پتہ یا پوسٹل کوڈ سے تلاش کریں:</string>
+    <string name="location_search_hint">شہر، پتہ یا پوسٹل کوڈ</string>
+    <string name="search_location">تلاش کریں</string>
+    <string name="location_search_no_results">کوئی مطابقت نہیں — ہجے یا نیٹ ورک چیک کریں</string>
+    <string name="getting_location">مقام حاصل کیا جا رہا ہے…</string>
+    <string name="use_this_location">یہ مقام استعمال کریں</string>
+    <string name="location_found_label">آلے کا مقام مل گیا: %1$s</string>
+    <string name="location_fix_failed">آلے کا مقام حاصل نہیں ہو سکا — نیچے سے کوئی اختیار چنیں</string>
+    <string name="pinned_location_explainer">تلاش کردہ مقام یا نقاط منتخب کرنے سے وہ پن ہو جاتا ہے۔ جب تک آپ دوبارہ \"آلے کا درست مقام استعمال کریں\" پر ٹیپ نہ کریں، ویجٹس آلے کی پیروی بند رکھیں گے۔</string>
+    <string name="set_location_button">مقام مقرر کریں…</string>
+    <string name="location_mode_pinned">پن شدہ</string>
+    <string name="location_mode_follow">آلے کی پیروی کرتا ہے</string>
+    <string name="offline">آف لائن</string>
+    <string name="tap_to_configure">ترتیب کے لیے ٹیپ کریں</string>
+    <string name="settings">ترتیبات</string>
+    <string name="app_logs">ایپ لاگز</string>
+    <string name="back">واپس</string>
+    <string name="refresh">ریفریش</string>
+    <string name="refresh_now">ڈیٹا ریفریش کریں</string>
+    <string name="refresh_now_enqueued_toast">ڈیٹا ریفریش قطار میں شامل ہو گیا</string>
+    <string name="nav_previous">پچھلے دن</string>
+    <string name="nav_next">اگلے دن</string>
+    <string name="weather_icon_desc">موسمی حالت کا آئیکن</string>
+    <string name="home_forecast">روزانہ پیشن گوئی پر واپس جائیں</string>
+    <string name="api_preference">موسمی ڈیٹا ماخذ</string>
+    <string name="api_preference_description">ترجیحی موسمی API چنیں (دستیاب نہ ہونے پر دوسرا استعمال ہوگا)</string>
+    <string name="api_alternate">باری باری - NWS، Open-Meteo اور WeatherAPI کے درمیان گردش</string>
+    <string name="api_prefer_nws">NWS کو ترجیح - قومی موسمی سروس (صرف امریکہ)</string>
+    <string name="api_prefer_openmeteo">Open-Meteo کو ترجیح - عالمی کوریج</string>
+    <string name="api_prefer_weatherapi">WeatherAPI کو ترجیح - عالمی کوریج</string>
+    <string name="api_sources_title">موسمی ڈیٹا کے مآخذ</string>
+    <string name="api_sources_description">مآخذ فعال/غیر فعال کریں اور ترتیب بدلیں۔ غیر فعال مآخذ دوبارہ فعال ہونے تک ویجٹ ٹوگل اور پس منظر ڈاؤن لوڈ سے خارج رہتے ہیں۔</string>
+    <string name="must_keep_one_source">کم از کم ایک ماخذ فعال رہنا چاہیے</string>
+    <string name="personal_stations_title">ذاتی موسمی اسٹیشن</string>
+    <string name="personal_stations_description" formatted="false">ذاتی (گھریلو) اسٹیشن دھوپ میں اکثر زیادہ درجہ حرارت دکھاتے ہیں۔ ماپے گئے درجہ حرارت میں ان کے حصے میں کتنی کمی ہو، طے کریں۔ 0% = کوئی کمی نہیں: ذاتی اسٹیشن سرکاری اسٹیشنوں کے برابر شمار ہوتے ہیں۔ 100% = ذاتی اسٹیشن نظر انداز کیے جاتے ہیں۔</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · کوئی کمی نہیں</string>
+    <string name="personal_stations_ignored" formatted="false">100% · نظر انداز</string>
+    <string name="api_source_silurian_desc">Silurian.ai — Silur کے نام سے دکھتا ہے (عالمی کوریج)</string>
+    <string name="api_source_nws_desc">قومی موسمی سروس (صرف امریکہ)</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — Tmrw کے نام سے دکھتا ہے (عالمی کوریج)</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr کے نام سے دکھتا ہے (عالمی کوریج)</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — Meteo کے نام سے دکھتا ہے (عالمی کوریج)</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — WAPI کے نام سے دکھتا ہے (عالمی کوریج)</string>
+    <string name="statistics">اعداد و شمار</string>
+    <string name="view_detailed_statistics">تفصیلی اعداد و شمار</string>
+    <string name="forecast_accuracy_summary_title">پیشن گوئی کی درستگی (آخری 30 دن)</string>
+    <string name="loading_accuracy_summary">پیشن گوئی کی درستگی لوڈ ہو رہی ہے...</string>
+    <string name="error_loading_accuracy_summary">ابھی پیشن گوئی کی درستگی لوڈ نہیں ہو سکتی۔</string>
+    <string name="data_freshness_unknown">ڈیٹا کی تازگی: نامعلوم</string>
+    <string name="data_freshness_format">آخری اپ ڈیٹ: %1$s</string>
+    <string name="freshness_last_updated">آخری اپ ڈیٹ: %1$s پہلے</string>
+    <string name="refresh_policy_charging">ریفریش پالیسی: ہر 30 منٹ (چارجنگ)</string>
+    <string name="refresh_policy_battery_high">ریفریش پالیسی: ہر 4 گھنٹے (بیٹری %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">ریفریش پالیسی: ہر 8 گھنٹے (بیٹری %1$d%%)</string>
+    <string name="refresh_policy_battery_low">ریفریش پالیسی: موقوف (بیٹری %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">پیشن گوئی ڈاؤن لوڈ: چارجنگ میں ہر 1 گھنٹے (بنیادی API)</string>
+    <string name="forecast_policy_charging_90m">پیشن گوئی ڈاؤن لوڈ: چارجنگ میں ہر 90 منٹ (ثانوی API)</string>
+    <string name="forecast_policy_charging_2h">پیشن گوئی ڈاؤن لوڈ: چارجنگ میں ہر 2 گھنٹے (تیسرا+ API)</string>
+    <string name="forecast_policy_battery_high">پیشن گوئی ڈاؤن لوڈ: ہر 4 گھنٹے (بیٹری %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">پیشن گوئی ڈاؤن لوڈ: ہر 8 گھنٹے (بیٹری %1$d%%)</string>
+    <string name="forecast_policy_battery_low">پیشن گوئی ڈاؤن لوڈ: موقوف (بیٹری %1$d%%)</string>
+    <string name="freshness_just_now">ابھی ابھی</string>
+    <string name="forecast_history">"پیشن گوئیوں کی تاریخ: "</string>
+    <string name="forecast_history_summary_single">%1$d %2$s پیشن گوئی سنیپ شاٹس</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI سنیپ شاٹس</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$d آب و ہوا بھرائی پوائنٹس</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">%1$s API اصل: %2$s / %3$s</string>
+    <string name="forecast_history_location_actual">مقام کا اصل: %1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">ابھی تک کوئی تاریخی پیشن گوئی ڈیٹا نہیں۔\nپیشن گوئی سنیپ شاٹس روزانہ محفوظ ہوتے ہیں۔ پہلی درستگی کے موازنے کے لیے کل دوبارہ دیکھیں۔</string>
+    <string name="forecast_history_no_data_fallback_source">منتخب ماخذ</string>
+    <string name="forecast_history_prev_day">پچھلا دن</string>
+    <string name="forecast_history_next_day">اگلا دن</string>
+    <string name="forecast_history_subtitle">پیشن گوئیوں کی تاریخ</string>
+    <string name="freshness_forecast_fetch_ago">پیشن گوئی ڈاؤن لوڈ: %1$s پہلے</string>
+    <string name="freshness_forecast_fetch_never">پیشن گوئی ڈاؤن لوڈ: کبھی نہیں</string>
+    <string name="freshness_displayed_data">دکھایا گیا ڈیٹا (%1$s): %2$s پہلے حاصل ہوا</string>
+    <string name="forecast_mode_evolution">موڈ: ارتقا</string>
+    <string name="forecast_mode_error">موڈ: خطا</string>
+    <string name="forecast_mode_hourly">موڈ: درجہ حرارت</string>
+    <string name="forecast_evolution_high_title">زیادہ سے زیادہ درجہ حرارت کا ارتقا</string>
+    <string name="forecast_evolution_low_title">کم سے کم درجہ حرارت کا ارتقا</string>
+    <string name="forecast_error_high_title">زیادہ سے زیادہ درجہ حرارت کی خطا</string>
+    <string name="forecast_error_low_title">کم سے کم درجہ حرارت کی خطا</string>
+    <string name="forecast_show_hourly">درجہ حرارت کی پیشن گوئی</string>
+    <string name="forecast_show_evolution">پیشن گوئیوں کی تاریخ پر واپس</string>
+    <string name="forecast_hourly_title">درجہ حرارت کی پیشن گوئی</string>
+    <string name="forecast_hourly_subtitle">گھنٹہ وار تفصیل</string>
+    <string name="forecast_hourly_no_data">اس تاریخ کے لیے گھنٹہ وار درجہ حرارت کی پیشن گوئی دستیاب نہیں۔</string>
+    <string name="forecast_hourly_legend">ابھی</string>
+    <string name="forecast_history_no_data_for_source">اس تاریخ کے لیے کوئی پیشن گوئی تاریخ نہیں (%1$s)۔</string>
+    <string name="forecast_error_requires_actuals">خطا کا منظر اس دن کے اصل درجہ حرارت ریکارڈ ہونے کے بعد دستیاب ہوگا۔</string>
+    <string name="legend_actual">API اصل</string>
+    <string name="legend_zero_error">صفر خطا</string>
+    <string name="view_app_logs">ایپ لاگز دیکھیں</string>
+    <string name="clear_app_logs">لاگز صاف کریں</string>
+    <string name="app_logs_refresh_current">موجودہ ریفریش کریں</string>
+    <string name="app_logs_force_refresh">جبری</string>
+    <string name="app_logs_refreshing_toast">موجودہ درجہ حرارت کا ریفریش قطار میں شامل ہو گیا</string>
+    <string name="app_logs_cleared">لاگز صاف ہو گئے</string>
+    <string name="app_logs_share">شیئر کریں</string>
+    <string name="app_logs_share_chooser">لاگز شیئر کریں</string>
+    <string name="app_logs_share_empty">شیئر کرنے کے لیے کوئی لاگ نہیں</string>
+    <string name="app_logs_share_subject">موسمی ویجٹ لاگز</string>
+    <string name="no_app_logs">ابھی تک کوئی ایپ لاگ نہیں۔</string>
+    <string name="app_logs_filter_hint">لاگز فلٹر کریں (ٹیگ/پیغام/سطح)</string>
+    <string name="app_logs_db_stats">DB: %1$.1f MB (%2$d لاگز، %3$d سنیپ شاٹس)</string>
+    <string name="app_logs_all_levels">تمام سطحیں</string>
+    <string name="app_logs_showing">%1$d دکھائے جا رہے ہیں (%2$s)</string>
+    <string name="app_logs_showing_filtered">\"%2$s\" سے مطابقت رکھنے والے %1$d دکھائے جا رہے ہیں (%3$s)</string>
+    <string name="icon_preview_title">آئیکن گیلری</string>
+    <string name="icon_preview_description">ویجٹ میں استعمال ہونے والے تمام موسمی آئیکنز کی جامع گیلری۔</string>
+    <string name="gallery_icon_pc_slight_rain_new">جزوی ابر آلود، ہلکی بارش (نیا)</string>
+    <string name="gallery_icon_rain">بارش</string>
+    <string name="gallery_icon_chance_rain">بارش کا امکان</string>
+    <string name="gallery_icon_slight_rain">بارش کا معمولی امکان</string>
+    <string name="gallery_icon_snow">برف باری</string>
+    <string name="gallery_icon_storm">طوفان</string>
+    <string name="gallery_icon_cloudy">ابر آلود</string>
+    <string name="gallery_icon_clear">صاف/دھوپ</string>
+    <string name="gallery_icon_mostly_clear">زیادہ تر صاف</string>
+    <string name="gallery_icon_horizon_sun">طلوع/غروب آفتاب</string>
+    <string name="gallery_icon_mostly_cloudy">زیادہ تر ابر آلود</string>
+    <string name="gallery_icon_partly_cloudy">جزوی ابر آلود</string>
+    <string name="gallery_icon_night">رات</string>
+    <string name="gallery_icon_mostly_cloudy_night">زیادہ تر ابر آلود (رات)</string>
+    <string name="gallery_icon_partly_cloudy_night">جزوی ابر آلود (رات)</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">جزوی ابر آلود، بارش کا امکان</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">جزوی ابر آلود، ہلکی بارش</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">جزوی ابر آلود، بارش کا امکان (رات)</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">جزوی ابر آلود، ہلکی بارش (رات)</string>
+    <string name="gallery_icon_fog">دھند</string>
+    <string name="gallery_icon_fog_sunny">دھند اور دھوپ</string>
+    <string name="gallery_icon_fog_light">ہلکی دھند</string>
+    <string name="gallery_icon_fog_dense">گہری دھند</string>
+    <string name="gallery_icon_fog_cloudy">دھند اور بادل</string>
+    <string name="gallery_icon_fog_night">دھند (رات)</string>
+    <string name="gallery_icon_fog_light_night">ہلکی دھند (رات)</string>
+    <string name="gallery_icon_wind">ہوا</string>
+
+    <string name="gallery_icon_unknown">نامعلوم</string>
+
+    <string name="main_welcome">موسمی ویجٹ میں خوش آمدید</string>
+    <string name="main_how_to_add_title">ویجٹ شامل کرنے کا طریقہ</string>
+    <string name="main_how_to_add_desc">1. ہوم اسکرین کی خالی جگہ کو دیر تک دبائیں۔\n2. \"ویجٹس\" پر ٹیپ کریں۔\n3. \"Weather Widget\" تلاش کریں اور اسکرین پر گھسیٹیں۔</string>
+    <string name="main_location_disclosure_title">مقام سے متعلق اطلاع</string>
+    <string name="main_location_disclosure_desc">موسمی ویجٹ مقامی موسم کی پیشن گوئی فراہم کرنے کے لیے مقام کا ڈیٹا جمع کرتا ہے، چاہے ایپ بند ہو یا استعمال میں نہ ہو۔ یہ ڈیٹا صرف آپ کے آلے پر مقامی طور پر، آپ کی موجودہ پوزیشن کا درست موسم حاصل کرنے کے لیے استعمال ہوتا ہے۔</string>
+    <string name="background_location_disclosure_title">پس منظر میں مقام تک رسائی</string>
+    <string name="background_location_disclosure_desc">ویجٹ میں خودکار موسمی اپ ڈیٹس کے لیے اس ایپ کو پس منظر میں بھی آپ کے مقام تک رسائی درکار ہے۔\n\nاگلی اسکرین پر پس منظر اپ ڈیٹس فعال کرنے کے لیے براہ کرم \"ہر وقت اجازت دیں\" منتخب کریں۔</string>
+    <string name="grant_location_permission">مقام کی اجازت دیں</string>
+    <string name="open_settings">ترتیبات کھولیں</string>
+    <string name="api_keys_title">API کلیدیں</string>
+    <string name="api_keys_description">محدود سروسز کے لیے اپنی API کلیدیں درج کریں۔ مفت سروسز (NWS، Open-Meteo) کو کلید درکار نہیں۔</string>
+    <string name="api_key_hint">API کلید درج کریں</string>
+    <string name="get_api_key">کلید حاصل کریں…</string>
+    <string name="get_api_key_no_browser">کوئی براؤزر دستیاب نہیں۔ یہاں سائن اپ کریں: %1$s</string>
+    <string name="privacy_policy_title">رازداری کی پالیسی</string>
+    <string name="allow">اجازت دیں</string>
+    <string name="no_thanks">نہیں، شکریہ</string>
+    <string name="privacy_policy_body">موسمی ویجٹ مقامی موسم کی پیشن گوئی کے لیے مقام کا ڈیٹا جمع کرتا ہے۔ آپ کا مقام صرف آپ کے علاقے کا موسمی ڈیٹا حاصل کرنے کے لیے استعمال ہوتا ہے اور پیشن گوئیاں حاصل کرنے کے لیے موسمی API فراہم کنندگان (NWS، Open-Meteo وغیرہ) کے سوا کبھی محفوظ یا فریق ثالث سے شیئر نہیں کیا جاتا۔\n\nہم ایپ کے استحکام کی نگرانی کے لیے Firebase Crashlytics استعمال کرتے ہیں۔ یہ ڈیٹا گمنام ہوتا ہے۔\n\nآپ Android ترتیبات میں کسی بھی وقت مقام کی اجازتیں واپس لے سکتے ہیں۔\n\nسوالات کے لیے دیکھیں: https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">یا نقاط درج کریں:</string>
+    <string name="latitude_hint">عرض بلد (مثلاً 37.422)</string>
+    <string name="longitude_hint">طول بلد (مثلاً -122.0841)</string>
+    <string name="use_coordinates">نقاط استعمال کریں</string>
+    <string name="save_location">مقام محفوظ کریں</string>
+    <string name="default_location_title">طے شدہ مقام</string>
+    <string name="location_saved_success">تمام ویجٹس کے لیے مقام اپ ڈیٹ ہو گیا</string>
+    <string name="location_updated_from_gps">GPS سے مقام اپ ڈیٹ ہو گیا</string>
+    <string name="invalid_coordinates_range">براہ کرم درست نقاط درج کریں (عرض بلد -90 تا 90، طول بلد -180 تا 180)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">رائے &amp; بگ رپورٹس</string>
+    <string name="feedback_and_bug_reports_description">کوئی مسئلہ پیش آیا یا بہتری تجویز کرنا چاہتے ہیں؟ اختیاری سسٹم تشخیص کے ساتھ تفصیلی بگ رپورٹ بھیجیں۔</string>
+    <string name="submit_bug_report">بگ رپورٹ بھیجیں</string>
+    <string name="bug_report_title">بگ رپورٹ بھیجیں</string>
+    <string name="bug_report_description_hint">بگ کی وضاحت کریں (کیا ہوا اور آپ کیا توقع کر رہے تھے)۔ اگر یہ بصری مسئلہ ہے تو اسکرین شاٹ منسلک کریں!</string>
+    <string name="bug_report_include_logs">تشخیصی ایپ لاگز شامل کریں (حالیہ واقعات)</string>
+    <string name="bug_report_include_metadata">ویجٹ ترتیب &amp; DB اعداد و شمار شامل کریں</string>
+    <string name="bug_report_diagnostics_preview">تشخیص کا پیش منظر</string>
+    <string name="bug_report_device_info">آلے کی معلومات</string>
+    <string name="bug_report_db_stats">ڈیٹا بیس کے اعداد و شمار</string>
+    <string name="bug_report_active_widgets">فعال ویجٹس</string>
+    <string name="bug_report_location_info">مقام کی ترتیب</string>
+    <string name="bug_report_send">بگ رپورٹ بھیجیں</string>
+    <string name="bug_report_error_empty_description">بھیجنے سے پہلے براہ کرم مسئلے کی مختصر وضاحت لکھیں۔</string>
+    <string name="bug_report_collecting_diagnostics">تشخیصی ڈیٹا جمع کیا جا رہا ہے...</string>
+    <string name="view_icon_gallery">آئیکن گیلری دیکھیں</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">%1$s کے لیے گھنٹہ وار درجہ حرارت کا ڈیٹا موجود نہیں۔ ریفریش شروع کیا جائے گا۔</string>
+    <string name="widget_no_hourly_result_still_missing">ریفریش کا نتیجہ: %1$s کے لیے نیا گھنٹہ وار درجہ حرارت ڈیٹا حاصل نہیں ہو سکا۔ ڈیٹا %2$s پر ختم ہوتا ہے</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">ریفریش کا نتیجہ: %1$s کے لیے نیا گھنٹہ وار درجہ حرارت ڈیٹا حاصل نہیں ہو سکا۔</string>
+    <string name="widget_no_hourly_result_available">ریفریش کے نتائج:\n%1$s کے لیے گھنٹہ وار ڈیٹا اب دستیاب ہے</string>
+    <string name="units_title">اکائیاں</string>
+    <string name="use_celsius_label">سیلسیس استعمال کریں</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">زبان</string>
+    <string name="app_language_description">اس ایپ کی زبان چنیں۔ Android کی فی ایپ زبان کی ترتیب کھولتا ہے۔</string>
+    <string name="app_language_button">ایپ کی زبان بدلیں…</string>
+    <string name="app_language_settings_unavailable">اس آلے پر فی ایپ زبان کی ترتیب دستیاب نہیں</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">آج</string>
+    <string name="widget_loading">لوڈ ہو رہا ہے...</string>
+    <string name="widget_tap_to_refresh">ریفریش کے لیے ٹیپ کریں</string>
+    <string name="current_stations_desc">موجودہ اسٹیشن</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">مقام: %1$s</string>
+    <string name="saving_coordinates_offline">نقاط محفوظ ہو رہے ہیں (نام کی تلاش آف لائن)</string>
+    <string name="location_permission_required">GPS کے لیے مقام کی اجازت درکار</string>
+    <string name="location_fix_failed_default">موجودہ مقام حاصل نہیں ہو سکا۔ طے شدہ استعمال ہو رہا ہے۔</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">کوئی مقام مقرر نہیں</string>
+    <string name="widget_location_format">ویجٹ کا مقام: %1$s، %2$s</string>
+    <string name="default_location_format">طے شدہ مقام: %1$s، %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">موجودہ مشاہدات</string>
+    <string name="obs_subtitle_nearby_stations">قریبی اسٹیشنوں سے حقیقی وقت کا ڈیٹا</string>
+    <string name="obs_subtitle_none_found">%1$s کے لیے کوئی حالیہ مشاہدات نہیں ملے۔</string>
+    <string name="obs_subtitle_latest_reading">%1$s سے تازہ ترین ریڈنگ</string>
+    <string name="obs_no_location_to_refresh">ریفریش کے لیے کوئی مقام دستیاب نہیں</string>
+    <string name="obs_refreshed_source">%1$s ریفریش ہو گیا</string>
+    <string name="obs_reported_prefix">"رپورٹ شدہ "</string>
+    <string name="obs_fetched_separator">" • حاصل شدہ "</string>
+    <string name="station_origin_web">ویب</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">ڈاؤن لوڈ لاگز</string>
+    <string name="loading_logs">لاگز لوڈ ہو رہے ہیں...</string>
+    <string name="close">بند کریں</string>
+    <string name="name_location_title">مقام کا نام رکھیں</string>
+    <string name="name_location_message">اس مقام کو اپنی مرضی کا نام دیں (مثلاً گھر، دفتر، اسکول)</string>
+    <string name="save">محفوظ کریں</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">30 دن کی درستگی کا خلاصہ</string>
+    <string name="stats_loading">لوڈ ہو رہا ہے...</string>
+    <string name="stats_daily_breakdown">روزانہ درستگی کی تفصیل</string>
+    <string name="stats_rain_accuracy">دن/رات بارش کی درستگی</string>
+    <string name="stats_no_weather_data">ابھی تک کوئی موسمی ڈیٹا دستیاب نہیں۔</string>
+    <string name="stats_no_history_yet">ابھی تک کوئی تاریخی پیشن گوئی ڈیٹا نہیں۔\n\nپیشن گوئی سنیپ شاٹس روزانہ محفوظ ہو رہے ہیں۔ پہلی درستگی کے موازنے کے لیے کل دوبارہ دیکھیں!</string>
+    <string name="stats_source_line">%1$s: زیادہ ±%2$s، کم ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: ابھی کوئی ڈیٹا نہیں</string>
+    <string name="stats_error_loading">اعداد و شمار لوڈ کرنے میں خطا: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (%1$s کم)"</string>
+    <string name="bias_high_suffix">" (%1$s زیادہ)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"زیادہ ±%1$s  کم ±%2$s"</string>
+    <string name="accuracy_within_line">"%1$s کے اندر %%: %2$s  پیشن گوئیاں: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">مقام کا اصل:</string>
+    <string name="label_forecast">پیشن گوئی:</string>
+    <string name="label_error">خطا:</string>
+    <string name="label_rain_day">دن (صبح 8 – رات 8):</string>
+    <string name="label_rain_night">رات (رات 8 – صبح 8):</string>
+    <string name="rain_pred_act_format">پیشن گوئی %1$s / اصل %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">زیادہ سے زیادہ درجہ حرارت</string>
+    <string name="forecast_history_low_temp_title">کم سے کم درجہ حرارت</string>
+    <string name="legend_location_actual">مقام کا اصل</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">اوپر لے جائیں</string>
+    <string name="move_down">نیچے لے جائیں</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">شیئرنگ شروع نہیں ہو سکی</string>
+    <string name="bug_report_email_subject">موسمی ویجٹ بگ رپورٹ</string>
+</resources>

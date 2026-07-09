@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">天气小部件</string>
+    <string name="widget_description">可调整大小的天气小部件，显示当前天气和预报</string>
+    <string name="configure_widget">配置小部件</string>
+    <string name="select_data_source">选择天气数据源</string>
+    <string name="use_current_location">使用当前位置</string>
+    <string name="widget_location_title">小部件位置</string>
+    <string name="use_precise_location">使用设备精确位置</string>
+    <string name="follow_device_explainer">小部件将跟随您设备的位置</string>
+    <string name="or_search_location">或按城市、地址或邮政编码搜索：</string>
+    <string name="location_search_hint">城市、地址或邮政编码</string>
+    <string name="search_location">搜索</string>
+    <string name="location_search_no_results">未找到匹配项 — 请检查拼写或网络</string>
+    <string name="getting_location">正在获取位置…</string>
+    <string name="use_this_location">使用此位置</string>
+    <string name="location_found_label">已找到设备位置：%1$s</string>
+    <string name="location_fix_failed">无法获取设备位置 — 请从下方选择一个选项</string>
+    <string name="pinned_location_explainer">选择搜索到的位置或坐标会将其固定。在您再次点按\"使用设备精确位置\"之前，小部件将停止跟随设备。</string>
+    <string name="set_location_button">设置位置…</string>
+    <string name="location_mode_pinned">已固定</string>
+    <string name="location_mode_follow">跟随设备</string>
+    <string name="offline">离线</string>
+    <string name="tap_to_configure">点按以配置</string>
+    <string name="settings">设置</string>
+    <string name="app_logs">应用日志</string>
+    <string name="back">返回</string>
+    <string name="refresh">刷新</string>
+    <string name="refresh_now">刷新数据</string>
+    <string name="refresh_now_enqueued_toast">数据刷新已加入队列</string>
+    <string name="nav_previous">前几天</string>
+    <string name="nav_next">后几天</string>
+    <string name="weather_icon_desc">天气状况图标</string>
+    <string name="home_forecast">返回每日预报</string>
+    <string name="api_preference">天气数据源</string>
+    <string name="api_preference_description">选择首选的天气 API（不可用时回退到其他）</string>
+    <string name="api_alternate">交替 - 在 NWS、Open-Meteo 和 WeatherAPI 之间轮换</string>
+    <string name="api_prefer_nws">首选 NWS - 美国国家气象局（仅限美国）</string>
+    <string name="api_prefer_openmeteo">首选 Open-Meteo - 全球覆盖</string>
+    <string name="api_prefer_weatherapi">首选 WeatherAPI - 全球覆盖</string>
+    <string name="api_sources_title">天气数据源</string>
+    <string name="api_sources_description">启用/停用数据源并调整顺序。停用的数据源将从小部件切换和后台获取中排除，直到重新启用。</string>
+    <string name="must_keep_one_source">至少须保留一个已启用的数据源</string>
+    <string name="personal_stations_title">个人气象站</string>
+    <string name="personal_stations_description" formatted="false">个人（庭院）气象站在阳光下常常读数偏高。设置它们在实测温度中的折减程度。0% = 不折减：个人气象站与官方气象站同等计算。100% = 忽略个人气象站。</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · 不折减</string>
+    <string name="personal_stations_ignored" formatted="false">100% · 忽略</string>
+    <string name="api_source_silurian_desc">Silurian.ai — 显示为 Silur（全球覆盖）</string>
+    <string name="api_source_nws_desc">美国国家气象局（仅限美国）</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — 显示为 Tmrw（全球覆盖）</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — 显示为 VisCr（全球覆盖）</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — 显示为 Meteo（全球覆盖）</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — 显示为 WAPI（全球覆盖）</string>
+    <string name="statistics">统计</string>
+    <string name="view_detailed_statistics">详细统计</string>
+    <string name="forecast_accuracy_summary_title">预报准确度（最近 30 天）</string>
+    <string name="loading_accuracy_summary">正在加载预报准确度...</string>
+    <string name="error_loading_accuracy_summary">目前无法加载预报准确度。</string>
+    <string name="data_freshness_unknown">数据新鲜度：未知</string>
+    <string name="data_freshness_format">最后更新：%1$s</string>
+    <string name="freshness_last_updated">最后更新：%1$s前</string>
+    <string name="refresh_policy_charging">刷新策略：每 30 分钟（充电中）</string>
+    <string name="refresh_policy_battery_high">刷新策略：每 4 小时（电量 %1$d%%）</string>
+    <string name="refresh_policy_battery_mid">刷新策略：每 8 小时（电量 %1$d%%）</string>
+    <string name="refresh_policy_battery_low">刷新策略：已暂停（电量 %1$d%%）</string>
+    <string name="forecast_policy_charging_1h">预报获取：充电时每 1 小时（主 API）</string>
+    <string name="forecast_policy_charging_90m">预报获取：充电时每 90 分钟（次 API）</string>
+    <string name="forecast_policy_charging_2h">预报获取：充电时每 2 小时（第 3+ API）</string>
+    <string name="forecast_policy_battery_high">预报获取：每 4 小时（电量 %1$d%%）</string>
+    <string name="forecast_policy_battery_mid">预报获取：每 8 小时（电量 %1$d%%）</string>
+    <string name="forecast_policy_battery_low">预报获取：已暂停（电量 %1$d%%）</string>
+    <string name="freshness_just_now">刚刚</string>
+    <string name="forecast_history">"预报历史："</string>
+    <string name="forecast_history_summary_single">%1$d 个 %2$s 预报快照</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI 快照</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$d 个气候填充点</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">%1$s API 实测：%2$s / %3$s</string>
+    <string name="forecast_history_location_actual">位置实测：%1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">尚无历史预报数据。\n预报快照每天保存。明天再来查看您的首次准确度对比。</string>
+    <string name="forecast_history_no_data_fallback_source">所选数据源</string>
+    <string name="forecast_history_prev_day">前一天</string>
+    <string name="forecast_history_next_day">后一天</string>
+    <string name="forecast_history_subtitle">预报历史</string>
+    <string name="freshness_forecast_fetch_ago">预报获取：%1$s前</string>
+    <string name="freshness_forecast_fetch_never">预报获取：从未</string>
+    <string name="freshness_displayed_data">显示的数据（%1$s）：%2$s前获取</string>
+    <string name="forecast_mode_evolution">模式：演变</string>
+    <string name="forecast_mode_error">模式：误差</string>
+    <string name="forecast_mode_hourly">模式：温度</string>
+    <string name="forecast_evolution_high_title">最高温度演变</string>
+    <string name="forecast_evolution_low_title">最低温度演变</string>
+    <string name="forecast_error_high_title">最高温度误差</string>
+    <string name="forecast_error_low_title">最低温度误差</string>
+    <string name="forecast_show_hourly">温度预报</string>
+    <string name="forecast_show_evolution">返回预报历史</string>
+    <string name="forecast_hourly_title">温度预报</string>
+    <string name="forecast_hourly_subtitle">逐小时详情</string>
+    <string name="forecast_hourly_no_data">该日期没有逐小时温度预报。</string>
+    <string name="forecast_hourly_legend">现在</string>
+    <string name="forecast_history_no_data_for_source">该日期没有预报历史（%1$s）。</string>
+    <string name="forecast_error_requires_actuals">记录当天实测温度后即可查看误差视图。</string>
+    <string name="legend_actual">API 实测</string>
+    <string name="legend_zero_error">零误差</string>
+    <string name="view_app_logs">查看应用日志</string>
+    <string name="clear_app_logs">清除日志</string>
+    <string name="app_logs_refresh_current">刷新当前温度</string>
+    <string name="app_logs_force_refresh">强制</string>
+    <string name="app_logs_refreshing_toast">当前温度刷新已加入队列</string>
+    <string name="app_logs_cleared">日志已清除</string>
+    <string name="app_logs_share">分享</string>
+    <string name="app_logs_share_chooser">分享日志</string>
+    <string name="app_logs_share_empty">没有可分享的日志</string>
+    <string name="app_logs_share_subject">天气小部件日志</string>
+    <string name="no_app_logs">暂无应用日志。</string>
+    <string name="app_logs_filter_hint">筛选日志（标签/消息/级别）</string>
+    <string name="app_logs_db_stats">数据库：%1$.1f MB（%2$d 条日志，%3$d 个快照）</string>
+    <string name="app_logs_all_levels">所有级别</string>
+    <string name="app_logs_showing">显示 %1$d 条（%2$s）</string>
+    <string name="app_logs_showing_filtered">显示 %1$d 条匹配\"%2$s\"（%3$s）</string>
+    <string name="icon_preview_title">图标库</string>
+    <string name="icon_preview_description">小部件所用全部天气图标的完整图库。</string>
+    <string name="gallery_icon_pc_slight_rain_new">局部多云小雨（新）</string>
+    <string name="gallery_icon_rain">雨</string>
+    <string name="gallery_icon_chance_rain">可能有雨</string>
+    <string name="gallery_icon_slight_rain">小概率有雨</string>
+    <string name="gallery_icon_snow">雪</string>
+    <string name="gallery_icon_storm">雷暴</string>
+    <string name="gallery_icon_cloudy">阴天</string>
+    <string name="gallery_icon_clear">晴朗</string>
+    <string name="gallery_icon_mostly_clear">大部晴朗</string>
+    <string name="gallery_icon_horizon_sun">日出/日落</string>
+    <string name="gallery_icon_mostly_cloudy">多云</string>
+    <string name="gallery_icon_partly_cloudy">局部多云</string>
+    <string name="gallery_icon_night">夜间</string>
+    <string name="gallery_icon_mostly_cloudy_night">多云（夜间）</string>
+    <string name="gallery_icon_partly_cloudy_night">局部多云（夜间）</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">局部多云，可能有雨</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">局部多云小雨</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">局部多云，可能有雨（夜间）</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">局部多云小雨（夜间）</string>
+    <string name="gallery_icon_fog">雾</string>
+    <string name="gallery_icon_fog_sunny">雾转晴</string>
+    <string name="gallery_icon_fog_light">轻雾</string>
+    <string name="gallery_icon_fog_dense">浓雾</string>
+    <string name="gallery_icon_fog_cloudy">雾伴多云</string>
+    <string name="gallery_icon_fog_night">雾（夜间）</string>
+    <string name="gallery_icon_fog_light_night">轻雾（夜间）</string>
+    <string name="gallery_icon_wind">风</string>
+
+    <string name="gallery_icon_unknown">未知</string>
+
+    <string name="main_welcome">欢迎使用天气小部件</string>
+    <string name="main_how_to_add_title">如何添加小部件</string>
+    <string name="main_how_to_add_desc">1. 长按主屏幕的空白处。\n2. 点按\"小部件\"。\n3. 找到\"Weather Widget\"并将其拖到屏幕上。</string>
+    <string name="main_location_disclosure_title">位置信息声明</string>
+    <string name="main_location_disclosure_desc">天气小部件会收集位置数据，以便在应用关闭或未使用时也能提供本地天气预报。这些数据仅在您的设备本地使用，用于获取您当前位置的准确天气。</string>
+    <string name="background_location_disclosure_title">后台位置访问</string>
+    <string name="background_location_disclosure_desc">为了在小部件中提供自动天气更新，此应用需要在后台也能访问您的位置。\n\n请在下一个屏幕中选择\"始终允许\"以启用后台更新。</string>
+    <string name="grant_location_permission">授予位置权限</string>
+    <string name="open_settings">打开设置</string>
+    <string name="api_keys_title">API 密钥</string>
+    <string name="api_keys_description">为受限服务输入您自己的 API 密钥。免费服务（NWS、Open-Meteo）无需密钥。</string>
+    <string name="api_key_hint">输入 API 密钥</string>
+    <string name="get_api_key">获取密钥…</string>
+    <string name="get_api_key_no_browser">没有可用的浏览器。请前往注册：%1$s</string>
+    <string name="privacy_policy_title">隐私政策</string>
+    <string name="allow">允许</string>
+    <string name="no_thanks">不用了</string>
+    <string name="privacy_policy_body">天气小部件收集位置数据以提供本地天气预报。您的位置仅用于获取您所在地区的天气数据，除天气 API 提供商（NWS、Open-Meteo 等）用于获取预报外，绝不会被存储或与第三方共享。\n\n我们使用 Firebase Crashlytics 监控应用稳定性。这些数据已匿名化。\n\n您可以随时在 Android 设置中撤销位置权限。\n\n如有疑问，请访问：https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">或输入坐标：</string>
+    <string name="latitude_hint">纬度（如 37.422）</string>
+    <string name="longitude_hint">经度（如 -122.0841）</string>
+    <string name="use_coordinates">使用坐标</string>
+    <string name="save_location">保存位置</string>
+    <string name="default_location_title">默认位置</string>
+    <string name="location_saved_success">已为所有小部件更新位置</string>
+    <string name="location_updated_from_gps">已通过 GPS 更新位置</string>
+    <string name="invalid_coordinates_range">请输入有效坐标（纬度 -90 至 90，经度 -180 至 180）</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">反馈 &amp; 错误报告</string>
+    <string name="feedback_and_bug_reports_description">遇到问题或想提出改进建议？提交详细的错误报告，可选附带系统诊断信息。</string>
+    <string name="submit_bug_report">提交错误报告</string>
+    <string name="bug_report_title">提交错误报告</string>
+    <string name="bug_report_description_hint">描述错误（发生了什么以及您预期的结果）。如果是显示问题，请附上截图！</string>
+    <string name="bug_report_include_logs">包含诊断应用日志（近期事件）</string>
+    <string name="bug_report_include_metadata">包含小部件配置 &amp; 数据库统计</string>
+    <string name="bug_report_diagnostics_preview">诊断预览</string>
+    <string name="bug_report_device_info">设备信息</string>
+    <string name="bug_report_db_stats">数据库统计</string>
+    <string name="bug_report_active_widgets">活动的小部件</string>
+    <string name="bug_report_location_info">位置设置</string>
+    <string name="bug_report_send">发送错误报告</string>
+    <string name="bug_report_error_empty_description">发送前请简要描述该问题。</string>
+    <string name="bug_report_collecting_diagnostics">正在收集诊断数据...</string>
+    <string name="view_icon_gallery">查看图标库</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">缺少 %1$s 的逐小时温度数据。将触发刷新。</string>
+    <string name="widget_no_hourly_result_still_missing">刷新结果：未能获取 %1$s 的新逐小时温度数据。数据截至 %2$s</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">刷新结果：未能获取 %1$s 的新逐小时温度数据。</string>
+    <string name="widget_no_hourly_result_available">刷新结果：\n%1$s 的逐小时数据现已可用</string>
+    <string name="units_title">单位</string>
+    <string name="use_celsius_label">使用摄氏度</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">语言</string>
+    <string name="app_language_description">选择此应用使用的语言。将打开 Android 的应用语言设置。</string>
+    <string name="app_language_button">更改应用语言…</string>
+    <string name="app_language_settings_unavailable">此设备不支持应用语言设置</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">今天</string>
+    <string name="widget_loading">加载中...</string>
+    <string name="widget_tap_to_refresh">点按以刷新</string>
+    <string name="current_stations_desc">当前气象站</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">位置：%1$s</string>
+    <string name="saving_coordinates_offline">正在保存坐标（名称查询离线）</string>
+    <string name="location_permission_required">GPS 需要位置权限</string>
+    <string name="location_fix_failed_default">无法获取当前位置。使用默认位置。</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">未设置位置</string>
+    <string name="widget_location_format">小部件位置：%1$s，%2$s</string>
+    <string name="default_location_format">默认位置：%1$s，%2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">当前观测</string>
+    <string name="obs_subtitle_nearby_stations">来自附近气象站的实时数据</string>
+    <string name="obs_subtitle_none_found">未找到 %1$s 的最新观测数据。</string>
+    <string name="obs_subtitle_latest_reading">来自 %1$s 的最新读数</string>
+    <string name="obs_no_location_to_refresh">没有可刷新的位置</string>
+    <string name="obs_refreshed_source">已刷新 %1$s</string>
+    <string name="obs_reported_prefix">"报告于 "</string>
+    <string name="obs_fetched_separator">" • 获取于 "</string>
+    <string name="station_origin_web">网页</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">获取日志</string>
+    <string name="loading_logs">正在加载日志...</string>
+    <string name="close">关闭</string>
+    <string name="name_location_title">命名位置</string>
+    <string name="name_location_message">为此位置起一个自定义名称（如：家、公司、学校）</string>
+    <string name="save">保存</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">30 天准确度摘要</string>
+    <string name="stats_loading">加载中...</string>
+    <string name="stats_daily_breakdown">每日准确度明细</string>
+    <string name="stats_rain_accuracy">昼/夜降雨准确度</string>
+    <string name="stats_no_weather_data">暂无天气数据。</string>
+    <string name="stats_no_history_yet">尚无历史预报数据。\n\n预报快照每天保存。明天再来查看您的首次准确度对比！</string>
+    <string name="stats_source_line">%1$s：最高 ±%2$s，最低 ±%3$s</string>
+    <string name="stats_source_no_data">%1$s：暂无数据</string>
+    <string name="stats_error_loading">加载统计时出错：%1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">"（偏低 %1$s）"</string>
+    <string name="bias_high_suffix">"（偏高 %1$s）"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"最高 ±%1$s  最低 ±%2$s"</string>
+    <string name="accuracy_within_line">"%1$s 以内%%：%2$s  预报数：%3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">位置实测：</string>
+    <string name="label_forecast">预报：</string>
+    <string name="label_error">误差：</string>
+    <string name="label_rain_day">白天（8时–20时）：</string>
+    <string name="label_rain_night">夜间（20时–8时）：</string>
+    <string name="rain_pred_act_format">预报 %1$s / 实测 %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">最高温度</string>
+    <string name="forecast_history_low_temp_title">最低温度</string>
+    <string name="legend_location_actual">位置实测</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">上移</string>
+    <string name="move_down">下移</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">无法启动分享</string>
+    <string name="bug_report_email_subject">天气小部件错误报告</string>
+</resources>

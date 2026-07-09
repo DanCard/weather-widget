@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">天気ウィジェット</string>
+    <string name="widget_description">現在の天気と予報を表示する、サイズ変更可能な天気ウィジェット</string>
+    <string name="configure_widget">ウィジェットを設定</string>
+    <string name="select_data_source">気象データソースを選択</string>
+    <string name="use_current_location">現在地を使用</string>
+    <string name="widget_location_title">ウィジェットの位置情報</string>
+    <string name="use_precise_location">端末の正確な位置情報を使用</string>
+    <string name="follow_device_explainer">ウィジェットは端末の位置に追従します</string>
+    <string name="or_search_location">または都市名、住所、郵便番号で検索：</string>
+    <string name="location_search_hint">都市名、住所、郵便番号</string>
+    <string name="search_location">検索</string>
+    <string name="location_search_no_results">一致なし — つづりかネットワークを確認してください</string>
+    <string name="getting_location">位置情報を取得中…</string>
+    <string name="use_this_location">この場所を使用</string>
+    <string name="location_found_label">端末の位置が見つかりました：%1$s</string>
+    <string name="location_fix_failed">端末の位置を取得できませんでした — 下のオプションを選んでください</string>
+    <string name="pinned_location_explainer">検索した場所や座標を選ぶと、その場所が固定されます。\"端末の正確な位置情報を使用\"をもう一度タップするまで、ウィジェットは端末に追従しなくなります。</string>
+    <string name="set_location_button">位置を設定…</string>
+    <string name="location_mode_pinned">固定中</string>
+    <string name="location_mode_follow">端末に追従</string>
+    <string name="offline">オフライン</string>
+    <string name="tap_to_configure">タップして設定</string>
+    <string name="settings">設定</string>
+    <string name="app_logs">アプリログ</string>
+    <string name="back">戻る</string>
+    <string name="refresh">更新</string>
+    <string name="refresh_now">データを更新</string>
+    <string name="refresh_now_enqueued_toast">データ更新をキューに追加しました</string>
+    <string name="nav_previous">前の日</string>
+    <string name="nav_next">次の日</string>
+    <string name="weather_icon_desc">天気アイコン</string>
+    <string name="home_forecast">日別予報に戻る</string>
+    <string name="api_preference">気象データソース</string>
+    <string name="api_preference_description">優先する天気 API を選択（利用不可の場合は他の API を使用）</string>
+    <string name="api_alternate">交互 - NWS、Open-Meteo、WeatherAPI をローテーション</string>
+    <string name="api_prefer_nws">NWS を優先 - 米国国立気象局（米国のみ）</string>
+    <string name="api_prefer_openmeteo">Open-Meteo を優先 - 全世界対応</string>
+    <string name="api_prefer_weatherapi">WeatherAPI を優先 - 全世界対応</string>
+    <string name="api_sources_title">気象データソース</string>
+    <string name="api_sources_description">ソースの有効/無効と並べ替えができます。無効にしたソースは、再度有効にするまでウィジェットの切り替えとバックグラウンド取得から除外されます。</string>
+    <string name="must_keep_one_source">少なくとも 1 つのソースを有効にしておく必要があります</string>
+    <string name="personal_stations_title">個人気象観測所</string>
+    <string name="personal_stations_description" formatted="false">個人（庭先）の観測所は日なたで高めに出がちです。実測気温への寄与をどれだけ割り引くかを設定します。0% = 割引なし：個人観測所を公式観測所と同等に扱います。100% = 個人観測所を無視します。</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · 割引なし</string>
+    <string name="personal_stations_ignored" formatted="false">100% · 無視</string>
+    <string name="api_source_silurian_desc">Silurian.ai — Silur と表示（全世界対応）</string>
+    <string name="api_source_nws_desc">米国国立気象局（米国のみ）</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — Tmrw と表示（全世界対応）</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr と表示（全世界対応）</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — Meteo と表示（全世界対応）</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — WAPI と表示（全世界対応）</string>
+    <string name="statistics">統計</string>
+    <string name="view_detailed_statistics">詳細な統計</string>
+    <string name="forecast_accuracy_summary_title">予報精度（過去 30 日間）</string>
+    <string name="loading_accuracy_summary">予報精度を読み込み中...</string>
+    <string name="error_loading_accuracy_summary">予報精度を現在読み込めません。</string>
+    <string name="data_freshness_unknown">データの鮮度：不明</string>
+    <string name="data_freshness_format">最終更新：%1$s</string>
+    <string name="freshness_last_updated">最終更新：%1$s前</string>
+    <string name="refresh_policy_charging">更新ポリシー：30 分ごと（充電中）</string>
+    <string name="refresh_policy_battery_high">更新ポリシー：4 時間ごと（バッテリー %1$d%%）</string>
+    <string name="refresh_policy_battery_mid">更新ポリシー：8 時間ごと（バッテリー %1$d%%）</string>
+    <string name="refresh_policy_battery_low">更新ポリシー：一時停止（バッテリー %1$d%%）</string>
+    <string name="forecast_policy_charging_1h">予報取得：充電中は 1 時間ごと（プライマリ API）</string>
+    <string name="forecast_policy_charging_90m">予報取得：充電中は 90 分ごと（セカンダリ API）</string>
+    <string name="forecast_policy_charging_2h">予報取得：充電中は 2 時間ごと（3 番目以降の API）</string>
+    <string name="forecast_policy_battery_high">予報取得：4 時間ごと（バッテリー %1$d%%）</string>
+    <string name="forecast_policy_battery_mid">予報取得：8 時間ごと（バッテリー %1$d%%）</string>
+    <string name="forecast_policy_battery_low">予報取得：一時停止（バッテリー %1$d%%）</string>
+    <string name="freshness_just_now">たった今</string>
+    <string name="forecast_history">"予報履歴："</string>
+    <string name="forecast_history_summary_single">%1$d 件の %2$s 予報スナップショット</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI スナップショット</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$d 件の気候補完ポイント</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">%1$s API 実測：%2$s / %3$s</string>
+    <string name="forecast_history_location_actual">地点の実測：%1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">過去の予報データはまだありません。\n予報スナップショットは毎日保存されます。初回の精度比較は明日ご確認ください。</string>
+    <string name="forecast_history_no_data_fallback_source">選択中のソース</string>
+    <string name="forecast_history_prev_day">前日</string>
+    <string name="forecast_history_next_day">翌日</string>
+    <string name="forecast_history_subtitle">予報履歴</string>
+    <string name="freshness_forecast_fetch_ago">予報取得：%1$s前</string>
+    <string name="freshness_forecast_fetch_never">予報取得：未実行</string>
+    <string name="freshness_displayed_data">表示中のデータ（%1$s）：%2$s前に取得</string>
+    <string name="forecast_mode_evolution">モード：推移</string>
+    <string name="forecast_mode_error">モード：誤差</string>
+    <string name="forecast_mode_hourly">モード：気温</string>
+    <string name="forecast_evolution_high_title">最高気温の推移</string>
+    <string name="forecast_evolution_low_title">最低気温の推移</string>
+    <string name="forecast_error_high_title">最高気温の誤差</string>
+    <string name="forecast_error_low_title">最低気温の誤差</string>
+    <string name="forecast_show_hourly">気温予報</string>
+    <string name="forecast_show_evolution">予報履歴に戻る</string>
+    <string name="forecast_hourly_title">気温予報</string>
+    <string name="forecast_hourly_subtitle">1 時間ごとの詳細</string>
+    <string name="forecast_hourly_no_data">この日付の 1 時間ごとの気温予報はありません。</string>
+    <string name="forecast_hourly_legend">現在</string>
+    <string name="forecast_history_no_data_for_source">この日付の予報履歴はありません（%1$s）。</string>
+    <string name="forecast_error_requires_actuals">誤差表示は、その日の実測気温が記録された後に利用できます。</string>
+    <string name="legend_actual">API 実測</string>
+    <string name="legend_zero_error">誤差ゼロ</string>
+    <string name="view_app_logs">アプリログを表示</string>
+    <string name="clear_app_logs">ログを消去</string>
+    <string name="app_logs_refresh_current">現在気温を更新</string>
+    <string name="app_logs_force_refresh">強制</string>
+    <string name="app_logs_refreshing_toast">現在気温の更新をキューに追加しました</string>
+    <string name="app_logs_cleared">ログを消去しました</string>
+    <string name="app_logs_share">共有</string>
+    <string name="app_logs_share_chooser">ログを共有</string>
+    <string name="app_logs_share_empty">共有できるログがありません</string>
+    <string name="app_logs_share_subject">天気ウィジェットのログ</string>
+    <string name="no_app_logs">アプリログはまだありません。</string>
+    <string name="app_logs_filter_hint">ログをフィルタ（タグ/メッセージ/レベル）</string>
+    <string name="app_logs_db_stats">DB：%1$.1f MB（ログ %2$d 件、スナップショット %3$d 件）</string>
+    <string name="app_logs_all_levels">すべてのレベル</string>
+    <string name="app_logs_showing">%1$d 件表示中（%2$s）</string>
+    <string name="app_logs_showing_filtered">\"%2$s\" に一致する %1$d 件を表示中（%3$s）</string>
+    <string name="icon_preview_title">アイコンギャラリー</string>
+    <string name="icon_preview_description">ウィジェットで使われる全天気アイコンの総合ギャラリー。</string>
+    <string name="gallery_icon_pc_slight_rain_new">晴れ時々曇り 弱い雨（新）</string>
+    <string name="gallery_icon_rain">雨</string>
+    <string name="gallery_icon_chance_rain">雨の可能性</string>
+    <string name="gallery_icon_slight_rain">わずかな雨の可能性</string>
+    <string name="gallery_icon_snow">雪</string>
+    <string name="gallery_icon_storm">雷雨</string>
+    <string name="gallery_icon_cloudy">曇り</string>
+    <string name="gallery_icon_clear">快晴/晴れ</string>
+    <string name="gallery_icon_mostly_clear">おおむね晴れ</string>
+    <string name="gallery_icon_horizon_sun">日の出/日の入り</string>
+    <string name="gallery_icon_mostly_cloudy">おおむね曇り</string>
+    <string name="gallery_icon_partly_cloudy">晴れ時々曇り</string>
+    <string name="gallery_icon_night">夜間</string>
+    <string name="gallery_icon_mostly_cloudy_night">おおむね曇り（夜間）</string>
+    <string name="gallery_icon_partly_cloudy_night">晴れ時々曇り（夜間）</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">晴れ時々曇り 雨の可能性</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">晴れ時々曇り 弱い雨</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">晴れ時々曇り 雨の可能性（夜間）</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">晴れ時々曇り 弱い雨（夜間）</string>
+    <string name="gallery_icon_fog">霧</string>
+    <string name="gallery_icon_fog_sunny">霧のち晴れ</string>
+    <string name="gallery_icon_fog_light">薄い霧</string>
+    <string name="gallery_icon_fog_dense">濃霧</string>
+    <string name="gallery_icon_fog_cloudy">霧と曇り</string>
+    <string name="gallery_icon_fog_night">霧（夜間）</string>
+    <string name="gallery_icon_fog_light_night">薄い霧（夜間）</string>
+    <string name="gallery_icon_wind">風</string>
+
+    <string name="gallery_icon_unknown">不明</string>
+
+    <string name="main_welcome">天気ウィジェットへようこそ</string>
+    <string name="main_how_to_add_title">ウィジェットの追加方法</string>
+    <string name="main_how_to_add_desc">1. ホーム画面の空いている場所を長押しします。\n2. \"ウィジェット\"をタップします。\n3. \"Weather Widget\"を見つけて画面にドラッグします。</string>
+    <string name="main_location_disclosure_title">位置情報の開示</string>
+    <string name="main_location_disclosure_desc">天気ウィジェットは、アプリが閉じているときや使われていないときでも地域の天気予報を提供するために位置情報を収集します。このデータは端末内でのみ使用され、現在地の正確な天気を取得するためだけに使われます。</string>
+    <string name="background_location_disclosure_title">バックグラウンドでの位置情報アクセス</string>
+    <string name="background_location_disclosure_desc">ウィジェットで自動的に天気を更新するには、このアプリがバックグラウンドでも位置情報にアクセスする必要があります。\n\n次の画面で\"常に許可\"を選択して、バックグラウンド更新を有効にしてください。</string>
+    <string name="grant_location_permission">位置情報の権限を許可</string>
+    <string name="open_settings">設定を開く</string>
+    <string name="api_keys_title">API キー</string>
+    <string name="api_keys_description">制限付きサービス用に自分の API キーを入力します。無料サービス（NWS、Open-Meteo）にキーは不要です。</string>
+    <string name="api_key_hint">API キーを入力</string>
+    <string name="get_api_key">キーを取得…</string>
+    <string name="get_api_key_no_browser">ブラウザがありません。登録先：%1$s</string>
+    <string name="privacy_policy_title">プライバシーポリシー</string>
+    <string name="allow">許可</string>
+    <string name="no_thanks">今はしない</string>
+    <string name="privacy_policy_body">天気ウィジェットは地域の天気予報を提供するために位置情報を収集します。位置情報はお住まいの地域の気象データ取得のみに使用され、予報取得のための天気 API プロバイダ（NWS、Open-Meteo など）を除き、保存されたり第三者と共有されたりすることはありません。\n\nアプリの安定性監視のために Firebase Crashlytics を使用しています。このデータは匿名化されています。\n\n位置情報の権限は Android の設定からいつでも取り消せます。\n\nご質問は：https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">または座標を入力：</string>
+    <string name="latitude_hint">緯度（例 37.422）</string>
+    <string name="longitude_hint">経度（例 -122.0841）</string>
+    <string name="use_coordinates">座標を使用</string>
+    <string name="save_location">位置を保存</string>
+    <string name="default_location_title">デフォルトの位置</string>
+    <string name="location_saved_success">すべてのウィジェットの位置を更新しました</string>
+    <string name="location_updated_from_gps">GPS から位置を更新しました</string>
+    <string name="invalid_coordinates_range">有効な座標を入力してください（緯度 -90〜90、経度 -180〜180）</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">フィードバック &amp; バグ報告</string>
+    <string name="feedback_and_bug_reports_description">問題が起きた、または改善の提案がありますか？システム診断（任意）を添えて詳細なバグ報告を送信できます。</string>
+    <string name="submit_bug_report">バグ報告を送信</string>
+    <string name="bug_report_title">バグ報告を送信</string>
+    <string name="bug_report_description_hint">バグを説明してください（何が起きたか、何を期待していたか）。表示の問題ならスクリーンショットを添付してください！</string>
+    <string name="bug_report_include_logs">診断用アプリログを含める（最近のイベント）</string>
+    <string name="bug_report_include_metadata">ウィジェット設定 &amp; DB 統計を含める</string>
+    <string name="bug_report_diagnostics_preview">診断プレビュー</string>
+    <string name="bug_report_device_info">端末情報</string>
+    <string name="bug_report_db_stats">データベース統計</string>
+    <string name="bug_report_active_widgets">アクティブなウィジェット</string>
+    <string name="bug_report_location_info">位置設定</string>
+    <string name="bug_report_send">バグ報告を送信</string>
+    <string name="bug_report_error_empty_description">送信する前に問題の簡単な説明を書いてください。</string>
+    <string name="bug_report_collecting_diagnostics">診断データを収集中...</string>
+    <string name="view_icon_gallery">アイコンギャラリーを表示</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">%1$s の 1 時間ごとの気温データがありません。更新を実行します。</string>
+    <string name="widget_no_hourly_result_still_missing">更新結果：%1$s の新しい 1 時間ごとの気温データは取得できませんでした。データは %2$s で終わっています</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">更新結果：%1$s の新しい 1 時間ごとの気温データは取得できませんでした。</string>
+    <string name="widget_no_hourly_result_available">更新結果：\n%1$s の 1 時間ごとのデータが利用可能になりました</string>
+    <string name="units_title">単位</string>
+    <string name="use_celsius_label">摂氏を使用</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">言語</string>
+    <string name="app_language_description">このアプリで使う言語を選択します。Android のアプリごとの言語設定を開きます。</string>
+    <string name="app_language_button">アプリの言語を変更…</string>
+    <string name="app_language_settings_unavailable">この端末ではアプリごとの言語設定を利用できません</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">今日</string>
+    <string name="widget_loading">読み込み中...</string>
+    <string name="widget_tap_to_refresh">タップして更新</string>
+    <string name="current_stations_desc">現在の観測所</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">位置：%1$s</string>
+    <string name="saving_coordinates_offline">座標を保存中（地名検索はオフライン）</string>
+    <string name="location_permission_required">GPS には位置情報の権限が必要です</string>
+    <string name="location_fix_failed_default">現在地を取得できませんでした。デフォルトを使用します。</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">位置が未設定です</string>
+    <string name="widget_location_format">ウィジェットの位置：%1$s、%2$s</string>
+    <string name="default_location_format">デフォルトの位置：%1$s、%2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">現在の観測</string>
+    <string name="obs_subtitle_nearby_stations">近くの観測所からのリアルタイムデータ</string>
+    <string name="obs_subtitle_none_found">%1$s の最近の観測データは見つかりませんでした。</string>
+    <string name="obs_subtitle_latest_reading">%1$s からの最新の測定値</string>
+    <string name="obs_no_location_to_refresh">更新できる位置がありません</string>
+    <string name="obs_refreshed_source">%1$s を更新しました</string>
+    <string name="obs_reported_prefix">"観測 "</string>
+    <string name="obs_fetched_separator">" • 取得 "</string>
+    <string name="station_origin_web">ウェブ</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">取得ログ</string>
+    <string name="loading_logs">ログを読み込み中...</string>
+    <string name="close">閉じる</string>
+    <string name="name_location_title">位置に名前を付ける</string>
+    <string name="name_location_message">この位置にカスタム名を付けてください（例：自宅、職場、学校）</string>
+    <string name="save">保存</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">30 日間の精度サマリー</string>
+    <string name="stats_loading">読み込み中...</string>
+    <string name="stats_daily_breakdown">日別の精度内訳</string>
+    <string name="stats_rain_accuracy">昼/夜の降雨精度</string>
+    <string name="stats_no_weather_data">気象データはまだありません。</string>
+    <string name="stats_no_history_yet">過去の予報データはまだありません。\n\n予報スナップショットは毎日保存されています。初回の精度比較は明日ご確認ください！</string>
+    <string name="stats_source_line">%1$s：最高 ±%2$s、最低 ±%3$s</string>
+    <string name="stats_source_no_data">%1$s：データはまだありません</string>
+    <string name="stats_error_loading">統計の読み込みエラー：%1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">"（%1$s 低め）"</string>
+    <string name="bias_high_suffix">"（%1$s 高め）"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"最高 ±%1$s  最低 ±%2$s"</string>
+    <string name="accuracy_within_line">"%1$s 以内の%%：%2$s  予報数：%3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">地点の実測：</string>
+    <string name="label_forecast">予報：</string>
+    <string name="label_error">誤差：</string>
+    <string name="label_rain_day">昼（8時–20時）：</string>
+    <string name="label_rain_night">夜（20時–8時）：</string>
+    <string name="rain_pred_act_format">予報 %1$s / 実測 %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">最高気温</string>
+    <string name="forecast_history_low_temp_title">最低気温</string>
+    <string name="legend_location_actual">地点の実測</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">上へ移動</string>
+    <string name="move_down">下へ移動</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">共有を開始できませんでした</string>
+    <string name="bug_report_email_subject">天気ウィジェットのバグ報告</string>
+</resources>

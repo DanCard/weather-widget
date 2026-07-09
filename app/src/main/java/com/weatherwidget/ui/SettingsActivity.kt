@@ -1,7 +1,10 @@
 package com.weatherwidget.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -141,6 +144,29 @@ class SettingsActivity : AppCompatActivity() {
         useCelsiusSwitch.setOnCheckedChangeListener { _, isChecked ->
             widgetStateManager.setUseCelsius(isChecked)
             WeatherWidgetProvider.triggerUiOnlyUpdate(this, "unit_preference_changed")
+        }
+
+        // App language: ACTION_APP_LOCALE_SETTINGS exists only on API 33+; older versions
+        // have no per-app locale override, so the section stays gone there.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            findViewById<LinearLayout>(R.id.language_settings_section).visibility = View.VISIBLE
+            findViewById<Button>(R.id.app_language_button).setOnClickListener {
+                try {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_APP_LOCALE_SETTINGS,
+                            Uri.fromParts("package", packageName, null),
+                        ),
+                    )
+                } catch (e: ActivityNotFoundException) {
+                    // Some OEM builds ship API 33+ without the per-app locale screen.
+                    Toast.makeText(
+                        this,
+                        getString(R.string.app_language_settings_unavailable),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
         }
 
         // Back button

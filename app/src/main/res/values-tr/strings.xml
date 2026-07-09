@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hava Durumu Widget\'ı</string>
+    <string name="widget_description">Mevcut koşulları ve tahmini gösteren, yeniden boyutlandırılabilir hava durumu widget\'ı</string>
+    <string name="configure_widget">Widget\'ı yapılandır</string>
+    <string name="select_data_source">Hava durumu veri kaynağını seçin</string>
+    <string name="use_current_location">Mevcut konumu kullan</string>
+    <string name="widget_location_title">Widget konumu</string>
+    <string name="use_precise_location">Cihazın hassas konumunu kullan</string>
+    <string name="follow_device_explainer">Widget\'lar cihazınızın konumunu takip edecek</string>
+    <string name="or_search_location">Veya şehir, adres ya da posta koduna göre arayın:</string>
+    <string name="location_search_hint">Şehir, adres veya posta kodu</string>
+    <string name="search_location">Ara</string>
+    <string name="location_search_no_results">Eşleşme bulunamadı — yazımı veya ağı kontrol edin</string>
+    <string name="getting_location">Konum alınıyor…</string>
+    <string name="use_this_location">Bu konumu kullan</string>
+    <string name="location_found_label">Cihaz konumu bulundu: %1$s</string>
+    <string name="location_fix_failed">Cihaz konumu alınamadı — aşağıdan bir seçenek belirleyin</string>
+    <string name="pinned_location_explainer">Aranan bir konumu veya koordinatları seçmek onu sabitler. \"Cihazın hassas konumunu kullan\" seçeneğine tekrar dokunana kadar widget\'lar cihazı takip etmeyi bırakır.</string>
+    <string name="set_location_button">Konumu ayarla…</string>
+    <string name="location_mode_pinned">Sabitlendi</string>
+    <string name="location_mode_follow">Cihazı takip ediyor</string>
+    <string name="offline">Çevrimdışı</string>
+    <string name="tap_to_configure">Yapılandırmak için dokunun</string>
+    <string name="settings">Ayarlar</string>
+    <string name="app_logs">Uygulama günlükleri</string>
+    <string name="back">Geri</string>
+    <string name="refresh">Yenile</string>
+    <string name="refresh_now">Verileri yenile</string>
+    <string name="refresh_now_enqueued_toast">Veri yenileme sıraya alındı</string>
+    <string name="nav_previous">Önceki günler</string>
+    <string name="nav_next">Sonraki günler</string>
+    <string name="weather_icon_desc">Hava durumu simgesi</string>
+    <string name="home_forecast">Günlük tahmine dön</string>
+    <string name="api_preference">Hava durumu veri kaynağı</string>
+    <string name="api_preference_description">Hangi hava durumu API\'sinin tercih edileceğini seçin (kullanılamıyorsa diğeri kullanılır)</string>
+    <string name="api_alternate">Dönüşümlü - NWS, Open-Meteo ve WeatherAPI arasında geçiş yap</string>
+    <string name="api_prefer_nws">NWS\'yi tercih et - Ulusal Hava Servisi (yalnızca ABD)</string>
+    <string name="api_prefer_openmeteo">Open-Meteo\'yu tercih et - Küresel kapsama</string>
+    <string name="api_prefer_weatherapi">WeatherAPI\'yi tercih et - Küresel kapsama</string>
+    <string name="api_sources_title">Hava durumu veri kaynakları</string>
+    <string name="api_sources_description">Kaynakları etkinleştirin/devre dışı bırakın ve yeniden sıralayın. Devre dışı kaynaklar yeniden etkinleştirilene kadar widget geçişlerinden ve arka plan indirmelerinden hariç tutulur.</string>
+    <string name="must_keep_one_source">En az bir kaynak etkin kalmalı</string>
+    <string name="personal_stations_title">Kişisel hava istasyonları</string>
+    <string name="personal_stations_description" formatted="false">Kişisel (bahçe) istasyonları güneşte genellikle yüksek ölçer. Ölçülen sıcaklığa katkılarının ne kadar azaltılacağını belirleyin. 0% = indirim yok: kişisel istasyonlar resmi istasyonlarla aynı sayılır. 100% = kişisel istasyonlar yok sayılır.</string>
+    <string name="personal_stations_no_discount" formatted="false">0% · indirim yok</string>
+    <string name="personal_stations_ignored" formatted="false">100% · yok sayılır</string>
+    <string name="api_source_silurian_desc">Silurian.ai — Silur olarak gösterilir (küresel kapsama)</string>
+    <string name="api_source_nws_desc">Ulusal Hava Servisi (yalnızca ABD)</string>
+    <string name="api_source_tomorrowio_desc">Tomorrow.io — Tmrw olarak gösterilir (küresel kapsama)</string>
+    <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr olarak gösterilir (küresel kapsama)</string>
+    <string name="api_source_openmeteo_desc">Open-Meteo — Meteo olarak gösterilir (küresel kapsama)</string>
+    <string name="api_source_weatherapi_desc">WeatherAPI — WAPI olarak gösterilir (küresel kapsama)</string>
+    <string name="statistics">İstatistikler</string>
+    <string name="view_detailed_statistics">Ayrıntılı istatistikler</string>
+    <string name="forecast_accuracy_summary_title">Tahmin doğruluğu (son 30 gün)</string>
+    <string name="loading_accuracy_summary">Tahmin doğruluğu yükleniyor...</string>
+    <string name="error_loading_accuracy_summary">Tahmin doğruluğu şu anda yüklenemiyor.</string>
+    <string name="data_freshness_unknown">Veri güncelliği: Bilinmiyor</string>
+    <string name="data_freshness_format">Son güncelleme: %1$s</string>
+    <string name="freshness_last_updated">Son güncelleme: %1$s önce</string>
+    <string name="refresh_policy_charging">Yenileme: Her 30 dk (şarjda)</string>
+    <string name="refresh_policy_battery_high">Yenileme: Her 4 sa (pil %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">Yenileme: Her 8 sa (pil %1$d%%)</string>
+    <string name="refresh_policy_battery_low">Yenileme: Duraklatıldı (pil %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">Tahmin indirme: Şarjda her 1 sa (birincil API)</string>
+    <string name="forecast_policy_charging_90m">Tahmin indirme: Şarjda her 90 dk (ikincil API)</string>
+    <string name="forecast_policy_charging_2h">Tahmin indirme: Şarjda her 2 sa (3.+ API)</string>
+    <string name="forecast_policy_battery_high">Tahmin indirme: Her 4 sa (pil %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">Tahmin indirme: Her 8 sa (pil %1$d%%)</string>
+    <string name="forecast_policy_battery_low">Tahmin indirme: Duraklatıldı (pil %1$d%%)</string>
+    <string name="freshness_just_now">az önce</string>
+    <string name="forecast_history">"Tahmin geçmişi: "</string>
+    <string name="forecast_history_summary_single">%1$d %2$s tahmin anlık görüntüsü</string>
+    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI anlık görüntüsü</string>
+    <string name="forecast_history_summary_climate_fill"> • %1$d iklim dolgu noktası</string>
+    <string name="forecast_history_api_fallback_label">API</string>
+    <string name="forecast_history_api_actual">%1$s API gerçek: %2$s / %3$s</string>
+    <string name="forecast_history_location_actual">Konum gerçek: %1$s / %2$s</string>
+    <string name="forecast_history_no_history_yet">Henüz geçmiş tahmin verisi yok.\nTahmin anlık görüntüleri her gün kaydedilir. İlk doğruluk karşılaştırmanız için yarın tekrar bakın.</string>
+    <string name="forecast_history_no_data_fallback_source">seçilen kaynak</string>
+    <string name="forecast_history_prev_day">Önceki gün</string>
+    <string name="forecast_history_next_day">Sonraki gün</string>
+    <string name="forecast_history_subtitle">Tahmin geçmişi</string>
+    <string name="freshness_forecast_fetch_ago">Tahmin indirme: %1$s önce</string>
+    <string name="freshness_forecast_fetch_never">Tahmin indirme: hiç</string>
+    <string name="freshness_displayed_data">Gösterilen veriler (%1$s): %2$s önce alındı</string>
+    <string name="forecast_mode_evolution">Mod: Evrim</string>
+    <string name="forecast_mode_error">Mod: Hata</string>
+    <string name="forecast_mode_hourly">Mod: Sıcaklık</string>
+    <string name="forecast_evolution_high_title">En yüksek sıcaklık evrimi</string>
+    <string name="forecast_evolution_low_title">En düşük sıcaklık evrimi</string>
+    <string name="forecast_error_high_title">En yüksek sıcaklık hatası</string>
+    <string name="forecast_error_low_title">En düşük sıcaklık hatası</string>
+    <string name="forecast_show_hourly">Sıcaklık tahmini</string>
+    <string name="forecast_show_evolution">Tahmin geçmişine dön</string>
+    <string name="forecast_hourly_title">Sıcaklık tahmini</string>
+    <string name="forecast_hourly_subtitle">Saatlik ayrıntı</string>
+    <string name="forecast_hourly_no_data">Bu tarih için saatlik sıcaklık tahmini yok.</string>
+    <string name="forecast_hourly_legend">Şimdi</string>
+    <string name="forecast_history_no_data_for_source">Bu tarih için tahmin geçmişi yok (%1$s).</string>
+    <string name="forecast_error_requires_actuals">Hata görünümü, bu gün için gerçek sıcaklıklar kaydedildikten sonra kullanılabilir.</string>
+    <string name="legend_actual">API gerçek</string>
+    <string name="legend_zero_error">Sıfır hata</string>
+    <string name="view_app_logs">Uygulama günlüklerini görüntüle</string>
+    <string name="clear_app_logs">Günlükleri temizle</string>
+    <string name="app_logs_refresh_current">Mevcut sıcaklığı yenile</string>
+    <string name="app_logs_force_refresh">Zorla</string>
+    <string name="app_logs_refreshing_toast">Mevcut sıcaklık yenileme sıraya alındı</string>
+    <string name="app_logs_cleared">Günlükler temizlendi</string>
+    <string name="app_logs_share">Paylaş</string>
+    <string name="app_logs_share_chooser">Günlükleri paylaş</string>
+    <string name="app_logs_share_empty">Paylaşılacak günlük yok</string>
+    <string name="app_logs_share_subject">Hava Durumu Widget\'ı günlükleri</string>
+    <string name="no_app_logs">Henüz uygulama günlüğü yok.</string>
+    <string name="app_logs_filter_hint">Günlükleri filtrele (etiket/mesaj/seviye)</string>
+    <string name="app_logs_db_stats">VT: %1$.1f MB (%2$d günlük, %3$d anlık görüntü)</string>
+    <string name="app_logs_all_levels">Tüm seviyeler</string>
+    <string name="app_logs_showing">%1$d gösteriliyor (%2$s)</string>
+    <string name="app_logs_showing_filtered">\"%2$s\" ile eşleşen %1$d gösteriliyor (%3$s)</string>
+    <string name="icon_preview_title">Simge galerisi</string>
+    <string name="icon_preview_description">Widget\'ta kullanılan tüm hava durumu simgelerinin kapsamlı galerisi.</string>
+    <string name="gallery_icon_pc_slight_rain_new">Parçalı bulutlu, hafif yağmur (yeni)</string>
+    <string name="gallery_icon_rain">Yağmur</string>
+    <string name="gallery_icon_chance_rain">Yağmur ihtimali</string>
+    <string name="gallery_icon_slight_rain">Düşük yağmur ihtimali</string>
+    <string name="gallery_icon_snow">Kar</string>
+    <string name="gallery_icon_storm">Fırtına</string>
+    <string name="gallery_icon_cloudy">Bulutlu</string>
+    <string name="gallery_icon_clear">Açık/Güneşli</string>
+    <string name="gallery_icon_mostly_clear">Çoğunlukla açık</string>
+    <string name="gallery_icon_horizon_sun">Gündoğumu/Günbatımı</string>
+    <string name="gallery_icon_mostly_cloudy">Çoğunlukla bulutlu</string>
+    <string name="gallery_icon_partly_cloudy">Parçalı bulutlu</string>
+    <string name="gallery_icon_night">Gece</string>
+    <string name="gallery_icon_mostly_cloudy_night">Çoğunlukla bulutlu (gece)</string>
+    <string name="gallery_icon_partly_cloudy_night">Parçalı bulutlu (gece)</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain">Parçalı bulutlu, yağmur ihtimali</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain">Parçalı bulutlu, hafif yağmur</string>
+    <string name="gallery_icon_partly_cloudy_chance_rain_night">Parçalı bulutlu, yağmur ihtimali (gece)</string>
+    <string name="gallery_icon_partly_cloudy_slight_rain_night">Parçalı bulutlu, hafif yağmur (gece)</string>
+    <string name="gallery_icon_fog">Sis</string>
+    <string name="gallery_icon_fog_sunny">Sis, güneşli</string>
+    <string name="gallery_icon_fog_light">Hafif sis</string>
+    <string name="gallery_icon_fog_dense">Yoğun sis</string>
+    <string name="gallery_icon_fog_cloudy">Sis, bulutlu</string>
+    <string name="gallery_icon_fog_night">Sis (gece)</string>
+    <string name="gallery_icon_fog_light_night">Hafif sis (gece)</string>
+    <string name="gallery_icon_wind">Rüzgâr</string>
+
+    <string name="gallery_icon_unknown">Bilinmiyor</string>
+
+    <string name="main_welcome">Hava Durumu Widget\'ına hoş geldiniz</string>
+    <string name="main_how_to_add_title">Widget nasıl eklenir</string>
+    <string name="main_how_to_add_desc">1. Ana ekranda boş bir alana uzun basın.\n2. \"Widget\'lar\" seçeneğine dokunun.\n3. \"Weather Widget\"ı bulup ekranınıza sürükleyin.</string>
+    <string name="main_location_disclosure_title">Konum bildirimi</string>
+    <string name="main_location_disclosure_desc">Hava Durumu Widget\'ı, uygulama kapalıyken veya kullanılmıyorken bile yerel hava tahminleri sunmak için konum verisi toplar. Bu veriler yalnızca cihazınızda yerel olarak, mevcut konumunuz için doğru hava durumunu almak amacıyla kullanılır.</string>
+    <string name="background_location_disclosure_title">Arka planda konum erişimi</string>
+    <string name="background_location_disclosure_desc">Widget\'ınızda otomatik hava durumu güncellemeleri sunmak için bu uygulamanın arka plandayken de konumunuza erişmesi gerekir.\n\nSonraki ekranda arka plan güncellemelerini etkinleştirmek için lütfen \"Her zaman izin ver\" seçeneğini belirleyin.</string>
+    <string name="grant_location_permission">Konum izni ver</string>
+    <string name="open_settings">Ayarları aç</string>
+    <string name="api_keys_title">API anahtarları</string>
+    <string name="api_keys_description">Kısıtlı hizmetler için kendi API anahtarlarınızı girin. Ücretsiz hizmetler (NWS, Open-Meteo) anahtar gerektirmez.</string>
+    <string name="api_key_hint">API anahtarı girin</string>
+    <string name="get_api_key">Anahtar al…</string>
+    <string name="get_api_key_no_browser">Tarayıcı yok. Kaydolun: %1$s</string>
+    <string name="privacy_policy_title">Gizlilik Politikası</string>
+    <string name="allow">İzin ver</string>
+    <string name="no_thanks">Hayır, teşekkürler</string>
+    <string name="privacy_policy_body">Hava Durumu Widget\'ı yerel hava tahminleri sunmak için konum verisi toplar. Konumunuz yalnızca bölgeniz için hava durumu verilerini almak amacıyla kullanılır ve tahminleri almak için hava durumu API sağlayıcıları (NWS, Open-Meteo vb.) dışında hiçbir zaman saklanmaz veya üçüncü taraflarla paylaşılmaz.\n\nUygulama kararlılığını izlemek için Firebase Crashlytics kullanıyoruz. Bu veriler anonimleştirilmiştir.\n\nKonum izinlerini istediğiniz zaman Android Ayarları\'ndan iptal edebilirsiniz.\n\nSorular için: https://github.com/dcar/weather-widget/issues</string>
+    <string name="or_enter_coordinates">Veya koordinatları girin:</string>
+    <string name="latitude_hint">Enlem (örn. 37.422)</string>
+    <string name="longitude_hint">Boylam (örn. -122.0841)</string>
+    <string name="use_coordinates">Koordinatları kullan</string>
+    <string name="save_location">Konumu kaydet</string>
+    <string name="default_location_title">Varsayılan konum</string>
+    <string name="location_saved_success">Tüm widget\'lar için konum güncellendi</string>
+    <string name="location_updated_from_gps">Konum GPS\'ten güncellendi</string>
+    <string name="invalid_coordinates_range">Lütfen geçerli koordinatlar girin (enlem -90 ile 90, boylam -180 ile 180 arası)</string>
+
+    <!-- Bug Reporting strings -->
+    <string name="feedback_and_bug_reports">Geri bildirim &amp; hata raporları</string>
+    <string name="feedback_and_bug_reports_description">Bir sorunla mı karşılaştınız veya bir iyileştirme mi önermek istiyorsunuz? İsteğe bağlı sistem tanılamasıyla ayrıntılı bir hata raporu gönderin.</string>
+    <string name="submit_bug_report">Hata raporu gönder</string>
+    <string name="bug_report_title">Hata raporu gönder</string>
+    <string name="bug_report_description_hint">Hatayı açıklayın (ne oldu ve ne bekliyordunuz). Görsel bir sorunsa ekran görüntüsü ekleyin!</string>
+    <string name="bug_report_include_logs">Tanılama uygulama günlüklerini dahil et (son olaylar)</string>
+    <string name="bug_report_include_metadata">Widget yapılandırması &amp; VT istatistiklerini dahil et</string>
+    <string name="bug_report_diagnostics_preview">Tanılama önizlemesi</string>
+    <string name="bug_report_device_info">Cihaz bilgileri</string>
+    <string name="bug_report_db_stats">Veritabanı istatistikleri</string>
+    <string name="bug_report_active_widgets">Etkin widget\'lar</string>
+    <string name="bug_report_location_info">Konum ayarı</string>
+    <string name="bug_report_send">Hata raporu gönder</string>
+    <string name="bug_report_error_empty_description">Göndermeden önce lütfen sorunu kısaca açıklayın.</string>
+    <string name="bug_report_collecting_diagnostics">Tanılama verileri toplanıyor...</string>
+    <string name="view_icon_gallery">Simge galerisini görüntüle</string>
+    <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_pending">%1$s için saatlik sıcaklık verisi eksik. Bir yenileme tetiklenecek.</string>
+    <string name="widget_no_hourly_result_still_missing">Yenileme sonucu: %1$s için yeni saatlik sıcaklık verisi alınamadı. Veriler %2$s tarihinde bitiyor</string>
+    <string name="widget_no_hourly_result_still_missing_unknown">Yenileme sonucu: %1$s için yeni saatlik sıcaklık verisi alınamadı.</string>
+    <string name="widget_no_hourly_result_available">Yenileme sonucu:\n%1$s için saatlik veriler artık mevcut</string>
+    <string name="units_title">Birimler</string>
+    <string name="use_celsius_label">Celsius kullan</string>
+
+    <!-- Language section (Android 13+ per-app locale setting) -->
+    <string name="language_title">Dil</string>
+    <string name="app_language_description">Bu uygulamanın dilini seçin. Android\'in uygulama başına dil ayarını açar.</string>
+    <string name="app_language_button">Uygulama dilini değiştir…</string>
+    <string name="app_language_settings_unavailable">Uygulama başına dil ayarı bu cihazda kullanılamıyor</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">Bugün</string>
+    <string name="widget_loading">Yükleniyor...</string>
+    <string name="widget_tap_to_refresh">Yenilemek için dokunun</string>
+    <string name="current_stations_desc">Mevcut istasyonlar</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">Konum: %1$s</string>
+    <string name="saving_coordinates_offline">Koordinatlar kaydediliyor (ad arama çevrimdışı)</string>
+    <string name="location_permission_required">GPS için konum izni gerekli</string>
+    <string name="location_fix_failed_default">Mevcut konum alınamadı. Varsayılan kullanılıyor.</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">Konum ayarlanmadı</string>
+    <string name="widget_location_format">Widget konumu: %1$s, %2$s</string>
+    <string name="default_location_format">Varsayılan konum: %1$s, %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">Mevcut gözlemler</string>
+    <string name="obs_subtitle_nearby_stations">Yakındaki istasyonlardan gerçek zamanlı veriler</string>
+    <string name="obs_subtitle_none_found">%1$s için yeni gözlem bulunamadı.</string>
+    <string name="obs_subtitle_latest_reading">%1$s kaynağından son okuma</string>
+    <string name="obs_no_location_to_refresh">Yenilenecek konum yok</string>
+    <string name="obs_refreshed_source">%1$s yenilendi</string>
+    <string name="obs_reported_prefix">"Bildirildi "</string>
+    <string name="obs_fetched_separator">" • Alındı "</string>
+    <string name="station_origin_web">Web</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">İndirme günlükleri</string>
+    <string name="loading_logs">Günlükler yükleniyor...</string>
+    <string name="close">Kapat</string>
+    <string name="name_location_title">Konumu adlandır</string>
+    <string name="name_location_message">Bu konuma özel bir ad verin (örn. Ev, İş, Okul)</string>
+    <string name="save">Kaydet</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">30 günlük doğruluk özeti</string>
+    <string name="stats_loading">Yükleniyor...</string>
+    <string name="stats_daily_breakdown">Günlük doğruluk dökümü</string>
+    <string name="stats_rain_accuracy">Gündüz/gece yağmur doğruluğu</string>
+    <string name="stats_no_weather_data">Henüz hava durumu verisi yok.</string>
+    <string name="stats_no_history_yet">Henüz geçmiş tahmin verisi yok.\n\nTahmin anlık görüntüleri her gün kaydediliyor. İlk doğruluk karşılaştırmanız için yarın tekrar bakın!</string>
+    <string name="stats_source_line">%1$s: Yüksek ±%2$s, Düşük ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: Henüz veri yok</string>
+    <string name="stats_error_loading">İstatistikler yüklenirken hata: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (%1$s düşük)"</string>
+    <string name="bias_high_suffix">" (%1$s yüksek)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"Yüksek ±%1$s  Düşük ±%2$s"</string>
+    <string name="accuracy_within_line">"%1$s içinde %%: %2$s  Tahminler: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">Konum gerçek:</string>
+    <string name="label_forecast">Tahmin:</string>
+    <string name="label_error">Hata:</string>
+    <string name="label_rain_day">Gündüz (8–20):</string>
+    <string name="label_rain_night">Gece (20–8):</string>
+    <string name="rain_pred_act_format">tah %1$s / ger %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">En yüksek sıcaklık</string>
+    <string name="forecast_history_low_temp_title">En düşük sıcaklık</string>
+    <string name="legend_location_actual">Konum gerçek</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">Yukarı taşı</string>
+    <string name="move_down">Aşağı taşı</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">Paylaşım başlatılamadı</string>
+    <string name="bug_report_email_subject">Hava Durumu Widget\'ı hata raporu</string>
+</resources>
