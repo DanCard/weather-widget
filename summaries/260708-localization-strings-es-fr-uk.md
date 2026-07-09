@@ -67,9 +67,24 @@ Context-free for plain-JUnit tests.
 - `widget_weather.xml` initial-layout dummies (`Mon`, `Day`, `--°`, `NWS`) — RemoteViews
   placeholders visible only pre-first-paint; every binder overwrites every view.
 - **Desktop app** — doesn't read Android resources; the Linux port stays English.
-- **Celsius is NOT locale-automatic**: `useCelsius()` = `prefs.getBoolean("use_celsius", false)`,
-  so localized users still start in °F. Proposed (not implemented): when the pref has never been
-  set, default from locale (Celsius except US/LR/MM); explicit toggle wins forever.
+- ~~Celsius is NOT locale-automatic~~ — implemented later same session, see Phase 4.
+
+## Phase 4 — Locale-based Celsius default
+
+`shared/util/UnitDefaults.defaultUseCelsius(countryCode)` — pure function, CLDR Fahrenheit
+region set (US + territories, BS, BZ, KY, PW, FM, MH); unknown/blank region → Celsius (SI,
+mirrors ICU). LR/MM are Celsius for weather despite imperial distances. Plain-JUnit tested.
+
+- **Android** `WidgetStateManager.useCelsius()`: if `prefs.contains("use_celsius")` the stored
+  value wins; otherwise default from **device region** via `Resources.getSystem()` (deliberately
+  NOT the app locale — per-app language picker must not flip units). Settings switch only writes
+  on user interaction (listener attached after `isChecked`), so the never-set state survives.
+- **Desktop** `DesktopConfig.useCelsius` default is now locale-derived; with
+  `encodeDefaults=false` a value equal to the locale default stays unwritten in config.json and
+  keeps following the locale; an explicit differing choice persists. Null-config fallbacks in
+  `PanelIpcServer.update()` and the tray icon in `Main.kt` use the same shared default instead
+  of hardcoded Fahrenheit.
+- Robolectric suites unaffected (default qualifiers are `en-rUS` → still Fahrenheit in tests).
 
 ## Advice given on locale count
 

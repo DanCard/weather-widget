@@ -52,7 +52,8 @@ class PanelIpcServer(private val appDataDir: Path) {
     }
 
     fun update(forecast: ForecastResult?, dataStatus: DataStatus, config: DesktopConfig?) {
-        val useCelsius = config?.useCelsius == true
+        val useCelsius = config?.useCelsius
+            ?: com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(Locale.getDefault().country)
         val temp = forecast?.currentTemp
         val displayTemp = if (useCelsius && temp != null) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(temp) else temp
         val body = if (displayTemp != null) String.format(Locale.US, "%.1f°", displayTemp) else "--"

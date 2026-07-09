@@ -40,7 +40,11 @@ data class DesktopConfig(
     // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
     // IDW blend. 0 = no discount (counts the same as official); 100 = personal stations ignored.
     val personalStationDiscount: Int = 50,
-    val useCelsius: Boolean = false,
+    // Locale-derived until the user touches the toggle. encodeDefaults=false means a value
+    // equal to the locale default stays unwritten in config.json and keeps following the
+    // locale; an explicit differing choice is persisted and wins.
+    val useCelsius: Boolean =
+        com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault().country),
 ) {
     // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
     fun personalStationWeight(): Double = 1.0 - personalStationDiscount.coerceIn(0, 100) / 100.0

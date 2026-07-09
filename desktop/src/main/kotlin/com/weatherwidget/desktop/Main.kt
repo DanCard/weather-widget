@@ -460,7 +460,9 @@ private fun runApp() = application {
         // Dynamic icon showing the current temperature.
         val textMeasurer = remember { createTrayTextMeasurer() }
         val appIcon = remember(forecast?.currentTemp, currentConfig?.useCelsius) {
-            TemperatureTrayPainter(forecast?.currentTemp, textMeasurer, currentConfig?.useCelsius == true)
+            val useCelsius = currentConfig?.useCelsius
+                ?: com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault().country)
+            TemperatureTrayPainter(forecast?.currentTemp, textMeasurer, useCelsius)
         }
 
         LaunchedEffect(startupSmoke) {

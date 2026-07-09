@@ -151,6 +151,13 @@ class WidgetStateManager
         }
 
         fun useCelsius(): Boolean {
+            // Until the user touches the toggle, default from the device region (not the
+            // app language — Resources.getSystem() ignores the per-app locale override, so
+            // picking French UI in the US keeps Fahrenheit). An explicit choice wins forever.
+            if (!prefs.contains("use_celsius")) {
+                val region = android.content.res.Resources.getSystem().configuration.locales[0].country
+                return com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(region)
+            }
             return prefs.getBoolean("use_celsius", false)
         }
 
