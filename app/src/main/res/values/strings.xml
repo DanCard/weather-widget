@@ -13,6 +13,9 @@
     <string name="search_location">Search</string>
     <string name="location_search_no_results">No matches found — check spelling or network</string>
     <string name="getting_location">Getting location…</string>
+    <string name="use_this_location">Use this location</string>
+    <string name="location_found_label">Found device location: %1$s</string>
+    <string name="location_fix_failed">Couldn\'t get device location — pick an option below</string>
     <string name="pinned_location_explainer">Choosing a searched location or coordinates pins it. Widgets stop following the device until you tap \"Use precise device location\" again.</string>
     <string name="set_location_button">Set Location…</string>
     <string name="location_mode_pinned">Pinned</string>

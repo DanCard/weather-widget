@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
@@ -21,6 +22,7 @@ import androidx.work.WorkManager
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import com.google.android.gms.tasks.Task
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
@@ -29,8 +31,10 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import javax.inject.Inject
+import kotlin.coroutines.resume
 
 /**
  * The location setup screen, serving two entry points:
@@ -42,11 +46,23 @@ import javax.inject.Inject
  * "Use precise device location" sets [LocationMode.FOLLOW_DEVICE] (background auto-heal keeps
  * widgets tracking the device); search results and manual coordinates set [LocationMode.FIXED],
  * which pins the choice against the auto-heal.
+ *
+ * Widget setup auto-fills but never auto-exits: the device fix starts on open and, once
+ * resolved, turns the GPS button into a one-tap "Use this location" confirm — the screen only
+ * closes on an explicit user choice (confirm, search pick, or coordinates). An earlier version
+ * saved and finished as soon as the auto-started fix resolved, which yanked the screen away
+ * from users who wanted to pick a location. Only a user-tapped GPS request saves directly.
  */
 @AndroidEntryPoint
 class ConfigActivity : AppCompatActivity() {
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private var isGlobalMode = false
+
+    /** True while the fix flow was started by onCreate rather than a user tap. */
+    private var autoFillFlow = false
+
+    /** Device fix resolved by the auto-fill flow, awaiting the user's confirm tap. */
+    private var prefetchedFix: LocationFixFlow.Coordinates? = null
 
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
@@ -81,11 +97,12 @@ class ConfigActivity : AppCompatActivity() {
         setupViews()
 
         // Initial widget setup defaults to the precise-location flow: most users want the widget
-        // to follow the device, so kick off permissions → fix right away. Denying the permission
-        // (or the search/coordinate options) remains available on the screen behind the prompt.
-        // Never auto-start from the Settings entry (savedInstanceState guard avoids re-firing on
-        // configuration changes).
+        // to follow the device, so kick off permissions → fix right away. The auto-fill flow
+        // only pre-resolves the fix for a one-tap confirm — it never saves or finishes on its
+        // own. Never auto-start from the Settings entry (savedInstanceState guard avoids
+        // re-firing on configuration changes).
         if (!isGlobalMode && savedInstanceState == null) {
+            autoFillFlow = true
             checkAndRequestLocationPermissions()
         }
     }
@@ -107,6 +124,12 @@ class ConfigActivity : AppCompatActivity() {
         }
 
         useGpsButton.setOnClickListener {
+            // Confirm tap on an auto-filled fix: the coordinates are already resolved.
+            prefetchedFix?.let { fix ->
+                saveChosenLocation(fix.lat, fix.lon, null, LocationMode.FOLLOW_DEVICE)
+                return@setOnClickListener
+            }
+            autoFillFlow = false
             checkAndRequestLocationPermissions()
         }
 
@@ -234,58 +257,92 @@ class ConfigActivity : AppCompatActivity() {
             return
         }
 
+        // The fix runs while the user is looking at this screen; the button itself must show
+        // the in-flight state. A toast alone disappears in 2s while the fix can legitimately
+        // take up to the LocationFixFlow timeouts, and a silently-disabled button reads as
+        // broken — users back out, which cancels the widget-add handshake.
         val useGpsButton = findViewById<Button>(R.id.use_gps_button)
         useGpsButton.isEnabled = false
-        Toast.makeText(this, getString(R.string.getting_location), Toast.LENGTH_SHORT).show()
+        useGpsButton.setText(R.string.getting_location)
 
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        val startMs = SystemClock.elapsedRealtime()
 
-        // Active fix, deliberately: this is the ONE exception to the app's passive-lastLocation
-        // rule. Samsung's "app got your precise location" notice targets background access; here
-        // the user explicitly tapped "Use precise device location" in a foreground screen, so a
-        // fresh fix is expected. Every background path must stay passive (see GpsResampler).
-        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token)
-            .addOnSuccessListener { location ->
-                if (location != null) {
-                    saveChosenLocation(location.latitude, location.longitude, null, LocationMode.FOLLOW_DEVICE)
-                } else {
-                    fallBackToLastLocation(fusedLocationClient)
-                }
+        val isAutoFill = autoFillFlow
+        lifecycleScope.launch {
+            val outcome = LocationFixFlow().resolve(
+                // Active fix, deliberately: this is the ONE exception to the app's passive-
+                // lastLocation rule. Samsung's "app got your precise location" notice targets
+                // background access; here the user explicitly tapped "Use precise device
+                // location" in a foreground screen (or is on the auto-filled setup screen for
+                // the widget they just added), so a fresh fix is expected. Every background
+                // path must stay passive (see GpsResampler).
+                activeFix = { fusedLocationClient.activeFixOrNull() },
+                cachedFix = { fusedLocationClient.lastLocation.awaitOrNull()?.toCoordinates() },
+            )
+            appLogDao.log(
+                "CONFIG",
+                "GPS_FIX outcome=${outcome.source} mode=${if (isAutoFill) "auto" else "manual"} " +
+                    "elapsedMs=${SystemClock.elapsedRealtime() - startMs} widget=$appWidgetId global=$isGlobalMode",
+            )
+            when (outcome) {
+                is LocationFixFlow.Outcome.Fix ->
+                    if (isAutoFill) {
+                        offerPrefetchedFix(outcome.coordinates)
+                    } else {
+                        saveChosenLocation(outcome.coordinates.lat, outcome.coordinates.lon, null, LocationMode.FOLLOW_DEVICE)
+                    }
+                LocationFixFlow.Outcome.Default ->
+                    if (isAutoFill) {
+                        // Leave the screen open with all options; no location is saved.
+                        useGpsButton.isEnabled = true
+                        useGpsButton.setText(R.string.use_precise_location)
+                        Toast.makeText(this@ConfigActivity, getString(R.string.location_fix_failed), Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@ConfigActivity, "Could not get current location. Using default.", Toast.LENGTH_SHORT).show()
+                        // Still FOLLOW_DEVICE — the auto-heal can later replace the placeholder
+                        // with a real fix.
+                        saveChosenLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, null, LocationMode.FOLLOW_DEVICE)
+                    }
             }
-            .addOnFailureListener {
-                fallBackToLastLocation(fusedLocationClient)
-            }
-    }
-
-    /**
-     * Last-resort resolution when the active fix yields nothing: cached fix, then hard default.
-     * Still FOLLOW_DEVICE — the auto-heal can later replace the placeholder with a real fix.
-     */
-    private fun fallBackToLastLocation(
-        fusedLocationClient: com.google.android.gms.location.FusedLocationProviderClient,
-    ) {
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            saveChosenLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, null, LocationMode.FOLLOW_DEVICE)
-            return
         }
-        fusedLocationClient.lastLocation
-            .addOnSuccessListener { cached ->
-                if (cached != null) {
-                    saveChosenLocation(cached.latitude, cached.longitude, null, LocationMode.FOLLOW_DEVICE)
-                } else {
-                    Toast.makeText(this, "Could not get current location. Using default.", Toast.LENGTH_SHORT).show()
-                    saveChosenLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, null, LocationMode.FOLLOW_DEVICE)
-                }
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "Could not get current location. Using default.", Toast.LENGTH_SHORT).show()
-                saveChosenLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, null, LocationMode.FOLLOW_DEVICE)
-            }
     }
+
+    /** Auto-fill resolved: surface the fix and wait for the user's confirm tap. */
+    private fun offerPrefetchedFix(fix: LocationFixFlow.Coordinates) {
+        prefetchedFix = fix
+        findViewById<TextView>(R.id.current_location_label).text = getString(
+            R.string.location_found_label,
+            String.format(Locale.US, "%.4f, %.4f", fix.lat, fix.lon),
+        )
+        val useGpsButton = findViewById<Button>(R.id.use_gps_button)
+        useGpsButton.isEnabled = true
+        useGpsButton.setText(R.string.use_this_location)
+    }
+
+    private suspend fun com.google.android.gms.location.FusedLocationProviderClient.activeFixOrNull(): LocationFixFlow.Coordinates? {
+        val cancellation = CancellationTokenSource()
+        return try {
+            getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellation.token)
+                .awaitOrNull()
+                ?.toCoordinates()
+        } finally {
+            // Reached on LocationFixFlow timeout too: stop the GPS request instead of
+            // leaving it running after we've moved on to the cached fix.
+            cancellation.cancel()
+        }
+    }
+
+    private fun android.location.Location.toCoordinates() =
+        LocationFixFlow.Coordinates(latitude, longitude)
+
+    /** Failure and cancellation both resolve to null; LocationFixFlow treats null as "next stage". */
+    private suspend fun <T> Task<T>.awaitOrNull(): T? =
+        suspendCancellableCoroutine { cont ->
+            addOnCompleteListener { task ->
+                cont.resume(if (task.isSuccessful) task.result else null)
+            }
+        }
 
     /**
      * Single save sink for all four options. Records the location mode, then routes to the
