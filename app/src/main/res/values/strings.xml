@@ -71,7 +71,7 @@
     <string name="forecast_policy_battery_low">Forecast refresh: Paused (battery %1$d%%)</string>
     <string name="freshness_just_now">just now</string>
     <string name="forecast_history">History of Forecasts for </string>
-    <string name="forecast_history_title_format">%1$s</string>
+    <string name="forecast_history_title_format" translatable="false">%1$s</string>
     <string name="forecast_history_summary_single">%1$d %2$s forecast snapshots</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI snapshots</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d climate-fill points</string>
@@ -86,7 +86,7 @@
     <string name="freshness_forecast_fetch_ago">Forecast fetch: %1$s ago</string>
     <string name="freshness_forecast_fetch_never">Forecast fetch: never</string>
     <string name="freshness_displayed_data">Displayed data (%1$s): fetched %2$s ago</string>
-    <string name="freshness_unknown_source">?</string>
+    <string name="freshness_unknown_source" translatable="false">?</string>
     <string name="forecast_mode_evolution">Mode: Evolution</string>
     <string name="forecast_mode_error">Mode: Error</string>
     <string name="forecast_mode_hourly">Mode: Temperature</string>
@@ -116,10 +116,10 @@
     <string name="app_logs_share_subject">Weather Widget logs</string>
     <string name="no_app_logs">No app logs yet.</string>
     <string name="app_logs_filter_hint">Filter logs (tag/message/level)</string>
-    <string name="app_logs_verbose">VERBOSE</string>
+    <string name="app_logs_verbose" translatable="false">VERBOSE</string>
     <string name="app_logs_db_stats">DB: %1$.1f MB (%2$d logs, %3$d snaps)</string>
     <string name="app_logs_all_levels">All Levels</string>
-    <string name="app_logs_debug_plus">DEBUG+</string>
+    <string name="app_logs_debug_plus" translatable="false">DEBUG+</string>
     <string name="app_logs_showing">Showing %1$d (%2$s)</string>
     <string name="app_logs_showing_filtered">Showing %1$d matching \"%2$s\" (%3$s)</string>
     <string name="icon_preview_title">Icon gallery</string>
@@ -233,7 +233,7 @@
     <string name="obs_refreshed_source">Refreshed %1$s</string>
     <string name="obs_reported_prefix">"Reported "</string>
     <string name="obs_fetched_separator">" • Fetched "</string>
-    <string name="station_type_origin_format">%1$s (%2$s)</string>
+    <string name="station_type_origin_format" translatable="false">%1$s (%2$s)</string>
     <string name="station_origin_web">Web</string>
     <string name="station_origin_api">API</string>
     <string name="fetch_logs">Fetch Logs</string>
