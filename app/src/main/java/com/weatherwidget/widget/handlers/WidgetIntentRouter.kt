@@ -575,8 +575,22 @@ suspend fun handleSetView(
     ) {
         try {
             handleSetViewInternal(context, appWidgetId, targetMode, targetOffset, repository)
+            // Success-only breadcrumb, parallel to WIDGET_RENDER_OK on the refresh path. The day-tap
+            // path bypasses refreshWidget's breadcrumb, which let the 2026-07-08 source-gap NPE hide
+            // from app_logs sweeps entirely; tests also assert on this row.
+            WeatherDatabase.getDatabase(context).appLogDao().log(
+                "SET_VIEW_RENDER_OK",
+                "widget=$appWidgetId mode=${targetMode.name} offset=$targetOffset",
+            )
         } catch (e: Exception) {
             Log.e(TAG, "handleSetView failed for widget $appWidgetId", e)
+            runCatching {
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "SET_VIEW_FAIL",
+                    "widget=$appWidgetId mode=${targetMode.name} ${e.javaClass.simpleName}: ${e.message}",
+                    "ERROR",
+                )
+            }
         }
     }
 

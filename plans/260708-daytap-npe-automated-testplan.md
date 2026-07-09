@@ -54,10 +54,56 @@ Run:
 ./gradlew testDebugUnitTest --tests "com.weatherwidget.widget.handlers.TemperatureViewHandlerSourceGapRoboTest"
 ```
 
-## Layer 3 — On-device smoke (manual/scripted; emulator only)
+## Layer 3a — Robolectric broadcast-level test (app module) ✅ implemented
 
-Covers what Robolectric can't: the real broadcast → `goAsync` → RemoteViews reapply chain on a
-launcher.
+`app/src/test/java/com/weatherwidget/widget/WeatherWidgetProviderDayTapSourceGapRoboTest.kt`
+
+Drives the FULL day-tap chain: `ACTION_DAY_CLICK` intent → `WeatherWidgetProvider.onReceive` →
+`goAsync`/`launchAsync` → `handleDayClickAction` → `handleSetView` → `refreshGraphView` → render.
+Uses the `provider.scope` seam + `StandardTestDispatcher` (harness from
+`WeatherWidgetProviderNoHourlyRoboTest`); `goAsync()` returns null on direct `onReceive` and
+`finishPendingResultSafely` tolerates it. AppWidgetManager is static-mocked with sized options.
+
+Key subtlety this layer catches that mode-flip asserts miss: with the old bug, **the stored view
+mode still flipped to TEMPERATURE** — the NPE was caught after the state write, so only the
+RemoteViews push was lost. The load-bearing asserts are the captured `updateAppWidget` call and
+the breadcrumbs below.
+
+Run:
+```bash
+./gradlew testDebugUnitTest --tests "com.weatherwidget.widget.WeatherWidgetProviderDayTapSourceGapRoboTest"
+```
+
+## Layer 3b — Instrumented device test (emulator ONLY) ✅ implemented
+
+`app/src/androidTest/java/com/weatherwidget/widget/DayTapSourceGapInstrumentedTest.kt`
+
+Same broadcast + fixture, but with the real framework: actual Canvas/Bitmap rendering, real
+RemoteViews, real display metrics, real `AppWidgetManager` (unbound test widget ID → system
+no-ops the push, which is fine — the render work happens before it). Runs with the provider's
+real IO scope and awaits the persisted breadcrumbs (15s bound).
+
+Run (never `connectedDebugAndroidTest` — it removes widgets from physical devices):
+```bash
+./scripts/emulator-tests.sh -c com.weatherwidget.widget.DayTapSourceGapInstrumentedTest
+```
+
+### Observability fix that layers 3a/3b assert on
+
+`WidgetIntentRouter.handleSetView` used to swallow failures as a logcat-only `Log.e` — which is
+why the live bug was invisible to app_logs error sweeps. It now persists:
+- `SET_VIEW_RENDER_OK` (success-only, parallel to `WIDGET_RENDER_OK` on the refresh path)
+- `SET_VIEW_FAIL` (ERROR level, carries exception class + message)
+
+Query on any device: `SELECT * FROM app_logs WHERE tag LIKE 'SET_VIEW_%'` (timestamp is epoch
+millis — use `'localtime'`).
+
+## Layer 4 — On-device smoke (manual; release-time checklist, not per-bug)
+
+With 3a/3b in place, the only remaining Robolectric/instrumented blind spots are launcher-side:
+the physical tap → `PendingIntent` dispatch (launchers can eat taps), cross-process RemoteViews
+transport/reapply, and system timing (10s `goAsync` ANR deadline). Verify once per release, not
+per bug:
 
 1. Install on an emulator (NEVER `connectedDebugAndroidTest`; it removes widgets from physical
    devices): `ANDROID_SERIAL=emulator-5556 ./gradlew installDebug`
@@ -82,7 +128,9 @@ Verified 2026-07-08 on emulator-5556 (the original repro device): day tap opens 
 
 ## CI / routine invocation
 
-Both automated layers run in the standard suites — no special wiring needed:
-- `./scripts/unit-tests.sh` runs both: Layer 1 via its parallel `:shared:test` invocation, and
-  Layer 2 in the **Long** bucket (`@Category(LongDuration)`; Short/Medium/Long all run by default)
-- Direct: `./gradlew :shared:test` (Layer 1), `./gradlew testDebugUnitTest` (Layer 2)
+All automated layers run in the standard suites — no special wiring needed:
+- `./scripts/unit-tests.sh` runs layers 1, 2, and 3a: Layer 1 via its parallel `:shared:test`
+  invocation; 2 and 3a in the **Long** bucket (`@Category(LongDuration)`; Short/Medium/Long all
+  run by default)
+- Direct: `./gradlew :shared:test` (Layer 1), `./gradlew testDebugUnitTest` (Layers 2, 3a)
+- `./scripts/emulator-tests.sh` includes Layer 3b in every full emulator run
