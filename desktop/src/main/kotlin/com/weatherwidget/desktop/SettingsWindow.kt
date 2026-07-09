@@ -151,6 +151,29 @@ internal fun SettingsWindow(
 
                     Spacer(Modifier.height(24.dp))
 
+                    // Units
+                    Text("Units", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Use Celsius",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Switch(
+                            checked = currentConfig.useCelsius,
+                            onCheckedChange = { isChecked ->
+                                currentConfig = currentConfig.copy(useCelsius = isChecked)
+                            },
+                            modifier = Modifier.testTag("use_celsius_switch")
+                        )
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+
                     // Diagnostics / Observations
                     Text("Diagnostics", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(8.dp))

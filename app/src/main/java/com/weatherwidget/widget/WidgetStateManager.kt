@@ -150,6 +150,14 @@ class WidgetStateManager
             prefs.edit().putInt("$KEY_DATE_OFFSET_PREFIX$widgetId", clampedOffset).apply()
         }
 
+        fun useCelsius(): Boolean {
+            return prefs.getBoolean("use_celsius", false)
+        }
+
+        fun setUseCelsius(value: Boolean) {
+            prefs.edit().putBoolean("use_celsius", value).apply()
+        }
+
         // Personal-weather-station discount (app-wide). UI stores a percent; the blend consumes a weight.
         fun getPersonalStationDiscountPercent(): Int =
             prefs.getInt(KEY_PERSONAL_STATION_DISCOUNT, DEFAULT_PERSONAL_STATION_DISCOUNT)

@@ -23,6 +23,7 @@ internal fun updateHourlyTextMode(
     centerTime: LocalDateTime,
     numColumns: Int,
     displaySource: WeatherSource,
+    useCelsius: Boolean = false,
 ) {
     val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
 
@@ -61,7 +62,8 @@ internal fun updateHourlyTextMode(
             views.setViewVisibility(ids.iconId, View.GONE)
 
             if (forecast != null) {
-                val temp = String.format("%.1f\u00B0", forecast.temperature)
+                val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(forecast.temperature) else forecast.temperature
+                val temp = String.format("%.1f\u00B0", displayTemp)
                 views.setTextViewText(ids.tempId, temp)
                 views.setTextViewText(ids.lowId, "")
             } else {

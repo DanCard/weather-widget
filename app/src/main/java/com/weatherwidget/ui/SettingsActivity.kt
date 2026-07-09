@@ -135,6 +135,14 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        // Use Celsius Switch
+        val useCelsiusSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.use_celsius_switch)
+        useCelsiusSwitch.isChecked = widgetStateManager.useCelsius()
+        useCelsiusSwitch.setOnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setUseCelsius(isChecked)
+            WeatherWidgetProvider.triggerUiOnlyUpdate(this, "unit_preference_changed")
+        }
+
         // Back button
         findViewById<android.widget.ImageButton>(R.id.back_button).setOnClickListener {
             finish()

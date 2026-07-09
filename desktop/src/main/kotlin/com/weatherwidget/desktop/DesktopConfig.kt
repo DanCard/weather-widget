@@ -40,6 +40,7 @@ data class DesktopConfig(
     // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
     // IDW blend. 0 = no discount (counts the same as official); 100 = personal stations ignored.
     val personalStationDiscount: Int = 50,
+    val useCelsius: Boolean = false,
 ) {
     // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
     fun personalStationWeight(): Double = 1.0 - personalStationDiscount.coerceIn(0, 100) / 100.0

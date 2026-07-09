@@ -197,4 +197,6 @@
     <string name="widget_no_hourly_result_still_missing">Result of refresh: No new hourly temperature data was able to be retrieved for %1$s. Data ends %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Result of refresh: No new hourly temperature data was able to be retrieved for %1$s.</string>
     <string name="widget_no_hourly_result_available">Results of refresh:\nHourly data now available for %1$s</string>
+    <string name="units_title">Units</string>
+    <string name="use_celsius_label">Use Celsius</string>
 </resources>

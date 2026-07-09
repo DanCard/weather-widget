@@ -120,6 +120,7 @@ fun TemperatureGraph(
     onToggleZoom: (Int) -> Unit = {},
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
     onPan: (deltaHours: Int) -> Unit = {},
+    useCelsius: Boolean = false,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
@@ -444,7 +445,7 @@ fun TemperatureGraph(
             
             val tempVal = fetchDotPoint.actualTemp!!
             // Same formatting as Android's fetch-dot (TemperatureGraphStyle.formatTemp + "°").
-            val tempText = TemperatureLabelResolver.formatTemp(tempVal) + "°"
+            val tempText = TemperatureLabelResolver.formatTemp(tempVal, useCelsius) + "°"
             val valueTextLayout = textMeasurer.measure(
                 tempText,
                 TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp, color = COLOR_ACTUAL, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
@@ -574,7 +575,8 @@ fun TemperatureGraph(
             tempToY = { yAt(it) },
             metrics = metricsAdapter,
             drawnIconBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
-            reservedHardBounds = fetchDotHardBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
+            reservedHardBounds = fetchDotHardBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+            useCelsius = useCelsius,
         )
 
         // TEMP DIAGNOSTIC: dump every placed label's role/text/x% to chase pink (ACTUAL_*) labels
@@ -708,10 +710,11 @@ fun TemperatureGraph(
                 if (coord.x <= transitionX) return@mapNotNull null
                 val expectedTemp = forecastTemps[i] + appliedDelta
                 if (!expectedTemp.isFinite()) return@mapNotNull null
+                val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(expectedTemp) else expectedTemp
                 GhostLineLabel.Candidate(
                     x = coord.x,
                     ghostY = coord.y,
-                    expectedTemp = expectedTemp,
+                    expectedTemp = displayTemp,
                     hasHourLabel = i in labeledIndices,
                 )
             }

@@ -9,8 +9,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.stats.DailyAccuracy
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
-class DailyAccuracyAdapter : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolder>() {
+class DailyAccuracyAdapter(private val useCelsius: Boolean = false) : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolder>() {
     private var items = listOf<DailyAccuracy>()
 
     fun setItems(newItems: List<DailyAccuracy>) {
@@ -25,7 +26,7 @@ class DailyAccuracyAdapter : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolde
         val view =
             LayoutInflater.from(parent.context)
                 .inflate(R.layout.item_daily_accuracy, parent, false)
-        return ViewHolder(view)
+        return ViewHolder(view, useCelsius)
     }
 
     override fun onBindViewHolder(
@@ -37,7 +38,7 @@ class DailyAccuracyAdapter : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolde
 
     override fun getItemCount(): Int = items.size
 
-    class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    class ViewHolder(itemView: View, private val useCelsius: Boolean) : RecyclerView.ViewHolder(itemView) {
         private val dateText: TextView = itemView.findViewById(R.id.item_date)
         private val sourceText: TextView = itemView.findViewById(R.id.item_source)
         private val actualTempsText: TextView = itemView.findViewById(R.id.item_actual_temps)
@@ -47,11 +48,20 @@ class DailyAccuracyAdapter : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolde
         fun bind(item: DailyAccuracy) {
             dateText.text = item.date
             sourceText.text = item.source
-            actualTempsText.text = "${item.actualHigh}° / ${item.actualLow}°"
-            forecastTempsText.text = "${item.forecastHigh}° / ${item.forecastLow}°"
 
-            val highErrorStr = if (item.highError >= 0) "+${item.highError}°" else "${item.highError}°"
-            val lowErrorStr = if (item.lowError >= 0) "+${item.lowError}°" else "${item.lowError}°"
+            val dispActualHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.actualHigh.toFloat()).roundToInt() else item.actualHigh
+            val dispActualLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.actualLow.toFloat()).roundToInt() else item.actualLow
+            val dispForecastHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.forecastHigh.toFloat()).roundToInt() else item.forecastHigh
+            val dispForecastLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.forecastLow.toFloat()).roundToInt() else item.forecastLow
+
+            val dispHighError = if (useCelsius) (item.highError.toFloat() / 1.8f).roundToInt() else item.highError
+            val dispLowError = if (useCelsius) (item.lowError.toFloat() / 1.8f).roundToInt() else item.lowError
+
+            actualTempsText.text = "$dispActualHigh° / $dispActualLow°"
+            forecastTempsText.text = "$dispForecastHigh° / $dispForecastLow°"
+
+            val highErrorStr = if (dispHighError >= 0) "+$dispHighError°" else "$dispHighError°"
+            val lowErrorStr = if (dispLowError >= 0) "+$dispLowError°" else "$dispLowError°"
             errorText.text = "$highErrorStr / $lowErrorStr"
 
             // Color code the error based on magnitude

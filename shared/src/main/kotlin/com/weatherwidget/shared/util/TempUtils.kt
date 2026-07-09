@@ -5,19 +5,23 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 object TempUtils {
+    fun fahrenheitToCelsius(f: Float): Float = (f - 32f) / 1.8f
+    fun celsiusToFahrenheit(c: Float): Float = c * 1.8f + 32f
+
     /**
      * Consistently formats a temperature value for display.
      * Shows 1 decimal place if the value is not close to an integer.
      * Uses a consistent 0.01 threshold for "closeness" to ensure high-precision
      * blended values are preserved while official integer forecasts remain clean.
      */
-    fun formatTemp(v: Float?): String? {
+    fun formatTemp(v: Float?, useCelsius: Boolean = false): String? {
         if (v == null) return null
-        val rounded = v.roundToInt()
-        val result = if (abs(v - rounded) < 0.01f) {
+        val displayVal = if (useCelsius) fahrenheitToCelsius(v) else v
+        val rounded = displayVal.roundToInt()
+        val result = if (abs(displayVal - rounded) < 0.01f) {
             "$rounded°"
         } else {
-            String.format(Locale.getDefault(), "%.1f°", v)
+            String.format(Locale.getDefault(), "%.1f°", displayVal)
         }
         return result
     }

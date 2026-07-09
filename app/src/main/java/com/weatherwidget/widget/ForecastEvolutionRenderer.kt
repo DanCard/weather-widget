@@ -40,7 +40,8 @@ object ForecastEvolutionRenderer {
         appActualHigh: Float?,
         widthPx: Int,
         heightPx: Int,
-    ): Bitmap = renderGraph(context, points, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true)
+        useCelsius: Boolean = false,
+    ): Bitmap = renderGraph(context, points, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true, useCelsius = useCelsius)
 
     fun renderLowGraph(
         context: Context,
@@ -49,7 +50,8 @@ object ForecastEvolutionRenderer {
         appActualLow: Float?,
         widthPx: Int,
         heightPx: Int,
-    ): Bitmap = renderGraph(context, points, actualLow, appActualLow, widthPx, heightPx, isHigh = false)
+        useCelsius: Boolean = false,
+    ): Bitmap = renderGraph(context, points, actualLow, appActualLow, widthPx, heightPx, isHigh = false, useCelsius = useCelsius)
 
     fun renderHighErrorGraph(
         context: Context,
@@ -58,7 +60,8 @@ object ForecastEvolutionRenderer {
         appActualHigh: Float?,
         widthPx: Int,
         heightPx: Int,
-    ): Bitmap = renderErrorGraph(context, points, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true)
+        useCelsius: Boolean = false,
+    ): Bitmap = renderErrorGraph(context, points, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true, useCelsius = useCelsius)
 
     fun renderLowErrorGraph(
         context: Context,
@@ -67,7 +70,8 @@ object ForecastEvolutionRenderer {
         appActualLow: Float?,
         widthPx: Int,
         heightPx: Int,
-    ): Bitmap = renderErrorGraph(context, points, actualLow, appActualLow, widthPx, heightPx, isHigh = false)
+        useCelsius: Boolean = false,
+    ): Bitmap = renderErrorGraph(context, points, actualLow, appActualLow, widthPx, heightPx, isHigh = false, useCelsius = useCelsius)
 
     private fun renderGraph(
         context: Context,
@@ -77,6 +81,7 @@ object ForecastEvolutionRenderer {
         widthPx: Int,
         heightPx: Int,
         isHigh: Boolean,
+        useCelsius: Boolean = false,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -100,7 +105,7 @@ object ForecastEvolutionRenderer {
         }
 
         if (forecastSamples.size == 1) {
-            return renderSinglePointBarGraph(context, widthPx, heightPx, forecastSamples.first(), actualValue, appActualValue, isHigh)
+            return renderSinglePointBarGraph(context, widthPx, heightPx, forecastSamples.first(), actualValue, appActualValue, isHigh, useCelsius)
         }
 
         val axisScale = NiceAxisScale.compute(allTemps.minOrNull() ?: 0f, allTemps.maxOrNull() ?: 100f)
@@ -110,12 +115,12 @@ object ForecastEvolutionRenderer {
 
         val timeAxis = TimeAxis(series.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(layout.graphWidth))
 
-        drawGridAndAxes(canvas, layout, axisScale, timeAxis, paints, dp, isError = false)
+        drawGridAndAxes(canvas, layout, axisScale, timeAxis, paints, dp, isError = false, useCelsius = useCelsius)
 
         drawSeriesCurve(canvas, series, ::tempFor, axisScale, timeAxis, layout, paints.forecastCurve, paints.forecastPoint, dp)
 
-        drawActualLine(canvas, layout, axisScale, actualValue, paints.apiActualLine, "API actual: ${actualValue?.let { formatTempLabel(it) }}", paints.apiActualLabel, dp)
-        drawActualLine(canvas, layout, axisScale, appActualValue, paints.appActualLine, "Location actual: ${appActualValue?.let { formatTempLabel(it) }}", paints.appActualLabel, dp)
+        drawActualLine(canvas, layout, axisScale, actualValue, paints.apiActualLine, "API actual: ${actualValue?.let { formatTempLabel(it, useCelsius) }}", paints.apiActualLabel, dp)
+        drawActualLine(canvas, layout, axisScale, appActualValue, paints.appActualLine, "Location actual: ${appActualValue?.let { formatTempLabel(it, useCelsius) }}", paints.appActualLabel, dp)
 
         return bitmap
     }
@@ -128,6 +133,7 @@ object ForecastEvolutionRenderer {
         widthPx: Int,
         heightPx: Int,
         isHigh: Boolean,
+        useCelsius: Boolean = false,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -155,7 +161,7 @@ object ForecastEvolutionRenderer {
 
         val timeAxis = TimeAxis(errorSamples.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(layout.graphWidth))
 
-        drawGridAndAxes(canvas, layout, axisScale, timeAxis, paints, dp, isError = true)
+        drawGridAndAxes(canvas, layout, axisScale, timeAxis, paints, dp, isError = true, useCelsius = useCelsius)
 
         val zeroY = axisScale.valueToY(0f, layout.graphTop, layout.graphHeight)
         canvas.drawLine(layout.graphLeft, zeroY, layout.graphRight, zeroY, paints.zeroLine)
@@ -184,6 +190,7 @@ object ForecastEvolutionRenderer {
         actualValue: Float?,
         appActualValue: Float?,
         isHigh: Boolean,
+        useCelsius: Boolean = false,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -217,7 +224,7 @@ object ForecastEvolutionRenderer {
 
         for (tick in axisScale.ticks) {
             val y = axisScale.valueToY(tick, graphTop, graphHeight)
-            val label = formatAxisLabel(tick)
+            val label = formatAxisLabel(tick, useCelsius)
             canvas.drawText(label, graphLeft - dp(EvolutionGraphStyle.LABEL_GAP_DP), y + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), yLabelPaint)
         }
 
@@ -244,7 +251,7 @@ object ForecastEvolutionRenderer {
                 textAlign = Paint.Align.LEFT
             }
             canvas.drawLine(graphLeft, apiActualY, graphRight, apiActualY, apiActualLinePaint)
-            canvas.drawText("API actual: ${formatTempLabel(actualValue)}", graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), apiActualY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), apiActualLabelPaint)
+            canvas.drawText("API actual: ${formatTempLabel(actualValue, useCelsius)}", graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), apiActualY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), apiActualLabelPaint)
         }
 
         if (appActualValue != null) {
@@ -261,7 +268,7 @@ object ForecastEvolutionRenderer {
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             canvas.drawLine(graphLeft, appActualY, graphRight, appActualY, appActualLinePaint)
-            canvas.drawText("Location actual: ${formatTempLabel(appActualValue)}", graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), appActualY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), appActualLabelPaint)
+            canvas.drawText("Location actual: ${formatTempLabel(appActualValue, useCelsius)}", graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), appActualY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), appActualLabelPaint)
         }
 
         val markerX = graphLeft + graphWidth / 2f
@@ -295,10 +302,10 @@ object ForecastEvolutionRenderer {
         val baseline = appActualValue ?: actualValue
         val error = baseline?.let { it - sample.temp }
         val diffText = if (error != null) {
-            val sign = if (error >= 0) "+" else ""
-            "  Diff ${sign}${formatTempLabel(error)}"
+            "  Diff ${formatErrorLabel(error, useCelsius)}"
         } else ""
-        val forecastLabel = "$sourceLabel ${sample.temp}°  (${sample.daysAhead}d)$diffText"
+        val tempLabel = formatTempLabel(sample.temp, useCelsius)
+        val forecastLabel = "$sourceLabel $tempLabel  (${sample.daysAhead}d)$diffText"
         canvas.drawText(forecastLabel, markerX, forecastY - dp(10f), forecastLabelPaint)
 
         return bitmap
@@ -332,11 +339,12 @@ object ForecastEvolutionRenderer {
         paints: EvolutionGraphStyle.PaintSet,
         dp: (Float) -> Float,
         isError: Boolean,
+        useCelsius: Boolean = false,
     ) {
         for (tick in axisScale.ticks) {
             val y = axisScale.valueToY(tick, layout.graphTop, layout.graphHeight)
             canvas.drawLine(layout.graphLeft, y, layout.graphRight, y, paints.gridLine)
-            val label = if (isError) formatErrorLabel(tick) else formatAxisLabel(tick)
+            val label = if (isError) formatErrorLabel(tick, useCelsius) else formatAxisLabel(tick, useCelsius)
             canvas.drawText(label, layout.graphLeft - dp(EvolutionGraphStyle.LABEL_GAP_DP), y + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), paints.yLabel)
         }
 

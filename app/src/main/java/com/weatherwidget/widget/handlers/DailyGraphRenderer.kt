@@ -244,6 +244,7 @@ internal object DailyGraphRenderer {
             errorSourceLabel = ctx.displaySource.displayName,
             errorCode = ctx.stateManager.getSourceLastErrorCode(ctx.displaySource),
             errorFailureTimeMs = ctx.stateManager.getSourceLastFailureTime(ctx.displaySource),
+            useCelsius = ctx.stateManager.useCelsius(),
         )
         val renderMs = SystemClock.elapsedRealtime() - renderStartMs
         ctx.views.setImageViewBitmap(R.id.graph_view, bitmap)

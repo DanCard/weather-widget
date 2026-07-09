@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.TempUtils
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -304,10 +305,12 @@ object CurrentTemperatureResolver {
         temp: Float,
         numColumns: Int,
         isStaleEstimate: Boolean,
+        useCelsius: Boolean = false,
     ): String {
+        val displayVal = if (useCelsius) TempUtils.fahrenheitToCelsius(temp) else temp
         return when {
-            numColumns >= 2 -> String.format("%.1f°", temp)
-            else -> String.format("%.0f°", temp)
+            numColumns >= 2 -> String.format("%.1f°", displayVal)
+            else -> String.format("%.0f°", displayVal)
         }
     }
 

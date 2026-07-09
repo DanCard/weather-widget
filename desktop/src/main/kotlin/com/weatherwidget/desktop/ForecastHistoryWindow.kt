@@ -163,7 +163,7 @@ internal fun ForecastHistoryWindow(
                 when {
                     loading -> Text("Loading…", color = Color.Gray)
                     d == null -> Text("No data.", color = Color.Gray)
-                    else -> Content(d, graphMode, source)
+                    else -> Content(d, graphMode, source, config.useCelsius)
                 }
             }
         }
@@ -202,7 +202,7 @@ private fun Header(
 }
 
 @Composable
-private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource) {
+private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource, useCelsius: Boolean) {
     val textMeasurer = rememberTextMeasurer()
     val isError = graphMode == GraphMode.ERROR
     val hasPoints = d.points.isNotEmpty()
@@ -215,11 +215,11 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource)
         Spacer(Modifier.height(12.dp))
     } else {
         GraphCard(if (isError) "High forecast error" else "High forecast evolution") {
-            EvolutionGraph(d.points, d.apiHigh, d.appHigh, isHigh = true, isError = isError, textMeasurer = textMeasurer)
+            EvolutionGraph(d.points, d.apiHigh, d.appHigh, isHigh = true, isError = isError, textMeasurer = textMeasurer, useCelsius = useCelsius)
         }
         Spacer(Modifier.height(12.dp))
         GraphCard(if (isError) "Low forecast error" else "Low forecast evolution") {
-            EvolutionGraph(d.points, d.apiLow, d.appLow, isHigh = false, isError = isError, textMeasurer = textMeasurer)
+            EvolutionGraph(d.points, d.apiLow, d.appLow, isHigh = false, isError = isError, textMeasurer = textMeasurer, useCelsius = useCelsius)
         }
         Spacer(Modifier.height(12.dp))
     }
@@ -298,10 +298,11 @@ private fun EvolutionGraph(
     isHigh: Boolean,
     isError: Boolean,
     textMeasurer: TextMeasurer,
+    useCelsius: Boolean = false,
 ) {
     Canvas(Modifier.fillMaxWidth().height(200.dp)) {
-        if (isError) drawError(points, actual, appActual, isHigh, textMeasurer)
-        else drawEvolution(points, actual, appActual, isHigh, textMeasurer)
+        if (isError) drawError(points, actual, appActual, isHigh, textMeasurer, useCelsius)
+        else drawEvolution(points, actual, appActual, isHigh, textMeasurer, useCelsius)
     }
 }
 
@@ -327,6 +328,7 @@ private fun DrawScope.drawEvolution(
     appActual: Float?,
     isHigh: Boolean,
     tm: TextMeasurer,
+    useCelsius: Boolean,
 ) {
     val tempFor = { p: EvolutionPoint -> if (isHigh) p.highTemp else p.lowTemp }
     // One forecast series in one color (the view shows a single API at a time).
@@ -339,12 +341,12 @@ private fun DrawScope.drawEvolution(
     val l = layout()
     val timeAxis = TimeAxis(series.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(l.width, spacingPx = 46f, maxDivisions = 20))
 
-    drawGridAndAxes(l, axis, timeAxis, tm, isError = false)
+    drawGridAndAxes(l, axis, timeAxis, tm, isError = false, useCelsius = useCelsius)
     drawSeriesCurve(series.mapNotNull { p -> tempFor(p)?.let { it to p.fetchedAt } }, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.FORECAST_COLOR))
     drawActualLine(l, axis, actual, parseColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), dashed = true,
-        "API actual: ${actual?.let { fmt(it) } ?: ""}", tm)
+        "API actual: ${actual?.let { fmt(it, useCelsius) } ?: ""}", tm)
     drawActualLine(l, axis, appActual, parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), dashed = false,
-        "Location actual: ${appActual?.let { fmt(it) } ?: ""}", tm)
+        "Location actual: ${appActual?.let { fmt(it, useCelsius) } ?: ""}", tm)
 }
 
 private fun DrawScope.drawError(
@@ -353,6 +355,7 @@ private fun DrawScope.drawError(
     appActual: Float?,
     isHigh: Boolean,
     tm: TextMeasurer,
+    useCelsius: Boolean,
 ) {
     val baseline = appActual ?: actual ?: return
     val tempFor = { p: EvolutionPoint -> if (isHigh) p.highTemp else p.lowTemp }
@@ -366,7 +369,7 @@ private fun DrawScope.drawError(
     val l = layout()
     val timeAxis = TimeAxis(errors.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(l.width, spacingPx = 46f, maxDivisions = 20))
 
-    drawGridAndAxes(l, axis, timeAxis, tm, isError = true)
+    drawGridAndAxes(l, axis, timeAxis, tm, isError = true, useCelsius = useCelsius)
 
     val zeroY = axis.valueToY(0f, l.top, l.height)
     drawLine(parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), Offset(l.left, zeroY), Offset(l.right, zeroY),
@@ -387,13 +390,13 @@ private fun DrawScope.drawError(
     drawErrorCurve(errors, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.FORECAST_COLOR))
 }
 
-private fun DrawScope.drawGridAndAxes(l: Layout, axis: AxisScale, timeAxis: TimeAxis, tm: TextMeasurer, isError: Boolean) {
+private fun DrawScope.drawGridAndAxes(l: Layout, axis: AxisScale, timeAxis: TimeAxis, tm: TextMeasurer, isError: Boolean, useCelsius: Boolean = false) {
     val grid = parseColor(ForecastEvolutionStyle.GRID_COLOR)
     val labelColor = parseColor(ForecastEvolutionStyle.LABEL_COLOR)
     for (tick in axis.ticks) {
         val y = axis.valueToY(tick, l.top, l.height)
         drawLine(grid, Offset(l.left, y), Offset(l.right, y), strokeWidth = ForecastEvolutionStyle.GRID_STROKE_DP.dp.toPx())
-        val text = if (isError) ForecastEvolutionGeometry.formatErrorLabel(tick) else ForecastEvolutionGeometry.formatAxisLabel(tick)
+        val text = if (isError) ForecastEvolutionGeometry.formatErrorLabel(tick, useCelsius) else ForecastEvolutionGeometry.formatAxisLabel(tick, useCelsius)
         label(tm, text, l.left - gap(), y, labelColor, leftAligned = false)
     }
     val labelBaseline = l.bottom + (ForecastEvolutionStyle.LABEL_GAP_DP + 8f).dp.toPx()
@@ -519,16 +522,20 @@ private fun loadHistory(
     val newestAge = newestFetch?.let { System.currentTimeMillis() - it }
 
     val calc = DesktopAccuracyCalculator(dao)
+    val useCelsius = config.useCelsius
     val summary = buildString {
         visibleSources.forEachIndexed { index, s ->
             val stats = calc.calculateAccuracy(s.id, lat, lon, days = 30)
             if (stats != null && stats.totalForecasts > 0) {
                 append("${s.displayName}\n")
+                val highErr = if (useCelsius) stats.avgHighError / 1.8 else stats.avgHighError
+                val lowErr = if (useCelsius) stats.avgLowError / 1.8 else stats.avgLowError
                 append("High ±%.1f°%s  Low ±%.1f°%s\n".format(
-                    stats.avgHighError, ForecastHistoryViewLogic.formatBias(stats.highBias),
-                    stats.avgLowError, ForecastHistoryViewLogic.formatBias(stats.lowBias),
+                    highErr, ForecastHistoryViewLogic.formatBias(stats.highBias, useCelsius),
+                    lowErr, ForecastHistoryViewLogic.formatBias(stats.lowBias, useCelsius),
                 ))
-                append("%% within 3°: %.0f%%  ·  %d days".format(stats.percentWithin3Degrees, stats.totalForecasts))
+                val limitDeg = if (useCelsius) 1.7 else 3.0
+                append("%% within %.1f°: %.0f%%  ·  %d days".format(limitDeg, stats.percentWithin3Degrees, stats.totalForecasts))
             } else {
                 append("${s.displayName}: No data yet")
             }
@@ -551,7 +558,7 @@ private fun loadHistory(
 // Small helpers
 // ---------------------------------------------------------------------------------------------
 
-private fun fmt(v: Float): String = ForecastEvolutionGeometry.formatTempLabel(v)
+private fun fmt(v: Float, useCelsius: Boolean = false): String = ForecastEvolutionGeometry.formatTempLabel(v, useCelsius)
 
 private fun formatAge(durationMs: Long): String {
     val minutes = durationMs / 60_000

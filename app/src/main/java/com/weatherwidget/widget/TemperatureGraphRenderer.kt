@@ -1,6 +1,7 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.shared.graph.*
+import com.weatherwidget.shared.util.TempUtils
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context
@@ -593,10 +594,11 @@ object TemperatureGraphRenderer {
             if (x <= fetchDotX + X_COORDINATE_MATCH_TOLERANCE) return@mapNotNull null
             val expectedTemp = ctx.smoothedExpectedTemps[i]
             if (!expectedTemp.isFinite()) return@mapNotNull null
+            val displayTemp = if (ctx.useCelsius) TempUtils.fahrenheitToCelsius(expectedTemp) else expectedTemp
             GhostLineLabel.Candidate(
                 x = x,
                 ghostY = ghostY,
-                expectedTemp = expectedTemp,
+                expectedTemp = displayTemp,
                 hasHourLabel = hours[i].showLabel,
             )
         }
@@ -896,6 +898,7 @@ object TemperatureGraphRenderer {
         errorSourceLabel: String? = null,
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
+        useCelsius: Boolean = false,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -938,7 +941,7 @@ object TemperatureGraphRenderer {
             context, canvas, widthPx, heightPx, density, labelScale, minTemp, maxTemp, tempRange,
             layout, hourWidth, minTimeEpoch, update, lastObservedTemp, appliedDelta, observedAt,
             paints, currentTime, onGhostLineDebug, onActualLineResolved, onLabelPlaced,
-            onDayLabelPlaced, onFetchDotResolved
+            onDayLabelPlaced, onFetchDotResolved, useCelsius
         )
 
         onActualLineResolved?.invoke(

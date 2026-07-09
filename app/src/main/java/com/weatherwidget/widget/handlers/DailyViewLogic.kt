@@ -170,7 +170,8 @@ object DailyViewLogic {
             // Today and historical days are permitted to show decimals for precision.
             // Show the tenth for any non-integer value (whole degrees stay clean via the
             // ".0" suppression in TempUtils.formatTemp), for today/past and future alike.
-            val formatTemp = { v: Float? -> com.weatherwidget.util.TempUtils.formatTemp(v) }
+            val useCelsius = stateManager?.useCelsius() ?: false
+            val formatTemp = { v: Float? -> com.weatherwidget.util.TempUtils.formatTemp(v, useCelsius) }
             
             var highLabel: String? = formatTemp(weather?.highTemp)
             var lowLabel: String? = formatTemp(weather?.lowTemp)
@@ -179,8 +180,8 @@ object DailyViewLogic {
             if (isPast) {
                 val obsHigh = dailyActuals[date]?.highTemp
                 val obsLow = dailyActuals[date]?.lowTemp
-                highLabel = com.weatherwidget.util.TempUtils.formatTemp(obsHigh)
-                lowLabel = com.weatherwidget.util.TempUtils.formatTemp(obsLow)
+                highLabel = formatTemp(obsHigh)
+                lowLabel = formatTemp(obsLow)
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
                 val resolvedCurrentTemp = currentTemp ?: com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(
                     currentTemps, displaySource
@@ -193,8 +194,8 @@ object DailyViewLogic {
 
                 val visibleHigh = listOfNotNull(tripleValues.solidLineHigh, tripleValues.dashedLineHigh, tripleValues.ghostLineHigh).maxOrNull()
                 val visibleLow = tripleValues.solidLineLow ?: tripleValues.dashedLineLow
-                highLabel = com.weatherwidget.util.TempUtils.formatTemp(visibleHigh)
-                lowLabel = com.weatherwidget.util.TempUtils.formatTemp(visibleLow)
+                highLabel = formatTemp(visibleHigh)
+                lowLabel = formatTemp(visibleLow)
                 isTodayForecastFallback =
                     tripleValues.solidLineHigh == null &&
                         tripleValues.solidLineLow == null &&

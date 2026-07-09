@@ -22,13 +22,14 @@ import kotlin.math.roundToInt
 class TemperatureTrayPainter(
     private val temperature: Float?,
     private val textMeasurer: TextMeasurer,
+    private val useCelsius: Boolean = false,
 ) : Painter() {
     override val intrinsicSize: Size = Size(24f, 24f)
 
     override fun DrawScope.onDraw() {
         drawRect(color = Color.Transparent, size = size, blendMode = BlendMode.Clear)
 
-        val tempText = temperature?.let { formatTrayTemperature(it) } ?: "--"
+        val tempText = temperature?.let { formatTrayTemperature(it, useCelsius) } ?: "--"
 
         val textColor = trayTempToColor(temperature ?: 70f)
         val textWeight = FontWeight.Bold
@@ -88,5 +89,7 @@ internal fun trayTempToColor(temp: Float): Color {
     }
 }
 
-internal fun formatTrayTemperature(temperature: Float): String =
-    String.format(Locale.US, "%.1f", temperature)
+internal fun formatTrayTemperature(temperature: Float, useCelsius: Boolean = false): String {
+    val displayVal = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(temperature) else temperature
+    return String.format(Locale.US, "%.1f", displayVal)
+}

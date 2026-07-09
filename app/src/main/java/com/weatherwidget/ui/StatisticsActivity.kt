@@ -47,7 +47,7 @@ class StatisticsActivity : AppCompatActivity() {
 
         // Temperature accuracy list
         val recyclerView = findViewById<RecyclerView>(R.id.daily_accuracy_list)
-        adapter = DailyAccuracyAdapter()
+        adapter = DailyAccuracyAdapter(widgetStateManager.useCelsius())
         recyclerView.adapter = adapter
         recyclerView.layoutManager = LinearLayoutManager(this)
 
@@ -120,15 +120,18 @@ class StatisticsActivity : AppCompatActivity() {
                                 WeatherSource.SILURIAN to comparison.silurianStats,
                             )
 
+                            val useCelsius = widgetStateManager.useCelsius()
                             sourcesToStats.forEachIndexed { index, (source, stats) ->
                                 if (enabledSources.contains(source)) {
                                     if (stats != null && stats.totalForecasts > 0) {
+                                        val highErr = if (useCelsius) stats.avgHighError / 1.8 else stats.avgHighError
+                                        val lowErr = if (useCelsius) stats.avgLowError / 1.8 else stats.avgLowError
                                         append(
                                             "${source.displayName}: High ±%.1f°%s, Low ±%.1f°%s".format(
-                                                stats.avgHighError,
-                                                formatBias(stats.highBias),
-                                                stats.avgLowError,
-                                                formatBias(stats.lowBias),
+                                                highErr,
+                                                formatBias(stats.highBias, useCelsius),
+                                                lowErr,
+                                                formatBias(stats.lowBias, useCelsius),
                                             ),
                                         )
                                     } else {
@@ -153,12 +156,18 @@ class StatisticsActivity : AppCompatActivity() {
         }
     }
 
-    private fun formatBias(bias: Double): String {
-        val absBias = kotlin.math.abs(bias)
+    private fun formatBias(bias: Double, useCelsius: Boolean): String {
+        val displayBias = if (useCelsius) bias / 1.8 else bias
+        val absBias = kotlin.math.abs(displayBias)
+        val threshold = if (useCelsius) 0.5 / 1.8 else 0.5
         return when {
-            absBias < 0.5 -> ""
-            bias > 0 -> " (${absBias.toInt()}° low)"
-            else -> " (${absBias.toInt()}° high)"
+            absBias < threshold -> ""
+            displayBias > 0 -> {
+                if (useCelsius) " (%.1f° low)".format(absBias) else " (%d° low)".format(absBias.toInt())
+            }
+            else -> {
+                if (useCelsius) " (%.1f° high)".format(absBias) else " (%d° high)".format(absBias.toInt())
+            }
         }
     }
 }

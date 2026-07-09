@@ -110,8 +110,9 @@ object TemperatureLabelResolver {
         val overriddenRole: TemperatureRole? = null,
     )
 
-    fun formatTemp(value: Float): String {
-        val rounded = round(value * 10f) / 10f
+    fun formatTemp(value: Float, useCelsius: Boolean = false): String {
+        val displayVal = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(value) else value
+        val rounded = kotlin.math.round(displayVal * 10f) / 10f
         return if (rounded % 1f == 0f) {
             "%.0f".format(rounded)
         } else {
@@ -146,13 +147,14 @@ object TemperatureLabelResolver {
         reason: String,
         provenance: String,
         extra: String = "",
+        useCelsius: Boolean = false,
     ) {
         val t = hours.getOrNull(idx)?.dateTime?.toLocalTime()?.toString() ?: "?"
         // No degree glyph: the file log sink isn't UTF-8 and renders ° as '?'. The bare number still
         // greps against what's on screen (e.g. `grep 'displayed="73.8'`).
         Log.v(
             TAG,
-            "$action: displayed=\"${formatTemp(value)}\" t=$t role=$role reason=$reason " +
+            "$action: displayed=\"${formatTemp(value, useCelsius)}\" t=$t role=$role reason=$reason " +
                 "provenance=$provenance val=$value idx=$idx" + if (extra.isEmpty()) "" else " $extra",
         )
     }
@@ -179,6 +181,7 @@ object TemperatureLabelResolver {
         observedAt: Long?,
         numColumns: Int = 0,
         widthPx: Int = 0,
+        useCelsius: Boolean = false,
     ): List<TempLabelCandidate> {
         val labelTemps = extrema.labelTemps
         val actualLabelTemps = extrema.actualLabelTemps
@@ -304,14 +307,14 @@ object TemperatureLabelResolver {
             val temps = if (isActualRole) actualLabelTemps else labelTemps
 
             if (role in LOGGED_SUPPRESSION_ROLES) {
-                logLabelDecision("LabelAccepted", role, idx, temps[idx], hours, reason = "EXTREMA", provenance = provenanceFor(role, isMidpoint = false))
+                logLabelDecision("LabelAccepted", role, idx, temps[idx], hours, reason = "EXTREMA", provenance = provenanceFor(role, isMidpoint = false), useCelsius = useCelsius)
             }
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
 
-        addCoincidentActuals(specialCandidates, suppressedIndices, extrema.actualDailyHighIndices, TemperatureRole.ACTUAL_HIGH, FORECAST_HIGH_ROLES, hours, labelTemps, actualLabelTemps, "COINCIDENT_WITH_FORECAST_HIGH")
-        addCoincidentActuals(specialCandidates, suppressedIndices, extrema.actualDailyLowIndices, TemperatureRole.ACTUAL_LOW, FORECAST_LOW_ROLES, hours, labelTemps, actualLabelTemps, "COINCIDENT_WITH_FORECAST_LOW")
-        addForecastMidpointLabel(specialCandidates, effectiveActualEndIndex, hours, labelTemps)
+        addCoincidentActuals(specialCandidates, suppressedIndices, extrema.actualDailyHighIndices, TemperatureRole.ACTUAL_HIGH, FORECAST_HIGH_ROLES, hours, labelTemps, actualLabelTemps, "COINCIDENT_WITH_FORECAST_HIGH", useCelsius = useCelsius)
+        addCoincidentActuals(specialCandidates, suppressedIndices, extrema.actualDailyLowIndices, TemperatureRole.ACTUAL_LOW, FORECAST_LOW_ROLES, hours, labelTemps, actualLabelTemps, "COINCIDENT_WITH_FORECAST_LOW", useCelsius = useCelsius)
+        addForecastMidpointLabel(specialCandidates, effectiveActualEndIndex, hours, labelTemps, useCelsius = useCelsius)
 
         return specialCandidates
     }
@@ -336,6 +339,7 @@ object TemperatureLabelResolver {
         effectiveActualEndIndex: Int,
         hours: List<HourData>,
         labelTemps: List<Float>,
+        useCelsius: Boolean = false,
     ) {
         val lastIndex = hours.lastIndex
         val futureStart = effectiveActualEndIndex
@@ -361,18 +365,18 @@ object TemperatureLabelResolver {
         // global HIGH/LOW (or a region-boundary label) already on screen, so it would render as a
         // duplicate number (the Samsung "two 88°" bug). Not distance-gated: a duplicate anywhere on
         // the forecast line defeats the purpose of a reference label, however far away it sits.
-        val midText = formatTemp(labelTemps[mid])
+        val midText = formatTemp(labelTemps[mid], useCelsius)
         val alreadyOnForecastLine = specialCandidates.any { c ->
             c.role in FORECAST_VALUE_ROLES &&
                 c.index in labelTemps.indices &&
-                formatTemp(labelTemps[c.index]) == midText
+                formatTemp(labelTemps[c.index], useCelsius) == midText
         }
         if (alreadyOnForecastLine) {
-            logLabelDecision("MidpointSuppressed", TemperatureRole.LOCAL, mid, labelTemps[mid], hours, reason = "DUPLICATE_FORECAST_VALUE", provenance = provenanceFor(TemperatureRole.LOCAL, isMidpoint = true), extra = "duplicatesText=$midText")
+            logLabelDecision("MidpointSuppressed", TemperatureRole.LOCAL, mid, labelTemps[mid], hours, reason = "DUPLICATE_FORECAST_VALUE", provenance = provenanceFor(TemperatureRole.LOCAL, isMidpoint = true), extra = "duplicatesText=$midText", useCelsius = useCelsius)
             return
         }
 
-        logLabelDecision("LabelAccepted", TemperatureRole.LOCAL, mid, labelTemps[mid], hours, reason = "FORECAST_MIDPOINT", provenance = provenanceFor(TemperatureRole.LOCAL, isMidpoint = true), extra = "futureStart=$futureStart lastIndex=$lastIndex")
+        logLabelDecision("LabelAccepted", TemperatureRole.LOCAL, mid, labelTemps[mid], hours, reason = "FORECAST_MIDPOINT", provenance = provenanceFor(TemperatureRole.LOCAL, isMidpoint = true), extra = "futureStart=$futureStart lastIndex=$lastIndex", useCelsius = useCelsius)
         specialCandidates.add(
             TempLabelCandidate(mid, TemperatureRole.LOCAL, labelTemps, hours[mid].temperature, forceForecastSeries = true)
         )
@@ -419,6 +423,7 @@ object TemperatureLabelResolver {
         labelTemps: List<Float>,
         actualLabelTemps: List<Float>,
         reason: String,
+        useCelsius: Boolean = false,
     ) {
         for (idx in actualIndices) {
             if (idx < 0 || idx in suppressedIndices) continue
@@ -428,9 +433,9 @@ object TemperatureLabelResolver {
 
             val actualVal = actualLabelTemps[idx]
             val forecastVal = labelTemps[idx]
-            if (formatTemp(actualVal) == formatTemp(forecastVal)) continue
+            if (formatTemp(actualVal, useCelsius) == formatTemp(forecastVal, useCelsius)) continue
 
-            logLabelDecision("LabelAccepted", actualRole, idx, actualVal, hours, reason = reason, provenance = provenanceFor(actualRole, isMidpoint = false))
+            logLabelDecision("LabelAccepted", actualRole, idx, actualVal, hours, reason = reason, provenance = provenanceFor(actualRole, isMidpoint = false), useCelsius = useCelsius)
             specialCandidates.add(
                 TempLabelCandidate(idx, actualRole, actualLabelTemps, hours[idx].temperature, forceForecastSeries = false)
             )
@@ -737,6 +742,7 @@ object TemperatureLabelResolver {
         lastObservedTemp: Float?,
         tempToY: (Float) -> Float,
         metrics: LabelTextMetrics,
+        useCelsius: Boolean = false,
     ): ResolvedLabelGeometry? {
         val idx = candidate.index
         val temps = candidate.labelTemps
@@ -754,12 +760,12 @@ object TemperatureLabelResolver {
         }
         val sy = tempToY(temps[idx])
 
-        val label = formatTemp(temps[idx]) + "°"
+        val label = formatTemp(temps[idx], useCelsius) + "°"
         val textWidth = metrics.width(label, isFuture)
         val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
         if (fetchDotX != null && lastObservedTemp != null && candidate.role !in setOf(TemperatureRole.START, TemperatureRole.END)) {
-            val fetchDotLabel = formatTemp(lastObservedTemp) + "°"
+            val fetchDotLabel = formatTemp(lastObservedTemp, useCelsius) + "°"
             val dist = abs(clampedX - fetchDotX)
             if (label == fetchDotLabel && dist < 12f * density) {
                 return null

@@ -184,6 +184,18 @@ Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour
             )
         } else if (state.graph.showTextMode) {
             showTextMode(views)
+            updateHourlyTextMode(
+                views = views,
+                hourlyForecasts = hourlyForecasts,
+                centerTime = centerTime,
+                numColumns = WidgetSizeCalculator.getWidgetSize(
+                    context = context,
+                    appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context),
+                    appWidgetId = appWidgetId
+                ).cols,
+                displaySource = state.displaySource,
+                useCelsius = stateManager.useCelsius(),
+            )
         }
     }
 

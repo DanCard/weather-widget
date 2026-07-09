@@ -191,6 +191,7 @@ object PrecipViewHandler {
                 temp = currentTemp,
                 numColumns = numColumns,
                 isStaleEstimate = currentTempResolution.isStaleEstimate,
+                useCelsius = stateManager.useCelsius(),
             )
         } else null
 

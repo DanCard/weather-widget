@@ -25,6 +25,7 @@ import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 internal fun StatisticsWindow(
@@ -77,11 +78,11 @@ internal fun StatisticsWindow(
                     loading -> Text("Calculating…", color = Color.Gray)
                     stats == null -> EmptyState()
                     else -> {
-                        SummaryCard(stats!!)
+                        SummaryCard(stats!!, config.useCelsius)
                         Spacer(Modifier.height(16.dp))
                         Text("Day-by-day", fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
-                        BreakdownTable(breakdown)
+                        BreakdownTable(breakdown, config.useCelsius)
                     }
                 }
             }
@@ -105,7 +106,7 @@ private fun EmptyState() {
 }
 
 @Composable
-private fun SummaryCard(s: AccuracyPure.AccuracyStatistics) {
+private fun SummaryCard(s: AccuracyPure.AccuracyStatistics, useCelsius: Boolean) {
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -114,10 +115,14 @@ private fun SummaryCard(s: AccuracyPure.AccuracyStatistics) {
                     color = scoreColor(s.accuracyScore))
             }
             Spacer(Modifier.height(8.dp))
-            StatRow("Avg error (high / low)", "%.1f° / %.1f°".format(s.avgHighError, s.avgLowError))
-            StatRow("Bias (high / low)", "${biasText(s.highBias)} / ${biasText(s.lowBias)}")
-            StatRow("Max error", "${s.maxError}°")
-            StatRow("Within ±3°", "%.0f%%".format(s.percentWithin3Degrees))
+            val avgHigh = if (useCelsius) s.avgHighError / 1.8 else s.avgHighError
+            val avgLow = if (useCelsius) s.avgLowError / 1.8 else s.avgLowError
+            val maxErr = if (useCelsius) s.maxError / 1.8 else s.maxError
+            StatRow("Avg error (high / low)", "%.1f° / %.1f°".format(avgHigh, avgLow))
+            StatRow("Bias (high / low)", "${biasText(s.highBias, useCelsius)} / ${biasText(s.lowBias, useCelsius)}")
+            StatRow("Max error", "%.1f°".format(maxErr))
+            val limitDeg = if (useCelsius) 1.7 else 3.0
+            StatRow("Within ±%.1f°".format(limitDeg), "%.0f%%".format(s.percentWithin3Degrees))
             StatRow("Days compared", "${s.totalForecasts}")
         }
     }
@@ -132,7 +137,7 @@ private fun StatRow(label: String, value: String) {
 }
 
 @Composable
-private fun BreakdownTable(rows: List<AccuracyPure.DailyAccuracy>) {
+private fun BreakdownTable(rows: List<AccuracyPure.DailyAccuracy>, useCelsius: Boolean) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             HeaderCell("Date", 2f); HeaderCell("Fcst H/L", 1.4f); HeaderCell("Actual H/L", 1.4f); HeaderCell("Err H/L", 1.2f)
@@ -140,12 +145,19 @@ private fun BreakdownTable(rows: List<AccuracyPure.DailyAccuracy>) {
         rows.reversed().forEach { r ->
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 BodyCell(r.date, 2f)
-                BodyCell("${r.forecastHigh}/${r.forecastLow}", 1.4f)
-                BodyCell("${r.actualHigh}/${r.actualLow}", 1.4f)
+                val dispForecastHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.forecastHigh.toFloat()).roundToInt() else r.forecastHigh
+                val dispForecastLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.forecastLow.toFloat()).roundToInt() else r.forecastLow
+                val dispActualHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.actualHigh.toFloat()).roundToInt() else r.actualHigh
+                val dispActualLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.actualLow.toFloat()).roundToInt() else r.actualLow
+                val dispHighError = if (useCelsius) (r.highError.toFloat() / 1.8f).roundToInt() else r.highError
+                val dispLowError = if (useCelsius) (r.lowError.toFloat() / 1.8f).roundToInt() else r.lowError
+
+                BodyCell("$dispForecastHigh/$dispForecastLow", 1.4f)
+                BodyCell("$dispActualHigh/$dispActualLow", 1.4f)
                 Row(Modifier.weight(1.2f)) {
-                    Text(signed(r.highError), fontSize = 12.sp, color = errColor(r.highError))
+                    Text(signed(dispHighError), fontSize = 12.sp, color = errColor(dispHighError, useCelsius))
                     Text("/", fontSize = 12.sp, color = Color.Gray)
-                    Text(signed(r.lowError), fontSize = 12.sp, color = errColor(r.lowError))
+                    Text(signed(dispLowError), fontSize = 12.sp, color = errColor(dispLowError, useCelsius))
                 }
             }
         }
@@ -164,10 +176,15 @@ private fun androidx.compose.foundation.layout.RowScope.BodyCell(text: String, w
 
 private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
 
-private fun biasText(bias: Double): String = when {
-    abs(bias) < 0.05 -> "0.0°"
-    bias > 0 -> "%.1f° low".format(bias)   // actual warmer than forecast → forecast ran low
-    else -> "%.1f° high".format(-bias)
+private fun biasText(bias: Double, useCelsius: Boolean): String {
+    val displayBias = if (useCelsius) bias / 1.8 else bias
+    val absBias = abs(displayBias)
+    val threshold = if (useCelsius) 0.05 / 1.8 else 0.05
+    return when {
+        absBias < threshold -> "0.0°"
+        displayBias > 0 -> "%.1f° low".format(absBias)
+        else -> "%.1f° high".format(absBias)
+    }
 }
 
 private fun scoreColor(score: Double): Color = when {
@@ -176,8 +193,11 @@ private fun scoreColor(score: Double): Color = when {
     else -> Color(0xFFF44336)
 }
 
-private fun errColor(err: Int): Color = when {
-    abs(err) <= 2 -> Color(0xFF4CAF50)
-    abs(err) <= 5 -> Color(0xFFFFC107)
-    else -> Color(0xFFF44336)
+private fun errColor(err: Int, useCelsius: Boolean): Color {
+    val limit = if (useCelsius) 1 else 2
+    return when {
+        abs(err) <= limit -> Color(0xFF4CAF50)
+        abs(err) <= limit * 2 -> Color(0xFFFFC107)
+        else -> Color(0xFFF44336)
+    }
 }

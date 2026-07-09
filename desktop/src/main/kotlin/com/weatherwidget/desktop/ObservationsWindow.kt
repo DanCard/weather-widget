@@ -301,7 +301,7 @@ internal fun ObservationsWindow(
 
                     Box(modifier = Modifier.weight(1f)) {
                         if (selectedTab == 0) {
-                            ObservationList(observations)
+                            ObservationList(observations, config.useCelsius)
                         } else {
                             LogList(logs)
                         }
@@ -313,7 +313,7 @@ internal fun ObservationsWindow(
 }
 
 @Composable
-private fun ObservationList(observations: List<DesktopObservationEntity>) {
+private fun ObservationList(observations: List<DesktopObservationEntity>, useCelsius: Boolean = false) {
     val timeFormatter = remember { DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault()) }
     
     LazyColumn(modifier = Modifier.fillMaxSize().padding(6.dp)) {
@@ -347,11 +347,12 @@ private fun ObservationList(observations: List<DesktopObservationEntity>) {
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             )
                         }
+                        val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(obs.temperature.toFloat()) else obs.temperature
                         Text(
-                            String.format("%.1f°", obs.temperature),
+                            String.format("%.1f°", displayTemp),
                             fontSize = 32.sp,
                             fontWeight = FontWeight.Bold,
-                            color = trayTempToColor(obs.temperature)
+                            color = trayTempToColor(obs.temperature.toFloat())
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {

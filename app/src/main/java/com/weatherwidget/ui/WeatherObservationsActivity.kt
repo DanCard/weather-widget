@@ -86,7 +86,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
         recyclerView = findViewById(R.id.observations_list)
         recyclerView.layoutManager = LinearLayoutManager(this)
-        adapter = ObservationAdapter { entity ->
+        adapter = ObservationAdapter(widgetStateManager.useCelsius()) { entity ->
             if (entity.stationId.contains("_HIST_")) {
                 showRenameDialog(entity)
             } else {
@@ -462,6 +462,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     internal class ObservationAdapter(
+        private val useCelsius: Boolean = false,
         @get:VisibleForTesting internal val onItemClick: (ObservationEntity) -> Unit,
     ) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
         internal var items: List<ObservationEntity> = emptyList()
@@ -495,7 +496,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 timeFormatter.format(Instant.ofEpochMilli(item.fetchedAt))
             )
 
-            holder.temperature.text = String.format("%.1f°", item.temperature)
+            val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.temperature) else item.temperature
+            holder.temperature.text = String.format("%.1f°", displayTemp)
             holder.temperature.setTextColor(obsTempToColor(item.temperature.toFloat()))
             holder.condition.text = item.condition
         }

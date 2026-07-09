@@ -122,14 +122,14 @@ object TemperatureLabelEngine {
         TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_END,
     )
 
-    private fun computeLeftEdgeStartOrdering(candidates: List<TempLabelCandidate>): Map<Int, Boolean> {
+    private fun computeLeftEdgeStartOrdering(candidates: List<TempLabelCandidate>, useCelsius: Boolean = false): Map<Int, Boolean> {
         val start = candidates.firstOrNull { it.role == TemperatureRole.START } ?: return emptyMap()
         val actual = candidates
             .filter { it.role in LEFT_EDGE_ACTUAL_ROLES && it.index != start.index && abs(it.index - start.index) <= LEFT_EDGE_START_WINDOW }
             .minByOrNull { abs(it.index - start.index) } ?: return emptyMap()
         val startVal = start.labelTemps[start.index]
         val actualVal = actual.labelTemps[actual.index]
-        if (TemperatureLabelResolver.formatTemp(startVal) == TemperatureLabelResolver.formatTemp(actualVal)) return emptyMap()
+        if (TemperatureLabelResolver.formatTemp(startVal, useCelsius) == TemperatureLabelResolver.formatTemp(actualVal, useCelsius)) return emptyMap()
         val startAbove = startVal > actualVal
         return mapOf(start.index to startAbove, actual.index to !startAbove)
     }
@@ -145,7 +145,7 @@ object TemperatureLabelEngine {
     // to the left edge AND the equal-or-cooler case, so the lone actual high and the genuinely
     // warmer actual are untouched. Returns ONLY the actual override; the forecast high keeps its
     // existing default-above path.
-    private fun computeLeftEdgeHighOrdering(candidates: List<TempLabelCandidate>): Map<Int, Boolean> {
+    private fun computeLeftEdgeHighOrdering(candidates: List<TempLabelCandidate>, useCelsius: Boolean = false): Map<Int, Boolean> {
         val forecast = candidates
             .filter { it.role in LEFT_EDGE_FORECAST_HIGH_ROLES }
             .minByOrNull { it.index } ?: return emptyMap()
@@ -158,7 +158,7 @@ object TemperatureLabelEngine {
             .minByOrNull { abs(it.index - forecast.index) } ?: return emptyMap()
         val forecastVal = forecast.labelTemps[forecast.index]
         val actualVal = actual.labelTemps[actual.index]
-        if (TemperatureLabelResolver.formatTemp(forecastVal) == TemperatureLabelResolver.formatTemp(actualVal)) return emptyMap()
+        if (TemperatureLabelResolver.formatTemp(forecastVal, useCelsius) == TemperatureLabelResolver.formatTemp(actualVal, useCelsius)) return emptyMap()
         // Only act when the forecast is the warmer one; a genuinely warmer actual keeps default above.
         if (forecastVal < actualVal) return emptyMap()
         return mapOf(actual.index to false)
@@ -198,6 +198,7 @@ object TemperatureLabelEngine {
         // valley forecast LOW landing on the fetch-dot's pink actual-temp label flips above the
         // curve instead of drawing on top of it. See plans/samsung-clash-of-labels-*.md.
         reservedHardBounds: List<GraphRect> = emptyList(),
+        useCelsius: Boolean = false,
     ): List<PlacedLabel> {
         val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, transitionX, effectiveActualEndIndex, fetchTime)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
@@ -208,13 +209,14 @@ object TemperatureLabelEngine {
             observedAt = observedAt,
             numColumns = numColumns,
             widthPx = widthPx,
+            useCelsius = useCelsius,
         ).toMutableList()
 
         TemperatureLabelResolver.sortLabelCandidates(candidates)
 
         val forcedAboveLows = computeForcedAboveLowIndices(candidates)
         // computeLeftEdgeStartOrdering wins on any key collision (its START pairing is the tuned case).
-        val leftEdgeOrder = computeLeftEdgeHighOrdering(candidates) + computeLeftEdgeStartOrdering(candidates)
+        val leftEdgeOrder = computeLeftEdgeHighOrdering(candidates, useCelsius) + computeLeftEdgeStartOrdering(candidates, useCelsius)
         val drawnLabelMetas = mutableListOf<PlacedLabelMeta>()
         val resultPlacements = mutableListOf<PlacedLabel>()
 
@@ -242,6 +244,7 @@ object TemperatureLabelEngine {
                 lastObservedTemp = lastObservedTemp,
                 tempToY = tempToY,
                 metrics = metrics,
+                useCelsius = useCelsius,
             ) ?: continue
 
             val forceAbove = idx in forcedAboveLows

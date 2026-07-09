@@ -122,22 +122,24 @@ object ForecastEvolutionGeometry {
         return formatter.format(instant.atZone(zone))
     }
 
-    fun formatAxisLabel(value: Float): String {
-        val rounded = value.roundToInt()
-        return if (abs(value - rounded) < 0.01f) "${rounded}°"
-        else String.format("%.1f°", value)
+    fun formatAxisLabel(value: Float, useCelsius: Boolean = false): String {
+        val displayVal = if (useCelsius) TempUtils.fahrenheitToCelsius(value) else value
+        val rounded = displayVal.roundToInt()
+        return if (abs(displayVal - rounded) < 0.01f) "${rounded}°"
+        else String.format("%.1f°", displayVal)
     }
 
-    fun formatErrorLabel(value: Float): String {
-        val rounded = value.roundToInt()
-        val roundedStr = if (abs(value - rounded) < 0.01f) "${abs(rounded)}"
-        else String.format("%.1f", abs(value))
+    fun formatErrorLabel(value: Float, useCelsius: Boolean = false): String {
+        val displayVal = if (useCelsius) value / 1.8f else value
+        val rounded = displayVal.roundToInt()
+        val roundedStr = if (abs(displayVal - rounded) < 0.01f) "${abs(rounded)}"
+        else String.format("%.1f", abs(displayVal))
         return when {
-            value > 0.05f -> "+${roundedStr}°"
-            value < -0.05f -> "-${roundedStr}°"
+            displayVal > 0.05f -> "+${roundedStr}°"
+            displayVal < -0.05f -> "-${roundedStr}°"
             else -> "0°"
         }
     }
 
-    fun formatTempLabel(value: Float): String = TempUtils.formatTemp(value) ?: ""
+    fun formatTempLabel(value: Float, useCelsius: Boolean = false): String = TempUtils.formatTemp(value, useCelsius) ?: ""
 }

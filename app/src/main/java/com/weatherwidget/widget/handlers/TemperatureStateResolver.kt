@@ -262,15 +262,24 @@ internal object TemperatureStateResolver {
             lastGoodObsMs = observedAt,
         )
 
+        val useCelsius = stateManager.useCelsius()
         val headerState = TemperatureWidgetState.HeaderState(
             sourceIndicator = sourceIndicator,
             iconRes = iconRes,
             currentTemp = if (currentTemp != null) {
-                val formatted = CurrentTemperatureResolver.formatDisplayTemperature(currentTemp, dimensions.cols, currentTempResolution.isStaleEstimate)
+                val formatted = CurrentTemperatureResolver.formatDisplayTemperature(
+                    currentTemp,
+                    dimensions.cols,
+                    currentTempResolution.isStaleEstimate,
+                    useCelsius = useCelsius
+                )
                 if (formatted != null) formatted else null
             } else null,
             currentTempSizeDp = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
-            deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
+            deltaText = if (deltaVisible) {
+                val displayDelta = delta?.let { if (useCelsius) it / 1.8f else it }
+                if (displayDelta != null) String.format("%+.1f", displayDelta) else null
+            } else null,
             deltaColor = Color.parseColor(DELTA_COLOR_HEX),
             precipProbability = if (isPrecipVisible) "$headerPrecipProbability%" else null,
             precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(checkNotNull(headerPrecipProbability)) else 0f,
@@ -307,6 +316,7 @@ internal object TemperatureStateResolver {
                     errorSourceLabel = displaySource.displayName,
                     errorCode = stateManager.getSourceLastErrorCode(displaySource),
                     errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
+                    useCelsius = useCelsius,
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "renderGraph failed", e)

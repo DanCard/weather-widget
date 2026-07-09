@@ -1003,6 +1003,7 @@ object DailyViewHandler : WidgetViewHandler {
                     temp = it,
                     numColumns = numColumns,
                     isStaleEstimate = currentTempResolution.isStaleEstimate,
+                    useCelsius = stateManager.useCelsius(),
                 )
             }
 
@@ -1177,7 +1178,10 @@ object DailyViewHandler : WidgetViewHandler {
         HeaderRemoteViewsBinder.bindDelta(
             context = context,
             views = views,
-            deltaText = if (state.deltaVisible) String.format("%+.1f", state.appliedDelta) else null,
+            deltaText = if (state.deltaVisible) {
+                val displayDelta = state.appliedDelta?.let { if (WidgetStateManager(context).useCelsius()) it / 1.8f else it }
+                if (displayDelta != null) String.format("%+.1f", displayDelta) else null
+            } else null,
             deltaVisible = state.deltaVisible,
             scale = state.headerScale,
         )

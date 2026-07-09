@@ -459,8 +459,8 @@ private fun runApp() = application {
 
         // Dynamic icon showing the current temperature.
         val textMeasurer = remember { createTrayTextMeasurer() }
-        val appIcon = remember(forecast?.currentTemp) {
-            TemperatureTrayPainter(forecast?.currentTemp, textMeasurer)
+        val appIcon = remember(forecast?.currentTemp, currentConfig?.useCelsius) {
+            TemperatureTrayPainter(forecast?.currentTemp, textMeasurer, currentConfig?.useCelsius == true)
         }
 
         LaunchedEffect(startupSmoke) {
@@ -853,6 +853,7 @@ internal fun WidgetPopup(
                                     onToggleZoom = handleToggleZoom,
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
+                                    useCelsius = config.useCelsius,
                                 )
                             }
                             NavArrow(
@@ -1045,12 +1046,14 @@ internal fun WidgetPopup(
                                     modifier = Modifier.fillMaxSize().then(dailyInput),
                                     scale = uiScale,
                                     onDayClick = handleDayClick,
+                                    useCelsius = config.useCelsius,
                                 )
                             } else {
                                 DailyForecastTextMode(
                                     state = dailyState,
                                     modifier = Modifier.fillMaxSize().then(dailyInput),
                                     onDayClick = handleDayClick,
+                                    useCelsius = config.useCelsius,
                                 )
                             }
 
@@ -1204,15 +1207,16 @@ private fun WidgetHeader(
                         modifier = Modifier.size((22 * scale).dp).padding(end = 4.dp)
                     )
                     Text(
-                        text = displayTemp?.let { formatTrayTemperature(it) + "°" } ?: "—",
+                        text = displayTemp?.let { formatTrayTemperature(it, config.useCelsius) + "°" } ?: "—",
                         style = MaterialTheme.typography.displaySmall,
                         fontSize = (15 * scale).sp
                     )
                 }
                 if (deltaTemp != null) {
                     Spacer(Modifier.width(2.dp))
+                    val displayDelta = if (config.useCelsius) deltaTemp / 1.8f else deltaTemp
                     Text(
-                        text = String.format(Locale.US, "%+.1f", deltaTemp),
+                        text = String.format(Locale.US, "%+.1f", displayDelta),
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = (11 * scale).sp,
                         color = Color(0xFFFF6B35),
@@ -1352,6 +1356,7 @@ private fun DailyForecastTextMode(
     state: DesktopDailyViewState,
     modifier: Modifier = Modifier,
     onDayClick: (LocalDate, DayClickResolver.DayTapZone) -> Unit = { _, _ -> },
+    useCelsius: Boolean = false,
 ) {
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         state.days.forEach { day ->
@@ -1376,14 +1381,14 @@ private fun DailyForecastTextMode(
                 val high = listOfNotNull(day.solidHigh, day.forecastHigh, day.snapshotHigh).maxOrNull()
                 val low = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
                 Text(
-                    text = com.weatherwidget.shared.util.TempUtils.formatTemp(high) ?: "--",
+                    text = com.weatherwidget.shared.util.TempUtils.formatTemp(high, useCelsius) ?: "--",
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White,
                     maxLines = 1,
                 )
                 if (state.dimensions.cols >= 2) {
                     Text(
-                        text = com.weatherwidget.shared.util.TempUtils.formatTemp(low) ?: "--",
+                        text = com.weatherwidget.shared.util.TempUtils.formatTemp(low, useCelsius) ?: "--",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.62f),
                         maxLines = 1,

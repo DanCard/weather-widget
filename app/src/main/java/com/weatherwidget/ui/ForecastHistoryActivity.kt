@@ -465,18 +465,19 @@ class ForecastHistoryActivity : AppCompatActivity() {
             highCard.visibility = View.VISIBLE
             lowCard.visibility = View.VISIBLE
 
+            val useCelsius = widgetStateManager.useCelsius()
             fun render(actual: Float?, appActual: Float?, isHigh: Boolean) =
                 if (isErrorMode) {
                     if (isHigh) ForecastEvolutionRenderer.renderHighErrorGraph(
-                        this, evolutionPoints, actual, appActual, width, height,
+                        this, evolutionPoints, actual, appActual, width, height, useCelsius = useCelsius,
                     ) else ForecastEvolutionRenderer.renderLowErrorGraph(
-                        this, evolutionPoints, actual, appActual, width, height,
+                        this, evolutionPoints, actual, appActual, width, height, useCelsius = useCelsius,
                     )
                 } else {
                     if (isHigh) ForecastEvolutionRenderer.renderHighGraph(
-                        this, evolutionPoints, actual, appActual, width, height,
+                        this, evolutionPoints, actual, appActual, width, height, useCelsius = useCelsius,
                     ) else ForecastEvolutionRenderer.renderLowGraph(
-                        this, evolutionPoints, actual, appActual, width, height,
+                        this, evolutionPoints, actual, appActual, width, height, useCelsius = useCelsius,
                     )
                 }
 
@@ -562,17 +563,21 @@ class ForecastHistoryActivity : AppCompatActivity() {
                                 WeatherSource.SILURIAN to comparison.silurianStats,
                             )
 
+                            val useCelsius = widgetStateManager.useCelsius()
                             sourcesToShow.forEachIndexed { index, (source, stats) ->
                                 if (enabledSources.contains(source)) {
                                     if (stats != null && stats.totalForecasts > 0) {
                                         append("${source.displayName}\n")
+                                        val highErr = if (useCelsius) stats.avgHighError / 1.8 else stats.avgHighError
+                                        val lowErr = if (useCelsius) stats.avgLowError / 1.8 else stats.avgLowError
                                         append("High ±%.1f°%s  Low ±%.1f°%s\n".format(
-                                            stats.avgHighError,
-                                            formatBias(stats.highBias),
-                                            stats.avgLowError,
-                                            formatBias(stats.lowBias),
+                                            highErr,
+                                            formatBias(stats.highBias, useCelsius),
+                                            lowErr,
+                                            formatBias(stats.lowBias, useCelsius),
                                         ))
-                                        append("%% within 3°: %.0f%%  Forecasts: %d".format(stats.percentWithin3Degrees, stats.totalForecasts))
+                                        val limitDeg = if (useCelsius) 1.7 else 3.0
+                                        append("%% within %.1f°: %.0f%%  Forecasts: %d".format(limitDeg, stats.percentWithin3Degrees, stats.totalForecasts))
                                     } else {
                                         append("${source.displayName}: No data yet")
                                     }
@@ -596,11 +601,13 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
     }
 
-    private fun formatBias(bias: Double): String {
-        val absBias = kotlin.math.abs(bias)
+    private fun formatBias(bias: Double, useCelsius: Boolean): String {
+        val displayBias = if (useCelsius) bias / 1.8 else bias
+        val absBias = kotlin.math.abs(displayBias)
+        val threshold = if (useCelsius) 0.5 / 1.8 else 0.5
         return when {
-            absBias < 0.5 -> ""
-            bias > 0 -> " (${String.format("%.1f", absBias)}° low)"
+            absBias < threshold -> ""
+            displayBias > 0 -> " (${String.format("%.1f", absBias)}° low)"
             else -> " (${String.format("%.1f", absBias)}° high)"
         }
     }

@@ -234,6 +234,7 @@ object DailyForecastGraphRenderer {
         val minBarHeightPx: Float,
         val dayLabelTextByDate: Map<LocalDate, String>,
         val density: Float,
+        val useCelsius: Boolean = false,
     ) {
         fun tempToY(temp: Float): Float =
             graphTop + graphHeight * (1 - (temp - minTemp) / tempRange)
@@ -324,6 +325,7 @@ object DailyForecastGraphRenderer {
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
         onHeaderDrawn: ((HeaderDrawnDebug) -> Unit)? = null,
+        useCelsius: Boolean = false,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -339,7 +341,7 @@ object DailyForecastGraphRenderer {
         }
 
         val columns = if (numColumns > 0) numColumns else days.size
-        val layout = computeLayout(context, days, widthPx, heightPx, columns, bitmapScale, job)
+        val layout = computeLayout(context, days, widthPx, heightPx, columns, bitmapScale, job, useCelsius = useCelsius)
         val paints = getPaintSet(layout.scaleFactor, layout)
 
         debug { "renderGraph: days=${days.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx" }
@@ -439,6 +441,7 @@ object DailyForecastGraphRenderer {
         columns: Int,
         bitmapScale: Float,
         job: Job? = null,
+        useCelsius: Boolean = false,
     ): LayoutInfo {
         job?.ensureActive()
         val allTemps = days.flatMap { listOfNotNull(it.solidLineHigh, it.solidLineLow, it.dashedLineHigh, it.dashedLineLow, it.snapshotHigh, it.snapshotLow, it.ghostLineHigh) }
@@ -529,6 +532,7 @@ object DailyForecastGraphRenderer {
             minBarHeightPx = (MIN_BAR_HEIGHT_DP).dp(density),
             dayLabelTextByDate = dayLabelLayout.textByDate,
             density = density,
+            useCelsius = useCelsius,
         )
     }
 
@@ -708,7 +712,7 @@ object DailyForecastGraphRenderer {
                 val isLowest = displayLow <= layout.minTemp + 0.01f
                 val hasNightRain = day.rainData.nightRainLabelText != null
                 val forceInteger = isLowest && hasNightRain
-                val lowLabelText = formatTempLabel(displayLow, forceInteger = forceInteger)
+                val lowLabelText = formatTempLabel(displayLow, forceInteger = forceInteger, useCelsius = layout.useCelsius)
 
                 val tempPaint = when {
                     day.isToday -> paints.todayTempTextPaint
@@ -849,15 +853,15 @@ object DailyForecastGraphRenderer {
                 // Dual highs render for past days and settled-today, so both labels are outlined.
                 val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
                 val forecastLabelX = centerX + (if (day.isToday) layout.tripleBarOffset else layout.forecastBarOffset)
-                drawTempLabel(canvas, formatTempLabel(plan.actualHigh), centerX, plan.actualBaseline, basePaint,
+                drawTempLabel(canvas, formatTempLabel(plan.actualHigh, useCelsius = layout.useCelsius), centerX, plan.actualBaseline, basePaint,
                     extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
-                drawTempLabel(canvas, formatTempLabel(plan.forecastHigh), forecastLabelX, plan.forecastBaseline,
+                drawTempLabel(canvas, formatTempLabel(plan.forecastHigh, useCelsius = layout.useCelsius), forecastLabelX, plan.forecastBaseline,
                     basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor, drawOutline = true,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
             } else {
                 val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
-                val highLabel = formatTempLabel(displayHigh)
+                val highLabel = formatTempLabel(displayHigh, useCelsius = layout.useCelsius)
                 // The single label sits at the headline (effective) high — the plan's anchorBaseline
                 // when no dual label is shown.
                 val labelBaseline = plan?.anchorBaseline ?: run {
@@ -1130,7 +1134,7 @@ object DailyForecastGraphRenderer {
     ): Float {
         val anchorHigh = resolveHighLabelPlan(day, layout, paints)?.anchorHigh
             ?: day.effectiveHigh() ?: day.solidLineHigh ?: return 1f
-        val highText = formatTempLabel(anchorHigh)
+        val highText = formatTempLabel(anchorHigh, useCelsius = layout.useCelsius)
         val tempPaint = when {
             day.isToday -> paints.todayTempTextPaint
             day.isPast -> paints.pastTempTextPaint
@@ -1287,8 +1291,9 @@ object DailyForecastGraphRenderer {
     // Show the tenth (e.g. "77.5°") for any non-integer value, suppressing the ".0" case
     // so whole-degree sources (NWS integer forecasts) stay clean. forceInteger overrides
     // this for the low label when a night-rain label sits alongside it (collision avoidance).
-    internal fun formatTempLabel(value: Float, forceInteger: Boolean = false): String {
-        if (forceInteger) return "${value.roundToInt()}°"
-        return com.weatherwidget.util.TempUtils.formatTemp(value) ?: ""
+    internal fun formatTempLabel(value: Float, forceInteger: Boolean = false, useCelsius: Boolean = false): String {
+        val displayVal = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(value) else value
+        if (forceInteger) return "${displayVal.roundToInt()}°"
+        return com.weatherwidget.util.TempUtils.formatTemp(value, useCelsius) ?: ""
     }
 }

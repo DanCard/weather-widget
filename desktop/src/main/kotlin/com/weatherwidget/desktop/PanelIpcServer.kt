@@ -52,8 +52,10 @@ class PanelIpcServer(private val appDataDir: Path) {
     }
 
     fun update(forecast: ForecastResult?, dataStatus: DataStatus, config: DesktopConfig?) {
+        val useCelsius = config?.useCelsius == true
         val temp = forecast?.currentTemp
-        val body = if (temp != null) String.format(Locale.US, "%.1f°", temp) else "--"
+        val displayTemp = if (useCelsius && temp != null) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(temp) else temp
+        val body = if (displayTemp != null) String.format(Locale.US, "%.1f°", displayTemp) else "--"
 
         // The distributable can be deleted out from under us (a clean/rebuild) while this daemon
         // keeps running on its deleted inode. We still serve fresh data here, but the daemon can no
@@ -71,7 +73,10 @@ class PanelIpcServer(private val appDataDir: Path) {
         // (no degree symbol), only when it is non-trivial. Always orange, like the header.
         val deltaText = forecast?.appliedDelta
             ?.takeIf { kotlin.math.abs(it) >= 0.1f }
-            ?.let { String.format(Locale.US, "%+.1f", it) }
+            ?.let {
+                val displayDelta = if (useCelsius) it / 1.8f else it
+                String.format(Locale.US, "%+.1f", displayDelta)
+            }
 
         // Tooltip detail matches the legacy python script logic
         val detail = if (forecast != null) {

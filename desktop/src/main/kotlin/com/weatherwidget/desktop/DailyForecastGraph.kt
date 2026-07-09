@@ -47,7 +47,12 @@ fun DailyForecastGraph(
     modifier: Modifier = Modifier,
     scale: Float = 1f,
     onDayClick: (java.time.LocalDate, DayClickResolver.DayTapZone) -> Unit = { _, _ -> },
+    useCelsius: Boolean = false,
 ) {
+    val formatTemp = { v: Float? ->
+        if (v == null) ""
+        else com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius) ?: ""
+    }
     val textMeasurer = rememberTextMeasurer()
     val displayDays = state.days
     // Use the pre-resolved, cloud-gated icon NAME (matches Android) rather than re-resolving the raw
