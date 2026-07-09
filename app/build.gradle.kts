@@ -134,6 +134,13 @@ android {
                 "proguard-rules.pro",
             )
         }
+        debug {
+            // Pseudolocales for manual overflow/RTL QA (see
+            // notes/260709-localization-testplan.md Tier 3): Settings > System > Languages
+            // > App languages > Weather Widget offers "English (Accented, XA)" (~30% longer,
+            // bracketed) and "Arabic (Bidi, XB)" (force-RTL) once installed as debug.
+            isPseudoLocalesEnabled = true
+        }
     }
 
     signingConfigs {
@@ -181,6 +188,15 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    lint {
+        // Compile-time twin of LocaleResourceParityTest's key-parity check: aapt doesn't
+        // catch missing/orphan translations, lint does. The translatable="false" hygiene
+        // on pure-format/log-level base strings (see values/strings.xml) exists precisely
+        // so this stays signal, not noise — keep both checks: lint gates release builds,
+        // the JUnit test runs in the fast unit-test lane with a better failure message.
+        error += setOf("MissingTranslation", "ExtraTranslation")
+    }
 }
 
 tasks.withType<Test> {
@@ -211,7 +227,7 @@ val validateUnitTestDurations by tasks.registering {
     group = "verification"
     description =
         "Verifies unit test @Category usage: exactly one category bucket per file " +
-            "(a duration OR a topic like Localization, never both), no duplicates, only known markers."
+        "(a duration OR a topic like Localization, never both), no duplicates, only known markers."
 
     val testFiles =
         fileTree("$projectDir/src/test/java") {
@@ -334,7 +350,7 @@ afterEvaluate {
         group = "verification"
         description =
             "Runs all debug unit test category buckets (short, medium, long, localization) " +
-                "without reusing previous test task results."
+            "without reusing previous test task results."
         dependsOn(unitTestCategoryBuckets.keys.map { "test${it}DebugUnitTestFresh" })
     }
 }
