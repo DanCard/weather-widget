@@ -272,6 +272,12 @@ class SettingsActivity : AppCompatActivity() {
             // Dim hidden sources
             row.alpha = if (isVisible) 1.0f else 0.5f
 
+            // Allow clicking the text container to toggle the checkbox
+            val textContainer = nameView.parent as? View
+            textContainer?.setOnClickListener {
+                checkbox.toggle()
+            }
+
             // Up/down only meaningful for visible sources
             upButton.visibility = if (isVisible && visibleSources.indexOf(source) > 0) View.VISIBLE else View.INVISIBLE
             downButton.visibility = if (isVisible && visibleSources.indexOf(source) < visibleSources.size - 1) View.VISIBLE else View.INVISIBLE
