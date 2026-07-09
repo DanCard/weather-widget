@@ -65,6 +65,13 @@ val tomorrowIoApiKey =
 // Release signing secrets are read from gradle.properties (global or local), local.properties,
 // or the environment (never committed). They are empty for debug-only builds;
 // `assembleRelease` requires them to be set.
+val releaseStoreFile =
+    (
+        project.findProperty("RELEASE_STORE_FILE") as? String
+            ?: localProperties.getProperty("RELEASE_STORE_FILE")
+            ?: System.getenv("RELEASE_STORE_FILE")
+            ?: ""
+    )
 val releaseStorePassword =
     (
         project.findProperty("RELEASE_STORE_PASSWORD") as? String
@@ -145,7 +152,7 @@ android {
 
     signingConfigs {
         create("release") {
-            val storeFilePath = project.findProperty("RELEASE_STORE_FILE") as? String
+            val storeFilePath = releaseStoreFile
             storeFile = if (!storeFilePath.isNullOrBlank()) file(storeFilePath) else rootProject.file("release.keystore")
             storePassword = releaseStorePassword
             keyAlias = releaseKeyAlias
