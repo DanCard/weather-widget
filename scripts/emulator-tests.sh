@@ -467,7 +467,7 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
 
             # Parse summary from am instrument output (format: "OK (158 tests)" or "Tests run: N, Failures: N")
             local total failed errors
-            if grep -qE "^OK \([0-9]+ tests\)" "$emu_log" 2>/dev/null; then
+            if grep -qE "^OK \([0-9]+ tests?\)" "$emu_log" 2>/dev/null; then
                 total=$(grep -oE "^OK \([0-9]+" "$emu_log" 2>/dev/null | tail -1 | sed 's/^OK (//')
                 failed=0
                 errors=0

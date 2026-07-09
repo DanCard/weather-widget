@@ -15,13 +15,13 @@ locale-sensitive runtime paths (`UnitDefaults`, `todayLabel` threading, RTL, wid
 
 ---
 
-> **Status update (2026-07-09, later same day):** Tier 1 is IMPLEMENTED
-> (`LocaleResourceParityTest`, all 7 checks, sabotage-verified). A `Localization` category
-> bucket now exists as a PEER of Short/Medium/Long: localization tests declare
-> `@Category(Localization::class)` ONLY (no duration marker — the validator rejects
-> combining them). The bucket runs in the default `./scripts/unit-tests.sh`, or alone via
-> `./scripts/unit-tests.sh Localization` / `:app:testLocalizationDebugUnitTest`.
-> Tag all future tests from this plan with it.
+> **Status update (2026-07-09, later same day):** ALL TIERS FULLY IMPLEMENTED.
+> - **Tier 1 (Resource parity)**: Implemented (`LocaleResourceParityTest` verifying resource integrity and XML parity).
+> - **Tier 2 (Per-locale runtime formatting)**: Implemented (`LocaleStringFormattingRobolectricTest` verifying formatting and RTL layouts).
+> - **Tier 3 (Emulator / instrumented)**: Implemented (`LocaleSwitchIntegrationTest` checking Android 13+ per-app locales, plus `screenshot-sweep.sh` and `screenshot_sweep_report.md` carousel artifact).
+> - **Tier 4 (Lint & CI)**: Implemented (`MissingTranslation` / `ExtraTranslation` promoted to errors in Gradle; suite category validation wired).
+> A `Localization` category bucket exists as a PEER of Short/Medium/Long. The bucket runs in the default `./scripts/unit-tests.sh`, or alone via `./scripts/unit-tests.sh Localization` / `:app:testLocalizationDebugUnitTest`.
+
 
 ## Tier 1 — Resource parity (plain JUnit, no Android)
 

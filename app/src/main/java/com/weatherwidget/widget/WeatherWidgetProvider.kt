@@ -549,6 +549,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE -> handleNoHourlyRefreshCompleteAction(context, intent)
             WidgetActions.ACTION_SHOW_TOAST -> handleShowToastAction(context, intent)
             Intent.ACTION_MY_PACKAGE_REPLACED -> triggerUiOnlyUpdate(context, reason = "package_replaced")
+            Intent.ACTION_LOCALE_CHANGED -> {
+                Log.d(TAG, "onReceive: Locale change broadcast received")
+                launchAsync(context) {
+                    WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
+                }
+            }
         }
     }
 

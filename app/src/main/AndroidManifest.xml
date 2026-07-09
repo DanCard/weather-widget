@@ -89,6 +89,7 @@
                 <action android:name="com.weatherwidget.ACTION_NAV_LEFT" />
                 <action android:name="com.weatherwidget.ACTION_NAV_RIGHT" />
                 <action android:name="com.weatherwidget.ACTION_TOGGLE_API" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
