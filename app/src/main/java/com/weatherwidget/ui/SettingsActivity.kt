@@ -156,14 +156,7 @@ class SettingsActivity : AppCompatActivity() {
             WeatherSource.VISUAL_CROSSING,
         )
 
-    private val sourcesRequiringKeys =
-        listOf(
-            WeatherSource.TOMORROW_IO,
-            WeatherSource.SILURIAN,
-            WeatherSource.WEATHER_API,
-            WeatherSource.VISUAL_CROSSING,
-            WeatherSource.OPEN_WEATHER_MAP,
-        )
+    private val sourcesRequiringKeys = ApiKeySignupUrls.sourcesRequiringKeys
 
     private fun setupApiKeysList() {
         val container = findViewById<LinearLayout>(R.id.api_keys_container)
@@ -178,7 +171,7 @@ class SettingsActivity : AppCompatActivity() {
             nameView.text = source.displayName
             inputView.setText(widgetStateManager.getApiKey(source))
 
-            val signupUrl = apiKeySignupUrl(source)
+            val signupUrl = ApiKeySignupUrls.signupUrl(source)
             getKeyButton.setOnClickListener {
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(signupUrl)))
@@ -198,19 +191,6 @@ class SettingsActivity : AppCompatActivity() {
 
             container.addView(row)
         }
-    }
-
-    /**
-     * Signup/API-key page per provider. Kept to top-level, stable entry points — deep "developer
-     * console" paths churn; the provider's signup page is where a keyless user needs to land.
-     */
-    private fun apiKeySignupUrl(source: WeatherSource): String = when (source) {
-        WeatherSource.TOMORROW_IO -> "https://app.tomorrow.io/signup"
-        WeatherSource.SILURIAN -> "https://earth.weather.silurian.ai"
-        WeatherSource.WEATHER_API -> "https://www.weatherapi.com/signup.aspx"
-        WeatherSource.VISUAL_CROSSING -> "https://www.visualcrossing.com/sign-up"
-        WeatherSource.OPEN_WEATHER_MAP -> "https://home.openweathermap.org/users/sign_up"
-        else -> "https://open-meteo.com"
     }
 
     private fun sourceDescription(source: WeatherSource): String = when (source) {
