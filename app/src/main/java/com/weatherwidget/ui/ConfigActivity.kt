@@ -12,6 +12,7 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -265,20 +266,14 @@ class ConfigActivity : AppCompatActivity() {
         useGpsButton.isEnabled = false
         useGpsButton.setText(R.string.getting_location)
 
-        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        val stages = locationStagesForTesting ?: fusedLocationStages()
         val startMs = SystemClock.elapsedRealtime()
 
         val isAutoFill = autoFillFlow
         lifecycleScope.launch {
             val outcome = LocationFixFlow().resolve(
-                // Active fix, deliberately: this is the ONE exception to the app's passive-
-                // lastLocation rule. Samsung's "app got your precise location" notice targets
-                // background access; here the user explicitly tapped "Use precise device
-                // location" in a foreground screen (or is on the auto-filled setup screen for
-                // the widget they just added), so a fresh fix is expected. Every background
-                // path must stay passive (see GpsResampler).
-                activeFix = { fusedLocationClient.activeFixOrNull() },
-                cachedFix = { fusedLocationClient.lastLocation.awaitOrNull()?.toCoordinates() },
+                activeFix = stages.activeFix,
+                cachedFix = stages.cachedFix,
             )
             appLogDao.log(
                 "CONFIG",
@@ -306,6 +301,23 @@ class ConfigActivity : AppCompatActivity() {
                     }
             }
         }
+    }
+
+    /**
+     * The real fix stages, backed by the fused-location client.
+     *
+     * Active fix, deliberately: this is the ONE exception to the app's passive-lastLocation
+     * rule. Samsung's "app got your precise location" notice targets background access; here
+     * the user explicitly tapped "Use precise device location" in a foreground screen (or is
+     * on the auto-filled setup screen for the widget they just added), so a fresh fix is
+     * expected. Every background path must stay passive (see GpsResampler).
+     */
+    private fun fusedLocationStages(): LocationStages {
+        val client = LocationServices.getFusedLocationProviderClient(this)
+        return LocationStages(
+            activeFix = { client.activeFixOrNull() },
+            cachedFix = { client.lastLocation.awaitOrNull()?.toCoordinates() },
+        )
     }
 
     /** Auto-fill resolved: surface the fix and wait for the user's confirm tap. */
@@ -402,6 +414,12 @@ class ConfigActivity : AppCompatActivity() {
         finish()
     }
 
+    /** The two [LocationFixFlow] stages, as a swappable pair. */
+    internal class LocationStages(
+        val activeFix: suspend () -> LocationFixFlow.Coordinates?,
+        val cachedFix: suspend () -> LocationFixFlow.Coordinates?,
+    )
+
     companion object {
         private const val LOCATION_PERMISSION_REQUEST = 1001
         private const val BACKGROUND_LOCATION_PERMISSION_REQUEST = 1002
@@ -411,5 +429,13 @@ class ConfigActivity : AppCompatActivity() {
 
         /** Launch extra: no widget id; saves apply to all widgets and no RESULT_OK is set. */
         const val EXTRA_GLOBAL_CONFIG = "extra_global_config"
+
+        /**
+         * Test seam for the fix stages. The auto-fill flow starts inside [onCreate], before a
+         * test can reach the instance, so the override has to be static. Null leaves the real
+         * fused-location client in place; tests must null it out again in teardown.
+         */
+        @VisibleForTesting
+        internal var locationStagesForTesting: LocationStages? = null
     }
 }

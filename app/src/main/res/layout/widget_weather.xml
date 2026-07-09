@@ -1415,49 +1415,7 @@
     </LinearLayout>
 
 
-    <!-- Single-row text mode API indicator, placed at the far right edge. -->
-    <FrameLayout
-        android:id="@+id/text_mode_api_source_container"
-        android:layout_width="wrap_content"
-        android:layout_height="40dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="-4dp"
-        android:layout_marginEnd="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:paddingStart="8dp"
-        android:paddingEnd="0dp"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/text_mode_api_source"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top|end"
-            android:layout_marginTop="0dp"
-            android:paddingTop="-4dp"
-            android:paddingBottom="-4dp"
-            android:text="NWS"
-            android:textColor="#AAFFFFFF"
-            android:textSize="14sp"
-            android:visibility="visible" />
-
-    </FrameLayout>
-
-    <FrameLayout
-        android:id="@+id/text_mode_api_touch_zone"
-        android:layout_width="56dp"
-        android:layout_height="50dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="-4dp"
-        android:layout_marginEnd="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
-
-    <!-- Single-row text mode settings shortcut, placed at the bottom right. -->
+    <!-- Single-row text mode settings shortcut, at the top right corner. -->
     <ImageView
         android:id="@+id/text_mode_settings_icon"
         android:layout_width="wrap_content"
@@ -1477,6 +1435,45 @@
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="0dp"
         android:layout_marginBottom="0dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- Single-row text mode API indicator, at the right edge, vertically centred so
+         it clears the settings gear in the top-right corner. Declared after the settings
+         catch-all zone so it wins touch where the two overlap. -->
+    <FrameLayout
+        android:id="@+id/text_mode_api_source_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical|end"
+        android:layout_marginEnd="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:paddingStart="8dp"
+        android:paddingEnd="0dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/text_mode_api_source"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical|end"
+            android:text="NWS"
+            android:textColor="#AAFFFFFF"
+            android:textSize="14sp"
+            android:visibility="visible" />
+
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/text_mode_api_touch_zone"
+        android:layout_width="56dp"
+        android:layout_height="40dp"
+        android:layout_gravity="center_vertical|end"
+        android:layout_marginEnd="-4dp"
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true"
