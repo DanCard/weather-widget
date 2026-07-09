@@ -234,7 +234,7 @@ object DailyForecastGraphRenderer {
         val minBarHeightPx: Float,
         val dayLabelTextByDate: Map<LocalDate, String>,
         val density: Float,
-        val useCelsius: Boolean = false,
+        val useCelsius: Boolean,
     ) {
         fun tempToY(temp: Float): Float =
             graphTop + graphHeight * (1 - (temp - minTemp) / tempRange)
@@ -325,7 +325,7 @@ object DailyForecastGraphRenderer {
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
         onHeaderDrawn: ((HeaderDrawnDebug) -> Unit)? = null,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -441,7 +441,7 @@ object DailyForecastGraphRenderer {
         columns: Int,
         bitmapScale: Float,
         job: Job? = null,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): LayoutInfo {
         job?.ensureActive()
         val allTemps = days.flatMap { listOfNotNull(it.solidLineHigh, it.solidLineLow, it.dashedLineHigh, it.dashedLineLow, it.snapshotHigh, it.snapshotLow, it.ghostLineHigh) }
@@ -1291,7 +1291,7 @@ object DailyForecastGraphRenderer {
     // Show the tenth (e.g. "77.5°") for any non-integer value, suppressing the ".0" case
     // so whole-degree sources (NWS integer forecasts) stay clean. forceInteger overrides
     // this for the low label when a night-rain label sits alongside it (collision avoidance).
-    internal fun formatTempLabel(value: Float, forceInteger: Boolean = false, useCelsius: Boolean = false): String {
+    internal fun formatTempLabel(value: Float, forceInteger: Boolean = false, useCelsius: Boolean): String {
         val displayVal = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(value) else value
         if (forceInteger) return "${displayVal.roundToInt()}°"
         return com.weatherwidget.util.TempUtils.formatTemp(value, useCelsius) ?: ""

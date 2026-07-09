@@ -46,6 +46,7 @@ object TemperatureExtrema {
         effectiveActualEndIndex: Int,
         fetchTime: LocalDateTime?,
         prominenceThreshold: Float,
+        useCelsius: Boolean,
     ): ExtremaIndices {
         val labelTemps = hours.map { it.temperature }
         val actualLabelTemps = hours.map { h ->
@@ -211,8 +212,8 @@ object TemperatureExtrema {
         val highIdxByDay = shoulderedHighIndices.associateBy { hours[it].dateTime.toLocalDate() }
         val degenerateLowDrops = rawDailyLowIndices.filter { lowIdx ->
             val hiIdx = highIdxByDay[hours[lowIdx].dateTime.toLocalDate()] ?: return@filter false
-            TemperatureLabelResolver.formatTemp(actualLabelTemps[hiIdx]) ==
-                TemperatureLabelResolver.formatTemp(actualLabelTemps[lowIdx])
+            TemperatureLabelResolver.formatTemp(actualLabelTemps[hiIdx], useCelsius) ==
+                TemperatureLabelResolver.formatTemp(actualLabelTemps[lowIdx], useCelsius)
         }.toSet()
         val actualDailyLowIndices = rawDailyLowIndices.filterNot { it in shoulderDrops || it in degenerateLowDrops }
         // Boundary samples are no longer classified as actual highs (isActualLocalMax requires a

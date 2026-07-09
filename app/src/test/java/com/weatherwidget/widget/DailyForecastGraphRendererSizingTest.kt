@@ -153,7 +153,7 @@ class DailyForecastGraphRendererSizingTest {
                 ),
                 widthPx = 430,
                 heightPx = 518,
-                onDayLabelDrawn = labels::add,
+                onDayLabelDrawn = labels::add, useCelsius = false,
             )
         }
 

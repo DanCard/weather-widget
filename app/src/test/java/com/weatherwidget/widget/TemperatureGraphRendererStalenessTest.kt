@@ -54,7 +54,7 @@ class TemperatureGraphRendererStalenessTest {
             heightPx = 300,
             currentTime = start.plusHours(2).plusMinutes(25),
             observedAt = observedAtMs,
-            lastObservedTemp = 60f,
+            lastObservedTemp = 60f, useCelsius = false,
         )
 
         // Verify drawText was called with "60°" and "25m"
@@ -86,7 +86,7 @@ class TemperatureGraphRendererStalenessTest {
             heightPx = 300,
             currentTime = start.plusHours(2).plusMinutes(25),
             observedAt = observedAtMs,
-            lastObservedTemp = 60f,
+            lastObservedTemp = 60f, useCelsius = false,
         )
 
         // Even with 49 points, it's only 4h duration, so it should draw "60°" and "25m"
@@ -116,7 +116,7 @@ class TemperatureGraphRendererStalenessTest {
             widthPx = 900,
             heightPx = 300,
             currentTime = start.plusHours(12).plusMinutes(25),
-            observedAt = observedAtMs,
+            observedAt = observedAtMs, useCelsius = false,
         )
 
         // Should NOT draw the age text "25m" in wide view

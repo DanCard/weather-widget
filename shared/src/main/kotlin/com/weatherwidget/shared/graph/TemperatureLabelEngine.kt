@@ -122,7 +122,7 @@ object TemperatureLabelEngine {
         TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_END,
     )
 
-    private fun computeLeftEdgeStartOrdering(candidates: List<TempLabelCandidate>, useCelsius: Boolean = false): Map<Int, Boolean> {
+    private fun computeLeftEdgeStartOrdering(candidates: List<TempLabelCandidate>, useCelsius: Boolean): Map<Int, Boolean> {
         val start = candidates.firstOrNull { it.role == TemperatureRole.START } ?: return emptyMap()
         val actual = candidates
             .filter { it.role in LEFT_EDGE_ACTUAL_ROLES && it.index != start.index && abs(it.index - start.index) <= LEFT_EDGE_START_WINDOW }
@@ -145,7 +145,7 @@ object TemperatureLabelEngine {
     // to the left edge AND the equal-or-cooler case, so the lone actual high and the genuinely
     // warmer actual are untouched. Returns ONLY the actual override; the forecast high keeps its
     // existing default-above path.
-    private fun computeLeftEdgeHighOrdering(candidates: List<TempLabelCandidate>, useCelsius: Boolean = false): Map<Int, Boolean> {
+    private fun computeLeftEdgeHighOrdering(candidates: List<TempLabelCandidate>, useCelsius: Boolean): Map<Int, Boolean> {
         val forecast = candidates
             .filter { it.role in LEFT_EDGE_FORECAST_HIGH_ROLES }
             .minByOrNull { it.index } ?: return emptyMap()
@@ -198,9 +198,9 @@ object TemperatureLabelEngine {
         // valley forecast LOW landing on the fetch-dot's pink actual-temp label flips above the
         // curve instead of drawing on top of it. See plans/samsung-clash-of-labels-*.md.
         reservedHardBounds: List<GraphRect> = emptyList(),
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): List<PlacedLabel> {
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, transitionX, effectiveActualEndIndex, fetchTime)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, transitionX, effectiveActualEndIndex, fetchTime, useCelsius)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,

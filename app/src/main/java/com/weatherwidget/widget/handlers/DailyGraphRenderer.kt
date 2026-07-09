@@ -207,7 +207,10 @@ internal object DailyGraphRenderer {
             DailyForecastGraphRenderer.HeaderRenderData(
                 iconRes = iconRes,
                 currentTempText = formattedTemp,
-                deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
+                deltaText = if (deltaVisible) {
+                    val displayDelta = delta?.let { if (ctx.stateManager.useCelsius()) it / 1.8f else it }
+                    displayDelta?.let { String.format("%+.1f", it) }
+                } else null,
                 precipText = if (isPrecipVisible) "${ctx.precipProb}%" else null,
                 precipTextSizeDp = if (isPrecipVisible) {
                     HeaderPrecipCalculator.getPrecipTextSize(ctx.precipProb ?: 0) *

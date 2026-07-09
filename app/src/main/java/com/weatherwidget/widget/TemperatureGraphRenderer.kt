@@ -467,7 +467,8 @@ object TemperatureGraphRenderer {
             tempToY = { ctx.tempToY(it) },
             metrics = textMetrics,
             drawnIconBounds = neutralIconBounds,
-            reservedHardBounds = fetchDotHardBounds
+            reservedHardBounds = fetchDotHardBounds,
+            useCelsius = ctx.useCelsius,
         )
 
         for (p in placements) {
@@ -534,7 +535,7 @@ object TemperatureGraphRenderer {
         val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
 
         val paint = ctx.paints.stalenessTextPaint
-        val text = YesterdayDeltaLabel.format(deltaFromYesterday)
+        val text = YesterdayDeltaLabel.format(deltaFromYesterday, ctx.useCelsius)
         val metrics = YesterdayDeltaLabel.Metrics(
             width = paint.measureText(text),
             ascent = fontAscent(paint),
@@ -550,6 +551,7 @@ object TemperatureGraphRenderer {
             curveYAt = { x -> sampleVisibleCurveY(ctx, x) },
             metrics = metrics,
             padPx = dpToPx(ctx.context, YESTERDAY_DELTA_LABEL_PAD_DP),
+            useCelsius = ctx.useCelsius,
         ) ?: return
 
         val labelPaint = Paint(paint).apply {
@@ -791,7 +793,7 @@ object TemperatureGraphRenderer {
         val clampedX = fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
         val outerRadius = dotRadius + ctx.paints.ringPaint.strokeWidth / 2f
 
-        val valueLabel = TemperatureGraphStyle.formatTemp(lastObservedTemp) + "°"
+        val valueLabel = TemperatureGraphStyle.formatTemp(lastObservedTemp, ctx.useCelsius) + "°"
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
         val aboveGap = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
@@ -898,7 +900,7 @@ object TemperatureGraphRenderer {
         errorSourceLabel: String? = null,
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)

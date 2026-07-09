@@ -63,7 +63,7 @@ class TemperatureFetchDotColorTest {
             currentTime = start.plusMinutes(15),
             observedAt = observedAtMs,
             lastObservedTemp = 70f,
-            onFetchDotResolved = { debugResult = it }
+            onFetchDotResolved = { debugResult = it }, useCelsius = false
         )
 
         // Helper to apply alpha as done in TemperatureGraphRenderer

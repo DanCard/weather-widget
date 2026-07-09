@@ -51,7 +51,7 @@ object ForecastHistoryViewLogic {
         WeatherSource.fromDisplaySourceOrNull(rawSource)
 
     /** Format a directional bias for the accuracy summary (warmer actual → forecast ran "low"). */
-    fun formatBias(bias: Double, useCelsius: Boolean = false): String {
+    fun formatBias(bias: Double, useCelsius: Boolean): String {
         val displayBias = if (useCelsius) bias / 1.8 else bias
         val absBias = kotlin.math.abs(displayBias)
         val threshold = if (useCelsius) 0.5 / 1.8 else 0.5

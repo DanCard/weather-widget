@@ -57,7 +57,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             heightPx = 400,
             currentTime = start,
             numColumns = 5,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         val indices = placements.map { it.index }.sorted()
@@ -78,7 +78,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             heightPx = 400,
             currentTime = start,
             numColumns = 4,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         val indices = placements.map { it.index }.sorted()
@@ -98,7 +98,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             heightPx = 400,
             currentTime = start,
             numColumns = 5,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         assertFalse("Midpoint should not be injected when interior extrema are already labeled. placements=$placements", placements.any { it.index == 5 && it.role == TemperatureRole.LOCAL })
@@ -116,7 +116,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 widthPx = 700,
                 heightPx = 24, // Keep small to force Above off-screen
                 currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
-                onLabelPlaced = { placements.add(it) },
+                onLabelPlaced = { placements.add(it) }, useCelsius = false,
             )
         }
 
@@ -142,7 +142,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 heightPx = 420,
                 currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
                 onLabelPlaced = { placements.add(it) },
-                onPointsResolved = { points = it },
+                onPointsResolved = { points = it }, useCelsius = false,
             )
         }
 
@@ -196,7 +196,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 widthPx = 700,
                 heightPx = 450,
                 currentTime = start.plusHours(14),
-                onLabelPlaced = { placements.add(it) },
+                onLabelPlaced = { placements.add(it) }, useCelsius = false,
             )
         }
 
@@ -232,7 +232,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 currentTime = start.plusHours(4),
                 observedAt = observedAtMs,
                 lastObservedTemp = 88.0f,
-                onLabelPlaced = { placements.add(it) },
+                onLabelPlaced = { placements.add(it) }, useCelsius = false,
             )
         }
 
@@ -264,7 +264,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 observedAt = observedAtMs,
                 lastObservedTemp = 75.0f,
                 appliedDelta = 5.0f,
-                onLabelPlaced = { placements.add(it) },
+                onLabelPlaced = { placements.add(it) }, useCelsius = false,
             )
         }
 
@@ -295,7 +295,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 widthPx = 500,
                 heightPx = 450,
                 currentTime = start,
-                onLabelPlaced = { placements.add(it) },
+                onLabelPlaced = { placements.add(it) }, useCelsius = false,
             )
         }
 
@@ -316,7 +316,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 widthPx = 500,
                 heightPx = 450,
                 currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
-                onLabelPlaced = { placements.add(it) },
+                onLabelPlaced = { placements.add(it) }, useCelsius = false,
             )
         }
 
@@ -338,7 +338,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 widthPx = 500,
                 heightPx = 400,
                 currentTime = start,
-                onLabelPlaced = { placements.add(it) }
+                onLabelPlaced = { placements.add(it) }, useCelsius = false
             )
         }
 
@@ -374,7 +374,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 currentTime = start.plusHours(1),
                 observedAt = observedAtMs,
                 lastObservedTemp = 82.0f,
-                onLabelPlaced = { placements.add(it) },
+                onLabelPlaced = { placements.add(it) }, useCelsius = false,
             )
         }
 
@@ -403,7 +403,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 widthPx = 500,
                 heightPx = 450,
                 currentTime = start.plusHours(2),
-                onLabelPlaced = { placements.add(it) },
+                onLabelPlaced = { placements.add(it) }, useCelsius = false,
             )
         }
 
@@ -435,7 +435,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             widthPx = 700,
             heightPx = 400,
             currentTime = start.plusHours(14),
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
@@ -471,7 +471,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             heightPx = 400,
             currentTime = start.plusHours(3),  // currentTime is past hour 3, but fetch dot is at hour 1
             observedAt = observedAtMs,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         assertTrue(
@@ -505,7 +505,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             heightPx = 400,
             currentTime = start.plusHours(2),
             appliedDelta = 3f,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         val sorted = placements.sortedByDescending { it.temperature }
@@ -545,7 +545,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             widthPx = 400,
             heightPx = 80, // Increased from 60 to fit 23dp fonts
             currentTime = start,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         val lowLabel = placements.find { it.role == TemperatureRole.LOW }
@@ -579,7 +579,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             widthPx = 400,
             heightPx = heightPx,
             currentTime = start,
-            onPointsResolved = { points = it },
+            onPointsResolved = { points = it }, useCelsius = false,
         )
 
         // Footer icon size derives from the hour-label text, same as renderGraph computes it.
@@ -639,7 +639,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             currentTime = start.plusHours(11),
             observedAt = observedAtMs,
             lastObservedTemp = hours[11].actualTemperature,
-            onLabelPlaced = { placements.add(it) }
+            onLabelPlaced = { placements.add(it) }, useCelsius = false
         )
 
         // 1. HIGH (idx 15, Future) -> forecast
@@ -706,7 +706,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             currentTime = start.plusHours(5),
             observedAt = observedAtMs,
             lastObservedTemp = hours[5].actualTemperature,
-            onLabelPlaced = { placements.add(it) }
+            onLabelPlaced = { placements.add(it) }, useCelsius = false
         )
 
         val startLabel = placements.find { it.index == 0 }
@@ -747,7 +747,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             currentTime = start.plusHours(15),
             observedAt = observedAtMs,
             lastObservedTemp = forecastTemps[10] - 0.2f,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         assertNull(
@@ -793,7 +793,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             currentTime = start.plusHours(15),
             observedAt = observedAtMs,
             lastObservedTemp = forecastTemps[10] - 0.2f,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         assertNull(
@@ -835,7 +835,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             currentTime = start.plusHours(2).plusMinutes(90), // 90 min staleness so it shows "1h 30m"
             observedAt = observedAtMs,
             lastObservedTemp = 40f, // Minimum temp, places dot at bottom
-            onFetchDotResolved = { fetchDotDebug = it }
+            onFetchDotResolved = { fetchDotDebug = it }, useCelsius = false
         )
 
         assertNotNull("fetchDotDebug must be captured", fetchDotDebug)
@@ -886,7 +886,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             widthPx = 200, // Small width to force horizontal collision
             heightPx = 400,
             currentTime = start.plusHours(1),
-            onLabelPlaced = { valleyPlacements.add(it) }
+            onLabelPlaced = { valleyPlacements.add(it) }, useCelsius = false
         )
 
         val actualLow = valleyPlacements.find { it.role == TemperatureRole.ACTUAL_LOW }
@@ -936,7 +936,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             widthPx = 200, // Small width to force horizontal collision
             heightPx = 400,
             currentTime = start.plusHours(1),
-            onLabelPlaced = { peakPlacements.add(it) }
+            onLabelPlaced = { peakPlacements.add(it) }, useCelsius = false
         )
 
         val actualHigh = peakPlacements.find { it.role == TemperatureRole.ACTUAL_HIGH }
@@ -987,7 +987,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             observedAt = observedAtMs,
             lastObservedTemp = 61f,
             onLabelPlaced = { placements.add(it) },
-            onFetchDotResolved = { fetchDotDebug = it },
+            onFetchDotResolved = { fetchDotDebug = it }, useCelsius = false,
         )
 
         // The actual low at the dot is suppressed; the pink number is the fetch-dot value label.
@@ -1032,7 +1032,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             widthPx = 800,
             heightPx = 400, // Standard height
             currentTime = start.plusHours(12),
-            onLabelPlaced = { placements.add(it) }
+            onLabelPlaced = { placements.add(it) }, useCelsius = false
         )
 
         val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
@@ -1082,7 +1082,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             widthPx = 800,
             heightPx = 400,
             currentTime = start.plusHours(19),
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }

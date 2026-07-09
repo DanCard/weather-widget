@@ -494,7 +494,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     private fun formatTemp(value: Float): String {
-        return com.weatherwidget.util.TempUtils.formatTemp(value) ?: ""
+        return com.weatherwidget.util.TempUtils.formatTemp(value, widgetStateManager.useCelsius()) ?: ""
     }
 
     /**

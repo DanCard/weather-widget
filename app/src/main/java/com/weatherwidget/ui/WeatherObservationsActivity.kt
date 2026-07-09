@@ -462,7 +462,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     internal class ObservationAdapter(
-        private val useCelsius: Boolean = false,
+        private val useCelsius: Boolean,
         @get:VisibleForTesting internal val onItemClick: (ObservationEntity) -> Unit,
     ) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
         internal var items: List<ObservationEntity> = emptyList()

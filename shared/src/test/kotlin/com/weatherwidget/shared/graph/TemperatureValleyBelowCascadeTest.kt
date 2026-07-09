@@ -140,7 +140,7 @@ class TemperatureValleyBelowCascadeTest {
             fetchTime = fetchTime,
             numColumns = hours.size,
             tempToY = tempToY,
-            metrics = metrics,
+            metrics = metrics, useCelsius = false,
         )
     }
 

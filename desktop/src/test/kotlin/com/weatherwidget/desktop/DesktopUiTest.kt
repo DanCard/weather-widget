@@ -406,7 +406,7 @@ class DesktopUiTest {
         composeTestRule.setContent {
             val textMeasurer = rememberTextMeasurer()
             val painter = androidx.compose.runtime.remember {
-                TemperatureTrayPainter(72.6f, textMeasurer)
+                TemperatureTrayPainter(72.6f, textMeasurer, useCelsius = false)
             }
             androidx.compose.foundation.Canvas(modifier = Modifier.size(64.dp)) {
                 with(painter) {
@@ -424,7 +424,7 @@ class DesktopUiTest {
         composeTestRule.setContent {
             val textMeasurer = rememberTextMeasurer()
             val painter = androidx.compose.runtime.remember {
-                TemperatureTrayPainter(null, textMeasurer)
+                TemperatureTrayPainter(null, textMeasurer, useCelsius = false)
             }
             androidx.compose.foundation.Canvas(modifier = Modifier.size(64.dp)) {
                 with(painter) {
@@ -478,6 +478,7 @@ class DesktopUiTest {
                 latitude = 37.4220,
                 longitude = -122.0841,
                 modifier = Modifier.size(420.dp, 220.dp),
+                useCelsius = false,
             )
         }
 
@@ -486,8 +487,8 @@ class DesktopUiTest {
 
     @Test
     fun testFormatTrayTemperatureUsesOneDecimal() {
-        assertEquals("72.6", formatTrayTemperature(72.6f))
-        assertEquals("72.0", formatTrayTemperature(72f))
+        assertEquals("72.6", formatTrayTemperature(72.6f, useCelsius = false))
+        assertEquals("72.0", formatTrayTemperature(72f, useCelsius = false))
     }
 
     @Test

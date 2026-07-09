@@ -102,13 +102,13 @@ class LogTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 17, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 17, null, useCelsius = false)
         TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 17,
             transitionX = null,
-            observedAt = null,
+            observedAt = null, useCelsius = false,
         )
 
         val resolverLines = sink.entries.filter { it.tag == "TempLabelResolver" }

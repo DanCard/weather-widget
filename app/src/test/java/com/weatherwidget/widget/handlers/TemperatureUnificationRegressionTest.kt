@@ -109,7 +109,7 @@ class TemperatureUnificationRegressionTest {
                 iconRes = 0
             )
         }
-        val extrema = TemperatureExtrema.compute(hourData, 100f, hourData.lastIndex, now, 2.5f)
+        val extrema = TemperatureExtrema.compute(hourData, 100f, hourData.lastIndex, now, 2.5f, useCelsius = false)
         val hourlyGraphPeak = if (extrema.actualHighIndex >= 0) extrema.actualLabelTemps[extrema.actualHighIndex] else -1f
 
         println("Daily View High: $dailyViewDisplayedHigh")

@@ -73,7 +73,7 @@ class DailyGapFallbackGraphIntegrationTest {
                 heightPx = 300,
                 bitmapScale = 1f,
                 numColumns = days.size,
-                onBarDrawn = drawnBars::add,
+                onBarDrawn = drawnBars::add, useCelsius = false,
             )
         }
 
@@ -141,7 +141,7 @@ class DailyGapFallbackGraphIntegrationTest {
                 heightPx = 300,
                 bitmapScale = 1f,
                 numColumns = days.size,
-                onBarDrawn = drawnBars::add,
+                onBarDrawn = drawnBars::add, useCelsius = false,
             )
         }
 
@@ -181,7 +181,7 @@ class DailyGapFallbackGraphIntegrationTest {
                 heightPx = 300,
                 bitmapScale = 1f,
                 numColumns = 1,
-                onBarDrawn = drawnBars::add,
+                onBarDrawn = drawnBars::add, useCelsius = false,
             )
         }
 
@@ -236,7 +236,7 @@ class DailyGapFallbackGraphIntegrationTest {
                     heightPx = 300,
                     bitmapScale = 1f,
                     numColumns = days.size,
-                    onRainLabelDrawn = rainLabels::add,
+                    onRainLabelDrawn = rainLabels::add, useCelsius = false,
                 )
             }
 

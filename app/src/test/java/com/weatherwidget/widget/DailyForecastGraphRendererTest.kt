@@ -13,19 +13,19 @@ class DailyForecastGraphRendererTest {
     @Test
     fun `formatTempLabel rounds to integer when forceInteger`() {
         val renderer = DailyForecastGraphRenderer
-        assertEquals("49°", renderer.formatTempLabel(48.6f, forceInteger = true))
+        assertEquals("49°", renderer.formatTempLabel(48.6f, forceInteger = true, useCelsius = false))
     }
 
     @Test
     fun `formatTempLabel preserves decimal for fractional part by default`() {
         val renderer = DailyForecastGraphRenderer
-        assertEquals("48.6°", renderer.formatTempLabel(48.6f))
+        assertEquals("48.6°", renderer.formatTempLabel(48.6f, useCelsius = false))
     }
 
     @Test
     fun `formatTempLabel suppresses the point-zero case`() {
         val renderer = DailyForecastGraphRenderer
-        assertEquals("49°", renderer.formatTempLabel(49.0f))
+        assertEquals("49°", renderer.formatTempLabel(49.0f, useCelsius = false))
     }
 
     @Test

@@ -37,7 +37,7 @@ class DailyForecastGraphRendererColumnCountTest {
                 widthPx = 900,
                 heightPx = 300,
                 numColumns = 9,
-                onBarDrawn = draws::add,
+                onBarDrawn = draws::add, useCelsius = false,
             )
         }
 

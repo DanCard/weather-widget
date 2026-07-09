@@ -40,8 +40,10 @@ object YesterdayDeltaLabel {
     /** Curve clearance sampling across the candidate box width. */
     private const val CURVE_SAMPLES = 5
 
-    fun format(delta: Float): String {
-        val tenths = round(delta * 10f).toInt() // round-half-up at the tenths place
+    fun format(delta: Float, useCelsius: Boolean): String {
+        // The delta is a temperature *difference* in °F: convert by scaling only (no −32 offset).
+        val displayDelta = if (useCelsius) delta / 1.8f else delta
+        val tenths = round(displayDelta * 10f).toInt() // round-half-up at the tenths place
         val sign = if (tenths >= 0) "+" else "-"
         val mag = abs(tenths)
         return "$sign${mag / 10}.${mag % 10}$SUFFIX"
@@ -81,6 +83,7 @@ object YesterdayDeltaLabel {
         curveYAt: (Float) -> Float?,
         metrics: Metrics,
         padPx: Float,
+        useCelsius: Boolean,
         maxSpanHours: Long = DELTA_LABEL_MAX_HOURS_SPAN,
     ): Placement? {
         if (delta == null || currentTemp == null) return null
@@ -88,7 +91,7 @@ object YesterdayDeltaLabel {
         if (metrics.width <= 0f || metrics.height <= 0f) return null
         if (metrics.width + 2f * padPx > plot.width) return null
 
-        val text = format(delta)
+        val text = format(delta, useCelsius)
         val color = colorArgb(currentTemp)
         val w = metrics.width
         val h = metrics.height

@@ -28,13 +28,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 23,
             transitionX = null,
-            observedAt = null
+            observedAt = null, useCelsius = false
         )
 
         // Verify both HIGH (at index 4) and ACTUAL_HIGH (at index 3) are accepted.
@@ -60,13 +60,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 23,
             transitionX = null,
-            observedAt = null
+            observedAt = null, useCelsius = false
         )
 
         assertTrue("HIGH should be accepted at index 3", candidates.any { it.index == 3 && it.role == TemperatureRole.HIGH })
@@ -105,13 +105,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 250f, 2, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 250f, 2, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 2,
             transitionX = 250f,
-            observedAt = null
+            observedAt = null, useCelsius = false
         )
 
         // ACTUAL_HIGH (at index 1) should be accepted.
@@ -148,13 +148,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 450f, 5, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 450f, 5, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 5,
             transitionX = 450f,
-            observedAt = null
+            observedAt = null, useCelsius = false
         )
 
         assertTrue("ACTUAL_HIGH should be accepted at index 4", candidates.any { it.index == 4 && it.role == TemperatureRole.ACTUAL_HIGH })
@@ -179,13 +179,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 23,
             transitionX = null,
-            observedAt = null
+            observedAt = null, useCelsius = false
         )
 
         assertTrue("HIGH (forecast 88) should be labeled at index 5", candidates.any { it.index == 5 && it.role == TemperatureRole.HIGH })
@@ -211,13 +211,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 23,
             transitionX = null,
-            observedAt = null
+            observedAt = null, useCelsius = false
         )
 
         assertTrue("HIGH should be labeled at index 5", candidates.any { it.index == 5 && it.role == TemperatureRole.HIGH })
@@ -257,7 +257,7 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `END is retained on a zoomed-in view where the nearby extremum is far in pixels`() {
         val hours = samsungFlatCurveHours()
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 19, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 19, null, useCelsius = false)
 
         // Full widget width (~567px over 20h => ~28px/hour): ACTUAL_LOW@17 is ~3h ≈ 85px away, so
         // the zoom-aware window (≈2) no longer treats END@20 as redundant.
@@ -267,7 +267,7 @@ class TemperatureLabelSuppressionTest {
             effectiveActualEndIndex = 19,
             transitionX = null,
             observedAt = null,
-            widthPx = 567,
+            widthPx = 567, useCelsius = false,
         )
 
         assertTrue(
@@ -279,7 +279,7 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `END is still suppressed as redundant when the view is compressed`() {
         val hours = samsungFlatCurveHours()
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 19, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 19, null, useCelsius = false)
 
         // Same data, narrow width (~120px over 20h => ~6px/hour): now 3h ≈ 18px, so ACTUAL_LOW@17
         // and END@20 genuinely read as a redundant pair and END is decluttered. Proves the window is
@@ -290,7 +290,7 @@ class TemperatureLabelSuppressionTest {
             effectiveActualEndIndex = 19,
             transitionX = null,
             observedAt = null,
-            widthPx = 120,
+            widthPx = 120, useCelsius = false,
         )
 
         assertTrue("ACTUAL_LOW@17 should remain labeled", candidates.any { it.index == 17 && it.role == TemperatureRole.ACTUAL_LOW })
@@ -317,13 +317,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 250f, 9, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 250f, 9, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 9,
             transitionX = 250f,
-            observedAt = null,
+            observedAt = null, useCelsius = false,
         )
 
         // A forecast-colored label lands strictly inside the future region (between the transition
@@ -353,13 +353,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 100f, 1, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 100f, 1, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 1,
             transitionX = 100f,
-            observedAt = null,
+            observedAt = null, useCelsius = false,
         )
 
         assertTrue(
@@ -388,13 +388,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 250f, 9, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 250f, 9, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 9,
             transitionX = 250f,
-            observedAt = null,
+            observedAt = null, useCelsius = false,
         )
 
         // The midpoint injection only fills a BARE forecast region; idx 15 already covers the middle,
@@ -430,20 +430,20 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 248f, 14, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 248f, 14, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 14,
             transitionX = 248f,
             observedAt = null,
-            widthPx = 567,
+            widthPx = 567, useCelsius = false,
         )
 
         // The daily HIGH (88) is still labeled once.
         assertTrue(
             "daily HIGH at 88 should be labeled, got ${candidates.map { it.role to it.index }}",
-            candidates.any { it.role == TemperatureRole.HIGH && TemperatureLabelResolver.formatTemp(it.labelTemps[it.index]) == "88" },
+            candidates.any { it.role == TemperatureRole.HIGH && TemperatureLabelResolver.formatTemp(it.labelTemps[it.index], useCelsius = false) == "88" },
         )
         // No synthetic forecast midpoint is injected inside the future region (idx 15..16).
         assertFalse(
@@ -457,7 +457,7 @@ class TemperatureLabelSuppressionTest {
                 TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
                 TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
                 TemperatureRole.START, TemperatureRole.END, TemperatureRole.LOCAL,
-            ) && TemperatureLabelResolver.formatTemp(it.labelTemps[it.index]) == "88"
+            ) && TemperatureLabelResolver.formatTemp(it.labelTemps[it.index], useCelsius = false) == "88"
         }
         assertEquals(
             "exactly one forecast label should read 88, got ${eightyEightLabels.map { it.role to it.index }}",
@@ -494,14 +494,14 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 23,
             transitionX = null,
             observedAt = null,
-            widthPx = 600,
+            widthPx = 600, useCelsius = false,
         )
 
         val rightEdge = candidates.find { it.index == 23 }
@@ -541,14 +541,14 @@ class TemperatureLabelSuppressionTest {
         }
 
         // fetchTime = the last hour => fetchIdx lands on the right-edge index (23), the NOW dot.
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, hours.last().dateTime)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 23, hours.last().dateTime, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 23,
             transitionX = null,
             observedAt = 1_000L, // non-null => the fetch-dot path is active
-            widthPx = 600,
+            widthPx = 600, useCelsius = false,
         )
 
         assertFalse(
@@ -583,14 +583,14 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 560f, effEnd, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 560f, effEnd, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = effEnd,
             transitionX = 560f,
             observedAt = null,
-            widthPx = 567,
+            widthPx = 567, useCelsius = false,
         )
 
         assertFalse(
@@ -636,14 +636,14 @@ class TemperatureLabelSuppressionTest {
         // Live emulator case: forecast crests at 68 (idx 56) then eases to a 66 END (idx 59). The crest
         // is a genuine FORECAST_HIGH and must be labeled — the old endpoint-declutter dropped it.
         val hours = rightEdgeCrestHours(crest = 68f, endValue = 66f)
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 400f, 40, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 400f, 40, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 40,
             transitionX = 400f,
             observedAt = null,
-            widthPx = 567,
+            widthPx = 567, useCelsius = false,
         )
 
         assertTrue(
@@ -657,14 +657,14 @@ class TemperatureLabelSuppressionTest {
         // Crest (67.8) and END (67.5) read as the same value and sit pixel-near: the declutter must
         // prioritize the EXTREMUM and drop the ENDPOINT, not the reverse.
         val hours = rightEdgeCrestHours(crest = 67.8f, endValue = 67.5f)
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 400f, 40, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 400f, 40, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 40,
             transitionX = 400f,
             observedAt = null,
-            widthPx = 567,
+            widthPx = 567, useCelsius = false,
         )
 
         assertTrue(
@@ -694,13 +694,13 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 350f, 9, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 350f, 9, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 9,
             transitionX = 350f,
-            observedAt = null
+            observedAt = null, useCelsius = false
         )
 
         println("Candidates: ${candidates.map { "${it.role} idx=${it.index} val=${it.labelTemps[it.index]} raw=${it.rawTemperature}" }}")
@@ -734,14 +734,14 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `each day in a multi-day actual region gets its own actual low label`() {
         val hours = twoDayObservedHours()
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 47, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 47, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 47,
             transitionX = null,
             observedAt = null,
-            widthPx = 600,
+            widthPx = 600, useCelsius = false,
         )
 
         // Regression: previously only the single globally-coldest valley got an ACTUAL_LOW; the
@@ -753,14 +753,14 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `each day in a multi-day actual region gets its own actual high label`() {
         val hours = twoDayObservedHours()
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 47, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 47, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 47,
             transitionX = null,
             observedAt = null,
-            widthPx = 600,
+            widthPx = 600, useCelsius = false,
         )
 
         assertTrue("day 0 actual high should be labeled at idx 16", candidates.any { it.index == 16 && it.role == TemperatureRole.ACTUAL_HIGH })
@@ -786,14 +786,14 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 47, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 47, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 47,
             transitionX = null,
             observedAt = null,
-            widthPx = 600,
+            widthPx = 600, useCelsius = false,
         )
 
         assertTrue("the real overnight valley at idx 27 should be labeled", candidates.any { it.index == 27 && it.role == TemperatureRole.ACTUAL_LOW })
@@ -837,14 +837,14 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `jagged midnight-straddle shoulder is not labeled as an actual low`() {
         val hours = jaggedMidnightStraddleHours()
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 71, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, 71, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 71,
             transitionX = null,
             observedAt = null,
-            widthPx = 600,
+            widthPx = 600, useCelsius = false,
         )
 
         assertFalse(
@@ -891,14 +891,14 @@ class TemperatureLabelSuppressionTest {
         }
 
         val lastIdx = hours.lastIndex
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, lastIdx, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, lastIdx, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = lastIdx,
             transitionX = null,
             observedAt = null,
-            widthPx = 600,
+            widthPx = 600, useCelsius = false,
         )
 
         assertFalse(
@@ -947,14 +947,14 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `left-edge START is dropped when a per-day actual high is pixel-near but index-far`() {
         val hours = denseLeftEdgeHours(perDayActualHighPeak = 72.7f) // START 71 vs 72.7 => 1.7° < 2°
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = hours.lastIndex,
             transitionX = null,
             observedAt = null,
-            widthPx = 584,
+            widthPx = 584, useCelsius = false,
         )
 
         assertFalse(
@@ -968,14 +968,14 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `left-edge START is retained when the nearby per-day actual high differs by more than 2 degrees`() {
         val hours = denseLeftEdgeHours(perDayActualHighPeak = 74f) // START 71 vs 74 => 3° > 2°
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = hours.lastIndex,
             transitionX = null,
             observedAt = null,
-            widthPx = 584,
+            widthPx = 584, useCelsius = false,
         )
 
         assertTrue(
@@ -1013,14 +1013,14 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `left-edge forecast START is dropped when within 2 degrees of a pixel-near forecast HIGH`() {
         val hours = twentyFourHourForecastStartHours(highMinusStart = 2f) // START 73 vs HIGH 75
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = hours.lastIndex,
             transitionX = null,
             observedAt = null,
-            widthPx = 584,
+            widthPx = 584, useCelsius = false,
         )
 
         assertFalse(
@@ -1033,14 +1033,14 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `left-edge forecast START is kept when more than 2 degrees from the forecast HIGH`() {
         val hours = twentyFourHourForecastStartHours(highMinusStart = 3f) // START 72 vs HIGH 75 => 3°
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = hours.lastIndex,
             transitionX = null,
             observedAt = null,
-            widthPx = 584,
+            widthPx = 584, useCelsius = false,
         )
 
         assertTrue(
@@ -1076,14 +1076,14 @@ class TemperatureLabelSuppressionTest {
     @Test
     fun `midnight-straddle overnight low is injected between two daily highs so neither high is dropped`() {
         val hours = coolingTrendMidnightStraddleHours()
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, null, hours.lastIndex, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = hours.lastIndex,
             transitionX = null,
             observedAt = null,
-            widthPx = 600,
+            widthPx = 600, useCelsius = false,
         )
 
         // All three days keep their actual high. Without the inter-peak injection, Tue's straddling

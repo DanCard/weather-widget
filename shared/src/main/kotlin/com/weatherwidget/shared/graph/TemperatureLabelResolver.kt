@@ -110,7 +110,7 @@ object TemperatureLabelResolver {
         val overriddenRole: TemperatureRole? = null,
     )
 
-    fun formatTemp(value: Float, useCelsius: Boolean = false): String {
+    fun formatTemp(value: Float, useCelsius: Boolean): String {
         val displayVal = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(value) else value
         val rounded = kotlin.math.round(displayVal * 10f) / 10f
         return if (rounded % 1f == 0f) {
@@ -147,7 +147,7 @@ object TemperatureLabelResolver {
         reason: String,
         provenance: String,
         extra: String = "",
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ) {
         val t = hours.getOrNull(idx)?.dateTime?.toLocalTime()?.toString() ?: "?"
         // No degree glyph: the file log sink isn't UTF-8 and renders ° as '?'. The bare number still
@@ -164,13 +164,14 @@ object TemperatureLabelResolver {
         transitionX: Float?,
         effectiveActualEndIndex: Int,
         fetchTime: LocalDateTime?,
+        useCelsius: Boolean,
     ): TemperatureExtrema.ExtremaIndices {
         val prominenceThreshold = when {
             hours.size <= 10 -> MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES
             hours.size <= 24 -> 1.5f // Narrow zoom: more detail, but still reject minor noise
             else -> MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES
         }
-        return TemperatureExtrema.compute(hours, transitionX, effectiveActualEndIndex, fetchTime, prominenceThreshold)
+        return TemperatureExtrema.compute(hours, transitionX, effectiveActualEndIndex, fetchTime, prominenceThreshold, useCelsius)
     }
 
     fun collectLabelCandidates(
@@ -181,7 +182,7 @@ object TemperatureLabelResolver {
         observedAt: Long?,
         numColumns: Int = 0,
         widthPx: Int = 0,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): List<TempLabelCandidate> {
         val labelTemps = extrema.labelTemps
         val actualLabelTemps = extrema.actualLabelTemps
@@ -209,7 +210,7 @@ object TemperatureLabelResolver {
         }
         // Drop only candidates with no usable value at all (NaN forecast AND not an observed actual) —
         // e.g. a START/END boundary anchor that landed in a forecast gap.
-        val deduplicatedIndices = deduplicateAnchors(potentialAnchors, labelTemps, actualLabelTemps)
+        val deduplicatedIndices = deduplicateAnchors(potentialAnchors, labelTemps, actualLabelTemps, useCelsius)
             .filter { !effectiveTemps[it].isNaN() }
             .toSet()
         Log.v(TAG, "Deduplicated: $deduplicatedIndices")
@@ -339,7 +340,7 @@ object TemperatureLabelResolver {
         effectiveActualEndIndex: Int,
         hours: List<HourData>,
         labelTemps: List<Float>,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ) {
         val lastIndex = hours.lastIndex
         val futureStart = effectiveActualEndIndex
@@ -423,7 +424,7 @@ object TemperatureLabelResolver {
         labelTemps: List<Float>,
         actualLabelTemps: List<Float>,
         reason: String,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ) {
         for (idx in actualIndices) {
             if (idx < 0 || idx in suppressedIndices) continue
@@ -488,6 +489,7 @@ object TemperatureLabelResolver {
         potentialAnchors: List<Pair<Int, TemperatureRole>>,
         labelTemps: List<Float>,
         actualLabelTemps: List<Float>,
+        useCelsius: Boolean,
     ): Set<Int> {
         // Actual extrema rank above START/END so a coincident-value boundary anchor cannot evict a
         // nearby actual high/low from a shared value-slot. Mirrors resolveExtremaRole's ordering;
@@ -505,7 +507,7 @@ object TemperatureLabelResolver {
             val isActualRole = role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.ACTUAL_END
             val temps = if (isActualRole) actualLabelTemps else labelTemps
             val v = temps[idx]
-            val formattedValue = formatTemp(v)
+            val formattedValue = formatTemp(v, useCelsius)
             var first = idx; var last = idx
             while (first > 0 && temps[first - 1] == v) first--
             while (last < temps.lastIndex && temps[last + 1] == v) last++
@@ -742,7 +744,7 @@ object TemperatureLabelResolver {
         lastObservedTemp: Float?,
         tempToY: (Float) -> Float,
         metrics: LabelTextMetrics,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): ResolvedLabelGeometry? {
         val idx = candidate.index
         val temps = candidate.labelTemps

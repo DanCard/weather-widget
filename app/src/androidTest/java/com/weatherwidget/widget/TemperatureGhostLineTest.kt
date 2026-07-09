@@ -52,7 +52,7 @@ class TemperatureGhostLineTest {
             heightPx = 500,
             currentTime = LocalDateTime.of(2026, 2, 26, 10, 0),
             appliedDelta = -1.0f,
-            onLabelPlaced = { placements.add(it) }
+            onLabelPlaced = { placements.add(it) }, useCelsius = false
         )
 
         val startLabel = placements.find { it.index == 0 }
@@ -76,7 +76,7 @@ class TemperatureGhostLineTest {
             widthPx = 800,
             heightPx = 320,
             currentTime = LocalDateTime.of(2026, 2, 26, 10, 0),
-            onPointsResolved = { points = it },
+            onPointsResolved = { points = it }, useCelsius = false,
         )
 
         val resolved = requireNotNull(points) { "Expected graph points to be reported" }

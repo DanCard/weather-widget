@@ -151,7 +151,7 @@ data class RenderContext(
     val currentTime: LocalDateTime,
     val debug: DebugCallbacks,
     val drawnLabelBounds: MutableList<RectF> = mutableListOf(),
-    val useCelsius: Boolean = false,
+    val useCelsius: Boolean,
 ) {
     val graphTop get() = geo.graphTop
     val graphBottom get() = geo.graphBottom
@@ -215,7 +215,7 @@ data class RenderContext(
             onLabelPlaced: ((LabelPlacementDebug) -> Unit)?,
             onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)?,
             onFetchDotResolved: ((FetchDotDebug) -> Unit)?,
-            useCelsius: Boolean = false,
+            useCelsius: Boolean,
         ): RenderContext = RenderContext(
             context = context,
             canvas = canvas,

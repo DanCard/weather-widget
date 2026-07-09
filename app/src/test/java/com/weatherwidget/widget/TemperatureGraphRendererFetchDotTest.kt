@@ -43,7 +43,7 @@ class TemperatureGraphRendererFetchDotTest {
             widthPx = 900,
             heightPx = 300,
             currentTime = start.plusHours(2),
-            observedAt = null,
+            observedAt = null, useCelsius = false,
         )
 
         verify(exactly = 0) { anyConstructed<Canvas>().drawCircle(any(), any(), any(), any()) }
@@ -63,7 +63,7 @@ class TemperatureGraphRendererFetchDotTest {
             heightPx = 300,
             currentTime = start.plusHours(3),
             observedAt = observedAtMs,
-            lastObservedTemp = 55f,
+            lastObservedTemp = 55f, useCelsius = false,
         )
 
         verify(exactly = 3) { anyConstructed<Canvas>().drawCircle(any(), any(), any(), any()) }
@@ -83,7 +83,7 @@ class TemperatureGraphRendererFetchDotTest {
             heightPx = 300,
             currentTime = start.plusHours(3),
             observedAt = observedAtMs,
-            lastObservedTemp = null,
+            lastObservedTemp = null, useCelsius = false,
         )
 
         verify(exactly = 0) { anyConstructed<Canvas>().drawCircle(any(), any(), any(), any()) }
@@ -101,7 +101,7 @@ class TemperatureGraphRendererFetchDotTest {
             widthPx = 900,
             heightPx = 300,
             currentTime = start.plusHours(2),
-            appliedDelta = 1.5f,
+            appliedDelta = 1.5f, useCelsius = false,
         )
 
         // Hidden NOW indicator: fill + 7 forecast segments = 8 paths (no ghost, no actual line).
@@ -136,7 +136,7 @@ class TemperatureGraphRendererFetchDotTest {
             appliedDelta = 0.5f,
             observedAt = observedAtMs,
             lastObservedTemp = 63f,
-            onGhostLineDebug = { ghostDebug = it },
+            onGhostLineDebug = { ghostDebug = it }, useCelsius = false,
         )
 
         assertNull("Ghost line should not process on far-future anchored view", ghostDebug)
@@ -170,7 +170,7 @@ class TemperatureGraphRendererFetchDotTest {
             heightPx = 300,
             currentTime = start.plusHours(3),
             observedAt = observedAtMs,
-            lastObservedTemp = 65f,
+            lastObservedTemp = 65f, useCelsius = false,
         )
 
         val yAt60 = mutableListOf<Float>()
@@ -183,7 +183,7 @@ class TemperatureGraphRendererFetchDotTest {
             heightPx = 300,
             currentTime = start.plusHours(3),
             observedAt = observedAtMs,
-            lastObservedTemp = 60f,
+            lastObservedTemp = 60f, useCelsius = false,
         )
 
         assert(yAt65.size >= 3) { "Expected 3 drawCircle calls for fetch dot, got ${yAt65.size}" }
@@ -244,7 +244,7 @@ class TemperatureGraphRendererFetchDotTest {
             currentTime = start.plusMinutes(40),
             observedAt = observedAtMs,
             lastObservedTemp = 52.5f,
-            onFetchDotResolved = { fetchDotDebug = it }
+            onFetchDotResolved = { fetchDotDebug = it }, useCelsius = false
         )
 
         // The dot should represent exactly 52.5 (lastObservedTemp).
@@ -278,7 +278,7 @@ class TemperatureGraphRendererFetchDotTest {
             currentTime = start.plusHours(3),
             observedAt = observedAtMs,
             lastObservedTemp = 55f,
-            onFetchDotResolved = { fetchDotDebug = it }
+            onFetchDotResolved = { fetchDotDebug = it }, useCelsius = false
         )
 
         org.junit.Assert.assertNotNull("FetchDotDebug should be emitted", fetchDotDebug)

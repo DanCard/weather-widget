@@ -125,7 +125,7 @@ class DailyViewHandlerTodayDropIntegrationTest {
         val daysSlot = slot<List<DailyForecastGraphRenderer.DayData>>()
         every {
             DailyForecastGraphRenderer.renderGraph(
-                any(), capture(daysSlot), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
+                any(), capture(daysSlot), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), useCelsius = false
             )
         } returns Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
 
@@ -271,7 +271,7 @@ class DailyViewHandlerTodayDropIntegrationTest {
         val daysSlot = slot<List<DailyForecastGraphRenderer.DayData>>()
         every {
             DailyForecastGraphRenderer.renderGraph(
-                any(), capture(daysSlot), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
+                any(), capture(daysSlot), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), useCelsius = false
             )
         } returns Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
 

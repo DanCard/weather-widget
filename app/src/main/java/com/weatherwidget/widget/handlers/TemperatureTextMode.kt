@@ -23,7 +23,7 @@ internal fun updateHourlyTextMode(
     centerTime: LocalDateTime,
     numColumns: Int,
     displaySource: WeatherSource,
-    useCelsius: Boolean = false,
+    useCelsius: Boolean,
 ) {
     val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
 

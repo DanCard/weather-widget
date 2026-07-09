@@ -313,7 +313,7 @@ internal fun ObservationsWindow(
 }
 
 @Composable
-private fun ObservationList(observations: List<DesktopObservationEntity>, useCelsius: Boolean = false) {
+private fun ObservationList(observations: List<DesktopObservationEntity>, useCelsius: Boolean) {
     val timeFormatter = remember { DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault()) }
     
     LazyColumn(modifier = Modifier.fillMaxSize().padding(6.dp)) {

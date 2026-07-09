@@ -43,14 +43,14 @@ class TemperatureExtremaNaNTest {
     fun `NaN forecast tail does not crash label collection`() {
         val hours = nanTailHours()
         // The NOW boundary sits at the observation cutoff (idx 6); the right edge (idx 23) is NaN.
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 150f, 6, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 150f, 6, null, useCelsius = false)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = 6,
             transitionX = 150f,
             observedAt = null,
-            widthPx = 600,
+            widthPx = 600, useCelsius = false,
         )
 
         // Pre-fix this line never executed — collectLabelCandidates threw "Cannot round NaN value".
@@ -65,7 +65,7 @@ class TemperatureExtremaNaNTest {
     @Test
     fun `daily and forecast extrema ignore NaN temps`() {
         val hours = nanTailHours()
-        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 150f, 6, null)
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 150f, 6, null, useCelsius = false)
 
         // The real daily high is 79 at idx 14 — NOT one of the NaN tail indices (Float.compareTo
         // ranks NaN as the largest value, so an unguarded maxByOrNull would have picked idx 20..23).

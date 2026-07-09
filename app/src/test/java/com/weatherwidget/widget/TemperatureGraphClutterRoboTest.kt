@@ -52,7 +52,7 @@ class TemperatureGraphClutterRoboTest {
             widthPx = 1000,
             heightPx = 300,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
-            onLabelPlaced = { placements.add(it) }
+            onLabelPlaced = { placements.add(it) }, useCelsius = false
         )
 
         assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == TemperatureRole.LOCAL && it.index == 5 })

@@ -47,7 +47,7 @@ fun DailyForecastGraph(
     modifier: Modifier = Modifier,
     scale: Float = 1f,
     onDayClick: (java.time.LocalDate, DayClickResolver.DayTapZone) -> Unit = { _, _ -> },
-    useCelsius: Boolean = false,
+    useCelsius: Boolean,
 ) {
     val formatTemp = { v: Float? ->
         if (v == null) ""
@@ -72,6 +72,7 @@ fun DailyForecastGraph(
                     canvasHeight = canvasH,
                     scale = scale,
                     density = density,
+                    useCelsius = useCelsius,
                     measureLowLabelHeight = { text, base ->
                         textMeasurer.measure(text, TextStyle(fontSize = tempFontSize(text, base).sp)).size.height.toFloat()
                     },
@@ -613,6 +614,7 @@ internal fun computeDailyGraphTapLayout(
     canvasHeight: Float,
     scale: Float,
     density: Float,
+    useCelsius: Boolean,
     measureLowLabelHeight: (text: String, baseSp: Float) -> Float = { _, base -> base * 1.4f },
 ): DailyGraphTapLayout {
     if (days.isEmpty()) {
@@ -653,7 +655,7 @@ internal fun computeDailyGraphTapLayout(
             forecastLow = listOfNotNull(day.forecastLow, day.snapshotLow).minOrNull(),
             nowHour = day.nowHour,
         ) ?: return@map null
-        val lowLabelText = formatTemp(lowForLabel)
+        val lowLabelText = formatTemp(lowForLabel, useCelsius)
         val lowTextHeight = measureLowLabelHeight(lowLabelText, 11f * scale)
         val anchorLow = com.weatherwidget.shared.util.DailyDayValueResolver.iconAnchorLow(
             solidLow = day.solidLow,
@@ -698,9 +700,9 @@ private fun labelSizeFor(dayWidth: Float): Int =
 // Show the tenth for any non-integer value (".0" suppressed by TempUtils.formatTemp), for
 // forecasts/future and actuals alike — matches the Android daily view. NWS integer forecasts
 // stay clean; climate normals and decimal sources reveal their tenth.
-private fun formatTemp(v: Float?): String {
+private fun formatTemp(v: Float?, useCelsius: Boolean): String {
     if (v == null) return ""
-    return com.weatherwidget.shared.util.TempUtils.formatTemp(v) ?: ""
+    return com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius) ?: ""
 }
 
 /** Temp-label font size: wide 3+ digit temps (100°, 97.7°) draw a further 5% smaller. */

@@ -136,7 +136,7 @@ class DailyForecastGraphTapZoneTest {
         val density = 2f
         val targetCol = 1
 
-        val tapLayout = computeDailyGraphTapLayout(days, canvasW, canvasH, scale, density)
+        val tapLayout = computeDailyGraphTapLayout(days, canvasW, canvasH, scale, density, useCelsius = false)
         val iconTop = tapLayout.iconTops[targetCol]
         assertNotNull(iconTop)
         val stripStart = canvasH - tapLayout.bottomStripHeightPx

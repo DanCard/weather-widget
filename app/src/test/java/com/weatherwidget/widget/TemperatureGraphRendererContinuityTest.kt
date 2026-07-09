@@ -84,7 +84,7 @@ class TemperatureGraphRendererContinuityTest {
             observedAt = fetchedAtMs,
             lastObservedTemp = 75f,
             onFetchDotResolved = { resolvedFetchY = it.fetchY },
-            onGhostLineDebug = { ghostLineStartY = it.startY }
+            onGhostLineDebug = { ghostLineStartY = it.startY }, useCelsius = false
         )
 
         println("Fetch Dot Y: $resolvedFetchY")
@@ -127,7 +127,7 @@ class TemperatureGraphRendererContinuityTest {
             heightPx = 300,
             currentTime = start.plusHours(3),
             appliedDelta = appliedDelta,
-            onPointsResolved = { capturedPoints = it }
+            onPointsResolved = { capturedPoints = it }, useCelsius = false
         )
 
         assertTrue("Points should be resolved", capturedPoints != null)

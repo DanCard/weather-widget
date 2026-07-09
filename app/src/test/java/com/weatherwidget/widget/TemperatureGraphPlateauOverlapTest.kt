@@ -59,7 +59,7 @@ class TemperatureGraphPlateauOverlapTest {
             lastObservedTemp = 49.0f,
             onLabelPlaced = { 
                 placements.add(it) 
-            }
+            }, useCelsius = false
         )
 
         // Find all 49 degree labels

@@ -120,7 +120,7 @@ fun TemperatureGraph(
     onToggleZoom: (Int) -> Unit = {},
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
     onPan: (deltaHours: Int) -> Unit = {},
-    useCelsius: Boolean = false,
+    useCelsius: Boolean,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val now = System.currentTimeMillis()
@@ -656,7 +656,7 @@ fun TemperatureGraph(
         val deltaCurrentTemp = fetchDotPoint?.actualTemp
         if (deltaFromYesterday != null && deltaCurrentTemp != null && fetchDotXVal != null) {
             val deltaSpanHours = (windowEnd - windowStart) / 3_600_000L
-            val deltaText = YesterdayDeltaLabel.format(deltaFromYesterday)
+            val deltaText = YesterdayDeltaLabel.format(deltaFromYesterday, useCelsius)
             val deltaStyle = TextStyle(
                 fontSize = (9 * scale).sp,
                 shadow = androidx.compose.ui.graphics.Shadow(
@@ -680,6 +680,7 @@ fun TemperatureGraph(
                 curveYAt = { x -> getCurveYAtX(x) },
                 metrics = metrics,
                 padPx = 6f * scale,
+                useCelsius = useCelsius,
             )
             if (placement != null) {
                 val layout = textMeasurer.measure(deltaText, deltaStyle.copy(color = Color(placement.colorArgb)))

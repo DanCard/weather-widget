@@ -40,7 +40,7 @@ object ForecastEvolutionRenderer {
         appActualHigh: Float?,
         widthPx: Int,
         heightPx: Int,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): Bitmap = renderGraph(context, points, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true, useCelsius = useCelsius)
 
     fun renderLowGraph(
@@ -50,7 +50,7 @@ object ForecastEvolutionRenderer {
         appActualLow: Float?,
         widthPx: Int,
         heightPx: Int,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): Bitmap = renderGraph(context, points, actualLow, appActualLow, widthPx, heightPx, isHigh = false, useCelsius = useCelsius)
 
     fun renderHighErrorGraph(
@@ -60,7 +60,7 @@ object ForecastEvolutionRenderer {
         appActualHigh: Float?,
         widthPx: Int,
         heightPx: Int,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): Bitmap = renderErrorGraph(context, points, actualHigh, appActualHigh, widthPx, heightPx, isHigh = true, useCelsius = useCelsius)
 
     fun renderLowErrorGraph(
@@ -70,7 +70,7 @@ object ForecastEvolutionRenderer {
         appActualLow: Float?,
         widthPx: Int,
         heightPx: Int,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): Bitmap = renderErrorGraph(context, points, actualLow, appActualLow, widthPx, heightPx, isHigh = false, useCelsius = useCelsius)
 
     private fun renderGraph(
@@ -81,7 +81,7 @@ object ForecastEvolutionRenderer {
         widthPx: Int,
         heightPx: Int,
         isHigh: Boolean,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -133,7 +133,7 @@ object ForecastEvolutionRenderer {
         widthPx: Int,
         heightPx: Int,
         isHigh: Boolean,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -190,7 +190,7 @@ object ForecastEvolutionRenderer {
         actualValue: Float?,
         appActualValue: Float?,
         isHigh: Boolean,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -339,7 +339,7 @@ object ForecastEvolutionRenderer {
         paints: EvolutionGraphStyle.PaintSet,
         dp: (Float) -> Float,
         isError: Boolean,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ) {
         for (tick in axisScale.ticks) {
             val y = axisScale.valueToY(tick, layout.graphTop, layout.graphHeight)

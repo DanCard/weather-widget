@@ -52,7 +52,7 @@ class TemperatureExtremaIncompleteDayTest {
             transitionX = 100f,
             effectiveActualEndIndex = 6,
             fetchTime = null,
-            prominenceThreshold = 1.5f,
+            prominenceThreshold = 1.5f, useCelsius = false,
         )
 
         assertTrue(
@@ -81,7 +81,7 @@ class TemperatureExtremaIncompleteDayTest {
             transitionX = 100f,
             effectiveActualEndIndex = 6,
             fetchTime = null,
-            prominenceThreshold = 1.5f,
+            prominenceThreshold = 1.5f, useCelsius = false,
         )
 
         assertTrue(
@@ -111,7 +111,7 @@ class TemperatureExtremaIncompleteDayTest {
             transitionX = null,
             effectiveActualEndIndex = 4,
             fetchTime = null,
-            prominenceThreshold = 1.5f,
+            prominenceThreshold = 1.5f, useCelsius = false,
         )
 
         assertTrue(
@@ -151,7 +151,7 @@ class TemperatureExtremaIncompleteDayTest {
             transitionX = null,
             effectiveActualEndIndex = 5,
             fetchTime = null,
-            prominenceThreshold = 1.5f,
+            prominenceThreshold = 1.5f, useCelsius = false,
         )
         assertFalse(
             "Apr 8 boundary-start high (idx 0) must be dropped — it is the warm start of a descent " +
@@ -188,7 +188,7 @@ class TemperatureExtremaIncompleteDayTest {
             transitionX = null,
             effectiveActualEndIndex = 4,
             fetchTime = null,
-            prominenceThreshold = 1.5f,
+            prominenceThreshold = 1.5f, useCelsius = false,
         )
         assertFalse(
             "Apr 8 edge value (idx 0) is the window boundary, not a confirmed valley, so it must NOT " +
@@ -221,7 +221,7 @@ class TemperatureExtremaIncompleteDayTest {
             transitionX = null,
             effectiveActualEndIndex = 4,
             fetchTime = null,
-            prominenceThreshold = 1.5f,
+            prominenceThreshold = 1.5f, useCelsius = false,
         )
         assertFalse(
             "Apr 8 edge value (idx 0) is the window boundary, not a confirmed peak, so it must NOT be " +
@@ -254,7 +254,7 @@ class TemperatureExtremaIncompleteDayTest {
             transitionX = null,
             effectiveActualEndIndex = 4,
             fetchTime = null,
-            prominenceThreshold = 1.5f,
+            prominenceThreshold = 1.5f, useCelsius = false,
         )
         assertFalse(
             "The rising left-edge sample (idx 0) must NOT be an actual low. " +

@@ -54,7 +54,7 @@ class RateLimitedWatermarkRobolectricTest {
             days = emptyList(),
             widthPx = 300,
             heightPx = 200,
-            showErrorWatermark = true
+            showErrorWatermark = true, useCelsius = false
         )
         assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
@@ -74,7 +74,7 @@ class RateLimitedWatermarkRobolectricTest {
             ),
             widthPx = 300,
             heightPx = 200,
-            showErrorWatermark = true
+            showErrorWatermark = true, useCelsius = false
         )
         assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
@@ -94,7 +94,7 @@ class RateLimitedWatermarkRobolectricTest {
             ),
             widthPx = 300,
             heightPx = 200,
-            showErrorWatermark = false
+            showErrorWatermark = false, useCelsius = false
         )
         assertTrue(drawnTexts.none { it.contains("UPDATES FAILING") })
     }
@@ -109,7 +109,7 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            showErrorWatermark = true
+            showErrorWatermark = true, useCelsius = false
         )
         assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
@@ -128,7 +128,7 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            showErrorWatermark = true
+            showErrorWatermark = true, useCelsius = false
         )
         assertTrue(drawnTexts.any { it.contains("UPDATES FAILING") })
 
@@ -147,7 +147,7 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            showErrorWatermark = false
+            showErrorWatermark = false, useCelsius = false
         )
         assertTrue(drawnTexts.none { it.contains("UPDATES FAILING") })
     }

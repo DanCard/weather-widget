@@ -41,14 +41,14 @@ class ForecastEvolutionRendererTest {
             makePoint(2000L, 76f, 56f),
             makePoint(3000L, 74f, 54f),
         )
-        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
         assertEquals(400, bitmap.height)
     }
 
     @Test
     fun `renderHighGraph empty input returns transparent bitmap`() {
-        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, emptyList(), null, null, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, emptyList(), null, null, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
         assertEquals(400, bitmap.height)
         assertEquals(Color.TRANSPARENT, bitmap.getPixel(350, 200))
@@ -60,7 +60,7 @@ class ForecastEvolutionRendererTest {
             makePoint(1000L, 75f, 55f),
             makePoint(2000L, 76f, 56f),
         )
-        val bitmap = ForecastEvolutionRenderer.renderLowGraph(context, points, null, null, 500, 300)
+        val bitmap = ForecastEvolutionRenderer.renderLowGraph(context, points, null, null, 500, 300, useCelsius = false)
         assertEquals(500, bitmap.width)
         assertEquals(300, bitmap.height)
     }
@@ -71,7 +71,7 @@ class ForecastEvolutionRendererTest {
             makePoint(1000L, 75f, 55f),
             makePoint(2000L, 76f, 56f),
         )
-        val bitmap = ForecastEvolutionRenderer.renderHighErrorGraph(context, points, 75f, 74f, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighErrorGraph(context, points, 75f, 74f, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
         assertEquals(400, bitmap.height)
     }
@@ -82,7 +82,7 @@ class ForecastEvolutionRendererTest {
             makePoint(1000L, 75f, 55f),
             makePoint(2000L, 76f, 56f),
         )
-        val bitmap = ForecastEvolutionRenderer.renderLowErrorGraph(context, points, 55f, 54f, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderLowErrorGraph(context, points, 55f, 54f, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
         assertEquals(400, bitmap.height)
     }
@@ -90,14 +90,14 @@ class ForecastEvolutionRendererTest {
     @Test
     fun `renderHighErrorGraph with no actuals returns transparent bitmap`() {
         val points = listOf(makePoint(1000L, 75f, 55f))
-        val bitmap = ForecastEvolutionRenderer.renderHighErrorGraph(context, points, null, null, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighErrorGraph(context, points, null, null, 700, 400, useCelsius = false)
         assertEquals(Color.TRANSPARENT, bitmap.getPixel(350, 200))
     }
 
     @Test
     fun `single point does not crash`() {
         val points = listOf(makePoint(1000L, 75f, 55f))
-        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400, useCelsius = false)
         assertNotNull(bitmap)
         assertEquals(700, bitmap.width)
     }
@@ -111,7 +111,7 @@ class ForecastEvolutionRendererTest {
             makePoint(2000L, 76f, 56f, source = WeatherSource.SILURIAN),
             makePoint(3000L, 74f, 54f, source = WeatherSource.SILURIAN),
         )
-        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
         assertEquals(400, bitmap.height)
     }
@@ -123,7 +123,7 @@ class ForecastEvolutionRendererTest {
             makePoint(1000L, 75f, 55f, source = WeatherSource.SILURIAN),
             makePoint(2000L, 76f, 56f, source = WeatherSource.SILURIAN),
         )
-        val bitmap = ForecastEvolutionRenderer.renderHighErrorGraph(context, points, 74f, 73f, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighErrorGraph(context, points, 74f, 73f, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
         assertEquals(400, bitmap.height)
     }
@@ -135,7 +135,7 @@ class ForecastEvolutionRendererTest {
             makePoint(2000L, 76f, 56f),
             makePoint(3000L, 74f, 54f),
         )
-        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, 74f, 73f, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, 74f, 73f, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
     }
 
@@ -146,7 +146,7 @@ class ForecastEvolutionRendererTest {
             makePoint(2000L, 75f, null),
             makePoint(3000L, null, 55f),
         )
-        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400, useCelsius = false)
         assertNotNull(bitmap)
     }
 
@@ -157,7 +157,7 @@ class ForecastEvolutionRendererTest {
             makePoint(2000L, 72f, 52f),
             makePoint(3000L, 72f, 52f),
         )
-        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
         assertEquals(400, bitmap.height)
     }
@@ -168,7 +168,7 @@ class ForecastEvolutionRendererTest {
             makePoint(1000L, 75f, 55f),
             makePoint(2000L, 76f, 56f),
         )
-        val bitmap = ForecastEvolutionRenderer.renderHighErrorGraph(context, points, 74f, 73f, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighErrorGraph(context, points, 74f, 73f, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
     }
 
@@ -177,7 +177,7 @@ class ForecastEvolutionRendererTest {
         val points = (0..100).map { i ->
             makePoint(fetchedAt = i * 3600_000L, highTemp = 70f + i * 0.1f, lowTemp = 50f + i * 0.1f)
         }
-        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400)
+        val bitmap = ForecastEvolutionRenderer.renderHighGraph(context, points, null, null, 700, 400, useCelsius = false)
         assertEquals(700, bitmap.width)
     }
 }

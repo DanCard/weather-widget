@@ -71,7 +71,7 @@ class TemperatureGhostLabelRoboTest {
             observedAt = observedAtMs,
             lastObservedTemp = 75.0f,
             appliedDelta = 5.0f,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         val endPlacement = placements.find { it.role == TemperatureRole.END }
@@ -133,7 +133,7 @@ class TemperatureGhostLabelRoboTest {
             observedAt = observedAtMs,
             lastObservedTemp = 69.0f,
             appliedDelta = 6.0f,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         val futureLabels = placements.filter { it.series == "forecast" }
@@ -172,7 +172,7 @@ class TemperatureGhostLabelRoboTest {
             currentTime = start.plusHours(7),
             observedAt = observedAtMs,
             lastObservedTemp = 82.0f,
-            onLabelPlaced = { placements.add(it) },
+            onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
         val endPlacement = placements.find { it.role == TemperatureRole.END }

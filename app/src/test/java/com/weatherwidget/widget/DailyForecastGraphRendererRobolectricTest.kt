@@ -164,7 +164,7 @@ class DailyForecastGraphRendererRobolectricTest {
                     ),
                 ),
                 widthPx = 240,
-                heightPx = 360,
+                heightPx = 360, useCelsius = false,
             )
         }
 
@@ -200,7 +200,7 @@ class DailyForecastGraphRendererRobolectricTest {
                     ),
                 ),
                 widthPx = 240,
-                heightPx = 360,
+                heightPx = 360, useCelsius = false,
             )
         }
 

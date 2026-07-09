@@ -49,7 +49,7 @@ class TemperatureGraphLabelGeneralRoboTest {
             widthPx = 1080,
             heightPx = 400,
             currentTime = now,
-            onLabelPlaced = { drawnLabels.add(it) }
+            onLabelPlaced = { drawnLabels.add(it) }, useCelsius = false
         )
 
         val drawn44 = drawnLabels.any { it.temperature.toInt() == 44 }

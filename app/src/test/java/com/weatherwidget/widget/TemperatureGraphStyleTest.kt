@@ -98,25 +98,25 @@ class TemperatureGraphStyleTest {
 
     @Test
     fun formatTemp_wholeNumber_returnsWithoutDecimal() {
-        val result = TemperatureGraphStyle.formatTemp(70f)
+        val result = TemperatureGraphStyle.formatTemp(70f, useCelsius = false)
         assertEquals("70", result)
     }
 
     @Test
     fun formatTemp_singleDecimal_returnsWithOneDecimal() {
-        val result = TemperatureGraphStyle.formatTemp(70.5f)
+        val result = TemperatureGraphStyle.formatTemp(70.5f, useCelsius = false)
         assertEquals("70.5", result)
     }
 
     @Test
     fun formatTemp_twoDecimals_roundsToOneDecimal() {
-        val result = TemperatureGraphStyle.formatTemp(70.55f)
+        val result = TemperatureGraphStyle.formatTemp(70.55f, useCelsius = false)
         assertEquals("70.6", result)
     }
 
     @Test
     fun formatTemp_negativeTemperature_handlesNegatives() {
-        val result = TemperatureGraphStyle.formatTemp(-10f)
+        val result = TemperatureGraphStyle.formatTemp(-10f, useCelsius = false)
         assertEquals("-10", result)
     }
 

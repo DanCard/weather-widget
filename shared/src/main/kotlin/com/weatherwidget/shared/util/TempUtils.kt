@@ -14,7 +14,7 @@ object TempUtils {
      * Uses a consistent 0.01 threshold for "closeness" to ensure high-precision
      * blended values are preserved while official integer forecasts remain clean.
      */
-    fun formatTemp(v: Float?, useCelsius: Boolean = false): String? {
+    fun formatTemp(v: Float?, useCelsius: Boolean): String? {
         if (v == null) return null
         val displayVal = if (useCelsius) fahrenheitToCelsius(v) else v
         val rounded = displayVal.roundToInt()

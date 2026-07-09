@@ -90,7 +90,7 @@ class TemperatureLabelHardBoundMinorOverlapTest {
             numColumns = hours.size,
             tempToY = tempToY,
             metrics = metrics,
-            reservedHardBounds = reservedHardBounds,
+            reservedHardBounds = reservedHardBounds, useCelsius = false,
         )
     }
 

@@ -7,7 +7,7 @@ object TempUtils {
      * Consistently formats a temperature value for display.
      * Delegates to shared [SharedTempUtils.formatTemp].
      */
-    fun formatTemp(v: Float?, useCelsius: Boolean = false): String? {
+    fun formatTemp(v: Float?, useCelsius: Boolean): String? {
         val result = SharedTempUtils.formatTemp(v, useCelsius)
         android.util.Log.d("TempUtils", "formatTemp: in=$v useCelsius=$useCelsius out=$result")
         return result

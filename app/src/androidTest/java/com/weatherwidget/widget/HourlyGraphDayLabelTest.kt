@@ -66,7 +66,7 @@ class HourlyGraphDayLabelTest {
             widthPx = widthPx,
             heightPx = heightPx,
             currentTime = currentTime,
-            onDayLabelPlaced = { results.add(it) },
+            onDayLabelPlaced = { results.add(it) }, useCelsius = false,
         )
         return results
     }

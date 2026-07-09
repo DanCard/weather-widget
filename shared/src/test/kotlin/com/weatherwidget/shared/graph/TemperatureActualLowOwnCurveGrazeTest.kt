@@ -91,7 +91,7 @@ class TemperatureActualLowOwnCurveGrazeTest {
             fetchTime = fetchTime,
             numColumns = hours.size,
             tempToY = tempToY,
-            metrics = TestMetrics(),
+            metrics = TestMetrics(), useCelsius = false,
         )
     }
 

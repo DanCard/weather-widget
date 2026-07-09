@@ -85,7 +85,7 @@ class TemperatureGraphRendererWapiTest {
             observedAt = fetchedAtMs,
             lastObservedTemp = 65f,
             onFetchDotResolved = { resolvedFetchY = it.fetchY },
-            onGhostLineDebug = { ghostLineStartY = it.startY }
+            onGhostLineDebug = { ghostLineStartY = it.startY }, useCelsius = false
         )
 
         println("Fetch Dot Y: $resolvedFetchY")

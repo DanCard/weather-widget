@@ -64,7 +64,7 @@ class TruthCurveLinearRenderingTest {
             currentTime = renderTime,
             observedAt = observedAtMs,
             lastObservedTemp = 75.0f,
-            onFetchDotResolved = { dotDebug = it },
+            onFetchDotResolved = { dotDebug = it }, useCelsius = false,
         )
 
         assertNotNull("Fetch dot should be rendered when observedAt is within the graph window", dotDebug)
@@ -114,7 +114,7 @@ class TruthCurveLinearRenderingTest {
             observedAt = observedAtMs,
             lastObservedTemp = 75.0f,
             appliedDelta = 0f,
-            onFetchDotResolved = { dotDebug = it },
+            onFetchDotResolved = { dotDebug = it }, useCelsius = false,
         )
 
         assertNotNull("Fetch dot should appear within the graph window", dotDebug)

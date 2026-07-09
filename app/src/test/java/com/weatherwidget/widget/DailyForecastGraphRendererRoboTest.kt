@@ -51,7 +51,7 @@ class DailyForecastGraphRendererRoboTest {
                 days = days,
                 widthPx = widthPx,
                 heightPx = heightPx,
-                onBarDrawn = { results.add(it) },
+                onBarDrawn = { results.add(it) }, useCelsius = false,
             )
         }
         assertNotNull(bitmap)
@@ -72,7 +72,7 @@ class DailyForecastGraphRendererRoboTest {
                 widthPx = widthPx,
                 heightPx = heightPx,
                 numColumns = numColumns,
-                onRainLabelDrawn = { results.add(it) },
+                onRainLabelDrawn = { results.add(it) }, useCelsius = false,
             )
         }
         assertNotNull(bitmap)
@@ -93,7 +93,7 @@ class DailyForecastGraphRendererRoboTest {
                 widthPx = widthPx,
                 heightPx = heightPx,
                 headerData = headerData,
-                onHeaderDrawn = { results.add(it) },
+                onHeaderDrawn = { results.add(it) }, useCelsius = false,
             )
         }
         assertNotNull(bitmap)
@@ -511,7 +511,7 @@ class DailyForecastGraphRendererRoboTest {
                 heightPx = 40,
                 headerData = DailyForecastGraphRenderer.HeaderRenderData(dateText = "Mon"),
                 onRainLabelDrawn = { events.add("rain") },
-                onHeaderDrawn = { events.add("header") },
+                onHeaderDrawn = { events.add("header") }, useCelsius = false,
             )
         }
 
@@ -786,7 +786,7 @@ class DailyForecastGraphRendererRoboTest {
         val width = 1000
         val height = 1000
         runBlocking {
-            DailyForecastGraphRenderer.renderGraph(context, listOf(DailyForecastGraphRenderer.DayData(date = today, label = "X", solidLineHigh = 0f, solidLineLow = 0f)), width, height)
+            DailyForecastGraphRenderer.renderGraph(context, listOf(DailyForecastGraphRenderer.DayData(date = today, label = "X", solidLineHigh = 0f, solidLineLow = 0f)), width, height, useCelsius = false)
         }
         @Suppress("UNCHECKED_CAST")
         val caches = paintCachesField.get(null) as List<Any>
@@ -825,13 +825,14 @@ class DailyForecastGraphRendererRoboTest {
                             onRainLabelDrawn = {
                                 secondRenderCallbackFired = true
                                 sizeDuringSecondRender = rainPaint.textSize
-                            }
+                            }, useCelsius = false
                         )
                     }
-                }
+                },
+                useCelsius = false,
             )
         }
-        
+
         assertTrue("First render callback should have fired", firstRenderCallbackFired)
         assertTrue("Second render callback should have fired", secondRenderCallbackFired)
         assertEquals("Second render should have the SAME base text size as first", sizeDuringFirstRender, sizeDuringSecondRender, 0.01f)
@@ -848,7 +849,7 @@ class DailyForecastGraphRendererRoboTest {
             ),
         )
         runBlocking {
-            DailyForecastGraphRenderer.renderGraph(context, days, 500, 300)
+            DailyForecastGraphRenderer.renderGraph(context, days, 500, 300, useCelsius = false)
         }
     }
 
@@ -930,7 +931,7 @@ class DailyForecastGraphRendererRoboTest {
                 widthPx = widthPx,
                 heightPx = heightPx,
                 numColumns = 5,
-                onBarDrawn = { results.add(it) },
+                onBarDrawn = { results.add(it) }, useCelsius = false,
             )
         }
         assertTrue("Should have drawn a bar even with out-of-range columnIndex", results.isNotEmpty())
@@ -955,15 +956,15 @@ class DailyForecastGraphRendererRoboTest {
         paintCachesField.isAccessible = true
         paintCachesField.set(null, emptyList<Any>())
 
-        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 1.0f) }
+        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 1.0f, useCelsius = false) }
         @Suppress("UNCHECKED_CAST")
         val cachesAfter1 = paintCachesField.get(null) as List<Any>
         assertEquals("First render should add one cache entry", 1, cachesAfter1.size)
         val setField = cachesAfter1.first().javaClass.getDeclaredField("set").apply { isAccessible = true }
         val firstSet = setField.get(cachesAfter1.first())
 
-        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 0.8f) }
-        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 0.6f) }
+        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 0.8f, useCelsius = false) }
+        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 0.6f, useCelsius = false) }
 
         @Suppress("UNCHECKED_CAST")
         val cachesAfter3 = paintCachesField.get(null) as List<Any>
@@ -974,7 +975,7 @@ class DailyForecastGraphRendererRoboTest {
             setsRetained.any { it === firstSet },
         )
 
-        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 1.0f) }
+        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 1.0f, useCelsius = false) }
         @Suppress("UNCHECKED_CAST")
         val cachesAfter4 = paintCachesField.get(null) as List<Any>
         assertEquals("Re-rendering at a cached scale must not grow the LRU past 3", 3, cachesAfter4.size)
@@ -1000,7 +1001,7 @@ class DailyForecastGraphRendererRoboTest {
                 days = days,
                 widthPx = 100,
                 heightPx = 80,
-                onBarDrawn = { results.add(it) },
+                onBarDrawn = { results.add(it) }, useCelsius = false,
             )
         }
         assertNotNull("renderGraph must produce a bitmap when mixed bar height collapses to <= 1px", bitmap)

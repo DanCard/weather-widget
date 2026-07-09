@@ -178,7 +178,7 @@ class ActualTemperatureSeriesBuilderTest {
         )
         val hours = com.weatherwidget.shared.graph.HourDataAssembler.assembleHourData(series, zone)
         val extrema = com.weatherwidget.shared.graph.TemperatureLabelResolver
-            .computeExtremaIndices(hours, transitionX = null, effectiveActualEndIndex = hours.lastIndex, fetchTime = null)
+            .computeExtremaIndices(hours, transitionX = null, effectiveActualEndIndex = hours.lastIndex, fetchTime = null, useCelsius = false)
 
         fun hourlyValueOn(date: java.time.LocalDate, indices: List<Int>): Float {
             val onDay = indices.filter { hours[it].dateTime.toLocalDate() == date }

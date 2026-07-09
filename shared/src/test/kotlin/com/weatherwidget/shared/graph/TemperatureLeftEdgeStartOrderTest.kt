@@ -86,7 +86,7 @@ class TemperatureLeftEdgeStartOrderTest {
             fetchTime = fetchTime,
             numColumns = hours.size,
             tempToY = tempToY,
-            metrics = TestLabelTextMetrics(),
+            metrics = TestLabelTextMetrics(), useCelsius = false,
         )
     }
 

@@ -109,7 +109,7 @@ object TemperatureViewHandler {
                 smoothedForecasts = liveSmoothed,
             )
             val currentFormatted = liveResolution.displayTemp?.let {
-                CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, liveResolution.isStaleEstimate)
+                CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, liveResolution.isStaleEstimate, useCelsius = stateManager.useCelsius())
             }
             val lastRender = stateManager.getLastGraphRender(appWidgetId)
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
@@ -179,7 +179,7 @@ object TemperatureViewHandler {
 
         // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
         val renderedFormattedTemp = resolutionResult.currentTempResolution.displayTemp?.let {
-            CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, resolutionResult.currentTempResolution.isStaleEstimate)
+            CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, resolutionResult.currentTempResolution.isStaleEstimate, useCelsius = stateManager.useCelsius())
         }
         stateManager.setLastGraphRender(
             appWidgetId,
@@ -315,7 +315,7 @@ object TemperatureViewHandler {
         val displayTemp = resolution.displayTemp
         partial.setTextViewText(
             com.weatherwidget.R.id.current_temp,
-            displayTemp?.let { CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, resolution.isStaleEstimate) },
+            displayTemp?.let { CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, resolution.isStaleEstimate, useCelsius = stateManager.useCelsius()) },
         )
         partial.setViewVisibility(com.weatherwidget.R.id.current_temp, android.view.View.VISIBLE)
         val currentTempPx = android.util.TypedValue.applyDimension(
@@ -404,7 +404,8 @@ object TemperatureViewHandler {
             val appliedDelta = refined.appliedDelta
             val formatted = displayTemp?.let {
                 CurrentTemperatureResolver.formatDisplayTemperature(
-                    it, params.numColumns, refined.isStaleEstimate
+                    it, params.numColumns, refined.isStaleEstimate,
+                    useCelsius = params.stateManager.useCelsius(),
                 )
             }
             val formattedTemp = if (formatted != null) formatted else null

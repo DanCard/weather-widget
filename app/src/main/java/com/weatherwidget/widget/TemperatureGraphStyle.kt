@@ -53,7 +53,7 @@ object TemperatureGraphStyle {
 
     // Graph temperature formatting (no degree symbol; callers append "°") is the same contract as
     // the shared label resolver — delegate so there's a single source of truth.
-    fun formatTemp(value: Float): String = TemperatureLabelResolver.formatTemp(value)
+    fun formatTemp(value: Float, useCelsius: Boolean): String = TemperatureLabelResolver.formatTemp(value, useCelsius)
 
     fun formatColorHex(color: Int): String {
         return String.format("#%06X", (0xFFFFFF and color))

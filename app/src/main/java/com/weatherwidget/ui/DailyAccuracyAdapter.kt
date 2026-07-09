@@ -11,7 +11,7 @@ import com.weatherwidget.stats.DailyAccuracy
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-class DailyAccuracyAdapter(private val useCelsius: Boolean = false) : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolder>() {
+class DailyAccuracyAdapter(private val useCelsius: Boolean) : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolder>() {
     private var items = listOf<DailyAccuracy>()
 
     fun setItems(newItems: List<DailyAccuracy>) {

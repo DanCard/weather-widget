@@ -60,7 +60,7 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.97f, // distinct scale → fresh PaintSet under this test's mockk (cache is keyed on scale)
             observedAt = observedAtMs,
             lastObservedTemp = 54f,
-            deltaFromYesterday = 2.3f,
+            deltaFromYesterday = 2.3f, useCelsius = false,
         )
 
         verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3 from yesterday", any(), any(), any()) }
@@ -91,7 +91,7 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.96f,
             observedAt = observedAtMs,
             lastObservedTemp = 62f,
-            deltaFromYesterday = 2.3f,
+            deltaFromYesterday = 2.3f, useCelsius = false,
         )
 
         verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3 from yesterday", any(), any(), any()) }
@@ -122,7 +122,7 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.94f,
             observedAt = observedAtMs,
             lastObservedTemp = 55f,
-            deltaFromYesterday = 2.3f,
+            deltaFromYesterday = 2.3f, useCelsius = false,
         )
 
         verify(exactly = 0) { anyConstructed<Canvas>().drawText("+2.3 from yesterday", any(), any(), any()) }
@@ -152,7 +152,7 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.95f,
             observedAt = observedAtMs,
             lastObservedTemp = 60f,
-            deltaFromYesterday = null,
+            deltaFromYesterday = null, useCelsius = false,
         )
 
         verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from yesterday") }, any(), any(), any()) }
@@ -186,7 +186,7 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.93f, // distinct scale
             observedAt = observedAtMs,
             lastObservedTemp = 54f,
-            deltaFromYesterday = 2.3f,
+            deltaFromYesterday = 2.3f, useCelsius = false,
         )
 
         verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from yesterday") }, any(), any(), any()) }

@@ -15,11 +15,11 @@ class YesterdayDeltaLabelTest {
 
     @Test
     fun `format is signed with one decimal`() {
-        assertEquals("+0.4 from yesterday", YesterdayDeltaLabel.format(0.4f))
-        assertEquals("-1.2 from yesterday", YesterdayDeltaLabel.format(-1.2f))
-        assertEquals("+0.0 from yesterday", YesterdayDeltaLabel.format(0f))
-        assertEquals("+0.0 from yesterday", YesterdayDeltaLabel.format(-0.04f)) // rounds to 0, no "-0.0"
-        assertEquals("+5.0 from yesterday", YesterdayDeltaLabel.format(4.96f))
+        assertEquals("+0.4 from yesterday", YesterdayDeltaLabel.format(0.4f, useCelsius = false))
+        assertEquals("-1.2 from yesterday", YesterdayDeltaLabel.format(-1.2f, useCelsius = false))
+        assertEquals("+0.0 from yesterday", YesterdayDeltaLabel.format(0f, useCelsius = false))
+        assertEquals("+0.0 from yesterday", YesterdayDeltaLabel.format(-0.04f, useCelsius = false)) // rounds to 0, no "-0.0"
+        assertEquals("+5.0 from yesterday", YesterdayDeltaLabel.format(4.96f, useCelsius = false))
     }
 
     @Test
@@ -31,7 +31,7 @@ class YesterdayDeltaLabelTest {
     fun `places into the empty band clear of the curve`() {
         val p = YesterdayDeltaLabel.place(
             delta = 0.4f, currentTemp = 72f, spanHours = 6,
-            plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
+            plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
         )
         assertNotNull(p)
         // The box must clear the low-sitting curve (curve at y=180; box stays above it).
@@ -47,26 +47,26 @@ class YesterdayDeltaLabelTest {
         assertNotNull(
             YesterdayDeltaLabel.place(
                 delta = 0.4f, currentTemp = 72f, spanHours = 24,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
+                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
         assertNull(
             YesterdayDeltaLabel.place(
                 delta = 0.4f, currentTemp = 72f, spanHours = 72,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
+                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
         // boundary is inclusive.
         assertNotNull(
             YesterdayDeltaLabel.place(
                 delta = 0.4f, currentTemp = 72f, spanHours = YesterdayDeltaLabel.DELTA_LABEL_MAX_HOURS_SPAN,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
+                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
         assertNull(
             YesterdayDeltaLabel.place(
                 delta = 0.4f, currentTemp = 72f, spanHours = YesterdayDeltaLabel.DELTA_LABEL_MAX_HOURS_SPAN + 1,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
+                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
     }
@@ -76,7 +76,7 @@ class YesterdayDeltaLabelTest {
         assertNull(
             YesterdayDeltaLabel.place(
                 delta = null, currentTemp = 72f, spanHours = 6,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
+                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
     }
@@ -87,7 +87,7 @@ class YesterdayDeltaLabelTest {
         val blocker = GraphRect(100f, 0f, 300f, 120f)
         val p = YesterdayDeltaLabel.place(
             delta = 0.4f, currentTemp = 72f, spanHours = 6,
-            plot = plot, drawnBounds = listOf(blocker), curveYAt = lowCurve, metrics = metrics, padPx = 4f,
+            plot = plot, drawnBounds = listOf(blocker), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
         )
         assertNotNull(p)
         assertTrue(!p!!.box.intersects(blocker))
@@ -99,7 +99,7 @@ class YesterdayDeltaLabelTest {
         val p = YesterdayDeltaLabel.place(
             delta = 0.4f, currentTemp = 72f, spanHours = 6,
             plot = GraphRect(0f, 0f, 400f, 20f), drawnBounds = emptyList(),
-            curveYAt = { null }, metrics = metrics, padPx = 4f,
+            curveYAt = { null }, metrics = metrics, padPx = 4f, useCelsius = false,
         )
         assertNull(p)
     }

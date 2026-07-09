@@ -231,11 +231,11 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource,
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
                 if (d.apiHigh != null && d.apiLow != null) {
-                    Text("${source.displayName} actual: ${fmt(d.apiHigh)} / ${fmt(d.apiLow)}",
+                    Text("${source.displayName} actual: ${fmt(d.apiHigh, useCelsius)} / ${fmt(d.apiLow, useCelsius)}",
                         color = parseColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), fontSize = 13.sp)
                 }
                 if (d.appHigh != null && d.appLow != null) {
-                    Text("Location actual: ${fmt(d.appHigh)} / ${fmt(d.appLow)}",
+                    Text("Location actual: ${fmt(d.appHigh, useCelsius)} / ${fmt(d.appLow, useCelsius)}",
                         color = parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
@@ -298,7 +298,7 @@ private fun EvolutionGraph(
     isHigh: Boolean,
     isError: Boolean,
     textMeasurer: TextMeasurer,
-    useCelsius: Boolean = false,
+    useCelsius: Boolean,
 ) {
     Canvas(Modifier.fillMaxWidth().height(200.dp)) {
         if (isError) drawError(points, actual, appActual, isHigh, textMeasurer, useCelsius)
@@ -390,7 +390,7 @@ private fun DrawScope.drawError(
     drawErrorCurve(errors, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.FORECAST_COLOR))
 }
 
-private fun DrawScope.drawGridAndAxes(l: Layout, axis: AxisScale, timeAxis: TimeAxis, tm: TextMeasurer, isError: Boolean, useCelsius: Boolean = false) {
+private fun DrawScope.drawGridAndAxes(l: Layout, axis: AxisScale, timeAxis: TimeAxis, tm: TextMeasurer, isError: Boolean, useCelsius: Boolean) {
     val grid = parseColor(ForecastEvolutionStyle.GRID_COLOR)
     val labelColor = parseColor(ForecastEvolutionStyle.LABEL_COLOR)
     for (tick in axis.ticks) {
@@ -558,7 +558,7 @@ private fun loadHistory(
 // Small helpers
 // ---------------------------------------------------------------------------------------------
 
-private fun fmt(v: Float, useCelsius: Boolean = false): String = ForecastEvolutionGeometry.formatTempLabel(v, useCelsius)
+private fun fmt(v: Float, useCelsius: Boolean): String = ForecastEvolutionGeometry.formatTempLabel(v, useCelsius)
 
 private fun formatAge(durationMs: Long): String {
     val minutes = durationMs / 60_000

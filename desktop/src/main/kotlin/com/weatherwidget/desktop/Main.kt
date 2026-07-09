@@ -1356,7 +1356,7 @@ private fun DailyForecastTextMode(
     state: DesktopDailyViewState,
     modifier: Modifier = Modifier,
     onDayClick: (LocalDate, DayClickResolver.DayTapZone) -> Unit = { _, _ -> },
-    useCelsius: Boolean = false,
+    useCelsius: Boolean,
 ) {
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         state.days.forEach { day ->

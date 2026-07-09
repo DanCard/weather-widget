@@ -305,7 +305,7 @@ object CurrentTemperatureResolver {
         temp: Float,
         numColumns: Int,
         isStaleEstimate: Boolean,
-        useCelsius: Boolean = false,
+        useCelsius: Boolean,
     ): String {
         val displayVal = if (useCelsius) TempUtils.fahrenheitToCelsius(temp) else temp
         return when {

@@ -89,7 +89,7 @@ class TemperatureGraphJunctionTest {
             observedAt = fetchedAtMs,
             lastObservedTemp = 65f,
             onFetchDotResolved = { resolvedFetchY = it.fetchY },
-            onActualLineResolved = { actualLineEndY = it.endY },
+            onActualLineResolved = { actualLineEndY = it.endY }, useCelsius = false,
         )
 
         assertTrue("Fetch dot Y should be resolved", resolvedFetchY != null)
