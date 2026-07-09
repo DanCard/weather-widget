@@ -1,7 +1,6 @@
 package com.weatherwidget.util
 
 import com.weatherwidget.test.category.Localization
-import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -17,7 +16,7 @@ import javax.xml.parsers.DocumentBuilderFactory
  *
  * Pure JVM — parses the res XML directly, no Robolectric.
  */
-@Category(ShortDuration::class, Localization::class)
+@Category(Localization::class)
 class LocaleResourceParityTest {
     private data class StringRes(
         val name: String,

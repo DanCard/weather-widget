@@ -59,8 +59,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Explicit bucket selection means "run only what I asked for": the parallel
+# :shared/:desktop run rides along only on default (no-args) full runs.
+DEFAULT_RUN=false
 if [ ${#BUCKETS[@]} -eq 0 ]; then
-  BUCKETS=(Short Medium Long)
+  # All category buckets. They partition the suite (each test is in exactly one), so
+  # Localization must be here — its tests run in NO duration bucket.
+  BUCKETS=(Short Medium Long Localization)
+  DEFAULT_RUN=true
 fi
 
 SINGLE_INVOCATION_MONITOR_PID=""
@@ -253,8 +259,6 @@ start_single_invocation_summary_monitor() {
 
 for bucket in "${BUCKETS[@]}"; do
   case "$bucket" in
-    # Localization is a topic slice (tests also live in a duration bucket); it never runs
-    # by default — pass it explicitly: ./scripts/unit-tests.sh Localization
     Short|Medium|Long|Localization) ;;
     *)
       echo "Unknown bucket: $bucket" >&2
@@ -266,8 +270,8 @@ done
 
 # Run all buckets in one Gradle process (avoids ASM races).
 # Gradle's own parallel executor handles concurrent test tasks safely.
-# The aggregate task covers exactly the duration trio — not topic slices like Localization.
-if [ "${BUCKETS[*]}" = "Short Medium Long" ] && [ "$RUN_MODE" = "Fresh" ]; then
+# The aggregate task covers exactly the full default bucket set.
+if [ "${BUCKETS[*]}" = "Short Medium Long Localization" ] && [ "$RUN_MODE" = "Fresh" ]; then
   task_name="testByDurationDebugUnitTestFresh"
 else
   task_name=""
@@ -287,16 +291,21 @@ if [ -z "$gradle_log" ]; then
   is_temp_log=true
 fi
 
-# Run :shared and :desktop tests in parallel with the :app buckets below.
+# Run :shared and :desktop tests in parallel with the :app buckets below — but only on
+# default full runs; explicit bucket selection runs just those buckets.
 # These are pure-JVM tests (no Robolectric, no ASM cache) so a separate Gradle
 # invocation is safe and avoids competing for the :app build cache.
-shared_desktop_log=$(mktemp)
+shared_desktop_log=""
 shared_desktop_status=0
-(
-  cd "$ROOT_DIR"
-  JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" :shared:test :desktop:test --console=plain
-) >"$shared_desktop_log" 2>&1 &
-SHARED_DESKTOP_PID=$!
+SHARED_DESKTOP_PID=""
+if [ "$DEFAULT_RUN" = true ]; then
+  shared_desktop_log=$(mktemp)
+  (
+    cd "$ROOT_DIR"
+    JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" :shared:test :desktop:test --console=plain
+  ) >"$shared_desktop_log" 2>&1 &
+  SHARED_DESKTOP_PID=$!
+fi
 
 overall_status=0
 start_single_invocation_summary_monitor "$gradle_log"
@@ -340,6 +349,7 @@ if [ -n "$SHARED_DESKTOP_PID" ] && kill -0 "$SHARED_DESKTOP_PID" 2>/dev/null; th
   log_and_echo "Waiting for :shared and :desktop tests to finish..."
   wait "$SHARED_DESKTOP_PID" || shared_desktop_status=$?
 fi
+if [ "$DEFAULT_RUN" = true ]; then
 for module in shared desktop; do
   results_dir="$ROOT_DIR/$module/build/test-results/test"
   if [ -d "$results_dir" ] && compgen -G "$results_dir/TEST-*.xml" >/dev/null 2>&1; then
@@ -362,11 +372,14 @@ for module in shared desktop; do
     total_failures=$((total_failures + 1))
   fi
 done
-if [ "$shared_desktop_status" -ne 0 ]; then
+if [ "$shared_desktop_status" -ne 0 ] && [ -n "$shared_desktop_log" ]; then
   log_and_echo "${RED}Shared/desktop test log:${NC}"
   cat "$shared_desktop_log"
 fi
-rm -f "$shared_desktop_log"
+if [ -n "$shared_desktop_log" ]; then
+  rm -f "$shared_desktop_log"
+fi
+fi
 
 # Report per-bucket results from JUnit XML
 for bucket in "${BUCKETS[@]}"; do

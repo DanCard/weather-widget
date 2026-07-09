@@ -194,26 +194,24 @@ tasks.withType<Test> {
     }
 }
 
-val unitTestDurationCategories =
+// Every unit test class declares exactly ONE of these category buckets: the three
+// duration buckets, or a topic bucket (Localization). The buckets partition the suite —
+// a localization test lives ONLY in Localization, not in a duration bucket — so the
+// default run (unit-tests.sh / testByDurationDebugUnitTest) covers ALL buckets.
+// validateUnitTestDurations enforces the exactly-one rule.
+val unitTestCategoryBuckets =
     mapOf(
         "Short" to "com.weatherwidget.test.category.ShortDuration",
         "Medium" to "com.weatherwidget.test.category.MediumDuration",
         "Long" to "com.weatherwidget.test.category.LongDuration",
-    )
-
-// Topic categories tag tests by AREA, orthogonal to the duration buckets: every test class
-// still declares exactly one duration category, and topic markers ride along in the SAME
-// @Category(...) annotation (JUnit's @Category is not repeatable). Topic tasks re-run those
-// tests as a focused slice; the duration buckets remain the complete partition, so topic
-// tasks are deliberately NOT part of testByDurationDebugUnitTest.
-val unitTestTopicCategories =
-    mapOf(
         "Localization" to "com.weatherwidget.test.category.Localization",
     )
 
 val validateUnitTestDurations by tasks.registering {
     group = "verification"
-    description = "Verifies that each unit test class declares exactly one duration category."
+    description =
+        "Verifies unit test @Category usage: exactly one category bucket per file " +
+            "(a duration OR a topic like Localization, never both), no duplicates, only known markers."
 
     val testFiles =
         fileTree("$projectDir/src/test/java") {
@@ -223,31 +221,45 @@ val validateUnitTestDurations by tasks.registering {
 
     inputs.files(testFiles)
 
+    // Single source of truth: the marker whitelist derives from the bucket map, so a new
+    // bucket added there is automatically legal in @Category and gets its own test task.
+    val bucketNames = unitTestCategoryBuckets.values.map { it.substringAfterLast('.') }.toSet()
+
     doLast {
         val markerRegex = Regex("@Category\\(([^)]*)\\)")
-        val durationNames = setOf("ShortDuration", "MediumDuration", "LongDuration")
         val violations = mutableListOf<String>()
 
         testFiles.files.sorted().forEach { file ->
             val content = file.readText()
-            val categoryMatches =
-                markerRegex
-                    .findAll(content)
-                    .map { matchResult ->
-                        durationNames.filter { durationName -> durationName in matchResult.groupValues[1] }
-                    }.flatten()
-                    .toList()
-                    .distinct()
+            val bucketsInFile = mutableSetOf<String>()
 
-            if (categoryMatches.size != 1) {
-                violations += "${file.path}: expected exactly one duration category, found ${categoryMatches.ifEmpty { listOf("none") }}"
+            markerRegex.findAll(content).forEach { match ->
+                val names =
+                    match.groupValues[1]
+                        .split(',')
+                        .map { it.trim().removeSuffix("::class").substringAfterLast('.') }
+                        .filter { it.isNotEmpty() }
+
+                names.filterNot { it in bucketNames }.takeIf { it.isNotEmpty() }?.let {
+                    violations += "${file.path}: unknown category marker(s) $it — known: ${bucketNames.sorted()}"
+                }
+                if (names.size > 1) {
+                    violations += "${file.path}: more than one category in one @Category: $names"
+                }
+                bucketsInFile += names.filter { it in bucketNames }
+            }
+
+            // Exactly one bucket per file: zero means the tests silently run in NO bucket;
+            // two means they run (and count) more than once across the full bucket run.
+            if (bucketsInFile.size != 1) {
+                violations += "${file.path}: expected exactly one category bucket, found ${bucketsInFile.ifEmpty { setOf("none") }}"
             }
         }
 
         if (violations.isNotEmpty()) {
             throw GradleException(
                 buildString {
-                    appendLine("Unit tests must declare exactly one duration category:")
+                    appendLine("Unit test @Category violations:")
                     violations.forEach { violation -> appendLine(" - $violation") }
                 },
             )
@@ -304,26 +316,26 @@ afterEvaluate {
         }
     }
 
-    unitTestDurationCategories.forEach { (bucketName, categoryClassName) ->
+    unitTestCategoryBuckets.forEach { (bucketName, categoryClassName) ->
         registerDurationTestTask(bucketName, categoryClassName)
         registerDurationTestTask(bucketName, categoryClassName, forceExecution = true)
     }
 
-    unitTestTopicCategories.forEach { (bucketName, categoryClassName) ->
-        registerDurationTestTask(bucketName, categoryClassName)
-        registerDurationTestTask(bucketName, categoryClassName, forceExecution = true)
-    }
-
+    // Name kept for muscle memory / older docs; it runs ALL category buckets, including
+    // the non-duration Localization bucket — the buckets partition the suite, so skipping
+    // one would silently skip its tests entirely.
     tasks.register("testByDurationDebugUnitTest") {
         group = "verification"
-        description = "Runs the short, medium, and long debug unit test buckets."
-        dependsOn(unitTestDurationCategories.keys.map { "test${it}DebugUnitTest" })
+        description = "Runs all debug unit test category buckets (short, medium, long, localization)."
+        dependsOn(unitTestCategoryBuckets.keys.map { "test${it}DebugUnitTest" })
     }
 
     tasks.register("testByDurationDebugUnitTestFresh") {
         group = "verification"
-        description = "Runs the short, medium, and long debug unit test buckets without reusing previous test task results."
-        dependsOn(unitTestDurationCategories.keys.map { "test${it}DebugUnitTestFresh" })
+        description =
+            "Runs all debug unit test category buckets (short, medium, long, localization) " +
+                "without reusing previous test task results."
+        dependsOn(unitTestCategoryBuckets.keys.map { "test${it}DebugUnitTestFresh" })
     }
 }
 

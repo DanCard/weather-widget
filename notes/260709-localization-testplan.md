@@ -16,10 +16,12 @@ locale-sensitive runtime paths (`UnitDefaults`, `todayLabel` threading, RTL, wid
 ---
 
 > **Status update (2026-07-09, later same day):** Tier 1 is IMPLEMENTED
-> (`LocaleResourceParityTest`, all 7 checks, sabotage-verified). A `Localization` topic
-> category now exists (orthogonal to duration buckets — declare both in one
-> `@Category(...)`): run the slice via `./scripts/unit-tests.sh Localization` or
-> `:app:testLocalizationDebugUnitTest`. Tag all future tests from this plan with it.
+> (`LocaleResourceParityTest`, all 7 checks, sabotage-verified). A `Localization` category
+> bucket now exists as a PEER of Short/Medium/Long: localization tests declare
+> `@Category(Localization::class)` ONLY (no duration marker — the validator rejects
+> combining them). The bucket runs in the default `./scripts/unit-tests.sh`, or alone via
+> `./scripts/unit-tests.sh Localization` / `:app:testLocalizationDebugUnitTest`.
+> Tag all future tests from this plan with it.
 
 ## Tier 1 — Resource parity (plain JUnit, no Android)
 

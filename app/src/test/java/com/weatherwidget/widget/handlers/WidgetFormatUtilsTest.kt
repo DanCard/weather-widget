@@ -1,6 +1,6 @@
 package com.weatherwidget.widget.handlers
 
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.Localization
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -11,7 +11,8 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
 
-@Category(ShortDuration::class)
+// Localization bucket: asserts locale-driven unit selection (US locale → inches, metric → mm).
+@Category(Localization::class)
 class WidgetFormatUtilsTest {
 
     private lateinit var originalLocale: Locale
