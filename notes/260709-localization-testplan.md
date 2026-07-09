@@ -15,6 +15,12 @@ locale-sensitive runtime paths (`UnitDefaults`, `todayLabel` threading, RTL, wid
 
 ---
 
+> **Status update (2026-07-09, later same day):** Tier 1 is IMPLEMENTED
+> (`LocaleResourceParityTest`, all 7 checks, sabotage-verified). A `Localization` topic
+> category now exists (orthogonal to duration buckets — declare both in one
+> `@Category(...)`): run the slice via `./scripts/unit-tests.sh Localization` or
+> `:app:testLocalizationDebugUnitTest`. Tag all future tests from this plan with it.
+
 ## Tier 1 — Resource parity (plain JUnit, no Android)
 
 **New file:** `app/src/test/java/com/weatherwidget/util/LocaleResourceParityTest.kt`
