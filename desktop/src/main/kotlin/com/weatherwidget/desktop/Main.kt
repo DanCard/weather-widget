@@ -461,7 +461,7 @@ private fun runApp() = application {
         val textMeasurer = remember { createTrayTextMeasurer() }
         val appIcon = remember(forecast?.currentTemp, currentConfig?.useCelsius) {
             val useCelsius = currentConfig?.useCelsius
-                ?: com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault().country)
+                ?: com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault())
             TemperatureTrayPainter(forecast?.currentTemp, textMeasurer, useCelsius)
         }
 

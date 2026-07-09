@@ -37,4 +37,47 @@ class UnitDefaultsTest {
         assertTrue(UnitDefaults.defaultUseCelsius(null))
         assertTrue(UnitDefaults.defaultUseCelsius(""))
     }
+
+    @Test
+    fun `explicit OS temperature unit beats region default`() {
+        // US region, but the user told the OS they want Celsius.
+        assertTrue(UnitDefaults.defaultUseCelsius("celsius", "US"))
+        // Metric region, but the user told the OS they want Fahrenheit.
+        assertFalse(UnitDefaults.defaultUseCelsius("fahrenhe", "DE"))
+    }
+
+    @Test
+    fun `CLDR truncated and full fahrenheit spellings both recognized`() {
+        assertFalse(UnitDefaults.defaultUseCelsius("fahrenhe", "DE"))
+        assertFalse(UnitDefaults.defaultUseCelsius("fahrenheit", "DE"))
+        assertFalse(UnitDefaults.defaultUseCelsius("FAHRENHE", "DE"))
+    }
+
+    @Test
+    fun `kelvin maps to Celsius`() {
+        assertTrue(UnitDefaults.defaultUseCelsius("kelvin", "US"))
+    }
+
+    @Test
+    fun `absent or unrecognized explicit unit falls through to region`() {
+        assertFalse(UnitDefaults.defaultUseCelsius(null, "US"))
+        assertFalse(UnitDefaults.defaultUseCelsius("", "US"))
+        assertFalse(UnitDefaults.defaultUseCelsius("rankine", "US"))
+        assertTrue(UnitDefaults.defaultUseCelsius(null, "DE"))
+    }
+
+    @Test
+    fun `locale overload reads the mu unicode extension`() {
+        val usWithCelsius = java.util.Locale.forLanguageTag("en-US-u-mu-celsius")
+        assertTrue(UnitDefaults.defaultUseCelsius(usWithCelsius))
+
+        val germanyWithFahrenheit = java.util.Locale.forLanguageTag("de-DE-u-mu-fahrenhe")
+        assertFalse(UnitDefaults.defaultUseCelsius(germanyWithFahrenheit))
+
+        val plainUs = java.util.Locale.forLanguageTag("en-US")
+        assertFalse(UnitDefaults.defaultUseCelsius(plainUs))
+
+        val plainGermany = java.util.Locale.forLanguageTag("de-DE")
+        assertTrue(UnitDefaults.defaultUseCelsius(plainGermany))
+    }
 }

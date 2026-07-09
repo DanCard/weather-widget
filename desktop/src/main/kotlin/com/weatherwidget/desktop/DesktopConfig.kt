@@ -44,7 +44,7 @@ data class DesktopConfig(
     // equal to the locale default stays unwritten in config.json and keeps following the
     // locale; an explicit differing choice is persisted and wins.
     val useCelsius: Boolean =
-        com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault().country),
+        com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault()),
 ) {
     // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
     fun personalStationWeight(): Double = 1.0 - personalStationDiscount.coerceIn(0, 100) / 100.0

@@ -151,12 +151,29 @@ class WidgetStateManager
         }
 
         fun useCelsius(): Boolean {
-            // Until the user touches the toggle, default from the device region (not the
-            // app language — Resources.getSystem() ignores the per-app locale override, so
-            // picking French UI in the US keeps Fahrenheit). An explicit choice wins forever.
+            // Until the user touches the toggle, default from the device (not the app
+            // language — Resources.getSystem() ignores the per-app locale override, so
+            // picking French UI in the US keeps Fahrenheit). Ladder: an explicit OS-level
+            // temperature unit (Android 14 Regional Preferences; resolved=false returns ""
+            // unless the user actually set one) beats the region default. An explicit
+            // choice on our own toggle wins forever.
             if (!prefs.contains("use_celsius")) {
+                // Region from the bare system Resources (per-app language can't reach it).
+                // The -u-mu- extension from the app configuration's locale: the OS merges
+                // Regional Preferences into app configs, NOT into Resources.getSystem()
+                // (verified via dumpsys — global config shows en_US_#u-mu-celsius while the
+                // system Resources locale stays bare en_US).
                 val region = android.content.res.Resources.getSystem().configuration.locales[0].country
-                return com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(region)
+                val appLocale = context.resources.configuration.locales[0]
+                val osTemperatureUnit =
+                    androidx.core.text.util.LocalePreferences.getTemperatureUnit(appLocale, false)
+                val default = com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(osTemperatureUnit, region)
+                Log.d(
+                    "UNIT_DEFAULT",
+                    "useCelsius default: osUnit='$osTemperatureUnit' region=$region " +
+                        "appLocale=${appLocale.toLanguageTag()} -> celsius=$default",
+                )
+                return default
             }
             return prefs.getBoolean("use_celsius", false)
         }

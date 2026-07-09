@@ -24,4 +24,26 @@ object UnitDefaults {
      */
     fun defaultUseCelsius(countryCode: String?): Boolean =
         countryCode.isNullOrBlank() || countryCode.uppercase() !in FAHRENHEIT_REGIONS
+
+    /**
+     * Preference ladder: an explicit OS-level temperature unit (the locale's `-u-mu-`
+     * Unicode extension — user-set via Android 14's Regional Preferences, surfaced by
+     * `LocalePreferences.getTemperatureUnit(locale, resolved = false)`) beats the
+     * region default. CLDR truncates keyword values to 8 chars, so Fahrenheit arrives
+     * as "fahrenhe"; Kelvin users get Celsius, the nearer of the two scales we offer.
+     * Anything absent or unrecognized falls through to [defaultUseCelsius] by region.
+     */
+    fun defaultUseCelsius(
+        explicitTemperatureUnit: String?,
+        countryCode: String?,
+    ): Boolean =
+        when (explicitTemperatureUnit?.lowercase()) {
+            "celsius", "kelvin" -> true
+            "fahrenhe", "fahrenheit" -> false
+            else -> defaultUseCelsius(countryCode)
+        }
+
+    /** [defaultUseCelsius] ladder fed from a [java.util.Locale] (JVM/desktop path). */
+    fun defaultUseCelsius(locale: java.util.Locale): Boolean =
+        defaultUseCelsius(locale.getUnicodeLocaleType("mu"), locale.country)
 }
