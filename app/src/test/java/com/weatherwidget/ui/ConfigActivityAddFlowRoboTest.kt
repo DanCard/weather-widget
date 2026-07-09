@@ -25,6 +25,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import java.util.concurrent.TimeUnit
 
 /**
  * The widget-add configuration handshake: ConfigActivity launched the way a launcher does
@@ -96,27 +97,26 @@ class ConfigActivityAddFlowRoboTest {
         val scenario = launchAddFlow()
         drainUntil("auto-fill resolved") { scenario.confirmButtonIsOffered() }
 
+        // setResult and finish run synchronously inside the click; only the breadcrumb is async.
         scenario.onActivity { activity ->
             activity.findViewById<Button>(R.id.use_gps_button).performClick()
-        }
-        drainUntil("confirm tap finished the activity") {
-            scenario.state == Lifecycle.State.DESTROYED
-        }
 
-        val result = scenario.result
-        assertEquals(
-            "Confirm tap must complete the add handshake with RESULT_OK",
-            Activity.RESULT_OK,
-            result.resultCode,
-        )
-        assertEquals(
-            "RESULT_OK must echo the widget id back to the launcher",
-            TEST_WIDGET_ID,
-            result.resultData?.getIntExtra(
-                AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID,
-            ),
-        )
+            assertTrue("Confirm tap must finish the screen", activity.isFinishing)
+            val shadow = shadowOf(activity)
+            assertEquals(
+                "Confirm tap must complete the add handshake with RESULT_OK",
+                Activity.RESULT_OK,
+                shadow.resultCode,
+            )
+            assertEquals(
+                "RESULT_OK must echo the widget id back to the launcher",
+                TEST_WIDGET_ID,
+                shadow.resultIntent.getIntExtra(
+                    AppWidgetManager.EXTRA_APPWIDGET_ID,
+                    AppWidgetManager.INVALID_APPWIDGET_ID,
+                ),
+            )
+        }
 
         val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
         assertEquals(
@@ -156,8 +156,14 @@ class ConfigActivityAddFlowRoboTest {
                 )
             }
 
+            // Both stage timeouts elapse in virtual time — no wall-clock wait.
             val bound = LocationFixFlow.ACTIVE_FIX_TIMEOUT_MS + LocationFixFlow.CACHED_FIX_TIMEOUT_MS
-            shadowOf(context.mainLooper).idleFor(bound + 1_000, java.util.concurrent.TimeUnit.MILLISECONDS)
+            shadowOf(context.mainLooper).idleFor(bound + 1_000, TimeUnit.MILLISECONDS)
+            drainUntil("stages timed out and the button recovered") {
+                var enabled = false
+                scenario.onActivity { enabled = it.findViewById<Button>(R.id.use_gps_button).isEnabled }
+                enabled
+            }
 
             assertNotEquals(
                 "Screen must stay open when no fix is available",
@@ -165,17 +171,23 @@ class ConfigActivityAddFlowRoboTest {
                 scenario.state,
             )
             scenario.onActivity { activity ->
-                val button = activity.findViewById<Button>(R.id.use_gps_button)
-                assertTrue(
-                    "GPS button must leave its in-flight state once the stages time out",
-                    button.isEnabled,
-                )
                 assertEquals(
                     activity.getString(R.string.use_precise_location),
-                    button.text.toString(),
+                    activity.findViewById<Button>(R.id.use_gps_button).text.toString(),
                 )
             }
         }
+    }
+
+    /** True once the auto-fill fix resolved and the button became a one-tap confirm. */
+    private fun ActivityScenario<ConfigActivity>.confirmButtonIsOffered(): Boolean {
+        var offered = false
+        onActivity { activity ->
+            val button = activity.findViewById<Button>(R.id.use_gps_button)
+            offered = button.isEnabled &&
+                button.text.toString() == activity.getString(R.string.use_this_location)
+        }
+        return offered
     }
 
     private fun launchAddFlow(): ActivityScenario<ConfigActivity> {
@@ -215,6 +227,7 @@ class ConfigActivityAddFlowRoboTest {
 
     private companion object {
         const val TEST_WIDGET_ID = 8898
+        const val DRAIN_TIMEOUT_MS = 10_000L
         val FIX = LocationFixFlow.Coordinates(lat = 37.4168, lon = -122.0890)
     }
 }
