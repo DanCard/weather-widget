@@ -52,6 +52,7 @@ class DailyGapFallbackGraphIntegrationTest {
         )
 
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -113,6 +114,7 @@ class DailyGapFallbackGraphIntegrationTest {
         )
 
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -215,6 +217,7 @@ class DailyGapFallbackGraphIntegrationTest {
             )
 
             val days = DailyViewLogic.prepareGraphDays(
+                todayLabel = "Today",
                 now = now,
                 centerDate = today,
                 today = today,
@@ -268,6 +271,7 @@ class DailyGapFallbackGraphIntegrationTest {
         )
 
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -307,6 +311,7 @@ class DailyGapFallbackGraphIntegrationTest {
         )
 
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,

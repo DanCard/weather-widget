@@ -59,7 +59,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="30-Day Accuracy Summary"
+                    android:text="@string/stats_summary_title"
                     android:textSize="16sp"
                     android:textColor="@color/widget_text_primary"
                     android:textStyle="bold"
@@ -72,14 +72,14 @@
                     android:textSize="13sp"
                     android:fontFamily="monospace"
                     android:textColor="@color/widget_text_primary"
-                    android:text="Loading..." />
+                    android:text="@string/stats_loading" />
             </LinearLayout>
 
             <!-- Daily Breakdown Header -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Daily Accuracy Breakdown"
+                android:text="@string/stats_daily_breakdown"
                 android:textSize="16sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
@@ -101,7 +101,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Day/Night Rain Accuracy"
+                android:text="@string/stats_rain_accuracy"
                 android:textSize="16sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"

@@ -171,6 +171,7 @@ class YesterdayActualHighConsistencyTest {
         )
         
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,

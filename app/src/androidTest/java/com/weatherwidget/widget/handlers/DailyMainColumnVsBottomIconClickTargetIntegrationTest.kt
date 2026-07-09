@@ -170,6 +170,7 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
         // Prepare data for setup handlers
         val displaySource = WeatherSource.NWS
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,

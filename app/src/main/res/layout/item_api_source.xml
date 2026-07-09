@@ -42,7 +42,7 @@
         android:src="@drawable/ic_chevron_left"
         android:rotation="90"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Move up" />
+        android:contentDescription="@string/move_up" />
 
     <ImageButton
         android:id="@+id/move_down_button"
@@ -51,6 +51,6 @@
         android:src="@drawable/ic_chevron_left"
         android:rotation="-90"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Move down" />
+        android:contentDescription="@string/move_down" />
 
 </LinearLayout>

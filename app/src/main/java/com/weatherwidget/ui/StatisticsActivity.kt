@@ -67,7 +67,7 @@ class StatisticsActivity : AppCompatActivity() {
 
                 if (latestWeather == null) {
                     findViewById<TextView>(R.id.stats_summary_text).text =
-                        "No weather data available yet."
+                        getString(R.string.stats_no_weather_data)
                     return@launch
                 }
 
@@ -106,8 +106,7 @@ class StatisticsActivity : AppCompatActivity() {
                 // Display summary
                 val summaryText =
                     if (!hasAnyData) {
-                        "No historical forecast data available yet.\n\n" +
-                            "Forecast snapshots are being saved daily. Check back tomorrow for your first accuracy comparison!"
+                        getString(R.string.stats_no_history_yet)
                     } else {
                         buildString {
                             val sourcesToStats = listOf(
@@ -127,15 +126,15 @@ class StatisticsActivity : AppCompatActivity() {
                                         val highErr = if (useCelsius) stats.avgHighError / 1.8 else stats.avgHighError
                                         val lowErr = if (useCelsius) stats.avgLowError / 1.8 else stats.avgLowError
                                         append(
-                                            "${source.displayName}: High ±%.1f°%s, Low ±%.1f°%s".format(
-                                                highErr,
-                                                formatBias(stats.highBias, useCelsius),
-                                                lowErr,
-                                                formatBias(stats.lowBias, useCelsius),
+                                            getString(
+                                                R.string.stats_source_line,
+                                                source.displayName,
+                                                "%.1f°".format(highErr) + formatBias(stats.highBias, useCelsius),
+                                                "%.1f°".format(lowErr) + formatBias(stats.lowBias, useCelsius),
                                             ),
                                         )
                                     } else {
-                                        append("${source.displayName}: No data yet")
+                                        append(getString(R.string.stats_source_no_data, source.displayName))
                                     }
                                     if (index < sourcesToStats.size - 1) {
                                         append("\n")
@@ -151,7 +150,7 @@ class StatisticsActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 android.util.Log.e("StatisticsActivity", "Error loading statistics", e)
                 findViewById<TextView>(R.id.stats_summary_text).text =
-                    "Error loading statistics: ${e.message}"
+                    getString(R.string.stats_error_loading, e.message)
             }
         }
     }
@@ -160,14 +159,11 @@ class StatisticsActivity : AppCompatActivity() {
         val displayBias = if (useCelsius) bias / 1.8 else bias
         val absBias = kotlin.math.abs(displayBias)
         val threshold = if (useCelsius) 0.5 / 1.8 else 0.5
+        val biasValue = if (useCelsius) "%.1f°".format(absBias) else "${absBias.toInt()}°"
         return when {
             absBias < threshold -> ""
-            displayBias > 0 -> {
-                if (useCelsius) " (%.1f° low)".format(absBias) else " (%d° low)".format(absBias.toInt())
-            }
-            else -> {
-                if (useCelsius) " (%.1f° high)".format(absBias) else " (%d° high)".format(absBias.toInt())
-            }
+            displayBias > 0 -> getString(R.string.bias_low_suffix, biasValue)
+            else -> getString(R.string.bias_high_suffix, biasValue)
         }
     }
 }

@@ -47,6 +47,7 @@ class DailyViewUiRoundingTest {
         )
 
         val textDays = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,

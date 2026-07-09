@@ -570,16 +570,21 @@ class ForecastHistoryActivity : AppCompatActivity() {
                                         append("${source.displayName}\n")
                                         val highErr = if (useCelsius) stats.avgHighError / 1.8 else stats.avgHighError
                                         val lowErr = if (useCelsius) stats.avgLowError / 1.8 else stats.avgLowError
-                                        append("High ±%.1f°%s  Low ±%.1f°%s\n".format(
-                                            highErr,
-                                            formatBias(stats.highBias, useCelsius),
-                                            lowErr,
-                                            formatBias(stats.lowBias, useCelsius),
+                                        append(getString(
+                                            R.string.accuracy_high_low_line,
+                                            "%.1f°".format(highErr) + formatBias(stats.highBias, useCelsius),
+                                            "%.1f°".format(lowErr) + formatBias(stats.lowBias, useCelsius),
                                         ))
+                                        append("\n")
                                         val limitDeg = if (useCelsius) 1.7 else 3.0
-                                        append("%% within %.1f°: %.0f%%  Forecasts: %d".format(limitDeg, stats.percentWithin3Degrees, stats.totalForecasts))
+                                        append(getString(
+                                            R.string.accuracy_within_line,
+                                            "%.1f°".format(limitDeg),
+                                            "%.0f%%".format(stats.percentWithin3Degrees),
+                                            stats.totalForecasts,
+                                        ))
                                     } else {
-                                        append("${source.displayName}: No data yet")
+                                        append(getString(R.string.stats_source_no_data, source.displayName))
                                     }
                                     if (index < sourcesToShow.size - 1) {
                                         append("\n\n")
@@ -607,8 +612,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val threshold = if (useCelsius) 0.5 / 1.8 else 0.5
         return when {
             absBias < threshold -> ""
-            displayBias > 0 -> " (${String.format("%.1f", absBias)}° low)"
-            else -> " (${String.format("%.1f", absBias)}° high)"
+            displayBias > 0 -> getString(R.string.bias_low_suffix, "%.1f°".format(absBias))
+            else -> getString(R.string.bias_high_suffix, "%.1f°".format(absBias))
         }
     }
 

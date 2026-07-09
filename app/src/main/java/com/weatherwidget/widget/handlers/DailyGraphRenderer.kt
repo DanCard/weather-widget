@@ -93,6 +93,7 @@ internal object DailyGraphRenderer {
             currentTemp = ctx.currentTemp,
             observedAt = ctx.observedAt,
             allowTodayRainChanceLabel = true,
+            todayLabel = ctx.context.getString(R.string.today),
         )
         val prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
 

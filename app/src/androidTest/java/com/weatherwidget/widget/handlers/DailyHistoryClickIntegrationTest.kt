@@ -148,6 +148,7 @@ class DailyHistoryClickIntegrationTest : IsolatedIntegrationTest("daily_history_
         )
 
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = centerDate,
             today = today,

@@ -115,9 +115,13 @@
     <string name="app_logs_share_empty">No logs to share</string>
     <string name="app_logs_share_subject">Weather Widget logs</string>
     <string name="no_app_logs">No app logs yet.</string>
-    <string name="app_logs_count">Showing %1$d log entries</string>
-    <string name="app_logs_count_filtered">Showing %1$d log entries (%2$s)</string>
     <string name="app_logs_filter_hint">Filter logs (tag/message/level)</string>
+    <string name="app_logs_verbose">VERBOSE</string>
+    <string name="app_logs_db_stats">DB: %1$.1f MB (%2$d logs, %3$d snaps)</string>
+    <string name="app_logs_all_levels">All Levels</string>
+    <string name="app_logs_debug_plus">DEBUG+</string>
+    <string name="app_logs_showing">Showing %1$d (%2$s)</string>
+    <string name="app_logs_showing_filtered">Showing %1$d matching \"%2$s\" (%3$s)</string>
     <string name="icon_preview_title">Icon gallery</string>
     <string name="icon_preview_description">Comprehensive gallery of all weather icons used in the widget.</string>
     <string name="gallery_icon_pc_slight_rain_new">Partly Cloudy Slight Rain (New)</string>
@@ -202,4 +206,78 @@
     <string name="widget_no_hourly_result_available">Results of refresh:\nHourly data now available for %1$s</string>
     <string name="units_title">Units</string>
     <string name="use_celsius_label">Use Celsius</string>
+
+    <!-- Widget loading/error placeholder states -->
+    <string name="today">Today</string>
+    <string name="widget_loading">Loading...</string>
+    <string name="widget_tap_to_refresh">Tap to refresh</string>
+    <string name="current_stations_desc">Current Stations</string>
+
+    <!-- ConfigActivity toasts -->
+    <string name="location_label_toast">Location: %1$s</string>
+    <string name="saving_coordinates_offline">Saving coordinates (Label lookup offline)</string>
+    <string name="location_permission_required">Location permission required for GPS</string>
+    <string name="location_fix_failed_default">Could not get current location. Using default.</string>
+
+    <!-- Settings current-location description (LocationUpdater) -->
+    <string name="no_location_set">No location set</string>
+    <string name="widget_location_format">Widget Location: %1$s, %2$s</string>
+    <string name="default_location_format">Default Location: %1$s, %2$s</string>
+
+    <!-- Current Observations screen -->
+    <string name="current_observations_title">Current Observations</string>
+    <string name="obs_subtitle_nearby_stations">Real-time data from nearby stations</string>
+    <string name="obs_subtitle_none_found">No recent observations found for %1$s.</string>
+    <string name="obs_subtitle_latest_reading">Latest reading from %1$s</string>
+    <string name="obs_no_location_to_refresh">No location available to refresh</string>
+    <string name="obs_refreshed_source">Refreshed %1$s</string>
+    <string name="obs_reported_prefix">"Reported "</string>
+    <string name="obs_fetched_separator">" • Fetched "</string>
+    <string name="station_type_origin_format">%1$s (%2$s)</string>
+    <string name="station_origin_web">Web</string>
+    <string name="station_origin_api">API</string>
+    <string name="fetch_logs">Fetch Logs</string>
+    <string name="loading_logs">Loading logs...</string>
+    <string name="close">Close</string>
+    <string name="name_location_title">Name Location</string>
+    <string name="name_location_message">Give this location a custom name (e.g., Home, Work, School)</string>
+    <string name="save">Save</string>
+
+    <!-- Statistics screen -->
+    <string name="stats_summary_title">30-Day Accuracy Summary</string>
+    <string name="stats_loading">Loading...</string>
+    <string name="stats_daily_breakdown">Daily Accuracy Breakdown</string>
+    <string name="stats_rain_accuracy">Day/Night Rain Accuracy</string>
+    <string name="stats_no_weather_data">No weather data available yet.</string>
+    <string name="stats_no_history_yet">No historical forecast data available yet.\n\nForecast snapshots are being saved daily. Check back tomorrow for your first accuracy comparison!</string>
+    <string name="stats_source_line">%1$s: High ±%2$s, Low ±%3$s</string>
+    <string name="stats_source_no_data">%1$s: No data yet</string>
+    <string name="stats_error_loading">Error loading statistics: %1$s</string>
+    <!-- Suffix appended to an accuracy figure describing directional bias; %1$s is a formatted temperature like "1.2°" -->
+    <string name="bias_low_suffix">" (%1$s low)"</string>
+    <string name="bias_high_suffix">" (%1$s high)"</string>
+    <!-- Accuracy summary lines; args are preformatted values like "1.2° (0.3° low)", "3.0°", "85%" -->
+    <string name="accuracy_high_low_line">"High ±%1$s  Low ±%2$s"</string>
+    <string name="accuracy_within_line">"%% within %1$s: %2$s  Forecasts: %3$d"</string>
+
+    <!-- Daily accuracy list rows -->
+    <string name="label_location_actual">Location actual:</string>
+    <string name="label_forecast">Forecast:</string>
+    <string name="label_error">Error:</string>
+    <string name="label_rain_day">Day (8a–8p):</string>
+    <string name="label_rain_night">Night (8p–8a):</string>
+    <string name="rain_pred_act_format">pred %1$s / act %2$s</string>
+
+    <!-- Forecast history screen -->
+    <string name="forecast_history_high_temp_title">High Temperature</string>
+    <string name="forecast_history_low_temp_title">Low Temperature</string>
+    <string name="legend_location_actual">Location actual</string>
+
+    <!-- API source ordering list -->
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+
+    <!-- Bug report sharing -->
+    <string name="bug_report_share_failed">Failed to start sharing intent</string>
+    <string name="bug_report_email_subject">Weather widget bug report</string>
 </resources>

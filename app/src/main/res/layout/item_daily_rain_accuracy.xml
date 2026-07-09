@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -21,7 +22,7 @@
             android:textSize="14sp"
             android:textColor="@color/widget_text_primary"
             android:textStyle="bold"
-            android:text="2024-01-15" />
+            tools:text="2024-01-15" />
 
         <TextView
             android:id="@+id/item_rain_source"
@@ -29,7 +30,7 @@
             android:layout_height="wrap_content"
             android:textSize="12sp"
             android:textColor="@color/widget_text_secondary"
-            android:text="NWS" />
+            tools:text="NWS" />
     </LinearLayout>
 
     <LinearLayout
@@ -45,7 +46,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="@color/widget_text_secondary"
-            android:text="Day (8a–8p):" />
+            android:text="@string/label_rain_day" />
 
         <TextView
             android:id="@+id/item_rain_day"
@@ -54,7 +55,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="@color/widget_text_primary"
-            android:text="pred 4mm / act 3mm" />
+            tools:text="pred 4mm / act 3mm" />
     </LinearLayout>
 
     <LinearLayout
@@ -69,7 +70,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="@color/widget_text_secondary"
-            android:text="Night (8p–8a):" />
+            android:text="@string/label_rain_night" />
 
         <TextView
             android:id="@+id/item_rain_night"
@@ -78,7 +79,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="@color/widget_text_primary"
-            android:text="pred 1mm / act 0mm" />
+            tools:text="pred 1mm / act 0mm" />
     </LinearLayout>
 
 </LinearLayout>

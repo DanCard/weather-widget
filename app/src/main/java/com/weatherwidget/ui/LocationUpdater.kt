@@ -65,7 +65,7 @@ object LocationUpdater {
     fun describeCurrentLocation(context: Context): String {
         var currentLat: Double? = null
         var currentLon: Double? = null
-        var labelText = "No location set"
+        var labelText = context.getString(R.string.no_location_set)
 
         val ids = getWidgetIds(context)
         if (ids.isNotEmpty()) {
@@ -73,7 +73,11 @@ object LocationUpdater {
             if (widgetLocation != null) {
                 currentLat = widgetLocation.first
                 currentLon = widgetLocation.second
-                labelText = "Widget Location: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLon)}"
+                labelText = context.getString(
+                    R.string.widget_location_format,
+                    String.format("%.4f", currentLat),
+                    String.format("%.4f", currentLon),
+                )
             }
         }
 
@@ -95,12 +99,20 @@ object LocationUpdater {
             if (lastPoi != null) {
                 currentLat = lastPoi.first
                 currentLon = lastPoi.second
-                labelText = "Default Location: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLon)}"
+                labelText = context.getString(
+                    R.string.default_location_format,
+                    String.format("%.4f", currentLat),
+                    String.format("%.4f", currentLon),
+                )
             }
         }
 
         if (currentLat == null || currentLon == null) {
-            labelText = "Default Location: ${String.format("%.4f", WeatherWidgetWorker.DEFAULT_LAT)}, ${String.format("%.4f", WeatherWidgetWorker.DEFAULT_LON)}"
+            labelText = context.getString(
+                R.string.default_location_format,
+                String.format("%.4f", WeatherWidgetWorker.DEFAULT_LAT),
+                String.format("%.4f", WeatherWidgetWorker.DEFAULT_LON),
+            )
         }
 
         val modeSuffix = if (LocationMode.get(context) == LocationMode.FIXED) {

@@ -65,6 +65,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -94,6 +95,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -134,6 +136,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -171,6 +174,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -212,6 +216,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -253,6 +258,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -293,6 +299,7 @@ class DailyViewLogicTest {
         val forecastSnapshots = mapOf(pastWed to listOf(snapshot))
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -321,6 +328,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -358,6 +366,7 @@ class DailyViewLogicTest {
         val forecastSnapshots = mapOf(pastWed to listOf(nwsLatestNullLow, nwsOlderUsable))
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -401,6 +410,7 @@ class DailyViewLogicTest {
         val forecastSnapshots = mapOf(pastWed to listOf(nwsNullLow, genericClimateNormal))
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -431,6 +441,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -469,6 +480,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -498,6 +510,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -525,6 +538,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -548,6 +562,7 @@ class DailyViewLogicTest {
         }
 
         val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -581,6 +596,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -619,6 +635,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -654,6 +671,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -688,6 +706,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -723,6 +742,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -767,6 +787,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -791,6 +812,7 @@ class DailyViewLogicTest {
 
         fun renderTonight(probability: Int): DailyForecastGraphRenderer.DayData {
             val result = DailyViewLogic.prepareGraphDays(
+                todayLabel = "Today",
                 now = now,
                 centerDate = today,
                 today = today,
@@ -838,6 +860,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -871,6 +894,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -901,6 +925,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -931,6 +956,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -961,6 +987,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -993,6 +1020,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1026,6 +1054,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1057,6 +1086,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1088,6 +1118,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1118,6 +1149,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1148,6 +1180,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1178,6 +1211,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1211,6 +1245,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1242,6 +1277,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1273,6 +1309,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1303,6 +1340,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1329,6 +1367,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1362,6 +1401,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1396,6 +1436,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1434,6 +1475,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1470,6 +1512,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1505,6 +1548,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1555,6 +1599,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1586,6 +1631,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1647,6 +1693,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1729,6 +1776,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1759,6 +1807,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1789,6 +1838,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1819,6 +1869,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1849,6 +1900,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today,
             today = today,
@@ -1890,6 +1942,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -1932,6 +1985,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -1974,6 +2028,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -2015,6 +2070,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,
@@ -2057,6 +2113,7 @@ class DailyViewLogicTest {
         )
 
         val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = today.minusDays(2),
             today = today,

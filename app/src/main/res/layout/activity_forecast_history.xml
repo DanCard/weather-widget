@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -67,7 +68,7 @@
             android:minHeight="32dp"
             android:paddingStart="10dp"
             android:paddingEnd="10dp"
-            android:text="NWS"
+            tools:text="NWS"
             android:textColor="@color/widget_text_primary"
             android:textSize="14sp"
             android:textStyle="bold" />
@@ -154,7 +155,7 @@
                             android:id="@+id/legend_forecast_text"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="NWS"
+                            tools:text="NWS"
                             android:textSize="14sp"
                             android:textColor="#FFFFFF"
                             android:layout_marginStart="6dp" />
@@ -177,7 +178,7 @@
                             android:id="@+id/legend_actual_text"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="API actual"
+                            android:text="@string/legend_actual"
                             android:textSize="14sp"
                             android:textColor="#FF9F0A"
                             android:layout_marginStart="6dp" />
@@ -198,7 +199,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Location actual"
+                            android:text="@string/legend_location_actual"
                             android:textSize="14sp"
                             android:textColor="#FF3B30"
                             android:layout_marginStart="6dp" />
@@ -251,7 +252,7 @@
                     android:id="@+id/high_graph_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="High Temperature"
+                    android:text="@string/forecast_history_high_temp_title"
                     android:textSize="18sp"
                     android:textColor="@color/widget_text_primary"
                     android:textStyle="bold"
@@ -282,7 +283,7 @@
                     android:id="@+id/low_graph_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Low Temperature"
+                    android:text="@string/forecast_history_low_temp_title"
                     android:textSize="18sp"
                     android:textColor="@color/widget_text_primary"
                     android:textStyle="bold"
@@ -326,7 +327,7 @@
                         android:id="@+id/footer_api_actual_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="API actual: --"
+                        tools:text="API actual: --"
                         android:textSize="15sp"
                         android:textColor="#FF9F0A"
                         android:layout_marginStart="6dp" />
@@ -346,7 +347,7 @@
                         android:id="@+id/footer_location_actual_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Location actual: --"
+                        tools:text="Location actual: --"
                         android:textSize="15sp"
                         android:textColor="#FF3B30"
                         android:layout_marginStart="6dp" />

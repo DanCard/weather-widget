@@ -55,6 +55,7 @@ class NwsHistoryIntegrationTest {
         )
 
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = LocalDateTime.now(),
             centerDate = today,
             today = today,
@@ -103,6 +104,7 @@ class NwsHistoryIntegrationTest {
         )
 
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = LocalDateTime.now(),
             centerDate = today,
             today = today,
@@ -147,6 +149,7 @@ class NwsHistoryIntegrationTest {
         )
 
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = today.atTime(13, 0),
             centerDate = today,
             today = today,

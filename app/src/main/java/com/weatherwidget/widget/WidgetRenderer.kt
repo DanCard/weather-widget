@@ -76,9 +76,9 @@ object WidgetRenderer {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         views.setViewVisibility(R.id.text_container, View.VISIBLE)
         views.setViewVisibility(R.id.graph_view, View.GONE)
-        views.setTextViewText(R.id.day2_label, "Today")
+        views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
         views.setTextViewText(R.id.day2_high, "--°")
-        views.setTextViewText(R.id.day2_low, "Loading...")
+        views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_loading))
         Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=loading state=loading thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
@@ -98,9 +98,9 @@ object WidgetRenderer {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
-            views.setTextViewText(R.id.day2_label, "Today")
+            views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
             views.setTextViewText(R.id.day2_high, "--°")
-            views.setTextViewText(R.id.day2_low, "Tap to refresh")
+            views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_tap_to_refresh))
             Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=error state=error thread=${Thread.currentThread().name}")
             appWidgetManager.updateAppWidget(appWidgetId, views)
         } catch (e: Exception) {

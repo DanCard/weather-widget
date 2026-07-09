@@ -745,7 +745,8 @@ object DailyViewHandler : WidgetViewHandler {
             ctx.climateNormals,
             ctx.currentTemps,
             currentTemp = ctx.currentTemp,
-            observedAt = ctx.observedAt
+            observedAt = ctx.observedAt,
+            todayLabel = ctx.context.getString(R.string.today)
         )
 
         val dayIds = listOf(

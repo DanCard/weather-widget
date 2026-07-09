@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -18,7 +19,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Station Name"
+            tools:text="Station Name"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:maxLines="1"
@@ -30,7 +31,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_marginEnd="8dp"
-            android:text="Clear"
+            tools:text="Clear"
             android:textColor="#AAAAAA"
             android:textSize="13sp" />
 
@@ -38,7 +39,7 @@
             android:id="@+id/temperature"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="72°"
+            tools:text="72°"
             android:textColor="#FFFFFF"
             android:textSize="24sp"
             android:textStyle="bold" />
@@ -54,7 +55,7 @@
             android:id="@+id/station_id_time"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="KNUQ • 2.4 mi • "
+            tools:text="KNUQ • 2.4 mi • "
             android:textColor="#AAAAAA"
             android:textSize="14sp" />
 
@@ -62,7 +63,7 @@
             android:id="@+id/station_type_badge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="OFFICIAL"
+            tools:text="OFFICIAL"
             android:textColor="#2BFF88"
             android:textSize="12sp"
             android:textStyle="bold" />
@@ -72,7 +73,7 @@
         android:id="@+id/observation_fetch_times"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Reported 4:25 PM • Fetched 4:44 PM"
+        tools:text="Reported 4:25 PM • Fetched 4:44 PM"
         android:textColor="#AAAAAA"
         android:textSize="14sp" />
 

@@ -38,6 +38,7 @@ class DailyHistoryClickIntentRoboTest {
         
         val displaySource = WeatherSource.NWS
         val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
             now = now,
             centerDate = centerDate,
             today = today,

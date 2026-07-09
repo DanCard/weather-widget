@@ -44,7 +44,7 @@ class DailyRainAccuracyAdapter : RecyclerView.Adapter<DailyRainAccuracyAdapter.V
         }
 
         private fun formatPair(predMm: Float?, actualMm: Float?): String =
-            "pred ${formatAmount(predMm)} / act ${formatAmount(actualMm)}"
+            itemView.context.getString(R.string.rain_pred_act_format, formatAmount(predMm), formatAmount(actualMm))
 
         private fun formatAmount(amountMm: Float?): String =
             if (amountMm == null) "—" else formatPrecipAmount(amountMm)

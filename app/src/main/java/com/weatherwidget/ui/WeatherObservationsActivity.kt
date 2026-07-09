@@ -163,7 +163,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             }
             
             if (location == null) {
-                android.widget.Toast.makeText(this@WeatherObservationsActivity, "No location available to refresh", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(this@WeatherObservationsActivity, getString(R.string.obs_no_location_to_refresh), android.widget.Toast.LENGTH_SHORT).show()
                 return@launch
             }
             
@@ -187,7 +187,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             findViewById<View>(R.id.refresh_button).isEnabled = true
             findViewById<View>(R.id.refresh_button).alpha = 1.0f
             
-            android.widget.Toast.makeText(this@WeatherObservationsActivity, "Refreshed ${currentSource.shortDisplayName}", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this@WeatherObservationsActivity, getString(R.string.obs_refreshed_source, currentSource.shortDisplayName), android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -254,17 +254,17 @@ class WeatherObservationsActivity : AppCompatActivity() {
         }
 
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Name Location")
-            .setMessage("Give this location a custom name (e.g., Home, Work, School)")
+            .setTitle(R.string.name_location_title)
+            .setMessage(R.string.name_location_message)
             .setView(editText)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton(R.string.save) { _, _ ->
                 val newName = editText.text.toString().trim()
                 if (newName.isNotEmpty()) {
                     saveLocationAlias(entity.locationLat, entity.locationLon, newName)
                     loadObservations() // Refresh UI
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -336,11 +336,11 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     adapter.submitList(observations)
                     val subtitleView = findViewById<TextView>(R.id.subtitle)
                     if (observations.isEmpty()) {
-                        subtitleView.text = "No recent observations found for ${currentSource.displayName}."
+                        subtitleView.text = getString(R.string.obs_subtitle_none_found, currentSource.displayName)
                     } else if (currentSource == WeatherSource.NWS) {
-                        subtitleView.text = "Real-time data from nearby stations"
+                        subtitleView.text = getString(R.string.obs_subtitle_nearby_stations)
                     } else {
-                        subtitleView.text = "Latest reading from ${currentSource.displayName}"
+                        subtitleView.text = getString(R.string.obs_subtitle_latest_reading, currentSource.displayName)
                     }
                 }
             } catch (e: Exception) {
@@ -485,13 +485,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
             val distanceStr = if (item.distanceKm > 0) String.format(" • %.1f mi", item.distanceKm * 0.621371f) else ""
             holder.stationIdTime.text = "${item.stationId}$distanceStr • "
 
-            val originStr = if (item.isWebFallback) "Web" else "API"
-            holder.stationTypeBadge.text = "${item.stationType} ($originStr)"
+            val context = holder.itemView.context
+            val originStr = context.getString(if (item.isWebFallback) R.string.station_origin_web else R.string.station_origin_api)
+            holder.stationTypeBadge.text = context.getString(R.string.station_type_origin_format, item.stationType, originStr)
             holder.stationTypeBadge.setTextColor(
                 if (item.stationType == "OFFICIAL") COLOR_TYPE_OFFICIAL else COLOR_TYPE_PERSONAL
             )
 
             holder.observationFetchTimes.text = buildTimesLine(
+                context,
                 timeFormatter.format(Instant.ofEpochMilli(item.timestamp)),
                 timeFormatter.format(Instant.ofEpochMilli(item.fetchedAt))
             )
@@ -506,7 +508,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
         // "Reported"/"Fetched" captions stay small and grey; the time values are the scan
         // target, so they render half again larger with the amber/blue staleness hues.
-        private fun buildTimesLine(reported: String, fetched: String): CharSequence {
+        private fun buildTimesLine(context: android.content.Context, reported: String, fetched: String): CharSequence {
             val builder = SpannableStringBuilder()
             fun appendSpan(text: String, color: Int, sizeSp: Int?) {
                 val start = builder.length
@@ -516,9 +518,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     builder.setSpan(AbsoluteSizeSpan(sizeSp, true), start, builder.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }
-            appendSpan("Reported ", COLOR_TEXT_SECONDARY, null)
+            appendSpan(context.getString(R.string.obs_reported_prefix), COLOR_TEXT_SECONDARY, null)
             appendSpan(reported, COLOR_TIME_REPORTED, TIME_VALUE_SP)
-            appendSpan(" • Fetched ", COLOR_TEXT_SECONDARY, null)
+            appendSpan(context.getString(R.string.obs_fetched_separator), COLOR_TEXT_SECONDARY, null)
             appendSpan(fetched, COLOR_TIME_FETCHED, TIME_VALUE_SP)
             return builder
         }

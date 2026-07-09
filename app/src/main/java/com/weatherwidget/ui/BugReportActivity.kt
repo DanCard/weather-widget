@@ -252,14 +252,14 @@ class BugReportActivity : AppCompatActivity() {
                 val sendIntent = Intent(Intent.ACTION_SENDTO).apply {
                     data = Uri.parse("mailto:")
                     putExtra(Intent.EXTRA_EMAIL, arrayOf("daniecarde55@gmail.com"))
-                    putExtra(Intent.EXTRA_SUBJECT, "Weather widget bug report")
+                    putExtra(Intent.EXTRA_SUBJECT, getString(R.string.bug_report_email_subject))
                     putExtra(Intent.EXTRA_TEXT, fullReport)
                 }
 
                 try {
                     startActivity(Intent.createChooser(sendIntent, getString(R.string.bug_report_send)))
                 } catch (e: Exception) {
-                    Toast.makeText(this@BugReportActivity, "Failed to start sharing intent", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@BugReportActivity, getString(R.string.bug_report_share_failed), Toast.LENGTH_SHORT).show()
                 }
             }
         }

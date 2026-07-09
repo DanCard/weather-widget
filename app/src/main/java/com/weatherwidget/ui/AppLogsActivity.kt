@@ -84,7 +84,7 @@ class AppLogsActivity : AppCompatActivity() {
         }
 
         val toggleVerboseBtn = findViewById<Button>(R.id.toggle_debug_button)
-        toggleVerboseBtn.text = "VERBOSE"
+        toggleVerboseBtn.setText(R.string.app_logs_verbose)
         toggleVerboseBtn.setOnClickListener {
             showVerbose = !showVerbose
             if (showVerbose) {
@@ -195,12 +195,12 @@ class AppLogsActivity : AppCompatActivity() {
 
         adapter.setItems(filteredLogs)
 
-        val dbStats = "DB: %.1f MB (%d logs, %d snaps)".format(dbSizeMb, totalLogCount, snapshotCount)
-        val levelStatus = if (showVerbose) "All Levels" else "DEBUG+"
+        val dbStats = getString(R.string.app_logs_db_stats, dbSizeMb, totalLogCount, snapshotCount)
+        val levelStatus = getString(if (showVerbose) R.string.app_logs_all_levels else R.string.app_logs_debug_plus)
         val filterStatus = if (query.isBlank()) {
-            "Showing ${filteredLogs.size} ($levelStatus)"
+            getString(R.string.app_logs_showing, filteredLogs.size, levelStatus)
         } else {
-            "Showing ${filteredLogs.size} matching \"$filterQuery\" ($levelStatus)"
+            getString(R.string.app_logs_showing_filtered, filteredLogs.size, filterQuery, levelStatus)
         }
 
         statusText.text = "$dbStats\n$filterStatus"

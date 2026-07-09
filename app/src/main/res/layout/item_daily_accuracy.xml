@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -21,7 +22,7 @@
             android:textSize="14sp"
             android:textColor="@color/widget_text_primary"
             android:textStyle="bold"
-            android:text="2024-01-15" />
+            tools:text="2024-01-15" />
 
         <TextView
             android:id="@+id/item_source"
@@ -29,7 +30,7 @@
             android:layout_height="wrap_content"
             android:textSize="12sp"
             android:textColor="@color/widget_text_secondary"
-            android:text="NWS" />
+            tools:text="NWS" />
     </LinearLayout>
 
     <LinearLayout
@@ -45,7 +46,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="@color/widget_text_secondary"
-            android:text="Location actual:" />
+            android:text="@string/label_location_actual" />
 
         <TextView
             android:id="@+id/item_actual_temps"
@@ -54,7 +55,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="@color/widget_text_primary"
-            android:text="72° / 55°" />
+            tools:text="72° / 55°" />
     </LinearLayout>
 
     <LinearLayout
@@ -69,7 +70,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="@color/widget_text_secondary"
-            android:text="Forecast:" />
+            android:text="@string/label_forecast" />
 
         <TextView
             android:id="@+id/item_forecast_temps"
@@ -78,7 +79,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="@color/widget_text_primary"
-            android:text="68° / 52°" />
+            tools:text="68° / 52°" />
     </LinearLayout>
 
     <LinearLayout
@@ -93,7 +94,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="@color/widget_text_secondary"
-            android:text="Error:" />
+            android:text="@string/label_error" />
 
         <TextView
             android:id="@+id/item_error"
@@ -102,7 +103,7 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:textColor="#34C759"
-            android:text="+4° / +3°" />
+            tools:text="+4° / +3°" />
     </LinearLayout>
 
 </LinearLayout>

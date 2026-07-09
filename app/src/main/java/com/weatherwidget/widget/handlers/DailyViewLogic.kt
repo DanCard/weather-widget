@@ -91,6 +91,10 @@ object DailyViewLogic {
         currentTemp: Float? = null,
         observedAt: Long? = null,
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
+        // Localized "Today" label. Required (no default) so no call site can silently fall back
+        // to English — same rule as useCelsius. Callers with a Context pass
+        // context.getString(R.string.today); this object stays Context-free for plain-JUnit tests.
+        todayLabel: String,
     ): List<TextDayData> {
         Log.d(TAG, "prepareTextDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, displaySource=${displaySource.id}")
 
@@ -245,7 +249,7 @@ object DailyViewLogic {
             val showLabel = !(isToday && numColumns == 1)
             val label =
                 if (isToday) {
-                    "Today"
+                    todayLabel
                 } else {
                     date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
                 }
@@ -298,6 +302,8 @@ object DailyViewLogic {
         observedAt: Long? = null,
         allowTodayRainChanceLabel: Boolean = false,
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
+        // See prepareTextDays: required localized "Today" label, no English fallback.
+        todayLabel: String,
     ): List<DailyForecastGraphRenderer.DayData> {
         Log.d(TAG, "prepareGraphDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, forecastSnapshotKeys=${forecastSnapshots.keys}")
 
@@ -340,7 +346,7 @@ object DailyViewLogic {
 
             Log.d(TAG, "prepareGraphDays: index=$index date=$date weather=${weather != null} forecast=${forecast != null} forecastsSize=${forecasts.size} terminalNws=$isTerminalLowOnlyNwsFuture")
 
-            val label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            val label = if (isToday) todayLabel else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
             val showComparison = isPastDate
 
             var finalHigh: Float? = weather?.highTemp

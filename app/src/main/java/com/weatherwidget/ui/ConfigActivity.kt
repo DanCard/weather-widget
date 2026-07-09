@@ -167,15 +167,15 @@ class ConfigActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     try {
                         val resolved = sharedLocationResolver.fromCoordinates(lat, lon)
-                        Toast.makeText(this@ConfigActivity, "Location: ${resolved.label}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@ConfigActivity, getString(R.string.location_label_toast, resolved.label), Toast.LENGTH_LONG).show()
                         saveChosenLocation(lat, lon, resolved.label, LocationMode.FIXED)
                     } catch (e: Exception) {
-                        Toast.makeText(this@ConfigActivity, "Saving coordinates (Label lookup offline)", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@ConfigActivity, getString(R.string.saving_coordinates_offline), Toast.LENGTH_SHORT).show()
                         saveChosenLocation(lat, lon, null, LocationMode.FIXED)
                     }
                 }
             } else {
-                Toast.makeText(this, "Please enter valid coordinates (-90 to 90 lat, -180 to 180 lon)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.invalid_coordinates_range), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -240,7 +240,7 @@ class ConfigActivity : AppCompatActivity() {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     checkAndRequestBackgroundLocation()
                 } else {
-                    Toast.makeText(this, "Location permission required for GPS", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.location_permission_required), Toast.LENGTH_SHORT).show()
                 }
             }
             BACKGROUND_LOCATION_PERMISSION_REQUEST -> {
@@ -294,7 +294,7 @@ class ConfigActivity : AppCompatActivity() {
                         useGpsButton.setText(R.string.use_precise_location)
                         Toast.makeText(this@ConfigActivity, getString(R.string.location_fix_failed), Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@ConfigActivity, "Could not get current location. Using default.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@ConfigActivity, getString(R.string.location_fix_failed_default), Toast.LENGTH_SHORT).show()
                         // Still FOLLOW_DEVICE — the auto-heal can later replace the placeholder
                         // with a real fix.
                         saveChosenLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, null, LocationMode.FOLLOW_DEVICE)

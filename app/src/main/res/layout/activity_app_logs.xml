@@ -64,7 +64,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
-            android:text="DEBUG"
+            android:text="@string/app_logs_verbose"
             android:textColor="#FFFFFF"
             android:background="@drawable/rounded_button_gray"
             android:textSize="11sp"

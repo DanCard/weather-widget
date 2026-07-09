@@ -92,7 +92,7 @@
                 android:id="@+id/day2_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Today"
+                android:text="@string/today"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary"
                 android:includeFontPadding="false" />
@@ -1064,7 +1064,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:text="Source unavailable"
+            tools:text="Source unavailable"
             android:textColor="@android:color/white"
             android:textSize="14sp"
             android:textStyle="bold" />
@@ -1075,7 +1075,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="3dp"
             android:gravity="center"
-            android:text="Summary"
+            tools:text="Summary"
             android:textColor="#FFF2F2"
             android:textSize="12sp"
             android:textStyle="bold" />
@@ -1086,7 +1086,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:gravity="center"
-            android:text="Tap for details"
+            tools:text="Tap for details"
             android:textColor="#F3E8E8"
             android:textSize="11sp" />
     </LinearLayout>
@@ -1366,7 +1366,7 @@
                 android:layout_marginTop="-10dp"
                 android:paddingTop="-4dp"
                 android:src="@drawable/ic_thermometer"
-                android:contentDescription="Current Stations"
+                android:contentDescription="@string/current_stations_desc"
                 android:tint="#AAFFFFFF" />
         </FrameLayout>
 
@@ -1613,7 +1613,7 @@
                 android:layout_gravity="center"
                 android:layout_marginTop="-10dp"
                 android:src="@drawable/ic_thermometer"
-                android:contentDescription="Current Stations"
+                android:contentDescription="@string/current_stations_desc"
                 android:tint="#AAFFFFFF" />
         </FrameLayout>
 
