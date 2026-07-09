@@ -70,7 +70,7 @@
     <string name="forecast_policy_battery_mid">Forecast refresh: Every 8h (battery %1$d%%)</string>
     <string name="forecast_policy_battery_low">Forecast refresh: Paused (battery %1$d%%)</string>
     <string name="freshness_just_now">just now</string>
-    <string name="forecast_history">History of Forecasts for </string>
+    <string name="forecast_history">"History of Forecasts for "</string>
     <string name="forecast_history_title_format" translatable="false">%1$s</string>
     <string name="forecast_history_summary_single">%1$d %2$s forecast snapshots</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI snapshots</string>

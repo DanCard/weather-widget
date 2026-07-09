@@ -201,6 +201,16 @@ val unitTestDurationCategories =
         "Long" to "com.weatherwidget.test.category.LongDuration",
     )
 
+// Topic categories tag tests by AREA, orthogonal to the duration buckets: every test class
+// still declares exactly one duration category, and topic markers ride along in the SAME
+// @Category(...) annotation (JUnit's @Category is not repeatable). Topic tasks re-run those
+// tests as a focused slice; the duration buckets remain the complete partition, so topic
+// tasks are deliberately NOT part of testByDurationDebugUnitTest.
+val unitTestTopicCategories =
+    mapOf(
+        "Localization" to "com.weatherwidget.test.category.Localization",
+    )
+
 val validateUnitTestDurations by tasks.registering {
     group = "verification"
     description = "Verifies that each unit test class declares exactly one duration category."
@@ -295,6 +305,11 @@ afterEvaluate {
     }
 
     unitTestDurationCategories.forEach { (bucketName, categoryClassName) ->
+        registerDurationTestTask(bucketName, categoryClassName)
+        registerDurationTestTask(bucketName, categoryClassName, forceExecution = true)
+    }
+
+    unitTestTopicCategories.forEach { (bucketName, categoryClassName) ->
         registerDurationTestTask(bucketName, categoryClassName)
         registerDurationTestTask(bucketName, categoryClassName, forceExecution = true)
     }

@@ -253,10 +253,12 @@ start_single_invocation_summary_monitor() {
 
 for bucket in "${BUCKETS[@]}"; do
   case "$bucket" in
-    Short|Medium|Long) ;;
+    # Localization is a topic slice (tests also live in a duration bucket); it never runs
+    # by default — pass it explicitly: ./scripts/unit-tests.sh Localization
+    Short|Medium|Long|Localization) ;;
     *)
       echo "Unknown bucket: $bucket" >&2
-      echo "Usage: $0 [--fresh|--cached] [Short] [Medium] [Long]" >&2
+      echo "Usage: $0 [--fresh|--cached] [Short] [Medium] [Long] [Localization]" >&2
       exit 2
       ;;
   esac
@@ -264,7 +266,8 @@ done
 
 # Run all buckets in one Gradle process (avoids ASM races).
 # Gradle's own parallel executor handles concurrent test tasks safely.
-if [ ${#BUCKETS[@]} -eq 3 ] && [ "$RUN_MODE" = "Fresh" ]; then
+# The aggregate task covers exactly the duration trio — not topic slices like Localization.
+if [ "${BUCKETS[*]}" = "Short Medium Long" ] && [ "$RUN_MODE" = "Fresh" ]; then
   task_name="testByDurationDebugUnitTestFresh"
 else
   task_name=""
