@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">Informativa sulla privacy</string>
     <string name="allow">Consenti</string>
     <string name="no_thanks">No grazie</string>
-    <string name="privacy_policy_body">Widget Meteo raccoglie dati sulla posizione per fornire previsioni meteo locali. La tua posizione viene usata solo per ottenere i dati meteo della tua zona e non viene mai memorizzata o condivisa con terzi, tranne i provider di API meteo (NWS, Open-Meteo, ecc.) per recuperare le previsioni.\n\nUsiamo Firebase Crashlytics per monitorare la stabilità dell\'app. Questi dati sono anonimizzati.\n\nPuoi revocare le autorizzazioni alla posizione in qualsiasi momento nelle Impostazioni di Android.\n\nPer domande, visita: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">Widget Meteo raccoglie dati sulla posizione per fornire previsioni meteo locali. La tua posizione viene usata solo per ottenere i dati meteo della tua zona e non viene mai memorizzata o condivisa con terzi, tranne i provider di API meteo (NWS, Open-Meteo, ecc.) per recuperare le previsioni.\n\nUsiamo Firebase Crashlytics per monitorare la stabilità dell\'app. Questi dati sono anonimizzati.\n\nPuoi revocare le autorizzazioni alla posizione in qualsiasi momento nelle Impostazioni di Android.\n\nPer domande, visita: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">Oppure inserisci le coordinate:</string>
     <string name="latitude_hint">Latitudine (es. 37.422)</string>
     <string name="longitude_hint">Longitudine (es. -122.0841)</string>

@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">隐私政策</string>
     <string name="allow">允许</string>
     <string name="no_thanks">不用了</string>
-    <string name="privacy_policy_body">天气小部件收集位置数据以提供本地天气预报。您的位置仅用于获取您所在地区的天气数据，除天气 API 提供商（NWS、Open-Meteo 等）用于获取预报外，绝不会被存储或与第三方共享。\n\n我们使用 Firebase Crashlytics 监控应用稳定性。这些数据已匿名化。\n\n您可以随时在 Android 设置中撤销位置权限。\n\n如有疑问，请访问：https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">天气小部件收集位置数据以提供本地天气预报。您的位置仅用于获取您所在地区的天气数据，除天气 API 提供商（NWS、Open-Meteo 等）用于获取预报外，绝不会被存储或与第三方共享。\n\n我们使用 Firebase Crashlytics 监控应用稳定性。这些数据已匿名化。\n\n您可以随时在 Android 设置中撤销位置权限。\n\n如有疑问，请访问：https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">或输入坐标：</string>
     <string name="latitude_hint">纬度（如 37.422）</string>
     <string name="longitude_hint">经度（如 -122.0841）</string>

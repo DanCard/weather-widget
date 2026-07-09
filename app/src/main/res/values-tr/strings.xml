@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">Gizlilik Politikası</string>
     <string name="allow">İzin ver</string>
     <string name="no_thanks">Hayır, teşekkürler</string>
-    <string name="privacy_policy_body">Hava Durumu Widget\'ı yerel hava tahminleri sunmak için konum verisi toplar. Konumunuz yalnızca bölgeniz için hava durumu verilerini almak amacıyla kullanılır ve tahminleri almak için hava durumu API sağlayıcıları (NWS, Open-Meteo vb.) dışında hiçbir zaman saklanmaz veya üçüncü taraflarla paylaşılmaz.\n\nUygulama kararlılığını izlemek için Firebase Crashlytics kullanıyoruz. Bu veriler anonimleştirilmiştir.\n\nKonum izinlerini istediğiniz zaman Android Ayarları\'ndan iptal edebilirsiniz.\n\nSorular için: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">Hava Durumu Widget\'ı yerel hava tahminleri sunmak için konum verisi toplar. Konumunuz yalnızca bölgeniz için hava durumu verilerini almak amacıyla kullanılır ve tahminleri almak için hava durumu API sağlayıcıları (NWS, Open-Meteo vb.) dışında hiçbir zaman saklanmaz veya üçüncü taraflarla paylaşılmaz.\n\nUygulama kararlılığını izlemek için Firebase Crashlytics kullanıyoruz. Bu veriler anonimleştirilmiştir.\n\nKonum izinlerini istediğiniz zaman Android Ayarları\'ndan iptal edebilirsiniz.\n\nSorular için: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">Veya koordinatları girin:</string>
     <string name="latitude_hint">Enlem (örn. 37.422)</string>
     <string name="longitude_hint">Boylam (örn. -122.0841)</string>

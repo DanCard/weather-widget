@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">Política de Privacidade</string>
     <string name="allow">Permitir</string>
     <string name="no_thanks">Não, obrigado</string>
-    <string name="privacy_policy_body">O Widget do Tempo coleta dados de localização para fornecer previsões locais. Sua localização é usada apenas para obter dados meteorológicos da sua região e nunca é armazenada ou compartilhada com terceiros, exceto provedores de API de clima (NWS, Open-Meteo etc.) para obter previsões.\n\nUsamos o Firebase Crashlytics para monitorar a estabilidade do app. Esses dados são anonimizados.\n\nVocê pode revogar as permissões de localização a qualquer momento nas Configurações do Android.\n\nEm caso de dúvidas, visite: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">O Widget do Tempo coleta dados de localização para fornecer previsões locais. Sua localização é usada apenas para obter dados meteorológicos da sua região e nunca é armazenada ou compartilhada com terceiros, exceto provedores de API de clima (NWS, Open-Meteo etc.) para obter previsões.\n\nUsamos o Firebase Crashlytics para monitorar a estabilidade do app. Esses dados são anonimizados.\n\nVocê pode revogar as permissões de localização a qualquer momento nas Configurações do Android.\n\nEm caso de dúvidas, visite: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">Ou insira coordenadas:</string>
     <string name="latitude_hint">Latitude (ex.: 37.422)</string>
     <string name="longitude_hint">Longitude (ex.: -122.0841)</string>

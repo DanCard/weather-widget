@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">سياسة الخصوصية</string>
     <string name="allow">السماح</string>
     <string name="no_thanks">لا، شكرًا</string>
-    <string name="privacy_policy_body">تجمع أداة الطقس بيانات الموقع لتقديم توقعات طقس محلية. يُستخدم موقعك فقط لجلب بيانات الطقس لمنطقتك، ولا يُخزَّن أو يُشارك مع أطراف ثالثة أبدًا باستثناء مزوّدي واجهات الطقس (NWS وOpen-Meteo وغيرهما) لجلب التوقعات.\n\nنستخدم Firebase Crashlytics لمراقبة استقرار التطبيق. هذه البيانات مجهولة الهوية.\n\nيمكنك إلغاء أذونات الموقع في أي وقت من إعدادات Android.\n\nللاستفسارات، تفضل بزيارة: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">تجمع أداة الطقس بيانات الموقع لتقديم توقعات طقس محلية. يُستخدم موقعك فقط لجلب بيانات الطقس لمنطقتك، ولا يُخزَّن أو يُشارك مع أطراف ثالثة أبدًا باستثناء مزوّدي واجهات الطقس (NWS وOpen-Meteo وغيرهما) لجلب التوقعات.\n\nنستخدم Firebase Crashlytics لمراقبة استقرار التطبيق. هذه البيانات مجهولة الهوية.\n\nيمكنك إلغاء أذونات الموقع في أي وقت من إعدادات Android.\n\nللاستفسارات، تفضل بزيارة: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">أو أدخل الإحداثيات:</string>
     <string name="latitude_hint">خط العرض (مثل 37.422)</string>
     <string name="longitude_hint">خط الطول (مثل -122.0841)</string>

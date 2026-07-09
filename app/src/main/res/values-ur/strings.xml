@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">رازداری کی پالیسی</string>
     <string name="allow">اجازت دیں</string>
     <string name="no_thanks">نہیں، شکریہ</string>
-    <string name="privacy_policy_body">موسمی ویجٹ مقامی موسم کی پیشن گوئی کے لیے مقام کا ڈیٹا جمع کرتا ہے۔ آپ کا مقام صرف آپ کے علاقے کا موسمی ڈیٹا حاصل کرنے کے لیے استعمال ہوتا ہے اور پیشن گوئیاں حاصل کرنے کے لیے موسمی API فراہم کنندگان (NWS، Open-Meteo وغیرہ) کے سوا کبھی محفوظ یا فریق ثالث سے شیئر نہیں کیا جاتا۔\n\nہم ایپ کے استحکام کی نگرانی کے لیے Firebase Crashlytics استعمال کرتے ہیں۔ یہ ڈیٹا گمنام ہوتا ہے۔\n\nآپ Android ترتیبات میں کسی بھی وقت مقام کی اجازتیں واپس لے سکتے ہیں۔\n\nسوالات کے لیے دیکھیں: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">موسمی ویجٹ مقامی موسم کی پیشن گوئی کے لیے مقام کا ڈیٹا جمع کرتا ہے۔ آپ کا مقام صرف آپ کے علاقے کا موسمی ڈیٹا حاصل کرنے کے لیے استعمال ہوتا ہے اور پیشن گوئیاں حاصل کرنے کے لیے موسمی API فراہم کنندگان (NWS، Open-Meteo وغیرہ) کے سوا کبھی محفوظ یا فریق ثالث سے شیئر نہیں کیا جاتا۔\n\nہم ایپ کے استحکام کی نگرانی کے لیے Firebase Crashlytics استعمال کرتے ہیں۔ یہ ڈیٹا گمنام ہوتا ہے۔\n\nآپ Android ترتیبات میں کسی بھی وقت مقام کی اجازتیں واپس لے سکتے ہیں۔\n\nسوالات کے لیے دیکھیں: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">یا نقاط درج کریں:</string>
     <string name="latitude_hint">عرض بلد (مثلاً 37.422)</string>
     <string name="longitude_hint">طول بلد (مثلاً -122.0841)</string>

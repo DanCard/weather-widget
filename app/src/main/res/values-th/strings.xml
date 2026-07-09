@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">นโยบายความเป็นส่วนตัว</string>
     <string name="allow">อนุญาต</string>
     <string name="no_thanks">ไม่ ขอบคุณ</string>
-    <string name="privacy_policy_body">วิดเจ็ตสภาพอากาศเก็บข้อมูลตำแหน่งเพื่อให้พยากรณ์อากาศท้องถิ่น ตำแหน่งของคุณใช้เพื่อดึงข้อมูลสภาพอากาศในพื้นที่ของคุณเท่านั้น และจะไม่ถูกเก็บหรือแชร์กับบุคคลที่สาม ยกเว้นผู้ให้บริการ API สภาพอากาศ (NWS, Open-Meteo ฯลฯ) เพื่อดึงพยากรณ์\n\nเราใช้ Firebase Crashlytics ตรวจสอบความเสถียรของแอป ข้อมูลนี้ถูกทำให้ไม่ระบุตัวตน\n\nคุณเพิกถอนสิทธิ์ตำแหน่งได้ทุกเมื่อในการตั้งค่า Android\n\nมีคำถาม ไปที่: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">วิดเจ็ตสภาพอากาศเก็บข้อมูลตำแหน่งเพื่อให้พยากรณ์อากาศท้องถิ่น ตำแหน่งของคุณใช้เพื่อดึงข้อมูลสภาพอากาศในพื้นที่ของคุณเท่านั้น และจะไม่ถูกเก็บหรือแชร์กับบุคคลที่สาม ยกเว้นผู้ให้บริการ API สภาพอากาศ (NWS, Open-Meteo ฯลฯ) เพื่อดึงพยากรณ์\n\nเราใช้ Firebase Crashlytics ตรวจสอบความเสถียรของแอป ข้อมูลนี้ถูกทำให้ไม่ระบุตัวตน\n\nคุณเพิกถอนสิทธิ์ตำแหน่งได้ทุกเมื่อในการตั้งค่า Android\n\nมีคำถาม ไปที่: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">หรือใส่พิกัด:</string>
     <string name="latitude_hint">ละติจูด (เช่น 37.422)</string>
     <string name="longitude_hint">ลองจิจูด (เช่น -122.0841)</string>

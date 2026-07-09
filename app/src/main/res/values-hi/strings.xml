@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">गोपनीयता नीति</string>
     <string name="allow">अनुमति दें</string>
     <string name="no_thanks">नहीं, धन्यवाद</string>
-    <string name="privacy_policy_body">मौसम विजेट स्थानीय मौसम पूर्वानुमान देने के लिए स्थान डेटा एकत्र करता है। आपका स्थान केवल आपके क्षेत्र का मौसम डेटा लाने के लिए उपयोग होता है और पूर्वानुमान प्राप्त करने हेतु मौसम API प्रदाताओं (NWS, Open-Meteo आदि) के अलावा कभी संग्रहीत या तीसरे पक्ष के साथ साझा नहीं किया जाता।\n\nऐप स्थिरता की निगरानी के लिए हम Firebase Crashlytics का उपयोग करते हैं। यह डेटा गुमनाम होता है।\n\nआप Android सेटिंग्स में कभी भी स्थान अनुमतियाँ वापस ले सकते हैं।\n\nप्रश्नों के लिए देखें: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">मौसम विजेट स्थानीय मौसम पूर्वानुमान देने के लिए स्थान डेटा एकत्र करता है। आपका स्थान केवल आपके क्षेत्र का मौसम डेटा लाने के लिए उपयोग होता है और पूर्वानुमान प्राप्त करने हेतु मौसम API प्रदाताओं (NWS, Open-Meteo आदि) के अलावा कभी संग्रहीत या तीसरे पक्ष के साथ साझा नहीं किया जाता।\n\nऐप स्थिरता की निगरानी के लिए हम Firebase Crashlytics का उपयोग करते हैं। यह डेटा गुमनाम होता है।\n\nआप Android सेटिंग्स में कभी भी स्थान अनुमतियाँ वापस ले सकते हैं।\n\nप्रश्नों के लिए देखें: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">या निर्देशांक दर्ज करें:</string>
     <string name="latitude_hint">अक्षांश (जैसे 37.422)</string>
     <string name="longitude_hint">देशांतर (जैसे -122.0841)</string>

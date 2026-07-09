@@ -93,3 +93,6 @@ genmon/genmon-weather-bin
 # Play Store service-account key (fastlane upload credential — never commit)
 fastlane/play-store-api-key.json
 
+# Window dump (adb shell dumpsys window)
+window_dump.xml
+

@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">개인정보 처리방침</string>
     <string name="allow">허용</string>
     <string name="no_thanks">사양합니다</string>
-    <string name="privacy_policy_body">날씨 위젯은 지역 날씨 예보를 제공하기 위해 위치 데이터를 수집합니다. 위치는 해당 지역의 날씨 데이터를 가져오는 데만 사용되며, 예보를 가져오기 위한 날씨 API 제공업체(NWS, Open-Meteo 등)를 제외하고는 저장되거나 제3자와 공유되지 않습니다.\n\n앱 안정성 모니터링을 위해 Firebase Crashlytics를 사용합니다. 이 데이터는 익명 처리됩니다.\n\n위치 권한은 Android 설정에서 언제든지 취소할 수 있습니다.\n\n문의: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">날씨 위젯은 지역 날씨 예보를 제공하기 위해 위치 데이터를 수집합니다. 위치는 해당 지역의 날씨 데이터를 가져오는 데만 사용되며, 예보를 가져오기 위한 날씨 API 제공업체(NWS, Open-Meteo 등)를 제외하고는 저장되거나 제3자와 공유되지 않습니다.\n\n앱 안정성 모니터링을 위해 Firebase Crashlytics를 사용합니다. 이 데이터는 익명 처리됩니다.\n\n위치 권한은 Android 설정에서 언제든지 취소할 수 있습니다.\n\n문의: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">또는 좌표 입력:</string>
     <string name="latitude_hint">위도 (예: 37.422)</string>
     <string name="longitude_hint">경도 (예: -122.0841)</string>

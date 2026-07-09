@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">Chính sách quyền riêng tư</string>
     <string name="allow">Cho phép</string>
     <string name="no_thanks">Không, cảm ơn</string>
-    <string name="privacy_policy_body">Tiện ích Thời tiết thu thập dữ liệu vị trí để cung cấp dự báo thời tiết địa phương. Vị trí của bạn chỉ được dùng để lấy dữ liệu thời tiết cho khu vực của bạn và không bao giờ được lưu trữ hay chia sẻ với bên thứ ba, ngoại trừ các nhà cung cấp API thời tiết (NWS, Open-Meteo, v.v.) để lấy dự báo.\n\nChúng tôi dùng Firebase Crashlytics để theo dõi độ ổn định của ứng dụng. Dữ liệu này được ẩn danh.\n\nBạn có thể thu hồi quyền vị trí bất cứ lúc nào trong Cài đặt Android.\n\nCó thắc mắc, hãy truy cập: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">Tiện ích Thời tiết thu thập dữ liệu vị trí để cung cấp dự báo thời tiết địa phương. Vị trí của bạn chỉ được dùng để lấy dữ liệu thời tiết cho khu vực của bạn và không bao giờ được lưu trữ hay chia sẻ với bên thứ ba, ngoại trừ các nhà cung cấp API thời tiết (NWS, Open-Meteo, v.v.) để lấy dự báo.\n\nChúng tôi dùng Firebase Crashlytics để theo dõi độ ổn định của ứng dụng. Dữ liệu này được ẩn danh.\n\nBạn có thể thu hồi quyền vị trí bất cứ lúc nào trong Cài đặt Android.\n\nCó thắc mắc, hãy truy cập: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">Hoặc nhập tọa độ:</string>
     <string name="latitude_hint">Vĩ độ (vd: 37.422)</string>
     <string name="longitude_hint">Kinh độ (vd: -122.0841)</string>

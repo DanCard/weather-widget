@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">গোপনীয়তা নীতি</string>
     <string name="allow">অনুমতি দিন</string>
     <string name="no_thanks">না, ধন্যবাদ</string>
-    <string name="privacy_policy_body">আবহাওয়া উইজেট স্থানীয় আবহাওয়ার পূর্বাভাস দিতে অবস্থান ডেটা সংগ্রহ করে। আপনার অবস্থান শুধু আপনার এলাকার আবহাওয়া ডেটা আনতে ব্যবহৃত হয় এবং পূর্বাভাস পেতে আবহাওয়া API প্রদানকারী (NWS, Open-Meteo ইত্যাদি) ছাড়া কখনো সংরক্ষিত বা তৃতীয় পক্ষের সাথে শেয়ার করা হয় না।\n\nঅ্যাপের স্থিতিশীলতা পর্যবেক্ষণে আমরা Firebase Crashlytics ব্যবহার করি। এই ডেটা বেনামি করা হয়।\n\nআপনি Android সেটিংসে যেকোনো সময় অবস্থানের অনুমতি প্রত্যাহার করতে পারেন।\n\nপ্রশ্ন থাকলে দেখুন: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">আবহাওয়া উইজেট স্থানীয় আবহাওয়ার পূর্বাভাস দিতে অবস্থান ডেটা সংগ্রহ করে। আপনার অবস্থান শুধু আপনার এলাকার আবহাওয়া ডেটা আনতে ব্যবহৃত হয় এবং পূর্বাভাস পেতে আবহাওয়া API প্রদানকারী (NWS, Open-Meteo ইত্যাদি) ছাড়া কখনো সংরক্ষিত বা তৃতীয় পক্ষের সাথে শেয়ার করা হয় না।\n\nঅ্যাপের স্থিতিশীলতা পর্যবেক্ষণে আমরা Firebase Crashlytics ব্যবহার করি। এই ডেটা বেনামি করা হয়।\n\nআপনি Android সেটিংসে যেকোনো সময় অবস্থানের অনুমতি প্রত্যাহার করতে পারেন।\n\nপ্রশ্ন থাকলে দেখুন: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">অথবা স্থানাঙ্ক লিখুন:</string>
     <string name="latitude_hint">অক্ষাংশ (যেমন 37.422)</string>
     <string name="longitude_hint">দ্রাঘিমাংশ (যেমন -122.0841)</string>

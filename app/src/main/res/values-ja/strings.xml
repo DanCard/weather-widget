@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">プライバシーポリシー</string>
     <string name="allow">許可</string>
     <string name="no_thanks">今はしない</string>
-    <string name="privacy_policy_body">天気ウィジェットは地域の天気予報を提供するために位置情報を収集します。位置情報はお住まいの地域の気象データ取得のみに使用され、予報取得のための天気 API プロバイダ（NWS、Open-Meteo など）を除き、保存されたり第三者と共有されたりすることはありません。\n\nアプリの安定性監視のために Firebase Crashlytics を使用しています。このデータは匿名化されています。\n\n位置情報の権限は Android の設定からいつでも取り消せます。\n\nご質問は：https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">天気ウィジェットは地域の天気予報を提供するために位置情報を収集します。位置情報はお住まいの地域の気象データ取得のみに使用され、予報取得のための天気 API プロバイダ（NWS、Open-Meteo など）を除き、保存されたり第三者と共有されたりすることはありません。\n\nアプリの安定性監視のために Firebase Crashlytics を使用しています。このデータは匿名化されています。\n\n位置情報の権限は Android の設定からいつでも取り消せます。\n\nご質問は：https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">または座標を入力：</string>
     <string name="latitude_hint">緯度（例 37.422）</string>
     <string name="longitude_hint">経度（例 -122.0841）</string>

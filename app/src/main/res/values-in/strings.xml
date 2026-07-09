@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">Kebijakan Privasi</string>
     <string name="allow">Izinkan</string>
     <string name="no_thanks">Tidak, terima kasih</string>
-    <string name="privacy_policy_body">Widget Cuaca mengumpulkan data lokasi untuk menyediakan prakiraan cuaca lokal. Lokasi Anda hanya digunakan untuk mengambil data cuaca daerah Anda dan tidak pernah disimpan atau dibagikan kepada pihak ketiga, kecuali penyedia API cuaca (NWS, Open-Meteo, dll.) untuk mengambil prakiraan.\n\nKami menggunakan Firebase Crashlytics untuk memantau stabilitas aplikasi. Data ini dianonimkan.\n\nAnda dapat mencabut izin lokasi kapan saja di Setelan Android.\n\nAda pertanyaan? Kunjungi: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">Widget Cuaca mengumpulkan data lokasi untuk menyediakan prakiraan cuaca lokal. Lokasi Anda hanya digunakan untuk mengambil data cuaca daerah Anda dan tidak pernah disimpan atau dibagikan kepada pihak ketiga, kecuali penyedia API cuaca (NWS, Open-Meteo, dll.) untuk mengambil prakiraan.\n\nKami menggunakan Firebase Crashlytics untuk memantau stabilitas aplikasi. Data ini dianonimkan.\n\nAnda dapat mencabut izin lokasi kapan saja di Setelan Android.\n\nAda pertanyaan? Kunjungi: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">Atau masukkan koordinat:</string>
     <string name="latitude_hint">Lintang (mis. 37.422)</string>
     <string name="longitude_hint">Bujur (mis. -122.0841)</string>

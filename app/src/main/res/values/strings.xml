@@ -171,7 +171,7 @@
     <string name="privacy_policy_title">Privacy Policy</string>
     <string name="allow">Allow</string>
     <string name="no_thanks">No thanks</string>
-    <string name="privacy_policy_body">Weather Widget collects location data to provide local weather forecasts. Your location is only used to fetch weather data for your area and is never stored or shared with third parties except weather API providers (NWS, Open-Meteo, etc.) to retrieve forecasts.\n\nWe use Firebase Crashlytics to monitor app stability. This data is anonymized.\n\nYou can revoke location permissions at any time in Android Settings.\n\nFor questions, visit: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">Weather Widget collects location data to provide local weather forecasts. Your location is only used to fetch weather data for your area and is never stored or shared with third parties except weather API providers (NWS, Open-Meteo, etc.) to retrieve forecasts.\n\nWe use Firebase Crashlytics to monitor app stability. This data is anonymized.\n\nYou can revoke location permissions at any time in Android Settings.\n\nFor questions, visit: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">Or enter coordinates:</string>
     <string name="latitude_hint">Latitude (e.g. 37.422)</string>
     <string name="longitude_hint">Longitude (e.g. -122.0841)</string>

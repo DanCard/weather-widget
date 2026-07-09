@@ -407,9 +407,10 @@ dependencies {
     // Firebase Crashlytics (push crash reporting). The libraries compile/run without
     // google-services.json — Firebase simply no-ops init — but only upload once the file is added
     // and the plugins above are applied. BoM keeps the artifact versions aligned.
+    // Deliberately NO firebase-analytics: crash reporting only, which keeps the Play Data Safety
+    // disclosures to location + crash data and matches the privacy policy (PRIVACY_POLICY.md).
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.crashlytics)
-    implementation(libs.firebase.analytics)
 
     // Testing
     testImplementation(libs.junit)

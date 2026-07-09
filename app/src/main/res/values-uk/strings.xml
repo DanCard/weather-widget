@@ -165,7 +165,7 @@
     <string name="privacy_policy_title">Політика конфіденційності</string>
     <string name="allow">Дозволити</string>
     <string name="no_thanks">Ні, дякую</string>
-    <string name="privacy_policy_body">Weather Widget збирає дані про місцезнаходження, щоб надавати місцевий прогноз погоди. Ваше місцезнаходження використовується лише для отримання погодних даних вашого регіону й ніколи не зберігається та не передається третім сторонам, окрім постачальників погодних API (NWS, Open-Meteo тощо) для отримання прогнозів.\n\nМи використовуємо Firebase Crashlytics для моніторингу стабільності застосунку. Ці дані знеособлені.\n\nВи можете будь-коли відкликати дозвіл на геодані в налаштуваннях Android.\n\nЗапитання: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">Weather Widget збирає дані про місцезнаходження, щоб надавати місцевий прогноз погоди. Ваше місцезнаходження використовується лише для отримання погодних даних вашого регіону й ніколи не зберігається та не передається третім сторонам, окрім постачальників погодних API (NWS, Open-Meteo тощо) для отримання прогнозів.\n\nМи використовуємо Firebase Crashlytics для моніторингу стабільності застосунку. Ці дані знеособлені.\n\nВи можете будь-коли відкликати дозвіл на геодані в налаштуваннях Android.\n\nЗапитання: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">Або введіть координати:</string>
     <string name="latitude_hint">Широта (напр. 37.422)</string>
     <string name="longitude_hint">Довгота (напр. -122.0841)</string>

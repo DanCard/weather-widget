@@ -167,7 +167,7 @@
     <string name="privacy_policy_title">Datenschutzerklärung</string>
     <string name="allow">Zulassen</string>
     <string name="no_thanks">Nein danke</string>
-    <string name="privacy_policy_body">Das Wetter-Widget erfasst Standortdaten, um lokale Wettervorhersagen bereitzustellen. Dein Standort wird nur verwendet, um Wetterdaten für deine Region abzurufen, und wird niemals gespeichert oder an Dritte weitergegeben, außer an Wetter-API-Anbieter (NWS, Open-Meteo usw.) zum Abrufen von Vorhersagen.\n\nWir verwenden Firebase Crashlytics zur Überwachung der App-Stabilität. Diese Daten sind anonymisiert.\n\nDu kannst Standortberechtigungen jederzeit in den Android-Einstellungen widerrufen.\n\nBei Fragen besuche: https://github.com/dcar/weather-widget/issues</string>
+    <string name="privacy_policy_body">Das Wetter-Widget erfasst Standortdaten, um lokale Wettervorhersagen bereitzustellen. Dein Standort wird nur verwendet, um Wetterdaten für deine Region abzurufen, und wird niemals gespeichert oder an Dritte weitergegeben, außer an Wetter-API-Anbieter (NWS, Open-Meteo usw.) zum Abrufen von Vorhersagen.\n\nWir verwenden Firebase Crashlytics zur Überwachung der App-Stabilität. Diese Daten sind anonymisiert.\n\nDu kannst Standortberechtigungen jederzeit in den Android-Einstellungen widerrufen.\n\nBei Fragen besuche: https://github.com/DanCard/weather-widget/issues</string>
     <string name="or_enter_coordinates">Oder Koordinaten eingeben:</string>
     <string name="latitude_hint">Breitengrad (z. B. 37.422)</string>
     <string name="longitude_hint">Längengrad (z. B. -122.0841)</string>
