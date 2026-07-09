@@ -173,9 +173,19 @@ class SettingsActivity : AppCompatActivity() {
             val row = LayoutInflater.from(this).inflate(R.layout.item_api_key, container, false)
             val nameView = row.findViewById<TextView>(R.id.source_name)
             val inputView = row.findViewById<EditText>(R.id.api_key_input)
+            val getKeyButton = row.findViewById<Button>(R.id.get_api_key_button)
 
             nameView.text = source.displayName
             inputView.setText(widgetStateManager.getApiKey(source))
+
+            val signupUrl = apiKeySignupUrl(source)
+            getKeyButton.setOnClickListener {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(signupUrl)))
+                } catch (e: Exception) {
+                    Toast.makeText(this, getString(R.string.get_api_key_no_browser, signupUrl), Toast.LENGTH_LONG).show()
+                }
+            }
 
             inputView.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -188,6 +198,19 @@ class SettingsActivity : AppCompatActivity() {
 
             container.addView(row)
         }
+    }
+
+    /**
+     * Signup/API-key page per provider. Kept to top-level, stable entry points — deep "developer
+     * console" paths churn; the provider's signup page is where a keyless user needs to land.
+     */
+    private fun apiKeySignupUrl(source: WeatherSource): String = when (source) {
+        WeatherSource.TOMORROW_IO -> "https://app.tomorrow.io/signup"
+        WeatherSource.SILURIAN -> "https://earth.weather.silurian.ai"
+        WeatherSource.WEATHER_API -> "https://www.weatherapi.com/signup.aspx"
+        WeatherSource.VISUAL_CROSSING -> "https://www.visualcrossing.com/sign-up"
+        WeatherSource.OPEN_WEATHER_MAP -> "https://home.openweathermap.org/users/sign_up"
+        else -> "https://open-meteo.com"
     }
 
     private fun sourceDescription(source: WeatherSource): String = when (source) {

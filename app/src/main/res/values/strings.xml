@@ -159,6 +159,8 @@
     <string name="api_keys_title">API Keys</string>
     <string name="api_keys_description">Enter your own API keys for restricted services. Free services (NWS, Open-Meteo) do not require keys.</string>
     <string name="api_key_hint">Enter API Key</string>
+    <string name="get_api_key">Get key…</string>
+    <string name="get_api_key_no_browser">No browser available. Sign up at: %1$s</string>
     <string name="privacy_policy_title">Privacy Policy</string>
     <string name="allow">Allow</string>
     <string name="no_thanks">No thanks</string>
