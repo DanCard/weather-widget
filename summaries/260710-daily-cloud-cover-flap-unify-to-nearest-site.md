@@ -47,6 +47,17 @@ that pass paints last, the widget usually sat in the wrong state.
   `onUpdate` (previously `ratio=0.25 hourlyRows=474`). Flap gone; Monday matches desktop
   and emulator.
 
+## Recurrence guards (added same day)
+
+- `DailyCloudCoverSiteParityRoboTest` — Robolectric cross-path parity: both DAILY render
+  entry points driven against the same seeded two-site DB must resolve the same noon cloud
+  (exactly 0.65). Fails against the pre-fix code with the production symptom (0.25 vs 0.65).
+- `architecture/HourlyProximityQueryAllowlistTest` — chokepoint guard: any NEW file calling
+  the raw `getHourlyForecasts*` proximity queries fails the build with guidance to route
+  through `unifyToNearestSite` (or justify an allowlist entry). Full DAO visibility
+  restriction deferred: 16 existing call sites in 10 files, several legitimately raw
+  (write-path dedup). See notes/260710-fragmentation-test-strategy-robolectric-vs-instrumented.md.
+
 ## Follow-ups / notes
 
 - Rule going forward: any **new raw proximity-box hourly read must go through
