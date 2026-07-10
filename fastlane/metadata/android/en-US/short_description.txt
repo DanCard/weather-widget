@@ -1,1 +1,1 @@
-Resizable weather widget that shows how accurate the forecast actually was.
+A resizable weather widget with forecast accuracy comparison (Hobby project).

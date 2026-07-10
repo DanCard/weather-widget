@@ -1,28 +1,26 @@
-Most weather apps only tell you what the forecast says. Weather Widget also tells you how right it was.
+A resizable home-screen widget that compares yesterday's weather predictions against what actually happened.
 
-A clean, resizable home-screen widget that compares yesterday's predictions against what actually happened — so you learn how much to trust today's forecast.
+Please note: This is a personal hobby project and has not been thoroughly tested across all devices. You may encounter sizing issues or bugs. Feedback and bug reports are very welcome!
 
 FORECAST vs. ACTUAL
-• Past days show the predicted range (yellow bar) next to the measured range, straight from official observation stations
-• Browse up to 30 days of history with the widget's arrows
-• Accuracy statistics: average error, bias ("forecasts run 2° high"), and days within ±3°F
-• Watch a forecast evolve: see how the prediction for a given day changed as it approached
+• Displays predicted temperature ranges alongside actual measured ranges from local weather stations
+• Browse up to 30 days of history with the widget's navigation arrows
+• Tracks accuracy statistics: average error, bias, and days within ±3°F
+• Inspect forecast evolution: see how the prediction for a given day changed over time
 
-MULTIPLE WEATHER SOURCES
-• National Weather Service (US) and Open-Meteo (worldwide) built in — no account needed
-• Optional: Silurian, Tomorrow.io, WeatherAPI, Visual Crossing, OpenWeatherMap
-• Tap the source name on the widget to switch instantly and compare providers
-• Enable, disable, and reorder sources in Settings
+WEATHER SOURCES
+• National Weather Service (US) and Open-Meteo (worldwide) are built in (no API keys required)
+• Option to configure other API keys (Silurian, Tomorrow.io, WeatherAPI, Visual Crossing, etc.) in settings
+• Tap the source name on the widget to switch and compare forecasts
 
-A WIDGET THAT RESPECTS YOUR BATTERY
-• Two-tier updates: the displayed temperature refreshes from cache with zero extra wakeups
-• Network fetches scale back automatically as your battery drains
-• Current temperature is interpolated smoothly between hourly data points
+BATTERY-CONSCIOUS SYNCING
+• Updates displayed temperature from cache with minimal background wakeups
+• Network fetches automatically scale back as battery drains
+• Interpolates current temperatures smoothly from hourly forecasts
 
 DETAILS
-• Tap any day for an hourly temperature curve, rain chances, and cloud cover
-• Rain amounts and chances, measured where stations report them
-• Location by GPS, city/address/ZIP search, or exact coordinates — pin it or let it follow your device
-• Resizes from a single cell up to a full forecast strip
+• Tap days for hourly temperature curves, rain chances, and cloud cover
+• Customizable location modes (follow device location, search, or pin coordinates manually)
+• Fits various launcher layouts, adjusting from a single cell up to a full strip
 
-No ads. No accounts. Location is used only to fetch weather for where you are.
+No ads. No accounts. Location data is only used to fetch weather forecasts for your coordinates.
