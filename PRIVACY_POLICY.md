@@ -49,4 +49,4 @@ what data the app collects, how it is used, and what is shared.
 ## Contact
 
 Questions or concerns: open an issue at
-<https://github.com/DanCard/weather-widget/issues> or email <cardenas.kin@gmail.com>.
+<https://github.com/DanCard/weather-widget/issues> or email <daniecarde55@gmail.com>.

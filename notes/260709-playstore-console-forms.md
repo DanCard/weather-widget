@@ -84,7 +84,7 @@ beyond deleting one `<uses-permission>` line.
 - **Government app:** No.
 - **Financial features:** None.
 - **Health:** None.
-- **Category suggestion:** Weather. **Contact email:** cardenas.kin@gmail.com (required, shown publicly).
+- **Category suggestion:** Weather. **Contact email:** daniecarde55@gmail.com (required, shown publicly).
 
 ## 5. New-personal-account testing gate (if applicable)
 
