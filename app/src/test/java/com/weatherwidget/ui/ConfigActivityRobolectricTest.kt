@@ -17,6 +17,7 @@ import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -224,9 +225,80 @@ class ConfigActivityRobolectricTest {
     }
 
     @Test
-    fun `back button exits without saving and keeps RESULT_CANCELED`() {
+    fun `back button saves FOLLOW_DEVICE default and completes the widget-add handshake`() {
         val intent = Intent(context, ConfigActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        ActivityScenario.launch<ConfigActivity>(intent).onActivity { activity ->
+            activity.findViewById<android.widget.ImageButton>(R.id.config_back_button).performClick()
+            assertTrue(activity.isFinishing)
+            assertEquals(Activity.RESULT_OK, shadowOf(activity).resultCode)
+            assertEquals(
+                widgetId,
+                shadowOf(activity).resultIntent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1),
+            )
+        }
+
+        // Default placeholder saved; the GPS auto-heal replaces it with a real fix later
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        assertEquals(
+            WeatherWidgetWorker.DEFAULT_LAT.toFloat(),
+            prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN),
+            0.0001f,
+        )
+        assertEquals(
+            WeatherWidgetWorker.DEFAULT_LON.toFloat(),
+            prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN),
+            0.0001f,
+        )
+        assertEquals(LocationMode.FOLLOW_DEVICE, LocationMode.get(context))
+    }
+
+    @Test
+    fun `system back saves FOLLOW_DEVICE default and completes the widget-add handshake`() {
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        ActivityScenario.launch<ConfigActivity>(intent).onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+            assertTrue(activity.isFinishing)
+            assertEquals(Activity.RESULT_OK, shadowOf(activity).resultCode)
+        }
+
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        assertEquals(
+            WeatherWidgetWorker.DEFAULT_LAT.toFloat(),
+            prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN),
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun `back with a pinned location keeps the pin and writes nothing`() {
+        // A deliberate earlier choice: another widget with a FIXED location
+        bindWidget(9001, 30.2672, -97.7431)
+        LocationMode.set(context, LocationMode.FIXED)
+
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        ActivityScenario.launch<ConfigActivity>(intent).onActivity { activity ->
+            activity.findViewById<android.widget.ImageButton>(R.id.config_back_button).performClick()
+            assertTrue(activity.isFinishing)
+            assertEquals(Activity.RESULT_OK, shadowOf(activity).resultCode)
+        }
+
+        // Pin untouched — a FOLLOW_DEVICE write here would let the auto-heal move every widget
+        assertEquals(LocationMode.FIXED, LocationMode.get(context))
+        // No per-widget default: ActiveLocationResolver covers the new widget from 9001's prefs
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        assertTrue(prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN).isNaN())
+    }
+
+    @Test
+    fun `back in global mode leaves without changes`() {
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
         }
         ActivityScenario.launch<ConfigActivity>(intent).onActivity { activity ->
             activity.findViewById<android.widget.ImageButton>(R.id.config_back_button).performClick()
@@ -234,8 +306,7 @@ class ConfigActivityRobolectricTest {
             assertEquals(Activity.RESULT_CANCELED, shadowOf(activity).resultCode)
         }
 
-        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        assertTrue(prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN).isNaN())
+        assertEquals(LocationMode.FOLLOW_DEVICE, LocationMode.get(context))
     }
 
     @Test

@@ -12,6 +12,7 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -31,6 +32,8 @@ import com.weatherwidget.util.LocationMode
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
@@ -53,6 +56,11 @@ import kotlin.coroutines.resume
  * closes on an explicit user choice (confirm, search pick, or coordinates). An earlier version
  * saved and finished as soon as the auto-started fix resolved, which yanked the screen away
  * from users who wanted to pick a location. Only a user-tapped GPS request saves directly.
+ *
+ * Backing out of widget setup still completes the handshake ([completeWidgetAddOnExit]):
+ * RESULT_CANCELED makes the launcher delete the pending widget, which users experience as
+ * "adding the widget failed" after they'd already granted permissions (2026-07-09). Back in
+ * global (Settings) mode remains "leave without changes".
  */
 @AndroidEntryPoint
 class ConfigActivity : AppCompatActivity() {
@@ -64,6 +72,9 @@ class ConfigActivity : AppCompatActivity() {
 
     /** Device fix resolved by the auto-fill flow, awaiting the user's confirm tap. */
     private var prefetchedFix: LocationFixFlow.Coordinates? = null
+
+    /** Set by [finishWithSuccess]; onDestroy logs any widget-add exit that never got here. */
+    private var completedOk = false
 
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
@@ -86,7 +97,14 @@ class ConfigActivity : AppCompatActivity() {
             AppWidgetManager.INVALID_APPWIDGET_ID,
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
+        logConfig(
+            "OPEN widget=$appWidgetId global=$isGlobalMode " +
+                "finePerm=${hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)} " +
+                "bgPerm=${hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)}",
+        )
+
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID && !isGlobalMode) {
+            logConfig("RESULT outcome=invalid_widget_id", "WARN")
             finish()
             return
         }
@@ -106,6 +124,19 @@ class ConfigActivity : AppCompatActivity() {
             autoFillFlow = true
             checkAndRequestLocationPermissions()
         }
+
+        // System back (gesture or hardware key) must take the same save-and-complete path as
+        // the in-app back button; the default dispatcher behavior would finish RESULT_CANCELED.
+        if (!isGlobalMode) {
+            onBackPressedDispatcher.addCallback(
+                this,
+                object : OnBackPressedCallback(true) {
+                    override fun handleOnBackPressed() {
+                        completeWidgetAddOnExit("system_back")
+                    }
+                },
+            )
+        }
     }
 
     private fun setupViews() {
@@ -119,9 +150,15 @@ class ConfigActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.current_location_label).text =
             LocationUpdater.describeCurrentLocation(this)
 
-        // Leave without changes; the widget-add handshake keeps the RESULT_CANCELED set in onCreate.
+        // Widget-add: back saves a best-effort location so the pending widget survives.
+        // Global (Settings) mode: leave without changes.
         findViewById<ImageButton>(R.id.config_back_button).setOnClickListener {
-            finish()
+            if (isGlobalMode) {
+                logConfig("BACK_TAP widget=$appWidgetId global=true")
+                finish()
+            } else {
+                completeWidgetAddOnExit("back_tap")
+            }
         }
 
         useGpsButton.setOnClickListener {
@@ -235,15 +272,18 @@ class ConfigActivity : AppCompatActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
         when (requestCode) {
             LOCATION_PERMISSION_REQUEST -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                logConfig("PERM_RESULT request=fine granted=$granted widget=$appWidgetId")
+                if (granted) {
                     checkAndRequestBackgroundLocation()
                 } else {
                     Toast.makeText(this, getString(R.string.location_permission_required), Toast.LENGTH_SHORT).show()
                 }
             }
             BACKGROUND_LOCATION_PERMISSION_REQUEST -> {
+                logConfig("PERM_RESULT request=background granted=$granted widget=$appWidgetId")
                 getCurrentLocation() // Proceed regardless, system handles denied state
             }
         }
@@ -270,6 +310,9 @@ class ConfigActivity : AppCompatActivity() {
         val startMs = SystemClock.elapsedRealtime()
 
         val isAutoFill = autoFillFlow
+        // Unowned log: the GPS_FIX outcome below is lifecycle-scoped and vanishes if the user
+        // backs out mid-fix, so the flow's start must land independently.
+        logConfig("FIX_START mode=${if (isAutoFill) "auto" else "manual"} widget=$appWidgetId")
         lifecycleScope.launch {
             val outcome = LocationFixFlow().resolve(
                 activeFix = stages.activeFix,
@@ -408,10 +451,73 @@ class ConfigActivity : AppCompatActivity() {
         WorkManager.getInstance(this).enqueue(workRequest)
     }
 
+    /**
+     * Back during widget-add completes the handshake with the best location available instead
+     * of cancelling (RESULT_CANCELED = launcher deletes the pending widget):
+     * - the prefetched device fix, if the auto-fill flow resolved one;
+     * - nothing, if the user has a pinned (FIXED) location — [ActiveLocationResolver] already
+     *   covers the new widget from the other widgets' prefs, and writing FOLLOW_DEVICE here
+     *   would unpin every widget;
+     * - otherwise the FOLLOW_DEVICE default placeholder, which the GPS auto-heal later
+     *   replaces with a real fix (same as the manual GPS-failure path).
+     */
+    private fun completeWidgetAddOnExit(trigger: String) {
+        val fix = prefetchedFix
+        val pinned = LocationMode.get(this) == LocationMode.FIXED
+        logConfig("BACK_SAVE trigger=$trigger widget=$appWidgetId usedFix=${fix != null} pinned=$pinned")
+        when {
+            fix != null -> saveChosenLocation(fix.lat, fix.lon, null, LocationMode.FOLLOW_DEVICE)
+            pinned -> {
+                triggerWidgetUpdate()
+                finishWithSuccess()
+            }
+            else -> saveChosenLocation(
+                WeatherWidgetWorker.DEFAULT_LAT,
+                WeatherWidgetWorker.DEFAULT_LON,
+                null,
+                LocationMode.FOLLOW_DEVICE,
+            )
+        }
+    }
+
     private fun finishWithSuccess() {
+        completedOk = true
+        logConfig("RESULT outcome=saved widget=$appWidgetId", "INFO")
         val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         setResult(RESULT_OK, resultValue)
         finish()
+    }
+
+    /**
+     * Catch-all for any exit that skipped [finishWithSuccess]. Back now saves-and-completes
+     * via [completeWidgetAddOnExit], so this fires only for the leftover paths (task
+     * swipe-away, launcher timeout) where RESULT_CANCELED still makes the launcher delete
+     * the pending widget.
+     */
+    override fun onDestroy() {
+        if (isFinishing && !isGlobalMode && !completedOk &&
+            appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID
+        ) {
+            logConfig(
+                "RESULT outcome=cancelled widget=$appWidgetId prefetchedFix=${prefetchedFix != null} " +
+                    "— launcher will delete the pending widget",
+                "WARN",
+            )
+        }
+        super.onDestroy()
+    }
+
+    private fun hasPermission(permission: String) =
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Fire-and-forget breadcrumb on an unowned scope: finish-path logs must outlive
+     * lifecycleScope, which is cancelled at onDestroy before the DB insert runs.
+     */
+    private fun logConfig(message: String, level: String = "DEBUG") {
+        CoroutineScope(Dispatchers.IO).launch {
+            appLogDao.log("CONFIG", message, level)
+        }
     }
 
     /** The two [LocationFixFlow] stages, as a swappable pair. */
