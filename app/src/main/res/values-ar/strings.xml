@@ -224,7 +224,9 @@
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">لم يُعيَّن موقع</string>
     <string name="widget_location_format">موقع الأداة: %1$s، %2$s</string>
+    <string name="widget_location_named_format">موقع الأداة: %1$s (%2$s، %3$s)</string>
     <string name="default_location_format">الموقع الافتراضي: %1$s، %2$s</string>
+    <string name="default_location_named_format">الموقع الافتراضي: %1$s (%2$s، %3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">الأرصاد الحالية</string>

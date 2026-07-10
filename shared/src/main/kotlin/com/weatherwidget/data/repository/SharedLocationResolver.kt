@@ -27,6 +27,19 @@ class SharedLocationResolver(
         )
     }
 
+    /**
+     * Compact human name for the coordinates ("Mountain View, California"), or null when the
+     * reverse lookup fails. Never includes the coordinates themselves — callers that show a
+     * "Name (lat, lon)" label compose the two.
+     */
+    suspend fun friendlyName(
+        lat: Double,
+        lon: Double,
+    ): String? =
+        runCatching { nominatimApi.reverse(lat, lon) }.getOrNull()
+            ?.compactName()
+            ?.takeIf { it.isNotBlank() }
+
     suspend fun suggestPrefill(log: (String) -> Unit = {}): ResolvedLocation? {
         log("Starting IP location lookup...")
         val ip = runCatching { ipGeolocationApi.locate() }.getOrNull()

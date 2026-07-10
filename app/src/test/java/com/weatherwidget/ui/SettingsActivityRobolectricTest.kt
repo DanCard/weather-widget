@@ -73,6 +73,25 @@ class SettingsActivityRobolectricTest {
     }
 
     @Test
+    fun `celsius toggle persists the unit and repaints widgets via direct broadcast`() {
+        val intent = Intent(context, SettingsActivity::class.java)
+        ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->
+            val switch = activity.findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.use_celsius_switch)
+            switch.performClick()
+
+            assertTrue(WidgetStateManager(activity).useCelsius())
+
+            // Must be the direct ACTION_REFRESH repaint, not a WorkManager job — expedited work
+            // degrades to deferred under quota/Doze and the unit change then takes minutes to show.
+            val broadcast = shadowOf(activity.application).broadcastIntents.lastOrNull {
+                it.action == com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
+            }
+            assertNotNull("expected ACTION_REFRESH broadcast after toggling units", broadcast)
+            assertTrue(broadcast!!.getBooleanExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, false))
+        }
+    }
+
+    @Test
     fun `location label shows pinned suffix when location mode is fixed`() {
         LocationMode.set(context, LocationMode.FIXED)
 

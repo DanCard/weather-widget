@@ -224,7 +224,9 @@
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">설정된 위치 없음</string>
     <string name="widget_location_format">위젯 위치: %1$s, %2$s</string>
+    <string name="widget_location_named_format">위젯 위치: %1$s (%2$s, %3$s)</string>
     <string name="default_location_format">기본 위치: %1$s, %2$s</string>
+    <string name="default_location_named_format">기본 위치: %1$s (%2$s, %3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">현재 관측</string>

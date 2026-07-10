@@ -41,6 +41,7 @@ class NominatimApi
                     parameter("lat", lat)
                     parameter("lon", lon)
                     parameter("format", "jsonv2")
+                    parameter("addressdetails", "1")
                 }.body()
 
             return json.decodeFromString<NominatimPlace>(response).toResult()
@@ -56,7 +57,15 @@ data class GeocodeResult(
     val displayName: String,
     val lat: Double,
     val lon: Double,
-)
+    /** Compact "place, region" name from the structured address (reverse lookups only). */
+    val shortName: String? = null,
+) {
+    /**
+     * Best available compact name: the structured short name, else the first two components
+     * of the display name (Nominatim display names are comma-joined, most-specific first).
+     */
+    fun compactName(): String = shortName ?: displayName.split(", ").take(2).joinToString(", ")
+}
 
 @Serializable
 private data class NominatimPlace(
@@ -64,6 +73,7 @@ private data class NominatimPlace(
     val displayName: String? = null,
     val lat: String? = null,
     val lon: String? = null,
+    val address: NominatimAddress? = null,
 ) {
     fun toResult(): GeocodeResult? {
         val parsedLat = lat?.toDoubleOrNull() ?: return null
@@ -72,6 +82,27 @@ private data class NominatimPlace(
             displayName = displayName?.takeIf { it.isNotBlank() } ?: "$parsedLat, $parsedLon",
             lat = parsedLat,
             lon = parsedLon,
+            shortName = address?.toShortName(),
         )
+    }
+}
+
+@Serializable
+private data class NominatimAddress(
+    val city: String? = null,
+    val town: String? = null,
+    val village: String? = null,
+    val hamlet: String? = null,
+    val municipality: String? = null,
+    val county: String? = null,
+    val state: String? = null,
+    val country: String? = null,
+) {
+    /** "Mountain View, California" — most specific settlement plus region, whatever exists. */
+    fun toShortName(): String? {
+        val place = city ?: town ?: village ?: hamlet ?: municipality ?: county
+        val region = state ?: country
+        val parts = listOfNotNull(place, region).filter { it.isNotBlank() }
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(", ")
     }
 }

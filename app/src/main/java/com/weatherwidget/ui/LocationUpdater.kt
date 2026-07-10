@@ -8,6 +8,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.weatherwidget.R
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -57,62 +58,72 @@ object LocationUpdater {
         }
     }
 
+    /** The location the summary label describes: first widget → last historical POI → hard default. */
+    private data class EffectiveLocation(val lat: Double, val lon: Double, val isWidgetLocation: Boolean)
+
+    private fun effectiveLocation(context: Context): EffectiveLocation {
+        val ids = getWidgetIds(context)
+        if (ids.isNotEmpty()) {
+            WidgetStateManager(context).getWidgetLocation(ids[0])?.let { (lat, lon) ->
+                return EffectiveLocation(lat, lon, isWidgetLocation = true)
+            }
+        }
+
+        // Fallback to historical_pois default POI
+        val weatherPrefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
+        weatherPrefs.getString("historical_pois", null)
+            ?.split(";")
+            ?.lastOrNull()
+            ?.split("|")
+            ?.takeLast(3)
+            ?.let { parts ->
+                if (parts.size == 3) {
+                    val lat = parts[1].toDoubleOrNull()
+                    val lon = parts[2].toDoubleOrNull()
+                    if (lat != null && lon != null) return EffectiveLocation(lat, lon, isWidgetLocation = false)
+                }
+            }
+
+        return EffectiveLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, isWidgetLocation = false)
+    }
+
     /**
      * Human-readable summary of the effective location (first widget → last historical POI →
      * hard default) plus whether it's pinned or follows the device. Shown on both the Settings
-     * screen and the location setup screen ([ConfigActivity]).
+     * screen and the location setup screen ([ConfigActivity]). Prepends a friendly place name
+     * when one is known locally; [describeCurrentLocationResolved] adds a reverse-geocode
+     * fallback for the callers that can suspend.
      */
-    fun describeCurrentLocation(context: Context): String {
-        var currentLat: Double? = null
-        var currentLon: Double? = null
-        var labelText = context.getString(R.string.no_location_set)
+    fun describeCurrentLocation(context: Context): String =
+        describe(context, effectiveLocation(context)) { lat, lon -> FriendlyLocationName.cached(context, lat, lon) }
 
-        val ids = getWidgetIds(context)
-        if (ids.isNotEmpty()) {
-            val widgetLocation = WidgetStateManager(context).getWidgetLocation(ids[0])
-            if (widgetLocation != null) {
-                currentLat = widgetLocation.first
-                currentLon = widgetLocation.second
-                labelText = context.getString(
-                    R.string.widget_location_format,
-                    String.format("%.4f", currentLat),
-                    String.format("%.4f", currentLon),
-                )
-            }
-        }
+    /** [describeCurrentLocation], but reverse-geocodes (and caches) a name when none is stored. */
+    suspend fun describeCurrentLocationResolved(
+        context: Context,
+        resolver: com.weatherwidget.data.repository.SharedLocationResolver,
+    ): String {
+        val effective = effectiveLocation(context)
+        val name = FriendlyLocationName.resolve(context, resolver, effective.lat, effective.lon)
+        return describe(context, effective) { _, _ -> name }
+    }
 
-        if (currentLat == null || currentLon == null) {
-            // Fallback to historical_pois default POI
-            val weatherPrefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
-            val lastPoi = weatherPrefs.getString("historical_pois", null)
-                ?.split(";")
-                ?.lastOrNull()
-                ?.split("|")
-                ?.takeLast(3)
-                ?.let { parts ->
-                    if (parts.size == 3) {
-                        parts[1].toDoubleOrNull()?.let { lat -> parts[2].toDoubleOrNull()?.let { lon -> lat to lon } }
-                    } else {
-                        null
-                    }
-                }
-            if (lastPoi != null) {
-                currentLat = lastPoi.first
-                currentLon = lastPoi.second
-                labelText = context.getString(
-                    R.string.default_location_format,
-                    String.format("%.4f", currentLat),
-                    String.format("%.4f", currentLon),
-                )
-            }
-        }
-
-        if (currentLat == null || currentLon == null) {
-            labelText = context.getString(
-                R.string.default_location_format,
-                String.format("%.4f", WeatherWidgetWorker.DEFAULT_LAT),
-                String.format("%.4f", WeatherWidgetWorker.DEFAULT_LON),
-            )
+    private fun describe(
+        context: Context,
+        effective: EffectiveLocation,
+        nameLookup: (Double, Double) -> String?,
+    ): String {
+        val latText = String.format("%.4f", effective.lat)
+        val lonText = String.format("%.4f", effective.lon)
+        val name = nameLookup(effective.lat, effective.lon)
+        val labelText = when {
+            name != null && effective.isWidgetLocation ->
+                context.getString(R.string.widget_location_named_format, name, latText, lonText)
+            name != null ->
+                context.getString(R.string.default_location_named_format, name, latText, lonText)
+            effective.isWidgetLocation ->
+                context.getString(R.string.widget_location_format, latText, lonText)
+            else ->
+                context.getString(R.string.default_location_format, latText, lonText)
         }
 
         val modeSuffix = if (LocationMode.get(context) == LocationMode.FIXED) {

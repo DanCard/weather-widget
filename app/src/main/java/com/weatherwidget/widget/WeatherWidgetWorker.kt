@@ -788,7 +788,10 @@ class WeatherWidgetWorker
             return if (lat == DEFAULT_LAT && lon == DEFAULT_LON) {
                 "Mountain View, CA"
             } else {
-                "%.2f, %.2f".format(lat, lon)
+                // Local-only lookup (aliases, cached reverse geocodes, named POIs): this runs on
+                // every fetch, so no network. Coordinates only when nothing has named this site yet.
+                com.weatherwidget.util.FriendlyLocationName.cached(context, lat, lon)
+                    ?: "%.2f, %.2f".format(lat, lon)
             }
         }
 

@@ -224,7 +224,9 @@
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">কোনো অবস্থান নির্ধারিত নেই</string>
     <string name="widget_location_format">উইজেটের অবস্থান: %1$s, %2$s</string>
+    <string name="widget_location_named_format">উইজেটের অবস্থান: %1$s (%2$s, %3$s)</string>
     <string name="default_location_format">ডিফল্ট অবস্থান: %1$s, %2$s</string>
+    <string name="default_location_named_format">ডিফল্ট অবস্থান: %1$s (%2$s, %3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">বর্তমান পর্যবেক্ষণ</string>

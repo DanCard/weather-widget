@@ -28,6 +28,7 @@ import com.google.android.gms.tasks.Task
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -149,6 +150,11 @@ class ConfigActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.current_location_label).text =
             LocationUpdater.describeCurrentLocation(this)
+        // Enrich with a reverse-geocoded place name once resolved (instant when cached).
+        lifecycleScope.launch {
+            val resolved = LocationUpdater.describeCurrentLocationResolved(this@ConfigActivity, sharedLocationResolver)
+            findViewById<TextView>(R.id.current_location_label).text = resolved
+        }
 
         // Widget-add: back saves a best-effort location so the pending widget survives.
         // Global (Settings) mode: leave without changes.
@@ -366,10 +372,18 @@ class ConfigActivity : AppCompatActivity() {
     /** Auto-fill resolved: surface the fix and wait for the user's confirm tap. */
     private fun offerPrefetchedFix(fix: LocationFixFlow.Coordinates) {
         prefetchedFix = fix
-        findViewById<TextView>(R.id.current_location_label).text = getString(
-            R.string.location_found_label,
-            String.format(Locale.US, "%.4f, %.4f", fix.lat, fix.lon),
-        )
+        val coordsText = String.format(Locale.US, "%.4f, %.4f", fix.lat, fix.lon)
+        findViewById<TextView>(R.id.current_location_label).text =
+            getString(R.string.location_found_label, coordsText)
+        // Upgrade the coordinates to "Name (coords)" once the reverse geocode lands, unless a
+        // newer fix has replaced this one in the meantime.
+        lifecycleScope.launch {
+            val name = FriendlyLocationName.resolve(this@ConfigActivity, sharedLocationResolver, fix.lat, fix.lon)
+            if (name != null && prefetchedFix == fix) {
+                findViewById<TextView>(R.id.current_location_label).text =
+                    getString(R.string.location_found_label, "$name ($coordsText)")
+            }
+        }
         val useGpsButton = findViewById<Button>(R.id.use_gps_button)
         useGpsButton.isEnabled = true
         useGpsButton.setText(R.string.use_this_location)

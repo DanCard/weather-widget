@@ -47,6 +47,9 @@ class SettingsActivity : AppCompatActivity() {
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
 
+    @Inject
+    lateinit var sharedLocationResolver: com.weatherwidget.data.repository.SharedLocationResolver
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -143,7 +146,15 @@ class SettingsActivity : AppCompatActivity() {
         useCelsiusSwitch.isChecked = widgetStateManager.useCelsius()
         useCelsiusSwitch.setOnCheckedChangeListener { _, isChecked ->
             widgetStateManager.setUseCelsius(isChecked)
-            WeatherWidgetProvider.triggerUiOnlyUpdate(this, "unit_preference_changed")
+            // ACTION_REFRESH repaints every widget directly from cache in the broadcast handler.
+            // The old triggerUiOnlyUpdate() went through WorkManager, whose "expedited" request
+            // silently degrades to deferred work under quota/Doze — the repaint then took minutes.
+            sendBroadcast(
+                Intent(this, WeatherWidgetProvider::class.java).apply {
+                    action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
+                    putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
+                },
+            )
         }
 
         // App language: ACTION_APP_LOCALE_SETTINGS exists only on API 33+; older versions
@@ -412,5 +423,10 @@ class SettingsActivity : AppCompatActivity() {
     private fun refreshLocationLabel() {
         findViewById<TextView>(R.id.current_location_label).text =
             LocationUpdater.describeCurrentLocation(this)
+        // Enrich with a reverse-geocoded place name once resolved (instant when cached).
+        lifecycleScope.launch {
+            val resolved = LocationUpdater.describeCurrentLocationResolved(this@SettingsActivity, sharedLocationResolver)
+            findViewById<TextView>(R.id.current_location_label).text = resolved
+        }
     }
 }

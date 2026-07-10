@@ -53,7 +53,7 @@ class LocationResolver(
         private const val FRESH_FIX_AGE_MILLIS = 24L * 60L * 60L * 1000L
     }
 
-    private fun PhoneLocation.toResolved(): ResolvedLocation {
+    private suspend fun PhoneLocation.toResolved(): ResolvedLocation {
         val age = fixAgeMillis
         val accuracy = accuracyMeters
         val details = buildList {
@@ -62,10 +62,13 @@ class LocationResolver(
             if (accuracy != null) add("${accuracy.roundToInt()}m")
             if (age != null) add(formatAge(age))
         }.joinToString(", ")
+        // Friendly place name alongside the raw fix; coordinates stay visible either way.
+        val coords = "${lat.formatCoord()}, ${lon.formatCoord()}"
+        val name = sharedLocationResolver.friendlyName(lat, lon)
         return ResolvedLocation(
             lat = lat,
             lon = lon,
-            label = "Phone GPS (${lat.formatCoord()}, ${lon.formatCoord()})",
+            label = if (name != null) "$name ($coords)" else "Phone GPS ($coords)",
             source = "Phone GPS",
             detail = details,
             isFresh = age != null && age < FRESH_FIX_AGE_MILLIS,

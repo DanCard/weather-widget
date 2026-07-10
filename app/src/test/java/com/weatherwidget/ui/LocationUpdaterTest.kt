@@ -78,6 +78,49 @@ class LocationUpdaterTest : RobolectricTest() {
     }
 
     @Test
+    fun `describeCurrentLocation shows stored POI name next to widget coordinates`() {
+        val widgetId = 210
+        val info = android.appwidget.AppWidgetProviderInfo().apply {
+            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
+        }
+        shadowAppWidgetManager.addBoundWidget(widgetId, info)
+
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        prefs.edit()
+            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", 37.4220f)
+            .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", -122.0841f)
+            .commit()
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit()
+            .putString("historical_pois", "Mountain View, California|37.4220|-122.0841")
+            .commit()
+
+        val label = LocationUpdater.describeCurrentLocation(context)
+
+        assertTrue("expected friendly name in: $label", label.contains("Mountain View, California"))
+        assertTrue("expected coordinates in: $label", label.contains("37.42"))
+    }
+
+    @Test
+    fun `describeCurrentLocation without a known name still shows coordinates`() {
+        val widgetId = 211
+        val info = android.appwidget.AppWidgetProviderInfo().apply {
+            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
+        }
+        shadowAppWidgetManager.addBoundWidget(widgetId, info)
+
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        prefs.edit()
+            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", 40.7128f)
+            .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", -74.0060f)
+            .commit()
+
+        val label = LocationUpdater.describeCurrentLocation(context)
+
+        assertTrue("expected coordinates in: $label", label.contains("40.71"))
+        assertFalse("unexpected parenthesised name in: $label", label.contains("("))
+    }
+
+    @Test
     fun `shouldHealTo returns true when widgets are at stale coordinates and fresh coordinates are different`() {
         val widgetId = 203
         val info = android.appwidget.AppWidgetProviderInfo().apply {
