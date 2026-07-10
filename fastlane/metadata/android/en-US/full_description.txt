@@ -1,6 +1,16 @@
-A resizable home-screen widget that compares yesterday's weather predictions against what actually happened.
+A resizable home-screen widget with many features and modes.
 
-Please note: This is a personal hobby project and has not been thoroughly tested across all devices. You may encounter sizing issues or bugs. Feedback and bug reports are very welcome!
+Has not been thoroughly tested across all devices. You may encounter sizing issues or bugs. Feedback and bug reports are very welcome!
+
+Features
+• Tap days for hourly temperature curves, rain chances, and cloud cover
+• Dense information format
+• Customizable location modes (follow device location, search, or pin coordinates manually)
+
+WEATHER SOURCES
+• National Weather Service (US) and Open-Meteo (worldwide) are built in (no API keys required)
+• Option to configure other API keys (Silurian, Tomorrow.io, WeatherAPI, Visual Crossing, etc.) in settings
+• Tap the source name on the widget to switch and compare forecasts
 
 FORECAST vs. ACTUAL
 • Displays predicted temperature ranges alongside actual measured ranges from local weather stations
@@ -8,19 +18,11 @@ FORECAST vs. ACTUAL
 • Tracks accuracy statistics: average error, bias, and days within ±3°F
 • Inspect forecast evolution: see how the prediction for a given day changed over time
 
-WEATHER SOURCES
-• National Weather Service (US) and Open-Meteo (worldwide) are built in (no API keys required)
-• Option to configure other API keys (Silurian, Tomorrow.io, WeatherAPI, Visual Crossing, etc.) in settings
-• Tap the source name on the widget to switch and compare forecasts
-
 BATTERY-CONSCIOUS SYNCING
 • Updates displayed temperature from cache with minimal background wakeups
 • Network fetches automatically scale back as battery drains
 • Interpolates current temperatures smoothly from hourly forecasts
 
-DETAILS
-• Tap days for hourly temperature curves, rain chances, and cloud cover
-• Customizable location modes (follow device location, search, or pin coordinates manually)
-• Fits various launcher layouts, adjusting from a single cell up to a full strip
-
 No ads. No accounts. Location data is only used to fetch weather forecasts for your coordinates.
+
+Source viewable at: https://github.com/DanCard/weather-widget/
