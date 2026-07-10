@@ -54,7 +54,7 @@ platform :android do
       track: "internal",
       skip_upload_apk: true,
       skip_upload_aab: true,
-      aab: "app/build/outputs/bundle/release/app-release.aab",
+      version_code: 1,
     )
   end
 end
