@@ -51,7 +51,7 @@ platform :android do
   desc "Push only listing metadata/changelogs (no binary)"
   lane :metadata do
     upload_to_play_store(
-      track: "internal",
+      track: "production",
       skip_upload_apk: true,
       skip_upload_aab: true,
       skip_upload_changelogs: true,
