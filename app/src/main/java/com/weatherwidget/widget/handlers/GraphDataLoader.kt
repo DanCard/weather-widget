@@ -42,6 +42,29 @@ object GraphDataLoader {
         val nowEnd: LocalDateTime?,
     )
 
+    /**
+     * Collapse a raw proximity-box query result to the single physical site nearest (lat, lon).
+     * Sub-precision fragments of that site are kept (LocationMatch.sameSite box); genuinely
+     * different markers left behind by earlier GPS fixes (e.g. 37.39 vs 37.417) are dropped —
+     * those sites stop being refreshed, and their frozen forecasts otherwise win
+     * firstOrNull-style selections downstream (DailyNoonCloudCover picked a 2-day-old noon
+     * cloud row over the fresh one, flapping the daily bar's cloud split between renders).
+     */
+    fun unifyToNearestSite(
+        rows: List<HourlyForecastEntity>,
+        lat: Double,
+        lon: Double,
+    ): List<HourlyForecastEntity> {
+        val best = rows.asSequence()
+            .map { it.locationLat to it.locationLon }
+            .distinct()
+            .minByOrNull { (rLat, rLon) -> Math.abs(rLat - lat) + Math.abs(rLon - lon) }
+            ?: return rows
+        return rows.filter {
+            LocationMatch.sameSite(it.locationLat, it.locationLon, best.first, best.second)
+        }
+    }
+
     suspend fun loadGraphWindowHourlyForecasts(
         hourlyDao: HourlyForecastDao,
         hourlyHistoryDao: HourlyForecastHistoryDao? = null,

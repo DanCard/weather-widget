@@ -471,7 +471,11 @@ suspend fun handleToggleView(
         val now = LocalDateTime.now()
         val hourlyLookbackStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zone).toInstant().toEpochMilli()
         val hourlyLookaheadEnd = now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zone).toInstant().toEpochMilli()
-        val hourlyForecasts = database.hourlyForecastDao().getHourlyForecasts(hourlyLookbackStart, hourlyLookaheadEnd, lat, lon)
+        val hourlyForecasts = GraphDataLoader.unifyToNearestSite(
+            database.hourlyForecastDao().getHourlyForecasts(hourlyLookbackStart, hourlyLookaheadEnd, lat, lon),
+            lat,
+            lon,
+        )
         val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(contextObs, hourlyForecasts, lat, lon, personalStationWeight)
 
         // Today must stay live-only. Persisted daily_history can contain a different high
@@ -517,7 +521,13 @@ suspend fun handleToggleView(
                 val zoneId = ZoneId.systemDefault()
                 val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
                 val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
-                hourlyDao.getHourlyForecastsBySource(hourlyStart, hourlyEnd, lat, lon, source.id)
+                // Unify so a frozen fragment from an earlier GPS fix can't satisfy this
+                // "has hourly data?" gate when the current site actually has none.
+                GraphDataLoader.unifyToNearestSite(
+                    hourlyDao.getHourlyForecastsBySource(hourlyStart, hourlyEnd, lat, lon, source.id),
+                    lat,
+                    lon,
+                )
             }
 
         return sourceDaily.isEmpty() || sourceHourly.isEmpty() || !hasRequiredFutureCoverage
@@ -786,7 +796,15 @@ suspend fun handleResize(
         val zoneId = ZoneId.systemDefault()
         val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
         val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
-        val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
+        // Unify to the current site: the proximity-box query also returns frozen fragments from
+        // earlier GPS fixes, whose stale noon-cloud rows otherwise win DailyNoonCloudCover's
+        // firstOrNull and make this refresh pass disagree with the onUpdate pass (WidgetRenderer
+        // already unifies) — the daily bar's cloud split flapped between the two.
+        val hourlyForecasts = GraphDataLoader.unifyToNearestSite(
+            hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon),
+            lat,
+            lon,
+        )
 
         val todayStartMs = LocalDate.now().atStartOfDay(zoneId).toInstant().toEpochMilli()
         val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs)

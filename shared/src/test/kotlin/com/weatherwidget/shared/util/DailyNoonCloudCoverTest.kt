@@ -84,6 +84,20 @@ class DailyNoonCloudCoverTest {
     }
 
     @Test
+    fun firstNoonRowWinsWhenDuplicatesExist_callersMustUnifySitesFirst() {
+        // The shared model carries no coordinates, so this resolver cannot tell a fresh row
+        // from a frozen coordinate-fragment duplicate — it takes the FIRST noon match. Callers
+        // must collapse fragments before calling (GraphDataLoader.unifyToNearestSite on
+        // Android); skipping that made the daily bar's cloud split flap between 65% and a
+        // 2-day-old 25% (plans/260710-daily-cloud-cover-flap-stale-fragment.md).
+        val hourly = listOf(
+            hour(12, 25, "NWS"), // stale fragment's noon row, sorted first
+            hour(12, 65, "NWS"), // fresh site's noon row
+        )
+        assertEquals(25, resolve(hourly, "NWS"))
+    }
+
+    @Test
     fun assumesZeroForOtherDates() {
         val otherDay = date.plusDays(1).atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
         val hourly = listOf(

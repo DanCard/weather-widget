@@ -11,7 +11,6 @@ import com.weatherwidget.WeatherWidgetApp
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
-import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
@@ -167,15 +166,8 @@ object WidgetRenderer {
         // and exact-matching one fragment silently drops the others — which blanked the forecast line
         // for part of a past day. LocationMatch.sameSite merges those fragments while still excluding a
         // genuinely different marker (e.g. 37.422 vs 37.4168) that would jitter the smoothing.
-        val bestHourlyMatch = hourlyForecasts
-            .asSequence()
-            .map { it.locationLat to it.locationLon }
-            .distinct()
-            .minByOrNull { (lat, lon) -> Math.abs(lat - locationLat) + Math.abs(lon - locationLon) }
-
-        val unifiedHourlyForecasts = if (bestHourlyMatch != null) {
-            hourlyForecasts.filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestHourlyMatch.first, bestHourlyMatch.second) }
-        } else hourlyForecasts
+        val unifiedHourlyForecasts =
+            GraphDataLoader.unifyToNearestSite(hourlyForecasts, locationLat, locationLon)
 
         // Filter hourly forecasts to the NOW-centered window for current temp resolution.
         // This ensures the current temp display is always based on forecasts around NOW,
