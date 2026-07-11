@@ -12,6 +12,9 @@ import io.mockk.runs
 data class CapturedWidgetViews(
     val appWidgetManager: AppWidgetManager,
     val viewsSlot: CapturingSlot<RemoteViews>,
+    // Captures pushes made via partiallyUpdateAppWidget (worker-driven repaints); full pushes
+    // land in viewsSlot. Lets tests assert WHICH mechanism delivered the views.
+    val partialViewsSlot: CapturingSlot<RemoteViews>,
 )
 
 fun mockAppWidgetManager(
@@ -29,5 +32,7 @@ fun mockAppWidgetManager(
     every { appWidgetManager.getAppWidgetOptions(widgetId) } returns options
     val viewsSlot = CapturingSlot<RemoteViews>()
     every { appWidgetManager.updateAppWidget(widgetId, capture(viewsSlot)) } just runs
-    return CapturedWidgetViews(appWidgetManager, viewsSlot)
+    val partialViewsSlot = CapturingSlot<RemoteViews>()
+    every { appWidgetManager.partiallyUpdateAppWidget(widgetId, capture(partialViewsSlot)) } just runs
+    return CapturedWidgetViews(appWidgetManager, viewsSlot, partialViewsSlot)
 }

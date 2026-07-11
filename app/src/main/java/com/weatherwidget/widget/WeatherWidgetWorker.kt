@@ -488,6 +488,10 @@ class WeatherWidgetWorker
                         dailyActualsBySource = dailyActuals,
                         repository = weatherRepository,
                         uiOnly = uiOnly,
+                        // Worker repaints patch the existing widget views in place. A full
+                        // updateAppWidget makes the launcher re-inflate the whole widget — a
+                        // visible flash on Samsung — on every background refresh cycle.
+                        partialPush = true,
                     )
                 }
                 WidgetUpdateTracker.trackJob(appWidgetId, job, jobType)
@@ -509,6 +513,11 @@ class WeatherWidgetWorker
                 val isManual = reason.contains("manual") || reason.contains("force") || force
                 var resultMessage = "success"
                 var fetchDurationMs = 0L
+                // Sources actually contacted this run. refreshCurrentTemperature returns 0 on its
+                // freshness skip (another fetch completed moments ago) and when every source was
+                // throttled — in both cases the cache is byte-identical to what the widgets already
+                // painted, so repainting them would only produce a visible no-op redraw.
+                var attemptedSourceCount = 0
                 if (
                     !CurrentTempFetchPolicy.shouldFetchNow(
                         isCharging = isPlugged,
@@ -538,8 +547,9 @@ class WeatherWidgetWorker
                     fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
 
                     refreshResult.fold(
-                        onSuccess = { _ ->
+                        onSuccess = { attempted ->
                             // Done log is handled by repository now
+                            attemptedSourceCount = attempted
                             resultMessage = "success"
                         },
                         onFailure = { e ->
@@ -549,9 +559,26 @@ class WeatherWidgetWorker
                     )
                 }
 
-                val cacheRefreshStartMs = SystemClock.elapsedRealtime()
-                refreshWidgetsFromCache()
-                val cacheRefreshDurationMs = SystemClock.elapsedRealtime() - cacheRefreshStartMs
+                // Repaint only when this run could have changed what the widgets show. Repainting
+                // all widgets from an unchanged cache is the post-fetch double-blink the user
+                // reported (CURR_FETCH_FRESH_SKIP followed by a 2s repaint of every widget).
+                val skipRepaint = CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
+                    policyBlocked = resultMessage == "skipped_policy_blocked",
+                    fetchFailed = resultMessage.startsWith("fetch_failure"),
+                    attemptedSourceCount = attemptedSourceCount,
+                )
+                var cacheRefreshDurationMs = 0L
+                if (skipRepaint) {
+                    appLogDao.log(
+                        "CURR_PAINT_SKIP",
+                        "reason=$reason result=$resultMessage attemptedSources=$attemptedSourceCount",
+                        "INFO",
+                    )
+                } else {
+                    val cacheRefreshStartMs = SystemClock.elapsedRealtime()
+                    refreshWidgetsFromCache()
+                    cacheRefreshDurationMs = SystemClock.elapsedRealtime() - cacheRefreshStartMs
+                }
                 
                 manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive, ignoreRunningWorkId = id)
                 

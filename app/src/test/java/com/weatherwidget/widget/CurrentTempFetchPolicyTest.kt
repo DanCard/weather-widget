@@ -112,4 +112,48 @@ class CurrentTempFetchPolicyTest {
             CurrentTempFetchPolicy.postRunLoopAction(isCharging = false, isScreenInteractive = false),
         )
     }
+
+    @Test
+    fun `post-run repaint skipped when policy blocked the fetch`() {
+        assertTrue(
+            CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
+                policyBlocked = true,
+                fetchFailed = false,
+                attemptedSourceCount = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun `post-run repaint skipped when zero sources attempted (freshness skip or all throttled)`() {
+        assertTrue(
+            CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
+                policyBlocked = false,
+                fetchFailed = false,
+                attemptedSourceCount = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun `post-run repaint runs after a real fetch attempt`() {
+        assertFalse(
+            CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
+                policyBlocked = false,
+                fetchFailed = false,
+                attemptedSourceCount = 2,
+            ),
+        )
+    }
+
+    @Test
+    fun `post-run repaint runs after a failed fetch so error indicators update`() {
+        assertFalse(
+            CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
+                policyBlocked = false,
+                fetchFailed = true,
+                attemptedSourceCount = 0,
+            ),
+        )
+    }
 }

@@ -766,6 +766,71 @@ class DailyViewHandlerTest {
         assertEquals(37.0, intent.getDoubleExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.1)
     }
 
+    // partialPush=true must deliver the paint via partiallyUpdateAppWidget (in-place patch, no
+    // launcher re-inflate flash — the flash the user saw on every background refresh cycle);
+    // the default (interaction/onUpdate paths) must stay a full updateAppWidget so those paths
+    // still (re)establish the launcher's view hierarchy and persisted RemoteViews.
+    @Test
+    fun `worker repaint with partialPush pushes via partiallyUpdateAppWidget`() = runBlocking {
+        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList = listOf(createWeather(todayStr, highTemp = 62f, lowTemp = 51f))
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(77)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val captured = mockAppWidgetManager(widgetId = 77, widthDp = 140, heightDp = 90)
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = captured.appWidgetManager,
+            appWidgetId = 77,
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
+            now = LocalDateTime.now(),
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
+            partialPush = true,
+        )
+
+        assertTrue(captured.partialViewsSlot.isCaptured)
+        assertFalse(captured.viewsSlot.isCaptured)
+    }
+
+    @Test
+    fun `default repaint pushes via full updateAppWidget`() = runBlocking {
+        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList = listOf(createWeather(todayStr, highTemp = 62f, lowTemp = 51f))
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(78)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val captured = mockAppWidgetManager(widgetId = 78, widthDp = 140, heightDp = 90)
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = captured.appWidgetManager,
+            appWidgetId = 78,
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
+            now = LocalDateTime.now(),
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
+        )
+
+        assertTrue(captured.viewsSlot.isCaptured)
+        assertFalse(captured.partialViewsSlot.isCaptured)
+    }
+
     @Test
     fun `updateWidget text labels use integer format when value is whole`() = runBlocking {
         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)

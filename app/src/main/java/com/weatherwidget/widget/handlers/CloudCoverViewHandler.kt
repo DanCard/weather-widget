@@ -109,6 +109,9 @@ object CloudCoverViewHandler {
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
         startupToken: String? = null,
         uiOnly: Boolean = false,
+        // Background (worker-driven) repaints push partially — no launcher re-inflate flash.
+        // See WidgetViewHandler.
+        partialPush: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -460,8 +463,12 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
-        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=data thread=${Thread.currentThread().name}")
-        appWidgetManager.updateAppWidget(appWidgetId, views)
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
+        if (partialPush) {
+            appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
+        } else {
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
 
         // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
         stateManager.setLastGraphRender(

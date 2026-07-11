@@ -121,6 +121,9 @@ object WidgetRenderer {
         // True for opportunistic UI-only repaints (now-tracking alarm); lets the TEMPERATURE handler
         // skip re-rendering an anchored (static) graph from a narrow now-centered window.
         uiOnly: Boolean = false,
+        // True for background (worker-driven) repaints: handlers push via partiallyUpdateAppWidget
+        // (in-place patch, no launcher re-inflate flash). See WidgetViewHandler.
+        partialPush: Boolean = false,
     ) {
         val renderStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -257,6 +260,7 @@ object WidgetRenderer {
                     startupToken = startupToken,
                     deferCurrentTempResolution = startupToken != null,
                     uiOnly = uiOnly,
+                    partialPush = partialPush,
                 )
             }
             ViewMode.PRECIPITATION -> {
@@ -272,6 +276,7 @@ object WidgetRenderer {
                     repository = repository,
                     startupToken = startupToken,
                     uiOnly = uiOnly,
+                    partialPush = partialPush,
                 )
             }
             ViewMode.CLOUD_COVER -> {
@@ -288,6 +293,7 @@ object WidgetRenderer {
                     repository = repository,
                     startupToken = startupToken,
                     uiOnly = uiOnly,
+                    partialPush = partialPush,
                 )
             }
             ViewMode.DAILY -> {
@@ -332,6 +338,7 @@ object WidgetRenderer {
                     startupToken = startupToken,
                     stateManagerNullable = stateManager,
                     repository = repository,
+                    partialPush = partialPush,
                 )
                 // A real graph was just painted, so future UI-only ticks for this widget may skip.
                 fullyPaintedDailyWidgetIds.add(appWidgetId)

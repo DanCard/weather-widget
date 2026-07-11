@@ -61,6 +61,9 @@ object TemperatureViewHandler {
         // them corrupts it (forecast gaps -> blank curve + missing labels). For those we update only
         // the current-temp header and leave the graph as the last full render painted it.
         uiOnly: Boolean = false,
+        // Background (worker-driven) repaints push partially — no launcher re-inflate flash.
+        // See WidgetViewHandler.
+        partialPush: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -174,8 +177,12 @@ object TemperatureViewHandler {
         // Reset sticky visibility from DailyViewHandler
         DailyViewHandler.bindTransientMessage(views, stateManager, appWidgetId, callerTag = "TEMPERATURE")
 
-        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE state=data${gateReason?.let { " reason=$it" } ?: ""} thread=${Thread.currentThread().name}")
-        appWidgetManager.updateAppWidget(appWidgetId, views)
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE state=data push=${if (partialPush) "partial" else "full"}${gateReason?.let { " reason=$it" } ?: ""} thread=${Thread.currentThread().name}")
+        if (partialPush) {
+            appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
+        } else {
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
 
         // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
         val renderedFormattedTemp = resolutionResult.currentTempResolution.displayTemp?.let {

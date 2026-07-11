@@ -139,6 +139,7 @@ object DailyViewHandler : WidgetViewHandler {
         startupToken: String?,
         stateManagerNullable: WidgetStateManager?,
         repository: WeatherRepository?,
+        partialPush: Boolean,
     ) {
         val weatherList = weatherData.weatherList
         val forecastSnapshots = weatherData.forecastSnapshots
@@ -438,8 +439,12 @@ object DailyViewHandler : WidgetViewHandler {
         }
 
         bindTransientMessage(views, stateManager, appWidgetId, callerTag = "DAILY")
-        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data thread=${Thread.currentThread().name}")
-        appWidgetManager.updateAppWidget(appWidgetId, views)
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
+        if (partialPush) {
+            appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
+        } else {
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
         WidgetPerfLogger.logIfSlow(
             appLogDao = appLogDao,

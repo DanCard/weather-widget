@@ -33,6 +33,24 @@ object CurrentTempFetchPolicy {
     }
 
     /**
+     * Whether the post-run widget repaint should be skipped because the run could not have
+     * changed anything the widgets display. A policy-blocked run fetched nothing; a successful
+     * run that attempted zero sources (repository freshness skip, or every source throttled)
+     * left the cache byte-identical to what the widgets already show. Repainting all widgets
+     * from an unchanged cache is a visible no-op redraw — the post-fetch "double blink".
+     * Failed runs still repaint: per-source error indicators may have changed.
+     */
+    fun shouldSkipPostRunRepaint(
+        policyBlocked: Boolean,
+        fetchFailed: Boolean,
+        attemptedSourceCount: Int,
+    ): Boolean {
+        if (policyBlocked) return true
+        if (fetchFailed) return false
+        return attemptedSourceCount == 0
+    }
+
+    /**
      * Background charging loop should run whenever the device is charging,
      * regardless of screen state.
      */

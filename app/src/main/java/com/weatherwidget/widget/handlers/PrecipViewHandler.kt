@@ -62,6 +62,9 @@ object PrecipViewHandler {
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
         startupToken: String? = null,
         uiOnly: Boolean = false,
+        // Background (worker-driven) repaints push partially — no launcher re-inflate flash.
+        // See WidgetViewHandler.
+        partialPush: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -432,8 +435,12 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
-        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION state=data thread=${Thread.currentThread().name}")
-        appWidgetManager.updateAppWidget(appWidgetId, views)
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
+        if (partialPush) {
+            appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
+        } else {
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
 
         // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
         stateManager.setLastGraphRender(

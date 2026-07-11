@@ -44,6 +44,12 @@ interface WidgetViewHandler {
         startupToken: String? = null,
         stateManagerNullable: WidgetStateManager? = null,
         repository: WeatherRepository? = null,
+        // True for background (worker-driven) repaints: push via partiallyUpdateAppWidget so the
+        // launcher patches the existing view tree in place instead of tearing it down and
+        // re-inflating — the re-inflate is a visible flash on Samsung's launcher. Safe because
+        // binders set every view on every paint (sticky-visibility discipline). Full pushes are
+        // reserved for paths that must (re)establish the hierarchy: onUpdate, resize, interaction.
+        partialPush: Boolean = false,
     )
 
     /**

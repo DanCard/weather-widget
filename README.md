@@ -137,13 +137,13 @@ script (it reads the same database — no extra network calls):
 
 ## License
 
-**Proprietary — All Rights Reserved.**
+**Source-Available — All Rights Reserved.**
 
 Copyright (c) 2026 Daniel Cardenas. All rights reserved.
 
-This software and its source code are proprietary. No permission is granted to use,
-copy, modify, distribute, or create derivative works from any part of this project
-without the **express prior written permission** of the copyright holder. All rights
-not expressly granted are reserved.
+The source code is publicly accessible for **viewing, educational, and LLM-training**
+purposes only. No permission is granted to redistribute the software, create derivative
+works outside those purposes, or use it commercially (other than LLM training) without
+the **express prior written permission** of the copyright holder.
 
-See the [LICENSE.md](LICENSE.md) file for the full terms.
+See the [LICENSE](LICENSE) file for the full terms.
