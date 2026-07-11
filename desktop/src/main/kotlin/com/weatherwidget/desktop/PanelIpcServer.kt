@@ -21,6 +21,9 @@ class PanelIpcServer(private val appDataDir: Path) {
     private val currentMarkup = AtomicReference("<txt>--</txt>")
     private var serverThread: Thread? = null
 
+    private var cachedPluginId: String? = null
+    private var lastLookupAttemptMs = 0L
+
     fun start() {
         if (serverThread != null) return
         
@@ -51,6 +54,24 @@ class PanelIpcServer(private val appDataDir: Path) {
         }
     }
 
+    private fun triggerPanelRefresh() {
+        val now = System.currentTimeMillis()
+        if (cachedPluginId == null && now - lastLookupAttemptMs >= LOOKUP_RETRY_INTERVAL_MS) {
+            lastLookupAttemptMs = now
+            cachedPluginId = findGenmonPluginId()
+            if (cachedPluginId != null) {
+                Log.i(TAG, "Discovered XFCE Genmon plugin ID: $cachedPluginId")
+            }
+        }
+
+        val id = cachedPluginId ?: return
+        try {
+            ProcessBuilder("xfce4-panel", "--plugin-event=genmon-$id:refresh:bool:true").start()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send refresh signal to xfce4-panel: $e")
+        }
+    }
+
     fun update(forecast: ForecastResult?, dataStatus: DataStatus, config: DesktopConfig?) {
         val useCelsius = config?.useCelsius
             ?: com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(Locale.getDefault())
@@ -64,6 +85,7 @@ class PanelIpcServer(private val appDataDir: Path) {
         // itself (and rewire the click to explain the fix) instead of leaving the user guessing.
         if (isUiLauncherMissing()) {
             currentMarkup.set(missingLauncherMarkup(body))
+            triggerPanelRefresh()
             return
         }
 
@@ -100,6 +122,7 @@ class PanelIpcServer(private val appDataDir: Path) {
         val clickCmd = "touch $showTrigger"
 
         currentMarkup.set(buildPanelMarkup(body, color, deltaText, tooltip, clickCmd))
+        triggerPanelRefresh()
     }
 
     private fun formatRelativeTime(epochMs: Long): String {
@@ -115,6 +138,7 @@ class PanelIpcServer(private val appDataDir: Path) {
 
     companion object {
         private const val TAG = "PanelIpcServer"
+        private const val LOOKUP_RETRY_INTERVAL_MS = 60_000L
 
         const val LIVE_COLOR = "#FFD500"   // high-contrast yellow, matches the tray icon
         const val STALE_COLOR = "#888888"  // grayed when data is stale / missing
@@ -158,6 +182,36 @@ class PanelIpcServer(private val appDataDir: Path) {
                 <tool>$tooltip</tool>
                 <txtclick>$clickCmd</txtclick>
             """.trimIndent()
+        }
+
+        private fun findGenmonPluginId(): String? {
+            try {
+                val listProcess = ProcessBuilder("xfconf-query", "-c", "xfce4-panel", "-l").start()
+                val reader = listProcess.inputStream.bufferedReader()
+                val lines = reader.readLines()
+                listProcess.waitFor()
+
+                for (line in lines) {
+                    val trimmed = line.trim()
+                    if (trimmed.startsWith("/plugins/plugin-") && trimmed.endsWith("/command")) {
+                        val queryProcess = ProcessBuilder("xfconf-query", "-c", "xfce4-panel", "-p", trimmed).start()
+                        val valReader = queryProcess.inputStream.bufferedReader()
+                        val cmdVal = valReader.readLine()?.trim() ?: ""
+                        queryProcess.waitFor()
+
+                        if (cmdVal.contains("genmon-weather-bin") || cmdVal.contains("genmon-weather.py")) {
+                            val parts = trimmed.split("/")
+                            if (parts.size >= 3) {
+                                val pluginPart = parts[2] // "plugin-XX"
+                                return pluginPart.substringAfter("plugin-")
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error looking up XFCE Genmon plugin ID: $e")
+            }
+            return null
         }
     }
 }
