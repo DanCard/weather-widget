@@ -117,6 +117,25 @@ class ForecastRepository
             }
 
             /**
+             * Index existing rows by dateTime for the change gate, keeping ONLY rows at the exact
+             * coordinate pair being written. The proximity-box query can also return fresher rows
+             * from a GPS-jitter fragment that the renderer never reads (unifyToNearestSite reads a
+             * single site); comparing against those makes a revised value look "unchanged" and the
+             * write at the display site is skipped forever, so the widget serves stale data while
+             * desktop/emulator show the revision (2026-07-10: Sunday noon cloud stuck at 67% at the
+             * display site while a jittered fragment held the revised 96%). The gate must compare
+             * against exactly the rows the read side will resolve.
+             */
+            @androidx.annotation.VisibleForTesting
+            internal fun siteExactExistingByDateTime(
+                boxRows: List<HourlyForecastEntity>,
+                lat: Double,
+                lon: Double,
+            ): Map<Long, HourlyForecastEntity> =
+                boxRows.filter { it.locationLat == lat && it.locationLon == lon }
+                    .associateBy { it.dateTime }
+
+            /**
              * Merge a newly fetched hourly entity with the existing DB row, preserving any
              * non-null nullable fields from the existing row when the new fetch returned null.
              * Prevents a single bad fetch (e.g., NWS gridpoints failure that drops the skyCover
@@ -1056,9 +1075,15 @@ class ForecastRepository
             val minDateTime = entities.minOf { it.dateTime }
             val maxDateTime = entities.maxOf { it.dateTime }
             val sample = entities.first()
-            val existingByDateTime = hourlyForecastDao.getHourlyForecastsBySource(
-                minDateTime, maxDateTime, sample.locationLat, sample.locationLon, sample.source
-            ).associateBy { it.dateTime }
+            // Site-exact, not the raw proximity box: the change gate below must diff against the
+            // rows the renderer will actually read at this coordinate (see siteExactExistingByDateTime).
+            val existingByDateTime = siteExactExistingByDateTime(
+                hourlyForecastDao.getHourlyForecastsBySource(
+                    minDateTime, maxDateTime, sample.locationLat, sample.locationLon, sample.source
+                ),
+                sample.locationLat,
+                sample.locationLon,
+            )
 
             val mergedEntities = entities.map { newlyFetched ->
                 mergePreservingNullableFields(existingByDateTime[newlyFetched.dateTime], newlyFetched)

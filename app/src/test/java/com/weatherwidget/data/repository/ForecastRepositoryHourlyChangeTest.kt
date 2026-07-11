@@ -89,14 +89,51 @@ class ForecastRepositoryHourlyChangeTest {
         assertEquals(fetched, merged)
     }
 
+    @Test
+    fun `siteExactExistingByDateTime ignores a fresher row from a different coordinate fragment`() {
+        // 2026-07-10 Samsung bug: a GPS-jitter fragment absorbed the newest fetch (96% cloud),
+        // then the change gate compared the next fetch at the display site against THAT row,
+        // saw "no change", and never wrote — pinning the display site at the stale 67%.
+        val displaySiteStale = hourly(cloudCover = 67, fetchedAt = 1_000L, lat = 37.417, lon = -122.089)
+        val jitterFragmentFresh = hourly(cloudCover = 96, fetchedAt = 9_000L, lat = 37.422, lon = -122.087)
+
+        val existing = ForecastRepository.siteExactExistingByDateTime(
+            listOf(displaySiteStale, jitterFragmentFresh),
+            lat = 37.417,
+            lon = -122.089,
+        )
+
+        assertEquals(displaySiteStale, existing[displaySiteStale.dateTime])
+        // The revised value must therefore register as a meaningful change and be written.
+        val refetched = hourly(cloudCover = 96, fetchedAt = 10_000L, lat = 37.417, lon = -122.089)
+        assertTrue(ForecastRepository.hasMeaningfulHourlyChange(existing[refetched.dateTime], refetched))
+    }
+
+    @Test
+    fun `siteExactExistingByDateTime is empty when only other fragments have rows`() {
+        // Brand-new site: nothing to diff against, so every incoming row must be written
+        // (hasMeaningfulHourlyChange(null, x) == true) rather than being masked by neighbors.
+        val jitterFragment = hourly(cloudCover = 96, lat = 37.422, lon = -122.087)
+
+        val existing = ForecastRepository.siteExactExistingByDateTime(
+            listOf(jitterFragment),
+            lat = 37.417,
+            lon = -122.089,
+        )
+
+        assertTrue(existing.isEmpty())
+    }
+
     private fun hourly(
         precipProbability: Int? = 20,
         cloudCover: Int? = 55,
         fetchedAt: Long = 1L,
+        lat: Double = 37.42,
+        lon: Double = -122.08,
     ) = HourlyForecastEntity(
         dateTime = TestData.toEpoch("2026-03-14T21:00"),
-        locationLat = 37.42,
-        locationLon = -122.08,
+        locationLat = lat,
+        locationLon = lon,
         temperature = 60f,
         condition = "Mostly Clear",
         source = WeatherSource.NWS.id,
