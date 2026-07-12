@@ -190,7 +190,7 @@ class ZoomCycleRoboTest {
 
         stateManager.cycleZoomLevel(testWidgetId)
 
-        assertEquals(2, stateManager.getNavJump(testWidgetId))
+        assertEquals(1, stateManager.getNavJump(testWidgetId))
     }
 
     @Test
@@ -203,7 +203,7 @@ class ZoomCycleRoboTest {
         stateManager.setHourlyOffset(testWidgetId, 0)
         stateManager.cycleZoomLevel(testWidgetId)
         stateManager.navigateHourlyRight(testWidgetId)
-        assertEquals(2, stateManager.getHourlyOffset(testWidgetId))
+        assertEquals(1, stateManager.getHourlyOffset(testWidgetId))
 
         stateManager.navigateHourlyLeft(testWidgetId)
         assertEquals(0, stateManager.getHourlyOffset(testWidgetId))

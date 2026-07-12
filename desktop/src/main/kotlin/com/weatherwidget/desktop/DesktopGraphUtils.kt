@@ -76,7 +76,11 @@ internal object DesktopGraphUtils {
      * view skips past everything you were looking at); half-a-span keeps ~half the prior window in
      * frame at any zoom. At least 1h so the arrow always moves.
      */
-    fun navJumpHours(zoomFactor: Float): Int = (totalSpanHoursFor(zoomFactor) / 2).coerceAtLeast(1)
+    fun navJumpHours(zoomFactor: Float): Int {
+        val span = totalSpanHoursFor(zoomFactor)
+        if (span <= 4) return 1
+        return (span / 2).coerceAtLeast(1)
+    }
 
     private fun geomInterp(min: Int, max: Int, z: Float): Int {
         val zc = z.coerceIn(0f, 1f)

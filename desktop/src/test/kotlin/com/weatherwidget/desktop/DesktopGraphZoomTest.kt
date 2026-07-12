@@ -97,7 +97,8 @@ class DesktopGraphZoomTest {
         var z = 0f
         while (z <= 1f) {
             val span = DesktopGraphUtils.totalSpanHoursFor(z)
-            assertEquals("jump should be half the span at z=$z", (span / 2).coerceAtLeast(1), DesktopGraphUtils.navJumpHours(z))
+            val expected = if (span <= 4) 1 else (span / 2).coerceAtLeast(1)
+            assertEquals("jump should be half the span (or 1 for narrow) at z=$z", expected, DesktopGraphUtils.navJumpHours(z))
             z += 0.1f
         }
         // Zoomed in -> small jump (doesn't overshoot the window); zoomed out -> large jump.

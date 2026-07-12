@@ -25,7 +25,7 @@ enum class ZoomStage(
     val smoothIterations: Int,
 ) {
     WIDE(backHours = 12, forwardHours = 12, navJump = 6, labelInterval = 4, smoothIterations = 3),
-    NARROW(backHours = 2, forwardHours = 2, navJump = 2, labelInterval = 1, smoothIterations = 1),
+    NARROW(backHours = 2, forwardHours = 2, navJump = 1, labelInterval = 1, smoothIterations = 1),
     THREE_DAY(backHours = 48, forwardHours = 24, navJump = 12, labelInterval = 12, smoothIterations = 3),
     ;
 

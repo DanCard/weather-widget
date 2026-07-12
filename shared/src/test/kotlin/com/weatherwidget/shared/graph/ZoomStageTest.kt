@@ -61,7 +61,7 @@ class ZoomStageTest {
 
         assertEquals(2L, ZoomStage.NARROW.backHours)
         assertEquals(2L, ZoomStage.NARROW.forwardHours)
-        assertEquals(2, ZoomStage.NARROW.navJump)
+        assertEquals(1, ZoomStage.NARROW.navJump)
         assertEquals(1, ZoomStage.NARROW.labelInterval)
         assertEquals(1, ZoomStage.NARROW.smoothIterations)
 

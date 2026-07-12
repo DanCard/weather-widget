@@ -135,7 +135,7 @@ class WidgetStateManagerTest {
         assertEquals(6, stateManager.getNavJump(testWidgetId))
 
         stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(2, stateManager.getNavJump(testWidgetId))
+        assertEquals(1, stateManager.getNavJump(testWidgetId))
     }
 
     @Test
@@ -144,7 +144,7 @@ class WidgetStateManagerTest {
 
         val result = stateManager.navigateHourlyRight(testWidgetId)
 
-        assertEquals(2, result)
+        assertEquals(1, result)
     }
 
     @Test
@@ -154,7 +154,7 @@ class WidgetStateManagerTest {
 
         val result = stateManager.navigateHourlyLeft(testWidgetId)
 
-        assertEquals(4, result)
+        assertEquals(5, result)
     }
 
     @Test
@@ -306,7 +306,7 @@ class WidgetStateManagerTest {
 
         assertEquals(2L, ZoomLevel.NARROW.backHours)
         assertEquals(2L, ZoomLevel.NARROW.forwardHours)
-        assertEquals(2, ZoomLevel.NARROW.navJump)
+        assertEquals(1, ZoomLevel.NARROW.navJump)
         assertEquals(1, ZoomLevel.NARROW.labelInterval)
         assertEquals(1, ZoomLevel.NARROW.smoothIterations)
     }
