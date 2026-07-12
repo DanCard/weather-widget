@@ -975,11 +975,8 @@ object DailyForecastGraphRenderer {
                 val sIsRainy = day.snapshotIconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false
                 val sIsMixed = day.snapshotIconRes?.let { WeatherIconMapper.isMixed(it) } ?: false
 
-                var sCondColor = WeatherConditionColors.forecastColor(sIsSunny, sIsRainy, sIsMixed, isNight = false)
-                // If sunny or no icon info available, stick to the bright yellow high-contrast snapshot color.
-                if (sCondColor == WeatherConditionColors.FORECAST_SUNNY || day.snapshotIconRes == null) {
-                    sCondColor = paints.todaySnapshotYellowPaint.color
-                }
+                val sCondColor = com.weatherwidget.shared.util.WeatherColors.snapshotBarOverrideArgb(sIsRainy)
+                    ?: paints.todaySnapshotYellowPaint.color
                 val sPaint = paints.todayForecastForColor(sCondColor)
 
                 // The snapshot bar (yesterday's forecast for today) describes the same day as

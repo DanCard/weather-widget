@@ -165,17 +165,9 @@ fun DailyForecastGraph(
 
             if (day.isToday) {
                 val snapshotFlags = WeatherIcon.getConditionFlags(day.snapshot?.condition)
-                val sCondColor = when {
-                    snapshotFlags.isRainy -> COLOR_FORECAST_RAINY
-                    snapshotFlags.isMixed -> COLOR_FORECAST_SUNNY
-                    snapshotFlags.isSunny -> COLOR_FORECAST_SUNNY
-                    else -> COLOR_FORECAST_CLOUDY
-                }
-                val snapshotColor = if (sCondColor == COLOR_FORECAST_SUNNY || day.snapshot?.condition == null) {
-                    Color.Yellow
-                } else {
-                    sCondColor
-                }
+                val snapshotColor = com.weatherwidget.shared.util.WeatherColors
+                    .snapshotBarOverrideArgb(snapshotFlags.isRainy)
+                    ?.let { Color(it) } ?: Color.Yellow
 
                 // Both today bars carry today's cloud-cover ratio (same day); the rain-vs-cloud
                 // bottom color follows each bar's own condition (live forecast vs 24h-prior snapshot).

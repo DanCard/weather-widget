@@ -1064,4 +1064,35 @@ class DailyForecastGraphRendererRoboTest {
         assertEquals(expectedYellow, snapshotBar!!.color)
         assertTrue("Snapshot bar should have adaptive segments", snapshotBar.adaptiveSegments)
     }
+
+    @Test
+    fun snapshotBar_cloudyCondition_keepsYellowBase() {
+        val date = LocalDate.of(2026, 2, 3)
+        // A cloudy snapshot condition (e.g. NWS "Mostly Cloudy") must keep the bright yellow
+        // base — cloudiness is carried by the adaptive split's grey bottom segment. A grey base
+        // used to render the whole bar as a solid-grey slab.
+        val snapshotIconRes = R.drawable.ic_weather_mostly_cloudy
+
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = date,
+                label = "Today",
+                solidLineHigh = 80f,
+                solidLineLow = 60f,
+                isToday = true,
+                snapshotHigh = 75f,
+                snapshotLow = 65f,
+                snapshotIconRes = snapshotIconRes
+            )
+        )
+
+        val results = render(days)
+        val snapshotBar = results.find { it.barType == "TODAY_SNAPSHOT" }
+        assertNotNull("Snapshot bar should be drawn", snapshotBar)
+
+        val expectedYellow = 0xFFFFFF00.toInt()
+        assertEquals(expectedYellow, snapshotBar!!.color)
+        assertNotEquals(WeatherConditionColors.FORECAST_CLOUDY, snapshotBar.color)
+        assertTrue("Snapshot bar should have adaptive segments", snapshotBar.adaptiveSegments)
+    }
 }

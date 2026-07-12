@@ -42,6 +42,15 @@ object WeatherColors {
     )
 
     /**
+     * Base color for the today-column 24h-prior snapshot bar. Rain keeps the blue base
+     * ("yesterday they predicted rain" stays visible); anything else — including cloudy —
+     * returns null, meaning the platform's bright snapshot yellow. Cloudiness is carried by
+     * the adaptive split's grey bottom segment, never by greying the base: a grey base plus
+     * a grey split bottom rendered the whole bar as an unreadable solid-grey slab.
+     */
+    fun snapshotBarOverrideArgb(isRainy: Boolean): Int? = if (isRainy) FORECAST_RAINY else null
+
+    /**
      * Single source of truth for the cloud/rain bar split shared by Android and desktop.
      * Returns null when there's no cloud ratio (the caller should draw a solid bar).
      * Each platform supplies [cloudRatio] (0..1) and [isChanceOfRain] from its own icon model.
