@@ -13,6 +13,7 @@ Date: 2026-07-13
 * **[DaemonProcess](file:///home/dcar/projects/weather-widget/desktop/src/main/kotlin/com/weatherwidget/desktop/DaemonProcess.kt)**:
   * Eliminated the background `CURRENT_TEMP_UI_INTERVAL_MS` DB polling loop.
   * Configured `PanelIpcServer` with the new callback which resolves temperature in-memory when a client connects.
+  * Added a lightweight, minute-aligned panel refresh loop that triggers `xfce4-panel` to refresh without performing any database/disk I/O, ensuring the panel updates its display dynamically even when configured with slow default poll periods.
   * Added `.data-updated` trigger notification to broadcast cache updates to the UI process when database fetches succeed or fail.
   * Handled the `.data-updated` watch service events in the daemon to reload cached state immediately.
 * **[Main (UI Process)](file:///home/dcar/projects/weather-widget/desktop/src/main/kotlin/com/weatherwidget/desktop/Main.kt)**:
