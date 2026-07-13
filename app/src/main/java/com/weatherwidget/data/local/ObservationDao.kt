@@ -57,6 +57,19 @@ interface ObservationDao {
     @Query("SELECT * FROM observations WHERE stationId = :stationId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLatestForStation(stationId: String): ObservationEntity?
 
+    // fetchedAt records the last completed fetch *attempt* for the station, not just the last
+    // stored data: a fetch that completes but yields nothing storable (station publishing
+    // null-temperature reports) touches the newest row so the observations UI can distinguish a
+    // silent station (Reported old, Fetched fresh) from a stalled pipeline (both old).
+    @Query(
+        """
+        UPDATE observations SET fetchedAt = :nowMs
+        WHERE stationId = :stationId
+          AND timestamp = (SELECT MAX(timestamp) FROM observations WHERE stationId = :stationId)
+    """,
+    )
+    suspend fun touchLatestFetchedAt(stationId: String, nowMs: Long)
+
     @Query("""
         SELECT * FROM observations
         WHERE stationId LIKE '%\_MAIN' ESCAPE '\'

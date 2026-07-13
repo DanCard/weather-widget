@@ -182,7 +182,19 @@ class ObservationRepository @Inject constructor(
             observation
         }
 
-        if (finalObservation == null) return null
+        if (finalObservation == null) {
+            // The attempt completed (NWS valid-observation walk + Synoptic fallback) but yielded
+            // nothing storable — e.g. a station publishing only null-temperature reports (KNUQ
+            // 2026-07-13). Record the attempt on the newest stored row so the observations UI
+            // shows a fresh "Fetched" against an old "Reported" instead of both frozen.
+            observationDao.touchLatestFetchedAt(stationInfo.id, System.currentTimeMillis())
+            appLogDao.log(
+                "OBS_ATTEMPT_TOUCH",
+                "station=${stationInfo.id} reason=no_valid_observation attempt=$attempt",
+                "INFO",
+            )
+            return null
+        }
 
         if (attempt > 0) {
             appLogDao.log("NWS_STATION_RETRY_OK", "station=${stationInfo.id} attempt=$attempt", "INFO")

@@ -1,0 +1,81 @@
+package com.weatherwidget.data.local
+
+import androidx.room.Room
+import com.weatherwidget.test.category.LongDuration
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Before
+import org.junit.Test
+import org.junit.experimental.categories.Category
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+
+/**
+ * touchLatestFetchedAt marks a completed fetch *attempt* on a station whose fetch yielded
+ * nothing storable (KNUQ 2026-07-13: feed publishing only null-temperature reports). It must
+ * refresh fetchedAt on exactly the station's newest row — older rows and other stations keep
+ * their original stamps, and an unknown station is a no-op.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Category(LongDuration::class)
+class ObservationDaoTouchTest {
+
+    private lateinit var db: WeatherDatabase
+    private lateinit var dao: ObservationDao
+
+    private fun obs(stationId: String, timestamp: Long, fetchedAt: Long) = ObservationEntity(
+        stationId = stationId,
+        stationName = "$stationId name",
+        timestamp = timestamp,
+        temperature = 70f,
+        condition = "Fair",
+        locationLat = 37.42,
+        locationLon = -122.08,
+        fetchedAt = fetchedAt,
+        api = "NWS",
+    )
+
+    @Before
+    fun setup() {
+        val context = RuntimeEnvironment.getApplication()
+        db = Room.inMemoryDatabaseBuilder(context, WeatherDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        dao = db.observationDao()
+    }
+
+    @After
+    fun teardown() {
+        db.close()
+    }
+
+    @Test
+    fun touch_updatesOnlyNewestRowOfTargetStation() = runTest {
+        dao.insertAll(
+            listOf(
+                obs("KNUQ", timestamp = 1_000L, fetchedAt = 1_500L),
+                obs("KNUQ", timestamp = 2_000L, fetchedAt = 2_500L), // newest KNUQ row
+                obs("KSJC", timestamp = 3_000L, fetchedAt = 3_500L), // different station
+            ),
+        )
+
+        dao.touchLatestFetchedAt("KNUQ", nowMs = 9_000L)
+
+        val knuq = dao.getRecentObservations(0L).filter { it.stationId == "KNUQ" }.sortedBy { it.timestamp }
+        assertEquals(1_500L, knuq[0].fetchedAt) // older row untouched
+        assertEquals(9_000L, knuq[1].fetchedAt) // newest row records the attempt
+        assertEquals(3_500L, dao.getLatestForStation("KSJC")?.fetchedAt) // other station untouched
+    }
+
+    @Test
+    fun touch_unknownStationIsNoOp() = runTest {
+        dao.insertAll(listOf(obs("KSJC", timestamp = 3_000L, fetchedAt = 3_500L)))
+
+        dao.touchLatestFetchedAt("KNUQ", nowMs = 9_000L)
+
+        assertEquals(3_500L, dao.getLatestForStation("KSJC")?.fetchedAt)
+        assertEquals(1, dao.getRecentObservations(0L).size) // nothing inserted
+    }
+}

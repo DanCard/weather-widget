@@ -491,6 +491,30 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     }
 
     /**
+     * Marks a completed fetch *attempt* on a station's newest observation row. A fetch that
+     * completes but yields nothing storable (station publishing null-temperature reports) would
+     * otherwise leave fetchedAt frozen at the last stored data, making a silent station look like
+     * a stalled pipeline in the stations list. Touching only the newest row is sufficient — the
+     * UI displays one row per station.
+     */
+    fun touchLatestObservationFetchedAt(stationId: String, nowMs: Long) {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                UPDATE observations SET fetchedAt = ?
+                WHERE stationId = ?
+                  AND timestamp = (SELECT MAX(timestamp) FROM observations WHERE stationId = ?)
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.setLong(1, nowMs)
+                stmt.setString(2, stationId)
+                stmt.setString(3, stationId)
+                stmt.executeUpdate()
+            }
+        }
+    }
+
+    /**
      * Like [getRecentLogs] but restricts to the given tags in SQL, so the [limit] counts only
      * matching rows. The verbose current-temp tags (e.g. CurrentTempResolver, ~21k rows) otherwise
      * swamp any all-tag fetch then in-memory filter, starving the result to near-zero rows.

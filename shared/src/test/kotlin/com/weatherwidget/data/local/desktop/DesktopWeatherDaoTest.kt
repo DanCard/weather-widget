@@ -113,6 +113,42 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `touch latest fetchedAt updates only the target station's newest row`() {
+        val lat = 40.0
+        val lon = -75.0
+        fun obs(stationId: String, timestamp: Long, fetchedAt: Long) = DesktopObservationEntity(
+            stationId = stationId,
+            stationName = "$stationId name",
+            timestamp = timestamp,
+            temperature = 70f,
+            condition = "Fair",
+            locationLat = lat,
+            locationLon = lon,
+            fetchedAt = fetchedAt,
+            api = "NWS",
+        )
+        dao.upsertObservations(
+            listOf(
+                obs("KNUQ", timestamp = 1_000L, fetchedAt = 1_500L),
+                obs("KNUQ", timestamp = 2_000L, fetchedAt = 2_500L), // newest KNUQ row
+                obs("KSJC", timestamp = 3_000L, fetchedAt = 3_500L), // different station
+            )
+        )
+
+        dao.touchLatestObservationFetchedAt("KNUQ", nowMs = 9_000L)
+
+        val byStation = dao.getRecentObservations(0L).groupBy { it.stationId }
+        val knuq = byStation.getValue("KNUQ").sortedBy { it.timestamp }
+        assertEquals(1_500L, knuq[0].fetchedAt) // older row untouched
+        assertEquals(9_000L, knuq[1].fetchedAt) // newest row records the attempt
+        assertEquals(3_500L, byStation.getValue("KSJC").single().fetchedAt) // other station untouched
+
+        // Unknown station is a no-op: nothing inserted, nothing changed.
+        dao.touchLatestObservationFetchedAt("KPAO", nowMs = 9_999L)
+        assertEquals(3, dao.getRecentObservations(0L).size)
+    }
+
+    @Test
     fun `test observation round-trip`() {
         val lat = 40.0
         val lon = -75.0

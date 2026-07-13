@@ -358,6 +358,12 @@ class DesktopWeatherService(
                 if (historical.isNotEmpty()) {
                     ObservationBundle(station, latest, historical, isWebFallback = false)
                 } else {
+                    // Attempt completed but the station yielded nothing storable (e.g. publishing
+                    // only null-temperature reports). Record the attempt on the newest stored row
+                    // so the stations list shows a fresh "Fetched" against an old "Reported"
+                    // (silent station) instead of both timestamps frozen (stalled pipeline).
+                    weatherDao?.touchLatestObservationFetchedAt(station.id, System.currentTimeMillis())
+                    weatherDao?.log("OBS_ATTEMPT_TOUCH", "station=${station.id} reason=no_valid_observation", "INFO")
                     null
                 }
             }
