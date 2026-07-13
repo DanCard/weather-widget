@@ -249,6 +249,9 @@ fun runDaemon() {
         weatherDao.log(WakeEventLog.TAG, WakeEventLog.message("resume:$reason"), "INFO")
         weatherDao.log("RESUME_DETECT", "resume detected ($reason) — catch-up refresh in ${pauseMs}ms", "INFO")
         Log.i(TAG, "Resume detected ($reason) — catch-up refresh in ${pauseMs}ms.")
+        if (catchUpRefreshJob?.isActive == true) {
+            weatherDao.log("RESUME_DETECT", "superseding pending catch-up job (last-wins)", "INFO")
+        }
         catchUpRefreshJob?.cancel()
         catchUpRefreshJob = daemonScope.launch {
             delay(pauseMs)
@@ -278,6 +281,11 @@ fun runDaemon() {
         weatherDao.log(WakeEventLog.TAG, WakeEventLog.message("network:restored"), "INFO")
         weatherDao.log("NETWORK_DETECT", "connectivity restored — catch-up refresh in ${pauseMs}ms", "INFO")
         Log.i(TAG, "Network connectivity restored — catch-up refresh in ${pauseMs}ms.")
+        if (catchUpRefreshJob?.isActive == true) {
+            // Expected on resume: this kick supersedes the resume kick still sleeping in its
+            // warm-up hold-off (last-wins), so the fetch runs as soon as NM confirms the link.
+            weatherDao.log("NETWORK_DETECT", "superseding pending catch-up job (last-wins)", "INFO")
+        }
         catchUpRefreshJob?.cancel()
         catchUpRefreshJob = daemonScope.launch {
             delay(pauseMs)

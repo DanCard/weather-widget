@@ -213,6 +213,9 @@ private fun runApp() = application {
         var currentTempFetchIsWarmup by remember { mutableStateOf(false) }
         var currentTempFetchTimestamp by remember { mutableStateOf(0L) }
         var dismissedErrorTimestamp by remember { mutableStateOf(0L) }
+        // Banner state lives only in this UI process; without a durable transition row the
+        // "did a banner appear during that resume?" question is unanswerable after the fact.
+        var lastLoggedBannerState by remember { mutableStateOf("none") }
         val uiScope = rememberCoroutineScope()
         val currentConfig = config
 
@@ -415,11 +418,25 @@ private fun runApp() = application {
                 }
             }
 
+            fun logBannerTransition() {
+                val state = when {
+                    currentTempFetchError == null -> "none"
+                    currentTempFetchIsWarmup -> "warmup"
+                    else -> "error"
+                }
+                if (state != lastLoggedBannerState) {
+                    weatherDao.log("CURR_TEMP_BANNER", "state=$state (was $lastLoggedBannerState)", "INFO")
+                    lastLoggedBannerState = state
+                }
+            }
+
             updateStatus()
+            logBannerTransition()
 
             while (true) {
                 kotlinx.coroutines.delay(CURRENT_TEMP_UI_INTERVAL_MS)
                 updateStatus()
+                logBannerTransition()
             }
         }
 
