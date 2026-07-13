@@ -22,6 +22,8 @@ Date: 2026-07-13
   * Added a `dataUpdateCount` edge-trigger state, passed as key to the status banner `LaunchedEffect` block.
   * Extended the directory watch service to listen for `.data-updated` triggers, reload cached forecast data, and increment `dataUpdateCount` to update the error banner.
   * Implemented network warmup grace period auto-expiration via a target delay coroutine rather than checking periodically.
+* **[CurrentTemperatureResolver](file:///home/dcar/projects/weather-widget/shared/src/main/kotlin/com/weatherwidget/widget/CurrentTemperatureResolver.kt)**:
+  * Changed log level of `CURR_TEMP_RESULT` to `VERBOSE` to stop high-frequency logging from executing synchronous SQLite database writes during UI frame updates and IPC connection handling.
 
 ## Verification Results
 
