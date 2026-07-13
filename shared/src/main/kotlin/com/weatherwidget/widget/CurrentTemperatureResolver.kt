@@ -253,6 +253,7 @@ object CurrentTemperatureResolver {
             "resolve:final display=${formatTemp(displayTemp)} estimate=${formatTemp(estimatedTemp)} " +
                 "obs=${formatTemp(lastObservedTemp)} delta=${appliedDelta?.let { String.format("%.2f", it) } ?: "none"} " +
                 "estAtObs=${formatTemp(estimatedAtObservationTime)} stale=$isStaleEstimate",
+            level = "VERBOSE",
         )
 
         return CurrentTemperatureResolution(
