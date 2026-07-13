@@ -12,8 +12,10 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
+import com.weatherwidget.data.remote.shouldTouchObservationFetchedAt
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -152,29 +154,27 @@ class ObservationRepository @Inject constructor(
         longitude: Double,
         attempt: Int = 0,
     ): ObservationEntity? {
-        val observation = try {
-            nwsApi.getLatestObservationDetailed(stationInfo.id)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            val reason = e.message ?: "null_response"
-            appLogDao.log("NWS_STATION_FAIL", "station=${stationInfo.id} attempt=$attempt reason=$reason", "WARN")
-            Log.w(TAG, "NWS station ${stationInfo.id} attempt $attempt failed: $reason")
-            null
-        }
+        val nwsOutcome = nwsApi.getLatestObservationDetailedResult(stationInfo.id)
+        val observation = nwsOutcome.valueOrNull()
 
         val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
         val isStale = observation == null || runCatching { OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
 
         var isWeb = false
+        var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
         val finalObservation = if (isStale && synopticApi != null) {
-            val fallbackReason = if (observation == null) "fail" else "stale"
+            val fallbackReason = when (nwsOutcome) {
+                is FetchOutcome.Success -> "stale"
+                is FetchOutcome.NoData -> "no_valid_data"
+                is FetchOutcome.Failed -> "fail"
+            }
             appLogDao.log("NWS_STATION_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
             Log.i(TAG, "Latest NWS observation for ${stationInfo.id} is missing or stale ($fallbackReason). Querying Synoptic fallback...")
-            val synopticList = synopticApi.fetchSynopticObservations(stationInfo.id, 60, stationInfo.name)
-            if (synopticList != null) {
+            synopticOutcome = synopticApi.fetchSynopticObservations(stationInfo.id, 60, stationInfo.name)
+            val synopticLatest = synopticOutcome.valueOrNull()?.lastOrNull()
+            if (synopticLatest != null) {
                 isWeb = true
-                synopticList.lastOrNull()
+                synopticLatest
             } else {
                 observation
             }
@@ -183,16 +183,29 @@ class ObservationRepository @Inject constructor(
         }
 
         if (finalObservation == null) {
-            // The attempt completed (NWS valid-observation walk + Synoptic fallback) but yielded
-            // nothing storable — e.g. a station publishing only null-temperature reports (KNUQ
-            // 2026-07-13). Record the attempt on the newest stored row so the observations UI
-            // shows a fresh "Fetched" against an old "Reported" instead of both frozen.
-            observationDao.touchLatestFetchedAt(stationInfo.id, System.currentTimeMillis())
-            appLogDao.log(
-                "OBS_ATTEMPT_TOUCH",
-                "station=${stationInfo.id} reason=no_valid_observation attempt=$attempt",
-                "INFO",
-            )
+            if (shouldTouchObservationFetchedAt(nwsOutcome, synopticOutcome)) {
+                // The attempt completed and at least one upstream definitively had nothing
+                // storable — e.g. a station publishing only null-temperature reports (KNUQ
+                // 2026-07-13). Record the attempt on the newest stored row so the observations
+                // UI shows a fresh "Fetched" against an old "Reported" instead of both frozen.
+                observationDao.touchLatestFetchedAt(stationInfo.id, System.currentTimeMillis())
+                appLogDao.log(
+                    "OBS_ATTEMPT_TOUCH",
+                    "station=${stationInfo.id} reason=no_valid_observation attempt=$attempt",
+                    "INFO",
+                )
+            } else {
+                // Every upstream failed outright — we learned nothing about the station, so its
+                // fetchedAt stays frozen and the failure is reported instead.
+                val nwsReason = (nwsOutcome as? FetchOutcome.Failed)?.reason ?: "unknown"
+                val synopticReason = (synopticOutcome as? FetchOutcome.Failed)?.reason ?: "not_tried"
+                appLogDao.log(
+                    "NWS_STATION_FAIL",
+                    "station=${stationInfo.id} attempt=$attempt nws=$nwsReason synoptic=$synopticReason",
+                    "WARN",
+                )
+                Log.w(TAG, "NWS station ${stationInfo.id} attempt $attempt failed: nws=$nwsReason synoptic=$synopticReason")
+            }
             return null
         }
 
@@ -313,7 +326,7 @@ class ObservationRepository @Inject constructor(
                     appLogDao.log("NWS_DAILY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
                     Log.i(TAG, "Daily backfill NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
                     val minutes = WeatherConfig.NWS_BACKFILL_DAYS * 24 * 60L
-                    val synopticList = synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name)
+                    val synopticList = synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name).valueOrNull()
                     if (synopticList != null) {
                         isWeb = true
                         synopticList
@@ -446,7 +459,7 @@ class ObservationRepository @Inject constructor(
                     appLogDao.log("OBS_HOURLY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
                     Log.i(TAG, "Hourly NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
                     val minutes = lookbackHours * 60L
-                    val synopticList = synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name)
+                    val synopticList = synopticApi.fetchSynopticObservations(stationInfo.id, minutes, stationInfo.name).valueOrNull()
                     if (synopticList != null) {
                         isWeb = true
                         synopticList

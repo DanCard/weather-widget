@@ -40,7 +40,8 @@ class DesktopSynopticFallbackTest {
         )
         
         coEvery { mockNwsApi.getObservations(any(), any(), any()) } returns listOf(mockNwsObs)
-        coEvery { mockNwsApi.getLatestObservationDetailed(any()) } returns mockNwsObs
+        coEvery { mockNwsApi.getLatestObservationDetailedResult(any(), any()) } returns
+            com.weatherwidget.data.remote.FetchOutcome.Success(mockNwsObs)
 
         // Set the private field 'nwsApi' using reflection
         val nwsApiField = DesktopWeatherService::class.java.getDeclaredField("nwsApi")

@@ -507,7 +507,7 @@ class NwsApiTest {
                 }
 
             val api = NwsApi(client, json)
-            val obs = api.getLatestObservationDetailed("KNUQ")
+            val obs = api.getLatestObservationDetailedResult("KNUQ").valueOrNull()
 
             assertNotNull(obs)
             assertEquals(22.0f, obs!!.temperatureCelsius)
@@ -561,7 +561,7 @@ class NwsApiTest {
                 }
 
             val api = NwsApi(client, json)
-            val obs = api.getLatestObservationDetailed("KNUQ")
+            val obs = api.getLatestObservationDetailedResult("KNUQ").valueOrNull()
 
             assertNotNull(obs)
             assertEquals(15.0f, obs!!.temperatureCelsius)
@@ -611,7 +611,7 @@ class NwsApiTest {
                 }
 
             val api = NwsApi(client, json)
-            val obs = api.getLatestObservationDetailed("KNUQ")
+            val obs = api.getLatestObservationDetailedResult("KNUQ").valueOrNull()
 
             assertNotNull(obs)
             assertEquals(20.0f, obs!!.temperatureCelsius)
@@ -736,7 +736,7 @@ class NwsApiTest {
                 }
 
             val api = NwsApi(client, json)
-            val obs = api.getLatestObservationDetailed("KNUQ")
+            val obs = api.getLatestObservationDetailedResult("KNUQ").valueOrNull()
 
             assertNotNull(obs)
             assertEquals(22.5f, obs!!.temperatureCelsius)

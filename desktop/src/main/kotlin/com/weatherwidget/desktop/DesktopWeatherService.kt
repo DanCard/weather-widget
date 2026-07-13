@@ -330,16 +330,22 @@ class DesktopWeatherService(
         
         val deferreds = stations.take(MAX_OBSERVATION_STATIONS).mapIndexed { index, station ->
             async {
-                val historical = bestEffort("historical observations ${station.id}") {
-                    nwsApi.getObservations(station.id, start.toString(), end.toString()).also { obs ->
-                        Log.i(TAG, "historical observations: station=${station.id} type=${station.type} count=${obs.size}")
-                    }
-                }.orEmpty()
-                
+                // Tri-state, not bestEffort: an empty history (station definitively silent) and a
+                // failed request (nothing learned) demand opposite fetchedAt handling below.
+                val historicalOutcome: FetchOutcome<List<NwsApi.Observation>> = try {
+                    val obs = nwsApi.getObservations(station.id, start.toString(), end.toString())
+                    Log.i(TAG, "historical observations: station=${station.id} type=${station.type} count=${obs.size}")
+                    if (obs.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(obs)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "historical observations ${station.id} fetch failed: $e")
+                    FetchOutcome.failed(e)
+                }
+                val historical = historicalOutcome.valueOrNull().orEmpty()
+
                 val latest = if (historical.isNotEmpty()) {
-                    bestEffort("latest observation ${station.id}") {
-                        nwsApi.getLatestObservationDetailed(station.id)
-                    }
+                    nwsApi.getLatestObservationDetailedResult(station.id).valueOrNull()
                 } else {
                     null
                 }
@@ -347,40 +353,37 @@ class DesktopWeatherService(
                 val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
                 val isStale = latest == null || runCatching { ZonedDateTime.parse(latest.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
 
+                var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
                 if (index < 2 && isStale) {
                     Log.i(TAG, "NWS API observations for ${station.id} are stale or missing. Querying Synoptic fallback...")
-                    val synopticBundle = fetchSynopticObservations(station, historyDays)
-                    if (synopticBundle != null) {
-                        return@async synopticBundle
+                    synopticOutcome = synopticApi.fetchSynopticObservations(station.id, historyDays * 24 * 60, station.name)
+                    val obsList = synopticOutcome.valueOrNull()
+                    if (!obsList.isNullOrEmpty()) {
+                        return@async ObservationBundle(station, obsList.last(), obsList.dropLast(1), isWebFallback = true)
                     }
                 }
 
                 if (historical.isNotEmpty()) {
                     ObservationBundle(station, latest, historical, isWebFallback = false)
-                } else {
-                    // Attempt completed but the station yielded nothing storable (e.g. publishing
-                    // only null-temperature reports). Record the attempt on the newest stored row
-                    // so the stations list shows a fresh "Fetched" against an old "Reported"
-                    // (silent station) instead of both timestamps frozen (stalled pipeline).
+                } else if (shouldTouchObservationFetchedAt(historicalOutcome, synopticOutcome)) {
+                    // Attempt completed but the station definitively yielded nothing storable
+                    // (e.g. publishing only null-temperature reports). Record the attempt on the
+                    // newest stored row so the stations list shows a fresh "Fetched" against an
+                    // old "Reported" (silent station) instead of both timestamps frozen.
                     weatherDao?.touchLatestObservationFetchedAt(station.id, System.currentTimeMillis())
                     weatherDao?.log("OBS_ATTEMPT_TOUCH", "station=${station.id} reason=no_valid_observation", "INFO")
+                    null
+                } else {
+                    // Every upstream failed outright — leave fetchedAt frozen (a dead network
+                    // must not masquerade as a silent station) and report the failure durably.
+                    val nwsReason = (historicalOutcome as? FetchOutcome.Failed)?.reason ?: "unknown"
+                    val synopticReason = (synopticOutcome as? FetchOutcome.Failed)?.reason ?: "not_tried"
+                    weatherDao?.log("NWS_STATION_FAIL", "station=${station.id} nws=$nwsReason synoptic=$synopticReason", "WARN")
                     null
                 }
             }
         }
         deferreds.mapNotNull { it.await() }
-    }
-
-    private suspend fun fetchSynopticObservations(
-        station: NwsApi.StationInfo,
-        historyDays: Long
-    ): ObservationBundle? = bestEffort("Synoptic fallback for ${station.id}") {
-        val minutes = historyDays * 24 * 60
-        val obsList = synopticApi.fetchSynopticObservations(station.id, minutes, station.name) ?: return@bestEffort null
-        if (obsList.isEmpty()) return@bestEffort null
-        val latest = obsList.last()
-        val historical = obsList.dropLast(1)
-        ObservationBundle(station, latest, historical, isWebFallback = true)
     }
 
     private data class ObservationBundle(

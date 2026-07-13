@@ -72,6 +72,62 @@ class NwsApi
                     type = classifyStationType(id),
                 )
             }
+
+            internal fun parseObservationProperties(props: JsonObject, defaultStationName: String): Observation? {
+                val timestamp = props["timestamp"]?.jsonPrimitive?.content ?: return null
+                val stationName = props["stationName"]?.jsonPrimitive?.content ?: defaultStationName
+
+                // Temperature is in a value object with unitCode
+                val tempObj = props["temperature"]?.jsonObject
+                val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull() ?: return null
+
+                val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
+
+                val maxTempObj = props["maxTemperatureLast24Hours"]?.jsonObject
+                val maxTempValue = maxTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
+                val minTempObj = props["minTemperatureLast24Hours"]?.jsonObject
+                val minTempValue = minTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
+
+                // Measured precip from NWS observations (mm). Only the last-hour amount is used;
+                // it's summed across a day's observations for measured daily/day-night totals.
+                val precipLastHourObj = props["precipitationLastHour"]?.jsonObject
+                val precipLastHourMm = precipLastHourObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
+
+                return Observation(
+                    timestamp = timestamp,
+                    temperatureCelsius = tempValue.toFloat(),
+                    textDescription = textDescription,
+                    stationName = stationName,
+                    maxTempLast24hCelsius = maxTempValue,
+                    minTempLast24hCelsius = minTempValue,
+                    precipLastHourMm = precipLastHourMm,
+                )
+            }
+
+            /**
+             * Pure half of the latest-valid-observation lookup: walks the station's recent
+             * reports (newest first) for one that parses to a usable observation (a report with
+             * a null temperature — e.g. KNUQ during its 2026-07-13 feed corruption — is not
+             * usable). Kept HTTP-free so fixture JSON can drive the outcome matrix in tests.
+             * NoData = well-formed response with no usable report; Failed = malformed response.
+             */
+            internal fun selectValidObservation(json: Json, responseJson: String, stationId: String): FetchOutcome<Observation> {
+                return try {
+                    val jsonObj = json.parseToJsonElement(responseJson).jsonObject
+                    val features = jsonObj["features"]?.jsonArray
+                        ?: return FetchOutcome.Failed("missing features array")
+                    for (feature in features) {
+                        val props = feature.jsonObject["properties"]?.jsonObject ?: continue
+                        val obs = parseObservationProperties(props, stationId)
+                        if (obs != null) {
+                            return FetchOutcome.Success(obs)
+                        }
+                    }
+                    FetchOutcome.NoData
+                } catch (e: Exception) {
+                    FetchOutcome.Failed("parse: ${e.message}")
+                }
+            }
         }
 
         suspend fun getGridPoint(
@@ -430,69 +486,35 @@ class NwsApi
             return result
         }
 
-        private fun parseObservationProperties(props: JsonObject, defaultStationName: String): Observation? {
-            val timestamp = props["timestamp"]?.jsonPrimitive?.content ?: return null
-            val stationName = props["stationName"]?.jsonPrimitive?.content ?: defaultStationName
-
-            // Temperature is in a value object with unitCode
-            val tempObj = props["temperature"]?.jsonObject
-            val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull() ?: return null
-
-            val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
-
-            val maxTempObj = props["maxTemperatureLast24Hours"]?.jsonObject
-            val maxTempValue = maxTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
-            val minTempObj = props["minTemperatureLast24Hours"]?.jsonObject
-            val minTempValue = minTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
-
-            // Measured precip from NWS observations (mm). Only the last-hour amount is used;
-            // it's summed across a day's observations for measured daily/day-night totals.
-            val precipLastHourObj = props["precipitationLastHour"]?.jsonObject
-            val precipLastHourMm = precipLastHourObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
-
-            return Observation(
-                timestamp = timestamp,
-                temperatureCelsius = tempValue.toFloat(),
-                textDescription = textDescription,
-                stationName = stationName,
-                maxTempLast24hCelsius = maxTempValue,
-                minTempLast24hCelsius = minTempValue,
-                precipLastHourMm = precipLastHourMm,
-            )
-        }
-
-        suspend fun getLatestObservationDetailed(stationId: String): Observation? {
-            return getRecentValidObservationDetailed(stationId, limit = 10)
-        }
-
-        private suspend fun getRecentValidObservationDetailed(stationId: String, limit: Int = 10): Observation? {
-            return try {
-                val response: String =
-                    httpClient.get("$BASE_URL/stations/$stationId/observations?limit=$limit") {
-                        header("User-Agent", USER_AGENT)
-                        header("Accept", "application/geo+json")
-                    }.body()
-
-                val jsonObj = json.parseToJsonElement(response).jsonObject
-                val features = jsonObj["features"]?.jsonArray ?: return null
-
-                for (feature in features) {
-                    val props = feature.jsonObject["properties"]?.jsonObject ?: continue
-                    val obs = parseObservationProperties(props, stationId)
-                    if (obs != null) {
-                        Log.d("NwsApi", "getRecentValidObservationDetailed: Fallback for $stationId found valid data from ${obs.timestamp}")
-                        return obs
-                    }
-                }
-                
-                Log.w("NwsApi", "getRecentValidObservationDetailed: Fallback for $stationId found no valid data in last $limit observations")
-                null
+        /**
+         * Latest usable observation for a station, walking its recent reports (newest first)
+         * past unusable ones (null temperature). Returns a tri-state [FetchOutcome] so callers
+         * can tell a station that is definitively silent (NoData) from a lookup that never got
+         * an answer (Failed) — the two demand opposite handling (record the attempt vs report
+         * the error and leave the station's record alone).
+         */
+        suspend fun getLatestObservationDetailedResult(stationId: String, limit: Int = 10): FetchOutcome<Observation> {
+            val response: String = try {
+                httpClient.get("$BASE_URL/stations/$stationId/observations?limit=$limit") {
+                    header("User-Agent", USER_AGENT)
+                    header("Accept", "application/geo+json")
+                }.body()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e("NwsApi", "getRecentValidObservationDetailed: Fallback query failed for $stationId: ${e.message}")
-                null
+                Log.e(TAG, "getLatestObservationDetailedResult: query failed for $stationId: ${e.message}")
+                return FetchOutcome.failed(e)
             }
+            val outcome = selectValidObservation(json, response, stationId)
+            when (outcome) {
+                is FetchOutcome.Success ->
+                    Log.d(TAG, "getLatestObservationDetailedResult: $stationId valid data from ${outcome.value.timestamp}")
+                is FetchOutcome.NoData ->
+                    Log.w(TAG, "getLatestObservationDetailedResult: $stationId no valid data in last $limit observations")
+                is FetchOutcome.Failed ->
+                    Log.e(TAG, "getLatestObservationDetailedResult: $stationId ${outcome.reason}")
+            }
+            return outcome
         }
 
         data class GridPointInfo(
