@@ -327,7 +327,19 @@ fun runDaemon() {
                 runLaunchRefresh(newRepo, config, "startup")
             }
 
-            // Current-temp UI loop removed; now handled on-demand when client connects to PanelIpcServer.
+            // 3a. Panel refresh trigger loop (lightweight, no database/disk I/O)
+            launch {
+                while (true) {
+                    delay(60_000L - (System.currentTimeMillis() % 60_000L))
+                    try {
+                        ipcServer.triggerRefresh()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to trigger panel refresh: ${e.message}")
+                    }
+                }
+            }
 
             // 3b. Temp actuals (observations) fetch loop
             launch {
