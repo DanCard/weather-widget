@@ -29,6 +29,7 @@ class DesktopWeatherRepository(
 ) {
     private fun resolveForForecastResult(
         hourly: List<HourlyForecast>,
+        observations: List<com.weatherwidget.data.model.ObservationReading>,
         now: Long
     ): Pair<Float?, Float?> {
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
@@ -39,13 +40,11 @@ class DesktopWeatherRepository(
         val minEpoch = window.start.atZone(zoneId).toInstant().toEpochMilli()
         val maxEpoch = window.end.atZone(zoneId).toInstant().toEpochMilli()
 
-        val observations = weatherDao.getObservationsInRange(minEpoch, maxEpoch, latitude, longitude)
-            .map { it.toReading() }
-        
+        val narrowObs = observations.filter { it.timestamp in minEpoch..maxEpoch }
         val narrowHourly = hourly.filter { it.dateTime in minEpoch..maxEpoch }
 
         val resolvedObs = ActualsAggregator.resolveCurrentObservation(
-            observations = observations,
+            observations = narrowObs,
             hourlyForecasts = narrowHourly,
             displaySourceId = displaySource.id,
             userLat = latitude,
@@ -75,6 +74,10 @@ class DesktopWeatherRepository(
             smoothedForecasts = smoothedForecasts,
         )
         return resolution.displayTemp to resolution.appliedDelta
+    }
+
+    fun resolveCurrentTempInMemory(forecast: ForecastResult, now: Long): Pair<Float?, Float?> {
+        return resolveForForecastResult(forecast.hourly, forecast.rawObservations, now)
     }
 
     suspend fun loadCached(now: Long = System.currentTimeMillis()): ForecastResult? = withContext(Dispatchers.IO) {
@@ -108,7 +111,7 @@ class DesktopWeatherRepository(
         // Freshness gate only governs whether the *current condition* is shown as observed vs forecast.
         val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
 
-        val (currentTemp, appliedDelta) = resolveForForecastResult(hourly, now)
+        val (currentTemp, appliedDelta) = resolveForForecastResult(hourly, observations, now)
         val actuals = loadDailyActuals(daily)
         val snapshots = loadDailySnapshots(daily)
 
@@ -257,7 +260,8 @@ class DesktopWeatherRepository(
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
             val cachedHourly = cached?.hourly ?: emptyList()
-            val (currentTemp, appliedDelta) = resolveForForecastResult(cachedHourly, now)
+            val cachedObs = cached?.rawObservations ?: emptyList()
+            val (currentTemp, appliedDelta) = resolveForForecastResult(cachedHourly, cachedObs, now)
 
             result.copy(
                 currentTemp = currentTemp,

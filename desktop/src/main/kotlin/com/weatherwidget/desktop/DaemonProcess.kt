@@ -62,8 +62,6 @@ fun runDaemon() {
         if (level != "VERBOSE") weatherDao.log(tag, message, level)
     }
 
-    // IPC server
-    val ipcServer = PanelIpcServer(appDir).apply { start() }
 
     val forecastState = MutableStateFlow<ForecastResult?>(null)
     val dataStatusState = MutableStateFlow<DataStatus>(DataStatus.Loading)
@@ -83,6 +81,24 @@ fun runDaemon() {
     // One catch-up refresh at a time, last-wins: a new kick (resume or network-restored) cancels a
     // predecessor that may still be sleeping in its offline retry backoff.
     var catchUpRefreshJob: Job? = null
+
+    // IPC server
+    val ipcServer = PanelIpcServer(appDir) {
+        val forecast = forecastState.value
+        val dataStatus = dataStatusState.value
+        val config = configState.value
+        val currentRepo = repo
+        
+        val resolved = if (forecast != null && currentRepo != null) {
+            currentRepo.resolveCurrentTempInMemory(forecast, System.currentTimeMillis())
+        } else {
+            forecast?.currentTemp to forecast?.appliedDelta
+        }
+        val currentTemp = resolved.first
+        val appliedDelta = resolved.second
+        
+        generateMarkup(forecast, currentTemp, appliedDelta, dataStatus, config)
+    }.apply { start() }
 
     fun quit(killUi: Boolean = true) {
         Log.i(TAG, "Quitting daemon (killUi=$killUi)...")
@@ -110,8 +126,8 @@ fun runDaemon() {
 
     // Sync the state flows with IPC server updates
     daemonScope.launch {
-        combine(forecastState, dataStatusState, configState) { forecast, dataStatus, config ->
-            ipcServer.update(forecast, dataStatus, config)
+        combine(forecastState, dataStatusState, configState) { _, _, _ ->
+            ipcServer.triggerRefresh()
         }.collect {}
     }
 
@@ -167,6 +183,7 @@ fun runDaemon() {
                         }
                         forecastState.value = result
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
+                        notifyDataUpdated()
                         Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
                         break
                     } catch (e: CancellationException) {
@@ -199,6 +216,7 @@ fun runDaemon() {
                             refreshFailed = true,
                             failureIsOffline = isOffline,
                         )
+                        notifyDataUpdated()
                         Log.i(TAG, "DataStatus updated to: ${dataStatusState.value}")
                         break
                     }
@@ -309,19 +327,7 @@ fun runDaemon() {
                 runLaunchRefresh(newRepo, config, "startup")
             }
 
-            // 3a. Current-temp UI loop
-            launch {
-                while (true) {
-                    delay(CURRENT_TEMP_UI_INTERVAL_MS)
-                    try {
-                        newRepo.loadCached()?.let { forecastState.value = it }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Current-temp UI update failed: ${e.message}")
-                    }
-                }
-            }
+            // Current-temp UI loop removed; now handled on-demand when client connects to PanelIpcServer.
 
             // 3b. Temp actuals (observations) fetch loop
             launch {
@@ -344,6 +350,7 @@ fun runDaemon() {
                         forecastState.value = result
                         dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.weatherSource) ?: System.currentTimeMillis())
                         weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
+                        notifyDataUpdated()
                         Log.i(TAG, "Temp actuals loop refresh successful.")
                     } catch (e: CancellationException) {
                         Log.i(TAG, "Temp actuals loop refresh cancelled.")
@@ -361,6 +368,7 @@ fun runDaemon() {
                             refreshFailed = true,
                             failureIsOffline = isOffline,
                         )
+                        notifyDataUpdated()
                     }
                 }
             }
@@ -387,6 +395,7 @@ fun runDaemon() {
                         val result = newRepo.refresh()
                         forecastState.value = result
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
+                        notifyDataUpdated()
                         Log.i(TAG, "Active source forecast refresh successful.")
                     } catch (e: CancellationException) {
                         Log.i(TAG, "Loop refresh cancelled.")
@@ -403,6 +412,7 @@ fun runDaemon() {
                             refreshFailed = true,
                             failureIsOffline = isOffline,
                         )
+                        notifyDataUpdated()
                     }
 
                     // Slower forecast fetch for other APIs
@@ -436,6 +446,7 @@ fun runDaemon() {
                                 otherRepo.refresh()
                                 otherService.close()
                                 Log.i(TAG, "Non-active source $otherSource forecast refresh successful.")
+                                notifyDataUpdated()
                             }
                         } catch (e: CancellationException) {
                             throw e
@@ -491,6 +502,7 @@ fun runDaemon() {
                             otherRepo.refreshObservations()
                             otherService.close()
                             Log.i(TAG, "Non-primary actuals refresh successful for $otherSource.")
+                            notifyDataUpdated()
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
@@ -507,7 +519,7 @@ fun runDaemon() {
     if (currentConfig != null) {
         startFetchLoops()
     } else {
-        ipcServer.update(null, DataStatus.Loading, null)
+        ipcServer.triggerRefresh()
     }
 
     // WatchService loop
@@ -563,6 +575,20 @@ fun runDaemon() {
                                     }
                                 }
                             }
+                             DATA_UPDATED_TRIGGER -> {
+                                 Log.i(TAG, "WatchService: .data-updated trigger detected. Reloading cache...")
+                                 runCatching { Files.deleteIfExists(appDir.resolve(DATA_UPDATED_TRIGGER)) }
+                                 val activeRepo = repo
+                                 val activeConfig = currentConfig
+                                 if (activeRepo != null && activeConfig != null) {
+                                     val cached = activeRepo.loadCached()
+                                     if (cached != null) {
+                                         forecastState.value = cached
+                                         val lastFetch = weatherDao.getLastSuccessfulFetch(activeConfig.weatherSource)
+                                         dataStatusState.value = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
+                                     }
+                                 }
+                             }
                             CONFIG_CHANGED_TRIGGER -> {
                                 Log.i(TAG, "WatchService: .config-changed trigger detected. Reloading config...")
                                 runCatching { Files.deleteIfExists(appDir.resolve(CONFIG_CHANGED_TRIGGER)) }

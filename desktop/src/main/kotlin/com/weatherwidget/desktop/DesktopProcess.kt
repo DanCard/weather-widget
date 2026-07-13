@@ -19,10 +19,18 @@ const val QUIT_PREFIX = ".quit-"
 const val SHOW_TRIGGER = ".show"
 const val UI_SHOW_TRIGGER = ".ui-show"
 const val CONFIG_CHANGED_TRIGGER = ".config-changed"
+const val DATA_UPDATED_TRIGGER = ".data-updated"
 
 val appLaunchId: String = UUID.randomUUID().toString()
 
 fun appDataDir(): Path = DesktopDbPaths.defaultDbPath().parent
+
+fun notifyDataUpdated() {
+    runCatching {
+        val trigger = appDataDir().resolve(DATA_UPDATED_TRIGGER)
+        Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
+    }
+}
 
 const val FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000L
 // A launch must re-pull the forecast once the cached forecast is older than this. Aligns with the

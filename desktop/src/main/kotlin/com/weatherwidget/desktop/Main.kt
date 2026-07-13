@@ -58,6 +58,8 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 
 import java.time.Instant
@@ -176,6 +178,7 @@ private fun runApp() = application {
         // Edge-triggered show counter: a boolean can't re-fire an effect when it's already
         // true, so bump this on every show request to reliably raise an already-open window.
         var showRequestId by remember { mutableStateOf(0) }
+        var dataUpdateCount by remember { mutableStateOf(0) }
 
         LaunchedEffect(config) {
             Log.i(TAG, "config loaded: config != null is ${config != null}")
@@ -309,7 +312,7 @@ private fun runApp() = application {
             }
         }
 
-        // Load cached forecast data once and start the re-interpolation loop
+        // Load cached forecast data once
         LaunchedEffect(repository) {
             val repo = repository ?: return@LaunchedEffect
             try {
@@ -323,22 +326,24 @@ private fun runApp() = application {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load initial cache: ${e.message}")
             }
-
-            while (true) {
-                kotlinx.coroutines.delay(CURRENT_TEMP_UI_INTERVAL_MS)
-                try {
-                    repo.loadCached()?.let { forecast = it }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "Current-temp UI update failed: ${e.message}")
-                }
-            }
         }
 
-        LaunchedEffect(repository, config, forecast) {
+        LaunchedEffect(repository, config, forecast, dataUpdateCount) {
             val repo = repository ?: return@LaunchedEffect
             val activeConfig = config ?: return@LaunchedEffect
+            var graceJob: Job? = null
+
+            fun logBannerTransition() {
+                val state = when {
+                    currentTempFetchError == null -> "none"
+                    currentTempFetchIsWarmup -> "warmup"
+                    else -> "error"
+                }
+                if (state != lastLoggedBannerState) {
+                    weatherDao.log("CURR_TEMP_BANNER", "state=$state (was $lastLoggedBannerState)", "INFO")
+                    lastLoggedBannerState = state
+                }
+            }
             
             fun updateStatus() {
                 val isHourly = activeConfig.viewMode.isHourly
@@ -360,16 +365,28 @@ private fun runApp() = application {
                     val detail = CurrentTempStatusLog.parseFailureDetail(msg)
                     val displayName = WeatherSource.fromId(src).displayName.uppercase().replace("-", "_")
 
+                    graceJob?.cancel()
+
                     // An offline-classified failure shortly after a wake/network event is the
                     // network stack still warming up, not a source problem — the resume hold-off,
                     // offline retries, and network-restored kick are all still in flight. Show a
                     // calm notice; escalate to the full error only once the grace window passes.
+                    val wakeEventMs = weatherDao.getLatestWakeEventMs()
                     if (isOfflineExceptionName(className) &&
-                        isNetworkWarmupWindow(weatherDao.getLatestWakeEventMs(), now)
+                        isNetworkWarmupWindow(wakeEventMs, now)
                     ) {
                         currentTempFetchError = "$displayName current temp\nWaiting for network to warm up…"
                         currentTempFetchIsWarmup = true
                         currentTempFetchTimestamp = status.timestamp
+                        
+                        val timeRemaining = (wakeEventMs ?: 0L) + NETWORK_WARMUP_GRACE_MS - now
+                        if (timeRemaining > 0) {
+                            graceJob = this.launch {
+                                delay(timeRemaining)
+                                updateStatus()
+                                logBannerTransition()
+                            }
+                        }
                         return
                     }
                     currentTempFetchIsWarmup = false
@@ -418,26 +435,8 @@ private fun runApp() = application {
                 }
             }
 
-            fun logBannerTransition() {
-                val state = when {
-                    currentTempFetchError == null -> "none"
-                    currentTempFetchIsWarmup -> "warmup"
-                    else -> "error"
-                }
-                if (state != lastLoggedBannerState) {
-                    weatherDao.log("CURR_TEMP_BANNER", "state=$state (was $lastLoggedBannerState)", "INFO")
-                    lastLoggedBannerState = state
-                }
-            }
-
             updateStatus()
             logBannerTransition()
-
-            while (true) {
-                kotlinx.coroutines.delay(CURRENT_TEMP_UI_INTERVAL_MS)
-                updateStatus()
-                logBannerTransition()
-            }
         }
 
         // Surface the popup for any show request. Bumping showRequestId edge-triggers the
@@ -462,12 +461,13 @@ private fun runApp() = application {
             exitApplication()
         }
 
-        // Watch for external show request (specifically on .ui-show)
+        // Watch for external show request (specifically on .ui-show) and data updates (specifically on .data-updated)
         LaunchedEffect(Unit) {
             withContext(Dispatchers.IO) {
                 val dir = appDataDir()
                 java.nio.file.Files.createDirectories(dir)
                 runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
+                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
                 
                 val watchService = java.nio.file.FileSystems.getDefault().newWatchService()
                 dir.register(
@@ -485,6 +485,25 @@ private fun runApp() = application {
                                 Log.i(TAG, "WatchService: .ui-show trigger detected. Bumping showRequestId.")
                                 runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
                                 SwingUtilities.invokeLater { requestShowPopup() }
+                            } else if (name == DATA_UPDATED_TRIGGER) {
+                                Log.i(TAG, "WatchService: .data-updated trigger detected. Reloading cache...")
+                                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
+                                val repo = repository
+                                if (repo != null) {
+                                    uiScope.launch {
+                                        try {
+                                            val cached = repo.loadCached()
+                                            if (cached != null) {
+                                                forecast = cached
+                                            }
+                                            val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
+                                            dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
+                                            dataUpdateCount++
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "Failed to reload cache on trigger: ${e.message}")
+                                        }
+                                    }
+                                }
                             }
                         }
                         if (!key.reset()) break
@@ -495,12 +514,33 @@ private fun runApp() = application {
             }
         }
 
+        // Time ticker for in-memory interpolation of current temperature
+        var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                kotlinx.coroutines.delay(60_000L - (System.currentTimeMillis() % 60_000L))
+                nowMs = System.currentTimeMillis()
+            }
+        }
+
+        val resolvedTempAndDelta = remember(forecast, repository, nowMs) {
+            val f = forecast
+            val repo = repository
+            if (f != null && repo != null) {
+                repo.resolveCurrentTempInMemory(f, nowMs)
+            } else {
+                f?.currentTemp to f?.appliedDelta
+            }
+        }
+        val resolvedCurrentTemp = resolvedTempAndDelta.first
+        val resolvedAppliedDelta = resolvedTempAndDelta.second
+
         // Dynamic icon showing the current temperature.
         val textMeasurer = remember { createTrayTextMeasurer() }
-        val appIcon = remember(forecast?.currentTemp, currentConfig?.useCelsius) {
+        val appIcon = remember(resolvedCurrentTemp, currentConfig?.useCelsius) {
             val useCelsius = currentConfig?.useCelsius
                 ?: com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault())
-            TemperatureTrayPainter(forecast?.currentTemp, textMeasurer, useCelsius)
+            TemperatureTrayPainter(resolvedCurrentTemp, textMeasurer, useCelsius)
         }
 
         LaunchedEffect(startupSmoke) {
@@ -610,7 +650,10 @@ private fun runApp() = application {
                         obsShowRequestId++
                     },
                     onRefreshData = {
-                        repository?.let { forecast = it.refresh() }
+                        repository?.let {
+                            forecast = it.refresh()
+                            notifyDataUpdated()
+                        }
                     },
                     onViewAppLogs = {
                         appLogsVisible = true
@@ -687,6 +730,8 @@ private fun runApp() = application {
                     config = currentConfig,
                     forecast = forecast,
                     dataStatus = dataStatus,
+                    resolvedCurrentTemp = resolvedCurrentTemp,
+                    resolvedAppliedDelta = resolvedAppliedDelta,
                     onUpdateLocation = {
                         popupVisible = false
                         pickerVisible = true
@@ -738,6 +783,8 @@ internal fun WidgetPopup(
     config: DesktopConfig,
     forecast: ForecastResult?,
     dataStatus: DataStatus,
+    resolvedCurrentTemp: Float? = null,
+    resolvedAppliedDelta: Float? = null,
     onUpdateLocation: () -> Unit,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
@@ -767,6 +814,8 @@ internal fun WidgetPopup(
                     WidgetHeader(
                         config = config,
                         forecast = snapshot,
+                        resolvedCurrentTemp = resolvedCurrentTemp,
+                        resolvedAppliedDelta = resolvedAppliedDelta,
                         onUpdateConfig = onUpdateConfig,
                         onOpenSettings = onOpenSettings,
                         onOpenObservations = onOpenObservations,
@@ -1180,6 +1229,8 @@ private fun NavArrow(
 private fun WidgetHeader(
     config: DesktopConfig,
     forecast: ForecastResult,
+    resolvedCurrentTemp: Float? = null,
+    resolvedAppliedDelta: Float? = null,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenObservations: () -> Unit,
@@ -1200,7 +1251,8 @@ private fun WidgetHeader(
     val displaySource = remember(config.weatherSource) {
         WeatherSource.fromDisplaySource(config.weatherSource)
     }
-    val displayTemp = forecast.currentTemp
+    val displayTemp = resolvedCurrentTemp ?: forecast.currentTemp
+    val deltaVal = resolvedAppliedDelta ?: forecast.appliedDelta
     // Mirrors Android's HeaderDeltaGate: on the hourly graph, hide the delta only once the visible
     // window has scrolled entirely into the past (matches the ghost line's own future-yes/past-no
     // visibility). The daily view has no such window concept, so it stays always-on there, same as
@@ -1211,11 +1263,11 @@ private fun WidgetHeader(
         val centerMs = nowEpoch + config.hourlyOffset * 3_600_000L
         val windowEndMs = temperatureGraphHourWindow(centerMs, backHours, forwardHours, zoneId).endMs
         val windowEndTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(windowEndMs), zoneId)
-        HeaderDeltaGate.isVisible(windowEndTime, nowLocal, forecast.appliedDelta)
+        HeaderDeltaGate.isVisible(windowEndTime, nowLocal, deltaVal)
     } else {
-        forecast.appliedDelta?.let { kotlin.math.abs(it) >= 0.1f } ?: false
+        deltaVal?.let { kotlin.math.abs(it) >= 0.1f } ?: false
     }
-    val deltaTemp = forecast.appliedDelta?.takeIf { deltaWindowVisible }
+    val deltaTemp = deltaVal?.takeIf { deltaWindowVisible }
 
     val todayForecast = remember(forecast.daily, nowLocal) {
         forecast.daily.firstOrNull { it.date == nowLocal.toLocalDate().toString() }

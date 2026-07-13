@@ -17,8 +17,10 @@ import kotlin.concurrent.thread
  * Serves weather markup over a Unix Domain Socket for the XFCE genmon panel plugin.
  * This replaces the legacy Python-based SQLite polling with a lightweight IPC push/pull.
  */
-class PanelIpcServer(private val appDataDir: Path) {
-    private val currentMarkup = AtomicReference("<txt>--</txt>")
+class PanelIpcServer(
+    private val appDataDir: Path,
+    private val markupProvider: PanelIpcServer.() -> String
+) {
     private var serverThread: Thread? = null
 
     private var cachedPluginId: String? = null
@@ -40,7 +42,7 @@ class PanelIpcServer(private val appDataDir: Path) {
                 while (!Thread.interrupted()) {
                     try {
                         val clientChannel = serverChannel.accept()
-                        val markup = currentMarkup.get()
+                        val markup = markupProvider()
                         clientChannel.write(ByteBuffer.wrap(markup.toByteArray()))
                         clientChannel.close()
                     } catch (e: Exception) {
@@ -72,10 +74,20 @@ class PanelIpcServer(private val appDataDir: Path) {
         }
     }
 
-    fun update(forecast: ForecastResult?, dataStatus: DataStatus, config: DesktopConfig?) {
+    fun triggerRefresh() {
+        triggerPanelRefresh()
+    }
+
+    fun generateMarkup(
+        forecast: ForecastResult?,
+        currentTemp: Float?,
+        appliedDelta: Float?,
+        dataStatus: DataStatus,
+        config: DesktopConfig?
+    ): String {
         val useCelsius = config?.useCelsius
             ?: com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(Locale.getDefault())
-        val temp = forecast?.currentTemp
+        val temp = currentTemp
         val displayTemp = if (useCelsius && temp != null) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(temp) else temp
         val body = if (displayTemp != null) String.format(Locale.US, "%.1f°", displayTemp) else "--"
 
@@ -84,9 +96,7 @@ class PanelIpcServer(private val appDataDir: Path) {
         // longer spawn the popup, so every genmon click fails silently. Surface that on the panel
         // itself (and rewire the click to explain the fix) instead of leaving the user guessing.
         if (isUiLauncherMissing()) {
-            currentMarkup.set(missingLauncherMarkup(body))
-            triggerPanelRefresh()
-            return
+            return missingLauncherMarkup(body)
         }
 
         val isStale = dataStatus is DataStatus.Stale
@@ -94,7 +104,7 @@ class PanelIpcServer(private val appDataDir: Path) {
 
         // Mirror the popup header (Main.kt): show the measured-vs-forecast offset, formatted "%+.1f"
         // (no degree symbol), only when it is non-trivial. Always orange, like the header.
-        val deltaText = forecast?.appliedDelta
+        val deltaText = appliedDelta
             ?.takeIf { kotlin.math.abs(it) >= 0.1f }
             ?.let {
                 val displayDelta = if (useCelsius) it / 1.8f else it
@@ -121,8 +131,7 @@ class PanelIpcServer(private val appDataDir: Path) {
         val showTrigger = appDataDir.resolve(".show").toAbsolutePath().toString()
         val clickCmd = "touch $showTrigger"
 
-        currentMarkup.set(buildPanelMarkup(body, color, deltaText, tooltip, clickCmd))
-        triggerPanelRefresh()
+        return buildPanelMarkup(body, color, deltaText, tooltip, clickCmd)
     }
 
     private fun formatRelativeTime(epochMs: Long): String {

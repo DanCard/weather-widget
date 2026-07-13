@@ -215,6 +215,47 @@ class DesktopWeatherRepositoryTest {
         assertTrue("500-day-old observation should be retained", remainingStations.contains("STATION_500"))
         assertFalse("600-day-old observation should be deleted by 18-month cutoff", remainingStations.contains("STATION_600"))
     }
+
+    @Test
+    fun `resolveCurrentTempInMemory returns exact same temperature as loadCached`() = runTest {
+        val now = System.currentTimeMillis()
+        val hourly = listOf(
+            HourlyForecast(now - 3600_000L, 70f, "Clear"),
+            HourlyForecast(now, 72f, "Clear"),
+            HourlyForecast(now + 3600_000L, 74f, "Clear"),
+        )
+        dao.upsertHourlyForecasts(37.4220, -122.0841, "NWS", hourly)
+
+        val obs = listOf(
+            DesktopObservationEntity(
+                stationId = "STATION_A",
+                stationName = "Station A",
+                timestamp = now - 3600_000L,
+                temperature = 73.3f,
+                condition = "Clear",
+                locationLat = 37.4220,
+                locationLon = -122.0841,
+                distanceKm = 0f,
+                stationType = "VIRTUAL",
+                fetchedAt = now,
+                api = "NWS"
+            )
+        )
+        dao.upsertObservations(obs)
+
+        val daily = listOf(
+            DailyForecast(LocalDate.now().toString(), 74f, 68f, "Clear", "NWS")
+        )
+        dao.upsertForecasts(37.4220, -122.0841, "NWS", daily)
+
+        val cachedResult = repository.loadCached(now)
+        assertNotNull(cachedResult)
+
+        val inMemoryResult = repository.resolveCurrentTempInMemory(cachedResult!!, now)
+        assertNotNull(inMemoryResult)
+        assertEquals(cachedResult.currentTemp, inMemoryResult.first)
+        assertEquals(cachedResult.appliedDelta, inMemoryResult.second)
+    }
 }
 
 
