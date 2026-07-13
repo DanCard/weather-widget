@@ -19,18 +19,27 @@ const val QUIT_PREFIX = ".quit-"
 const val SHOW_TRIGGER = ".show"
 const val UI_SHOW_TRIGGER = ".ui-show"
 const val CONFIG_CHANGED_TRIGGER = ".config-changed"
+// Direction matters for the data triggers: each one has a single producer and a single consumer,
+// so neither process ever reacts to its own write (a self-echo here once clobbered the daemon's
+// Stale status back to Live right after every failed fetch).
+// Daemon → UI: "the DB/cache changed (fetch success OR failure) — reload and re-read status".
 const val DATA_UPDATED_TRIGGER = ".data-updated"
+// UI → daemon: "I ran a successful refresh() against the DB myself — pick it up".
+const val REFRESH_REQUESTED_TRIGGER = ".refresh-requested"
 
 val appLaunchId: String = UUID.randomUUID().toString()
 
 fun appDataDir(): Path = DesktopDbPaths.defaultDbPath().parent
 
-fun notifyDataUpdated() {
+private fun touchTrigger(name: String) {
     runCatching {
-        val trigger = appDataDir().resolve(DATA_UPDATED_TRIGGER)
-        Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
+        Files.writeString(appDataDir().resolve(name), "", java.nio.charset.StandardCharsets.UTF_8)
     }
 }
+
+fun notifyDataUpdated() = touchTrigger(DATA_UPDATED_TRIGGER)
+
+fun notifyRefreshRequested() = touchTrigger(REFRESH_REQUESTED_TRIGGER)
 
 const val FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000L
 // A launch must re-pull the forecast once the cached forecast is older than this. Aligns with the
@@ -39,7 +48,10 @@ const val FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000L
 // interval before its first fetch) would refresh observations forever but never re-pull the forecast,
 // freezing the multi-day daily columns at whatever coverage the last full fetch had.
 const val FORECAST_FRESHNESS_THRESHOLD_MS = 60 * 60 * 1000L
-const val CURRENT_TEMP_UI_INTERVAL_MS = 2 * 60 * 1000L
+// UI-process safety-net cache reload. The `.data-updated` trigger is the primary (interrupt-driven)
+// update path; this slow poll only exists so a missed watch event or a dead watcher loop degrades
+// to "up to 10 minutes stale" instead of "stale forever".
+const val UI_FALLBACK_RELOAD_MS = 10 * 60 * 1000L
 const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 
 // Resume-from-suspend detection. The fetch loops sleep on coroutine `delay()`, which schedules

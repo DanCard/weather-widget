@@ -135,6 +135,11 @@ object CurrentTemperatureResolver {
         currentLat: Double,
         currentLon: Double,
         smoothedForecasts: Map<Long, Float>? = null,
+        // Level for the CURR_TEMP_RESULT summary row. Sparse callers (Android widget updates,
+        // desktop fetch-cycle loads) keep the persisted DEBUG default; high-frequency callers
+        // (desktop per-panel-poll / per-minute-ticker resolution) pass VERBOSE, which the
+        // dbLogger boundary drops, so they can't swamp app_logs with a write per poll.
+        resultLogLevel: String = "DEBUG",
     ): CurrentTemperatureResolution {
         val window = buildCurrentTempResolutionWindow(now)
         val zoneId = ZoneId.systemDefault()
@@ -253,7 +258,7 @@ object CurrentTemperatureResolver {
             "resolve:final display=${formatTemp(displayTemp)} estimate=${formatTemp(estimatedTemp)} " +
                 "obs=${formatTemp(lastObservedTemp)} delta=${appliedDelta?.let { String.format("%.2f", it) } ?: "none"} " +
                 "estAtObs=${formatTemp(estimatedAtObservationTime)} stale=$isStaleEstimate",
-            level = "VERBOSE",
+            level = resultLogLevel,
         )
 
         return CurrentTemperatureResolution(

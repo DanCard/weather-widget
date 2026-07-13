@@ -30,7 +30,8 @@ class DesktopWeatherRepository(
     private fun resolveForForecastResult(
         hourly: List<HourlyForecast>,
         observations: List<com.weatherwidget.data.model.ObservationReading>,
-        now: Long
+        now: Long,
+        resultLogLevel: String = "DEBUG",
     ): Pair<Float?, Float?> {
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
         val nowLocal = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault())
@@ -72,12 +73,16 @@ class DesktopWeatherRepository(
             currentLat = latitude,
             currentLon = longitude,
             smoothedForecasts = smoothedForecasts,
+            resultLogLevel = resultLogLevel,
         )
         return resolution.displayTemp to resolution.appliedDelta
     }
 
     fun resolveCurrentTempInMemory(forecast: ForecastResult, now: Long): Pair<Float?, Float?> {
-        return resolveForForecastResult(forecast.hourly, forecast.rawObservations, now)
+        // High-frequency path: runs on every genmon panel connect and every UI minute tick.
+        // VERBOSE keeps the CURR_TEMP_RESULT row out of app_logs (the sparse fetch-cycle
+        // resolves in loadCached/refreshObservations stay DEBUG and remain queryable).
+        return resolveForForecastResult(forecast.hourly, forecast.rawObservations, now, resultLogLevel = "VERBOSE")
     }
 
     suspend fun loadCached(now: Long = System.currentTimeMillis()): ForecastResult? = withContext(Dispatchers.IO) {

@@ -454,6 +454,8 @@ The `leaveApksInstalledAfterRun` flag in `gradle.properties` prevents post-test 
 
 ## Git Conventions
 
+- **No Mid-Task Commits**: Do NOT commit code, tests, or documentation changes mid-task. Only perform commits when explicitly requested by the user.
+
 ### Commit Message Strategy
 - **Foundation**: Use the technical "Summary of Changes" provided at the end of a task as the verbatim foundation for the commit message body.
 - **Format**:

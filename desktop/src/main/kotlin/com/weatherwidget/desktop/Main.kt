@@ -312,7 +312,10 @@ private fun runApp() = application {
             }
         }
 
-        // Load cached forecast data once
+        // Load cached forecast data once, then keep a slow safety-net reload running. The
+        // `.data-updated` watcher below is the primary update path; this loop only bounds the
+        // damage of a missed watch event (or a dead watcher loop) to UI_FALLBACK_RELOAD_MS of
+        // staleness instead of forever.
         LaunchedEffect(repository) {
             val repo = repository ?: return@LaunchedEffect
             try {
@@ -325,6 +328,19 @@ private fun runApp() = application {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load initial cache: ${e.message}")
+            }
+
+            while (true) {
+                delay(UI_FALLBACK_RELOAD_MS)
+                try {
+                    repo.loadCached()?.let { forecast = it }
+                    // Also re-evaluates the status banner (see the dataUpdateCount-keyed effect).
+                    dataUpdateCount++
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Fallback cache reload failed: ${e.message}")
+                }
             }
         }
 
@@ -496,8 +512,12 @@ private fun runApp() = application {
                                             if (cached != null) {
                                                 forecast = cached
                                             }
-                                            val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
-                                            dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
+                                            // Deliberately no dataStatus write: the daemon touches
+                                            // this trigger on fetch *failures* too, and a bare
+                                            // trigger carries no outcome — assuming Live here
+                                            // erased the offline/stale indication. Fetch outcome
+                                            // reaches the UI through the CURRENT_TEMP_STATUS log
+                                            // contract, re-read when dataUpdateCount bumps.
                                             dataUpdateCount++
                                         } catch (e: Exception) {
                                             Log.e(TAG, "Failed to reload cache on trigger: ${e.message}")
@@ -652,7 +672,9 @@ private fun runApp() = application {
                     onRefreshData = {
                         repository?.let {
                             forecast = it.refresh()
-                            notifyDataUpdated()
+                            // UI → daemon direction: tell the daemon to pick up the rows this
+                            // refresh just wrote. (.data-updated is daemon → UI only.)
+                            notifyRefreshRequested()
                         }
                     },
                     onViewAppLogs = {

@@ -132,7 +132,7 @@ class DesktopStartupTest {
     }
 
     @Test
-    fun `test daemon reloads on data updated trigger`() {
+    fun `test daemon reloads on refresh requested trigger but ignores its own data updated trigger`() {
         val tempDir = Files.createTempDirectory("weather-test-data-updated")
         val appDir = tempDir.resolve("weather-widget")
         Files.createDirectories(appDir)
@@ -177,22 +177,31 @@ class DesktopStartupTest {
             // 2. Give the WatchService a brief moment to register
             Thread.sleep(1500)
 
-            // 3. Touch the .data-updated file to trigger reload
-            val dataUpdatedFile = appDir.resolve(".data-updated")
-            Files.writeString(dataUpdatedFile, "", java.nio.charset.StandardCharsets.UTF_8)
+            // 3. Touch .data-updated first — the daemon produces this trigger (daemon → UI) and
+            // must NOT consume it. Reacting to its own writes is the self-echo that clobbered
+            // Stale statuses back to Live. The later wait for .refresh-requested doubles as the
+            // settle time proving no reaction happened.
+            Files.writeString(appDir.resolve(DATA_UPDATED_TRIGGER), "", java.nio.charset.StandardCharsets.UTF_8)
 
-            // 4. Wait for the WatchService to detect it
-            var dataUpdatedDetected = false
+            // 4. Touch the UI → daemon trigger; this one the daemon must handle.
+            Files.writeString(appDir.resolve(REFRESH_REQUESTED_TRIGGER), "", java.nio.charset.StandardCharsets.UTF_8)
+
+            // 5. Wait for the WatchService to detect the refresh request
+            var refreshRequestDetected = false
             val detectStartTime = System.currentTimeMillis()
             while (System.currentTimeMillis() - detectStartTime < 10000L) {
-                if (outputLines.any { it.contains("WatchService: .data-updated trigger detected") }) {
-                    dataUpdatedDetected = true
+                if (outputLines.any { it.contains("WatchService: .refresh-requested trigger detected") }) {
+                    refreshRequestDetected = true
                     break
                 }
                 Thread.sleep(100)
             }
 
-            assertTrue("WatchService did not detect .data-updated trigger. Output:\n${outputLines.joinToString("\n")}", dataUpdatedDetected)
+            assertTrue("WatchService did not detect .refresh-requested trigger. Output:\n${outputLines.joinToString("\n")}", refreshRequestDetected)
+            assertTrue(
+                "Daemon must not react to its own .data-updated trigger. Output:\n${outputLines.joinToString("\n")}",
+                outputLines.none { it.contains("WatchService: .data-updated trigger detected") },
+            )
 
         } finally {
             runningProcess.descendants().forEach { it.destroyForcibly() }

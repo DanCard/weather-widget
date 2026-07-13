@@ -544,6 +544,11 @@ fun runDaemon() {
                     if (name == QUIT_TRIGGER || (name.startsWith(QUIT_PREFIX) && name != "$QUIT_PREFIX$appLaunchId")) {
                         runCatching { Files.deleteIfExists(path) }
                     }
+                    // A .refresh-requested left over from a previous run would fire spuriously on
+                    // the first unrelated directory event; consume it before registering the watch.
+                    if (name == REFRESH_REQUESTED_TRIGGER) {
+                        runCatching { Files.deleteIfExists(path) }
+                    }
                 }
             }
         }
@@ -587,20 +592,31 @@ fun runDaemon() {
                                     }
                                 }
                             }
-                             DATA_UPDATED_TRIGGER -> {
-                                 Log.i(TAG, "WatchService: .data-updated trigger detected. Reloading cache...")
-                                 runCatching { Files.deleteIfExists(appDir.resolve(DATA_UPDATED_TRIGGER)) }
-                                 val activeRepo = repo
-                                 val activeConfig = currentConfig
-                                 if (activeRepo != null && activeConfig != null) {
-                                     val cached = activeRepo.loadCached()
-                                     if (cached != null) {
-                                         forecastState.value = cached
-                                         val lastFetch = weatherDao.getLastSuccessfulFetch(activeConfig.weatherSource)
-                                         dataStatusState.value = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
-                                     }
-                                 }
-                             }
+                            // Note: the daemon deliberately does NOT watch DATA_UPDATED_TRIGGER —
+                            // it is the producer of that trigger (daemon → UI). Reacting to its
+                            // own writes redid a full loadCached() after every fetch and, worse,
+                            // overwrote the Stale status the failure paths had just set with Live.
+                            REFRESH_REQUESTED_TRIGGER -> {
+                                Log.i(TAG, "WatchService: .refresh-requested trigger detected. Reloading cache...")
+                                runCatching { Files.deleteIfExists(appDir.resolve(REFRESH_REQUESTED_TRIGGER)) }
+                                val activeRepo = repo
+                                val activeConfig = currentConfig
+                                if (activeRepo != null && activeConfig != null) {
+                                    val cached = activeRepo.loadCached()
+                                    if (cached != null) {
+                                        forecastState.value = cached
+                                        // The UI only touches this trigger after a *successful*
+                                        // refresh() (exceptions skip the notify), so a
+                                        // non-failed derivation is accurate here.
+                                        dataStatusState.value = deriveDataStatus(
+                                            cachePresent = true,
+                                            lastFetchMs = weatherDao.getLastSuccessfulFetch(activeConfig.weatherSource),
+                                            refreshFailed = false,
+                                            failureIsOffline = false,
+                                        )
+                                    }
+                                }
+                            }
                             CONFIG_CHANGED_TRIGGER -> {
                                 Log.i(TAG, "WatchService: .config-changed trigger detected. Reloading config...")
                                 runCatching { Files.deleteIfExists(appDir.resolve(CONFIG_CHANGED_TRIGGER)) }
