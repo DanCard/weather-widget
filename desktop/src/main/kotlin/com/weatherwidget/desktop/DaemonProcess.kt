@@ -8,6 +8,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
+import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
+import com.weatherwidget.data.local.desktop.WakeEventLog
 import com.weatherwidget.shared.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +48,12 @@ fun runDaemon() {
 
     val weatherDb = DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() }
     val weatherDao = DesktopWeatherDao(weatherDb)
+
+    // Daemon launch is a wake-equivalent transition: login autostart races the network stack just
+    // like resume-from-suspend does. Anchors the UI's network-warm-up grace window (WAKE_EVENT is
+    // the explicit contract behind getLatestWakeEventMs; the RESUME_DETECT/NETWORK_DETECT rows are
+    // diagnostics only).
+    weatherDao.log(WakeEventLog.TAG, WakeEventLog.message("startup"), "INFO")
 
     com.weatherwidget.widget.CurrentTemperatureResolver.dbLogger = { tag, message, level ->
         // Persistence boundary: VERBOSE = high-frequency render/poll trace — visible only in the
@@ -220,7 +228,8 @@ fun runDaemon() {
     }
 
     // Called on resume-from-suspend (logind signal or heartbeat). Debounced so the two detectors
-    // observing the same wake produce a single catch-up fetch. All outcomes write a durable
+    // observing the same wake produce a single catch-up fetch, which starts only after the
+    // [RESUME_KICK_DELAY_MS] warm-up hold-off. All outcomes write a durable
     // RESUME_DETECT row to app_logs (queryable), not just the ephemeral console Log, so a wake that
     // fired but did nothing (debounced / repo-not-ready) is still diagnosable after the fact.
     fun kickResumeRefresh(reason: String) {
@@ -236,10 +245,15 @@ fun runDaemon() {
             return
         }
         lastResumeKickMs = now
-        weatherDao.log("RESUME_DETECT", "resume detected ($reason) — kicking catch-up refresh", "INFO")
-        Log.i(TAG, "Resume detected ($reason) — kicking catch-up refresh.")
+        val pauseMs = RESUME_KICK_DELAY_MS + kotlin.random.Random.nextLong(RESUME_KICK_JITTER_MS)
+        weatherDao.log(WakeEventLog.TAG, WakeEventLog.message("resume:$reason"), "INFO")
+        weatherDao.log("RESUME_DETECT", "resume detected ($reason) — catch-up refresh in ${pauseMs}ms", "INFO")
+        Log.i(TAG, "Resume detected ($reason) — catch-up refresh in ${pauseMs}ms.")
         catchUpRefreshJob?.cancel()
-        catchUpRefreshJob = daemonScope.launch { runLaunchRefresh(activeRepo, activeConfig, "resume:$reason") }
+        catchUpRefreshJob = daemonScope.launch {
+            delay(pauseMs)
+            runLaunchRefresh(activeRepo, activeConfig, "resume:$reason")
+        }
     }
 
     // Called when NetworkManager reports full connectivity. Heals catch-up fetches that failed while
@@ -261,6 +275,7 @@ fun runDaemon() {
         }
         lastNetworkKickMs = now
         val pauseMs = NETWORK_RESTORE_KICK_DELAY_MS + kotlin.random.Random.nextLong(NETWORK_RESTORE_KICK_JITTER_MS)
+        weatherDao.log(WakeEventLog.TAG, WakeEventLog.message("network:restored"), "INFO")
         weatherDao.log("NETWORK_DETECT", "connectivity restored — catch-up refresh in ${pauseMs}ms", "INFO")
         Log.i(TAG, "Network connectivity restored — catch-up refresh in ${pauseMs}ms.")
         catchUpRefreshJob?.cancel()
@@ -320,7 +335,7 @@ fun runDaemon() {
                         val result = newRepo.refreshObservations()
                         forecastState.value = result
                         dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.weatherSource) ?: System.currentTimeMillis())
-                        weatherDao.log("CURRENT_TEMP_STATUS", "source=$src ok=true", "INFO")
+                        weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
                         Log.i(TAG, "Temp actuals loop refresh successful.")
                     } catch (e: CancellationException) {
                         Log.i(TAG, "Temp actuals loop refresh cancelled.")
@@ -330,7 +345,7 @@ fun runDaemon() {
                         val isOffline = isOfflineException(e)
                         val reason = if (isOffline) "offline" else "source_error"
                         weatherDao.log("REFRESH_FAIL", "temp actuals: $reason ${e.message}", "WARN")
-                        weatherDao.log("CURRENT_TEMP_STATUS", "source=$src ok=false class=${e::class.simpleName} detail=${e.message}", "WARN")
+                        weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(src, e), "WARN")
                         val lastSuccess = weatherDao.getLastSuccessfulFetch(config.weatherSource)
                         dataStatusState.value = deriveDataStatus(
                             cachePresent = forecastState.value != null,

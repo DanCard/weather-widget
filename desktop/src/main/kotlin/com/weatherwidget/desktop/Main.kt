@@ -34,6 +34,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
+import com.weatherwidget.data.model.isOfflineExceptionName
 import com.weatherwidget.shared.util.PrecipProbabilityCalculator
 import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.shared.graph.ZoomStage
@@ -45,6 +46,7 @@ import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
+import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.remote.NominatimApi
 import com.weatherwidget.util.NavigationUtils
@@ -206,6 +208,9 @@ private fun runApp() = application {
         // Transient "Fetching older data…" banner shown while an on-demand deep-history pull runs.
         var historyFetchToast by remember { mutableStateOf<String?>(null) }
         var currentTempFetchError by remember { mutableStateOf<String?>(null) }
+        // True when the failure is offline-classified during the post-wake grace window: the banner
+        // renders as a calm "waiting for network" notice instead of a hard error.
+        var currentTempFetchIsWarmup by remember { mutableStateOf(false) }
         var currentTempFetchTimestamp by remember { mutableStateOf(0L) }
         var dismissedErrorTimestamp by remember { mutableStateOf(0L) }
         val uiScope = rememberCoroutineScope()
@@ -336,6 +341,7 @@ private fun runApp() = application {
                 val isHourly = activeConfig.viewMode.isHourly
                 if (!isHourly) {
                     currentTempFetchError = null
+                    currentTempFetchIsWarmup = false
                     return
                 }
                 
@@ -347,9 +353,24 @@ private fun runApp() = application {
                     val now = System.currentTimeMillis()
                     
                     val msg = status.message
-                    val className = msg.substringAfter("class=").substringBefore(" detail=")
-                    val detail = msg.substringAfter("detail=")
-                    
+                    val className = CurrentTempStatusLog.parseFailureClassName(msg)
+                    val detail = CurrentTempStatusLog.parseFailureDetail(msg)
+                    val displayName = WeatherSource.fromId(src).displayName.uppercase().replace("-", "_")
+
+                    // An offline-classified failure shortly after a wake/network event is the
+                    // network stack still warming up, not a source problem — the resume hold-off,
+                    // offline retries, and network-restored kick are all still in flight. Show a
+                    // calm notice; escalate to the full error only once the grace window passes.
+                    if (isOfflineExceptionName(className) &&
+                        isNetworkWarmupWindow(weatherDao.getLatestWakeEventMs(), now)
+                    ) {
+                        currentTempFetchError = "$displayName current temp\nWaiting for network to warm up…"
+                        currentTempFetchIsWarmup = true
+                        currentTempFetchTimestamp = status.timestamp
+                        return
+                    }
+                    currentTempFetchIsWarmup = false
+
                     val host = when {
                         detail.contains("open-meteo.com") -> "api.open-meteo.com"
                         detail.contains("weather.gov") -> "api.weather.gov"
@@ -381,7 +402,6 @@ private fun runApp() = application {
                     val attemptTimeStr = attemptFmt.format(Instant.ofEpochMilli(status.timestamp))
                     val attemptLine = "Last attempt: $attemptTimeStr · 2 retries failed"
                     
-                    val displayName = WeatherSource.fromId(src).displayName.uppercase().replace("-", "_")
                     currentTempFetchError = """
                         $displayName current temp not updating
                         $errorLine
@@ -391,6 +411,7 @@ private fun runApp() = application {
                     currentTempFetchTimestamp = status.timestamp
                 } else {
                     currentTempFetchError = null
+                    currentTempFetchIsWarmup = false
                 }
             }
 
@@ -675,6 +696,7 @@ private fun runApp() = application {
                     },
                     historyFetchToast = historyFetchToast,
                     currentTempFetchError = currentTempFetchError,
+                    currentTempFetchIsWarmup = currentTempFetchIsWarmup,
                     onDismissCurrentTempError = {
                         dismissedErrorTimestamp = currentTempFetchTimestamp
                         currentTempFetchError = null
@@ -710,6 +732,7 @@ internal fun WidgetPopup(
     onDayClickAudit: (String) -> Unit = {},
     historyFetchToast: String? = null,
     currentTempFetchError: String? = null,
+    currentTempFetchIsWarmup: Boolean = false,
     onDismissCurrentTempError: () -> Unit = {},
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -895,13 +918,19 @@ internal fun WidgetPopup(
                                 }
                             }
 
-                            // Persistent current temp fetch failure warning label
+                            // Persistent current temp fetch failure warning label. Warm-up
+                            // (post-wake offline grace window) renders informational blue; a real
+                            // failure renders the red error treatment.
                             currentTempFetchError?.let { msg ->
+                                val surfaceColor = if (currentTempFetchIsWarmup) Color(0xFF1B2A3A) else Color(0xFF3E1C1C)
+                                val borderColor = if (currentTempFetchIsWarmup) Color(0xFF64B5F6) else Color(0xFFE57373)
+                                val titleColor = if (currentTempFetchIsWarmup) Color(0xFFBBDEFB) else Color(0xFFFFCDD2)
+                                val bodyColor = if (currentTempFetchIsWarmup) Color(0xFF90CAF9) else Color(0xFFEF9A9A)
                                 Surface(
                                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp),
                                     shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF3E1C1C).copy(alpha = 0.95f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE57373)),
+                                    color = surfaceColor.copy(alpha = 0.95f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -912,14 +941,14 @@ internal fun WidgetPopup(
                                             if (lines.isNotEmpty()) {
                                                 Text(
                                                     text = lines[0],
-                                                    color = Color(0xFFFFCDD2),
+                                                    color = titleColor,
                                                     fontSize = (13f * uiScale).sp,
                                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                                                 )
                                                 lines.drop(1).forEach { line ->
                                                     Text(
                                                         text = line,
-                                                        color = Color(0xFFEF9A9A),
+                                                        color = bodyColor,
                                                         fontSize = (11f * uiScale).sp,
                                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                                         modifier = Modifier.padding(top = 2.dp)
@@ -936,7 +965,7 @@ internal fun WidgetPopup(
                                         ) {
                                             Text(
                                                 text = "×",
-                                                color = Color(0xFFEF9A9A),
+                                                color = bodyColor,
                                                 fontSize = (18f * uiScale).sp,
                                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                                             )

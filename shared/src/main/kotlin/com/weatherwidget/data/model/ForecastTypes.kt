@@ -101,17 +101,20 @@ sealed class DataStatus {
 
 enum class StaleReason { OFFLINE, SOURCE_ERROR }
 
-fun isOfflineException(e: Throwable): Boolean {
-    val name = e::class.qualifiedName ?: ""
-    if (name.contains("ConnectException") ||
+// Name-based half of [isOfflineException], usable where only the class name survives (e.g. the
+// CURRENT_TEMP_STATUS app_logs rows the desktop UI reads back across the process boundary).
+fun isOfflineExceptionName(name: String): Boolean =
+    name.contains("ConnectException") ||
         name.contains("UnknownHostException") ||
         // Ktor CIO surfaces DNS failure as java.nio.channels.UnresolvedAddressException, whose
-        // message is null — the message fallbacks below can never catch it.
+        // message is null — the message fallbacks in isOfflineException can never catch it.
         name.contains("UnresolvedAddressException") ||
         name.contains("SocketTimeoutException") ||
         name.contains("NoRouteToHostException") ||
         name.contains("NetworkUnreachableException")
-    ) return true
+
+fun isOfflineException(e: Throwable): Boolean {
+    if (isOfflineExceptionName(e::class.qualifiedName ?: "")) return true
     val msg = e.message?.lowercase() ?: return false
     return msg.contains("connection refused") ||
         msg.contains("connection timed out") ||

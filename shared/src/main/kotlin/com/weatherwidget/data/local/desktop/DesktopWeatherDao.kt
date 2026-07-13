@@ -394,7 +394,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
             conn.prepareStatement(sql).use { stmt ->
                 if (source != null) {
-                    stmt.setString(1, "source=$source%")
+                    stmt.setString(1, "source=$source %")
                 }
                 val rs = stmt.executeQuery()
                 if (rs.next()) {
@@ -418,8 +418,31 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
             conn.prepareStatement(sql).use { stmt ->
                 if (source != null) {
-                    stmt.setString(1, "source=$source%")
+                    stmt.setString(1, "source=$source %")
                 }
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    val ts = rs.getLong(1)
+                    return if (ts > 0L) ts else null
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Timestamp of the newest wake/network transition the daemon recorded. WAKE_EVENT rows are a
+     * dedicated contract written only at the three real transitions (resume kick accepted,
+     * network-restored kick accepted, daemon startup) — deliberately NOT the diagnostic
+     * RESUME_DETECT/NETWORK_DETECT rows, whose wording and levels are free to change. The UI uses
+     * this to blame a fresh offline fetch failure on post-wake network warm-up rather than
+     * surfacing it as a hard error.
+     */
+    fun getLatestWakeEventMs(): Long? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT MAX(timestamp) FROM app_logs WHERE tag = '${WakeEventLog.TAG}'"
+            ).use { stmt ->
                 val rs = stmt.executeQuery()
                 if (rs.next()) {
                     val ts = rs.getLong(1)
@@ -433,14 +456,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     fun getLatestCurrentTempStatus(source: String): CurrentTempStatus? {
         db.getConnection().use { conn ->
             conn.prepareStatement(
-                "SELECT timestamp, message FROM app_logs WHERE tag = 'CURRENT_TEMP_STATUS' AND message LIKE ? ORDER BY timestamp DESC LIMIT 1"
+                "SELECT timestamp, message FROM app_logs WHERE tag = '${CurrentTempStatusLog.TAG}' AND message LIKE ? ORDER BY timestamp DESC LIMIT 1"
             ).use { stmt ->
-                stmt.setString(1, "source=$source%")
+                stmt.setString(1, "source=$source %")
                 val rs = stmt.executeQuery()
                 if (rs.next()) {
                     val timestamp = rs.getLong("timestamp")
                     val msg = rs.getString("message")
-                    val ok = msg.contains("ok=true")
+                    val ok = CurrentTempStatusLog.isOk(msg)
                     return CurrentTempStatus(timestamp, ok, msg)
                 }
             }

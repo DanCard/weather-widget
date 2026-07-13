@@ -36,13 +36,24 @@ const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 
 // Resume-from-suspend detection. The fetch loops sleep on coroutine `delay()`, which schedules
 // against CLOCK_MONOTONIC and freezes during suspend, so they do NOT fire on wake. We detect resume
-// and kick one immediate catch-up refresh. Two detectors race; [RESUME_DEBOUNCE_MS] collapses them
+// and kick one catch-up refresh. Two detectors race; [RESUME_DEBOUNCE_MS] collapses them
 // into a single fetch per wake.
 const val HEARTBEAT_INTERVAL_MS = 30_000L
 // A heartbeat tick whose wall-clock gap exceeds interval + slack (~90s) means we were suspended.
 // Mirrors ~/bin/sys-logging.sh's RESUME_DETECT_THRESHOLD_MS (75s) time-jump heuristic.
 const val SUSPEND_JUMP_SLACK_MS = 60_000L
 const val RESUME_DEBOUNCE_MS = 2 * 60 * 1000L
+
+// Hold-off before the resume kick's catch-up fetch. Right after wake the network stack is still
+// coming up (DNS fails with UnresolvedAddressException for the first ~10s), and every network
+// client on the machine re-fetches the instant the link returns — a weather refresh is low
+// priority, so sit out that thundering herd instead of joining it. The jitter de-syncs us from
+// other fixed-delay clients. If NetworkManager confirms connectivity during the pause,
+// kickNetworkRestoredRefresh cancels this job and takes over with its own (shorter) pause, so the
+// hold-off never delays a network that is already known up. Delay + jitter must stay well under
+// [RESUME_DEBOUNCE_MS] so a kick finishes its pause before the next one is accepted.
+const val RESUME_KICK_DELAY_MS = 15_000L
+const val RESUME_KICK_JITTER_MS = 10_000L
 
 enum class LaunchRefreshAction {
     FULL_FORECAST,
@@ -98,6 +109,24 @@ val OFFLINE_RETRY_DELAYS_MS = listOf(5_000L, 15_000L)
 // under NETWORK_RESTORE_DEBOUNCE_MS so a kick finishes its pause before the next one is accepted.
 const val NETWORK_RESTORE_KICK_DELAY_MS = 3_000L
 const val NETWORK_RESTORE_KICK_JITTER_MS = 2_000L
+
+// How long after a wake/network event an offline-classified current-temp failure is presented as
+// "waiting for network to warm up" instead of a hard error. Sized to cover the resume hold-off
+// (≤25s) + the offline retry backoff (5s+15s) + the network-restored kick pause (≤5s), with slack.
+const val NETWORK_WARMUP_GRACE_MS = 90_000L
+
+/**
+ * True while a failed fetch should be blamed on post-wake network warm-up rather than surfaced as
+ * an error: [lastWakeEventMs] (the newest RESUME_DETECT / NETWORK_DETECT row) is within
+ * [graceMs] of now. Anchored to the wake event, NOT the failure row — a genuinely dead network
+ * keeps producing *fresh* failures every fetch cycle, which must escalate to the real error banner
+ * once the grace window after the last wake has passed.
+ */
+fun isNetworkWarmupWindow(
+    lastWakeEventMs: Long?,
+    nowMs: Long = System.currentTimeMillis(),
+    graceMs: Long = NETWORK_WARMUP_GRACE_MS,
+): Boolean = lastWakeEventMs != null && (nowMs - lastWakeEventMs) in 0 until graceMs
 
 /**
  * Delay before offline-failure retry [attempt] (0-based), or null when the failure is not

@@ -229,6 +229,51 @@ class RefreshDelayTest {
     }
 
     @Test
+    fun `resume kick pause is several seconds and under the debounce`() {
+        // Long enough to sit out the post-wake thundering herd / DNS warm-up…
+        assertTrue(RESUME_KICK_DELAY_MS >= 5_000L)
+        // …but a worst-case pause (delay + max jitter) must finish before the debounce window
+        // reopens, so a delayed kick can't still be pending when the next one is accepted.
+        assertTrue(RESUME_KICK_DELAY_MS + RESUME_KICK_JITTER_MS < RESUME_DEBOUNCE_MS)
+    }
+
+    @Test
+    fun `warmup grace covers the full recovery pipeline`() {
+        // Resume hold-off + offline retry backoff + network-restored kick pause must all fit,
+        // or the banner escalates to a hard error while recovery is still legitimately in flight.
+        val worstCaseRecoveryMs = RESUME_KICK_DELAY_MS + RESUME_KICK_JITTER_MS +
+            OFFLINE_RETRY_DELAYS_MS.sum() +
+            NETWORK_RESTORE_KICK_DELAY_MS + NETWORK_RESTORE_KICK_JITTER_MS
+        assertTrue(NETWORK_WARMUP_GRACE_MS > worstCaseRecoveryMs)
+    }
+
+    @Test
+    fun `warmup window is open only shortly after a wake event`() {
+        val wake = 1_000_000L
+        assertTrue(isNetworkWarmupWindow(lastWakeEventMs = wake, nowMs = wake + 10_000L))
+        assertTrue(isNetworkWarmupWindow(lastWakeEventMs = wake, nowMs = wake + NETWORK_WARMUP_GRACE_MS - 1))
+        assertFalse(isNetworkWarmupWindow(lastWakeEventMs = wake, nowMs = wake + NETWORK_WARMUP_GRACE_MS))
+        // Hours after the wake, persistent offline failures must escalate to the real error.
+        assertFalse(isNetworkWarmupWindow(lastWakeEventMs = wake, nowMs = wake + 3 * 60 * 60 * 1000L))
+    }
+
+    @Test
+    fun `warmup window closed with no wake event or clock skew`() {
+        assertFalse(isNetworkWarmupWindow(lastWakeEventMs = null, nowMs = 1_000_000L))
+        // Wake row from the "future" (wall clock stepped back): fail closed to the real banner.
+        assertFalse(isNetworkWarmupWindow(lastWakeEventMs = 2_000_000L, nowMs = 1_000_000L))
+    }
+
+    @Test
+    fun `offline classification by exception class name`() {
+        // Ktor CIO's DNS failure — the class actually seen right after resume (null message).
+        assertTrue(com.weatherwidget.data.model.isOfflineExceptionName("java.nio.channels.UnresolvedAddressException"))
+        assertTrue(com.weatherwidget.data.model.isOfflineExceptionName("java.net.UnknownHostException"))
+        assertFalse(com.weatherwidget.data.model.isOfflineExceptionName("kotlinx.serialization.SerializationException"))
+        assertFalse(com.weatherwidget.data.model.isOfflineExceptionName(""))
+    }
+
+    @Test
     fun `offline retry schedule is positive and non-decreasing`() {
         assertTrue(OFFLINE_RETRY_DELAYS_MS.isNotEmpty())
         assertTrue(OFFLINE_RETRY_DELAYS_MS.all { it > 0 })

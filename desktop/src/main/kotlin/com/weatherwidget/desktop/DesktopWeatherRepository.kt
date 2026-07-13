@@ -223,12 +223,12 @@ class DesktopWeatherRepository(
                 message = "source=$weatherSource hourly=${result.hourly.size} daily=${result.daily.size} " +
                     "obs=${result.rawObservations.size} extremes=$extremesCount",
             )
-            weatherDao.log("CURRENT_TEMP_STATUS", "source=${displaySource.id} ok=true", "INFO")
+            weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
             loadCached(now) ?: result
         } catch (e: Exception) {
             if (e !is kotlinx.coroutines.CancellationException) {
-                weatherDao.log("CURRENT_TEMP_STATUS", "source=${displaySource.id} ok=false class=${e::class.simpleName} detail=${e.message}", "WARN")
+                weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(displaySource.id, e), "WARN")
             }
             throw e
         }
@@ -254,7 +254,7 @@ class DesktopWeatherRepository(
                 tag = "OBS_REFRESH",
                 message = "source=$weatherSource obs=${result.rawObservations.size} extremes=$extremesCount",
             )
-            weatherDao.log("CURRENT_TEMP_STATUS", "source=${displaySource.id} ok=true", "INFO")
+            weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
             val cachedHourly = cached?.hourly ?: emptyList()
             val (currentTemp, appliedDelta) = resolveForForecastResult(cachedHourly, now)
@@ -272,7 +272,7 @@ class DesktopWeatherRepository(
             )
         } catch (e: Exception) {
             if (e !is kotlinx.coroutines.CancellationException) {
-                weatherDao.log("CURRENT_TEMP_STATUS", "source=${displaySource.id} ok=false class=${e::class.simpleName} detail=${e.message}", "WARN")
+                weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(displaySource.id, e), "WARN")
             }
             throw e
         }
