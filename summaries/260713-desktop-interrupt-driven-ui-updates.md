@@ -26,4 +26,5 @@ Date: 2026-07-13
 ## Verification Results
 
 * Added `resolveCurrentTempInMemory returns exact same temperature as loadCached` unit test in **[DesktopWeatherRepositoryTest](file:///home/dcar/projects/weather-widget/desktop/src/test/kotlin/com/weatherwidget/desktop/DesktopWeatherRepositoryTest.kt)**.
-* Built and ran all unit tests successfully (`./gradlew :desktop:test`).
+* Added `test daemon reloads on data updated trigger` integration test in **[DesktopStartupTest](file:///home/dcar/projects/weather-widget/desktop/src/test/kotlin/com/weatherwidget/desktop/DesktopStartupTest.kt)**, which starts the headless daemon process, touches a `.data-updated` file, and verifies that the daemon's directory watch service detects it and triggers.
+* Built and ran all unit and integration tests successfully (`./gradlew :desktop:test`).
