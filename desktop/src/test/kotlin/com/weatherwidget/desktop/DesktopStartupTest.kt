@@ -131,6 +131,82 @@ class DesktopStartupTest {
         }
     }
 
+    @Test
+    fun `test daemon reloads on data updated trigger`() {
+        val tempDir = Files.createTempDirectory("weather-test-data-updated")
+        val appDir = tempDir.resolve("weather-widget")
+        Files.createDirectories(appDir)
+
+        val javaExecutable = Path(System.getProperty("java.home"), "bin", "java").toString()
+        val process = ProcessBuilder(
+            javaExecutable,
+            "-cp",
+            System.getProperty("java.class.path"),
+            "com.weatherwidget.desktop.MainKt"
+        )
+            .redirectErrorStream(true)
+        
+        // Isolate the process config/data directory
+        process.environment()["XDG_DATA_HOME"] = tempDir.toAbsolutePath().toString()
+
+        val runningProcess = process.start()
+        val reader = BufferedReader(InputStreamReader(runningProcess.inputStream))
+        val outputLines = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val readThread = kotlin.concurrent.thread(start = true, isDaemon = true, name = "process-reader-du") {
+            runCatching {
+                reader.forEachLine { line ->
+                    outputLines.add(line)
+                }
+            }
+        }
+
+        try {
+            // 1. Wait for the daemon to start
+            var daemonStarted = false
+            val startTime = System.currentTimeMillis()
+            while (System.currentTimeMillis() - startTime < 10000L) {
+                if (outputLines.any { it.contains("Starting headless WeatherDaemon") }) {
+                    daemonStarted = true
+                    break
+                }
+                Thread.sleep(100)
+            }
+
+            assertTrue("Daemon failed to start. Output:\n${outputLines.joinToString("\n")}", daemonStarted)
+
+            // 2. Give the WatchService a brief moment to register
+            Thread.sleep(1500)
+
+            // 3. Touch the .data-updated file to trigger reload
+            val dataUpdatedFile = appDir.resolve(".data-updated")
+            Files.writeString(dataUpdatedFile, "", java.nio.charset.StandardCharsets.UTF_8)
+
+            // 4. Wait for the WatchService to detect it
+            var dataUpdatedDetected = false
+            val detectStartTime = System.currentTimeMillis()
+            while (System.currentTimeMillis() - detectStartTime < 10000L) {
+                if (outputLines.any { it.contains("WatchService: .data-updated trigger detected") }) {
+                    dataUpdatedDetected = true
+                    break
+                }
+                Thread.sleep(100)
+            }
+
+            assertTrue("WatchService did not detect .data-updated trigger. Output:\n${outputLines.joinToString("\n")}", dataUpdatedDetected)
+
+        } finally {
+            runningProcess.descendants().forEach { it.destroyForcibly() }
+            runningProcess.destroyForcibly()
+            readThread.interrupt()
+            // Clean up temporary files
+            runCatching {
+                Files.walk(tempDir)
+                    .sorted(Comparator.reverseOrder())
+                    .forEach { Files.deleteIfExists(it) }
+            }
+        }
+    }
+
     /**
      * Verifies that the configuration store can handle a missing config file
      * (the "first launch" scenario) without crashing.
