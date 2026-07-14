@@ -52,4 +52,43 @@ class ObservationFallbackPolicyTest {
         assertEquals("empty", ObservationFallbackPolicy.fallbackReason(0))
         assertEquals("stale", ObservationFallbackPolicy.fallbackReason(12))
     }
+
+    /**
+     * The regression this window exists to prevent (KPAO 2026-07-13): the fallback fires only once a
+     * station is >1h stale, so a flat 60-minute request could never contain the reading it was sent
+     * to re-check. Synoptic answered "no stations found", the QC flag on a bogus 50°F reading was
+     * never seen, and the unflagged value stayed in the blend. Whenever the fallback fires, the
+     * window MUST reach past the station's newest reading.
+     */
+    @Test
+    fun `window always reaches the reading that triggered the fallback`() {
+        for (staleMinutes in longArrayOf(61, 90, 180, 8 * 60, 23 * 60)) {
+            val newest = now - staleMinutes * 60_000L
+            assertTrue(
+                "fallback should fire at $staleMinutes min stale",
+                ObservationFallbackPolicy.shouldUseWebFallback(0, newest, now),
+            )
+            val window = ObservationFallbackPolicy.webFallbackWindowMinutes(newest, now)
+            assertTrue(
+                "window ${window}min must cover a station silent for ${staleMinutes}min",
+                window > staleMinutes,
+            )
+        }
+    }
+
+    @Test
+    fun `window is capped and never shrinks below the margin`() {
+        val ancient = now - 40L * 60 * 60 * 1000
+        assertEquals(
+            ObservationFallbackPolicy.MAX_WEB_FALLBACK_WINDOW_MINUTES,
+            ObservationFallbackPolicy.webFallbackWindowMinutes(ancient, now),
+        )
+        // A station with no known reading: we cannot tell how far back its data starts.
+        assertEquals(
+            ObservationFallbackPolicy.MAX_WEB_FALLBACK_WINDOW_MINUTES,
+            ObservationFallbackPolicy.webFallbackWindowMinutes(null, now),
+        )
+        // Fresh reading (fallback would not even fire) still yields a usable, positive window.
+        assertTrue(ObservationFallbackPolicy.webFallbackWindowMinutes(now, now) >= 60L)
+    }
 }

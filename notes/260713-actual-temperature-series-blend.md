@@ -69,8 +69,18 @@ evaluations of similar-but-not-identical estimators at different effective times
   decay → 0), points degenerate toward that station; the dominance guard bounds this to the
   day's best-coverage station but can't create data that isn't there.
 - **Bad upstream data.** A QC-passing outlier still enters at full weight (the 2026-07-13
-  KPAO 50°F reading failed Synoptic's spatial check and is now filtered via `qcFailed`;
-  NWS's own per-field `qualityControl` codes remain unused — a known gap).
+  KPAO 50°F reading failed Synoptic's spatial check and is filtered via `qcFailed`).
+  **Update 2026-07-14:** two holes in that filter, both now closed —
+  (a) the Synoptic web fallback requested a flat `recent=60` window but only *fires* once a
+  station is >1h stale, so for a 3h-silent station the window was guaranteed empty
+  (Synoptic answered "no stations found") and the QC flag was never seen. Android kept the
+  unflagged 50°F and blended it, pulling the leading-edge dot to 67.81 while every station
+  read ≥68.0. The window now scales with the staleness that triggered the fallback
+  (`ObservationFallbackPolicy.webFallbackWindowMinutes`), and ALL flagged readings are
+  written (REPLACE) so rows stored unflagged by an earlier narrow fetch self-heal.
+  Desktop was never affected — it already requested `historyDays * 24 * 60`.
+  (b) NWS's own per-field `qualityControl` codes are no longer ignored
+  (`NwsQualityControl`: X/Q/B/T = failed; Z = "not yet QC'd", still usable).
 - **Anchor window alignment.** `resolveCurrentObservation` aligns its context window to the
   hour (minute ≥30 rounds up) so the delta doesn't jump between view modes — the one place
   "hourly" still appears; it bounds which points exist, not where they're sampled.

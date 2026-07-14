@@ -158,7 +158,8 @@ class ObservationRepository @Inject constructor(
         val nwsOutcome = nwsApi.getLatestObservationDetailedResult(stationInfo.id)
         val observation = nwsOutcome.valueOrNull()
 
-        val isStale = ObservationFallbackPolicy.isStale(observation.observedAtMillis(), System.currentTimeMillis())
+        val nowMs = System.currentTimeMillis()
+        val isStale = ObservationFallbackPolicy.isStale(observation.observedAtMillis(), nowMs)
 
         var isWeb = false
         var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
@@ -168,19 +169,36 @@ class ObservationRepository @Inject constructor(
                 is FetchOutcome.NoData -> "no_valid_data"
                 is FetchOutcome.Failed -> "fail"
             }
-            appLogDao.log("NWS_STATION_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
-            Log.i(TAG, "Latest NWS observation for ${stationInfo.id} is missing or stale ($fallbackReason). Querying Synoptic fallback...")
-            synopticOutcome = synopticApi.fetchSynopticObservations(stationInfo.id, 60, stationInfo.name)
+            // The window must reach back past the station's newest reading, or the fallback asks a
+            // silent station what it did in the last hour and learns nothing (KPAO 2026-07-13).
+            val windowMinutes = ObservationFallbackPolicy.webFallbackWindowMinutes(
+                observation.observedAtMillis(),
+                nowMs,
+            )
+            appLogDao.log(
+                "NWS_STATION_SYNOPTIC_FALLBACK",
+                "station=${stationInfo.id} reason=$fallbackReason windowMin=$windowMinutes",
+                "INFO",
+            )
+            Log.i(TAG, "Latest NWS observation for ${stationInfo.id} is missing or stale ($fallbackReason). Querying Synoptic fallback (window=${windowMinutes}min)...")
+            synopticOutcome = synopticApi.fetchSynopticObservations(stationInfo.id, windowMinutes, stationInfo.name)
             val synopticReadings = synopticOutcome.valueOrNull().orEmpty()
-            // QC-flagged readings are stored (marked) so the stations UI can show the failure,
-            // but they must never become the usable observation that feeds the blend.
-            val flaggedLatest = synopticReadings.lastOrNull { it.qcFailed }
-            if (flaggedLatest != null) {
-                val flaggedEntity = buildObservationEntity(flaggedLatest, stationInfo, latitude, longitude, isWebFallback = true)
-                observationDao.insertAll(listOf(flaggedEntity))
+            // QC-flagged readings are stored (marked) so the stations UI can show the failure, but
+            // they must never become the usable observation that feeds the blend. ALL of them are
+            // written, not just the newest: a reading stored unflagged by an earlier narrow-window
+            // fetch is only healed if this pass rewrites its row (insertAll is REPLACE, keyed on
+            // stationId+timestamp), and a wide window can surface several flagged readings at once.
+            val flagged = synopticReadings.filter { it.qcFailed }
+            if (flagged.isNotEmpty()) {
+                val flaggedEntities = flagged.map {
+                    buildObservationEntity(it, stationInfo, latitude, longitude, isWebFallback = true)
+                }
+                observationDao.insertAll(flaggedEntities)
                 appLogDao.log(
                     "OBS_QC_FLAGGED",
-                    "station=${stationInfo.id} timestamp=${flaggedEntity.timestamp} temp=${flaggedEntity.temperature}",
+                    "station=${stationInfo.id} count=${flaggedEntities.size} " +
+                        "timestamps=${flaggedEntities.joinToString(",") { it.timestamp.toString() }} " +
+                        "temps=${flaggedEntities.joinToString(",") { it.temperature.toString() }}",
                     "WARN",
                 )
             }

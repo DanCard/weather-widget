@@ -1,11 +1,13 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.shared.observations.NwsQualityControl
 import com.weatherwidget.shared.util.Log
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -93,6 +95,10 @@ class NwsApi
                 val precipLastHourObj = props["precipitationLastHour"]?.jsonObject
                 val precipLastHourMm = precipLastHourObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
 
+                // NWS's own verdict on the value it just handed us. Marked (not dropped) so the
+                // stations list can show the failure, exactly as Synoptic-flagged readings are.
+                val qualityControl = tempObj?.get("qualityControl")?.jsonPrimitive?.contentOrNull
+
                 return Observation(
                     timestamp = timestamp,
                     temperatureCelsius = tempValue.toFloat(),
@@ -101,6 +107,7 @@ class NwsApi
                     maxTempLast24hCelsius = maxTempValue,
                     minTempLast24hCelsius = minTempValue,
                     precipLastHourMm = precipLastHourMm,
+                    qcFailed = NwsQualityControl.isFailed(qualityControl),
                 )
             }
 
@@ -228,6 +235,9 @@ class NwsApi
                     timestamp = timestamp,
                     temperatureCelsius = tempValue.toFloat(),
                     textDescription = textDescription,
+                    qcFailed = NwsQualityControl.isFailed(
+                        tempObj["qualityControl"]?.jsonPrimitive?.contentOrNull,
+                    ),
                 )
             } else {
                 Log.d("NwsApi", "getLatestObservation: station=$stationId has null temperature value")
