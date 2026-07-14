@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.TemperatureInterpolator
@@ -350,12 +351,15 @@ class DesktopWeatherService(
                     null
                 }
 
-                val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
-                val isStale = latest == null || runCatching { ZonedDateTime.parse(latest.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
+                val newestObservationMs = latest?.let {
+                    runCatching { ZonedDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull()
+                }
 
                 var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
-                if (index < 2 && isStale) {
-                    Log.i(TAG, "NWS API observations for ${station.id} are stale or missing. Querying Synoptic fallback...")
+                if (ObservationFallbackPolicy.shouldUseWebFallback(index, newestObservationMs, System.currentTimeMillis())) {
+                    val fallbackReason = ObservationFallbackPolicy.fallbackReason(historical.size)
+                    weatherDao?.log("NWS_STATION_SYNOPTIC_FALLBACK", "station=${station.id} reason=$fallbackReason", "INFO")
+                    Log.i(TAG, "NWS API observations for ${station.id} are stale or missing ($fallbackReason). Querying Synoptic fallback...")
                     synopticOutcome = synopticApi.fetchSynopticObservations(station.id, historyDays * 24 * 60, station.name)
                     val obsList = synopticOutcome.valueOrNull()
                     if (!obsList.isNullOrEmpty()) {

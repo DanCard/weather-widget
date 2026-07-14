@@ -20,6 +20,7 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.util.SpatialInterpolator
 import java.time.Instant
@@ -90,12 +91,12 @@ class ObservationRepository @Inject constructor(
     private fun personalStationWeight(): Double =
         com.weatherwidget.widget.WidgetStateManager(context).getPersonalStationWeight()
 
+    /** Epoch millis of an NWS observation; null when absent or unparseable (treated as stale). */
+    private fun NwsApi.Observation?.observedAtMillis(): Long? =
+        this?.let { runCatching { OffsetDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull() }
+
     companion object {
         private const val MAX_RETRIES = 5
-
-        // Synoptic (web) fallback is a heavier out-of-band fetch, so it is limited to the
-        // nearest N stations by distance rather than all MAX_RETRIES candidates.
-        private const val MAX_WEB_FALLBACK_STATIONS = 3
     }
 
     internal suspend fun fetchNwsCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
@@ -157,8 +158,7 @@ class ObservationRepository @Inject constructor(
         val nwsOutcome = nwsApi.getLatestObservationDetailedResult(stationInfo.id)
         val observation = nwsOutcome.valueOrNull()
 
-        val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
-        val isStale = observation == null || runCatching { OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
+        val isStale = ObservationFallbackPolicy.isStale(observation.observedAtMillis(), System.currentTimeMillis())
 
         var isWeb = false
         var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
@@ -316,13 +316,13 @@ class ObservationRepository @Inject constructor(
                     emptyList()
                 }
 
-                val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
-                val latestObs = observations.maxByOrNull { runCatching { OffsetDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) }
-                val isStale = latestObs == null || runCatching { OffsetDateTime.parse(latestObs.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
+                val newestObservationMs = observations.mapNotNull { it.observedAtMillis() }.maxOrNull()
 
                 var isWeb = false
-                val finalObservations = if (index < MAX_WEB_FALLBACK_STATIONS && isStale && synopticApi != null) {
-                    val fallbackReason = if (observations.isEmpty()) "empty" else "stale"
+                val useWebFallback = synopticApi != null &&
+                    ObservationFallbackPolicy.shouldUseWebFallback(index, newestObservationMs, System.currentTimeMillis())
+                val finalObservations = if (useWebFallback) {
+                    val fallbackReason = ObservationFallbackPolicy.fallbackReason(observations.size)
                     appLogDao.log("NWS_DAILY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
                     Log.i(TAG, "Daily backfill NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
                     val minutes = WeatherConfig.NWS_BACKFILL_DAYS * 24 * 60L
@@ -449,13 +449,13 @@ class ObservationRepository @Inject constructor(
                     emptyList()
                 }
 
-                val oneHourAgo = System.currentTimeMillis() - 1 * 60 * 60 * 1000L
-                val latestObs = observations.maxByOrNull { runCatching { OffsetDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) }
-                val isStale = latestObs == null || runCatching { OffsetDateTime.parse(latestObs.timestamp).toInstant().toEpochMilli() }.getOrDefault(0L) < oneHourAgo
+                val newestObservationMs = observations.mapNotNull { it.observedAtMillis() }.maxOrNull()
 
                 var isWeb = false
-                val finalObservations = if (index < MAX_WEB_FALLBACK_STATIONS && isStale && synopticApi != null) {
-                    val fallbackReason = if (observations.isEmpty()) "empty" else "stale"
+                val useWebFallback = synopticApi != null &&
+                    ObservationFallbackPolicy.shouldUseWebFallback(index, newestObservationMs, System.currentTimeMillis())
+                val finalObservations = if (useWebFallback) {
+                    val fallbackReason = ObservationFallbackPolicy.fallbackReason(observations.size)
                     appLogDao.log("OBS_HOURLY_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
                     Log.i(TAG, "Hourly NWS observations for ${stationInfo.id} are missing or stale ($fallbackReason). Querying Synoptic fallback...")
                     val minutes = lookbackHours * 60L
