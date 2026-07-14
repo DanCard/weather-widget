@@ -30,10 +30,29 @@ object ObservationFallbackPolicy {
         stationIndex < MAX_WEB_FALLBACK_STATIONS && isStale(newestObservationMs, nowMs)
 
     /**
-     * Widest history the web fallback will request. Generous by design: the point of the fallback is
-     * to see readings the API did not show us, and a station can be silent for a long time.
+     * Widest history the web fallback will request.
+     *
+     * Derived, not guessed. The window must reach the station's newest reading whenever we look at
+     * it, so it has to cover the longest gap between two looks plus the span over which a reading
+     * can still affect what's displayed:
+     *
+     *   BatteryTier.INTERVAL_MEDIUM_MINUTES (480, the longest scheduled fetch gap)
+     *     + ObservationOrigin.BLEND_MAX_AGE_MS (180, the decay neighbourhood a reading still
+     *       influences — measured against each candidate timestamp, NOT against now, so an aged-out
+     *       reading is still baked into the past of the curve and into daily_history)
+     *     + margin
+     *   ≈ 11h  →  12h.
+     *
+     * A tighter cap silently re-creates the bug this policy exists to prevent: clamp below the
+     * reading's own age and the web source returns nothing, so its QC flag is never seen and a bad
+     * reading can never be healed. 3h would have missed KPAO itself (192 min stale); 6h fails a
+     * phone on the 8h low-battery interval. [ObservationFallbackPolicyTest] pins this.
+     *
+     * The cap is close to a worst-case bound rather than a per-fetch cost: the window is
+     * age + margin, so a station 70 min stale asks for ~130 min. Only a station silent longer than
+     * the cap — or one we have never seen a reading from — actually requests the maximum.
      */
-    const val MAX_WEB_FALLBACK_WINDOW_MINUTES = 24 * 60L
+    const val MAX_WEB_FALLBACK_WINDOW_MINUTES = 12 * 60L
 
     /** Requested past the station's newest reading, so a reading right at the edge is still inside. */
     private const val WEB_FALLBACK_WINDOW_MARGIN_MINUTES = 60L

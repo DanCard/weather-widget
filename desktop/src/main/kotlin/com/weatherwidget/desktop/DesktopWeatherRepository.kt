@@ -388,12 +388,17 @@ class DesktopWeatherRepository(
             dailyRows.filter { it.date == date.toString() }.forEach { row ->
                 val fragments = existingByDateSource[dateMs to weatherSource].orEmpty()
                 if (fragments.isEmpty()) return@forEach
-                val resolved = com.weatherwidget.shared.util.DailyRainLabels.resolveLiveDayNightChance(
+                // ...AtSite: hourlyRows are RAW proximity-box rows (jitter fragments included), and
+                // the window max is a `max` — one poisoned fragment wins outright. See the Android
+                // twin of this call and DailyRainLabels.resolveLiveDayNightChanceAtSite.
+                val resolved = com.weatherwidget.shared.util.DailyRainLabels.resolveLiveDayNightChanceAtSite(
                     displaySourceId = weatherSource,
                     daytimePrecipProbability = row.daytimePrecipProbability,
                     nighttimePrecipProbability = row.nighttimePrecipProbability,
                     precipProbability = row.precipProbability,
                     hourly = hourlyRows,
+                    centerLat = latitude,
+                    centerLon = longitude,
                     targetDate = date,
                     zoneId = zoneId,
                 )

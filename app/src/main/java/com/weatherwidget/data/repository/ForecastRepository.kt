@@ -94,6 +94,9 @@ class ForecastRepository
             private const val CACHE_LOOKBACK_DAYS = 7L
             private const val CACHE_FORECAST_DAYS = 30L
             private const val PREF_CHANCE_BACKFILL_DONE = "rain_chance_backfill_done"
+
+            // Bump the suffix to re-run the repair after a future fix to the re-derivation itself.
+            private const val PREF_CHANCE_REPAIR_DONE = "rain_chance_site_repair_done_v1"
             private const val PREF_FROZEN_DISPLAY_BACKFILL_DONE = "frozen_display_backfill_done"
             private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 30L
 
@@ -298,12 +301,18 @@ class ForecastRepository
                 dailyRows.filter { it.targetDate == dateMs }.forEach { row ->
                     val fragments = existingByDateSource[dateMs to row.source].orEmpty()
                     if (fragments.isEmpty()) return@forEach
-                    val resolved = com.weatherwidget.shared.util.DailyRainLabels.resolveLiveDayNightChance(
+                    // ...AtSite: hourlyRows are RAW proximity-box rows, so they include GPS-jitter
+                    // fragments from old fetch coordinates. Taking the window max across those let a
+                    // neighbouring fragment's 9% beat the real site's 4% into the archive while the
+                    // hourly graph (which selects a site) drew 5% — same DB, two answers.
+                    val resolved = com.weatherwidget.shared.util.DailyRainLabels.resolveLiveDayNightChanceAtSite(
                         displaySourceId = row.source,
                         daytimePrecipProbability = row.daytimePrecipProbability,
                         nighttimePrecipProbability = row.nighttimePrecipProbability,
                         precipProbability = row.precipProbability,
                         hourly = hourlyRows,
+                        centerLat = latitude,
+                        centerLon = longitude,
                         targetDate = date,
                         zoneId = zoneId,
                     )
@@ -375,6 +384,72 @@ class ForecastRepository
                 }
             }
             if (toInsert.isNotEmpty()) dailyHistoryDao.insertAll(toInsert)
+        }
+
+        /**
+         * One-time repair of chance columns frozen from RAW proximity-box hourly rows, before the
+         * freeze path selected a site ([DailyRainLabels.resolveLiveDayNightChanceAtSite]). Those
+         * writes took a `max` across GPS-jitter fragments, so a neighbouring fragment could beat the
+         * real site into the archive — observed 2026-07-13: the daily bar showed 9% for yesterday
+         * while the hourly graph, drawn from the same database, showed 5%.
+         *
+         * Unlike [backfillForecastChanceSnapshotsIfNeeded] this rewrites rows that ALREADY hold a
+         * value — that is the entire point; the stored value is the wrong one. It is still not a
+         * hindcast: [FrozenRainChanceRepair] only reads history snapshots fetched before the freeze
+         * window closed, reproducing what the site's rows said while the day was live.
+         *
+         * Conservative: a re-derivation that comes back null (history aged out past its 30-day
+         * retention, or the day was never fetched) leaves the existing value alone. A wrong value is
+         * better than an erased one, and this must never turn a populated archive into nulls.
+         */
+        internal suspend fun repairFrozenRainChanceIfNeeded(latitude: Double, longitude: Double) {
+            if (prefs.getBoolean(PREF_CHANCE_REPAIR_DONE, false)) return
+            val zoneId = ZoneId.systemDefault()
+            val today = LocalDate.now(zoneId)
+            val startMs = today.minusDays(CHANCE_BACKFILL_LOOKBACK_DAYS).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+            val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+
+            val rows = dailyHistoryDao.getExtremesInRange(startMs, endMs, latitude, longitude)
+                .filter { it.forecastDayPrecipChance != null || it.forecastNightPrecipChance != null }
+            if (rows.isEmpty()) {
+                prefs.edit().putBoolean(PREF_CHANCE_REPAIR_DONE, true).apply()
+                return
+            }
+
+            val toInsert = mutableListOf<com.weatherwidget.data.local.DailyHistoryEntity>()
+            for (row in rows) {
+                val date = LocalDate.ofEpochDay(row.date / WidgetConstants.MS_IN_A_DAY)
+                val history = hourlyForecastHistoryDao.getHistoryInRangeAllSnapshots(
+                    startDateTime = date.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                    endDateTime = date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli(),
+                    lat = latitude,
+                    lon = longitude,
+                ).map { it.toHourlyForecast() }
+                if (history.isEmpty()) continue
+
+                val rederived = com.weatherwidget.shared.util.FrozenRainChanceRepair.rederive(
+                    history = history,
+                    displaySourceId = row.source,
+                    centerLat = latitude,
+                    centerLon = longitude,
+                    date = date,
+                    zoneId = zoneId,
+                )
+                val newDay = rederived.dayPrecip ?: row.forecastDayPrecipChance
+                val newNight = rederived.nightPrecip ?: row.forecastNightPrecipChance
+                if (newDay == row.forecastDayPrecipChance && newNight == row.forecastNightPrecipChance) continue
+
+                appLogDao.log(
+                    "RAIN_CHANCE_REPAIR",
+                    "date=$date src=${row.source}" +
+                        " day=${row.forecastDayPrecipChance}->$newDay" +
+                        " night=${row.forecastNightPrecipChance}->$newNight",
+                    "INFO",
+                )
+                toInsert.add(row.copy(forecastDayPrecipChance = newDay, forecastNightPrecipChance = newNight))
+            }
+            if (toInsert.isNotEmpty()) dailyHistoryDao.insertAll(toInsert)
+            prefs.edit().putBoolean(PREF_CHANCE_REPAIR_DONE, true).apply()
         }
 
         /**

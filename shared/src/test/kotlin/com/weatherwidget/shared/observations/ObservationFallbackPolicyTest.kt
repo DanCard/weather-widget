@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.shared.util.BatteryTier
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -62,7 +63,10 @@ class ObservationFallbackPolicyTest {
      */
     @Test
     fun `window always reaches the reading that triggered the fallback`() {
-        for (staleMinutes in longArrayOf(61, 90, 180, 8 * 60, 23 * 60)) {
+        // Up to the derived worst case (longest fetch gap + blend neighbourhood). Beyond that the
+        // window caps out, which is accepted: a station silent for longer than the cap was already
+        // fetched — and QC-checked — while its readings were fresh.
+        for (staleMinutes in longArrayOf(61, 90, 192, BatteryTier.INTERVAL_MEDIUM_MINUTES, 660)) {
             val newest = now - staleMinutes * 60_000L
             assertTrue(
                 "fallback should fire at $staleMinutes min stale",
@@ -74,6 +78,35 @@ class ObservationFallbackPolicyTest {
                 window > staleMinutes,
             )
         }
+    }
+
+    /**
+     * The cap is derived, not chosen: it must survive the worst case where a station goes silent
+     * immediately after a fetch and the phone is on its longest scheduled interval. If someone later
+     * trims the cap for payload reasons, this fails rather than silently re-creating the original
+     * bug (a window clamped below the reading's own age returns nothing, so the QC flag is never
+     * seen and the bad reading can never be healed).
+     *
+     * 3h would miss KPAO itself (192 min stale, 2026-07-13); 6h fails the 8h low-battery interval.
+     */
+    @Test
+    fun `window cap covers the longest fetch gap plus the blend neighbourhood`() {
+        val worstCaseSilenceMinutes =
+            BatteryTier.INTERVAL_MEDIUM_MINUTES + ObservationOrigin.BLEND_MAX_AGE_MS / 60_000L
+
+        assertTrue(
+            "cap ${ObservationFallbackPolicy.MAX_WEB_FALLBACK_WINDOW_MINUTES}min must exceed the " +
+                "worst-case ${worstCaseSilenceMinutes}min a reading can be unseen and still matter",
+            ObservationFallbackPolicy.MAX_WEB_FALLBACK_WINDOW_MINUTES > worstCaseSilenceMinutes,
+        )
+
+        // The end-to-end property: a station silent for that worst case is still fully reachable.
+        val newest = now - worstCaseSilenceMinutes * 60_000L
+        assertTrue(ObservationFallbackPolicy.shouldUseWebFallback(0, newest, now))
+        assertTrue(
+            "window must reach a reading ${worstCaseSilenceMinutes}min old",
+            ObservationFallbackPolicy.webFallbackWindowMinutes(newest, now) > worstCaseSilenceMinutes,
+        )
     }
 
     @Test

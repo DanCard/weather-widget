@@ -171,4 +171,7 @@ class WeatherRepository
 
         suspend fun backfillFrozenDisplayColumnsIfNeeded(latitude: Double, longitude: Double) =
             forecastRepository.backfillFrozenDisplayColumnsIfNeeded(latitude, longitude)
+
+        suspend fun repairFrozenRainChanceIfNeeded(latitude: Double, longitude: Double) =
+            forecastRepository.repairFrozenRainChanceIfNeeded(latitude, longitude)
     }

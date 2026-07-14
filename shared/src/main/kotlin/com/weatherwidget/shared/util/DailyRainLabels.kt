@@ -2,6 +2,7 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.HourlyForecastSelector
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -208,6 +209,65 @@ object DailyRainLabels {
      * what was shown instead of recomputing from hindcast hourly rows (see
      * [com.weatherwidget.data.model.DailyHistory.forecastDayPrecipChance]).
      */
+    /**
+     * [resolveLiveDayNightChance] for a caller holding RAW hourly rows straight from the persistence
+     * layer — i.e. every row the [LocationMatch][com.weatherwidget.data.local.LocationMatch]
+     * proximity box gathered, including GPS-jitter fragments left at old fetch coordinates.
+     *
+     * Collapses those to the user's actual site (freshest row per hour) via [HourlyForecastSelector]
+     * before taking the window max. Skipping this step is what produced the 2026-07-13 divergence:
+     * the daily-history freeze read raw box rows and its `maxOrNull()` picked up a neighbouring
+     * fragment's 9% while the real site (37.417,-122.089) said 4% — so the Samsung's daily bar
+     * showed 9% for yesterday while its own hourly graph, which goes through the selector, showed 5%.
+     * `max` is the worst possible reducer to run over a poisoned set: one bad fragment wins outright.
+     *
+     * Every display path already selects a site; snapshot/freeze paths must too, or the archive
+     * disagrees with the graph drawn from the same database.
+     */
+    fun resolveLiveDayNightChanceAtSite(
+        displaySourceId: String,
+        daytimePrecipProbability: Int?,
+        nighttimePrecipProbability: Int?,
+        precipProbability: Int?,
+        hourly: List<HourlyForecast>,
+        centerLat: Double,
+        centerLon: Double,
+        targetDate: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): ResolvedDailyPrecip {
+        val sited = selectSiteHourly(hourly, displaySourceId, centerLat, centerLon)
+        return resolveLiveDayNightChance(
+            displaySourceId = displaySourceId,
+            daytimePrecipProbability = daytimePrecipProbability,
+            nighttimePrecipProbability = nighttimePrecipProbability,
+            precipProbability = precipProbability,
+            hourly = sited,
+            targetDate = targetDate,
+            zoneId = zoneId,
+        )
+    }
+
+    /**
+     * One row per hour for [displaySourceId] at the site centred on ([centerLat], [centerLon]),
+     * preserving [calculateDayNightPrecipProbabilities]'s GENERIC_GAP fallback (a source with no
+     * hourly rows of its own falls back to the climate-normal filler) — but resolving the site
+     * first, so the fallback can't be triggered or poisoned by a neighbouring fragment.
+     */
+    fun selectSiteHourly(
+        hourly: List<HourlyForecast>,
+        displaySourceId: String,
+        centerLat: Double,
+        centerLon: Double,
+    ): List<HourlyForecast> {
+        val sourceRows = HourlyForecastSelector
+            .selectForecastsByTime(hourly, displaySourceId, centerLat, centerLon)
+            .values.toList()
+        if (sourceRows.isNotEmpty()) return sourceRows
+        return HourlyForecastSelector
+            .selectForecastsByTime(hourly, WeatherSource.GENERIC_GAP.id, centerLat, centerLon)
+            .values.toList()
+    }
+
     fun resolveLiveDayNightChance(
         displaySourceId: String,
         daytimePrecipProbability: Int?,

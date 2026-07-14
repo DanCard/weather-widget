@@ -71,6 +71,26 @@ interface HourlyForecastHistoryDao {
         lon: Double,
     ): List<HourlyForecastHistoryEntity>
 
+    /**
+     * Every snapshot of every source in the range — no bucket window. Used by the frozen-rain-chance
+     * repair, which must reconstruct what the live hourly table held at an arbitrary past instant and
+     * therefore needs the raw `fetchedAt`-stamped rows, not one prediction bucket.
+     */
+    @Query(
+        """
+        SELECT * FROM hourly_forecast_history
+        WHERE ${LocationMatch.ROOM_WHERE}
+        AND dateTime >= :startDateTime AND dateTime < :endDateTime
+        ORDER BY dateTime ASC
+    """,
+    )
+    suspend fun getHistoryInRangeAllSnapshots(
+        startDateTime: Long,
+        endDateTime: Long,
+        lat: Double,
+        lon: Double,
+    ): List<HourlyForecastHistoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(history: List<HourlyForecastHistoryEntity>)
 
