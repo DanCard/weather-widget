@@ -184,16 +184,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             try {
                 if (latestWeather == null) {
+                    // Nothing on screen to preserve, so the placeholder is real feedback.
                     for (appWidgetId in filteredIds) {
                         WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
                     }
                     triggerImmediateUpdate(context, reason = "on_update_no_data")
                 } else {
-                    // Immediate render of loading state to provide instant feedback
-                    for (appWidgetId in filteredIds) {
-                        WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
-                    }
-
+                    // No placeholder here: cached content is already on screen and renderStartupWidgets
+                    // replaces it below. Painting "Loading..." over it reads as a flicker on launchers
+                    // that re-inflate the whole view tree on a full push (Samsung/HoneySpace).
                     queryResult = loadStartupData(
                         forecastDao = forecastDao,
                         hourlyDao = hourlyDao,
@@ -212,8 +211,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     staleCheckMs = checkStalenessAndFetch(context)
                 }
             } catch (e: CancellationException) {
-                // HOURLY_PAINT_TRACE: a cancelled startup leaves the "Loading..." placeholder in place
-                // (we deliberately do NOT repaint an error state on cancellation). Logged so a stuck
+                // HOURLY_PAINT_TRACE: a cancelled startup leaves whatever is on screen in place — the
+                // "Loading..." placeholder when there was no data, otherwise the previous cached render.
+                // We deliberately do NOT repaint an error state on cancellation. Logged so a stuck
                 // placeholder can be attributed to cancellation vs. a silent no-paint.
                 appLogDao.log(
                     "HOURLY_PAINT_TRACE",
@@ -222,12 +222,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 )
                 throw e
             } catch (e: Exception) {
-                // A throw here would otherwise leave every widget stuck on the "Loading..." placeholder
-                // painted above. Repaint a recoverable error state, then rethrow so launchAsync logs it
+                // Only rescue widgets left on the "Loading..." placeholder painted above; a throw would
+                // otherwise strand them there permanently. When cached data was on screen instead, keep
+                // it — downgrading good content to "Tap to refresh" over a transient render failure is
+                // worse than showing slightly stale weather. Rethrow either way so launchAsync logs it
                 // (and Crashlytics records it once wired).
-                Log.e(TAG, "onUpdate render failed; showing error fallback for ${filteredIds.size} widgets", e)
-                for (appWidgetId in filteredIds) {
-                    WidgetRenderer.updateWidgetError(context, appWidgetManager, appWidgetId)
+                if (latestWeather == null) {
+                    Log.e(TAG, "onUpdate render failed; showing error fallback for ${filteredIds.size} widgets", e)
+                    for (appWidgetId in filteredIds) {
+                        WidgetRenderer.updateWidgetError(context, appWidgetManager, appWidgetId)
+                    }
+                } else {
+                    Log.e(TAG, "onUpdate render failed; keeping cached content for ${filteredIds.size} widgets", e)
                 }
                 throw e
             }
