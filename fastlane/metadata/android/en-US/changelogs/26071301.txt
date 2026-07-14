@@ -1,0 +1,1 @@
+Resizable forecast widget with forecast-vs-actual accuracy tracking, multi-source weather comparison (NWS, Open-Meteo, and more), 30-day history browsing, and battery-aware updates.
