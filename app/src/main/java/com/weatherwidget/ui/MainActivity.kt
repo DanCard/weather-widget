@@ -1,6 +1,8 @@
 package com.weatherwidget.ui
 
 import android.Manifest
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -18,6 +20,8 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.GpsResampler
+import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,6 +36,9 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var appLogDao: AppLogDao
+
+    @Inject
+    lateinit var widgetStateManager: WidgetStateManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,11 +71,29 @@ class MainActivity : AppCompatActivity() {
             append(" component=${launchIntent?.component?.flattenToShortString()}")
             append(" extras=${launchIntent?.extras?.keySet()}")
             append(" freshCreate=$freshCreate taskId=$taskId")
+            append(" views=${widgetViewModeSnapshot()}")
         }
         lifecycleScope.launch {
             appLogDao.log("MAIN_LAUNCH", message, "INFO")
         }
     }
+
+    /**
+     * Each widget's stored [com.weatherwidget.widget.ViewMode] at launch time, as "id:MODE" pairs.
+     * A launcher-fallback launch means the tap never reached our code, so this is the only record of
+     * what the widget was showing when the touch was hijacked — the mode determines which zones were
+     * VISIBLE (graph modes bind the home icon; DAILY hides it via DailyVisibilityManager).
+     * Only runs on MainActivity launches, which are rare, so it cannot swamp app_logs.
+     */
+    private fun widgetViewModeSnapshot(): String =
+        try {
+            AppWidgetManager.getInstance(this)
+                .getAppWidgetIds(ComponentName(this, WeatherWidgetProvider::class.java))
+                .joinToString(",") { "$it:${widgetStateManager.getViewMode(it)}" }
+                .ifEmpty { "none" }
+        } catch (e: Exception) {
+            "error=${e.javaClass.simpleName}"
+        }
 
     private fun setupViews() {
         findViewById<Button>(R.id.grant_permission_button).setOnClickListener {

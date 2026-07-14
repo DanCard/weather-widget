@@ -568,6 +568,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     private fun handleShowToastAction(context: Context, intent: Intent) {
         val message = intent.getStringExtra(WidgetActions.EXTRA_TOAST_MESSAGE) ?: "No additional data"
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        // A Toast vanishes; the dead-zone backstop (setupDeadZoneCatchAll) is otherwise invisible
+        // afterwards. Persist it so a stray MainActivity launch can be correlated: a MAIN_LAUNCH
+        // preceded by this row means the backstop absorbed the tap, while MAIN_LAUNCH with no row
+        // means the launcher intercepted the touch before RemoteViews click dispatch happened.
+        val appWidgetId = getWidgetId(intent)
+        scope.launch {
+            try {
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "WIDGET_TOAST",
+                    "widget=$appWidgetId msg=$message",
+                    "INFO",
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "handleShowToastAction: failed to log toast event", e)
+            }
+        }
     }
 
     private fun handleDayClickAction(
