@@ -232,6 +232,7 @@
     <string name="station_origin_web">Веб</string>
     <string name="station_origin_api">API</string>
     <string name="station_origin_qc_failed">Не пройшло перевірку якості</string>
+    <string name="station_origin_stale">Застаріло</string>
     <string name="fetch_logs">Журнали запитів</string>
     <string name="loading_logs">Завантаження журналів...</string>
     <string name="close">Закрити</string>

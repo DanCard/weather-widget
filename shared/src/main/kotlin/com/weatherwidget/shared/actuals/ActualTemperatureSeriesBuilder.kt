@@ -3,6 +3,7 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ObservationOrigin
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -56,7 +57,8 @@ data class ActualTemperatureSeriesResult(
 
 object ActualTemperatureSeriesBuilder {
     private const val GENERIC_GAP_SOURCE = "Generic"
-    private const val TIME_DECAY_MAX_AGE_MS = 3 * 60 * 60 * 1000L
+    // The stations list badges a station "Stale" at exactly this age, so the two must not drift apart.
+    private const val TIME_DECAY_MAX_AGE_MS = ObservationOrigin.BLEND_MAX_AGE_MS
     private const val NEAR_ZERO_KM = 0.1f
     private const val MAX_INTERPOLATION_GAP_MS = 3 * 60 * 60 * 1000L
     private const val MAX_EXTRAPOLATION_GAP_MS = 3 * 60 * 60 * 1000L

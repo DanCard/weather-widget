@@ -36,6 +36,7 @@ import com.weatherwidget.data.local.desktop.DesktopLogEntity
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.util.StationHistoryUrl
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,7 @@ internal object ObsStyle {
     val divider = Color(0xFF222226)
     val timeReported = Color(0xFFE8A24E) // amber — matches the mild band of the temp gradient
     val timeFetched = accent
+    val error = Color(0xFFFF3366) // readings excluded from the blend: QC-rejected or stale
 }
 
 /**
@@ -320,6 +322,15 @@ private fun ObservationList(observations: List<DesktopObservationEntity>, useCel
         items(observations) { obs ->
             // NWS stations link to their public time-series history page; other sources have none.
             val historyUrl = StationHistoryUrl.forStation(obs.api, obs.stationId)
+            val origin = ObservationOrigin.of(
+                timestampMs = obs.timestamp,
+                qcFailed = obs.qcFailed,
+                isWebFallback = obs.isWebFallback,
+                nowMs = System.currentTimeMillis(),
+            )
+            // QC-rejected and stale readings are both absent from the blend, so neither shows a value.
+            val excludedFromBlend = origin == ObservationOrigin.Kind.QC_FAILED ||
+                origin == ObservationOrigin.Kind.STALE
             Card(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
                     .clickable(enabled = historyUrl != null) {
@@ -347,8 +358,7 @@ private fun ObservationList(observations: List<DesktopObservationEntity>, useCel
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             )
                         }
-                        if (obs.qcFailed) {
-                            // Reading rejected by upstream QC — show the state, not the bogus value.
+                        if (excludedFromBlend) {
                             Text(
                                 "—",
                                 fontSize = 32.sp,
@@ -367,14 +377,19 @@ private fun ObservationList(observations: List<DesktopObservationEntity>, useCel
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val distanceStr = if (obs.distanceKm > 0) String.format("%.1f mi", obs.distanceKm * 0.621371f) else "Local"
-                        val originStr = if (obs.qcFailed) "failed QC check" else if (obs.isWebFallback) "Web" else "API"
+                        val originStr = when (origin) {
+                            ObservationOrigin.Kind.QC_FAILED -> "failed QC check"
+                            ObservationOrigin.Kind.STALE -> "Stale"
+                            ObservationOrigin.Kind.WEB -> "Web"
+                            ObservationOrigin.Kind.API -> "API"
+                        }
                         Text("${obs.stationId} • $distanceStr • ", fontSize = 18.sp, color = ObsStyle.textSecondary)
                         Text(
                             "${obs.stationType} ($originStr)",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = when {
-                                obs.qcFailed -> Color(0xFFFF3366)
+                                excludedFromBlend -> ObsStyle.error
                                 obs.stationType == "OFFICIAL" -> ObsStyle.typeOfficial
                                 else -> ObsStyle.typePersonal
                             }

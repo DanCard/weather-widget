@@ -15,6 +15,7 @@ import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WidgetStateManager
@@ -253,6 +254,44 @@ class WeatherObservationsActivityRobolectricTest {
             val clean = bind("KNUQ")
             assertEquals("OFFICIAL (API)", clean.stationTypeBadge.text.toString())
             assertEquals("68.0°", clean.temperature.text.toString())
+        }
+    }
+
+    // A station whose newest reading predates the blend's 3h decay window contributes nothing to the
+    // displayed temperature. Badging it "API" implied it was still feeding the blend, so the row now
+    // reads "Stale" in the alert color and blanks its value — the same treatment as a QC rejection.
+    @Test
+    fun `station past the blend decay window renders stale badge and no temperature`() {
+        val staleMs = now - ObservationOrigin.BLEND_MAX_AGE_MS - 60_000L
+        runBlocking {
+            database.observationDao().insertAll(
+                listOf(
+                    observation("KPAO", "Palo Alto Airport", staleMs, 50.0f, 6.1f, stationType = "OFFICIAL"),
+                ),
+            )
+        }
+
+        val scenario = launchActivity()
+
+        scenario.onActivity { activity ->
+            val recycler = activity.findViewById<RecyclerView>(R.id.observations_list)
+            val adapter = recycler.adapter as WeatherObservationsActivity.ObservationAdapter
+
+            fun bind(stationId: String): WeatherObservationsActivity.ObservationAdapter.ViewHolder {
+                val holder = adapter.onCreateViewHolder(recycler, 0)
+                adapter.onBindViewHolder(holder, adapter.items.indexOfFirst { it.stationId == stationId })
+                return holder
+            }
+
+            val stale = bind("KPAO")
+            assertEquals("OFFICIAL (Stale)", stale.stationTypeBadge.text.toString())
+            assertEquals(android.graphics.Color.parseColor("#FF3366"), stale.stationTypeBadge.currentTextColor)
+            assertEquals("—", stale.temperature.text.toString())
+
+            // A reporting sibling keeps the normal rendering — the staleness branch must not leak.
+            val fresh = bind("KNUQ")
+            assertEquals("OFFICIAL (API)", fresh.stationTypeBadge.text.toString())
+            assertEquals("68.0°", fresh.temperature.text.toString())
         }
     }
 

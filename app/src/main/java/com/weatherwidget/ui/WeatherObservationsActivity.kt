@@ -28,6 +28,7 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.util.StationHistoryUrl
 import com.weatherwidget.widget.WidgetStateManager
@@ -486,17 +487,25 @@ class WeatherObservationsActivity : AppCompatActivity() {
             holder.stationIdTime.text = "${item.stationId}$distanceStr • "
 
             val context = holder.itemView.context
+            val origin = ObservationOrigin.of(
+                timestampMs = item.timestamp,
+                qcFailed = item.qcFailed,
+                isWebFallback = item.isWebFallback,
+                nowMs = System.currentTimeMillis(),
+            )
             val originStr = context.getString(
-                when {
-                    item.qcFailed -> R.string.station_origin_qc_failed
-                    item.isWebFallback -> R.string.station_origin_web
-                    else -> R.string.station_origin_api
+                when (origin) {
+                    ObservationOrigin.Kind.QC_FAILED -> R.string.station_origin_qc_failed
+                    ObservationOrigin.Kind.STALE -> R.string.station_origin_stale
+                    ObservationOrigin.Kind.WEB -> R.string.station_origin_web
+                    ObservationOrigin.Kind.API -> R.string.station_origin_api
                 }
             )
             holder.stationTypeBadge.text = context.getString(R.string.station_type_origin_format, item.stationType, originStr)
             holder.stationTypeBadge.setTextColor(
                 when {
-                    item.qcFailed -> COLOR_QC_FAILED
+                    // Both error states mean "this reading is not in the blend" — say so in red.
+                    origin == ObservationOrigin.Kind.QC_FAILED || origin == ObservationOrigin.Kind.STALE -> COLOR_ERROR
                     item.stationType == "OFFICIAL" -> COLOR_TYPE_OFFICIAL
                     else -> COLOR_TYPE_PERSONAL
                 }
@@ -508,8 +517,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 timeFormatter.format(Instant.ofEpochMilli(item.fetchedAt))
             )
 
-            if (item.qcFailed) {
-                // Reading rejected by upstream QC — show the state, not the bogus value.
+            if (origin == ObservationOrigin.Kind.QC_FAILED || origin == ObservationOrigin.Kind.STALE) {
+                // Rejected by upstream QC, or too old to carry weight — either way the value is not
+                // part of the blend, so showing it invites comparing it against a temp it never fed.
                 holder.temperature.text = "—"
                 holder.temperature.setTextColor(COLOR_TEXT_SECONDARY)
             } else {
@@ -557,8 +567,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
             private val COLOR_TIME_FETCHED = Color.parseColor("#4FC3F7")
             private val COLOR_TYPE_OFFICIAL = Color.parseColor("#2BFF88")
             private val COLOR_TYPE_PERSONAL = Color.parseColor("#B0B0B8")
-            // Matches the desktop staleness/error accent (#FF3366) for QC-rejected readings.
-            private val COLOR_QC_FAILED = Color.parseColor("#FF3366")
+            // Matches the desktop staleness/error accent (#FF3366): QC-rejected and stale readings.
+            private val COLOR_ERROR = Color.parseColor("#FF3366")
 
             private val COLOR_TEMP_COLD = Color.parseColor("#007AFF")
             private val COLOR_TEMP_MILD = Color.parseColor("#E8A24E")

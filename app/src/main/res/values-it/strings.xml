@@ -240,6 +240,7 @@
     <string name="station_origin_web">Web</string>
     <string name="station_origin_api">API</string>
     <string name="station_origin_qc_failed">Controllo qualità fallito</string>
+    <string name="station_origin_stale">Obsoleto</string>
     <string name="fetch_logs">Log di recupero</string>
     <string name="loading_logs">Caricamento log...</string>
     <string name="close">Chiudi</string>

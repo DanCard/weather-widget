@@ -240,6 +240,7 @@
     <string name="station_origin_web">वेब</string>
     <string name="station_origin_api">API</string>
     <string name="station_origin_qc_failed">QC जांच विफल</string>
+    <string name="station_origin_stale">पुराना</string>
     <string name="fetch_logs">फ़ेच लॉग</string>
     <string name="loading_logs">लॉग लोड हो रहे हैं...</string>
     <string name="close">बंद करें</string>

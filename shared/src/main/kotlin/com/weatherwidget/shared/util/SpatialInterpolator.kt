@@ -1,10 +1,12 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.shared.observations.ObservationOrigin
 
 object SpatialInterpolator {
     private const val NEAR_ZERO_KM = 0.1f        // treat as "at station" to avoid division by near-zero
-    private const val MAX_STALENESS_MS = 3 * 60 * 60 * 1000L  // 3 hours
+    // The stations list badges a station "Stale" at exactly this age, so the two must not drift apart.
+    private const val MAX_STALENESS_MS = ObservationOrigin.BLEND_MAX_AGE_MS
     private const val MAX_SPREAD_MS = 60 * 60 * 1000L          // observations must be within 1 hour of each other
 
     private fun timeDecayFactor(ageMs: Long): Double {

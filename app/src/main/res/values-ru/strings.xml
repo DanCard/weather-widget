@@ -240,6 +240,7 @@
     <string name="station_origin_web">Веб</string>
     <string name="station_origin_api">API</string>
     <string name="station_origin_qc_failed">Не прошло проверку качества</string>
+    <string name="station_origin_stale">Устарело</string>
     <string name="fetch_logs">Журналы загрузок</string>
     <string name="loading_logs">Загрузка журналов...</string>
     <string name="close">Закрыть</string>

@@ -240,6 +240,7 @@
     <string name="station_origin_web">Web</string>
     <string name="station_origin_api">API</string>
     <string name="station_origin_qc_failed">Không đạt kiểm tra chất lượng</string>
+    <string name="station_origin_stale">Cũ</string>
     <string name="fetch_logs">Nhật ký tải</string>
     <string name="loading_logs">Đang tải nhật ký...</string>
     <string name="close">Đóng</string>

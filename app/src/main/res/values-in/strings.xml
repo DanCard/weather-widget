@@ -240,6 +240,7 @@
     <string name="station_origin_web">Web</string>
     <string name="station_origin_api">API</string>
     <string name="station_origin_qc_failed">Gagal pemeriksaan QC</string>
+    <string name="station_origin_stale">Usang</string>
     <string name="fetch_logs">Log pengambilan</string>
     <string name="loading_logs">Memuat log...</string>
     <string name="close">Tutup</string>

@@ -240,6 +240,7 @@
     <string name="station_origin_web">Web</string>
     <string name="station_origin_api">API</string>
     <string name="station_origin_qc_failed">Nieudana kontrola jakości</string>
+    <string name="station_origin_stale">Nieaktualne</string>
     <string name="fetch_logs">Dzienniki pobrań</string>
     <string name="loading_logs">Ładowanie dzienników...</string>
     <string name="close">Zamknij</string>

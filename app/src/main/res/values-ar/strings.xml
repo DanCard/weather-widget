@@ -240,6 +240,7 @@
     <string name="station_origin_web">ويب</string>
     <string name="station_origin_api">API</string>
     <string name="station_origin_qc_failed">فشل فحص الجودة</string>
+    <string name="station_origin_stale">قديم</string>
     <string name="fetch_logs">سجلات الجلب</string>
     <string name="loading_logs">جارٍ تحميل السجلات...</string>
     <string name="close">إغلاق</string>
