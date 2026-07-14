@@ -545,6 +545,9 @@ class NwsApi
             val maxTempLast24hCelsius: Float? = null,
             val minTempLast24hCelsius: Float? = null,
             val precipLastHourMm: Float? = null,
+            // Upstream quality control rejected this reading (e.g. Synoptic check 105, spatial
+            // value vs neighbors). Kept for the stations UI; must never enter temperature math.
+            val qcFailed: Boolean = false,
         )
 
         data class HourlyForecastPeriod(

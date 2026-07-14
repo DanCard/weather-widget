@@ -49,6 +49,19 @@ class SpatialInterpolatorTest {
         assertEquals(70f, result!!, 0.1f)
     }
 
+    @Test fun qcFailedReading_isExcludedFromBlend() {
+        // KPAO 2026-07-13: a QC-flagged 50°F web-fallback reading must not drag the blend —
+        // with the flagged reading ignored, the clean station's temp comes back exactly.
+        val observations = listOf(obs("CLEAN", 72f, 5f), obs("KPAO", 50f, 5f).copy(qcFailed = true))
+        val result = SpatialInterpolator.interpolateIDW(37.0, -122.0, observations.map { it.toReading() }, nowMs)
+        assertEquals(72f, result!!, 0.01f)
+    }
+
+    @Test fun allReadingsQcFailed_returnsNull() {
+        val observations = listOf(obs("KPAO", 50f, 5f).copy(qcFailed = true))
+        assertNull(SpatialInterpolator.interpolateIDW(37.0, -122.0, observations.map { it.toReading() }, nowMs))
+    }
+
     @Test fun closerStationDominates() {
         // 1 km vs 10 km: w_near = 1/1 = 1.0, w_far = 1/100 = 0.01
         // blend ≈ (70*1.0 + 50*0.01) / 1.01 ≈ 69.8°F — near station dominates

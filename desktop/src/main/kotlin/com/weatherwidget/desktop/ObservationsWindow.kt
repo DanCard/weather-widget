@@ -347,23 +347,37 @@ private fun ObservationList(observations: List<DesktopObservationEntity>, useCel
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             )
                         }
-                        val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(obs.temperature.toFloat()) else obs.temperature
-                        Text(
-                            String.format("%.1f°", displayTemp),
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = trayTempToColor(obs.temperature.toFloat())
-                        )
+                        if (obs.qcFailed) {
+                            // Reading rejected by upstream QC — show the state, not the bogus value.
+                            Text(
+                                "—",
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ObsStyle.textSecondary
+                            )
+                        } else {
+                            val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(obs.temperature.toFloat()) else obs.temperature
+                            Text(
+                                String.format("%.1f°", displayTemp),
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = trayTempToColor(obs.temperature.toFloat())
+                            )
+                        }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val distanceStr = if (obs.distanceKm > 0) String.format("%.1f mi", obs.distanceKm * 0.621371f) else "Local"
-                        val originStr = if (obs.isWebFallback) "Web" else "API"
+                        val originStr = if (obs.qcFailed) "failed QC check" else if (obs.isWebFallback) "Web" else "API"
                         Text("${obs.stationId} • $distanceStr • ", fontSize = 18.sp, color = ObsStyle.textSecondary)
                         Text(
                             "${obs.stationType} ($originStr)",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (obs.stationType == "OFFICIAL") ObsStyle.typeOfficial else ObsStyle.typePersonal
+                            color = when {
+                                obs.qcFailed -> Color(0xFFFF3366)
+                                obs.stationType == "OFFICIAL" -> ObsStyle.typeOfficial
+                                else -> ObsStyle.typePersonal
+                            }
                         )
                     }
                     Text(

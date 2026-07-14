@@ -239,6 +239,7 @@
     <string name="obs_fetched_separator">" • Obtido "</string>
     <string name="station_origin_web">Web</string>
     <string name="station_origin_api">API</string>
+    <string name="station_origin_qc_failed">Falha no controle de qualidade</string>
     <string name="fetch_logs">Registros de busca</string>
     <string name="loading_logs">Carregando registros...</string>
     <string name="close">Fechar</string>

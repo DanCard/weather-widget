@@ -70,6 +70,23 @@ class ObservationDaoTouchTest {
     }
 
     @Test
+    fun storingOlderReading_thenTouching_refreshesTheNewestRowsAttemptStamp() = runTest {
+        // KPAO 2026-07-13: the newest stored reading (a 20:47 web-fallback row) predated a later
+        // fetch that could only store an OLDER NWS observation (19:47) — the stations list shows
+        // the newest row, whose fetchedAt stayed frozen at the earlier attempt ("Fetched 9:45").
+        // The repository success path now touches after every insert; this pins the DAO mechanics
+        // it relies on: the touch lands on the newest row even when the insert was an older one.
+        dao.insertAll(listOf(obs("KPAO", timestamp = 2_000L, fetchedAt = 2_500L))) // newest reading, old attempt
+        dao.insertAll(listOf(obs("KPAO", timestamp = 1_000L, fetchedAt = 9_000L))) // older reading, new attempt
+
+        dao.touchLatestFetchedAt("KPAO", nowMs = 9_000L)
+
+        val kpao = dao.getRecentObservations(0L).filter { it.stationId == "KPAO" }.sortedBy { it.timestamp }
+        assertEquals(9_000L, kpao[0].fetchedAt) // the older reading keeps its own attempt stamp
+        assertEquals(9_000L, kpao[1].fetchedAt) // newest row now reflects the latest attempt
+    }
+
+    @Test
     fun touch_unknownStationIsNoOp() = runTest {
         dao.insertAll(listOf(obs("KSJC", timestamp = 3_000L, fetchedAt = 3_500L)))
 

@@ -280,4 +280,34 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate55To56_addsQcFailedColumnToObservations() {
+        helper.createDatabase(testDb, 55).apply {
+            execSQL(
+                "INSERT INTO observations (stationId, stationName, timestamp, temperature, " +
+                    "condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, " +
+                    "maxTempLast24h, minTempLast24h, api, precipAmountMm, isWebFallback) " +
+                    "VALUES ('KPAO', 'Palo Alto Airport', 1000, 50.0, 'broken', 37.4, -122.1, 6.1, 'OFFICIAL', 2000, " +
+                    "NULL, NULL, 'NWS', NULL, 1)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 56, true, WeatherDatabase.MIGRATION_55_56)
+
+        // Pre-existing rows survive and default to not-QC-failed.
+        db.query("SELECT qcFailed, isWebFallback FROM observations WHERE stationId = 'KPAO'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
+            assertEquals(1, c.getInt(1))
+        }
+        // The column accepts the flagged state.
+        db.execSQL("UPDATE observations SET qcFailed = 1 WHERE stationId = 'KPAO'")
+        db.query("SELECT qcFailed FROM observations WHERE stationId = 'KPAO'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+        db.close()
+    }
 }

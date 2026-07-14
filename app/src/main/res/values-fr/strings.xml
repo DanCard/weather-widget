@@ -231,6 +231,7 @@
     <string name="obs_fetched_separator">" • Récupéré "</string>
     <string name="station_origin_web">Web</string>
     <string name="station_origin_api">API</string>
+    <string name="station_origin_qc_failed">Échec du contrôle qualité</string>
     <string name="fetch_logs">Journaux de récupération</string>
     <string name="loading_logs">Chargement des journaux...</string>
     <string name="close">Fermer</string>

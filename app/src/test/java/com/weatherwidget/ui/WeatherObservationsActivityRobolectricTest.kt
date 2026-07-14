@@ -218,6 +218,44 @@ class WeatherObservationsActivityRobolectricTest {
         }
     }
 
+    // KPAO 2026-07-13 regression: a Synoptic web-fallback reading of 50°F failed upstream QC
+    // (spatial value check 105). The list must surface the failure instead of the bogus value:
+    // badge reads "failed QC check" in the alert color and the temperature renders as "—".
+    @Test
+    fun `qc-failed observation renders failure badge and no temperature`() {
+        runBlocking {
+            database.observationDao().insertAll(
+                listOf(
+                    observation("KPAO", "Palo Alto Airport", now - 5_000L, 50.0f, 6.1f, stationType = "OFFICIAL")
+                        .copy(isWebFallback = true, qcFailed = true),
+                ),
+            )
+        }
+
+        val scenario = launchActivity()
+
+        scenario.onActivity { activity ->
+            val recycler = activity.findViewById<RecyclerView>(R.id.observations_list)
+            val adapter = recycler.adapter as WeatherObservationsActivity.ObservationAdapter
+
+            fun bind(stationId: String): WeatherObservationsActivity.ObservationAdapter.ViewHolder {
+                val holder = adapter.onCreateViewHolder(recycler, 0)
+                adapter.onBindViewHolder(holder, adapter.items.indexOfFirst { it.stationId == stationId })
+                return holder
+            }
+
+            val flagged = bind("KPAO")
+            assertEquals("OFFICIAL (Failed QC check)", flagged.stationTypeBadge.text.toString())
+            assertEquals(android.graphics.Color.parseColor("#FF3366"), flagged.stationTypeBadge.currentTextColor)
+            assertEquals("—", flagged.temperature.text.toString())
+
+            // A clean sibling keeps the normal rendering — the QC branch must not leak.
+            val clean = bind("KNUQ")
+            assertEquals("OFFICIAL (API)", clean.stationTypeBadge.text.toString())
+            assertEquals("68.0°", clean.temperature.text.toString())
+        }
+    }
+
     @Test
     fun `visible activity reloads observations when new current observations are inserted`() {
         val scenario = launchActivity()

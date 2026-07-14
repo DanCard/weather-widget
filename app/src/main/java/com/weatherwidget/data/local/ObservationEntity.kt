@@ -33,6 +33,7 @@ data class ObservationEntity(
     val api: String, // Which API provided this observation (NWS, OPEN_METEO, WEATHER_API, SILURIAN)
     val precipAmountMm: Float? = null, // Observed precipitation amount in mm
     val isWebFallback: Boolean = false, // <-- Added
+    val qcFailed: Boolean = false, // Rejected by upstream QC; shown in stations UI, excluded from blends
 )
 
 fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationReading(
@@ -51,4 +52,5 @@ fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationRead
     fetchedAt = fetchedAt,
     precipAmountMm = precipAmountMm,
     isWebFallback = isWebFallback,
+    qcFailed = qcFailed,
 )

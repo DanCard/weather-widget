@@ -86,6 +86,49 @@ class FetchOutcomeTest {
         assertEquals(21.5f, (outcome as FetchOutcome.Success).value.single().temperatureCelsius)
     }
 
+    @Test
+    fun `synoptic QC-flagged reading is marked while clean sibling stays usable`() {
+        // KPAO 2026-07-13 shape: a 10°C ob between 22–23°C neighbors, flagged by Synoptic's
+        // spatial value check (105). Both readings are kept — the flagged one marked so the
+        // stations UI can show the failure — but only the clean one is blend-usable.
+        val response = """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [{"NAME": "Palo Alto",
+            "OBSERVATIONS": {"date_time": ["2026-07-14T02:47:00Z", "2026-07-14T03:47:00Z"],
+                "air_temp_set_1": [22.0, 10.0]},
+            "QC_FLAGGED": true,
+            "QC": {"air_temp_set_1": [null, [105]]}}]}"""
+        val outcome = SynopticApi.parseSynopticTimeseries(json, response, "KPAO", "Palo Alto")
+        assertTrue(outcome is FetchOutcome.Success)
+        val readings = (outcome as FetchOutcome.Success).value
+        assertEquals(2, readings.size)
+        assertFalse(readings[0].qcFailed)
+        assertEquals(22.0f, readings[0].temperatureCelsius)
+        assertTrue(readings[1].qcFailed)
+    }
+
+    @Test
+    fun `synoptic all readings QC-flagged is Success with every reading marked`() {
+        // Data WAS learned (the station reported, badly) — Success, not NoData, so fetchedAt
+        // semantics treat it as a completed fetch. Consumers must find no usable latest.
+        val response = """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [{"NAME": "Palo Alto",
+            "OBSERVATIONS": {"date_time": ["2026-07-14T03:47:00Z"], "air_temp_set_1": [10.0]},
+            "QC_FLAGGED": true,
+            "QC": {"air_temp_set_1": [[105]]}}]}"""
+        val outcome = SynopticApi.parseSynopticTimeseries(json, response, "KPAO", "Palo Alto")
+        assertTrue(outcome is FetchOutcome.Success)
+        assertTrue((outcome as FetchOutcome.Success).value.all { it.qcFailed })
+    }
+
+    @Test
+    fun `synoptic response without QC block marks nothing`() {
+        // qc_flags responses omit the QC block entirely when nothing was flagged.
+        val response = """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [{"NAME": "Palo Alto",
+            "OBSERVATIONS": {"date_time": ["2026-07-14T02:47:00Z"], "air_temp_set_1": [22.0]},
+            "QC_FLAGGED": false}]}"""
+        val outcome = SynopticApi.parseSynopticTimeseries(json, response, "KPAO", "Palo Alto")
+        assertTrue(outcome is FetchOutcome.Success)
+        assertFalse((outcome as FetchOutcome.Success).value.single().qcFailed)
+    }
+
     // --- fetchedAt touch decision table ---
 
     @Test

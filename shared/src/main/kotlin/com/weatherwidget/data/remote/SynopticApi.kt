@@ -56,16 +56,27 @@ class SynopticApi @Inject constructor(
                 val airTempArray = obsObj["air_temp_set_1"]?.jsonArray
                 val weatherSummaryArray = obsObj["weather_summary_set_1d"]?.jsonArray
                 val weatherCondArray = obsObj["weather_condition_set_1d"]?.jsonArray
+                // Parallel to air_temp_set_1: null = passed QC, array of check IDs = flagged
+                // (e.g. [105] = SynopticLabs Spatial Value Check). Only present when the request
+                // asks for qc_flags; absent QC block means nothing was flagged.
+                val airTempQcArray = firstStation["QC"]?.jsonObject?.get("air_temp_set_1")?.jsonArray
 
                 val stationName = firstStation["NAME"]?.jsonPrimitive?.content ?: stationNameFallback
                 val observationList = mutableListOf<NwsApi.Observation>()
+                val qcDropped = mutableListOf<String>()
 
                 for (i in 0 until dateTimeArray.size) {
                     val rawDateTimeStr = dateTimeArray[i].jsonPrimitive.content
                     val dateTimeStr = parseTimestampToIsoString(rawDateTimeStr)
                     val tempC = airTempArray?.getOrNull(i)?.jsonPrimitive?.doubleOrNull?.toFloat()
                         ?: continue // Skip observation if temperature is missing
-                
+
+                    val qcChecks = airTempQcArray?.getOrNull(i) as? JsonArray
+                    val qcFailed = !qcChecks.isNullOrEmpty()
+                    if (qcFailed) {
+                        qcDropped.add("$dateTimeStr temp=$tempC checks=${qcChecks!!.joinToString(",") { it.jsonPrimitive.content }}")
+                    }
+
                     val summary = weatherSummaryArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
                         ?: weatherCondArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
                         ?: "Unknown"
@@ -78,9 +89,13 @@ class SynopticApi @Inject constructor(
                             stationName = stationName,
                             maxTempLast24hCelsius = null,
                             minTempLast24hCelsius = null,
-                            precipLastHourMm = null
+                            precipLastHourMm = null,
+                            qcFailed = qcFailed,
                         )
                     )
+                }
+                if (qcDropped.isNotEmpty()) {
+                    Log.w(TAG, "Synoptic $stationId: ${qcDropped.size} QC-flagged reading(s) marked unusable: $qcDropped")
                 }
                 if (observationList.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(observationList)
             } catch (e: Exception) {
@@ -110,6 +125,13 @@ class SynopticApi @Inject constructor(
                 parameter("recent", recentMinutes)
                 parameter("token", token)
                 parameter("obtimezone", "utc")
+                // Ask Synoptic to run its full QC suite and return per-observation flags —
+                // qc_checks=all includes the spatial (neighbor-comparison) check that catches
+                // physically implausible readings the basic range check passes (KPAO 2026-07-13:
+                // a 10°C ob between 22–23°C neighbors was flagged only by check 105).
+                parameter("qc", "on")
+                parameter("qc_checks", "all")
+                parameter("qc_flags", "on")
                 header("Referer", "https://www.weather.gov/wrh/timeseries?site=$stationId")
                 header("Origin", "https://www.weather.gov")
             }.body()

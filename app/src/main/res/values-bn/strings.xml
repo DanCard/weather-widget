@@ -239,6 +239,7 @@
     <string name="obs_fetched_separator">" • আনা "</string>
     <string name="station_origin_web">ওয়েব</string>
     <string name="station_origin_api">API</string>
+    <string name="station_origin_qc_failed">QC পরীক্ষায় ব্যর্থ</string>
     <string name="fetch_logs">ফেচ লগ</string>
     <string name="loading_logs">লগ লোড হচ্ছে...</string>
     <string name="close">বন্ধ করুন</string>

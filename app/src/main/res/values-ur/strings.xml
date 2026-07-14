@@ -239,6 +239,7 @@
     <string name="obs_fetched_separator">" • حاصل شدہ "</string>
     <string name="station_origin_web">ویب</string>
     <string name="station_origin_api">API</string>
+    <string name="station_origin_qc_failed">کوالٹی چیک ناکام</string>
     <string name="fetch_logs">ڈاؤن لوڈ لاگز</string>
     <string name="loading_logs">لاگز لوڈ ہو رہے ہیں...</string>
     <string name="close">بند کریں</string>

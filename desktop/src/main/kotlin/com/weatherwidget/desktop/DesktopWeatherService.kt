@@ -363,7 +363,16 @@ class DesktopWeatherService(
                     synopticOutcome = synopticApi.fetchSynopticObservations(station.id, historyDays * 24 * 60, station.name)
                     val obsList = synopticOutcome.valueOrNull()
                     if (!obsList.isNullOrEmpty()) {
-                        return@async ObservationBundle(station, obsList.last(), obsList.dropLast(1), isWebFallback = true)
+                        // Latest must be blend-usable; QC-flagged readings stay in historical so
+                        // they are stored and visible in the stations list, but never anchor
+                        // the current temp. All-flagged → latest=null (station shows QC state).
+                        val usableLatest = obsList.lastOrNull { !it.qcFailed }
+                        return@async ObservationBundle(
+                            station,
+                            usableLatest,
+                            obsList.filter { it !== usableLatest },
+                            isWebFallback = true,
+                        )
                     }
                 }
 
@@ -429,6 +438,7 @@ class DesktopWeatherService(
         maxTempLast24h = maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
         minTempLast24h = minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
         isWebFallback = isWebFallback,
+        qcFailed = qcFailed,
     )
 
     private fun NwsApi.HourlyForecastPeriod.toHourlyForecast() = HourlyForecast(

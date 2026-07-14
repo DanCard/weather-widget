@@ -244,6 +244,7 @@
     <string name="station_type_origin_format" translatable="false">%1$s (%2$s)</string>
     <string name="station_origin_web">Web</string>
     <string name="station_origin_api">API</string>
+    <string name="station_origin_qc_failed">Failed QC check</string>
     <string name="fetch_logs">Fetch Logs</string>
     <string name="loading_logs">Loading logs...</string>
     <string name="close">Close</string>

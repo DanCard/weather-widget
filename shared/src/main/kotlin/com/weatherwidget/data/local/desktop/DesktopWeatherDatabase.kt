@@ -108,6 +108,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         api TEXT NOT NULL,
                         precipAmountMm REAL,
                         isWebFallback INTEGER NOT NULL DEFAULT 0,
+                        qcFailed INTEGER NOT NULL DEFAULT 0,
                         PRIMARY KEY (stationId, timestamp)
                     )
                 """.trimIndent())
@@ -286,6 +287,11 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     stmt.execute("ALTER TABLE forecasts DROP COLUMN locationName")
                 }
             }
+            // v11: mark readings rejected by upstream QC (Synoptic qc_flags) so the stations UI
+            // can show them without letting them into blends.
+            if (from < 11) {
+                addColumnIfMissing(stmt, "observations", "qcFailed", "INTEGER NOT NULL DEFAULT 0")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -326,6 +332,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 10
+        private const val SCHEMA_VERSION = 11
     }
 }

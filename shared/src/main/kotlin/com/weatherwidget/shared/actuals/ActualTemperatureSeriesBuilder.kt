@@ -219,7 +219,7 @@ object ActualTemperatureSeriesBuilder {
         onBlendDebug: ((() -> String) -> Unit)? = null,
     ): BlendObservationResult {
         val filtered = observations
-            .filter { matchesObservationSource(it, displaySourceId) }
+            .filter { !it.qcFailed && matchesObservationSource(it, displaySourceId) }
             .sortedBy { it.timestamp }
 
         if (filtered.isEmpty()) {

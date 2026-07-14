@@ -239,6 +239,7 @@
     <string name="obs_fetched_separator">" • Abgerufen "</string>
     <string name="station_origin_web">Web</string>
     <string name="station_origin_api">API</string>
+    <string name="station_origin_qc_failed">QC-Prüfung fehlgeschlagen</string>
     <string name="fetch_logs">Abruf-Protokolle</string>
     <string name="loading_logs">Protokolle werden geladen...</string>
     <string name="close">Schließen</string>

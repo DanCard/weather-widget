@@ -171,7 +171,20 @@ class ObservationRepository @Inject constructor(
             appLogDao.log("NWS_STATION_SYNOPTIC_FALLBACK", "station=${stationInfo.id} reason=$fallbackReason", "INFO")
             Log.i(TAG, "Latest NWS observation for ${stationInfo.id} is missing or stale ($fallbackReason). Querying Synoptic fallback...")
             synopticOutcome = synopticApi.fetchSynopticObservations(stationInfo.id, 60, stationInfo.name)
-            val synopticLatest = synopticOutcome.valueOrNull()?.lastOrNull()
+            val synopticReadings = synopticOutcome.valueOrNull().orEmpty()
+            // QC-flagged readings are stored (marked) so the stations UI can show the failure,
+            // but they must never become the usable observation that feeds the blend.
+            val flaggedLatest = synopticReadings.lastOrNull { it.qcFailed }
+            if (flaggedLatest != null) {
+                val flaggedEntity = buildObservationEntity(flaggedLatest, stationInfo, latitude, longitude, isWebFallback = true)
+                observationDao.insertAll(listOf(flaggedEntity))
+                appLogDao.log(
+                    "OBS_QC_FLAGGED",
+                    "station=${stationInfo.id} timestamp=${flaggedEntity.timestamp} temp=${flaggedEntity.temperature}",
+                    "WARN",
+                )
+            }
+            val synopticLatest = synopticReadings.lastOrNull { !it.qcFailed }
             if (synopticLatest != null) {
                 isWeb = true
                 synopticLatest
@@ -215,6 +228,11 @@ class ObservationRepository @Inject constructor(
         }
         val obsEntity = buildObservationEntity(finalObservation, stationInfo, latitude, longitude, isWeb)
         observationDao.insertAll(listOf(obsEntity))
+        // The stored reading can be OLDER than the station's newest row (e.g. NWS returning its
+        // stale latest while a fresher web-fallback reading is already stored, KPAO 2026-07-13).
+        // fetchedAt means "last completed attempt", and the stations list shows the newest row —
+        // touch it so "Fetched" reflects this attempt. No-op when the insert IS the newest row.
+        observationDao.touchLatestFetchedAt(stationInfo.id, System.currentTimeMillis())
         logCurrentObservationInsert(obsEntity)
         val obsDate = java.time.Instant.ofEpochMilli(obsEntity.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
         recomputeDailyExtremesForDay(latitude, longitude, obsDate, emptyList())
@@ -875,6 +893,7 @@ class ObservationRepository @Inject constructor(
             api = WeatherSource.NWS.id,
             precipAmountMm = obs.precipLastHourMm,
             isWebFallback = isWebFallback,
+            qcFailed = obs.qcFailed,
         )
     }
 

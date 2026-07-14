@@ -18,6 +18,7 @@ data class DesktopObservationEntity(
     val api: String,
     val precipAmountMm: Float? = null,
     val isWebFallback: Boolean = false,
+    val qcFailed: Boolean = false,
 ) {
     companion object {
         /**
@@ -45,6 +46,7 @@ fun DesktopObservationEntity.toReading() = ObservationReading(
     fetchedAt = fetchedAt,
     precipAmountMm = precipAmountMm,
     isWebFallback = isWebFallback,
+    qcFailed = qcFailed,
 )
 
 fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
@@ -63,6 +65,7 @@ fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
     api = api,
     precipAmountMm = precipAmountMm,
     isWebFallback = isWebFallback,
+    qcFailed = qcFailed,
 )
 
 /** A persistent app-log row (desktop analogue of the Android app_logs table). */

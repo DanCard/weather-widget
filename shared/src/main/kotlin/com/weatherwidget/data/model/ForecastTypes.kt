@@ -77,6 +77,9 @@ data class ObservationReading(
     val fetchedAt: Long = System.currentTimeMillis(),
     val precipAmountMm: Float? = null,
     val isWebFallback: Boolean = false,
+    // Reading failed the upstream QC check (see NwsApi.Observation.qcFailed). Stored and shown
+    // in the stations UI for transparency, but excluded from blends and extrema.
+    val qcFailed: Boolean = false,
 )
 
 data class ForecastResult(

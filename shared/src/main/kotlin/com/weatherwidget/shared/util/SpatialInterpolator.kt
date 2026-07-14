@@ -26,7 +26,8 @@ object SpatialInterpolator {
         observations: List<ObservationReading>,
         nowMs: Long = System.currentTimeMillis(),
     ): Float? {
-        val fresh = observations.filter { nowMs - it.timestamp <= MAX_STALENESS_MS }
+        // QC-failed readings are stored for the stations UI but are never blend inputs.
+        val fresh = observations.filter { !it.qcFailed && nowMs - it.timestamp <= MAX_STALENESS_MS }
         if (fresh.isEmpty()) return null
 
         // Discard outliers in time — keep only those within MAX_SPREAD_MS of the most recent

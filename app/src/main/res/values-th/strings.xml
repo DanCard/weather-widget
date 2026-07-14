@@ -239,6 +239,7 @@
     <string name="obs_fetched_separator">" • ดึงเมื่อ "</string>
     <string name="station_origin_web">เว็บ</string>
     <string name="station_origin_api">API</string>
+    <string name="station_origin_qc_failed">ไม่ผ่านการตรวจสอบคุณภาพ</string>
     <string name="fetch_logs">บันทึกการดึงข้อมูล</string>
     <string name="loading_logs">กำลังโหลดบันทึก...</string>
     <string name="close">ปิด</string>

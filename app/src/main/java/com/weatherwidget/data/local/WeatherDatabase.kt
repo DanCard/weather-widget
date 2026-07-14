@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 55,
+    version = 56,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -222,6 +222,16 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Marks readings rejected by upstream quality control (Synoptic qc_flags) so the stations
+         * UI can show them without letting them into temperature blends.
+         */
+        val MIGRATION_55_56 = object : Migration(55, 56) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `observations` ADD COLUMN `qcFailed` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -284,7 +294,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

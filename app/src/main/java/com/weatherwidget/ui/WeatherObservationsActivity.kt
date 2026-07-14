@@ -486,10 +486,20 @@ class WeatherObservationsActivity : AppCompatActivity() {
             holder.stationIdTime.text = "${item.stationId}$distanceStr • "
 
             val context = holder.itemView.context
-            val originStr = context.getString(if (item.isWebFallback) R.string.station_origin_web else R.string.station_origin_api)
+            val originStr = context.getString(
+                when {
+                    item.qcFailed -> R.string.station_origin_qc_failed
+                    item.isWebFallback -> R.string.station_origin_web
+                    else -> R.string.station_origin_api
+                }
+            )
             holder.stationTypeBadge.text = context.getString(R.string.station_type_origin_format, item.stationType, originStr)
             holder.stationTypeBadge.setTextColor(
-                if (item.stationType == "OFFICIAL") COLOR_TYPE_OFFICIAL else COLOR_TYPE_PERSONAL
+                when {
+                    item.qcFailed -> COLOR_QC_FAILED
+                    item.stationType == "OFFICIAL" -> COLOR_TYPE_OFFICIAL
+                    else -> COLOR_TYPE_PERSONAL
+                }
             )
 
             holder.observationFetchTimes.text = buildTimesLine(
@@ -498,9 +508,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 timeFormatter.format(Instant.ofEpochMilli(item.fetchedAt))
             )
 
-            val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.temperature) else item.temperature
-            holder.temperature.text = String.format("%.1f°", displayTemp)
-            holder.temperature.setTextColor(obsTempToColor(item.temperature.toFloat()))
+            if (item.qcFailed) {
+                // Reading rejected by upstream QC — show the state, not the bogus value.
+                holder.temperature.text = "—"
+                holder.temperature.setTextColor(COLOR_TEXT_SECONDARY)
+            } else {
+                val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.temperature) else item.temperature
+                holder.temperature.text = String.format("%.1f°", displayTemp)
+                holder.temperature.setTextColor(obsTempToColor(item.temperature.toFloat()))
+            }
             holder.condition.text = item.condition
         }
 
@@ -541,6 +557,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
             private val COLOR_TIME_FETCHED = Color.parseColor("#4FC3F7")
             private val COLOR_TYPE_OFFICIAL = Color.parseColor("#2BFF88")
             private val COLOR_TYPE_PERSONAL = Color.parseColor("#B0B0B8")
+            // Matches the desktop staleness/error accent (#FF3366) for QC-rejected readings.
+            private val COLOR_QC_FAILED = Color.parseColor("#FF3366")
 
             private val COLOR_TEMP_COLD = Color.parseColor("#007AFF")
             private val COLOR_TEMP_MILD = Color.parseColor("#E8A24E")

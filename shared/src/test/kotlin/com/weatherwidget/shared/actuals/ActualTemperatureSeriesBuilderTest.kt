@@ -286,6 +286,30 @@ class ActualTemperatureSeriesBuilderTest {
         assertEquals(75f, blended, 0.01f)
     }
 
+    @Test
+    fun `qc-failed reading is excluded from the blended series`() {
+        // KPAO 2026-07-13: Synoptic served a QC-flagged 50° reading closer to the user than the
+        // clean station. It must not drag the blend — the series must come out as if only the
+        // clean reading existed (this is the path that anchors the displayed current temp).
+        val peak = "2026-06-03T15:00:00"
+        val obs = listOf(
+            observation("KPAO", peak, 50f, distanceKm = 2f).copy(qcFailed = true),
+            observation("OFFICIAL_1", peak, 75f, distanceKm = 4f),
+        )
+
+        val blended = ActualTemperatureSeriesBuilder.blendObservationSeries(
+            observations = obs,
+            hourlyForecasts = forecasts("2026-06-03T00:00:00", 24),
+            displaySourceId = WeatherSource.NWS.id,
+            userLat = LAT,
+            userLon = LON,
+            startMs = epoch("2026-06-03T00:00:00"),
+            endMs = epoch("2026-06-04T00:00:00"),
+        ).observations.single().temperature
+
+        assertEquals(75f, blended, 0.01f)
+    }
+
     private fun blendTwoStation(personalStationWeight: Double): Float {
         val peak = "2026-06-03T15:00:00"
         val obs = listOf(
