@@ -49,6 +49,39 @@ object LocationMatch {
         abs(lat1 - lat2) <= SAME_SITE_TOLERANCE_DEG && abs(lon1 - lon2) <= SAME_SITE_TOLERANCE_DEG
 
     /**
+     * Collapses a raw [ROOM_WHERE]/[JDBC_WHERE] proximity-box result to the single physical site
+     * nearest (lat, lon). Sub-precision fragments of that site survive (they are [sameSite]);
+     * genuinely different markers left behind by earlier GPS fixes are dropped.
+     *
+     * The box query is a coarse pre-filter, never the final answer: at ±[TOLERANCE_DEG] it spans
+     * ~7 miles, so a site the device visited earlier that day can sit inside it (37.3414/-122.0422
+     * is 0.075° from 37.4168/-122.089 — a different town, still in the box). Those sites stop being
+     * refreshed, and their frozen rows then leak into whatever reads the box: a stale LOS GATOS
+     * station appeared as a 6th entry in the stations list when only 5 are ever fetched, and a
+     * 2-day-old noon cloud row won a `firstOrNull` in DailyNoonCloudCover and flapped the daily bar.
+     * Any new read of a coordinate-keyed table should pass its box result through here.
+     *
+     * [latOf]/[lonOf] read the row's stored *device* location (`locationLat`/`locationLon` — where
+     * the fetch happened), not the coordinates of the station the row describes. Passing the latter
+     * would rank rows by station distance and defeat the filter. Rows are returned unchanged when
+     * empty, so a caller with no data never sees an empty list turn into a silent site choice.
+     */
+    fun <T> selectNearestSite(
+        rows: List<T>,
+        lat: Double,
+        lon: Double,
+        latOf: (T) -> Double,
+        lonOf: (T) -> Double,
+    ): List<T> {
+        val nearest = rows.asSequence()
+            .map { latOf(it) to lonOf(it) }
+            .distinct()
+            .minByOrNull { (rowLat, rowLon) -> abs(rowLat - lat) + abs(rowLon - lon) }
+            ?: return rows
+        return rows.filter { sameSite(latOf(it), lonOf(it), nearest.first, nearest.second) }
+    }
+
+    /**
      * Decimal places lat/lon are rounded to before being written into a location-keyed table's
      * primary key. 3 dp ≈ 111 m — coarse enough that geocoding/GPS jitter (observed on-device up to
      * ~0.0001°, i.e. the 4th decimal) collapses onto a single key so `INSERT … ON CONFLICT REPLACE`

@@ -219,6 +219,46 @@ class WeatherObservationsActivityRobolectricTest {
         }
     }
 
+    // Regression (Samsung, 2026-07-15): the list showed 6 NWS stations when only MAX_RETRIES = 5 are
+    // ever fetched. The device had been at 37.3414/-122.0422 until 16:05 the previous day; LSGC1 (Los
+    // Gatos) was polled only from there and was never refreshed after the move. Unlike the Austin row
+    // above, that site is just 0.075°/0.047° away — INSIDE the ±0.1° SQL box — so the DAO happily
+    // returned it and it rendered as a 6th entry until it aged out of the 24h window. The box is a
+    // coarse pre-filter; the list must additionally collapse to the current site.
+    @Test
+    fun `nws mode excludes a stale nearby site that the proximity box admits`() {
+        runBlocking {
+            database.observationDao().insertAll(
+                listOf(
+                    ObservationEntity(
+                        stationId = "LSGC1",
+                        stationName = "LOS GATOS",
+                        timestamp = now - 30_000L,
+                        temperature = 74.0f,
+                        condition = "Clear",
+                        // The previous site: inside the 0.1° box, outside the 0.002° same-site box.
+                        locationLat = 37.3414,
+                        locationLon = -122.0422,
+                        distanceKm = 17.25f,
+                        stationType = "PERSONAL",
+                        fetchedAt = now - 30_000L,
+                        api = "NWS",
+                    ),
+                ),
+            )
+        }
+
+        val scenario = launchActivity()
+
+        scenario.onActivity { activity ->
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val stationIds = adapter.items.map { it.stationId }
+
+            assertFalse("A station from the previous site must not linger in the list", stationIds.contains("LSGC1"))
+            assertEquals(listOf("AW020", "KNUQ"), stationIds)
+        }
+    }
+
     // KPAO 2026-07-13 regression: a Synoptic web-fallback reading of 50°F failed upstream QC
     // (spatial value check 105). The list must surface the failure instead of the bogus value:
     // badge reads "failed QC check" in the alert color and the temperature renders as "—".

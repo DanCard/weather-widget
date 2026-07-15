@@ -71,16 +71,8 @@ object GraphDataLoader {
         rows: List<HourlyForecastEntity>,
         lat: Double,
         lon: Double,
-    ): List<HourlyForecastEntity> {
-        val best = rows.asSequence()
-            .map { it.locationLat to it.locationLon }
-            .distinct()
-            .minByOrNull { (rLat, rLon) -> Math.abs(rLat - lat) + Math.abs(rLon - lon) }
-            ?: return rows
-        return rows.filter {
-            LocationMatch.sameSite(it.locationLat, it.locationLon, best.first, best.second)
-        }
-    }
+    ): List<HourlyForecastEntity> =
+        LocationMatch.selectNearestSite(rows, lat, lon, { it.locationLat }, { it.locationLon })
 
     suspend fun loadGraphWindowHourlyForecasts(
         hourlyDao: HourlyForecastDao,

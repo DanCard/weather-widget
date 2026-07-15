@@ -63,7 +63,7 @@ class WidgetStateManager
             // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
             // IDW blend. 0 = no discount (PWS counts the same as official); 100 = PWS ignored entirely.
             private const val KEY_PERSONAL_STATION_DISCOUNT = "personal_station_discount"
-            const val DEFAULT_PERSONAL_STATION_DISCOUNT = 90
+            const val DEFAULT_PERSONAL_STATION_DISCOUNT = 95
             private const val KEY_MIGRATION_DONE = "api_pref_migrated"
             private const val KEY_HIDE_OPEN_WEATHER_MAP_MIGRATION_DONE = "hide_open_weather_map_migration_done_v4"
             private const val KEY_VISUAL_CROSSING_MIGRATION_DONE = "visual_crossing_migration_done_v5"

@@ -24,6 +24,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogEntity
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -287,7 +288,18 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 val location = activeLocation ?: weatherRepository.getLatestLocation()
                 suspend fun recentObservations(sinceMs: Long): List<ObservationEntity> =
                     if (location != null) {
-                        observationRepository.getRecentObservationsNear(sinceMs, location.first, location.second)
+                        // The proximity box is ~7 miles wide, so it also admits rows fetched under a
+                        // *nearby* site the device visited earlier (Los Gatos stations lingering under
+                        // a Mountain View fix). Nothing refreshes those, but they stay in the 24h
+                        // window long enough to show up as extra stations beyond the MAX_RETRIES
+                        // stations actually polled, so collapse the box to the current site.
+                        LocationMatch.selectNearestSite(
+                            observationRepository.getRecentObservationsNear(sinceMs, location.first, location.second),
+                            location.first,
+                            location.second,
+                            { it.locationLat },
+                            { it.locationLon },
+                        )
                     } else {
                         observationRepository.getRecentObservations(sinceMs)
                     }

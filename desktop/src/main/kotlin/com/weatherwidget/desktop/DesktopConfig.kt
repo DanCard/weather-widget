@@ -39,7 +39,7 @@ data class DesktopConfig(
     val historyWindowHeight: Float? = null,
     // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
     // IDW blend. 0 = no discount (counts the same as official); 100 = personal stations ignored.
-    val personalStationDiscount: Int = 90,
+    val personalStationDiscount: Int = 95,
     // Locale-derived until the user touches the toggle. encodeDefaults=false means a value
     // equal to the locale default stays unwritten in config.json and keeps following the
     // locale; an explicit differing choice is persisted and wins.
