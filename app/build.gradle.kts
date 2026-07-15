@@ -210,6 +210,14 @@ tasks.withType<Test> {
     // Use a modest level of parallelism to speed up unit tests without
     // overwhelming Robolectric or exposing too much shared-state contention.
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
+    // Works around a recurring JVM C2 JIT crash (SIGSEGV in Node::uncast, libjvm.so) seen 3x
+    // (2026-05-27, 2026-06-17, 2026-07-14 hs_err_pid*.log, gitignored) on long/heavy test runs,
+    // always while C2 compiles one of these two SQLite/Room hot paths. Excluding them from C2
+    // keeps them on the interpreter/C1 — imperceptible for tests, avoids the crash entirely.
+    jvmArgs(
+        "-XX:CompileCommand=exclude,android.database.sqlite.SQLiteProgram::<init>",
+        "-XX:CompileCommand=exclude,androidx.room.driver.SupportSQLitePooledConnection::usePrepared",
+    )
     testLogging {
         events("passed", "skipped", "failed", "standardOut", "standardError")
         showStandardStreams = true
