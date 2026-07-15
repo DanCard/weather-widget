@@ -125,9 +125,8 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
             actuals = fullActuals
         )
         
-        // 2. Narrow zoom (CURRENT BUGGY BEHAVIOR): Excludes T+4h because its query window is T+2h
-        // We simulate the bug by passing only baseActuals to NARROW zoom
-        val narrowHoursBuggy = buildHourDataList(
+        // 2. Same window, but WITHOUT S1's T+4h straggler in the data.
+        val narrowHoursNoFuture = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -137,17 +136,26 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
         )
 
         val widePointAt11 = wideHours.find { it.dateTime == tMinus1h }
-        val narrowPointAt11Buggy = narrowHoursBuggy.find { it.dateTime == tMinus1h }
+        val narrowPointAt11NoFuture = narrowHoursNoFuture.find { it.dateTime == tMinus1h }
 
-        // The values SHOULD be different here if the bug exists (S1 at 11:00 is interpolated vs extrapolated)
         assertNotNull(widePointAt11)
-        assertNotNull(narrowPointAt11Buggy)
-        
-        // This is where we REPRODUCE the inconsistency. 
-        // Note: In a passing test suite, we'd expect them to be equal, 
-        // but here we are documenting that different inputs lead to different results.
-        val diff = Math.abs(widePointAt11!!.actualTemperature!! - narrowPointAt11Buggy!!.actualTemperature!!)
-        assertTrue("BUG REPRODUCTION: Temperature at T-1h should differ when future context is missing (diff=$diff)", diff > 0.01f)
+        assertNotNull(narrowPointAt11NoFuture)
+
+        // T-1h must NOT depend on whether S1's later reading exists. This assertion used to be
+        // reversed ("BUG REPRODUCTION: ... should differ"), documenting the defect rather than
+        // forbidding it: S1's contribution at T-1h flipped on the mere presence of its T+4h reading,
+        // because resolveStationValueAt picked its branch on whether an `after` reading existed at all.
+        // With none it extrapolated from T-3h (gap before->target = 2h, passes); with T+4h present the
+        // same target routed to the interpolation branch, whose gap is before->after (7h) and exceeds
+        // MAX_INTERPOLATION_GAP_MS, so it returned null and S1 silently dropped out of the blend.
+        // resolveStationValueAt now falls back to forward extrapolation when the interpolation gap is
+        // too wide, so both cases resolve identically (diff = 0). See ActualsLateReadingIndependenceTest.
+        assertEquals(
+            "Temperature at T-1h must not depend on whether a LATER observation exists",
+            widePointAt11!!.actualTemperature!!,
+            narrowPointAt11NoFuture!!.actualTemperature!!,
+            0.01f
+        )
 
         // 3. Narrow zoom (FIXED BEHAVIOR): Should receive fullActuals despite visual window
         val narrowHoursFixed = buildHourDataList(
