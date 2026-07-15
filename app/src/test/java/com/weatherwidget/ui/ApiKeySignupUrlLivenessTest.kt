@@ -39,7 +39,7 @@ class ApiKeySignupUrlLivenessTest {
         val failures = mutableListOf<String>()
         for (source in ApiKeySignupUrls.sourcesRequiringKeys) {
             val url = ApiKeySignupUrls.signupUrl(source)
-            val result = fetchFinalStatus(url)
+            val result = fetchWithRetries(source.id, url)
             if (result.code !in 200..399) {
                 failures += "${source.id}: $url -> ${result.describe()}"
             }
@@ -47,8 +47,31 @@ class ApiKeySignupUrlLivenessTest {
         assertTrue("stale signup links:\n${failures.joinToString("\n")}", failures.isEmpty())
     }
 
-    private data class FetchResult(val code: Int, val error: String? = null) {
-        fun describe(): String = error?.let { "error: $it" } ?: "HTTP $code"
+    private data class FetchResult(val code: Int, val error: String? = null, val attempts: Int = 1) {
+        fun describe(): String =
+            (error?.let { "error: $it" } ?: "HTTP $code") +
+                if (attempts > 1) " (after $attempts attempts)" else ""
+    }
+
+    /**
+     * Retries only error-shaped results (code -1: connect/read timeout, DNS hiccup) — a one-off
+     * network blip shouldn't red the suite. A real HTTP status (404/410/5xx) is the server's
+     * answer and fails on the first try, keeping genuine stale links loud. Each retry is printed
+     * so a pass-after-retry is distinguishable from a clean pass in the test log — creeping
+     * provider flakiness stays visible instead of being silently absorbed.
+     */
+    private fun fetchWithRetries(sourceId: String, url: String, pausesMs: List<Long> = listOf(1_000, 2_000)): FetchResult {
+        val maxAttempts = pausesMs.size + 1
+        var result = fetchFinalStatus(url)
+        var attempt = 1
+        for (pause in pausesMs) {
+            if (result.code != -1) break
+            println("signupUrlsAreLive: $sourceId attempt $attempt/$maxAttempts failed (${result.describe()}) — retrying in ${pause}ms: $url")
+            Thread.sleep(pause)
+            attempt++
+            result = fetchFinalStatus(url)
+        }
+        return result.copy(attempts = attempt)
     }
 
     /**

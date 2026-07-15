@@ -523,8 +523,16 @@ fun TemperatureGraph(
         // instead of collapsing onto the nearest hour. The forecast curve + actual line keep drawing
         // from `coords`/`actualLinePoints`; only the label geometry below switches to the dense list,
         // and all three engine inputs (hours/originalPoints/forecastPoints) stay index-aligned.
+        //
+        // Truncate to the visible data span: actualSeries is context-padded past the window edges
+        // (ACTUALS_CONTEXT_*) so the pink line interpolates cleanly to the corners, but the label
+        // engine clamps every anchor's x into the canvas — an off-screen trough past dataEnd (e.g.
+        // an overnight low 2h beyond a panned window) would otherwise be accepted as an interior
+        // ACTUAL_LOW and drawn flush-right at a y where no line exists. With the list cut at the
+        // window, that sample becomes a boundary sample and TemperatureExtrema's edge gate drops it.
         fun msOf(dt: LocalDateTime): Long = dt.atZone(zoneId).toInstant().toEpochMilli()
         val hourDataList = HourDataAssembler.assembleHourData(actualSeries, zoneId)
+            .filter { msOf(it.dateTime) in dataStart..dataEnd }
 
         val originalPointsList = hourDataList.map { hd ->
             val actTemp = hd.actualTemperature ?: (hd.temperature + appliedDelta)
