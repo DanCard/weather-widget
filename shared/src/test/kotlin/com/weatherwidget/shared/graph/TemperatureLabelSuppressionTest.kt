@@ -1057,6 +1057,89 @@ class TemperatureLabelSuppressionTest {
     // Cooling trend, hourly, Mon/Tue/Wed: each night colder than the previous, with the diurnal minimum
     // after midnight, so Tue's calendar min lands at Tue 23:00 (still descending into Wed's deeper pre-dawn
     // trough) and is rejected — leaving Tue with no per-day low.
+    // Live geometry reproduced from a 2026-07-15 emulator render (identical on Pixel, Samsung and
+    // desktop): a NARROW overnight window, 53 points 5 min apart, whose forecast falls 72 -> 67 by
+    // idx 39 and then runs dead flat at 67 to the right edge. The daily LOW opens that plateau at
+    // idx 39; END closes it at idx 52. Both read "67°".
+    //
+    // The LOW is DRAWN at the CENTER of its flat run (centerOfRun) — 58.75px from END at widthPx=470,
+    // inside the 64px redundancy budget. Measuring at idx 39's own timestamp instead reports 117.5px
+    // and keeps both, printing "67°" twice on the right edge. transitionX sits beyond widthPx because
+    // the whole window is in the past (observations continue past the right edge).
+    private fun flatForecastPlateauToRightEdgeHours(): List<HourData> {
+        val start = LocalDateTime.of(2026, 7, 14, 21, 0)
+        val plateauStart = 39
+        val controls = listOf(0 to 71.5f, 14 to 69.27f, 27 to 70.93f, 39 to 67.4f, 52 to 66.8f)
+        fun actualAt(i: Int): Float {
+            val hi = controls.indexOfFirst { it.first >= i }.coerceAtLeast(1)
+            val (x0, y0) = controls[hi - 1]
+            val (x1, y1) = controls[hi]
+            return if (x1 == x0) y1 else y0 + (y1 - y0) * (i - x0) / (x1 - x0)
+        }
+        return (0 until 53).map { i ->
+            val dt = start.plusMinutes(i * 5L)
+            val forecast = if (i >= plateauStart) 67f else 72f - 5f * (i / plateauStart.toFloat())
+            HourData(
+                dateTime = dt,
+                temperature = forecast,
+                label = "${dt.hour}h",
+                isActual = true,
+                actualTemperature = actualAt(i),
+            )
+        }
+    }
+
+    @Test
+    fun `END is suppressed when the daily LOW is drawn centered in a flat run reaching the right edge`() {
+        val hours = flatForecastPlateauToRightEdgeHours()
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 1312f, 52, null, useCelsius = false)
+
+        // Guard the fixture: the bug only arises when LOW opens a flat run ending at the last index.
+        assertEquals("fixture: daily LOW should anchor the start of the 67 plateau", 39, extrema.dailyLowIndex)
+        assertEquals("fixture: plateau must reach the right edge", 67f, extrema.labelTemps[hours.lastIndex], 0.01f)
+
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 52,
+            transitionX = 1312f,
+            observedAt = null,
+            widthPx = 470, useCelsius = false,
+        )
+
+        assertTrue("fixture: the daily LOW itself should still be labeled",
+            candidates.any { it.index == 39 && it.role == TemperatureRole.LOW })
+        assertFalse(
+            "END must not repeat the plateau LOW's value at the right edge, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.role == TemperatureRole.END },
+        )
+    }
+
+    // The same plateau at emulator-5556's geometry (widthPx=584, 54 points): the LOW's run-centered
+    // anchor lands 73px from END — OUTSIDE the 64px budget, where the Pixel's 58.75px fell inside.
+    // The pair is still one plateau labeled twice, so suppression must not depend on that distance.
+    @Test
+    fun `END on a flat run is suppressed even when the run-centered LOW is beyond the pixel budget`() {
+        val hours = flatForecastPlateauToRightEdgeHours()
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, 1312f, 52, null, useCelsius = false)
+
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = 52,
+            transitionX = 1312f,
+            observedAt = null,
+            widthPx = 584, useCelsius = false,
+        )
+
+        assertTrue("fixture: the daily LOW itself should still be labeled",
+            candidates.any { it.index == 39 && it.role == TemperatureRole.LOW })
+        assertFalse(
+            "END must not repeat the plateau LOW's value regardless of pixel gap, got ${candidates.map { it.role to it.index }}",
+            candidates.any { it.role == TemperatureRole.END },
+        )
+    }
+
     private fun coolingTrendMidnightStraddleHours(): List<HourData> {
         val start = LocalDateTime.of(2026, 6, 8, 0, 0) // Monday 00:00 -> Mon/Tue/Wed
         val controls = listOf(0 to 64f, 3 to 62f, 14 to 75f, 27 to 61f, 38 to 74f, 47 to 59f, 51 to 56f, 62 to 73f, 71 to 60f)

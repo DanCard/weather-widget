@@ -61,22 +61,69 @@ object TemperatureLabelResolver {
         return windowIndices.roundToInt().coerceIn(1, REDUNDANT_PAIR_WINDOW_CAP)
     }
 
+    // Two values belong to the same flat run when they differ by less than this.
+    private const val RUN_EQUAL_EPSILON = 0.01f
+
+    // Roles drawn at the CENTER of their equal-value run rather than at their own index (see
+    // [centerOfRun]): a flat 67° plateau carries ONE label in its middle, not one at its left edge.
+    // Redundancy is a question about the DRAWN position, so [anchorMinutes] must apply the same
+    // centering — otherwise a plateau LOW is measured where it is not drawn.
+    private val RUN_CENTERED_ROLES = setOf(
+        TemperatureRole.LOW, TemperatureRole.HIGH,
+        TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH,
+        TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH,
+        TemperatureRole.LOCAL,
+    )
+
+    /** Inclusive bounds of the flat run of equal values containing [idx]. */
+    private fun runBounds(temps: List<Float>, idx: Int): IntRange {
+        val v = temps[idx]
+        var first = idx
+        var last = idx
+        while (first > 0 && abs(temps[first - 1] - v) < RUN_EQUAL_EPSILON) first--
+        while (last < temps.lastIndex && abs(temps[last + 1] - v) < RUN_EQUAL_EPSILON) last++
+        return first..last
+    }
+
     /**
-     * On-screen horizontal gap (px) between two indices, derived from their real timestamps rather
-     * than index position. A single averaged px-per-hour (as in [computeRedundantPairWindow]) cannot
-     * see that the densely-sampled observed region near an edge packs many indices into a few pixels
-     * — e.g. on a 3-day view idx 0 and idx 30 can be ~5px apart yet 30 indices apart. This per-pair
-     * measure is exact for non-uniform sampling. Returns [Float.MAX_VALUE] when geometry is unknown
-     * (widthPx<=0) or the span is degenerate, so geometry-less unit tests fall back to never-near.
+     * Minutes from the window start to where the label for [idx] is actually DRAWN. Run-centered
+     * roles resolve to the midpoint of their flat run, mirroring [centerOfRun]; all other roles sit
+     * on their own index. The renderer maps x linearly in time, so the midpoint of two timestamps is
+     * exactly the midpoint of the two x's that [centerOfRun] averages.
      */
-    private fun pixelGapByTime(hours: List<HourData>, idxA: Int, idxB: Int, widthPx: Int): Float {
+    private fun anchorMinutes(hours: List<HourData>, idx: Int, role: TemperatureRole, temps: List<Float>): Float {
+        val start = hours.first().dateTime
+        fun minutesAt(i: Int) = Duration.between(start, hours[i].dateTime).toMinutes().toFloat()
+        if (role !in RUN_CENTERED_ROLES || idx > temps.lastIndex) return minutesAt(idx)
+        val run = runBounds(temps, idx)
+        return (minutesAt(run.first) + minutesAt(run.last)) / 2f
+    }
+
+    /**
+     * On-screen horizontal gap (px) between where two labels are DRAWN, derived from their real
+     * timestamps rather than index position. A single averaged px-per-hour (as in
+     * [computeRedundantPairWindow]) cannot see that the densely-sampled observed region near an edge
+     * packs many indices into a few pixels — e.g. on a 3-day view idx 0 and idx 30 can be ~5px apart
+     * yet 30 indices apart. This per-pair measure is exact for non-uniform sampling. Returns
+     * [Float.MAX_VALUE] when geometry is unknown (widthPx<=0) or the span is degenerate, so
+     * geometry-less unit tests fall back to never-near.
+     */
+    private fun pixelGapByTime(
+        hours: List<HourData>,
+        idxA: Int,
+        roleA: TemperatureRole,
+        tempsA: List<Float>,
+        idxB: Int,
+        roleB: TemperatureRole,
+        tempsB: List<Float>,
+        widthPx: Int,
+    ): Float {
         if (widthPx <= 0) return Float.MAX_VALUE
-        val a = hours.getOrNull(idxA) ?: return Float.MAX_VALUE
-        val b = hours.getOrNull(idxB) ?: return Float.MAX_VALUE
+        if (hours.getOrNull(idxA) == null || hours.getOrNull(idxB) == null) return Float.MAX_VALUE
         val spanMinutes = Duration.between(hours.first().dateTime, hours.last().dateTime).toMinutes()
         if (spanMinutes <= 0L) return Float.MAX_VALUE
-        val pairMinutes = abs(Duration.between(a.dateTime, b.dateTime).toMinutes())
-        return pairMinutes.toFloat() / spanMinutes.toFloat() * widthPx
+        val pairMinutes = abs(anchorMinutes(hours, idxA, roleA, tempsA) - anchorMinutes(hours, idxB, roleB, tempsB))
+        return pairMinutes / spanMinutes.toFloat() * widthPx
     }
 
     val ESSENTIAL_LABEL_ROLES: Set<TemperatureRole> = setOf(
@@ -626,9 +673,24 @@ object TemperatureLabelResolver {
                 val actualTargets = listOf(extrema.actualHighIndex, extrema.actualLowIndex) +
                     extrema.actualDailyHighIndices + extrema.actualDailyLowIndices
                 fun isTarget(tIdx: Int): Boolean = tIdx >= 0 && tIdx != idx && tIdx !in suppressedIndices
-                fun nearEnough(tIdx: Int): Boolean =
-                    if (widthPx > 0) pixelGapByTime(hours, idx, tIdx, widthPx) <= REDUNDANT_PAIR_PX
-                    else abs(idx - tIdx) <= boundaryWindow
+                fun nearEnough(tIdx: Int): Boolean {
+                    val tRole = resolveExtremaRole(tIdx, extrema, hours)
+                    // Same flat run on the SAME (forecast) series: the plateau already carries a label
+                    // of this exact value, so repeating it at the boundary is redundant at ANY
+                    // distance — one plateau labeled twice, not two labels that happen to sit close.
+                    // A pixel budget cannot express that, and trying made the outcome depend on width
+                    // and pan (58px suppressed on one device, 73px survived on the next). Index-based,
+                    // so it holds for geometry-less callers too.
+                    if (tRole !in ACTUAL_DISPLAY_ROLES && tIdx in runBounds(labelTemps, idx)) return true
+                    if (widthPx <= 0) return abs(idx - tIdx) <= boundaryWindow
+                    // Otherwise measure to where the target is DRAWN: a run-centered role sits at the
+                    // middle of its run, not on its own index. Resolving the role here (rather than
+                    // assuming it from the list it came from) applies the renderer's own precedence.
+                    val tTemps = if (tRole in ACTUAL_DISPLAY_ROLES) actualLabelTemps else labelTemps
+                    return pixelGapByTime(
+                        hours, idx, role, labelTemps, tIdx, tRole, tTemps, widthPx,
+                    ) <= REDUNDANT_PAIR_PX
+                }
                 dailyTargets.any { tIdx ->
                     isTarget(tIdx) && nearEnough(tIdx) &&
                         abs(labelTemps[idx].roundToInt() - labelTemps[tIdx].roundToInt()) <= SAME_SERIES_BOUNDARY_REDUNDANT_DEGREES
@@ -804,12 +866,10 @@ object TemperatureLabelResolver {
         forecast: List<Pair<Float, Float>>,
         transitionX: Float?
     ): Pair<Float, Float> {
-        val v = temps[idx]; var first = idx; var last = idx
-        while (first > 0 && abs(temps[first - 1] - v) < 0.01f) first--
-        while (last < temps.lastIndex && abs(temps[last + 1] - v) < 0.01f) last++
+        val run = runBounds(temps, idx)
         val points = if (forceForecast || (original.getOrNull(idx)?.first ?: 0f) > (transitionX ?: -1f)) forecast else original
-        val fPoint = points.getOrNull(first) ?: (0f to 0f)
-        val lPoint = points.getOrNull(last) ?: (0f to 0f)
+        val fPoint = points.getOrNull(run.first) ?: (0f to 0f)
+        val lPoint = points.getOrNull(run.last) ?: (0f to 0f)
         return (fPoint.first + lPoint.first) / 2f to (fPoint.second + lPoint.second) / 2f
     }
 }
