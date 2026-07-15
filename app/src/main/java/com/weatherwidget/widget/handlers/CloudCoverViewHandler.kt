@@ -464,11 +464,14 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         }
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
-        if (partialPush) {
-            appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
-        } else {
-            appWidgetManager.updateAppWidget(appWidgetId, views)
-        }
+        com.weatherwidget.widget.WidgetPushDispatcher.push(
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            views = views,
+            partialPush = partialPush,
+            caller = "CLOUD_COVER",
+            appLogDao = appLogDao,
+        )
 
         // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
         stateManager.setLastGraphRender(

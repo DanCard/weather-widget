@@ -178,11 +178,14 @@ object TemperatureViewHandler {
         DailyViewHandler.bindTransientMessage(views, stateManager, appWidgetId, callerTag = "TEMPERATURE")
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE state=data push=${if (partialPush) "partial" else "full"}${gateReason?.let { " reason=$it" } ?: ""} thread=${Thread.currentThread().name}")
-        if (partialPush) {
-            appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
-        } else {
-            appWidgetManager.updateAppWidget(appWidgetId, views)
-        }
+        com.weatherwidget.widget.WidgetPushDispatcher.push(
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            views = views,
+            partialPush = partialPush,
+            caller = "TEMPERATURE",
+            appLogDao = appLogDao,
+        )
 
         // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
         val renderedFormattedTemp = resolutionResult.currentTempResolution.displayTemp?.let {
@@ -354,7 +357,14 @@ object TemperatureViewHandler {
             errorMessage = errorMsg,
         )
 
-        appWidgetManager.partiallyUpdateAppWidget(appWidgetId, partial)
+        com.weatherwidget.widget.WidgetPushDispatcher.push(
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            views = partial,
+            partialPush = true,
+            caller = "TEMPERATURE_HEADER",
+            appLogDao = db.appLogDao(),
+        )
     }
 
     private data class CurrentTempRefinementParams(
@@ -430,7 +440,14 @@ object TemperatureViewHandler {
                 partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.GONE)
             }
             
-            params.appWidgetManager.partiallyUpdateAppWidget(params.appWidgetId, partialViews)
+            com.weatherwidget.widget.WidgetPushDispatcher.push(
+                appWidgetManager = params.appWidgetManager,
+                appWidgetId = params.appWidgetId,
+                views = partialViews,
+                partialPush = true,
+                caller = "TEMPERATURE_REFINE",
+                appLogDao = com.weatherwidget.data.local.WeatherDatabase.getDatabase(appContext).appLogDao(),
+            )
         }
     }
 

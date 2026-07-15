@@ -440,11 +440,14 @@ object DailyViewHandler : WidgetViewHandler {
 
         bindTransientMessage(views, stateManager, appWidgetId, callerTag = "DAILY")
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
-        if (partialPush) {
-            appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
-        } else {
-            appWidgetManager.updateAppWidget(appWidgetId, views)
-        }
+        com.weatherwidget.widget.WidgetPushDispatcher.push(
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            views = views,
+            partialPush = partialPush,
+            caller = "DAILY",
+            appLogDao = appLogDao,
+        )
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
         WidgetPerfLogger.logIfSlow(
             appLogDao = appLogDao,
