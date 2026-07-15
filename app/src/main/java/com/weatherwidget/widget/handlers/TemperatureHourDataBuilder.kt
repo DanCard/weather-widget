@@ -57,6 +57,7 @@ internal class BlendDebugCollector(
 ) {
     private var lastDetailedEmitMs: Long? = null
     private val emitted = mutableListOf<String>()
+    private val all = mutableListOf<String>()
 
     var rawDetailedLines: Int = 0
         private set
@@ -71,8 +72,11 @@ internal class BlendDebugCollector(
         val shouldEmit =
             alwaysEmit || lastDetailedEmitMs == null || now - lastDetailedEmitMs!! >= throttleMs
 
+        // Every point is kept for the logcat-only trace; [throttleMs] governs only the far smaller
+        // subset offered for app_logs persistence, which must stay time-spread across the series.
+        all += lineProvider()
         if (shouldEmit) {
-            emitted += lineProvider()
+            emitted += all.last()
             emittedDetailedLines += 1
             lastDetailedEmitMs = now
         } else {
@@ -81,6 +85,9 @@ internal class BlendDebugCollector(
     }
 
     fun emittedLines(): List<String> = emitted
+
+    /** Every blended point, unthrottled — for the logcat-only trace, never for app_logs. */
+    fun allLines(): List<String> = all
 
     fun buildSummary(
         stationCount: Int,

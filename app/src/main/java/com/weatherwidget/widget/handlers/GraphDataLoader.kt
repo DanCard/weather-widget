@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.ZoomLevel
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -21,8 +22,24 @@ object GraphDataLoader {
     ): GraphQueryWindow {
         val truncatedCenter = centerTime.truncatedTo(ChronoUnit.HOURS)
         val roundedCenter = if (centerTime.minute >= 30) truncatedCenter.plusHours(1) else truncatedCenter
-        val centerStart = roundedCenter.minusHours(zoom.backHours)
-        val centerEnd = roundedCenter.plusHours(zoom.forwardHours)
+        // Size the query to what CONSUMES the forecasts, not to what is VISIBLE. The visible span is
+        // zoom.backHours/forwardHours (±2h at NARROW), but ActualTemperatureSeriesBuilder blends over
+        // contextLookback/LookaheadHours (72h/60h) and extrapolates each station forward via the
+        // forecast delta — `forecastTemperatureAt(series, before.ts) ?: return null`. Query only the
+        // visible ±2h and that lookup returns null across nearly the whole context, so every
+        // extrapolating station resolves to null and drops out of the blend: the observed curve
+        // flattens to a plateau, loses its interior extrema, and the high/low labels vanish.
+        //
+        // That made the graph alternate. The interaction path (WidgetIntentRouter -> here) supplied 7
+        // forecasts and rendered flat/label-less; the background repaint (WeatherWidgetProvider ->
+        // WidgetRenderer), which queries now ± 72/168h, supplied 226 and rendered inclined/labelled.
+        // Same widget, same centre, same observations — two loaders, two curves, flipping ~1 min apart.
+        //
+        // maxOf keeps this correct if a zoom ever reaches past the blend context.
+        val lookbackHours = maxOf(zoom.backHours, WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
+        val lookaheadHours = maxOf(zoom.forwardHours, WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS)
+        val centerStart = roundedCenter.minusHours(lookbackHours)
+        val centerEnd = roundedCenter.plusHours(lookaheadHours)
 
         val nowStart = now.truncatedTo(ChronoUnit.HOURS)
         val nowEnd = nowStart.plusHours(1)

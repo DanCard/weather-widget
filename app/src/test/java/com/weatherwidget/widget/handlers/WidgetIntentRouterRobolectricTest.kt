@@ -146,11 +146,16 @@ class WidgetIntentRouterRobolectricTest {
 
         val window = GraphDataLoader.buildGraphQueryWindow(centerTime, ZoomLevel.WIDE, now)
 
-        // centerTime is 08:20 (March 4). WIDE is -12h, +12h.
-        // 08:20 - 12h = 20:20 (March 3). Truncated = 20:00.
-        // 08:20 + 12h = 20:20 (March 4). Truncated = 20:00.
-        assertEquals(LocalDateTime.of(2026, 3, 3, 20, 0), window.centerStart)
-        assertEquals(LocalDateTime.of(2026, 3, 4, 20, 0), window.centerEnd)
+        // centerTime is 08:20 (March 4) -> rounded to 08:00. The span is the BLEND CONTEXT
+        // (HOURLY_LOOKBACK_HOURS=72 / HOURLY_LOOKAHEAD_HOURS=60), NOT WIDE's visible -12h/+12h:
+        // the blend extrapolates stations through the forecast delta across its context, so querying
+        // only the visible span starved it and dropped stations. See
+        // GraphQueryWindowCoversBlendContextTest.
+        // 08:00 - 72h = 08:00 (March 1). 08:00 + 60h = 20:00 (March 6).
+        assertEquals(LocalDateTime.of(2026, 3, 1, 8, 0), window.centerStart)
+        assertEquals(LocalDateTime.of(2026, 3, 6, 20, 0), window.centerEnd)
+        // The split itself is what this test is about: `now` is 7 days before the centre, so even the
+        // widened context does not reach it and the now-hour still needs its own query.
         assertEquals(LocalDateTime.of(2026, 2, 25, 10, 0), window.nowStart)
         assertEquals(LocalDateTime.of(2026, 2, 25, 11, 0), window.nowEnd)
     }
@@ -162,11 +167,13 @@ class WidgetIntentRouterRobolectricTest {
 
         val window = GraphDataLoader.buildGraphQueryWindow(centerTime, ZoomLevel.WIDE, now)
 
-        // centerTime is 11:12. WIDE is -12h, +12h.
-        // 11:12 - 12h = 23:12 (prev day). Truncated = 23:00.
-        // 11:12 + 12h = 23:12. Truncated = 23:00.
-        assertEquals(LocalDateTime.of(2026, 2, 24, 23, 0), window.centerStart)
-        assertEquals(LocalDateTime.of(2026, 2, 25, 23, 0), window.centerEnd)
+        // centerTime is 11:12 -> rounded to 11:00. Span is the blend context (72h back / 60h forward),
+        // not WIDE's visible -12h/+12h.
+        // 11:00 - 72h = 11:00 (Feb 22). 11:00 + 60h = 23:00 (Feb 27).
+        assertEquals(LocalDateTime.of(2026, 2, 22, 11, 0), window.centerStart)
+        assertEquals(LocalDateTime.of(2026, 2, 27, 23, 0), window.centerEnd)
+        // The now-hour falls inside the centre window, so no separate query is needed. Widening the
+        // context makes this the common case — a scrolled-back widget now usually still covers `now`.
         assertNull(window.nowStart)
         assertNull(window.nowEnd)
     }

@@ -220,9 +220,20 @@ object ActualTemperatureSeriesBuilder {
         zoneId: ZoneId = ZoneId.systemDefault(),
         onBlendDebug: ((() -> String) -> Unit)? = null,
     ): BlendObservationResult {
+        // TOTAL order, not `sortedBy { it.timestamp }`. That is a STABLE sort, so rows sharing a
+        // timestamp kept the CALLER's order — and the blend is order-sensitive: `groupBy { stationId }`
+        // below inherits this order, so byStation's iteration order decides dominantStationByDay's
+        // maxWith tie-break (which gates the lone-station skip) and anchorStation ("first that
+        // resolves"). Several stations report on identical timestamps, and callers hand rows straight
+        // from SQL, where ties come back in whatever order the query plan chose — so the same rows
+        // produced different observed curves run-to-run, alternating between two stable states and
+        // blinking the graph's high/low labels on hours with no new data.
+        // (timestamp, stationId) is the observations primary key, so this order is fully determined.
+        // Sorting HERE keeps every caller deterministic — Android, desktop, and ActualsAggregator all
+        // reach this function with their own queries. See ActualsRowOrderDeterminismTest.
         val filtered = observations
             .filter { !it.qcFailed && matchesObservationSource(it, displaySourceId) }
-            .sortedBy { it.timestamp }
+            .sortedWith(compareBy({ it.timestamp }, { it.stationId }))
 
         if (filtered.isEmpty()) {
             return BlendObservationResult(
@@ -482,22 +493,47 @@ object ActualTemperatureSeriesBuilder {
         return when {
             before != null && after != null -> {
                 val gapMs = after.timestamp - before.timestamp
-                if (gapMs > MAX_INTERPOLATION_GAP_MS) return null
+                if (gapMs > MAX_INTERPOLATION_GAP_MS) {
+                    // Too far apart to interpolate across, but [targetTs] may still be within forward
+                    // extrapolation reach of [before] — so extrapolate rather than dropping the station.
+                    // Bailing here made a station's contribution at [targetTs] depend on whether some
+                    // *later* reading happened to exist: a station whose last reading was 20:47 covered
+                    // 20:50..23:47 by extrapolation, then silently vanished from those same past hours
+                    // the moment its next reading landed hours later (20:47 -> next > 3h fails the gap
+                    // check above). The blend then renormalised over the remaining stations and the whole
+                    // observed curve moved by up to ~1.2 F, flipping flat ties into extrema and making
+                    // high/low labels blink between renders with no new data for those hours.
+                    // Resolution must depend only on readings NEAR the target, never on a distant future one.
+                    return extrapolateForward(before, targetTs, forecastSeries, stationType)
+                }
                 val fraction = (targetTs - before.timestamp).toFloat() / gapMs.toFloat()
                 val interpolated = before.temperature + (after.temperature - before.temperature) * fraction
                 val interpolatedDistanceKm = before.distanceKm + (after.distanceKm - before.distanceKm) * fraction
                 ResolvedStationValue(interpolated, interpolatedDistanceKm, "interpolated", after.timestamp, stationType)
             }
-            before != null && after == null -> {
-                val gapMs = targetTs - before.timestamp
-                if (gapMs > MAX_EXTRAPOLATION_GAP_MS) return null
-                val baseForecast = forecastTemperatureAt(forecastSeries, before.timestamp) ?: return null
-                val targetForecast = forecastTemperatureAt(forecastSeries, targetTs) ?: return null
-                val extrapolated = before.temperature + (targetForecast - baseForecast)
-                ResolvedStationValue(extrapolated, before.distanceKm, "forecast_extrapolated", before.timestamp, stationType)
-            }
+            before != null -> extrapolateForward(before, targetTs, forecastSeries, stationType)
             else -> null
         }
+    }
+
+    /**
+     * [before]'s reading carried forward to [targetTs] by the forecast's change over that span, or null
+     * when [targetTs] is beyond [MAX_EXTRAPOLATION_GAP_MS] of it. Reached both when the station has no
+     * later reading at all and when its next reading is too far past [targetTs] to interpolate across,
+     * so the two cases resolve identically.
+     */
+    private fun extrapolateForward(
+        before: ObservationReading,
+        targetTs: Long,
+        forecastSeries: List<HourlyForecast>,
+        stationType: String,
+    ): ResolvedStationValue? {
+        val gapMs = targetTs - before.timestamp
+        if (gapMs > MAX_EXTRAPOLATION_GAP_MS) return null
+        val baseForecast = forecastTemperatureAt(forecastSeries, before.timestamp) ?: return null
+        val targetForecast = forecastTemperatureAt(forecastSeries, targetTs) ?: return null
+        val extrapolated = before.temperature + (targetForecast - baseForecast)
+        return ResolvedStationValue(extrapolated, before.distanceKm, "forecast_extrapolated", before.timestamp, stationType)
     }
 
     private fun interpolateForecastTemp(topHourPoints: List<ActualTemperaturePoint>, timeMs: Long): Float {

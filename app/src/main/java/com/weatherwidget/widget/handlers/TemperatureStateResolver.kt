@@ -487,6 +487,48 @@ internal object TemperatureStateResolver {
                 "IDW_BLEND",
                 "source=${displaySource.id} stations=${stationIds.size} [${stationIds.joinToString(",")}] blendedPoints=$actualCount",
             )
+            // Permanent, logcat-only traces (Log.v never persists to app_logs) of the blended actual
+            // series, tagged with the visual window so consecutive renders of the SAME window can be
+            // compared. This is how an oscillating actual line gets caught: identical inputs rendering
+            // two different curves show up here as a changed digest / differing points.
+            // These graph bugs recur — keep these; do not mark "remove after".
+            //
+            // The DIGEST comes first and is the authoritative signal: a render emits ~1000 detail lines
+            // in one burst, which overruns the 5 MiB logcat ring (the device rejects -G above that), so
+            // the per-point lines below are lossy and must never be diffed positionally — a truncated
+            // capture looks exactly like a divergence. One digest line per render cannot be split.
+            val blendLines = blendDebugCollector.allLines()
+            // Row COUNT is not row CONTENT: observations are inserted onConflict=REPLACE against PK
+            // (stationId, timestamp), so a re-fetch can overwrite temperatures while sourceRows stays
+            // put. These two hashes are what separate the possible causes of a curve that moves on an
+            // unchanged window:
+            //   inputContentHash (sorted -> order-independent): did the underlying data actually change?
+            //   inputOrderHash   (raw query order):             did only the row ORDER change?
+            // contentHash same + visibleHash changed => the blend is non-deterministic for fixed input.
+            val inputContentHash = observations
+                .map { "${it.stationId}@${it.timestamp}=${it.temperature}/${it.qcFailed}" }
+                .sorted()
+                .joinToString(",").hashCode()
+            val inputOrderHash = observations
+                .joinToString(",") { "${it.stationId}@${it.timestamp}" }.hashCode()
+            // visibleHash covers ONLY the hours actually drawn, so it is the one to compare across
+            // renders: two renders of the same window must produce the same visibleHash, and a change
+            // means the drawn curve moved. contextHash covers the whole 72h blend context and changes
+            // whenever ANY observation arrives anywhere in it — including hours far outside the view —
+            // so it is diagnostic colour only and must NOT be used to judge window stability.
+            val visibleHash = hourDataResult.hours
+                .joinToString(",") { "${it.dateTime}=${it.actualTemperature}/${it.temperature}" }
+                .hashCode()
+            android.util.Log.v(
+                "TEMP_ACTUALS_DIGEST",
+                "center=$centerTime aligned=$alignedCenter zoom=$zoom source=${displaySource.id} " +
+                    "rows=${observations.size} inputContentHash=$inputContentHash inputOrderHash=$inputOrderHash " +
+                    "visibleHours=${hourDataResult.hours.size} visibleHash=$visibleHash " +
+                    "contextPoints=${blendLines.size} contextHash=${blendLines.joinToString("\n").hashCode()}",
+            )
+            blendLines.forEach { line ->
+                android.util.Log.v("TEMP_ACTUALS_DUMP", "center=$centerTime zoom=$zoom $line")
+            }
             blendDebugCollector.emittedLines()
                 .take(MAX_PERSISTED_BLEND_DEBUG_LINES)
                 .forEach { line ->

@@ -23,7 +23,7 @@ interface ObservationDao {
         SELECT * FROM observations
         WHERE timestamp >= :sinceMs
           AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY timestamp DESC
+        ORDER BY timestamp DESC, stationId ASC
     """,
     )
     suspend fun getRecentObservationsNear(
@@ -35,13 +35,25 @@ interface ObservationDao {
     @Query("SELECT MAX(fetchedAt) FROM observations")
     fun observeLatestFetchedAt(): Flow<Long?>
 
+    // ORDER BY must be TOTAL: (timestamp, stationId) is the primary key, so adding stationId makes the
+    // row order fully determined. `ORDER BY timestamp` alone does NOT — several stations report on the
+    // same timestamps (AW020/KSJC both cover 23:05-03:25), and SQLite is free to return tied rows in
+    // any order, which varied run-to-run in practice.
+    //
+    // That mattered because row order leaks into the blend: ActualTemperatureSeriesBuilder does
+    // `filtered.groupBy { stationId }`, so byStation's ITERATION order follows row order, which then
+    // decides dominantStationByDay's maxWith tie-break (gating the lone-station skip) and anchorStation
+    // ("first station that resolves"). Same rows in a different order produced a different observed
+    // curve: identical inputs (rows=1660, stations=6, blendedPoints=1041) rendered two different
+    // series, alternating between two pixel-identical states and making the graph's high/low labels
+    // blink on a window whose hours had no new data. See ActualsRowOrderDeterminismTest.
     @Query(
         """
         SELECT * FROM observations
         WHERE timestamp >= :startTs
           AND timestamp < :endTs
           AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY timestamp ASC
+        ORDER BY timestamp ASC, stationId ASC
     """,
     )
     suspend fun getObservationsInRange(
