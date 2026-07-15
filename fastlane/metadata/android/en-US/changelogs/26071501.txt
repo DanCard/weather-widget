@@ -1,0 +1,1 @@
+Added manual NWS observation station selection, fixed Samsung settings task-affinity regression, resolved duplicate hourly graph labels, and optimized weather station filtering.
