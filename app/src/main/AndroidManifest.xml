@@ -41,6 +41,7 @@
         <activity
             android:name=".ui.SettingsActivity"
             android:exported="true"
+            android:taskAffinity=""
             android:label="@string/settings" />
 
         <activity
@@ -57,6 +58,7 @@
         <activity
             android:name=".ui.ForecastHistoryActivity"
             android:exported="false"
+            android:taskAffinity=""
             android:label="@string/forecast_history" />
 
         <activity

@@ -1,5 +1,6 @@
 package com.weatherwidget.ui
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.Button
@@ -11,6 +12,7 @@ import com.weatherwidget.util.LocationMode
 import com.weatherwidget.widget.WidgetStateManager
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -46,6 +48,25 @@ class SettingsActivityRobolectricTest {
 
     private fun clearTestPrefs(name: String) {
         context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
+    // Samsung regression: the widget launches this activity with FLAG_ACTIVITY_NEW_TASK. If it shared
+    // MainActivity's (default) task affinity, One UI Home would foreground the MainActivity-rooted task
+    // and back/finish here would reveal the "Welcome to Weather Widget" screen instead of the home
+    // screen. A distinct task affinity keeps it in its own task. Same fix as
+    // WeatherObservationsActivityRobolectricTest's analogous test.
+    @Test
+    fun `settings activity does not share a task with the welcome MainActivity`() {
+        val pm = context.packageManager
+        val settingsInfo = pm.getActivityInfo(
+            ComponentName(context, SettingsActivity::class.java), 0)
+        val mainInfo = pm.getActivityInfo(
+            ComponentName(context, MainActivity::class.java), 0)
+        assertNotEquals(
+            "Settings must live in its own task so back/close cannot reveal the Welcome screen",
+            mainInfo.taskAffinity,
+            settingsInfo.taskAffinity,
+        )
     }
 
     @Test

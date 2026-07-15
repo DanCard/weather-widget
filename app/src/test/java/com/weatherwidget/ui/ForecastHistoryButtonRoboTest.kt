@@ -1,5 +1,6 @@
 package com.weatherwidget.ui
 
+import android.content.ComponentName
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.WeatherDatabase
@@ -16,6 +17,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -152,6 +154,26 @@ class ForecastHistoryButtonRoboTest {
         assertFalse(
             "Click should toggle graph mode for past dates",
             shouldLaunchTemperature(hasDate = true, showTemperatureButton = showTemperatureButton),
+        )
+    }
+
+    // Samsung regression (same family as WeatherObservationsActivity/SettingsActivity): the widget
+    // launches this activity with FLAG_ACTIVITY_NEW_TASK (WeatherWidgetProvider.navigateToHistory).
+    // If it shared MainActivity's (default) task affinity, One UI Home would foreground the
+    // MainActivity-rooted task and back/finish here would reveal the "Welcome to Weather Widget"
+    // screen instead of the home screen. A distinct task affinity keeps it in its own task.
+    @Test
+    fun `forecast history activity does not share a task with the welcome MainActivity`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val pm = context.packageManager
+        val historyInfo = pm.getActivityInfo(
+            ComponentName(context, ForecastHistoryActivity::class.java), 0)
+        val mainInfo = pm.getActivityInfo(
+            ComponentName(context, MainActivity::class.java), 0)
+        assertNotEquals(
+            "Forecast history must live in its own task so back/finish cannot reveal the Welcome screen",
+            mainInfo.taskAffinity,
+            historyInfo.taskAffinity,
         )
     }
 }
