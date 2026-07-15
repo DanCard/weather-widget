@@ -856,8 +856,11 @@ object DailyForecastGraphRenderer {
                 drawTempLabel(canvas, formatTempLabel(plan.actualHigh, useCelsius = layout.useCelsius), centerX, plan.actualBaseline, basePaint,
                     extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
+                // The forecast reads as the secondary number, so it draws smaller than the actual
+                // regardless of digit count (see DUAL_FORECAST_FONT_SCALE).
                 drawTempLabel(canvas, formatTempLabel(plan.forecastHigh, useCelsius = layout.useCelsius), forecastLabelX, plan.forecastBaseline,
-                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = condColor, drawOutline = true,
+                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE * DualHighLabel.DUAL_FORECAST_FONT_SCALE,
+                    colorOverride = condColor, drawOutline = true,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
             } else {
                 val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
@@ -1089,21 +1092,36 @@ object DailyForecastGraphRenderer {
         val actualHigh = effective
         val effectiveBaseline = layout.tempToY(effective) - labelOffset
         val forecastHigh = if (day.isPast || todayHighSettled) day.dashedLineHigh else null
-        val forecastBaseline = forecastHigh?.let { layout.tempToY(it) - labelOffset }
+        // Two labels this close together (the gap IS the forecast miss, so a 2° miss is only a couple
+        // of label-heights on a compressed graph) collide at their natural above-the-bar positions.
+        // Move each away from the other before the room test, so the test measures what is drawn.
+        // Digits have no descender, so a label's bottom edge is effectively its baseline.
+        val offsets = forecastHigh?.let {
+            DualHighLabel.bottomOffsetsDp(actualHigh, it, normalGapDp = HIGH_LABEL_OFFSET_DP)
+        }
+        val offsetScale = layout.bitmapScale.coerceAtMost(1f)
+        fun offsetPx(dp: Float) = (dp * offsetScale).dp(layout.density)
+        val nudgedActualBaseline = offsets?.let { layout.tempToY(effective) + offsetPx(it.actualDp) }
+            ?: effectiveBaseline
+        val forecastBaseline = forecastHigh?.let { layout.tempToY(it) + offsetPx(offsets!!.forecastDp) }
         // Label height for the room test; fontMetrics is null under stubbed-Paint unit tests, so fall
-        // back to textSize there. Only needed when a forecast label is in play.
+        // back to textSize there. Only needed when a forecast label is in play. Uses the actual's
+        // scale — the forecast draws smaller (DUAL_FORECAST_FONT_SCALE), so this is conservative.
         val twoLabelHeight = (basePaint.fontMetrics?.let { it.descent - it.ascent } ?: basePaint.textSize) *
             DualHighLabel.TWO_LABEL_FONT_SCALE
         val showBoth = forecastHigh != null && forecastBaseline != null &&
-            DualHighLabel.showBoth(actualHigh, forecastHigh, effectiveBaseline, forecastBaseline, twoLabelHeight)
+            DualHighLabel.showBoth(actualHigh, forecastHigh, nudgedActualBaseline, forecastBaseline, twoLabelHeight)
+        // The nudge only applies when two labels actually render; a lone high label keeps its true
+        // above-the-bar position.
+        val actualBaseline = if (showBoth) nudgedActualBaseline else effectiveBaseline
         val anchorHigh = if (showBoth && forecastHigh != null) maxOf(actualHigh, forecastHigh) else effective
-        val anchorBaseline = if (showBoth && forecastBaseline != null) minOf(effectiveBaseline, forecastBaseline) else effectiveBaseline
+        val anchorBaseline = if (showBoth && forecastBaseline != null) minOf(actualBaseline, forecastBaseline) else actualBaseline
         return HighLabelPlan(
             showBoth = showBoth,
             todayHighSettled = todayHighSettled,
             actualHigh = actualHigh,
             forecastHigh = forecastHigh,
-            actualBaseline = effectiveBaseline,
+            actualBaseline = actualBaseline,
             forecastBaseline = forecastBaseline,
             anchorHigh = anchorHigh,
             anchorBaseline = anchorBaseline,

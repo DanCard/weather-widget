@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -40,6 +41,82 @@ class DualHighLabelTest {
     fun `gap exactly at the overlap boundary shows both`() {
         // gap == labelH * (1 - MAX_OVERLAP_FRACTION) -> inclusive.
         assertTrue(DualHighLabel.showBoth(80f, 72f, 0f, minGap, labelH))
+    }
+
+    // ── bottomOffsetsDp ──────────────────────────────────────────────────
+    // Offsets are each label's BOTTOM edge relative to its own bar top; positive = down the screen.
+
+    private val gap = 8f
+
+    @Test
+    fun `lower-valued label sits just below its bar top, higher-valued clears its normal gap`() {
+        // Actual warmer than forecast (the reported case: pink 89.4 over yellow 87).
+        val o = DualHighLabel.bottomOffsetsDp(actualHigh = 89.4f, forecastHigh = 87f, normalGapDp = gap)
+        assertEquals(DualHighLabel.DUAL_LOWER_BELOW_BAR_DP, o.forecastDp, 0.001f)
+        assertEquals(-(gap + DualHighLabel.DUAL_UPPER_PUSH_UP_DP), o.actualDp, 0.001f)
+    }
+
+    @Test
+    fun `roles swap when the forecast ran hot`() {
+        // Forecast above the actual -> the ACTUAL is now the lower label and takes the below-bar spot.
+        val o = DualHighLabel.bottomOffsetsDp(actualHigh = 87f, forecastHigh = 89.4f, normalGapDp = gap)
+        assertEquals(DualHighLabel.DUAL_LOWER_BELOW_BAR_DP, o.actualDp, 0.001f)
+        assertEquals(-(gap + DualHighLabel.DUAL_UPPER_PUSH_UP_DP), o.forecastDp, 0.001f)
+    }
+
+    @Test
+    fun `labels always move apart, never together, whichever high is larger`() {
+        // The whole point of the direction-aware rule: a role-based "always lower the forecast" could
+        // shove the two together (and cross them) when the forecast ran hot. Assert separation grows
+        // in both orientations, on a graph compressed enough that a minimum-diff miss barely shows.
+        val pxPerDeg = 14f
+        fun separationChange(actual: Float, forecast: Float): Float {
+            val o = DualHighLabel.bottomOffsetsDp(actual, forecast, normalGapDp = gap)
+            val naturalGap = kotlin.math.abs(actual - forecast) * pxPerDeg
+            // Bar tops in screen Y: warmer temp = smaller Y. Apply each offset to its own bar top.
+            val aY = -actual * pxPerDeg + o.actualDp
+            val fY = -forecast * pxPerDeg + o.forecastDp
+            return kotlin.math.abs(aY - fY) - naturalGap
+        }
+        assertTrue(separationChange(89.4f, 87f) > 0f)
+        assertTrue(separationChange(87f, 89.4f) > 0f)
+    }
+
+    @Test
+    fun `order never flips even at the minimum labelable difference`() {
+        // MIN_DIFF_DEG on a compressed graph is the tightest case the gate ever admits; the warmer
+        // label must still end up above the cooler one (smaller Y), or the numbers would contradict
+        // the bars they sit on. BOTH orientations matter — the flip a role-based nudge causes only
+        // shows up when the FORECAST ran hot, so testing actual-warmer alone would pass vacuously.
+        val pxPerDeg = 1f // absurdly compressed: the nudges dwarf the temperature difference
+        fun warmerLabelY(actual: Float, forecast: Float): Pair<Float, Float> {
+            val o = DualHighLabel.bottomOffsetsDp(actual, forecast, normalGapDp = gap)
+            return (-actual * pxPerDeg + o.actualDp) to (-forecast * pxPerDeg + o.forecastDp)
+        }
+        val (aWarmA, aWarmF) = warmerLabelY(89f, 89f - DualHighLabel.MIN_DIFF_DEG)
+        assertTrue("warmer actual must stay above the cooler forecast", aWarmA < aWarmF)
+
+        val (fWarmA, fWarmF) = warmerLabelY(87f, 87f + DualHighLabel.MIN_DIFF_DEG)
+        assertTrue("warmer forecast must stay above the cooler actual", fWarmF < fWarmA)
+    }
+
+    @Test
+    fun `equal highs do not crash and keep the actual above`() {
+        // Unreachable through showBoth (MIN_DIFF_DEG gates it), but the pure fn must stay total.
+        val o = DualHighLabel.bottomOffsetsDp(80f, 80f, normalGapDp = gap)
+        assertTrue(o.actualDp < o.forecastDp)
+    }
+
+    @Test
+    fun `forecast label draws smaller than the actual even when the actual is the wide one`() {
+        // The bug this fixes: "89.4°" trips isWideLabel (-5%) while "87°" does not, so the forecast
+        // used to draw BIGGER than the headline actual purely on digit count.
+        val base = 100f
+        val actualSize = base * DualHighLabel.TWO_LABEL_FONT_SCALE *
+            (if (DualHighLabel.isWideLabel("89.4°")) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
+        val forecastSize = base * DualHighLabel.TWO_LABEL_FONT_SCALE * DualHighLabel.DUAL_FORECAST_FONT_SCALE *
+            (if (DualHighLabel.isWideLabel("87°")) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
+        assertTrue("forecast must read as the secondary number", forecastSize < actualSize)
     }
 
     @Test

@@ -249,32 +249,39 @@ fun DailyForecastGraph(
                 else -> null
             }
             val dualForecastHigh = if (day.isPast || todayHighSettled) day.forecastHigh else null
-            // Both highs at full size (no 2% two-label shrink); the lower one gets a 4% boost below.
-            val dualBase = 12f * scale
-            // Lower label = smaller temp (sits lower, with the taller forecast bar through it) → boost.
-            fun dualBaseFor(temp: Float, otherTemp: Float): Float =
-                if (temp < otherTemp) dualBase * LOWER_DUAL_LABEL_FONT_BOOST else dualBase
-            val showDualHighs = if (dualActualHigh != null && dualForecastHigh != null) {
+            // Matching Android: both highs take the 2% two-label shrink, and the forecast — the
+            // secondary number — shrinks further regardless of which of the two sits lower.
+            val dualBase = 12f * scale * DualHighLabel.TWO_LABEL_FONT_SCALE
+            val dualForecastBase = dualBase * DualHighLabel.DUAL_FORECAST_FONT_SCALE
+            // The two labels are only |miss| * pixelsPerDegree apart at their natural positions, so
+            // they collide on any small miss. Move each away from the other: the lower-valued one
+            // down onto its own bar, the higher-valued one a little further up (DualHighLabel).
+            val dualOffsets = if (dualActualHigh != null && dualForecastHigh != null)
+                DualHighLabel.bottomOffsetsDp(dualActualHigh, dualForecastHigh, normalGapDp = DUAL_NORMAL_GAP)
+            else null
+            fun dualTop(temp: Float, height: Float, offsetDp: Float): Float =
+                (yAt(temp) + offsetDp * scale - height).coerceAtLeast(-headerBleed)
+            val showDualHighs = if (dualActualHigh != null && dualForecastHigh != null && dualOffsets != null) {
                 val aText = formatTemp(dualActualHigh)
                 val fText = formatTemp(dualForecastHigh)
-                val aH = textMeasurer.measure(aText, TextStyle(fontSize = tempFontSize(aText, dualBaseFor(dualActualHigh, dualForecastHigh)).sp)).size.height.toFloat()
-                val fH = textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBaseFor(dualForecastHigh, dualActualHigh)).sp)).size.height.toFloat()
-                val aTop = (yAt(dualActualHigh) - aH - 3f * scale).coerceAtLeast(-headerBleed)
-                val fTop = (yAt(dualForecastHigh) - fH - 3f * scale).coerceAtLeast(-headerBleed)
+                val aH = textMeasurer.measure(aText, TextStyle(fontSize = tempFontSize(aText, dualBase).sp)).size.height.toFloat()
+                val fH = textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualForecastBase).sp)).size.height.toFloat()
+                val aTop = dualTop(dualActualHigh, aH, dualOffsets.actualDp)
+                val fTop = dualTop(dualForecastHigh, fH, dualOffsets.forecastDp)
                 DualHighLabel.showBoth(dualActualHigh, dualForecastHigh, aTop, fTop, maxOf(aH, fH))
             } else false
 
-            if (showDualHighs && dualActualHigh != null && dualForecastHigh != null) {
+            if (showDualHighs && dualActualHigh != null && dualForecastHigh != null && dualOffsets != null) {
                 val aText = formatTemp(dualActualHigh)
-                val aSize = tempFontSize(aText, dualBaseFor(dualActualHigh, dualForecastHigh))
+                val aSize = tempFontSize(aText, dualBase)
                 val aLayout = textMeasurer.measure(aText, TextStyle(fontSize = aSize.sp, color = COLOR_OBSERVED))
-                val aY = (yAt(dualActualHigh) - aLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                val aY = dualTop(dualActualHigh, aLayout.size.height.toFloat(), dualOffsets.actualDp)
                 drawOutlinedText(textMeasurer, aLayout, Offset(centerX - aLayout.size.width / 2f, aY))
 
                 val fText = formatTemp(dualForecastHigh)
-                val fSize = tempFontSize(fText, dualBaseFor(dualForecastHigh, dualActualHigh))
+                val fSize = tempFontSize(fText, dualForecastBase)
                 val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
-                val fY = (yAt(dualForecastHigh) - fLayout.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                val fY = dualTop(dualForecastHigh, fLayout.size.height.toFloat(), dualOffsets.forecastDp)
                 drawOutlinedText(textMeasurer, fLayout, Offset(centerX + tripleOffset - fLayout.size.width / 2f, fY))
                 // Rain % anchors above the TOPMOST of the two high labels (warmer temp = higher on
                 // screen) so it clears BOTH instead of wedging between them (matches Android).
@@ -701,6 +708,7 @@ private fun formatTemp(v: Float?, useCelsius: Boolean): String {
 private fun tempFontSize(text: String, base: Float): Float =
     base * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
 
-// When both past-day highs are labeled, the lower one (smaller temp) sits down where the taller
-// forecast bar passes through it; bump it 4% larger for legibility. Desktop-only.
-private const val LOWER_DUAL_LABEL_FONT_BOOST = 1.08f
+// Usual gap between a high label's bottom and its bar top, in the same units as `scale`. Fed to
+// DualHighLabel.bottomOffsetsDp so the dual labels land where Android's do despite Android using a
+// wider normal gap (its HIGH_LABEL_OFFSET_DP is 8).
+private const val DUAL_NORMAL_GAP = 3f
