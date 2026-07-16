@@ -309,6 +309,7 @@ fun DailyForecastGraph(
                     val highColor = when {
                         todayHighSettled -> COLOR_OBSERVED
                         day.isToday -> Color.Yellow
+                        day.isPast -> COLOR_OBSERVED
                         else -> Color.White
                     }
                     val highText = textMeasurer.measure(
@@ -329,9 +330,18 @@ fun DailyForecastGraph(
             if (lowForLabel != null) {
                 val lowLabelText = formatTemp(lowForLabel)
                 val lowSize = tempFontSize(lowLabelText, 11f * scale)
+                // Matches the single-high recolor above: a past day's low is an actual reading, and
+                // so is today's once the overnight low is settled (past the 9am cutoff) — both read
+                // as the thermostat/observed color rather than plain white.
+                val todayLowSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isLowTrackingActual(
+                    isToday = day.isToday,
+                    solidLow = day.solidLow,
+                    nowHour = day.nowHour,
+                )
+                val lowColor = if (day.isPast || todayLowSettled) COLOR_OBSERVED else Color.White.copy(alpha = 0.78f)
                 val lowText = textMeasurer.measure(
                     lowLabelText,
-                    TextStyle(fontSize = lowSize.sp, color = Color.White.copy(alpha = 0.78f))
+                    TextStyle(fontSize = lowSize.sp, color = lowColor)
                 )
                 // Order matches Android: bar → weather icon → low label. The icon anchors under the
                 // LOWEST drawn bar (geometry, via the shared iconAnchorLow) rather than the printed

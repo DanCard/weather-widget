@@ -146,6 +146,27 @@ object DailyDayValueResolver {
     }
 
     /**
+     * Whether today's headline low is currently tracking the **observed actual** rather than the
+     * forecast-inclusive blend — i.e. the exact case where [effectiveLowForLabel] returns the
+     * observed low and drops the forecast. Mirror of [isHighTrackingActual].
+     *
+     * True only for today, once the local time is past [ACTUAL_LOW_CUTOFF_HOUR] (9am) AND an
+     * observed low exists. Callers use this to recolor the low label to the thermostat (observed)
+     * color, signaling the number is now a settled actual instead of a prediction.
+     *
+     * @param nowHour Local hour-of-day (0–23); null disables the cutoff (legacy behavior).
+     */
+    fun isLowTrackingActual(
+        isToday: Boolean,
+        solidLow: Float?,
+        nowHour: Int? = null,
+    ): Boolean {
+        if (!isToday) return false
+        val lowSettled = nowHour != null && nowHour >= ACTUAL_LOW_CUTOFF_HOUR
+        return lowSettled && solidLow != null
+    }
+
+    /**
      * The vertical anchor for the weather icon + low label: the **lowest drawn bar bottom**
      * for a column, so the icon always sits under the deepest bar regardless of which value the
      * low *number* prints.

@@ -576,7 +576,10 @@ object DailyForecastGraphRenderer {
             // Temp labels carry no blur: history labels get a thin black outline (drawTempLabel
             // drawOutline=true), today/future labels get no shadow at all.
             tempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight),
-            pastTempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight * PAST_TEMP_SCALE),
+            // History actuals (low label, and single high when not a dual-label mismatch) read as
+            // the thermostat/observed color rather than plain white, matching the dual-high actual
+            // label and today's settled-high recolor below.
+            pastTempTextPaint = createTextPaint(COLOR_OBSERVED_RED, layout.tempLabelHeight * PAST_TEMP_SCALE),
             // Today temp labels are NOT bold (matches desktop's default weight); they stand out via
             // the COLOR_TODAY_TEXT highlight + outline, not weight.
             todayTempTextPaint = createTextPaint(COLOR_TODAY_TEXT, layout.tempLabelHeight),
@@ -719,7 +722,17 @@ object DailyForecastGraphRenderer {
                     day.isPast -> paints.pastTempTextPaint
                     else -> paints.tempTextPaint
                 }
-                drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint, drawOutline = day.isPast,
+                // Mirrors the high label: once today's overnight low is settled (past the 9am
+                // cutoff) the number tracks the observed actual, so it recolors to the thermostat
+                // (observed) color instead of the today-highlight color.
+                val todayLowSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isLowTrackingActual(
+                    isToday = day.isToday,
+                    solidLow = day.solidLineLow,
+                    nowHour = day.nowHour,
+                )
+                val lowColorOverride = if (todayLowSettled) COLOR_OBSERVED_RED else null
+                drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint,
+                    colorOverride = lowColorOverride, drawOutline = day.isPast,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
 
                 // Unscaled metrics are a safe (slight) over-estimate of the drawn glyph extent,
