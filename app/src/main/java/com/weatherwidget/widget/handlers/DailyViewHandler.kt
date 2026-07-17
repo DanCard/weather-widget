@@ -522,6 +522,8 @@ object DailyViewHandler : WidgetViewHandler {
             graphEnd = now,
             observations = observations,
             repositoryPresent = true,
+            lat = lat,
+            lon = lon,
         )
     }
 

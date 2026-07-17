@@ -43,6 +43,42 @@ class WidgetPushDispatcherTest {
     }
 
     @Test
+    fun `complete-body unbacked partial is promoted to full`() {
+        assertTrue(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = true, bodyComplete = true, hasFullPushedThisProcess = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `header-only unbacked partial is not promoted - promoting would blank the body`() {
+        assertFalse(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = true, bodyComplete = false, hasFullPushedThisProcess = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `backed partial is not promoted - the full push behind it makes partial safe`() {
+        assertFalse(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = true, bodyComplete = true, hasFullPushedThisProcess = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `full push is never promoted - it is already full`() {
+        assertFalse(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = false, bodyComplete = true, hasFullPushedThisProcess = false,
+            ),
+        )
+    }
+
+    @Test
     fun `message carries pid and the unbacked verdict that 2026-07-14 lacked`() {
         val message = WidgetPushDispatcher.pushLogMessage(
             appWidgetId = 345,

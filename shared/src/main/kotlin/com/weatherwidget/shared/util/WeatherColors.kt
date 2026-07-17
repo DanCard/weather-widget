@@ -12,7 +12,7 @@ object WeatherColors {
     const val FORECAST_RAINY: Int = 0xFF5A8FBF.toInt()   // Steel blue
     const val FORECAST_NIGHT: Int = 0xFFBBBBBB.toInt()   // Muted silver
     const val FORECAST_TWILIGHT: Int = 0xFFFFA726.toInt() // Warm amber
-    const val OBSERVED: Int = 0xFFFF7799.toInt()          // Light salmon
+    const val OBSERVED: Int = 0xFFFF88AA.toInt()          // Bright rose pink
 
     /**
      * Maps weather condition flags to a forecast color.

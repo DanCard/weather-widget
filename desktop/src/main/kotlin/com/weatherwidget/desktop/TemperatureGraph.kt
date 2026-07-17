@@ -52,7 +52,7 @@ import kotlin.math.roundToInt
  * OBSERVED color) and future hours show a dashed forecast line. Without observations the full curve
  * is drawn solid.
  */
-private val COLOR_ACTUAL = Color(0xFFFF3366) // matches Android TemperatureGraphStyle.OBSERVED
+private val COLOR_ACTUAL = Color(com.weatherwidget.shared.util.WeatherColors.OBSERVED)
 
 private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
     val argb = com.weatherwidget.shared.util.WeatherColors.forecastColor(flags.isSunny, flags.isRainy, flags.isMixed, flags.isNight, flags.isTwilight)

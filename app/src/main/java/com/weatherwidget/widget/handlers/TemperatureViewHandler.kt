@@ -75,7 +75,14 @@ object TemperatureViewHandler {
         // static, so skip the graph re-render on opportunistic UI-only updates and refresh just the
         // header current temp. Full renders (onUpdate startup, data fetch, user interaction) carry the
         // wide data window and still render the graph correctly.
-        if (uiOnly) {
+        // Header-only pushes are partiallyUpdateAppWidget calls that the framework silently drops
+        // until this process has backed the widget with one full updateAppWidget (its RemoteViews
+        // cache resets on reboot/package-update — a fresh process). Taking the uiOnly header-only
+        // shortcut before that leaves the widget_weather XML defaults ("Today / --° / --°") on the
+        // launcher. So while unbacked, fall through to the full-body render (whose partial push the
+        // dispatcher promotes to full) instead of a header-only partial. See [[widget_worker_partial_push]].
+        val backedThisProcess = com.weatherwidget.widget.WidgetPushDispatcher.hasFullPushedThisProcess(appWidgetId)
+        if (uiOnly && backedThisProcess) {
             val zoom = stateManager.getZoomLevel(appWidgetId)
             val nowForWindow = LocalDateTime.now()
             val windowEndTime = centerTime.plusHours(zoom.forwardHours)
@@ -364,6 +371,10 @@ object TemperatureViewHandler {
             partialPush = true,
             caller = "TEMPERATURE_HEADER",
             appLogDao = db.appLogDao(),
+            // Header-only: body views stay at their XML defaults, so this must never be promoted to
+            // a full push. The uiOnly gate in handle() guarantees we only reach here once this
+            // process has already backed the widget with a full-body push.
+            bodyComplete = false,
         )
     }
 

@@ -53,6 +53,9 @@ class DailyViewHandlerTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        // Push-backing is process-static; reset it so each test starts with every widget unbacked
+        // and the promote-unbacked-partial behaviour is deterministic regardless of test order.
+        com.weatherwidget.widget.WidgetPushDispatcher.resetForTest()
     }
 
     private fun epoch(dateTime: String): Long =
@@ -771,19 +774,57 @@ class DailyViewHandlerTest {
     // the default (interaction/onUpdate paths) must stay a full updateAppWidget so those paths
     // still (re)establish the launcher's view hierarchy and persisted RemoteViews.
     @Test
-    fun `worker repaint with partialPush pushes via partiallyUpdateAppWidget`() = runBlocking {
+    fun `worker repaint partialPush routes partially once the widget is backed this process`() = runBlocking {
         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherList = listOf(createWeather(todayStr, highTemp = 62f, lowTemp = 51f))
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(77)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
-        val captured = mockAppWidgetManager(widgetId = 77, widthDp = 140, heightDp = 90)
+        suspend fun render(captured: com.weatherwidget.testutil.CapturedWidgetViews, partial: Boolean) =
+            DailyViewHandler.updateWidget(
+                context = context,
+                appWidgetManager = captured.appWidgetManager,
+                appWidgetId = 77,
+                weatherData = WeatherData(
+                    weatherList = weatherList,
+                    forecastSnapshots = emptyMap(),
+                    hourlyForecasts = emptyList(),
+                ),
+                observationData = ObservationData(),
+                now = LocalDateTime.now(),
+                startupToken = null,
+                stateManagerNullable = null,
+                repository = null,
+                partialPush = partial,
+            )
 
+        // Back widget 77 with a full push first (the framework requires one before it honours any
+        // partial), then the steady-state partial repaint routes via partiallyUpdateAppWidget.
+        render(mockAppWidgetManager(widgetId = 77, widthDp = 140, heightDp = 90), partial = false)
+        val captured = mockAppWidgetManager(widgetId = 77, widthDp = 140, heightDp = 90)
+        render(captured, partial = true)
+
+        assertTrue(captured.partialViewsSlot.isCaptured)
+        assertFalse(captured.viewsSlot.isCaptured)
+    }
+
+    @Test
+    fun `worker repaint partialPush is promoted to full when unbacked this process`() = runBlocking {
+        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList = listOf(createWeather(todayStr, highTemp = 62f, lowTemp = 51f))
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(79)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val captured = mockAppWidgetManager(widgetId = 79, widthDp = 140, heightDp = 90)
+
+        // First push of the process for this widget: an unbacked complete-body partial would be
+        // silently dropped by the framework, so WidgetPushDispatcher promotes it to a full update.
         DailyViewHandler.updateWidget(
             context = context,
             appWidgetManager = captured.appWidgetManager,
-            appWidgetId = 77,
+            appWidgetId = 79,
             weatherData = WeatherData(
                 weatherList = weatherList,
                 forecastSnapshots = emptyMap(),
@@ -797,8 +838,8 @@ class DailyViewHandlerTest {
             partialPush = true,
         )
 
-        assertTrue(captured.partialViewsSlot.isCaptured)
-        assertFalse(captured.viewsSlot.isCaptured)
+        assertTrue(captured.viewsSlot.isCaptured)
+        assertFalse(captured.partialViewsSlot.isCaptured)
     }
 
     @Test

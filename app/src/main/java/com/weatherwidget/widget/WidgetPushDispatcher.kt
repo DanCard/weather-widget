@@ -44,6 +44,24 @@ object WidgetPushDispatcher {
     internal fun isUnbackedPartial(partialPush: Boolean, hasFullPushedThisProcess: Boolean): Boolean =
         partialPush && !hasFullPushedThisProcess
 
+    /** True once *this* process has issued a full updateAppWidget for [appWidgetId]. */
+    fun hasFullPushedThisProcess(appWidgetId: Int): Boolean =
+        fullPushedThisProcess.contains(appWidgetId)
+
+    /**
+     * An unbacked partial ([isUnbackedPartial]) that carries a COMPLETE body must be promoted to a
+     * full updateAppWidget, or the framework discards it and the launcher keeps rendering the
+     * widget_weather XML defaults ("Today / --° / --°"). A header-only partial ([bodyComplete]=false)
+     * must NOT be promoted — pushing it full would blank the body it never populated — so its caller
+     * is responsible for not emitting it while unbacked (see TemperatureViewHandler's uiOnly gate).
+     */
+    @VisibleForTesting
+    internal fun shouldPromoteToFull(
+        partialPush: Boolean,
+        bodyComplete: Boolean,
+        hasFullPushedThisProcess: Boolean,
+    ): Boolean = bodyComplete && isUnbackedPartial(partialPush, hasFullPushedThisProcess)
+
     /**
      * Whether this push deserves an app_logs row. Only the first push per widget per process and
      * the first *full* push per widget per process qualify (≤2 rows per widget per process).
@@ -77,8 +95,10 @@ object WidgetPushDispatcher {
     }
 
     /**
-     * Push [views] for [appWidgetId], partially when [partialPush]. Behaviour is identical to
-     * calling AppWidgetManager directly; the only addition is the WIDGET_PUSH breadcrumb.
+     * Push [views] for [appWidgetId], partially when [partialPush] — except a complete-body
+     * ([bodyComplete]) partial with no full push behind it this process is promoted to a full
+     * updateAppWidget, since the framework would otherwise discard it (see [shouldPromoteToFull]).
+     * Also emits the WIDGET_PUSH breadcrumb.
      */
     suspend fun push(
         appWidgetManager: AppWidgetManager,
@@ -87,11 +107,18 @@ object WidgetPushDispatcher {
         partialPush: Boolean,
         caller: String,
         appLogDao: AppLogDao,
+        // False only for header-only RemoteViews (current-temp partials that leave the body at its
+        // XML defaults). Complete-body pushes stay true so an unbacked partial can be promoted.
+        bodyComplete: Boolean = true,
     ) {
         val hadFull = fullPushedThisProcess.contains(appWidgetId)
-        val message = pushLogMessage(appWidgetId, caller, partialPush, hadFull, Process.myPid())
+        // Promote a complete-body unbacked partial to a full update so the framework can't drop it.
+        val promoted = shouldPromoteToFull(partialPush, bodyComplete, hadFull)
+        val effectivePartial = partialPush && !promoted
+        val message = pushLogMessage(appWidgetId, caller, effectivePartial, hadFull, Process.myPid()) +
+            if (promoted) " promoted=unbacked_partial" else ""
 
-        if (partialPush) {
+        if (effectivePartial) {
             appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
         } else {
             appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -100,7 +127,7 @@ object WidgetPushDispatcher {
 
         Log.v(TAG, message)
         val firstPush = loggedThisProcess.add("any-$appWidgetId")
-        val firstFull = !partialPush && loggedThisProcess.add("full-$appWidgetId")
+        val firstFull = !effectivePartial && loggedThisProcess.add("full-$appWidgetId")
         if (shouldPersist(firstPush, firstFull)) {
             appLogDao.log(TAG_WIDGET_PUSH, message)
         }

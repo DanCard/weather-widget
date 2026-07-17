@@ -75,6 +75,8 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     graphEnd: LocalDateTime,
     observations: List<ObservationEntity>,
     repositoryPresent: Boolean,
+    lat: Double,
+    lon: Double,
 ) {
     if (!repositoryPresent) return
 
@@ -97,8 +99,13 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
         return
     }
 
-    val lat = observations.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-    val lon = observations.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+    // Fetch under the widget's resolved location — NOT observations.firstOrNull()?.location.
+    // The decisive trigger here is reason=no_nws_observations, in which case the proximity-box
+    // observation list is either empty (firstOrNull null) or holds only *other* sources' rows
+    // fetched under a neighbouring coordinate. The old DEFAULT_LAT/LON fallback then wrote the
+    // NWS backfill under Google HQ (37.422/-122.0841), ~0.7 km from a real GPS fix (37.4168) —
+    // a permanent LocationMatch fragment that selectNearestSite later drops, so the Current
+    // Observations screen showed "No recent observations found for NWS". See [[snapshot_paths_must_select_a_site]].
     // Jittered short delay: avoids landing in the first-second startup scrum (see
     // StartupFetchPolicy) without meaningfully slowing the interactive missing-hourly-data banner
     // flow, which already tolerates a several-second wait.

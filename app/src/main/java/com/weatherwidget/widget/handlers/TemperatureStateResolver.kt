@@ -422,6 +422,8 @@ internal object TemperatureStateResolver {
                 graphEnd = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS),
                 observations = loaded,
                 repositoryPresent = repository != null,
+                lat = lat,
+                lon = lon,
             )
             loaded
         }
