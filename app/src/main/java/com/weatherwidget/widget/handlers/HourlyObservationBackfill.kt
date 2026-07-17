@@ -80,6 +80,23 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
 ) {
     if (!repositoryPresent) return
 
+    // Both callers resolve [lat]/[lon] from their data list with a `?: DEFAULT_LAT/LON` fallback
+    // (TemperatureStateResolver from hourlyForecasts, DailyViewHandler from weatherList). When that
+    // list is empty — a ghost/unconfigured widget id, or a render before any fetch — the location
+    // collapses to the DEFAULT sentinel (Googleplex, ~0.7 km from a real GPS fix). Fetching NWS
+    // observations there fragments them away from where all real data lives, so the Current
+    // Observations screen (scoped to the device location) shows "none found". Real GPS data is never
+    // exactly the constant (see the same sentinel test in WeatherWidgetWorker), so an exact match
+    // means "no location to anchor this fetch to" → skip rather than fetch at a guess.
+    if (lat == WeatherWidgetWorker.DEFAULT_LAT && lon == WeatherWidgetWorker.DEFAULT_LON) {
+        database.appLogDao().log(
+            "OBS_HOURLY_BACKFILL_SKIP",
+            "widget=$appWidgetId source=${displaySource.id} reason=unanchored_default_location",
+            "INFO",
+        )
+        return
+    }
+
     val decision = evaluateHourlyBackfillNeed(displaySource, graphStart, graphEnd, observations)
     if (!decision.shouldRequest) {
         database.appLogDao().log(
