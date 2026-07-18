@@ -21,7 +21,11 @@ run {
     val localProps = Properties().apply {
         rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
     }
-    fun keyFor(name: String): String = localProps.getProperty(name) ?: System.getenv(name) ?: ""
+    // -PpublicBuild bakes NO keys — required for artifacts published to the public apt repo
+    // (scripts/apt-repo-publish.sh). Users can still enter their own keys in Settings.
+    val publicBuild = providers.gradleProperty("publicBuild").isPresent
+    fun keyFor(name: String): String =
+        if (publicBuild) "" else localProps.getProperty(name) ?: System.getenv(name) ?: ""
     // Map of WeatherSource.id -> local.properties / env var name.
     val keySpecs = listOf(
         "WEATHER_API" to "WEATHER_API_KEY",
