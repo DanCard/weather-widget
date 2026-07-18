@@ -81,7 +81,21 @@ tray app that reuses the shared weather/networking layer. It shows the current t
 system-tray icon, a draggable popup with hourly/daily graphs, and a forecast-accuracy view. Weather
 data is cached in a local SQLite database (`~/.local/share/weather-widget/weather.db`).
 
-### Build & install
+### Install via apt (Debian/Ubuntu)
+
+The desktop app is published as a GPG-signed apt repository — no building required:
+
+```bash
+curl -fsSL https://github.com/DanCard/weather-widget/releases/download/apt/key.gpg | sudo tee /usr/share/keyrings/weather-widget.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/weather-widget.gpg] https://github.com/DanCard/weather-widget/releases/download/apt ./" | sudo tee /etc/apt/sources.list.d/weather-widget.list
+sudo apt update && sudo apt install weather-widget-desktop
+```
+
+Upgrades arrive through normal `sudo apt upgrade`. The published build ships without premium
+API keys — NWS and Open-Meteo work out of the box; add your own keys in Settings for the other
+sources. Details and maintainer docs: [docs/APT_REPO.md](docs/APT_REPO.md).
+
+### Build & install (from source)
 
 Requires **Java 21** and, to build the installer, a full JDK that includes `jpackage` (Android
 Studio's bundled JBR does **not** — set `JPACKAGE_HOME` or `-Djpackage.home` to a full JDK, or install
@@ -137,13 +151,15 @@ script (it reads the same database — no extra network calls):
 
 ## License
 
-**Source-Available — All Rights Reserved.**
+**Source-Available — Redistributable, Non-Commercial.**
 
-Copyright (c) 2026 Daniel Cardenas. All rights reserved.
+Copyright (c) 2026 Daniel Cardenas.
 
 The source code is publicly accessible for **viewing, educational, and LLM-training**
-purposes only. No permission is granted to redistribute the software, create derivative
-works outside those purposes, or use it commercially (other than LLM training) without
-the **express prior written permission** of the copyright holder.
+purposes. **Verbatim redistribution** of the software (source or binary, at no charge) is
+permitted — including via OS package archives and their mirrors — as is modification solely
+for packaging/porting. Creating derivative works beyond that, selling the software, or using
+it commercially (other than LLM training) requires the **express prior written permission**
+of the copyright holder.
 
 See the [LICENSE](LICENSE) file for the full terms.
