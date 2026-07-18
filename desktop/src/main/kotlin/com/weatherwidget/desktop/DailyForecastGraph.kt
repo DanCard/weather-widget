@@ -230,8 +230,11 @@ fun DailyForecastGraph(
             // History — and today once its high is settled (past the 5pm cutoff) — label BOTH the
             // actual high (thermostat pink) and the forecast high (yellow, matching the forecast bar)
             // when they differ enough and there's room (DualHighLabel); otherwise fall through to the
-            // single high label below. Today's actual is the observed peak (max of solid/ghost); its
-            // forecast label sits over the live-forecast bar (the same +tripleOffset as history's).
+            // single high label below. Today's actual is the observed peak (max of solid/ghost).
+            // Horizontal anchor (matches Android): today centers BOTH high labels on the column
+            // (centerX, like its single-high label) — its forecast bar sits a full +tripleOffset right
+            // of the thermostat, so labeling over it would stagger the two stacked numbers; color marks
+            // forecast vs actual. History keeps +tripleOffset (its overlay sits right beside the bar).
             val highForLabel = listOfNotNull(day.solidHigh, day.forecastHigh, day.ghostHigh, day.snapshotHigh).maxOrNull()
             val todayHighSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isHighTrackingActual(
                 isToday = day.isToday,
@@ -289,7 +292,8 @@ fun DailyForecastGraph(
                 val fSize = tempFontSize(fText, dualBase * dualForecastScale)
                 val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
                 val fY = dualTop(dualForecastHigh, fLayout.size.height.toFloat(), dualOffsets.forecastDp)
-                drawOutlinedText(textMeasurer, fLayout, Offset(centerX + tripleOffset - fLayout.size.width / 2f, fY))
+                val fLabelX = if (day.isToday) centerX else centerX + tripleOffset
+                drawOutlinedText(textMeasurer, fLayout, Offset(fLabelX - fLayout.size.width / 2f, fY))
                 // Rain % anchors above the TOPMOST of the two high labels (warmer temp = higher on
                 // screen) so it clears BOTH instead of wedging between them (matches Android).
                 highLabelTopAtCenter = minOf(aY, fY)

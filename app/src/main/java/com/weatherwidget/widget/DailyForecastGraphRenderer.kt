@@ -859,13 +859,19 @@ object DailyForecastGraphRenderer {
             // actual (thermostat color) and the forecast (forecast-bar color) when the forecast missed
             // by enough AND there's vertical room (DualHighLabel). The plan (shared with the rain-label
             // resolvers) decides that and carries both baselines. Today's "actual" is the observed peak
-            // (effectiveHigh) and its forecast label sits over the live-forecast bar (tripleBarOffset),
-            // whereas a past day's forecast overlay sits at forecastBarOffset.
+            // (effectiveHigh).
+            //
+            // Horizontal anchor: today centers BOTH high labels on the column (centerX), matching its
+            // single-high label. Today's forecast bar sits a full triple-bar step (tripleBarOffset) to
+            // the right of the observed thermostat, so labeling over that bar would stagger the two
+            // stacked numbers and read as misaligned; color already distinguishes forecast (gold) from
+            // actual (thermostat), so the bar association isn't needed. A past day's forecast overlay
+            // sits right beside its bar (small forecastBarOffset), so labeling over it stays aligned.
             val plan = resolveHighLabelPlan(day, layout, paints)
             if (plan != null && plan.showBoth && plan.forecastHigh != null && plan.forecastBaseline != null) {
                 // Dual highs render for past days and settled-today, so both labels are outlined.
                 val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-                val forecastLabelX = centerX + (if (day.isToday) layout.tripleBarOffset else layout.forecastBarOffset)
+                val forecastLabelX = if (day.isToday) centerX else centerX + layout.forecastBarOffset
                 drawTempLabel(canvas, formatTempLabel(plan.actualHigh, useCelsius = layout.useCelsius), centerX, plan.actualBaseline, basePaint,
                     extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
