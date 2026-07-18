@@ -44,17 +44,45 @@ object DualHighLabel {
     const val WIDE_LABEL_FONT_SCALE = 0.95f
 
     /**
-     * Extra shrink for the FORECAST high label in the dual case (stacks with [TWO_LABEL_FONT_SCALE]).
+     * Extra shrink for the FORECAST high label (stacks with [TWO_LABEL_FONT_SCALE]) — applied ONLY
+     * when the two labels would collide at full size; see [forecastFontScale]. A well-separated
+     * forecast keeps the normal font. Keyed to the forecast ROLE (the secondary number), not to
+     * whichever label happens to sit lower.
      *
-     * The actual is the headline number and should read larger. Without this the opposite often
-     * happened by accident: a decimal actual like `89.4°` trips [isWideLabel] and shrinks 5%, while
-     * an integer forecast like `87°` does not — so the forecast drew *bigger* purely on digit count.
-     * Keyed to the forecast ROLE, not to whichever label happens to sit lower.
-     *
-     * Doubles as the main declutter lever, because the forecast label's bottom is pinned near its
-     * bar top and the text grows upward: shrinking it moves its top DOWN, away from the actual.
+     * It works as a collision remedy because the forecast label's bottom is pinned near its bar top
+     * and the text grows upward: shrinking it moves its top DOWN, away from the actual.
      */
     const val DUAL_FORECAST_FONT_SCALE = 0.82f
+
+    /**
+     * Box overlap (fraction of a label height) the full-size labels may have before the forecast
+     * shrinks. A measured label box is taller than its visible digits (line-height padding), so
+     * boxes that just touch still LOOK clearly separated — shrinking there reads as arbitrary
+     * (the "yesterday on desktop" report). Matches the codebase's 0.30 minor-overlap convention
+     * (hard-bound value labels use the same tolerance).
+     */
+    const val FONT_SHRINK_ALLOWED_OVERLAP_FRACTION = 0.30f
+
+    /**
+     * Font scale for the FORECAST high label in the dual case: [DUAL_FORECAST_FONT_SCALE] when the
+     * two labels genuinely collide drawn at full size, 1f otherwise. The shrink is a collision
+     * remedy, not a permanent style — the forecast only gives up size when the actual needs the room,
+     * and a small box overlap ([FONT_SHRINK_ALLOWED_OVERLAP_FRACTION]) doesn't count as a collision.
+     *
+     * Pass both labels' Y at the SAME edge (both tops or both bottoms — digits have no descenders,
+     * so bottom edge == baseline), with the forecast measured at FULL (unshrunk) size, plus the
+     * full-size label height. Y grows downward (both renderers).
+     */
+    fun forecastFontScale(actualEdgeY: Float, forecastEdgeY: Float, fullLabelHeightPx: Float): Float {
+        // The shrink only relieves a collision when the forecast is the LOWER label: its bottom is
+        // pinned near its bar top and the text grows upward, so shrinking moves its top down, away
+        // from the actual above it. When the forecast sits ON TOP, its pinned bottom edge doesn't
+        // move when shrunk — the gap to the actual below stays the same, and there's open space
+        // above for the label anyway — so shrinking buys nothing and just reads as arbitrary.
+        if (forecastEdgeY < actualEdgeY) return 1f
+        val collisionGap = fullLabelHeightPx * (1f - FONT_SHRINK_ALLOWED_OVERLAP_FRACTION)
+        return if (abs(actualEdgeY - forecastEdgeY) < collisionGap) DUAL_FORECAST_FONT_SCALE else 1f
+    }
 
     /**
      * Where the LOWER-valued of the two high labels sits: its bottom edge this far below its own

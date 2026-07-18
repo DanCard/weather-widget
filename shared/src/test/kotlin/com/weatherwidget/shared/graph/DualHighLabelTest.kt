@@ -107,16 +107,55 @@ class DualHighLabelTest {
         assertTrue(o.actualDp < o.forecastDp)
     }
 
+    // ── forecastFontScale (collision-gated shrink) ───────────────────────
+    // The forecast only gives up size when the two boxes genuinely collide at full size; a
+    // well-separated forecast keeps the normal dual-label font (user request: shrink on
+    // collision ONLY, never as a permanent style). Because a label box is taller than its
+    // visible digits, a small box overlap doesn't count as a collision.
+
+    // Same-edge gap (px) below which the shrink kicks in, given labelH.
+    private val collisionGap = labelH * (1f - DualHighLabel.FONT_SHRINK_ALLOWED_OVERLAP_FRACTION)
+
     @Test
-    fun `forecast label draws smaller than the actual even when the actual is the wide one`() {
-        // The bug this fixes: "89.4°" trips isWideLabel (-5%) while "87°" does not, so the forecast
-        // used to draw BIGGER than the headline actual purely on digit count.
+    fun `forecast keeps full size when the labels are clear of each other`() {
+        assertEquals(1f, DualHighLabel.forecastFontScale(0f, labelH, labelH), 0.001f)
+        assertEquals(1f, DualHighLabel.forecastFontScale(0f, labelH + 30f, labelH), 0.001f)
+    }
+
+    @Test
+    fun `small box overlap is tolerated at full size`() {
+        // Box overlap up to the allowed fraction still reads as separated on screen (the visible
+        // digits are shorter than the measured box) -> no shrink. Boundary is inclusive.
+        assertEquals(1f, DualHighLabel.forecastFontScale(0f, collisionGap, labelH), 0.001f)
+        assertEquals(1f, DualHighLabel.forecastFontScale(0f, collisionGap + 1f, labelH), 0.001f)
+    }
+
+    @Test
+    fun `lower forecast shrinks when the full-size boxes genuinely collide`() {
+        // Forecast below the actual (larger Y), gap under the tolerance threshold -> shrink.
+        assertEquals(DualHighLabel.DUAL_FORECAST_FONT_SCALE,
+            DualHighLabel.forecastFontScale(0f, collisionGap - 1f, labelH), 0.001f)
+    }
+
+    @Test
+    fun `forecast on top never shrinks, even when colliding`() {
+        // A bottom-pinned label's bottom edge doesn't move when shrunk, so shrinking an UPPER
+        // forecast can't open the gap to the actual below it — and there's open space above.
+        assertEquals(1f, DualHighLabel.forecastFontScale(collisionGap - 1f, 0f, labelH), 0.001f)
+        assertEquals(1f, DualHighLabel.forecastFontScale(labelH, 1f, labelH), 0.001f)
+    }
+
+    @Test
+    fun `colliding forecast label draws smaller than the actual even when the actual is the wide one`() {
+        // In the collision case, "89.4°" trips isWideLabel (-5%) while "87°" does not — without the
+        // role-keyed shrink the forecast would draw BIGGER than the headline actual on digit count.
         val base = 100f
+        val forecastScale = DualHighLabel.forecastFontScale(0f, 4f, labelH) // colliding
         val actualSize = base * DualHighLabel.TWO_LABEL_FONT_SCALE *
             (if (DualHighLabel.isWideLabel("89.4°")) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
-        val forecastSize = base * DualHighLabel.TWO_LABEL_FONT_SCALE * DualHighLabel.DUAL_FORECAST_FONT_SCALE *
+        val forecastSize = base * DualHighLabel.TWO_LABEL_FONT_SCALE * forecastScale *
             (if (DualHighLabel.isWideLabel("87°")) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
-        assertTrue("forecast must read as the secondary number", forecastSize < actualSize)
+        assertTrue("colliding forecast must read as the secondary number", forecastSize < actualSize)
     }
 
     @Test

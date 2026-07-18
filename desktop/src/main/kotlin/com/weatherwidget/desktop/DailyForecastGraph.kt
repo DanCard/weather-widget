@@ -249,10 +249,11 @@ fun DailyForecastGraph(
                 else -> null
             }
             val dualForecastHigh = if (day.isPast || todayHighSettled) day.forecastHigh else null
-            // Matching Android: both highs take the 2% two-label shrink, and the forecast — the
-            // secondary number — shrinks further regardless of which of the two sits lower.
+            // Matching Android: both highs take the 2% two-label shrink; the forecast — the
+            // secondary number — shrinks further ONLY when the two labels would collide at full
+            // size (DualHighLabel.forecastFontScale), decided inside the room-test block below.
             val dualBase = 12f * scale * DualHighLabel.TWO_LABEL_FONT_SCALE
-            val dualForecastBase = dualBase * DualHighLabel.DUAL_FORECAST_FONT_SCALE
+            var dualForecastScale = 1f
             // The two labels are only |miss| * pixelsPerDegree apart at their natural positions, so
             // they collide on any small miss. Move each away from the other: the lower-valued one
             // down onto its own bar, the higher-valued one a little further up (DualHighLabel).
@@ -265,8 +266,14 @@ fun DailyForecastGraph(
                 val aText = formatTemp(dualActualHigh)
                 val fText = formatTemp(dualForecastHigh)
                 val aH = textMeasurer.measure(aText, TextStyle(fontSize = tempFontSize(aText, dualBase).sp)).size.height.toFloat()
-                val fH = textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualForecastBase).sp)).size.height.toFloat()
+                // Collision test at FULL size decides whether the forecast shrinks at all; the room
+                // test then measures the boxes at the size they will actually be drawn.
+                val fHFull = textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBase).sp)).size.height.toFloat()
                 val aTop = dualTop(dualActualHigh, aH, dualOffsets.actualDp)
+                val fTopFull = dualTop(dualForecastHigh, fHFull, dualOffsets.forecastDp)
+                dualForecastScale = DualHighLabel.forecastFontScale(aTop, fTopFull, maxOf(aH, fHFull))
+                val fH = if (dualForecastScale == 1f) fHFull else
+                    textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBase * dualForecastScale).sp)).size.height.toFloat()
                 val fTop = dualTop(dualForecastHigh, fH, dualOffsets.forecastDp)
                 DualHighLabel.showBoth(dualActualHigh, dualForecastHigh, aTop, fTop, maxOf(aH, fH))
             } else false
@@ -279,7 +286,7 @@ fun DailyForecastGraph(
                 drawOutlinedText(textMeasurer, aLayout, Offset(centerX - aLayout.size.width / 2f, aY))
 
                 val fText = formatTemp(dualForecastHigh)
-                val fSize = tempFontSize(fText, dualForecastBase)
+                val fSize = tempFontSize(fText, dualBase * dualForecastScale)
                 val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
                 val fY = dualTop(dualForecastHigh, fLayout.size.height.toFloat(), dualOffsets.forecastDp)
                 drawOutlinedText(textMeasurer, fLayout, Offset(centerX + tripleOffset - fLayout.size.width / 2f, fY))

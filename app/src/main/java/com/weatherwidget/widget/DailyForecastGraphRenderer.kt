@@ -869,10 +869,10 @@ object DailyForecastGraphRenderer {
                 drawTempLabel(canvas, formatTempLabel(plan.actualHigh, useCelsius = layout.useCelsius), centerX, plan.actualBaseline, basePaint,
                     extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
-                // The forecast reads as the secondary number, so it draws smaller than the actual
-                // regardless of digit count (see DUAL_FORECAST_FONT_SCALE).
+                // The forecast shrinks (DUAL_FORECAST_FONT_SCALE) only when the plan found the two
+                // labels colliding at full size; otherwise it draws at the normal dual-label size.
                 drawTempLabel(canvas, formatTempLabel(plan.forecastHigh, useCelsius = layout.useCelsius), forecastLabelX, plan.forecastBaseline,
-                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE * DualHighLabel.DUAL_FORECAST_FONT_SCALE,
+                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE * plan.forecastFontScale,
                     colorOverride = condColor, drawOutline = true,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
             } else {
@@ -1075,6 +1075,11 @@ object DailyForecastGraphRenderer {
         val forecastHigh: Float?,
         val actualBaseline: Float,
         val forecastBaseline: Float?,
+        /**
+         * Extra scale for the forecast label: [DualHighLabel.DUAL_FORECAST_FONT_SCALE] only when the
+         * two labels would collide at full size, else 1f (the shrink is collision-only by request).
+         */
+        val forecastFontScale: Float,
         /** Warmer of the drawn highs (== [actualHigh] when single) — the value the rain % sits above. */
         val anchorHigh: Float,
         /** Topmost drawn high-label baseline — the rain %'s vertical anchor. */
@@ -1118,12 +1123,20 @@ object DailyForecastGraphRenderer {
             ?: effectiveBaseline
         val forecastBaseline = forecastHigh?.let { layout.tempToY(it) + offsetPx(offsets!!.forecastDp) }
         // Label height for the room test; fontMetrics is null under stubbed-Paint unit tests, so fall
-        // back to textSize there. Only needed when a forecast label is in play. Uses the actual's
-        // scale — the forecast draws smaller (DUAL_FORECAST_FONT_SCALE), so this is conservative.
+        // back to textSize there. Only needed when a forecast label is in play. This is the FULL
+        // (unshrunk) dual-label size — both the room test and the collision test below measure the
+        // labels at the size they'd draw before any collision shrink.
         val twoLabelHeight = (basePaint.fontMetrics?.let { it.descent - it.ascent } ?: basePaint.textSize) *
             DualHighLabel.TWO_LABEL_FONT_SCALE
         val showBoth = forecastHigh != null && forecastBaseline != null &&
             DualHighLabel.showBoth(actualHigh, forecastHigh, nudgedActualBaseline, forecastBaseline, twoLabelHeight)
+        // Shrink the forecast label only when it sits BELOW the actual and the two boxes would
+        // collide at full size; a well-separated (or upper) forecast keeps the normal dual-label
+        // font. Baselines are the labels' bottom edges (digits have no descenders) and don't move
+        // with font size (bottom-pinned), so the full-size test needs no re-measure.
+        val forecastFontScale = if (showBoth && forecastBaseline != null)
+            DualHighLabel.forecastFontScale(nudgedActualBaseline, forecastBaseline, twoLabelHeight)
+        else 1f
         // The nudge only applies when two labels actually render; a lone high label keeps its true
         // above-the-bar position.
         val actualBaseline = if (showBoth) nudgedActualBaseline else effectiveBaseline
@@ -1136,6 +1149,7 @@ object DailyForecastGraphRenderer {
             forecastHigh = forecastHigh,
             actualBaseline = actualBaseline,
             forecastBaseline = forecastBaseline,
+            forecastFontScale = forecastFontScale,
             anchorHigh = anchorHigh,
             anchorBaseline = anchorBaseline,
         )
