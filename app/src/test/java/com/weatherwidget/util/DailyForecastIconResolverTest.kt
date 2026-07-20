@@ -524,6 +524,47 @@ class DailyForecastIconResolverTest {
         assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
     }
 
+    // --- Silurian native token threads its own precip probability (regression) ---
+
+    @Test
+    fun `silurian rain token at 5 percent is not a rain icon`() {
+        // Silurian labels near-dry days with a "Rain" condition token even at ~5% chance. The daily
+        // bar/icon must honor Silurian's own precip probability (like every other source) instead of
+        // painting a solid steel-blue "rainy" bar. Regression for the blue-Tuesday report.
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.SILURIAN.id,
+                condition = "Rain",
+                nativeDailyIconToken = "Rain",
+                precipProbability = 5,
+            ),
+            targetDate = today.plusDays(1),
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
+    }
+
+    @Test
+    fun `silurian rain token at high probability still shows rain icon`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.SILURIAN.id,
+                condition = "Rain",
+                nativeDailyIconToken = "Rain",
+                precipProbability = 85,
+            ),
+            targetDate = today,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_rain, icon)
+    }
+
     // --- Night threshold formula tests ---
 
     @Test

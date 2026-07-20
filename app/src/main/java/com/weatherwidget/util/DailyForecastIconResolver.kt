@@ -182,7 +182,7 @@ object DailyForecastIconResolver {
             WeatherSource.VISUAL_CROSSING -> visualCrossingIcon(nativeToken)
             WeatherSource.OPEN_WEATHER_MAP -> openWeatherMapIcon(nativeToken)
             WeatherSource.WEATHER_API -> weatherApiIcon(nativeToken)
-            WeatherSource.SILURIAN -> silurianIcon(nativeToken, targetDate, now, latitude, longitude)
+            WeatherSource.SILURIAN -> silurianIcon(nativeToken, targetDate, now, latitude, longitude, weather.precipProbability, cloudCover)
             WeatherSource.TOMORROW_IO -> nativeToken.toIntOrNull()?.let { code ->
                 val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
                 WeatherIconMapper.getIconResource(
@@ -264,12 +264,20 @@ object DailyForecastIconResolver {
         now: LocalDateTime,
         latitude: Double,
         longitude: Double,
+        precipProbability: Int?,
+        cloudCover: Int?,
     ): Int {
         val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
+        // Thread Silurian's own precip probability (and noon cloud %) through, exactly like every other
+        // source's branch. Silurian labels near-dry days with a "Rain" token (e.g. 5% chance); without
+        // the probability, getPrecipitationIcon short-circuits to the solid rain icon and the day paints
+        // a steel-blue "rainy" bar. With it, the resolver's <8% downgrade turns that into a cloud-cover
+        // icon, matching the desktop model which already threads precipProbability into resolveIconName.
         return WeatherIconMapper.getIconResource(
             condition = nativeToken,
             isNight = isNight,
-            precipProbability = null,
+            cloudCover = cloudCover,
+            precipProbability = precipProbability,
         )
     }
 
