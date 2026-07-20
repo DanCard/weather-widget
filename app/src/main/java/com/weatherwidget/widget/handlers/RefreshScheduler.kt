@@ -28,9 +28,25 @@ object RefreshScheduler {
         val skipReason: String? = null,
     )
 
+    /**
+     * What the last suppressed [enqueueForcedRefresh] would have enqueued. Only recorded while
+     * [isRefreshDisabledForTesting] is set, so tests can assert on targeting without a WorkManager
+     * harness.
+     */
+    @VisibleForTesting
+    internal data class ForcedRefreshRequest(
+        val reason: String,
+        val targetSourceId: String?,
+    )
+
+    @Volatile
+    @VisibleForTesting
+    internal var lastForcedRefreshForTesting: ForcedRefreshRequest? = null
+
     @VisibleForTesting
     fun setIsRefreshDisabledForTesting(disableRefreshFlag: Boolean) {
         isRefreshDisabledForTesting = disableRefreshFlag
+        lastForcedRefreshForTesting = null
     }
 
     @VisibleForTesting
@@ -83,9 +99,13 @@ object RefreshScheduler {
         // cancellation segfaults ART on debuggable builds — see [[samsung_widget_dead_native_sigsegv]]).
         policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
         initialDelayMs: Long = 0L,
+        // When null the repository forces every enabled source; set this to confine the forced
+        // fetch to one provider (avoids burning quota on the key-based sources).
+        targetSourceId: String? = null,
     ) {
         if (isRefreshDisabledForTesting) {
-            Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason)")
+            Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason, target=$targetSourceId)")
+            lastForcedRefreshForTesting = ForcedRefreshRequest(reason, targetSourceId)
             return
         }
 
@@ -95,6 +115,11 @@ object RefreshScheduler {
                     Data.Builder()
                         .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
                         .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
+                        .apply {
+                            if (targetSourceId != null) {
+                                putString(WeatherWidgetWorker.KEY_TARGET_SOURCE, targetSourceId)
+                            }
+                        }
                         .build(),
                 )
                 .apply {

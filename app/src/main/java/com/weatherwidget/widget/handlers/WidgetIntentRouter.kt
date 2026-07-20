@@ -49,6 +49,11 @@ object WidgetIntentRouter {
     private const val SLOW_THRESHOLD_MS = 200L
     private const val RESIZE_DEBOUNCE_MS = 250L
 
+    // Switching to a source whose cached data is older than this forces a targeted network fetch.
+    // Also acts as the per-source cooldown for repeated toggling.
+    @VisibleForTesting
+    internal const val TOGGLE_REFRESH_STALE_MS = 15 * 60 * 1000L
+
     // Intent actions — defined in WidgetActions
 
     @VisibleForTesting
@@ -371,8 +376,8 @@ suspend fun handleToggleApi(
             } else {
                 null
             }
-        val missingDataForSelectedSource =
-            sourceDataMissingForCurrentWindow(
+        val selectedSourceState =
+            sourceWindowState(
                 forecastDao = ctx.forecastDao,
                 hourlyDao = hourlyDao,
                 hourlyHistoryDao = ctx.database.hourlyForecastHistoryDao(),
@@ -384,6 +389,24 @@ suspend fun handleToggleApi(
                 now = now,
             )
 
+        // Non-primary sources are throttled, so switching to one often lands on data that is present
+        // but hours old. Refresh when it is missing OR stale — targeted at just this source, so one
+        // tap does not force-fetch every enabled provider.
+        //
+        // Enqueued BEFORE the repaint on purpose: this is a non-blocking WorkManager hand-off, and
+        // if it sat after the repaint then any render failure (widgetInfo null, RemoteViews throw —
+        // see [[samsung_widget_dead_native_sigsegv]], [[widget_blank_selfheal_render_ok]]) would
+        // also silently cancel the fetch, i.e. a broken widget would suppress the data refresh most
+        // likely to fix it.
+        if (sourceNeedsRefresh(selectedSourceState, System.currentTimeMillis())) {
+            Log.d(TAG, "handleToggleApi: $newSource needs refresh ($selectedSourceState), enqueueing forced refresh")
+            RefreshScheduler.enqueueForcedRefresh(
+                context,
+                reason = "toggle_api_stale",
+                targetSourceId = newSource.id,
+            )
+        }
+
         if (viewMode.isGraphMode) {
             refreshGraphView(
                 context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
@@ -394,11 +417,6 @@ suspend fun handleToggleApi(
                 context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_API", extraMetadata = "source=${newSource.id}"
             )
-        }
-
-        if (missingDataForSelectedSource) {
-            Log.d(TAG, "handleToggleApi: Missing cached data for $newSource, enqueueing forced refresh")
-            RefreshScheduler.enqueueForcedRefresh(context)
         }
     }
 
@@ -487,7 +505,37 @@ suspend fun handleToggleView(
         )
     }
 
-    private suspend fun sourceDataMissingForCurrentWindow(
+    /**
+     * Snapshot of what one source has cached for the currently-displayed window. Split from the
+     * [sourceNeedsRefresh] decision so the policy is unit-testable without a database.
+     */
+    internal data class SourceWindowState(
+        val hasDaily: Boolean,
+        val hasHourly: Boolean,
+        val hasRequiredFutureCoverage: Boolean,
+        // Newest fetchedAt across both streams — i.e. when this source was last fetched at all.
+        // Null when the source has no rows in the window.
+        val newestFetchedAtMs: Long?,
+    )
+
+    /**
+     * True when switching to this source should trigger a forced network fetch: its data is either
+     * absent/incomplete, or older than [TOGGLE_REFRESH_STALE_MS].
+     *
+     * The age check doubles as the per-source cooldown — once a toggle-triggered fetch lands,
+     * fetchedAt is young, so toggling away and back is a no-op.
+     */
+    @VisibleForTesting
+    internal fun sourceNeedsRefresh(
+        state: SourceWindowState,
+        nowMs: Long,
+    ): Boolean {
+        if (!state.hasDaily || !state.hasHourly || !state.hasRequiredFutureCoverage) return true
+        val fetchedAt = state.newestFetchedAtMs ?: return true
+        return nowMs - fetchedAt >= TOGGLE_REFRESH_STALE_MS
+    }
+
+    private suspend fun sourceWindowState(
         forecastDao: ForecastDao,
         hourlyDao: HourlyForecastDao,
         hourlyHistoryDao: com.weatherwidget.data.local.HourlyForecastHistoryDao,
@@ -497,7 +545,7 @@ suspend fun handleToggleView(
         centerTime: LocalDateTime? = null,
         zoom: ZoomLevel? = null,
         now: LocalDateTime = LocalDateTime.now(),
-    ): Boolean {
+    ): SourceWindowState {
         val historyStart = LocalDate.now().minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val futureEnd = LocalDate.now().plusDays(SOURCE_CHECK_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val sourceDaily = forecastDao.getForecastsInRangeBySource(historyStart, futureEnd, lat, lon, source.id)
@@ -530,7 +578,21 @@ suspend fun handleToggleView(
                 )
             }
 
-        return sourceDaily.isEmpty() || sourceHourly.isEmpty() || !hasRequiredFutureCoverage
+        // max, not min: this means "when was this source last fetched". Some sources populate one
+        // stream more sparsely than the other; taking the min would mark them permanently stale and
+        // refetch on every single toggle.
+        val newestFetchedAt =
+            listOfNotNull(
+                sourceDaily.maxOfOrNull { it.fetchedAt },
+                sourceHourly.maxOfOrNull { it.fetchedAt },
+            ).maxOrNull()
+
+        return SourceWindowState(
+            hasDaily = sourceDaily.isNotEmpty(),
+            hasHourly = sourceHourly.isNotEmpty(),
+            hasRequiredFutureCoverage = hasRequiredFutureCoverage,
+            newestFetchedAtMs = newestFetchedAt,
+        )
     }
 
     /**

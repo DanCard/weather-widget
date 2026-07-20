@@ -9,6 +9,7 @@ import com.weatherwidget.widget.handlers.RefreshScheduler
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,6 +34,18 @@ class DailyViewApiToggleIntegrationRoboTest {
         stateManager.setViewMode(testWidgetId, ViewMode.DAILY)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
         RefreshScheduler.setIsRefreshDisabledForTesting(true)
+
+        // KEEP THIS. handleToggleApi wraps handleToggleApiInternal in its own catch + Log.e, so a
+        // failure inside the handler never reaches this test's catch — it only shows up in logcat.
+        // Robolectric drops Log output unless ShadowLog.stream is set, which makes those failures
+        // completely invisible and any assertion here look mysteriously wrong.
+        //
+        // This is exactly how the enqueue-ordering bug was found: the toggle was silently dying on
+        // "NullPointerException: Cannot read field \"layoutId\" because \"widgetInfo\" is null" from
+        // refreshDailyView (widget 42 is not host-bound here), so the forced refresh that used to
+        // sit after the repaint was never reached. Without this line the test just said "no refresh
+        // enqueued" with no hint why.
+        org.robolectric.shadows.ShadowLog.stream = System.out
     }
 
     @After
@@ -59,5 +72,30 @@ class DailyViewApiToggleIntegrationRoboTest {
         try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
         assertEquals("After 3rd toggle, should return to NWS", WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
         assertEquals("View mode should still be DAILY after 3rd toggle", ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
+    }
+
+    /**
+     * The test DB has no rows for any source, so every toggle trips the "missing data" arm of
+     * sourceNeedsRefresh. What matters here is that the resulting forced refresh is scoped to the
+     * source just switched to — an untargeted refresh force-fetches every enabled provider and
+     * burns quota on the key-based ones. The staleness arm is covered by SourceNeedsRefreshTest.
+     */
+    @Test
+    fun apiToggle_forcedRefreshTargetsOnlyTheNewlySelectedSource() = runBlocking {
+        val expectedAfterEachToggle = listOf(WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API, WeatherSource.NWS)
+
+        expectedAfterEachToggle.forEachIndexed { index, expectedSource ->
+            RefreshScheduler.lastForcedRefreshForTesting = null
+            try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
+
+            val request = RefreshScheduler.lastForcedRefreshForTesting
+            assertNotNull("Toggle ${index + 1} should enqueue a forced refresh (DB has no data)", request)
+            assertEquals(
+                "Toggle ${index + 1} should target only ${expectedSource.id}",
+                expectedSource.id,
+                request!!.targetSourceId,
+            )
+            assertEquals("Toggle ${index + 1} should be attributed to the toggle path", "toggle_api_stale", request.reason)
+        }
     }
 }
