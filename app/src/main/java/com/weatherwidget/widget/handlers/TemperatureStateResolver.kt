@@ -531,14 +531,23 @@ internal object TemperatureStateResolver {
             blendLines.forEach { line ->
                 android.util.Log.v("TEMP_ACTUALS_DUMP", "center=$centerTime zoom=$zoom $line")
             }
+            // Every persisted line is stamped with the widget and the render it came from. These
+            // lines are THROTTLED samples (typically 8 of ~978 survive per render), so without the
+            // stamp two renders' samples are indistinguishable in app_logs — and the same timestamp
+            // appearing with two different blended values then reads as blend non-determinism when
+            // it is really just two different renders, or two widgets at different centres/zooms.
+            // That ambiguity cost a full reconstruction once already; see
+            // notes/260719-blend-window-independence-audit.md.
+            val blendDebugPrefix =
+                "widget=$appWidgetId source=${displaySource.id} aligned=$alignedCenter zoom=$zoom"
             blendDebugCollector.emittedLines()
                 .take(MAX_PERSISTED_BLEND_DEBUG_LINES)
                 .forEach { line ->
-                    database.appLogDao().log("TEMP_ACTUALS_DEBUG", line)
+                    database.appLogDao().log("TEMP_ACTUALS_DEBUG", "$blendDebugPrefix $line")
                 }
             database.appLogDao().log(
                 "TEMP_ACTUALS_DEBUG",
-                "summary " + blendDebugCollector.buildSummary(
+                "$blendDebugPrefix summary " + blendDebugCollector.buildSummary(
                     stationCount = stationIds.size,
                     blendedPointCount = actualCount,
                     blendDurationMs = buildHourDataMs,
