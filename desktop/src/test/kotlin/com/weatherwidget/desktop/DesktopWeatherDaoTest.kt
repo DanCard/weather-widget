@@ -36,6 +36,30 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `upsertForecasts rounds future days to integers and keeps today decimal`() {
+        // Parity with Android via the shared ForecastTempRounding rule: today keeps full precision
+        // (accuracy tracking), future days round to integer (noise reduction). 90.61 was the exact
+        // Silurian value that read 91 on Android but 90.1 on desktop before this rule was shared.
+        val lat = 37.4168
+        val lon = -122.0890
+        val today = LocalDate.now(ZoneOffset.UTC).toString()
+        val future = LocalDate.now(ZoneOffset.UTC).plusDays(2).toString()
+        dao.upsertForecasts(lat, lon, "SILURIAN", listOf(
+            DailyForecast(date = today, highTemp = 90.61f, lowTemp = 65.37f, condition = "Clear"),
+            DailyForecast(date = future, highTemp = 90.61f, lowTemp = 65.37f, condition = "Rain"),
+        ))
+
+        val rows = dao.getDailyForecasts(lat, lon, "SILURIAN")
+        val todayRow = rows.first { it.date == today }
+        val futureRow = rows.first { it.date == future }
+
+        assertEquals(90.61f, todayRow.highTemp, 0.001f)
+        assertEquals(65.37f, todayRow.lowTemp, 0.001f)
+        assertEquals(91.0f, futureRow.highTemp, 0.001f)
+        assertEquals(65.0f, futureRow.lowTemp, 0.001f)
+    }
+
+    @Test
     fun `getLastSuccessfulFetch returns null when no logs exist`() {
         assertNull(dao.getLastSuccessfulFetch())
         assertNull(dao.getLastSuccessfulFetch("NWS"))

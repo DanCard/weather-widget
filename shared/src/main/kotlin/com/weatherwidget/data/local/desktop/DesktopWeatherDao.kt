@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.shared.util.Log
 import java.sql.Connection
 import java.sql.PreparedStatement
@@ -113,12 +114,20 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     val keyLon = LocationMatch.quantize(locationLon)
                     for (d in daily) {
                         val targetDate = LocalDate.parse(d.date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                        // Parity with Android (ForecastRepository): today keeps decimals, future days
+                        // round to integer. Climate normals are stored as-is. Shared rule keeps both
+                        // platforms writing identical values for the same fetch.
+                        val isToday = targetDate == todayEpoch
+                        val highToStore = if (d.isClimateNormal) d.highTemp
+                            else ForecastTempRounding.forStorage(d.highTemp, isToday) ?: d.highTemp
+                        val lowToStore = if (d.isClimateNormal) d.lowTemp
+                            else ForecastTempRounding.forStorage(d.lowTemp, isToday) ?: d.lowTemp
                         stmt.setLong(1, targetDate)
                         stmt.setLong(2, todayEpoch) // simplified for desktop Tier 1
                         stmt.setDouble(3, keyLat)
                         stmt.setDouble(4, keyLon)
-                        stmt.setFloat(5, d.highTemp)
-                        stmt.setFloat(6, d.lowTemp)
+                        stmt.setFloat(5, highToStore)
+                        stmt.setFloat(6, lowToStore)
                         stmt.setString(7, d.condition)
                         stmt.setString(8, d.iconToken)
                         stmt.setInt(9, if (d.isClimateNormal) 1 else 0)

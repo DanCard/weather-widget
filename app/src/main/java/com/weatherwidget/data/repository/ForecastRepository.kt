@@ -959,11 +959,12 @@ class ForecastRepository
                 val low = forecast.lowTemp?.takeIf { it.isFinite() }
                 if (high == null && low == null) return@mapNotNull null
 
-                // Preserve full decimal precision for Today's forecast to improve accuracy tracking.
-                // Continue rounding future days to integers for UI consistency and storage.
+                // Preserve full decimal precision for Today's forecast to improve accuracy tracking;
+                // round future days to integers to cut future-forecast noise. Shared with desktop's
+                // upsert so both platforms store identical values (ForecastTempRounding).
                 val isToday = forecast.targetDate == todayEpoch
-                val highTempSaved = if (isToday) high else high?.roundToInt()?.toFloat()
-                val lowTempSaved = if (isToday) low else low?.roundToInt()?.toFloat()
+                val highTempSaved = com.weatherwidget.shared.util.ForecastTempRounding.forStorage(high, isToday)
+                val lowTempSaved = com.weatherwidget.shared.util.ForecastTempRounding.forStorage(low, isToday)
 
                 ForecastEntity(
                     targetDate = forecast.targetDate,
