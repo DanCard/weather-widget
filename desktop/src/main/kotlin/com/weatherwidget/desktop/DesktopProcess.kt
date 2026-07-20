@@ -37,7 +37,16 @@ private fun touchTrigger(name: String) {
     }
 }
 
-fun notifyDataUpdated() = touchTrigger(DATA_UPDATED_TRIGGER)
+// Set by the daemon once its UI notify socket is listening. `notifyDataUpdated()` pushes over it in
+// addition to touching the file trigger, so the UI gets a reliable (non-lossy) signal while the file
+// stays as a fallback. Null in the UI process and in tests, where the push is simply skipped.
+@Volatile
+var uiNotifyServerRef: UiNotifyServer? = null
+
+fun notifyDataUpdated() {
+    touchTrigger(DATA_UPDATED_TRIGGER)
+    runCatching { uiNotifyServerRef?.pushDataUpdated() }
+}
 
 fun notifyRefreshRequested() = touchTrigger(REFRESH_REQUESTED_TRIGGER)
 
@@ -52,6 +61,12 @@ const val FORECAST_FRESHNESS_THRESHOLD_MS = 60 * 60 * 1000L
 // update path; this slow poll only exists so a missed watch event or a dead watcher loop degrades
 // to "up to 10 minutes stale" instead of "stale forever".
 const val UI_FALLBACK_RELOAD_MS = 10 * 60 * 1000L
+// The fallback loop ticks at this short cadence rather than sleeping one long [UI_FALLBACK_RELOAD_MS]
+// delay(): coroutine delay() runs on the monotonic clock and freezes during suspend, so a single long
+// sleep would not fire promptly on wake. A short tick fires right after resume and also lets the loop
+// notice a suspend-sized wall-clock jump (isSuspendJump) and reload immediately — bounding post-wake
+// staleness to one tick instead of "until the frozen 10-minute timer eventually elapses".
+const val UI_FALLBACK_TICK_MS = 30 * 1000L
 const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 
 // Resume-from-suspend detection. The fetch loops sleep on coroutine `delay()`, which schedules

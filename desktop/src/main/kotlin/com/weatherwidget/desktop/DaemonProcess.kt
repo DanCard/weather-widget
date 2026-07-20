@@ -100,6 +100,12 @@ fun runDaemon() {
         generateMarkup(forecast, currentTemp, appliedDelta, dataStatus, config)
     }.apply { start() }
 
+    // Non-lossy daemon → UI push channel. `notifyDataUpdated()` pushes over this in addition to the
+    // `.data-updated` file trigger; the UI holds the connection open and reloads on each push (and on
+    // reconnect). See UiNotifyChannel.kt.
+    val uiNotifyServer = UiNotifyServer(appDir).apply { start() }
+    uiNotifyServerRef = uiNotifyServer
+
     fun quit(killUi: Boolean = true) {
         Log.i(TAG, "Quitting daemon (killUi=$killUi)...")
         // Kill UI process if running
@@ -117,6 +123,8 @@ fun runDaemon() {
         }
 
         runCatching { weatherService?.close() }
+        uiNotifyServerRef = null
+        runCatching { uiNotifyServer.close() }
         runCatching {
             val myQuitFile = appDir.resolve("$QUIT_PREFIX$appLaunchId")
             Files.deleteIfExists(myQuitFile)

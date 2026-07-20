@@ -233,6 +233,43 @@ private fun runApp() = application {
             }
         }
 
+        // Single reload path shared by every "data changed" trigger — socket push, file watch, resume
+        // heartbeat, popup show. Re-reads the DB cache into Compose state; loadCached() reflects the
+        // live DB, so this is always current. rememberUpdatedState keeps the repository reference fresh
+        // so a lambda captured once (e.g. in a LaunchedEffect(Unit) watcher) still sees the latest repo.
+        val currentRepository = rememberUpdatedState(repository)
+        val reloadCachedForecast: (String) -> Unit = remember {
+            fn@{ reason: String ->
+                val repo = currentRepository.value ?: return@fn
+                uiScope.launch {
+                    try {
+                        repo.loadCached()?.let { forecast = it }
+                        dataUpdateCount++
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Reload cache ($reason) failed: ${e.message}")
+                    }
+                }
+            }
+        }
+
+        // Non-lossy daemon → UI push: reload the instant the daemon signals a change, and on every
+        // (re)connect (which catches a change that landed while disconnected — daemon restart, resume).
+        // Complements the lossy `.data-updated` file watcher below. Keyed on the reload lambda so a
+        // repository change rebinds the client with a fresh reload target.
+        DisposableEffect(reloadCachedForecast) {
+            val client = UiNotifyClient(appDataDir()) { reason -> reloadCachedForecast("socket:$reason") }
+            client.start()
+            onDispose { client.close() }
+        }
+
+        // Reload whenever the popup is (re)shown, so looking at it always yields current data even if a
+        // push/watch event was somehow missed. showRequestId starts at 0 (no show yet) and bumps per show.
+        LaunchedEffect(showRequestId) {
+            if (showRequestId > 0) reloadCachedForecast("show")
+        }
+
         // Helper to save config and notify the daemon
         val saveConfigAndNotify = remember {
             { newConfig: DesktopConfig ->
@@ -312,10 +349,15 @@ private fun runApp() = application {
             }
         }
 
-        // Load cached forecast data once, then keep a slow safety-net reload running. The
-        // `.data-updated` watcher below is the primary update path; this loop only bounds the
-        // damage of a missed watch event (or a dead watcher loop) to UI_FALLBACK_RELOAD_MS of
-        // staleness instead of forever.
+        // Load cached forecast once, then run a resume-aware safety-net reload. The socket push and
+        // the `.data-updated` watcher are the primary update paths; this loop bounds the damage of a
+        // missed event (or a dead watcher) instead of leaving the UI stale forever. Two hazards it
+        // must survive: a missed notification, and suspend/resume. It ticks at a SHORT cadence rather
+        // than one long delay() because delay() runs on the monotonic clock and freezes during
+        // suspend — a single long sleep would not fire promptly on wake. Each tick reloads when either
+        // the fallback interval elapsed OR a suspend-sized wall-clock jump reveals we just resumed
+        // (isSuspendJump, mirroring the daemon's heartbeat). That closes the hole where a laptop woke,
+        // the daemon re-fetched, but its notification was dropped and the UI's timer was frozen.
         LaunchedEffect(repository) {
             val repo = repository ?: return@LaunchedEffect
             try {
@@ -330,12 +372,21 @@ private fun runApp() = application {
                 Log.e(TAG, "Failed to load initial cache: ${e.message}")
             }
 
+            var lastReloadMs = System.currentTimeMillis()
+            var expectedMs = System.currentTimeMillis()
             while (true) {
-                delay(UI_FALLBACK_RELOAD_MS)
+                delay(UI_FALLBACK_TICK_MS)
+                val now = System.currentTimeMillis()
+                val gapMs = now - expectedMs
+                val resumed = isSuspendJump(UI_FALLBACK_TICK_MS, gapMs, SUSPEND_JUMP_SLACK_MS)
+                expectedMs = now
+                if (!resumed && now - lastReloadMs < UI_FALLBACK_RELOAD_MS) continue
                 try {
                     repo.loadCached()?.let { forecast = it }
                     // Also re-evaluates the status banner (see the dataUpdateCount-keyed effect).
                     dataUpdateCount++
+                    lastReloadMs = now
+                    if (resumed) Log.i(TAG, "UI resume detected (gap=${gapMs}ms) — reloaded cache.")
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -477,59 +528,62 @@ private fun runApp() = application {
             exitApplication()
         }
 
-        // Watch for external show request (specifically on .ui-show) and data updates (specifically on .data-updated)
+        // Watch for external show request (`.ui-show`) and data updates (`.data-updated`). This is the
+        // fallback signal path alongside the socket push (UiNotifyClient above): Java's WatchService
+        // drops/coalesces events, so it can't be the only signal. It must also SELF-HEAL — the old
+        // code did `if (!key.reset()) break`, so a single reset failure (or a closed service) killed
+        // the watcher permanently, after which only the slow poll remained. Here a dead watch re-arms:
+        // the inner loop exits, the outer loop rebuilds the WatchService and re-registers, after a
+        // short pause to avoid a tight spin if the directory is persistently unwatchable.
         LaunchedEffect(Unit) {
             withContext(Dispatchers.IO) {
                 val dir = appDataDir()
                 java.nio.file.Files.createDirectories(dir)
-                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
-                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
-                
-                val watchService = java.nio.file.FileSystems.getDefault().newWatchService()
-                dir.register(
-                    watchService,
-                    java.nio.file.StandardWatchEventKinds.ENTRY_CREATE,
-                    java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
-                )
+                while (true) {
+                    runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
+                    runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
 
-                try {
-                    while (true) {
-                        val key = watchService.take() // Blocks until an event occurs
-                        for (event in key.pollEvents()) {
-                            val name = (event.context() as? java.nio.file.Path)?.toString()
-                            if (name == UI_SHOW_TRIGGER) {
-                                Log.i(TAG, "WatchService: .ui-show trigger detected. Bumping showRequestId.")
-                                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
-                                SwingUtilities.invokeLater { requestShowPopup() }
-                            } else if (name == DATA_UPDATED_TRIGGER) {
-                                Log.i(TAG, "WatchService: .data-updated trigger detected. Reloading cache...")
-                                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
-                                val repo = repository
-                                if (repo != null) {
-                                    uiScope.launch {
-                                        try {
-                                            val cached = repo.loadCached()
-                                            if (cached != null) {
-                                                forecast = cached
-                                            }
-                                            // Deliberately no dataStatus write: the daemon touches
-                                            // this trigger on fetch *failures* too, and a bare
-                                            // trigger carries no outcome — assuming Live here
-                                            // erased the offline/stale indication. Fetch outcome
-                                            // reaches the UI through the CURRENT_TEMP_STATUS log
-                                            // contract, re-read when dataUpdateCount bumps.
-                                            dataUpdateCount++
-                                        } catch (e: Exception) {
-                                            Log.e(TAG, "Failed to reload cache on trigger: ${e.message}")
-                                        }
-                                    }
+                    val watchService = java.nio.file.FileSystems.getDefault().newWatchService()
+                    try {
+                        dir.register(
+                            watchService,
+                            java.nio.file.StandardWatchEventKinds.ENTRY_CREATE,
+                            java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
+                        )
+                        var watchValid = true
+                        while (watchValid) {
+                            val key = watchService.take() // Blocks until an event occurs
+                            for (event in key.pollEvents()) {
+                                val name = (event.context() as? java.nio.file.Path)?.toString()
+                                if (name == UI_SHOW_TRIGGER) {
+                                    Log.i(TAG, "WatchService: .ui-show trigger detected. Bumping showRequestId.")
+                                    runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
+                                    SwingUtilities.invokeLater { requestShowPopup() }
+                                } else if (name == DATA_UPDATED_TRIGGER) {
+                                    Log.i(TAG, "WatchService: .data-updated trigger detected. Reloading cache...")
+                                    runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
+                                    // Deliberately no dataStatus write: the daemon touches this trigger
+                                    // on fetch *failures* too, and a bare trigger carries no outcome —
+                                    // assuming Live here erased the offline/stale indication. Fetch
+                                    // outcome reaches the UI through the CURRENT_TEMP_STATUS log
+                                    // contract, re-read when dataUpdateCount bumps (reloadCachedForecast).
+                                    reloadCachedForecast("watch")
                                 }
                             }
+                            if (!key.reset()) watchValid = false // watch invalid → rebuild below
                         }
-                        if (!key.reset()) break
+                        Log.w(TAG, "WatchService key invalidated — re-arming watcher.")
+                    } catch (e: java.nio.file.ClosedWatchServiceException) {
+                        Log.w(TAG, "WatchService closed — re-arming watcher.")
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        runCatching { watchService.close() }
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e(TAG, "WatchService loop error: ${e.message} — re-arming watcher.")
+                    } finally {
+                        runCatching { watchService.close() }
                     }
-                } finally {
-                    watchService.close()
+                    delay(1000L) // pause before re-arming so a persistent failure can't tight-spin
                 }
             }
         }
