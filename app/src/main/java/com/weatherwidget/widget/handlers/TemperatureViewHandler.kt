@@ -489,7 +489,7 @@ object TemperatureViewHandler {
             quickDeltaVisible != refinedDeltaVisible ||
                 (quickDeltaVisible &&
                     refinedDeltaVisible &&
-                    kotlin.math.abs(qDelta!! - rDelta!!) >= CURRENT_TEMP_FOLLOW_UP_EPSILON)
+                    kotlin.math.abs(qDelta - rDelta) >= CURRENT_TEMP_FOLLOW_UP_EPSILON)
         return tempChanged || deltaChanged || quickResolution.isStaleEstimate != refined.isStaleEstimate
     }
 

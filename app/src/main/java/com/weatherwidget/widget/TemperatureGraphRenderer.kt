@@ -346,10 +346,10 @@ object TemperatureGraphRenderer {
             ctx.canvas.drawPath(expectedFillPath, paints.expectedFillPaint)
 
             val expectedY = lastObservedTemp?.let { ctx.tempToY(it) }
-            if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(fetchDotX!!, expectedY))
+            if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(fetchDotX, expectedY))
 
             ctx.canvas.save()
-            val clipStart = fetchDotX!!.coerceAtLeast(0f)
+            val clipStart = fetchDotX.coerceAtLeast(0f)
             ctx.canvas.clipRect(clipStart, 0f, ctx.widthPx.toFloat(), ctx.heightPx.toFloat())
             ctx.canvas.drawPath(ctx.expectedPath, paints.ghostPaint)
             ctx.canvas.restore()

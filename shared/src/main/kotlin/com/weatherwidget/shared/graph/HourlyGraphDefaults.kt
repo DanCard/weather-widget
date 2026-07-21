@@ -23,7 +23,7 @@ object HourlyGraphDefaults {
     const val COLOR_DAY_LABEL: Int = 0x88FFFFFF.toInt()
     const val COLOR_TODAY_LABEL: Int = 0xBBFF9F0A.toInt()
     const val COLOR_CURRENT_TIME: Int = 0xFFFF9F0A.toInt()
-    const val COLOR_SHADOW_LIGHT: Int = 0x44000000.toInt()
+    const val COLOR_SHADOW_LIGHT: Int = 0x44000000
     const val COLOR_SHADOW_DARK: Int = 0x88000000.toInt()
     // Solid-black drop shadow for temperature VALUE labels (now/current temp + on-curve highs/lows).
     // Mirrors the daily-history high-temp label shadow so temps stay legible where they overlap the

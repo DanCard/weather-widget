@@ -266,7 +266,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                     Room.databaseBuilder(
                         context.applicationContext,
                         WeatherDatabase::class.java,
-                        dbName!!,
+                        dbName,
                     )
                         .addCallback(
                             object : RoomDatabase.Callback() {

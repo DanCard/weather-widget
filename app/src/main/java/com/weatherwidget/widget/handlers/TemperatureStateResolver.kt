@@ -273,7 +273,7 @@ internal object TemperatureStateResolver {
                     currentTempResolution.isStaleEstimate,
                     useCelsius = useCelsius
                 )
-                if (formatted != null) formatted else null
+                formatted
             } else null,
             currentTempSizeDp = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
             deltaText = if (deltaVisible) {

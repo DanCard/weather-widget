@@ -537,7 +537,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             } else {
                 val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.temperature) else item.temperature
                 holder.temperature.text = String.format("%.1f°", displayTemp)
-                holder.temperature.setTextColor(obsTempToColor(item.temperature.toFloat()))
+                holder.temperature.setTextColor(obsTempToColor(item.temperature))
             }
             holder.condition.text = item.condition
         }

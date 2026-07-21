@@ -48,7 +48,7 @@ class ActualTemperatureSeriesBuilderTest {
         val carriedNoon = result.points.single { it.timeMs == epoch("2026-06-03T12:00:00") }
         assertTrue(carriedNoon.isActual)
         assertFalse(carriedNoon.isObservedActual)
-        assertEquals(actualPoint.actualTemp!!, carriedNoon.actualTemp!!, 0.001f)
+        assertEquals(actualPoint.actualTemp, carriedNoon.actualTemp!!, 0.001f)
     }
 
     @Test

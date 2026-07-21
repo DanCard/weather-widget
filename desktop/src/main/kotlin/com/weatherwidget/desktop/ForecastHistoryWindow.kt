@@ -434,7 +434,7 @@ private fun DrawScope.drawSmoothPath(coords: List<Offset>, color: Color, stroke:
     for (i in 1 until coords.size) {
         val p = coords[i]
         val controlX = (last.x + p.x) / 2f
-        path.quadraticBezierTo(controlX, last.y, p.x, p.y)
+        path.quadraticTo(controlX, last.y, p.x, p.y)
         last = p
     }
     drawPath(path, color, style = Stroke(width = stroke))

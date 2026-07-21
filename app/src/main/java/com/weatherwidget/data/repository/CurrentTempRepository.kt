@@ -51,7 +51,7 @@ private const val TAG = "CurrentTempRepository"
 class CurrentTempRepository
     @Inject
     constructor(
-        @ApplicationContext private val context: Context,
+        @param:ApplicationContext private val context: Context,
         private val observationDao: ObservationDao,
         private val hourlyForecastDao: HourlyForecastDao,
         private val appLogDao: AppLogDao,

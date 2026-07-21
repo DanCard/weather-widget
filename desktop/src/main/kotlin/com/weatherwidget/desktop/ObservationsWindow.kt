@@ -409,12 +409,12 @@ private fun ObservationList(
                                 color = ObsStyle.textSecondary
                             )
                         } else {
-                            val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(obs.temperature.toFloat()) else obs.temperature
+                            val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(obs.temperature) else obs.temperature
                             Text(
                                 String.format("%.1f°", displayTemp),
                                 fontSize = 32.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = trayTempToColor(obs.temperature.toFloat())
+                                color = trayTempToColor(obs.temperature)
                             )
                         }
                     }

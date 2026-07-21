@@ -24,7 +24,7 @@ import javax.inject.Singleton
 class WeatherRepository
     @Inject
     constructor(
-        @ApplicationContext private val context: Context,
+        @param:ApplicationContext private val context: Context,
         private val forecastRepository: ForecastRepository,
         private val currentTempRepository: CurrentTempRepository,
         private val forecastDao: ForecastDao,

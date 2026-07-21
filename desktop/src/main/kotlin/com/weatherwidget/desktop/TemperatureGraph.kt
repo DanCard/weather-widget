@@ -609,7 +609,6 @@ fun TemperatureGraph(
                 TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_END -> COLOR_ACTUAL
                 TemperatureRole.LOCAL -> Color.White
                 TemperatureRole.START, TemperatureRole.END -> Color.White.copy(alpha = 0.6f)
-                else -> Color.White
             }
             val textLayout = textMeasurer.measure(label.text, TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp, color = color))
             val textWidth = textLayout.size.width.toFloat()

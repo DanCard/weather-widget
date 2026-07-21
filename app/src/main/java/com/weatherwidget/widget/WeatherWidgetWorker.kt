@@ -282,7 +282,7 @@ class WeatherWidgetWorker
                 if (shouldBroadcastNoHourlyComplete) {
                     broadcastNoHourlyRefreshComplete(
                         widgetId = noHourlyWidgetId,
-                        dateStr = noHourlyDate!!,
+                        dateStr = noHourlyDate,
                         lat = noHourlyLat,
                         lon = noHourlyLon,
                     )

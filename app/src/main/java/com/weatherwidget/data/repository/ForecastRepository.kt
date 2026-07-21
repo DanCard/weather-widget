@@ -64,7 +64,7 @@ private const val TAG = "ForecastRepository"
 class ForecastRepository
     @Inject
     constructor(
-        @ApplicationContext private val context: Context,
+        @param:ApplicationContext private val context: Context,
         private val forecastDao: ForecastDao,
         private val hourlyForecastDao: HourlyForecastDao,
         private val hourlyForecastHistoryDao: HourlyForecastHistoryDao,

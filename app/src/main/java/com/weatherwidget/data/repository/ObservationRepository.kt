@@ -72,7 +72,7 @@ internal fun pastDayLacksAfternoonCoverage(
 
 @Singleton
 class ObservationRepository @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val observationDao: ObservationDao,
     private val dailyHistoryDao: DailyHistoryDao,
     private val appLogDao: AppLogDao,

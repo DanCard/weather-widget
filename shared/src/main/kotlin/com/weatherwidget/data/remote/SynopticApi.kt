@@ -74,7 +74,7 @@ class SynopticApi @Inject constructor(
                     val qcChecks = airTempQcArray?.getOrNull(i) as? JsonArray
                     val qcFailed = !qcChecks.isNullOrEmpty()
                     if (qcFailed) {
-                        qcDropped.add("$dateTimeStr temp=$tempC checks=${qcChecks!!.joinToString(",") { it.jsonPrimitive.content }}")
+                        qcDropped.add("$dateTimeStr temp=$tempC checks=${qcChecks.joinToString(",") { it.jsonPrimitive.content }}")
                     }
 
                     val summary = weatherSummaryArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull

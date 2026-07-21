@@ -97,7 +97,7 @@ class NwsApi
 
                 // NWS's own verdict on the value it just handed us. Marked (not dropped) so the
                 // stations list can show the failure, exactly as Synoptic-flagged readings are.
-                val qualityControl = tempObj?.get("qualityControl")?.jsonPrimitive?.contentOrNull
+                val qualityControl = tempObj.get("qualityControl")?.jsonPrimitive?.contentOrNull
 
                 return Observation(
                     timestamp = timestamp,
