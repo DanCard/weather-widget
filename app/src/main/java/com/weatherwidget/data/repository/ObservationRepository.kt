@@ -9,6 +9,7 @@ import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
@@ -905,8 +906,9 @@ class ObservationRepository @Inject constructor(
             timestamp = newestTimestamp,
             temperature = blendedTemp,
             condition = closest.condition,
-            locationLat = latitude,
-            locationLon = longitude,
+            // Same write-key quantization as buildObservationEntity (plan 260721, Fix A).
+            locationLat = LocationMatch.quantize(latitude),
+            locationLon = LocationMatch.quantize(longitude),
             distanceKm = 0f,
             stationType = "BLENDED",
             fetchedAt = newestFetchedAt,
@@ -931,8 +933,11 @@ class ObservationRepository @Inject constructor(
             timestamp = OffsetDateTime.parse(obs.timestamp).toInstant().toEpochMilli(),
             temperature = (obs.temperatureCelsius * 1.8f) + 32f,
             condition = obs.textDescription,
-            locationLat = latitude,
-            locationLon = longitude,
+            // Quantize the device location to the shared write-key grid so every source keys the same
+            // physical site identically — raw-double vs 3-dp writes otherwise fragment one spot into
+            // multiple keys (plan 260721, Fix A).
+            locationLat = LocationMatch.quantize(latitude),
+            locationLon = LocationMatch.quantize(longitude),
             distanceKm = distanceKm,
             stationType = stationInfo.type.name,
             maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },

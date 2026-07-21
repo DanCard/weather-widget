@@ -9,6 +9,7 @@ import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
@@ -508,8 +509,11 @@ class CurrentTempRepository
         }
 
         private suspend fun insertCurrentObservation(obsEntity: ObservationEntity) {
-            observationDao.insertAll(listOf(obsEntity))
-            logCurrentObservationInsert(obsEntity)
+            // Snap the device location to the shared write-key grid so Open-Meteo/Tomorrow current
+            // obs key the same site as NWS instead of a raw-double fragment (plan 260721, Fix A).
+            val quantized = obsEntity.withQuantizedLocation()
+            observationDao.insertAll(listOf(quantized))
+            logCurrentObservationInsert(quantized)
         }
 
         private suspend fun logCurrentObservationInsert(obsEntity: ObservationEntity) {

@@ -36,6 +36,20 @@ data class ObservationEntity(
     val qcFailed: Boolean = false, // Rejected by upstream QC; shown in stations UI, excluded from blends
 )
 
+/**
+ * Returns a copy with the device location snapped to the shared write-key grid
+ * ([LocationMatch.quantize]). Apply at every `observations` insert boundary so one physical site is
+ * always keyed identically regardless of which source resolved the coordinate — raw-double writes
+ * (e.g. `37.416797…`) and 3-dp writes (`37.417`) otherwise become separate keys that the read-path
+ * `selectNearestSite` can split (plan 260721, Fix A). Idempotent: quantizing an already-quantized
+ * coordinate is a no-op.
+ */
+fun ObservationEntity.withQuantizedLocation(): ObservationEntity =
+    copy(
+        locationLat = LocationMatch.quantize(locationLat),
+        locationLon = LocationMatch.quantize(locationLon),
+    )
+
 fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationReading(
     stationId = stationId,
     stationName = stationName,

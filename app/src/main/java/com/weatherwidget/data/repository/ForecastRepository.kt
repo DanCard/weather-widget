@@ -18,6 +18,7 @@ import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.local.toHourlyForecast
@@ -1263,7 +1264,7 @@ class ForecastRepository
                     fetchedAt = reading.fetchedAt,
                     api = reading.api,
                     precipAmountMm = reading.precipAmountMm,
-                )
+                ).withQuantizedLocation() // shared write-key grid (plan 260721, Fix A)
             }
 
             if (historicalObs.isNotEmpty()) {

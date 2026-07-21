@@ -1,7 +1,11 @@
 # Fix observation location fragmentation (3 root causes)
 
 **Date:** 2026-07-21
-**Status:** Planned — not yet implemented
+**Status:** Implemented + verified live 2026-07-21. All fixes done; C/B unified at the enqueuer
+via `resolveBackfillLocation` (authoritative `getWidgetLocation`, null→skip, sameSite-default→skip,
+quantize), A via `ObservationEntity.withQuantizedLocation()` at write boundaries. Emulator confirmed:
+post-fix NWS writes land at `37.417` (device key), HQ cluster receives no more writes. No migration
+shipped (heals on next fetch, as planned). Tests: `HourlyObservationBackfillLocationTest` (7, green).
 **Scope:** Pre-existing bug on the current build; unrelated to the fetch-first change
 (`260721-fetch-both-nws-web-prefer-newest.md`). Do not conflate the two branches.
 

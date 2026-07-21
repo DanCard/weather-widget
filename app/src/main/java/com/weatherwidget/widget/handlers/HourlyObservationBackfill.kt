@@ -7,6 +7,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
@@ -25,6 +26,42 @@ internal data class HourlyBackfillDecision(
     val shouldRequest: Boolean,
     val reason: String,
 )
+
+/**
+ * Where an observation backfill should fetch, resolved from the widget's authoritative location —
+ * never from the data being backfilled (that idiom, `list.firstOrNull()?.location ?: DEFAULT`,
+ * silently wrote NWS obs at Googleplex whenever the box query was empty, fragmenting them ~0.7 km
+ * from the real fix; see plan 260721 / [[hourly_backfill_default_location_fragment]]).
+ */
+@androidx.annotation.VisibleForTesting
+internal sealed interface BackfillLocation {
+    /** A real, quantized site to fetch under. */
+    data class Anchored(val lat: Double, val lon: Double) : BackfillLocation
+    /** No trustworthy location — skip the fetch rather than guess. [reason] is logged. */
+    data class Unanchored(val reason: String) : BackfillLocation
+}
+
+/**
+ * Pure resolution of the fetch location from the widget's stored location
+ * ([WidgetStateManager.getWidgetLocation], null when the widget has no configured/POI location).
+ *
+ * Two ways to be unanchored, both of which must SKIP (Fix C): (1) no location at all; (2) a location
+ * that is [LocationMatch.sameSite] the hard default (Googleplex). The old guard compared the raw
+ * constant with `==`, but the coordinate flowing through had been 3-dp quantized (−122.0841 →
+ * −122.084), so `==` silently missed it and the fetch proceeded at HQ. `sameSite` is quantization-safe.
+ *
+ * Anchored coordinates are quantized to the shared write-key grid so the fetched rows land on the
+ * same key every source uses (Fix A alignment).
+ */
+@androidx.annotation.VisibleForTesting
+internal fun resolveBackfillLocation(widgetLocation: Pair<Double, Double>?): BackfillLocation {
+    if (widgetLocation == null) return BackfillLocation.Unanchored("unanchored_no_widget_location")
+    val (lat, lon) = widgetLocation
+    if (LocationMatch.sameSite(lat, lon, WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON)) {
+        return BackfillLocation.Unanchored("unanchored_default_location")
+    }
+    return BackfillLocation.Anchored(LocationMatch.quantize(lat), LocationMatch.quantize(lon))
+}
 
 @androidx.annotation.VisibleForTesting
 internal fun evaluateHourlyBackfillNeed(
@@ -75,27 +112,26 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     graphEnd: LocalDateTime,
     observations: List<ObservationEntity>,
     repositoryPresent: Boolean,
-    lat: Double,
-    lon: Double,
 ) {
     if (!repositoryPresent) return
 
-    // Both callers resolve [lat]/[lon] from their data list with a `?: DEFAULT_LAT/LON` fallback
-    // (TemperatureStateResolver from hourlyForecasts, DailyViewHandler from weatherList). When that
-    // list is empty — a ghost/unconfigured widget id, or a render before any fetch — the location
-    // collapses to the DEFAULT sentinel (Googleplex, ~0.7 km from a real GPS fix). Fetching NWS
-    // observations there fragments them away from where all real data lives, so the Current
-    // Observations screen (scoped to the device location) shows "none found". Real GPS data is never
-    // exactly the constant (see the same sentinel test in WeatherWidgetWorker), so an exact match
-    // means "no location to anchor this fetch to" → skip rather than fetch at a guess.
-    if (lat == WeatherWidgetWorker.DEFAULT_LAT && lon == WeatherWidgetWorker.DEFAULT_LON) {
-        database.appLogDao().log(
-            "OBS_HOURLY_BACKFILL_SKIP",
-            "widget=$appWidgetId source=${displaySource.id} reason=unanchored_default_location",
-            "INFO",
-        )
-        return
+    // Resolve WHERE to fetch from the widget's authoritative location, not from the (possibly empty,
+    // possibly DEFAULT) coordinate the caller rendered with. resolveBackfillLocation SKIPs an
+    // unanchored widget instead of fetching NWS obs at Googleplex — the fragmentation this whole
+    // path exists to prevent. See plan 260721.
+    val fetchLocation = when (val resolved = resolveBackfillLocation(stateManager.getWidgetLocation(appWidgetId))) {
+        is BackfillLocation.Unanchored -> {
+            database.appLogDao().log(
+                "OBS_HOURLY_BACKFILL_SKIP",
+                "widget=$appWidgetId source=${displaySource.id} reason=${resolved.reason}",
+                "INFO",
+            )
+            return
+        }
+        is BackfillLocation.Anchored -> resolved
     }
+    val lat = fetchLocation.lat
+    val lon = fetchLocation.lon
 
     val decision = evaluateHourlyBackfillNeed(displaySource, graphStart, graphEnd, observations)
     if (!decision.shouldRequest) {
