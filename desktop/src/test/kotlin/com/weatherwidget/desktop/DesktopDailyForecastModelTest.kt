@@ -1,11 +1,14 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.*
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DesktopDailyForecastModelTest {
 
     private val config = DesktopConfig(

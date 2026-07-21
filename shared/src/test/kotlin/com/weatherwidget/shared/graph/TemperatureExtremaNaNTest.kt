@@ -1,10 +1,12 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import org.junit.experimental.categories.Category
 
 /**
  * Regression guard for the "stuck on Loading…" crash (2026-06-17): a hourly window that extended
@@ -15,6 +17,7 @@ import java.time.LocalDateTime
  * (the single-day pin forcing a 00:00→24:00 grid) is gone, but the renderer must never crash on a
  * NaN tail regardless of how the window is chosen — these tests lock that in for Android + desktop.
  */
+@Category(ShortDuration::class)
 class TemperatureExtremaNaNTest {
 
     // A today day-view: forecast present for idx 0..19, then NaN for 20..23 (the evening hours are

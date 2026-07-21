@@ -1,9 +1,12 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class UnitDefaultsTest {
     @Test
     fun `US and territories default to Fahrenheit`() {

@@ -1,11 +1,13 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
 /**
  * Regression for the left-edge forecast-HIGH ↔ ACTUAL_HIGH stack: a forecast daily high at the
@@ -15,6 +17,7 @@ import java.time.ZoneId
  *
  * Harness mirrors TemperatureLeftEdgeStartOrderTest (its helpers are private).
  */
+@Category(ShortDuration::class)
 class TemperatureLeftEdgeHighOrderTest {
 
     private fun buildHours(

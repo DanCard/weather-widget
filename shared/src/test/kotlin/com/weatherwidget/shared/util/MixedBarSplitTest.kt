@@ -1,14 +1,17 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Pins the cloud/rain forecast-bar split so Android and desktop can't silently diverge.
  * Both platforms render this split: bottom-segment height = cloud ratio, color = rain vs cloud.
  */
+@Category(ShortDuration::class)
 class MixedBarSplitTest {
 
     @Test

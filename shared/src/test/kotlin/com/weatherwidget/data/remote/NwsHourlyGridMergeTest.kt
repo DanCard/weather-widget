@@ -1,12 +1,15 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class NwsHourlyGridMergeTest {
 
     private val keyFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")

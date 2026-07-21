@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.desktop.toReading
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -19,7 +20,9 @@ import java.nio.file.Path
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DesktopCurrentTempUnificationIntegrationTest {
 
     private lateinit var tempDbPath: Path

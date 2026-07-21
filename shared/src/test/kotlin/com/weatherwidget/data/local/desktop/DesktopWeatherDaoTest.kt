@@ -5,13 +5,16 @@ import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DesktopWeatherDaoTest {
     private lateinit var tempDbPath: Path
     private lateinit var db: DesktopWeatherDatabase

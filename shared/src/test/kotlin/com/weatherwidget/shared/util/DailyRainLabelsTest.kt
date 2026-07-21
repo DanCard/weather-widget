@@ -2,6 +2,7 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -9,7 +10,9 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DailyRainLabelsTest {
 
     private val originalLocale = Locale.getDefault()

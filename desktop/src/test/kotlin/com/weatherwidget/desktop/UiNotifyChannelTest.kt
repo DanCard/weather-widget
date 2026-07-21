@@ -1,17 +1,20 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import org.junit.experimental.categories.Category
 
 /**
  * Round-trips the daemon → UI push channel over a real Unix domain socket in a temp dir. Proves the
  * non-lossy notification the popup relies on actually reaches the client: once on connect (so a change
  * that landed while disconnected is picked up) and again on each pushed byte.
  */
+@Category(LongDuration::class)
 class UiNotifyChannelTest {
 
     @Test

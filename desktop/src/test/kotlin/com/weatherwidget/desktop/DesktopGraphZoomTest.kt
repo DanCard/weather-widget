@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.shared.graph.ZoomStage
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,12 +11,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.roundToInt
+import org.junit.experimental.categories.Category
 
 /**
  * Unit tests for the continuous-zoom span model in [DesktopGraphUtils]. The desktop temperature/
  * precip/cloud graphs derive their whole window (and label/smoothing cadence) from a single
  * `zoomFactor` in [0,1]; these tests pin the endpoints, monotonicity, and clamping.
  */
+@Category(ShortDuration::class)
 class DesktopGraphZoomTest {
 
     @Test

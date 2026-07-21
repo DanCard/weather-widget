@@ -1,14 +1,17 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.test.category.ShortDuration
 import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Pins the tri-state observation-fetch contract: NoData (source definitively empty) and Failed
  * (nothing learned) must stay distinguishable end to end, because they drive opposite fetchedAt
  * handling — a dead network must never masquerade as a silent station, and vice versa.
  */
+@Category(ShortDuration::class)
 class FetchOutcomeTest {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }

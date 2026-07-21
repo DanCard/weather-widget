@@ -1,17 +1,20 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Plain-JUnit tests for the shared [ValueLabelEngine] (the precip / cloud "%"-value label
  * placement). Mirrors the [NowIndicatorGeometryTest] style: identity dpToPx, a simple measureText,
  * and assertions on which labels are placed and roughly where.
  */
+@Category(ShortDuration::class)
 class ValueLabelEngineTest {
 
     private val noScale: (Float) -> Float = { it }

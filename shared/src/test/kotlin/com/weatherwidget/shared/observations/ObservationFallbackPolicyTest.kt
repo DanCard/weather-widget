@@ -1,11 +1,14 @@
 package com.weatherwidget.shared.observations
 
 import com.weatherwidget.shared.util.BatteryTier
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class ObservationFallbackPolicyTest {
 
     private val now = 1_768_000_000_000L

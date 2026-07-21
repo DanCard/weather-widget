@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -8,6 +9,7 @@ import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import org.junit.experimental.categories.Category
 
 /**
  * When a forecast extreme shares its hour with a more-extreme labeled actual extreme (resolver
@@ -16,6 +18,7 @@ import java.time.ZoneOffset
  * line — instead of curve-avoiding up/down alongside the towering actual curve (the "Thu 11 / 91°
  * long leader line" desktop bug). See plans/samsung-clash-of-labels-reflective-narwhal.md.
  */
+@Category(ShortDuration::class)
 class TemperatureCoincidentForecastInnerSideTest {
 
     private fun buildHours(

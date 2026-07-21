@@ -6,13 +6,16 @@ import com.weatherwidget.shared.util.WeatherConditionResolver.IC_MOSTLY_CLOUDY
 import com.weatherwidget.shared.util.WeatherConditionResolver.IC_NIGHT
 import com.weatherwidget.shared.util.WeatherConditionResolver.IC_PARTLY_CLOUDY
 import com.weatherwidget.shared.util.WeatherConditionResolver.IC_PARTLY_CLOUDY_NIGHT
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Pins the daily partly-cloudy AND-gate: a provider's worded "partly cloudy" only stands when the
  * measured noon cloud cover is ≥ [WeatherConditionResolver.PARTLY_CLOUDY_MIN_CLOUD_COVER]%.
  */
+@Category(ShortDuration::class)
 class DailyPartlyCloudyFloorTest {
 
     private fun floor(icon: String, pct: Int?, night: Boolean = false) =

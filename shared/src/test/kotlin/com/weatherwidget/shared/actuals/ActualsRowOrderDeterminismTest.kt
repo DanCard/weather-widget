@@ -3,12 +3,14 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.random.Random
+import org.junit.experimental.categories.Category
 
 /**
  * Pins the blend against ROW-ORDER dependence: the same observations in a different order must produce
@@ -30,6 +32,7 @@ import kotlin.random.Random
  * Fixed by sorting with the (timestamp, stationId) primary key in the builder, so every caller is
  * deterministic regardless of its query. The DAO ordering was made total too, as defence in depth.
  */
+@Category(ShortDuration::class)
 class ActualsRowOrderDeterminismTest {
     private val zone = ZoneId.of("America/Los_Angeles")
 

@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import com.weatherwidget.test.category.LongDuration
 import org.junit.Rule
 import org.junit.Test
 import java.io.BufferedReader
@@ -10,7 +11,9 @@ import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.Path
 import org.junit.Assert.assertTrue
+import org.junit.experimental.categories.Category
 
+@Category(LongDuration::class)
 class DesktopStartupTest {
     @get:Rule
     val composeTestRule = createComposeRule()

@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -13,7 +14,9 @@ import java.nio.file.Path
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DesktopAccuracyTest {
     private lateinit var tempDbPath: Path
     private lateinit var db: DesktopWeatherDatabase

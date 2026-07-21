@@ -1,9 +1,11 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import org.junit.experimental.categories.Category
 
 /**
  * The current (incomplete) day's observed maximum is not its daily high if the day hasn't peaked yet
@@ -11,6 +13,7 @@ import java.time.LocalDateTime
  * must NOT be labeled as that day's ACTUAL_HIGH (the desktop/emulator "67.6° mid-day" report).
  * Completed past days keep their actual high.
  */
+@Category(ShortDuration::class)
 class TemperatureExtremaIncompleteDayTest {
 
     private data class Pt(val dt: LocalDateTime, val temp: Float, val actual: Float?, val isActual: Boolean)

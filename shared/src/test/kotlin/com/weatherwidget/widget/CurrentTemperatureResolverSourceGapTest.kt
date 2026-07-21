@@ -2,10 +2,12 @@ package com.weatherwidget.widget
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Regression tests for the day-tap NPE: computeSmoothedForecasts crashed with a
@@ -15,6 +17,7 @@ import org.junit.Test
  * as the displayed source — the two NWS-less buckets killed handleSetView and the widget
  * silently stayed on the daily view.
  */
+@Category(ShortDuration::class)
 class CurrentTemperatureResolverSourceGapTest {
 
     private val baseMs = 1_700_000_000_000L

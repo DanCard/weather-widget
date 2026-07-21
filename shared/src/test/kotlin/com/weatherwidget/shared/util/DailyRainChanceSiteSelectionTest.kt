@@ -1,10 +1,12 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
 /**
  * Regression for the 2026-07-13 Samsung divergence: the daily bar said yesterday's rain chance was
@@ -16,6 +18,7 @@ import java.time.ZoneId
  *
  * Coordinates and values below are the real ones from that device.
  */
+@Category(ShortDuration::class)
 class DailyRainChanceSiteSelectionTest {
 
     private val zone = ZoneId.of("America/Los_Angeles")

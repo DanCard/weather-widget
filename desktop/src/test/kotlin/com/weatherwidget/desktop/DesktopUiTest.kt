@@ -21,10 +21,13 @@ import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.shared.util.WeatherTimeUtils
+import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(LongDuration::class)
 class DesktopUiTest {
     @get:Rule
     val composeTestRule = createComposeRule()

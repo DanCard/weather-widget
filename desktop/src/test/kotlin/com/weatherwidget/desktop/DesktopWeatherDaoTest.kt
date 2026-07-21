@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.CurrentTempStatus
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -16,7 +17,9 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.LocalDate
 import java.time.ZoneOffset
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DesktopWeatherDaoTest {
 
     private lateinit var tempDbPath: Path

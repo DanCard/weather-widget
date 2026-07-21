@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -7,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneOffset
+import org.junit.experimental.categories.Category
 
 /**
  * Coverage for the "today-low leader line at the NOW valley" fix (Samsung, 2026-06-18).
@@ -18,6 +20,7 @@ import java.time.ZoneOffset
  * instead of dropping a full label-height. A real (> budget) overlap still blocks — preserving the
  * `260612` "631°" flip-above (guarded by TemperatureLabelFetchDotHardBoundsTest).
  */
+@Category(ShortDuration::class)
 class TemperatureLabelHardBoundMinorOverlapTest {
 
     private fun buildHours(

@@ -1,13 +1,16 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Pins the shared zoom-stage table consumed by both Android (discrete widget zoom) and desktop
  * (snap-the-click-to-a-stage). Covers the cycle order, span math, the nearest-stage lookup, and the
  * declaration order that Android persists by ordinal.
  */
+@Category(ShortDuration::class)
 class ZoomStageTest {
 
     @Test

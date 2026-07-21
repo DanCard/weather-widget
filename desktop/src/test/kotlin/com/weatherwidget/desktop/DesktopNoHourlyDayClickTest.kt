@@ -14,10 +14,12 @@ import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
 /**
  * Verifies the two-phase "no hourly data" day-tap flow on the desktop daily view:
@@ -29,6 +31,7 @@ import java.time.ZoneId
  * The refresh is driven through [WidgetPopup]'s `onNeedHourlyRefresh` callback, which the test
  * captures and invokes manually to simulate completion — no real network or DB.
  */
+@Category(MediumDuration::class)
 class DesktopNoHourlyDayClickTest {
     @get:Rule
     val composeTestRule = createComposeRule()

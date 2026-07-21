@@ -2,8 +2,10 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Covers [visibleStationRows], the transform behind the Observations window's station list.
@@ -11,6 +13,7 @@ import org.junit.Test
  * This was extracted from inside the `@Composable` precisely because it had no seam: the window
  * loaded once and never reloaded, and nothing could assert on what it displayed.
  */
+@Category(ShortDuration::class)
 class ObservationsWindowRowsTest {
 
     private fun obs(

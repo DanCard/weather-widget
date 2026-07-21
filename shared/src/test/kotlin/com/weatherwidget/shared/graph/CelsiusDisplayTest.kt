@@ -1,16 +1,19 @@
 package com.weatherwidget.shared.graph
 
 import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
+import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Celsius display formatting across the shared seams: absolute temperatures convert via
  * (F − 32) / 1.8, while temperature DIFFERENCES (deltas, errors, biases) scale by 1/1.8 only.
  * Storage stays Fahrenheit everywhere; conversion happens at format time.
  */
+@Category(ShortDuration::class)
 class CelsiusDisplayTest {
 
     // ------------------------------------------------------------------ label resolver

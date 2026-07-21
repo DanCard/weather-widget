@@ -176,3 +176,78 @@ raise an already-open window from the tray and confirm it reloads rather than ju
 - Unifying the desktop and Android stations-list queries into `:shared`
   (see [[feedback_share_android_desktop_logic]]) — worth a follow-up.
 - The `Fetch Logs` tab's cap/filter behavior, which is unchanged.
+
+---
+
+## Implementation status — DONE (2026-07-20)
+
+**Summary:** [summaries/260720-desktop-observations-stale-and-test-categories.md](../summaries/260720-desktop-observations-stale-and-test-categories.md)
+
+All three changes landed, plus a mid-flight addition (§4) requested during implementation.
+
+**1. Reload on the data-change signal.** `ObservationsWindow` takes `dataUpdateCount: Int = 0`;
+the reload effect is now
+`LaunchedEffect(currentSource, logFilter, dataUpdateCount, showRequestId)`. Wired at
+`Main.kt` from the popup's existing counter.
+
+**2. Ages advance.** `AGE_TICK_MS = 60_000L`, a minute-aligned ticker drives `nowMs` state, threaded
+through `ObservationList(observations, useCelsius, nowMs)` into `ObservationOrigin.of(...)`.
+
+**3. Pure seam.** `visibleStationRows(all, source)` extracted to a top-level `internal` function.
+Implemented with `maxByOrNull { it.timestamp }` rather than the original `first()`, so correctness no
+longer depends on the DAO's `ORDER BY`.
+
+**4. `@Category` enforcement for `:desktop`** (added at user request mid-implementation, mirroring
+the app module):
+- Markers at `desktop/src/test/kotlin/com/weatherwidget/test/category/{Short,Medium,Long}Duration.kt`,
+  deliberately reusing the app module's package/names so `@Category` lines read identically.
+- `validateDesktopTestCategories` in `desktop/build.gradle.kts` — exactly one bucket per file,
+  no unknown markers, no duplicates. Wired via `tasks.withType<Test>().configureEach { dependsOn(...) }`,
+  so it also gates the plain `:desktop:test` that `scripts/unit-tests.sh` invokes.
+- Bucket tasks `test{Short,Medium,Long}Desktop[Fresh]` + aggregates `testByDurationDesktop[Fresh]`.
+- All 22 existing desktop test classes annotated. Buckets by measured wall time
+  (Short <0.2s, Medium 0.2–2s, Long ≥2s): Long = `DesktopStartupTest`, `DesktopUiTest`,
+  `UiNotifyChannelTest`; Medium = `DesktopBackfillIntegrationTest`, `DesktopNoHourlyDayClickTest`,
+  `DesktopSynopticFallbackTest`, `DesktopBackfillChanceSnapshotTest`; Short = the other 15.
+- `scripts/unit-tests.sh` needed **no** change: it runs whole-module `:desktop:test`, which still
+  runs everything and now fails fast on an uncategorized test.
+
+**5. `@Category` enforcement for `:shared`** (follow-up, also requested during implementation):
+same port again — markers, `validateSharedTestCategories`, `test{Short,Medium,Long}Shared[Fresh]`,
+and `testByDurationShared[Fresh]` in `shared/build.gradle.kts`. All **74** shared classes annotated.
+
+Every one is `ShortDuration`: the whole module is 513 tests in ~0.9s, slowest class 0.161s
+(`AppLogsContractTest`), because `:shared` is pure JVM logic with no Compose, socket, or emulator
+work. Medium/Long are therefore **empty by design** — kept for symmetry across modules and for tests
+that grow slower later. Verified an empty bucket task is a no-op, not a build failure.
+
+### Verification performed
+
+- `ObservationsWindowRowsTest` — 7 tests, 0 failures, 0 skipped (confirmed from the results XML, not
+  just a green BUILD line).
+- **Buckets partition each suite exactly.** `:desktop` 15+4+3 = 22 classes and 134+11+36 = 181 tests;
+  `:shared` 74+0+0 = 74 classes and 513+0+0 = 513 tests. Both match their full-module runs. This is
+  the check that catches a class silently belonging to no bucket.
+- **Proved every guard can fail** (per [[feedback_keep_test_diagnostics]] / the project's habit of
+  not trusting a green test that was never seen red):
+  - desktop, missing `@Category` → `expected exactly one category bucket, found [none]`, BUILD FAILED;
+  - desktop, two markers in one `@Category` → `more than one category in one @Category:
+    [ShortDuration, LongDuration]`, BUILD FAILED;
+  - shared, missing `@Category` → same `found [none]` failure;
+  - shared, bogus marker `HugeDuration` → `unknown category marker(s) [HugeDuration] — known:
+    [LongDuration, MediumDuration, ShortDuration]`, BUILD FAILED;
+  - reverting `visibleStationRows` to `rows.first()` → the oldest-first test failed with
+    `expected:<72.0> but was:<60.0>`, i.e. it catches exactly the order-dependency regression it was
+    written for.
+- `:shared:test :desktop:test --rerun-tasks` green with both validators running ahead of them.
+- `AGENTS.md` updated with the three-module `@Category` requirement, thresholds, and task table.
+- Rebuilt and restarted the distributable via `scripts/buildStart-desktop.sh`; confirmed the healthy
+  two-process signature came back (pids 370529 + 370626).
+
+### Left for a follow-up
+
+- End-to-end confirmation that an open window visibly advances across a fetch boundary still wants a
+  human look — the automated coverage proves the transform, not the Compose wiring.
+- Note `4f75c3cf "Desktop: observations window with historical data display"` was committed mid-work
+  by something other than this session; it contains changes 1–3 and the pre-status version of this
+  plan. The category work (4, 5) and this status section are separate.

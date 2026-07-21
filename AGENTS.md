@@ -192,6 +192,24 @@ situations where the agent might assume or infer state instead of observing it.
 2. **Needs Android Context, SharedPreferences, Room, or Resources**: Extend `com.weatherwidget.test.RobolectricTest` (which provides `@RunWith(RobolectricTestRunner::class)`, `@Config(sdk = [34])`, and `@Category(LongDuration::class)`). Use `ApplicationProvider.getApplicationContext()` for Context.
 3. **Needs real Canvas/Bitmap rendering, RemoteViews + performClick, real View.measure/layout, or real SQLite migrations**: Only then write instrumented tests in `androidTest/`.
 
+**`@Category` is required in ALL THREE modules — `:app`, `:desktop`, `:shared`.** Every test class
+declares exactly one duration bucket and the build fails otherwise, enforced per module by
+`validateUnitTestDurations` / `validateDesktopTestCategories` / `validateSharedTestCategories`. Each
+module has its own markers under `<module>/src/test/.../com/weatherwidget/test/category/`, all using
+the same package and names so `@Category` lines read identically everywhere.
+
+Bucket by the class's measured wall time: **Short <0.2s, Medium 0.2–2s, Long ≥2s.**
+
+| Module | One bucket | All buckets |
+|---|---|---|
+| `:app` | `:app:testShortDebugUnitTest` | `:app:testByDurationDebugUnitTest` |
+| `:desktop` | `:desktop:testShortDesktop` | `:desktop:testByDurationDesktop` |
+| `:shared` | `:shared:testShortShared` | `:shared:testByDurationShared` |
+
+`:shared` is currently all-Short (513 tests in ~0.9s, pure JVM logic); its Medium/Long buckets are
+empty on purpose and run as no-ops. `scripts/unit-tests.sh` still drives whole-module
+`:shared:test` / `:desktop:test`, which now fail fast on an uncategorized test.
+
 ### Test Structure
 ```kotlin
 class TemperatureInterpolatorTest {

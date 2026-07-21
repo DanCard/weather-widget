@@ -1,11 +1,14 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class TemperatureLeftEdgeStartOrderTest {
 
     private fun buildHours(

@@ -1,9 +1,12 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DailySnapshotSelectorTest {
 
     private val now = 1_000_000_000_000L

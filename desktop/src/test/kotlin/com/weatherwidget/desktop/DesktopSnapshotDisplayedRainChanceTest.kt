@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -15,6 +16,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.LocalDate
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
 /**
  * Regression for the night rain chance bug (2026-07-04): NWS's raw "Tonight" period chance
@@ -23,6 +25,7 @@ import java.time.ZoneId
  * value into daily_history, and [DesktopWeatherRepository.recomputeDailyExtremes] must never
  * clobber that snapshot on a later actuals recompute (full-row REPLACE in upsertDailyHistory).
  */
+@Category(ShortDuration::class)
 class DesktopSnapshotDisplayedRainChanceTest {
     private lateinit var tempDbPath: Path
     private lateinit var db: DesktopWeatherDatabase

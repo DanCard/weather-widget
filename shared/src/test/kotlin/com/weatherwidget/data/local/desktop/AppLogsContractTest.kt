@@ -1,12 +1,14 @@
 package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.data.model.isOfflineExceptionName
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import org.junit.experimental.categories.Category
 
 /**
  * Round-trips the app_logs *contract* rows (AppLogContracts.kt) through a real database: the
@@ -14,6 +16,7 @@ import java.nio.file.Path
  * reader parsing must be pinned together. A failure here means a change broke the
  * daemon→UI channel even though each side still compiles.
  */
+@Category(ShortDuration::class)
 class AppLogsContractTest {
     private lateinit var tempDbPath: Path
     private lateinit var db: DesktopWeatherDatabase

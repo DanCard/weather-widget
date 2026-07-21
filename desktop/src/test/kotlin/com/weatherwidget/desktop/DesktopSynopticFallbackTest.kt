@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.test.category.MediumDuration
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -13,7 +14,9 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import org.junit.experimental.categories.Category
 
+@Category(MediumDuration::class)
 class DesktopSynopticFallbackTest {
 
     @Test

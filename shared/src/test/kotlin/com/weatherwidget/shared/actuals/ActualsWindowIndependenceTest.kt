@@ -3,12 +3,14 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.math.abs
+import org.junit.experimental.categories.Category
 
 /**
  * Guards the daily-bar vs hourly-graph convergence against WINDOW dependence — the recurring class of
@@ -27,6 +29,7 @@ import kotlin.math.abs
  * daily_vs_hourly_actual_extrema_mismatch. Complements [ActualsLoneStationGuardTest], which only ever
  * feeds single-day observations and so never exercised the cross-midnight window.
  */
+@Category(ShortDuration::class)
 class ActualsWindowIndependenceTest {
     private val zone = ZoneId.of("America/Los_Angeles")
     private val dayMs = 24 * 3600_000L

@@ -1,9 +1,11 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import java.time.LocalDate
+import org.junit.experimental.categories.Category
 
 /**
  * Regression tests for [NwsDailyMapper.buildDailyForecasts] — the desktop entry point.
@@ -13,6 +15,7 @@ import java.time.LocalDate
  * `low == high` (a flat bar). The shared mapper keys a night low by the date it ends (the morning),
  * so a calendar day pairs its morning low with its afternoon high, and gridpoints backstop the rest.
  */
+@Category(ShortDuration::class)
 class NwsDailyMapperBuildTest {
 
     private fun day(name: String, start: String, end: String, temp: Int, isDaytime: Boolean) =

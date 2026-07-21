@@ -1,9 +1,12 @@
 package com.weatherwidget.data.model
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class HourlyForecastStitcherTest {
 
     private val now = 10_000L

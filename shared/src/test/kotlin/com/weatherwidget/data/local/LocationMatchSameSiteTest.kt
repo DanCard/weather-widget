@@ -1,10 +1,12 @@
 package com.weatherwidget.data.local
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
+import org.junit.experimental.categories.Category
 
 /**
  * Pure unit coverage for [LocationMatch.sameSite] — the fine "same physical site, modulo precision
@@ -12,6 +14,7 @@ import kotlin.math.abs
  * past-day forecast line went blank: morning rows at one GPS precision were dropped by an exact-float
  * filter while afternoon rows sat at a slightly different precision.
  */
+@Category(ShortDuration::class)
 class LocationMatchSameSiteTest {
 
     // The exact coordinates seen on-device for 2026-06-16 (same Mountain View spot, two precisions).

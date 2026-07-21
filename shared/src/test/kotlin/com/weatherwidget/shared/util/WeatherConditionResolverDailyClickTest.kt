@@ -4,10 +4,12 @@ import com.weatherwidget.shared.util.WeatherConditionResolver.IC_CLOUDY
 import com.weatherwidget.shared.util.WeatherConditionResolver.IC_MOSTLY_CLOUDY
 import com.weatherwidget.shared.util.WeatherConditionResolver.IC_RAIN
 import com.weatherwidget.shared.util.WeatherConditionResolver.IconHome
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Pins the shared daily-column-tap routing decision used by both Android
@@ -16,6 +18,7 @@ import org.junit.Test
  * clears [WeatherConditionResolver.DAILY_CLICK_PRECIP_THRESHOLD]; otherwise the hourly graph. A
  * daily tap never routes to cloud cover (unlike bottom-row taps via `resolveIconHome`).
  */
+@Category(ShortDuration::class)
 class WeatherConditionResolverDailyClickTest {
 
     @Test

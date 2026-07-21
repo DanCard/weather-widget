@@ -1,11 +1,14 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.LocalDate
 import java.time.MonthDay
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class ClimateNormalsTest {
 
     private fun day(date: String, high: Float, low: Float) =

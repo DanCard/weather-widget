@@ -1,12 +1,15 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class TemperatureInterpolatorTest {
     private val zone = ZoneId.of("America/Los_Angeles")
 

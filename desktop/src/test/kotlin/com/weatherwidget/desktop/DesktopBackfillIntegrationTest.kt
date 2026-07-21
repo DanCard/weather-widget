@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.test.category.MediumDuration
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -13,6 +14,7 @@ import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import org.junit.experimental.categories.Category
 
 /**
  * GENERIC_GAP ('Generic') is a FUTURE-ONLY forecast filler — it covers forecast hours beyond the
@@ -24,6 +26,7 @@ import java.nio.file.Path
  * to verify a one-time Open-Meteo history backfill — that behaviour was removed precisely because it
  * violated the future-only rule.)
  */
+@Category(MediumDuration::class)
 class DesktopBackfillIntegrationTest {
 
     private lateinit var tempDbPath: Path

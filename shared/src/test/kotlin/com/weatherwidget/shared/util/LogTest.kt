@@ -2,6 +2,7 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.TemperatureLabelResolver
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -9,7 +10,9 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class LogTest {
 
     private data class Entry(

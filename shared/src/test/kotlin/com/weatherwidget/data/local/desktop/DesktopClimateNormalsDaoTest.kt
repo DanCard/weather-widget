@@ -1,12 +1,15 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DesktopClimateNormalsDaoTest {
     private lateinit var tempDbPath: Path
     private lateinit var db: DesktopWeatherDatabase

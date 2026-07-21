@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -8,6 +9,7 @@ import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import org.junit.experimental.categories.Category
 
 /**
  * Regression coverage for the Samsung/desktop "forecast LOW drawn on top of the fetch-dot value
@@ -15,6 +17,7 @@ import java.time.ZoneOffset
  * the fetch-dot's pink actual-temp label (passed as a HARD obstacle), the engine must flip the LOW
  * above the curve instead of stacking it on top. See plans/samsung-clash-of-labels-*.md.
  */
+@Category(ShortDuration::class)
 class TemperatureLabelFetchDotHardBoundsTest {
 
     private fun buildHours(

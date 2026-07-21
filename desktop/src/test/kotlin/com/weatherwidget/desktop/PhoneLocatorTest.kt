@@ -1,9 +1,12 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class PhoneLocatorTest {
     @Test
     fun `parseAdbDevices parses serial and state`() {

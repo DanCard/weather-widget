@@ -1,8 +1,11 @@
 package com.weatherwidget.data.model
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DataStatusTest {
 
     private val now = 1000L

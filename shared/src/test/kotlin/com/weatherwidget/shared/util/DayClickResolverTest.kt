@@ -1,10 +1,13 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DayClickResolverTest {
 
     @Test

@@ -1,12 +1,15 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import kotlin.math.cos
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class TemperatureLabelSuppressionTest {
 
     @Test

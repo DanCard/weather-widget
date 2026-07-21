@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.shared.util.ClimateNormals
+import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -17,7 +18,9 @@ import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.LocalDate
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DesktopWeatherRepositoryTest {
 
     private lateinit var tempDbPath: Path

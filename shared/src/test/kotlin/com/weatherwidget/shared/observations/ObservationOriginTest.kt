@@ -2,10 +2,13 @@ package com.weatherwidget.shared.observations
 
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.util.SpatialInterpolator
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class ObservationOriginTest {
 
     private val now = 1_700_000_000_000L

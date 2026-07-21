@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -14,6 +15,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.LocalDate
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
 /**
  * The one-time backfill (post-upgrade) that fills forecastDayPrecipChance/forecastNightPrecipChance
@@ -21,6 +23,7 @@ import java.time.ZoneId
  * hourly_forecast_history archive (DesktopWeatherDao.getHourlyHistory already returns the freshest
  * snapshot per hour — never the live, REPLACE-overwritten hourly_forecasts table).
  */
+@Category(MediumDuration::class)
 class DesktopBackfillChanceSnapshotTest {
     private lateinit var tempDbPath: Path
     private lateinit var db: DesktopWeatherDatabase

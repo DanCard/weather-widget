@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -7,6 +8,7 @@ import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import org.junit.experimental.categories.Category
 
 /**
  * Desktop "Thu 11 / 60.6°" bug: the ACTUAL_LOW label was flipped ABOVE its valley because the
@@ -15,6 +17,7 @@ import java.time.ZoneOffset
  * labels its own actual line), so it sits below when the forecast is clear, and only flips above
  * when the forecast genuinely dips below the valley. See plans/samsung-clash-of-labels-*.md.
  */
+@Category(ShortDuration::class)
 class TemperatureActualLowOwnCurveGrazeTest {
 
     private val widthPx = 600

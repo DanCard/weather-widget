@@ -2,11 +2,14 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DailyNoonCloudCoverTest {
 
     private val zone = ZoneId.of("UTC")

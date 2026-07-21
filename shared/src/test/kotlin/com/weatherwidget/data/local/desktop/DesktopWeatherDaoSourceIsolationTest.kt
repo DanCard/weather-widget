@@ -3,6 +3,7 @@ package com.weatherwidget.data.local.desktop
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -10,11 +11,13 @@ import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import org.junit.experimental.categories.Category
 
 /**
  * Guards the core invariant: data read for a source must come ONLY from that source. The single
  * sanctioned exception is the climate-normal gap (`Generic`) for FUTURE hours in getHourlyHistory.
  */
+@Category(ShortDuration::class)
 class DesktopWeatherDaoSourceIsolationTest {
     private lateinit var tempDbPath: Path
     private lateinit var db: DesktopWeatherDatabase

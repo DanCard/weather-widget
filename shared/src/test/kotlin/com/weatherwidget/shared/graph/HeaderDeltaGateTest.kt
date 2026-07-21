@@ -1,10 +1,13 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.test.category.ShortDuration
 import java.time.LocalDateTime
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class HeaderDeltaGateTest {
 
     private val now = LocalDateTime.of(2026, 7, 3, 14, 0)

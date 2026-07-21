@@ -1,11 +1,13 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.test.category.ShortDuration
 import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Pins the window behaviour of [ActualTemperatureSeriesBuilder.blendObservationSeries], which
@@ -20,6 +22,7 @@ import org.junit.Test
  *
  * Fixture is real device data; see [DeviceBlendFixture].
  */
+@Category(ShortDuration::class)
 class BlendWindowIndependenceTest {
 
     private val zone: ZoneId = ZoneId.of("America/Los_Angeles")

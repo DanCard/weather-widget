@@ -1,12 +1,15 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class DailyHistoryFreezeTest {
     private val zone = ZoneId.of("America/Los_Angeles")
     private val date = LocalDate.of(2026, 7, 1)

@@ -2,13 +2,16 @@ package com.weatherwidget.shared.graph
 
 import com.weatherwidget.shared.actuals.ActualTemperaturePoint
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesResult
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class HourDataAssemblerTest {
     private val zone = ZoneId.of("America/Los_Angeles")
 

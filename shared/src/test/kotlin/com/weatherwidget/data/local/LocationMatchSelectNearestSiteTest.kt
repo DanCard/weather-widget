@@ -1,7 +1,9 @@
 package com.weatherwidget.data.local
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
 /**
  * Pure unit coverage for [LocationMatch.selectNearestSite] — the step that collapses a raw
@@ -12,6 +14,7 @@ import org.junit.Test
  * that day, which sits 0.075°/0.047° from the current site — a different town, yet well inside the
  * ±[LocationMatch.TOLERANCE_DEG] box, so the DAO returned it and the list rendered it.
  */
+@Category(ShortDuration::class)
 class LocationMatchSelectNearestSiteTest {
 
     /** Minimal stand-in for the row shape both backends share: a stored *device* location. */
