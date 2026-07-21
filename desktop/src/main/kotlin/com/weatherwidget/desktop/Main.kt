@@ -646,6 +646,9 @@ private fun runApp() = application {
                 repository = repository,
                 config = currentConfig,
                 showRequestId = obsShowRequestId,
+                // Same "DB changed" signal the popup reloads on, so the stations list tracks the
+                // live DB instead of freezing at the snapshot taken when the window was opened.
+                dataUpdateCount = dataUpdateCount,
                 onClose = { observationsVisible = false },
                 onConfigUpdate = { newConfig ->
                     saveConfigAndNotify(newConfig)

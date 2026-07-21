@@ -75,12 +75,43 @@ private enum class LogFilter(val label: String, val tags: List<String>) {
     ),
 }
 
+/** How often the open window re-evaluates reading ages (see [nowMs] use in [ObservationList]). */
+private const val AGE_TICK_MS = 60_000L
+
+/**
+ * The station rows the list shows for [source], newest reading per station, nearest first.
+ *
+ * Extracted from the composable so it is testable: the one-shot-snapshot bug this window had went
+ * unnoticed partly because every transform lived inside `@Composable` code with no seam.
+ *
+ * **Order-dependent:** picking `first()` per station is only "newest" because
+ * [DesktopWeatherDao.getRecentObservations] returns `ORDER BY timestamp DESC`. Sorting defensively
+ * here keeps the result correct even if that contract changes.
+ */
+internal fun visibleStationRows(
+    all: List<DesktopObservationEntity>,
+    source: WeatherSource,
+): List<DesktopObservationEntity> =
+    all.asSequence()
+        .filter { it.api == source.id }
+        // Hide synthetic rows (IDW blend + NWS history backfill) — the shared matcher is the same
+        // one the Android stations list uses. The stationType guard stays as a belt-and-suspenders
+        // catch for the desktop-only "BLENDED" marker.
+        .filter {
+            ObservationSourceMatcher.matchesObservationSource(it.stationId, source) &&
+                it.stationType != "BLENDED"
+        }
+        .groupBy { it.stationId }
+        .map { (_, rows) -> rows.maxByOrNull { it.timestamp }!! }
+        .sortedBy { it.distanceKm }
+
 @Composable
 internal fun ObservationsWindow(
     weatherDao: DesktopWeatherDao,
     repository: DesktopWeatherRepository,
     config: DesktopConfig,
     showRequestId: Int = 0,
+    dataUpdateCount: Int = 0,
     onClose: () -> Unit,
     onConfigUpdate: (DesktopConfig) -> Unit,
 ) {
@@ -148,18 +179,7 @@ internal fun ObservationsWindow(
         val loadData = {
             scope.launch(Dispatchers.IO) {
                 val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                val obs = weatherDao.getRecentObservations(sinceMs)
-                    .filter { it.api == currentSource.id }
-                    // Hide synthetic rows (IDW blend + NWS history backfill) — the shared matcher is
-                    // the same one the Android stations list uses. The stationType guard stays as a
-                    // belt-and-suspenders catch for the desktop-only "BLENDED" marker.
-                    .filter {
-                        ObservationSourceMatcher.matchesObservationSource(it.stationId, currentSource) &&
-                            it.stationType != "BLENDED"
-                    }
-                    .groupBy { it.stationId }
-                    .map { it.value.first() }
-                    .sortedBy { it.distanceKm }
+                val obs = visibleStationRows(weatherDao.getRecentObservations(sinceMs), currentSource)
 
                 // Filter by tag in SQL so the cap counts fetch rows, not the verbose current-temp
                 // tags (CurrentTempResolver etc.) that otherwise swamp app_logs.
@@ -172,8 +192,27 @@ internal fun ObservationsWindow(
             }
         }
 
-        LaunchedEffect(currentSource, logFilter) {
+        // Reload on every "data changed" signal, not just on user input. dataUpdateCount is the
+        // popup's consolidated counter — socket push, `.data-updated` watch, and the resume-aware
+        // fallback tick all terminate in it (Main.kt) — so keying on it inherits all three paths.
+        // showRequestId covers raising an ALREADY-OPEN window from the tray, which previously only
+        // called toFront(); without it the user is shown the snapshot from whenever they first
+        // opened the window. (A closed window drops out of composition, so reopening always reloads.)
+        LaunchedEffect(currentSource, logFilter, dataUpdateCount, showRequestId) {
             loadData()
+        }
+
+        // Reading ages must advance on their own: ObservationOrigin.of() is evaluated during
+        // composition, so with a frozen clock a station that falls past BLEND_MAX_AGE_MS (3h) while
+        // the window sits open keeps rendering as a live "(API)" contributor with a temperature —
+        // even though the blend has already decayed its weight to zero. Ticking on the minute
+        // boundary mirrors the popup's interpolation ticker and keeps the window idle-cheap.
+        var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                kotlinx.coroutines.delay(AGE_TICK_MS - (System.currentTimeMillis() % AGE_TICK_MS))
+                nowMs = System.currentTimeMillis()
+            }
         }
 
         MaterialTheme(colorScheme = darkColorScheme()) {
@@ -303,7 +342,7 @@ internal fun ObservationsWindow(
 
                     Box(modifier = Modifier.weight(1f)) {
                         if (selectedTab == 0) {
-                            ObservationList(observations, config.useCelsius)
+                            ObservationList(observations, config.useCelsius, nowMs)
                         } else {
                             LogList(logs)
                         }
@@ -315,7 +354,11 @@ internal fun ObservationsWindow(
 }
 
 @Composable
-private fun ObservationList(observations: List<DesktopObservationEntity>, useCelsius: Boolean) {
+private fun ObservationList(
+    observations: List<DesktopObservationEntity>,
+    useCelsius: Boolean,
+    nowMs: Long,
+) {
     val timeFormatter = remember { DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault()) }
     
     LazyColumn(modifier = Modifier.fillMaxSize().padding(6.dp)) {
@@ -326,7 +369,7 @@ private fun ObservationList(observations: List<DesktopObservationEntity>, useCel
                 timestampMs = obs.timestamp,
                 qcFailed = obs.qcFailed,
                 isWebFallback = obs.isWebFallback,
-                nowMs = System.currentTimeMillis(),
+                nowMs = nowMs,
             )
             // QC-rejected and stale readings are both absent from the blend, so neither shows a value.
             val excludedFromBlend = origin == ObservationOrigin.Kind.QC_FAILED ||
