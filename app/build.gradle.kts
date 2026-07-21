@@ -112,12 +112,12 @@ ktlint {
 
 android {
     namespace = "com.weatherwidget"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.weatherwidget"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 26071501
         versionName = "1.0.2"
 
