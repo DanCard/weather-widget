@@ -543,7 +543,9 @@ internal object TemperatureStateResolver {
             blendDebugCollector.emittedLines()
                 .take(MAX_PERSISTED_BLEND_DEBUG_LINES)
                 .forEach { line ->
-                    database.appLogDao().log("TEMP_ACTUALS_DEBUG", "$blendDebugPrefix $line")
+                    // VERBOSE: per-paint blend diagnostics — logcat-only, kept out of app_logs
+                    // (this tag fired ~14k rows/3 days on a 5-widget device and is never queried back).
+                    database.appLogDao().log("TEMP_ACTUALS_DEBUG", "$blendDebugPrefix $line", "VERBOSE")
                 }
             database.appLogDao().log(
                 "TEMP_ACTUALS_DEBUG",
@@ -552,6 +554,7 @@ internal object TemperatureStateResolver {
                     blendedPointCount = actualCount,
                     blendDurationMs = buildHourDataMs,
                 ),
+                "VERBOSE",
             )
             hourDataResult.blendStats?.let { stats ->
                 database.appLogDao().log(

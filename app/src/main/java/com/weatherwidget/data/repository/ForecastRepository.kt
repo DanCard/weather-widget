@@ -100,6 +100,9 @@ class ForecastRepository
             private const val PREF_FROZEN_DISPLAY_BACKFILL_DONE = "frozen_display_backfill_done"
             private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 30L
 
+            /** Hard ceiling on app_logs rows, enforced in [cleanOldData] after the age cutoff. */
+            private const val APP_LOG_MAX_ROWS = 50_000
+
             // A row is rewritten only when its content actually changes — never just to refresh
             // fetchedAt. fetchedAt therefore means "when this content was produced", which is what
             // freshest-selection wants; the forecast-history snapshot stamps its own real fetch time
@@ -1359,5 +1362,9 @@ class ForecastRepository
             observationDao.deleteOldObservations(tenDaysAgoTimestamp)
             dailyHistoryDao.deleteOldExtremes(thirteenMonthsAgoTimestamp)
             appLogDao.deleteOldLogs(logsCutoffTimestamp)
+            // Backstop the 72h age cutoff with a hard row cap: at high write rates (multi-widget
+            // devices) the time window alone let app_logs reach ~100k rows / 18MB, slowing every
+            // click's indexed insert. 50k rows keeps ~2 days of normal volume while bounding worst case.
+            appLogDao.capToNewest(APP_LOG_MAX_ROWS)
         }
     }

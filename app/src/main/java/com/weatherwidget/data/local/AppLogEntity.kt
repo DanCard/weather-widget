@@ -72,6 +72,15 @@ interface AppLogDao {
     @Query("DELETE FROM app_logs WHERE timestamp < :cutoff")
     suspend fun deleteOldLogs(cutoff: Long)
 
+    /**
+     * Hard cap on table size: delete all but the newest [keep] rows (ordered by the autoincrement
+     * primary key, which is monotonic with insert order and already indexed). A backstop for the
+     * age-based [deleteOldLogs] — at high write rates the 72h window alone let app_logs reach
+     * ~100k rows / 18MB in 3 days, and every click pays an indexed insert into that table.
+     */
+    @Query("DELETE FROM app_logs WHERE id NOT IN (SELECT id FROM app_logs ORDER BY id DESC LIMIT :keep)")
+    suspend fun capToNewest(keep: Int)
+
     @Query("SELECT COUNT(*) FROM app_logs")
     suspend fun getCount(): Int
 
@@ -96,10 +105,16 @@ private inline fun crashlytics(block: (FirebaseCrashlytics) -> Unit) {
 
 /** Log to the app_logs DB table, logcat, and Firebase Crashlytics in one call. */
 suspend fun AppLogDao.log(tag: String, message: String, level: String = "DEBUG") {
-    try {
-        insert(AppLogEntity(tag = tag, message = message, level = level))
-    } catch (e: Exception) {
-        Log.e("AppLog", "Failed to log to DB: $e")
+    // VERBOSE is logcat-only and never persisted — matching the shared-module dbLogger boundary
+    // (see CurrentTemperatureResolver.resultLogLevel). This lets high-frequency, per-paint/per-poll
+    // diagnostics pass "VERBOSE" to stay out of app_logs, so they neither bloat the DB nor add an
+    // indexed insert to the click critical path. Only this level is dropped; DEBUG+ still persist.
+    if (level != "VERBOSE") {
+        try {
+            insert(AppLogEntity(tag = tag, message = message, level = level))
+        } catch (e: Exception) {
+            Log.e("AppLog", "Failed to log to DB: $e")
+        }
     }
 
     // Mirror to Firebase Crashlytics for better context in crash reports.

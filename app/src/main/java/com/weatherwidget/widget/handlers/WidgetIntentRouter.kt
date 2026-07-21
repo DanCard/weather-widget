@@ -168,8 +168,14 @@ suspend fun handleNavigation(
         val historyStart = today.minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val forecastEnd = today.plusDays(DAILY_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
 
+        // Cache-backed: a nav burst (or nav interleaved with a view toggle) reuses one forecast +
+        // actuals load instead of re-querying ~1.6k observations per tap. The raw list is gap-filled
+        // here exactly as before.
+        val cachedData = loadCachedDailyData(
+            context, ctx.database, ctx.location.lat, ctx.location.lon, today, historyStart, forecastEnd,
+        )
         val weatherList = ClimateGapFiller(ctx.database.climateNormalDao()).appendGaps(
-            ctx.forecastDao.getForecastsInRange(historyStart, forecastEnd, ctx.location.lat, ctx.location.lon),
+            cachedData.weatherListRaw,
             ctx.location.lat,
             ctx.location.lon,
             today,
@@ -183,7 +189,7 @@ suspend fun handleNavigation(
 
         val availableForecastDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }.toSet()
 
-        val dailyActuals = getDailyActuals(ctx.database, ctx.location.lat, ctx.location.lon, WidgetStateManager(context).getPersonalStationWeight())
+        val dailyActuals = cachedData.dailyActuals
         val availableObsDates = dailyActuals.values.flatMap { it.keys }.toSet()
 
         val availableDates = (availableForecastDates + availableObsDates)
@@ -458,6 +464,32 @@ suspend fun handleToggleView(
                 startTimeMs = startMs, actionTag = "TOGGLE_VIEW", extraMetadata = "mode=${newMode.name}"
             )
         }
+    }
+
+    /**
+     * Loads the two heaviest interaction-path values — the raw daily forecast list and
+     * [DailyActualsBySource] — through [WidgetInteractionCache] so a burst of taps (across widgets or
+     * repeated on one) shares a single load instead of re-querying per tap. See the cache's docs for
+     * why staleness is bounded by TTL alone. [historyStart]/[forecastEnd] MUST match the daily range
+     * both callers already use, so the cached raw list is interchangeable between them.
+     */
+    private suspend fun loadCachedDailyData(
+        context: Context,
+        database: WeatherDatabase,
+        lat: Double,
+        lon: Double,
+        today: LocalDate,
+        historyStart: Long,
+        forecastEnd: Long,
+    ): WidgetInteractionCache.Data {
+        val key = WidgetInteractionCache.Key.of(lat, lon, today.toEpochDay())
+        val nowMs = WidgetInteractionCache.nowMs()
+        WidgetInteractionCache.get(key, nowMs)?.let { return it }
+        val weatherListRaw = database.forecastDao().getForecastsInRange(historyStart, forecastEnd, lat, lon)
+        val dailyActuals = getDailyActuals(database, lat, lon, WidgetStateManager(context).getPersonalStationWeight())
+        val data = WidgetInteractionCache.Data(weatherListRaw, dailyActuals)
+        WidgetInteractionCache.put(key, data, nowMs)
+        return data
     }
 
     @VisibleForTesting
@@ -836,8 +868,17 @@ suspend fun handleResize(
         val hourlyDao = database.hourlyForecastDao()
         val gapFiller = ClimateGapFiller(database.climateNormalDao())
 
+        // When the caller (e.g. a view toggle) didn't hand us pre-loaded data, resolve the two heavy
+        // loads through WidgetInteractionCache so rapid taps share one query. Daily-nav passes both
+        // (already cache-backed on its side), so it skips this lookup entirely.
+        val cachedData =
+            if (weatherList == null || dailyActuals == null) {
+                loadCachedDailyData(context, database, lat, lon, today, historyStart, forecastEnd)
+            } else {
+                null
+            }
         val finalWeatherList = gapFiller.appendGaps(
-            weatherList ?: forecastDao.getForecastsInRange(historyStart, forecastEnd, lat, lon),
+            weatherList ?: cachedData!!.weatherListRaw,
             lat,
             lon,
             today,
@@ -871,7 +912,7 @@ suspend fun handleResize(
         val todayStartMs = LocalDate.now().atStartOfDay(zoneId).toInstant().toEpochMilli()
         val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs)
             ?: database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
-        val finalDailyActuals = dailyActuals ?: getDailyActuals(database, lat, lon, WidgetStateManager(context).getPersonalStationWeight())
+        val finalDailyActuals = dailyActuals ?: cachedData!!.dailyActuals
         val currentTempHourlyForecasts =
             GraphDataLoader.loadCurrentTempResolutionHourlyForecasts(
                 hourlyDao = hourlyDao,

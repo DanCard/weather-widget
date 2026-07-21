@@ -700,7 +700,8 @@ class ObservationRepository @Inject constructor(
             appLogDao.log(
                 "DAILY_HISTORY_BLEND",
                 "date=$date src=${new.source} computed_hi=${new.highTemp} computed_lo=${new.lowTemp} stations=[$stationsStr] userLat=$latitude userLon=$longitude",
-                "DEBUG",
+                // VERBOSE: per-blend diagnostic, logcat-only — ~8.6k rows/3 days, never queried back.
+                "VERBOSE",
             )
         }
 
