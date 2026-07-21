@@ -112,6 +112,55 @@ class ObservationFallbackPolicyTest {
         )
     }
 
+    // --- Fetch-first policy (plan 260721) ------------------------------------------------------
+
+    @Test
+    fun `fetch-both is unconditional for the nearest three stations`() {
+        // No staleness argument: the top WEB_FETCH_STATIONS fetch web every cycle, fresh or not.
+        assertTrue(ObservationFallbackPolicy.shouldFetchWeb(0))
+        assertTrue(ObservationFallbackPolicy.shouldFetchWeb(1))
+        assertTrue(ObservationFallbackPolicy.shouldFetchWeb(2))
+        assertFalse(ObservationFallbackPolicy.shouldFetchWeb(3))
+        assertFalse(ObservationFallbackPolicy.shouldFetchWeb(4))
+    }
+
+    @Test
+    fun `metrics tier covers the nearest five stations`() {
+        for (index in 0..4) assertTrue("index $index", ObservationFallbackPolicy.shouldLogWebMetrics(index))
+        assertFalse(ObservationFallbackPolicy.shouldLogWebMetrics(5))
+    }
+
+    @Test
+    fun `metrics tier is a superset of the fetch-both tier`() {
+        // Every station that fetches-for-use also logs metrics; the reverse is not true (4 and 5 are
+        // metrics-only). This coupling is what lets stations 4-5 be fetched without being displayed.
+        for (index in 0..6) {
+            if (ObservationFallbackPolicy.shouldFetchWeb(index)) {
+                assertTrue("index $index fetches but does not log", ObservationFallbackPolicy.shouldLogWebMetrics(index))
+            }
+        }
+        assertTrue(ObservationFallbackPolicy.WEB_METRICS_STATIONS >= ObservationFallbackPolicy.WEB_FETCH_STATIONS)
+    }
+
+    @Test
+    fun `metrics window spans more than one METAR cycle`() {
+        // A metrics-only fetch that asked for <=60 min could miss a late/skipped ob and log nothing —
+        // the same empty-window trap the fallback window was fixed for.
+        assertTrue(
+            "metrics window ${ObservationFallbackPolicy.METRICS_WINDOW_MINUTES}min must exceed one hour",
+            ObservationFallbackPolicy.METRICS_WINDOW_MINUTES > 60L,
+        )
+    }
+
+    @Test
+    fun `master switch disables both tiers`() {
+        // Documents the revert lever. If FETCH_BOTH_ENABLED is ever flipped false, neither tier fires.
+        if (!ObservationFallbackPolicy.FETCH_BOTH_ENABLED) {
+            assertFalse(ObservationFallbackPolicy.shouldFetchWeb(0))
+            assertFalse(ObservationFallbackPolicy.shouldLogWebMetrics(0))
+        }
+    }
+
     @Test
     fun `window is capped and never shrinks below the margin`() {
         val ancient = now - 40L * 60 * 60 * 1000

@@ -15,6 +15,43 @@ object ObservationFallbackPolicy {
      */
     const val MAX_WEB_FALLBACK_STATIONS = 3
 
+    // --- Fetch-first policy (plan 260721) ------------------------------------------------------
+    // The latest-observation path no longer waits for the API to go stale before consulting the
+    // web source: the web reading is frequently fresher than api.weather.gov (CDN cache +
+    // NWS ingest lag), so for the nearest stations we fetch BOTH sources every data-fetch cycle
+    // and display prefer-newest. Backfill paths are deliberately left on the old fallback gate.
+
+    /** Master switch: false reverts the latest path to fallback-only in one line. */
+    const val FETCH_BOTH_ENABLED = true
+
+    /** Nearest N stations fetch BOTH sources every cycle and use prefer-newest for display. */
+    const val WEB_FETCH_STATIONS = 3
+
+    /**
+     * Nearest N stations additionally fetch web purely to log the web-vs-API freshness metric
+     * ([shouldLogWebMetrics]); stations in [WEB_FETCH_STATIONS, WEB_METRICS_STATIONS) never feed
+     * their web reading into storage or the blend — they exist only to gather data on whether the
+     * fetch-both set is worth widening past [WEB_FETCH_STATIONS].
+     */
+    const val WEB_METRICS_STATIONS = 5
+
+    /**
+     * Window requested for a metrics-only web fetch. We only need the single newest reading to
+     * compare against the API, not history — but it must span more than one METAR cycle (~1h) or a
+     * late/skipped ob leaves the window empty and the metric is blank (same trap as
+     * [webFallbackWindowMinutes]). 90 min covers one missed cycle at negligible cost.
+     */
+    const val METRICS_WINDOW_MINUTES = 90L
+
+    /** The nearest [WEB_FETCH_STATIONS] fetch both sources unconditionally (no staleness gate). */
+    fun shouldFetchWeb(stationIndex: Int): Boolean =
+        FETCH_BOTH_ENABLED && stationIndex < WEB_FETCH_STATIONS
+
+    /** The nearest [WEB_METRICS_STATIONS] fetch web at least for the comparison metric. */
+    fun shouldLogWebMetrics(stationIndex: Int): Boolean =
+        FETCH_BOTH_ENABLED && stationIndex < WEB_METRICS_STATIONS
+    // -------------------------------------------------------------------------------------------
+
     /** An API observation older than this is treated as stale and triggers the web fallback. */
     const val STALE_AFTER_MS = 60 * 60 * 1000L
 

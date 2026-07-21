@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+import com.weatherwidget.shared.observations.LatestObservationMerge
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
@@ -187,8 +188,8 @@ class DesktopWeatherService(
         } ?: emptyList()
         fetchObservationBundles(stations, historyDays).flatMap { bundle ->
             buildList {
-                bundle.latest?.let { add(it.toReading(bundle.station, bundle.isWebFallback)) }
-                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.isWebFallback)) }
+                bundle.latest?.let { add(it.toReading(bundle.station, bundle.latestIsWeb)) }
+                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.historicalIsWeb)) }
             }
         }
     }
@@ -238,7 +239,7 @@ class DesktopWeatherService(
         // time-decay weighting (1 - age/3h) so older stations reduce their own contribution
         // automatically. Matching Android which uses a 3-hour staleness window rather than 30 min.
         val allLatestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest?.toReading(bundle.station, bundle.isWebFallback)
+            bundle.latest?.toReading(bundle.station, bundle.latestIsWeb)
         }
         // Subset used to decide whether a fresh observed temp is available for the header.
         val freshLatestReadings = allLatestReadings.filter {
@@ -256,8 +257,8 @@ class DesktopWeatherService(
         // All readings (latest + historical) from all successful stations
         val rawObservations = bundles.flatMap { bundle ->
             buildList {
-                bundle.latest?.let { add(it.toReading(bundle.station, bundle.isWebFallback)) }
-                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.isWebFallback)) }
+                bundle.latest?.let { add(it.toReading(bundle.station, bundle.latestIsWeb)) }
+                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.historicalIsWeb)) }
             }
         }
 
@@ -355,29 +356,68 @@ class DesktopWeatherService(
                     runCatching { ZonedDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull()
                 }
 
+                // Fetch-first policy (plan 260721): the nearest WEB_FETCH_STATIONS fetch BOTH sources
+                // every cycle and anchor current temp on prefer-newest (web is often fresher than the
+                // API); stations up to WEB_METRICS_STATIONS also fetch web, but only to log the
+                // freshness metric. Web here uses a modest window (not the wide historyDays one) — the
+                // NWS API window still supplies historical actuals, so web only supplements the latest.
                 var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
-                if (ObservationFallbackPolicy.shouldUseWebFallback(index, newestObservationMs, System.currentTimeMillis())) {
-                    val fallbackReason = ObservationFallbackPolicy.fallbackReason(historical.size)
-                    weatherDao?.log("NWS_STATION_SYNOPTIC_FALLBACK", "station=${station.id} reason=$fallbackReason", "INFO")
-                    Log.i(TAG, "NWS API observations for ${station.id} are stale or missing ($fallbackReason). Querying Synoptic fallback...")
-                    synopticOutcome = synopticApi.fetchSynopticObservations(station.id, historyDays * 24 * 60, station.name)
-                    val obsList = synopticOutcome.valueOrNull()
-                    if (!obsList.isNullOrEmpty()) {
-                        // Latest must be blend-usable; QC-flagged readings stay in historical so
-                        // they are stored and visible in the stations list, but never anchor
-                        // the current temp. All-flagged → latest=null (station shows QC state).
-                        val usableLatest = obsList.lastOrNull { !it.qcFailed }
-                        return@async ObservationBundle(
-                            station,
-                            usableLatest,
-                            obsList.filter { it !== usableLatest },
-                            isWebFallback = true,
-                        )
+                var webReadings: List<NwsApi.Observation> = emptyList()
+                val fetchWebForUse = ObservationFallbackPolicy.shouldFetchWeb(index)
+                val logWebMetrics = ObservationFallbackPolicy.shouldLogWebMetrics(index)
+                var bundleLatest = latest
+                var latestIsWeb = false
+                if (fetchWebForUse || logWebMetrics) {
+                    val nowMs = System.currentTimeMillis()
+                    val windowMinutes = if (fetchWebForUse) {
+                        ObservationFallbackPolicy.webFallbackWindowMinutes(newestObservationMs, nowMs)
+                    } else {
+                        ObservationFallbackPolicy.METRICS_WINDOW_MINUTES
+                    }
+                    synopticOutcome = synopticApi.fetchSynopticObservations(station.id, windowMinutes, station.name)
+                    webReadings = synopticOutcome.valueOrNull().orEmpty()
+                    val merge = LatestObservationMerge.preferNewest(
+                        apiLatest = latest,
+                        apiNewestMs = newestObservationMs,
+                        webReadings = webReadings,
+                        isQcFailed = { it.qcFailed },
+                        observedAtMillis = {
+                            runCatching { ZonedDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull()
+                        },
+                    )
+                    val apiMs = merge.apiNewestMs
+                    val webMs = merge.webNewestMs
+                    val deltaMin = if (apiMs != null && webMs != null) (webMs - apiMs) / 60_000L else null
+                    val webUsableLatest = webReadings.lastOrNull { !it.qcFailed }
+                    weatherDao?.log(
+                        "OBS_WEB_API_DELTA",
+                        "station=${station.id} index=$index tier=${if (fetchWebForUse) "use" else "metrics"} " +
+                            "apiNewestMs=${merge.apiNewestMs} webNewestMs=${merge.webNewestMs} deltaMin=$deltaMin " +
+                            "apiTempC=${latest?.temperatureCelsius} webTempC=${webUsableLatest?.temperatureCelsius} " +
+                            "webQcFailed=${webReadings.any { it.qcFailed }} chosen=${if (merge.chosenIsWeb) "web" else "api"}",
+                        "INFO",
+                    )
+                    if (fetchWebForUse) {
+                        // Prefer-newest anchors current temp; historical stays the NWS API window.
+                        bundleLatest = merge.chosen
+                        latestIsWeb = merge.chosenIsWeb
                     }
                 }
 
                 if (historical.isNotEmpty()) {
-                    ObservationBundle(station, latest, historical, isWebFallback = false)
+                    ObservationBundle(station, bundleLatest, historical, latestIsWeb = latestIsWeb, historicalIsWeb = false)
+                } else if (fetchWebForUse && webReadings.isNotEmpty()) {
+                    // NWS returned no historical window; surface the web readings we already fetched so
+                    // the station still contributes (mirrors the pre-260721 web-fallback bundle, just a
+                    // narrower window). QC-flagged stay in historical for the stations UI; the chosen
+                    // usable latest anchors current temp. All-flagged → latest=null (station shows QC).
+                    ObservationBundle(
+                        station,
+                        bundleLatest,
+                        webReadings.filter { it !== bundleLatest },
+                        latestIsWeb = latestIsWeb,
+                        historicalIsWeb = true,
+                    )
                 } else if (shouldTouchObservationFetchedAt(historicalOutcome, synopticOutcome)) {
                     // Attempt completed but the station definitively yielded nothing storable
                     // (e.g. publishing only null-temperature reports). Record the attempt on the
@@ -403,7 +443,11 @@ class DesktopWeatherService(
         val station: NwsApi.StationInfo,
         val latest: NwsApi.Observation?,
         val historical: List<NwsApi.Observation>,
-        val isWebFallback: Boolean = false,
+        // Origin is per-slot, not per-bundle: under the fetch-first policy (plan 260721) the latest
+        // reading can come from web (prefer-newest) while the historical series is still the NWS API
+        // window. A single flag would mislabel one of them in the stations UI.
+        val latestIsWeb: Boolean = false,
+        val historicalIsWeb: Boolean = false,
     )
 
     private fun parseTimestamp(ts: String): Long {
@@ -484,7 +528,7 @@ class DesktopWeatherService(
         val bundles = fetchObservationBundles(stations)
         
         val allLatestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest?.toReading(bundle.station, bundle.isWebFallback)
+            bundle.latest?.toReading(bundle.station, bundle.latestIsWeb)
         }
         val freshLatestReadings = allLatestReadings.filter {
             System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
@@ -501,8 +545,8 @@ class DesktopWeatherService(
         // All readings (latest + historical) from all successful stations
         val rawObservations = bundles.flatMap { bundle ->
             buildList {
-                bundle.latest?.let { add(it.toReading(bundle.station, bundle.isWebFallback)) }
-                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.isWebFallback)) }
+                bundle.latest?.let { add(it.toReading(bundle.station, bundle.latestIsWeb)) }
+                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.historicalIsWeb)) }
             }
         }
 

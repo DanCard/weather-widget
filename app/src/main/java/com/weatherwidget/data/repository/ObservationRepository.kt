@@ -20,6 +20,7 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.observations.LatestObservationMerge
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.util.SpatialInterpolator
@@ -111,17 +112,20 @@ class ObservationRepository @Inject constructor(
 
         val closestDeferred = async {
             val retryDelaysMs = listOf(10_000L, 30_000L)
-            var entity = fetchStationObservation(closestStation, latitude, longitude, attempt = 0)
+            var entity = fetchStationObservation(closestStation, latitude, longitude, attempt = 0, stationIndex = 0)
             for ((index, delayMs) in retryDelaysMs.withIndex()) {
                 if (entity != null) break
                 delay(delayMs)
-                entity = fetchStationObservation(closestStation, latitude, longitude, attempt = index + 1)
+                entity = fetchStationObservation(closestStation, latitude, longitude, attempt = index + 1, stationIndex = 0)
             }
             entity
         }
 
-        val otherDeferreds = otherStations.map { stationInfo ->
-            async { fetchStationObservation(stationInfo, latitude, longitude) }
+        // stationIndex is the station's position in the distance-sorted list (closest = 0); it drives
+        // the fetch-both / metrics tiers in ObservationFallbackPolicy. otherStations was dropped from
+        // the head, so its element i is the (i + 1)-th nearest station.
+        val otherDeferreds = otherStations.mapIndexed { i, stationInfo ->
+            async { fetchStationObservation(stationInfo, latitude, longitude, stationIndex = i + 1) }
         }
 
         val successfulEntities = (listOf(closestDeferred) + otherDeferreds).mapNotNull { it.await() }
@@ -154,59 +158,83 @@ class ObservationRepository @Inject constructor(
         latitude: Double,
         longitude: Double,
         attempt: Int = 0,
+        stationIndex: Int = 0,
     ): ObservationEntity? {
         val nwsOutcome = nwsApi.getLatestObservationDetailedResult(stationInfo.id)
         val observation = nwsOutcome.valueOrNull()
 
         val nowMs = System.currentTimeMillis()
-        val isStale = ObservationFallbackPolicy.isStale(observation.observedAtMillis(), nowMs)
+        val apiObservedAtMs = observation.observedAtMillis()
+
+        // Fetch-first policy (plan 260721): the nearest WEB_FETCH_STATIONS fetch BOTH sources every
+        // cycle (no staleness gate) and display prefer-newest, because web is often fresher than the
+        // API. Stations up to WEB_METRICS_STATIONS also fetch web, but only to log the freshness
+        // metric — their web reading never enters storage or the blend.
+        val synoptic = synopticApi
+        val fetchWebForUse = ObservationFallbackPolicy.shouldFetchWeb(stationIndex)
+        val logWebMetrics = ObservationFallbackPolicy.shouldLogWebMetrics(stationIndex)
 
         var isWeb = false
         var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
-        val finalObservation = if (isStale && synopticApi != null) {
-            val fallbackReason = when (nwsOutcome) {
-                is FetchOutcome.Success -> "stale"
-                is FetchOutcome.NoData -> "no_valid_data"
-                is FetchOutcome.Failed -> "fail"
+        val finalObservation = if (synoptic != null && (fetchWebForUse || logWebMetrics)) {
+            val windowMinutes = if (fetchWebForUse) {
+                // The window must reach back past the station's newest reading, or a silent station
+                // is asked only what it did in the last hour and we learn nothing (KPAO 2026-07-13).
+                ObservationFallbackPolicy.webFallbackWindowMinutes(apiObservedAtMs, nowMs)
+            } else {
+                // Metrics-only: just the newest reading to compare, not history.
+                ObservationFallbackPolicy.METRICS_WINDOW_MINUTES
             }
-            // The window must reach back past the station's newest reading, or the fallback asks a
-            // silent station what it did in the last hour and learns nothing (KPAO 2026-07-13).
-            val windowMinutes = ObservationFallbackPolicy.webFallbackWindowMinutes(
-                observation.observedAtMillis(),
-                nowMs,
+            synopticOutcome = synoptic.fetchSynopticObservations(stationInfo.id, windowMinutes, stationInfo.name)
+            val synopticReadings = synopticOutcome.valueOrNull().orEmpty()
+
+            val merge = LatestObservationMerge.preferNewest(
+                apiLatest = observation,
+                apiNewestMs = apiObservedAtMs,
+                webReadings = synopticReadings,
+                isQcFailed = { it.qcFailed },
+                observedAtMillis = { it.observedAtMillis() },
             )
+
+            // Freshness metric for the nearest WEB_METRICS_STATIONS: how much newer is web than API?
+            // deltaMin>0 ⇒ web is fresher. Raw temps logged at full precision so a future
+            // precision-aware preference (plan 260721) has data to be designed against.
+            val apiMs = merge.apiNewestMs
+            val webMs = merge.webNewestMs
+            val deltaMin = if (apiMs != null && webMs != null) (webMs - apiMs) / 60_000L else null
+            val webUsableLatest = synopticReadings.lastOrNull { !it.qcFailed }
             appLogDao.log(
-                "NWS_STATION_SYNOPTIC_FALLBACK",
-                "station=${stationInfo.id} reason=$fallbackReason windowMin=$windowMinutes",
+                "OBS_WEB_API_DELTA",
+                "station=${stationInfo.id} index=$stationIndex tier=${if (fetchWebForUse) "use" else "metrics"} " +
+                    "apiNewestMs=${merge.apiNewestMs} webNewestMs=${merge.webNewestMs} deltaMin=$deltaMin " +
+                    "apiTempC=${observation?.temperatureCelsius} webTempC=${webUsableLatest?.temperatureCelsius} " +
+                    "webQcFailed=${synopticReadings.any { it.qcFailed }} chosen=${if (merge.chosenIsWeb) "web" else "api"}",
                 "INFO",
             )
-            Log.i(TAG, "Latest NWS observation for ${stationInfo.id} is missing or stale ($fallbackReason). Querying Synoptic fallback (window=${windowMinutes}min)...")
-            synopticOutcome = synopticApi.fetchSynopticObservations(stationInfo.id, windowMinutes, stationInfo.name)
-            val synopticReadings = synopticOutcome.valueOrNull().orEmpty()
-            // QC-flagged readings are stored (marked) so the stations UI can show the failure, but
-            // they must never become the usable observation that feeds the blend. ALL of them are
-            // written, not just the newest: a reading stored unflagged by an earlier narrow-window
-            // fetch is only healed if this pass rewrites its row (insertAll is REPLACE, keyed on
-            // stationId+timestamp), and a wide window can surface several flagged readings at once.
-            val flagged = synopticReadings.filter { it.qcFailed }
-            if (flagged.isNotEmpty()) {
-                val flaggedEntities = flagged.map {
-                    buildObservationEntity(it, stationInfo, latitude, longitude, isWebFallback = true)
+
+            if (fetchWebForUse) {
+                // QC-flagged readings are stored (marked) so the stations UI can show the failure, but
+                // never become the usable observation that feeds the blend. ALL are written, not just
+                // the newest: a reading stored unflagged by an earlier narrow-window fetch heals only
+                // when a later pass rewrites its row (insertAll is REPLACE, keyed on stationId+timestamp).
+                val flagged = synopticReadings.filter { it.qcFailed }
+                if (flagged.isNotEmpty()) {
+                    val flaggedEntities = flagged.map {
+                        buildObservationEntity(it, stationInfo, latitude, longitude, isWebFallback = true)
+                    }
+                    observationDao.insertAll(flaggedEntities)
+                    appLogDao.log(
+                        "OBS_QC_FLAGGED",
+                        "station=${stationInfo.id} count=${flaggedEntities.size} " +
+                            "timestamps=${flaggedEntities.joinToString(",") { it.timestamp.toString() }} " +
+                            "temps=${flaggedEntities.joinToString(",") { it.temperature.toString() }}",
+                        "WARN",
+                    )
                 }
-                observationDao.insertAll(flaggedEntities)
-                appLogDao.log(
-                    "OBS_QC_FLAGGED",
-                    "station=${stationInfo.id} count=${flaggedEntities.size} " +
-                        "timestamps=${flaggedEntities.joinToString(",") { it.timestamp.toString() }} " +
-                        "temps=${flaggedEntities.joinToString(",") { it.temperature.toString() }}",
-                    "WARN",
-                )
-            }
-            val synopticLatest = synopticReadings.lastOrNull { !it.qcFailed }
-            if (synopticLatest != null) {
-                isWeb = true
-                synopticLatest
+                isWeb = merge.chosenIsWeb
+                merge.chosen
             } else {
+                // Metrics-only tier: web must never influence what is displayed.
                 observation
             }
         } else {
