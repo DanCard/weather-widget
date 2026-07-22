@@ -190,7 +190,7 @@ class LocaleStringFormattingRobolectricTest {
     }
 
     @Test
-    fun `widget loading placeholder rebinds text on every locale switch via reapply`() {
+    fun `widget loading placeholder rebinds text on every locale switch via reapply`() = kotlinx.coroutines.runBlocking {
         val appWidgetId = 4242
         // de (longest strings), ar (RTL), zh-rCN (CJK), bn (complex script) — per plan Tier 2 #3.
         val qualifiers = listOf("en", "de", "ar", "zh-rCN", "bn")

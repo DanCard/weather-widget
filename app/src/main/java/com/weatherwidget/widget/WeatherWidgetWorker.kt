@@ -239,7 +239,8 @@ class WeatherWidgetWorker
 
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_start uiOnly=$uiOnlyRefresh thread=${Thread.currentThread().name}")
                         val jobType = if (uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
-                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, jobType, uiOnly = uiOnlyRefresh)
+                        val workerOrigin = if (uiOnlyRefresh) com.weatherwidget.widget.WidgetPushDispatcher.Origin.UI_ONLY else com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_FETCH
+                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, jobType, uiOnly = uiOnlyRefresh, origin = workerOrigin)
                         val afterUpdateMs = SystemClock.elapsedRealtime()
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_done uiOnly=$uiOnlyRefresh elapsedMs=${afterUpdateMs - afterActualsMs}")
 
@@ -471,11 +472,13 @@ class WeatherWidgetWorker
             dailyActuals: DailyActualsBySource = emptyMap(),
             jobType: WidgetUpdateTracker.JobType = WidgetUpdateTracker.JobType.BACKGROUND_SYNC,
             uiOnly: Boolean = false,
+            origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_FETCH,
         ) = coroutineScope {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
+            val effectiveOrigin = if (uiOnly) com.weatherwidget.widget.WidgetPushDispatcher.Origin.UI_ONLY else origin
             for (appWidgetId in appWidgetIds) {
                 val job = launch {
                     WidgetRenderer.updateWidgetWithData(
@@ -493,6 +496,7 @@ class WeatherWidgetWorker
                         // updateAppWidget makes the launcher re-inflate the whole widget — a
                         // visible flash on Samsung — on every background refresh cycle.
                         partialPush = true,
+                        origin = effectiveOrigin,
                     )
                 }
                 WidgetUpdateTracker.trackJob(appWidgetId, job, jobType)
@@ -771,7 +775,7 @@ class WeatherWidgetWorker
                 location.second,
                 todayStartMs2,
             )
-            updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, WidgetUpdateTracker.JobType.BACKGROUND_SYNC)
+            updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, WidgetUpdateTracker.JobType.BACKGROUND_SYNC, origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_CACHE)
         }
 
         private suspend fun manageCurrentTempLoopAfterRun(

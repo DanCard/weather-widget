@@ -108,7 +108,15 @@ object WidgetIntentRouter {
             .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
         for (id in ids) {
             if (id == AppWidgetManager.INVALID_APPWIDGET_ID) continue
-            refreshWidget(context, id, reason = "refresh_action_cache_first", repository = repository, actionTag = "REFRESH")
+            refreshWidget(
+                context = context,
+                appWidgetId = id,
+                reason = "refresh_action_cache_first",
+                repository = repository,
+                actionTag = "REFRESH",
+                partialPush = true,
+                origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.ACTION_REFRESH,
+            )
         }
     }
 
@@ -787,7 +795,9 @@ suspend fun handleResize(
 
         refreshWidget(
             context, appWidgetId, "resize", repository,
-            startTimeMs = startMs, actionTag = "RESIZE"
+            startTimeMs = startMs, actionTag = "RESIZE",
+            partialPush = false,
+            origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.RESIZE,
         )
     }
 
@@ -802,6 +812,8 @@ suspend fun handleResize(
         startTimeMs: Long = SystemClock.elapsedRealtime(),
         actionTag: String = "REFRESH",
         extraMetadata: String = "",
+        partialPush: Boolean = true,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.ACTION_REFRESH,
     ) {
         val ctx = resolveRefreshContext(context, reason)
 
@@ -817,6 +829,8 @@ suspend fun handleResize(
                 startTimeMs = startTimeMs,
                 actionTag = actionTag,
                 extraMetadata = extraMetadata,
+                partialPush = partialPush,
+                origin = origin,
             )
         } else {
             refreshGraphView(
@@ -829,6 +843,8 @@ suspend fun handleResize(
                 startTimeMs = startTimeMs,
                 actionTag = actionTag,
                 extraMetadata = extraMetadata,
+                partialPush = partialPush,
+                origin = origin,
             )
         }
         // WIDGET_RENDER_OK: same greppable "last good full paint" breadcrumb emitted by the onUpdate
@@ -856,6 +872,8 @@ suspend fun handleResize(
         startTimeMs: Long = SystemClock.elapsedRealtime(),
         actionTag: String = "DAILY_REFRESH",
         extraMetadata: String = "",
+        partialPush: Boolean = false,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.USER_INTERACTION,
     ) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val today = LocalDate.now()
@@ -961,6 +979,8 @@ suspend fun handleResize(
             startupToken = null,
             stateManagerNullable = stateManager,
             repository = repository,
+            partialPush = partialPush,
+            origin = origin,
         )
 
         val totalMs = SystemClock.elapsedRealtime() - startTimeMs
@@ -985,6 +1005,8 @@ suspend fun handleResize(
         startTimeMs: Long = SystemClock.elapsedRealtime(),
         actionTag: String = "GRAPH_REFRESH",
         extraMetadata: String = "",
+        partialPush: Boolean = false,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.USER_INTERACTION,
     ) {
         val stateManager = WidgetStateManager(context)
         val zoom = stateManager.getZoomLevel(appWidgetId)
@@ -1012,7 +1034,19 @@ suspend fun handleResize(
                 source = displaySource,
             )
 
-        updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository, now)
+        updateHourlyViewWithData(
+            context = context,
+            appWidgetId = appWidgetId,
+            hourlyForecasts = hourlyForecasts,
+            centerTime = centerTime,
+            displaySource = displaySource,
+            lat = lat,
+            lon = lon,
+            repository = repository,
+            now = now,
+            partialPush = partialPush,
+            origin = origin,
+        )
 
         val totalMs = SystemClock.elapsedRealtime() - startTimeMs
         val metadataString = if (extraMetadata.isNotEmpty()) " $extraMetadata" else ""
@@ -1032,6 +1066,8 @@ suspend fun handleResize(
         lon: Double,
         repository: WeatherRepository? = null,
         now: LocalDateTime,
+        partialPush: Boolean = false,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.USER_INTERACTION,
     ) {
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
@@ -1087,7 +1123,9 @@ suspend fun handleResize(
                     precipProbability = todayPrecip,
                     lastObservedTemp = observation?.temperature,
                     observedAt = observation?.observedAt,
-                    repository = repository
+                    repository = repository,
+                    partialPush = partialPush,
+                    origin = origin,
                 )
             }
             ViewMode.CLOUD_COVER -> {
@@ -1101,7 +1139,9 @@ suspend fun handleResize(
                     precipProbability = todayPrecip,
                     lastObservedTemp = observation?.temperature,
                     observedAt = observation?.observedAt,
-                    repository = repository
+                    repository = repository,
+                    partialPush = partialPush,
+                    origin = origin,
                 )
             }
             else -> {
@@ -1116,7 +1156,9 @@ suspend fun handleResize(
                     precipProbability = todayPrecip,
                     lastObservedTemp = observation?.temperature,
                     observedAt = observation?.observedAt,
-                    repository = repository
+                    repository = repository,
+                    partialPush = partialPush,
+                    origin = origin,
                 )
             }
         }

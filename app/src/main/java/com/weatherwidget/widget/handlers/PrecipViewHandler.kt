@@ -65,6 +65,7 @@ object PrecipViewHandler {
         // Background (worker-driven) repaints push partially — no launcher re-inflate flash.
         // See WidgetViewHandler.
         partialPush: Boolean = false,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UNSPECIFIED,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -136,8 +137,16 @@ object PrecipViewHandler {
                 callerTag = "PRECIP",
             )
         ) {
-            appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION state=warning thread=${Thread.currentThread().name}")
-            appWidgetManager.updateAppWidget(appWidgetId, views)
+            appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION origin=${origin.name} state=warning thread=${Thread.currentThread().name}")
+            com.weatherwidget.widget.WidgetPushDispatcher.push(
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+                views = views,
+                partialPush = false,
+                caller = "PRECIPITATION_WARNING",
+                appLogDao = appLogDao,
+                origin = origin,
+            )
             return
         }
         val sourceIndicator = HeaderFormatter.formatSourceIndicator(
@@ -366,7 +375,15 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
                 Log.w(TAG, "buildPrecipHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
                     "centerTime=$centerTime zoom=$zoom offset=$hourlyOffset, skipping bitmap update")
-                appWidgetManager.updateAppWidget(appWidgetId, views)
+                com.weatherwidget.widget.WidgetPushDispatcher.push(
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                    views = views,
+                    partialPush = partialPush,
+                    caller = "PRECIPITATION_DEGENERATE",
+                    appLogDao = appLogDao,
+                    origin = origin,
+                )
                 return
             }
 
@@ -435,7 +452,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
-        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION origin=${origin.name} state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
         com.weatherwidget.widget.WidgetPushDispatcher.push(
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,
@@ -443,6 +460,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             partialPush = partialPush,
             caller = "PRECIPITATION",
             appLogDao = appLogDao,
+            origin = origin,
         )
 
         // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.

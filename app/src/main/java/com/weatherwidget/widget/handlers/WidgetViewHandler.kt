@@ -50,6 +50,7 @@ interface WidgetViewHandler {
         // binders set every view on every paint (sticky-visibility discipline). Full pushes are
         // reserved for paths that must (re)establish the hierarchy: onUpdate, resize, interaction.
         partialPush: Boolean = false,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UNSPECIFIED,
     )
 
     /**

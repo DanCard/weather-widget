@@ -30,6 +30,23 @@ object WidgetPushDispatcher {
     const val TAG_WIDGET_PUSH = "WIDGET_PUSH"
     private const val TAG = "WidgetPushDispatcher"
 
+    /** Entry path that requested a delivery. This is intentionally separate from [caller], which
+     * identifies the view handler that rendered the RemoteViews. */
+    enum class Origin {
+        PROVIDER_ON_UPDATE,
+        WORKER_FETCH,
+        WORKER_CACHE,
+        UI_ONLY,
+        ACTION_REFRESH,
+        USER_INTERACTION,
+        RESIZE,
+        LOCALE_CHANGE,
+        LOADING,
+        ERROR,
+        DEGENERATE_DATA,
+        UNSPECIFIED,
+    }
+
     /** Widget ids that have received a full push from *this* process. Cleared when the process dies. */
     private val fullPushedThisProcess: MutableSet<Int> = ConcurrentHashMap.newKeySet()
 
@@ -62,6 +79,20 @@ object WidgetPushDispatcher {
         hasFullPushedThisProcess: Boolean,
     ): Boolean = bodyComplete && isUnbackedPartial(partialPush, hasFullPushedThisProcess)
 
+    /** The requested and actual delivery modes can differ only when an unbacked complete-body
+     * partial must be promoted to a full update. Keep this pure so the persisted breadcrumb and
+     * its tests cannot drift apart. */
+    @VisibleForTesting
+    internal fun effectivePartialPush(
+        requestedPartialPush: Boolean,
+        bodyComplete: Boolean,
+        hasFullPushedThisProcess: Boolean,
+    ): Boolean = requestedPartialPush && !shouldPromoteToFull(
+        partialPush = requestedPartialPush,
+        bodyComplete = bodyComplete,
+        hasFullPushedThisProcess = hasFullPushedThisProcess,
+    )
+
     /**
      * Whether this push deserves an app_logs row: the first push per widget per process, plus
      * *every* full push. Repeat partials stay on Log.v — persisting those would swamp app_logs the
@@ -82,16 +113,20 @@ object WidgetPushDispatcher {
     internal fun pushLogMessage(
         appWidgetId: Int,
         caller: String,
-        partialPush: Boolean,
+        origin: Origin,
+        requestedPartialPush: Boolean,
+        effectivePartialPush: Boolean,
         hasFullPushedThisProcess: Boolean,
         pid: Int,
     ): String = WidgetPerfLogger.kv(
         "widget" to appWidgetId,
         "caller" to caller,
-        "push" to if (partialPush) "partial" else "full",
+        "origin" to origin.name,
+        "requestedPush" to if (requestedPartialPush) "partial" else "full",
+        "push" to if (effectivePartialPush) "partial" else "full",
         "pid" to pid,
         "fullThisProcess" to hasFullPushedThisProcess,
-        "unbackedPartial" to isUnbackedPartial(partialPush, hasFullPushedThisProcess),
+        "unbackedPartial" to isUnbackedPartial(requestedPartialPush, hasFullPushedThisProcess),
     )
 
     @VisibleForTesting
@@ -116,12 +151,21 @@ object WidgetPushDispatcher {
         // False only for header-only RemoteViews (current-temp partials that leave the body at its
         // XML defaults). Complete-body pushes stay true so an unbacked partial can be promoted.
         bodyComplete: Boolean = true,
+        origin: Origin = Origin.UNSPECIFIED,
     ) {
         val hadFull = fullPushedThisProcess.contains(appWidgetId)
         // Promote a complete-body unbacked partial to a full update so the framework can't drop it.
-        val promoted = shouldPromoteToFull(partialPush, bodyComplete, hadFull)
-        val effectivePartial = partialPush && !promoted
-        val message = pushLogMessage(appWidgetId, caller, effectivePartial, hadFull, Process.myPid()) +
+        val effectivePartial = effectivePartialPush(partialPush, bodyComplete, hadFull)
+        val promoted = partialPush && !effectivePartial
+        val message = pushLogMessage(
+            appWidgetId = appWidgetId,
+            caller = caller,
+            origin = origin,
+            requestedPartialPush = partialPush,
+            effectivePartialPush = effectivePartial,
+            hasFullPushedThisProcess = hadFull,
+            pid = Process.myPid(),
+        ) +
             if (promoted) " promoted=unbacked_partial" else ""
 
         if (effectivePartial) {
@@ -134,6 +178,35 @@ object WidgetPushDispatcher {
         Log.v(TAG, message)
         val firstPush = loggedThisProcess.add("any-$appWidgetId")
         if (shouldPersist(firstPush, isFullPush = !effectivePartial)) {
+            appLogDao.log(TAG_WIDGET_PUSH, message)
+        }
+    }
+
+    /**
+     * Records a full that was delivered by a legacy fallback branch which cannot call [push]
+     * directly. Marking the process-backed state here keeps the next routine partial from being
+     * unnecessarily promoted after a loading/error fallback has already established the tree.
+     */
+    suspend fun recordDirectFull(
+        appWidgetId: Int,
+        caller: String,
+        origin: Origin,
+        appLogDao: AppLogDao,
+    ) {
+        val hadFull = fullPushedThisProcess.contains(appWidgetId)
+        val message = pushLogMessage(
+            appWidgetId = appWidgetId,
+            caller = caller,
+            origin = origin,
+            requestedPartialPush = false,
+            effectivePartialPush = false,
+            hasFullPushedThisProcess = hadFull,
+            pid = Process.myPid(),
+        ) + " direct=true"
+        fullPushedThisProcess.add(appWidgetId)
+        Log.v(TAG, message)
+        val firstPush = loggedThisProcess.add("any-$appWidgetId")
+        if (shouldPersist(firstPush, isFullPush = true)) {
             appLogDao.log(TAG_WIDGET_PUSH, message)
         }
     }

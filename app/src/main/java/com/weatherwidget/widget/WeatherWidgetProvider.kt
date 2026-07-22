@@ -186,7 +186,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 if (latestWeather == null) {
                     // Nothing on screen to preserve, so the placeholder is real feedback.
                     for (appWidgetId in filteredIds) {
-                        WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
+                        WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId, origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE)
                     }
                     triggerImmediateUpdate(context, reason = "on_update_no_data")
                 } else {
@@ -230,7 +230,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 if (latestWeather == null) {
                     Log.e(TAG, "onUpdate render failed; showing error fallback for ${filteredIds.size} widgets", e)
                     for (appWidgetId in filteredIds) {
-                        WidgetRenderer.updateWidgetError(context, appWidgetManager, appWidgetId)
+                        WidgetRenderer.updateWidgetError(context, appWidgetManager, appWidgetId, origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE)
                     }
                 } else {
                     Log.e(TAG, "onUpdate render failed; keeping cached content for ${filteredIds.size} widgets", e)
@@ -431,6 +431,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         dailyActualsBySource = result.dailyActualsBySource,
                         repository = repository,
                         startupToken = startupToken,
+                        origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE,
                     )
                     appLogDao.log(
                         "HOURLY_PAINT_TRACE",

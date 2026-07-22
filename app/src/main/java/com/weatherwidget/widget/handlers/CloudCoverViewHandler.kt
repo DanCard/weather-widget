@@ -112,6 +112,7 @@ object CloudCoverViewHandler {
         // Background (worker-driven) repaints push partially — no launcher re-inflate flash.
         // See WidgetViewHandler.
         partialPush: Boolean = false,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UNSPECIFIED,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -186,8 +187,16 @@ object CloudCoverViewHandler {
                 callerTag = "CLOUD",
             )
         ) {
-            appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=warning thread=${Thread.currentThread().name}")
-            appWidgetManager.updateAppWidget(appWidgetId, views)
+            appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER origin=${origin.name} state=warning thread=${Thread.currentThread().name}")
+            com.weatherwidget.widget.WidgetPushDispatcher.push(
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+                views = views,
+                partialPush = false,
+                caller = "CLOUD_COVER_WARNING",
+                appLogDao = appLogDao,
+                origin = origin,
+            )
             return
         }
 
@@ -463,7 +472,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
-        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER origin=${origin.name} state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
         com.weatherwidget.widget.WidgetPushDispatcher.push(
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,
@@ -471,6 +480,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             partialPush = partialPush,
             caller = "CLOUD_COVER",
             appLogDao = appLogDao,
+            origin = origin,
         )
 
         // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.

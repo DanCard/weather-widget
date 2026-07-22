@@ -67,10 +67,11 @@ object WidgetRenderer {
     internal fun hasDailyPaintedForTest(appWidgetId: Int): Boolean =
         fullyPaintedDailyWidgetIds.contains(appWidgetId)
 
-    fun updateWidgetLoading(
+    suspend fun updateWidgetLoading(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
+        origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.LOADING,
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         views.setViewVisibility(R.id.text_container, View.VISIBLE)
@@ -78,8 +79,16 @@ object WidgetRenderer {
         views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
         views.setTextViewText(R.id.day2_high, "--°")
         views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_loading))
-        Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=loading state=loading thread=${Thread.currentThread().name}")
-        appWidgetManager.updateAppWidget(appWidgetId, views)
+        Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=loading origin=${origin.name} state=loading thread=${Thread.currentThread().name}")
+        WidgetPushDispatcher.push(
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            views = views,
+            partialPush = false,
+            caller = "LOADING",
+            appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
+            origin = origin,
+        )
     }
 
     /**
@@ -88,10 +97,11 @@ object WidgetRenderer {
      * Tapping the widget retriggers an update, so the "Tap to refresh" hint gives the user a recovery path.
      * Kept deliberately simple — it must never itself throw.
      */
-    fun updateWidgetError(
+    suspend fun updateWidgetError(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
+        origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.ERROR,
     ) {
         try {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -100,8 +110,16 @@ object WidgetRenderer {
             views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
             views.setTextViewText(R.id.day2_high, "--°")
             views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_tap_to_refresh))
-            Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=error state=error thread=${Thread.currentThread().name}")
-            appWidgetManager.updateAppWidget(appWidgetId, views)
+            Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=error origin=${origin.name} state=error thread=${Thread.currentThread().name}")
+            WidgetPushDispatcher.push(
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+                views = views,
+                partialPush = false,
+                caller = "ERROR",
+                appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
+                origin = origin,
+            )
         } catch (e: Exception) {
             Log.e(TAG, "updateWidgetError failed for widget=$appWidgetId", e)
         }
@@ -124,6 +142,7 @@ object WidgetRenderer {
         // True for background (worker-driven) repaints: handlers push via partiallyUpdateAppWidget
         // (in-place patch, no launcher re-inflate flash). See WidgetViewHandler.
         partialPush: Boolean = false,
+        origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.UNSPECIFIED,
     ) {
         val renderStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -261,6 +280,7 @@ object WidgetRenderer {
                     deferCurrentTempResolution = startupToken != null,
                     uiOnly = uiOnly,
                     partialPush = partialPush,
+                    origin = origin,
                 )
             }
             ViewMode.PRECIPITATION -> {
@@ -277,6 +297,7 @@ object WidgetRenderer {
                     startupToken = startupToken,
                     uiOnly = uiOnly,
                     partialPush = partialPush,
+                    origin = origin,
                 )
             }
             ViewMode.CLOUD_COVER -> {
@@ -294,6 +315,7 @@ object WidgetRenderer {
                     startupToken = startupToken,
                     uiOnly = uiOnly,
                     partialPush = partialPush,
+                    origin = origin,
                 )
             }
             ViewMode.DAILY -> {
@@ -314,7 +336,7 @@ object WidgetRenderer {
                 if (shouldSkipDailyUiOnlyRepaint(uiOnly, fullyPaintedDailyWidgetIds.contains(appWidgetId)) && !transientPending) {
                     WeatherDatabase.getDatabase(context).appLogDao().log(
                         com.weatherwidget.widget.WidgetPerfLogger.TAG_WIDGET_PAINT,
-                        "widget=$appWidgetId caller=DAILY state=skipped_ui_only thread=${Thread.currentThread().name}",
+                        "widget=$appWidgetId caller=DAILY origin=${origin.name} state=skipped_ui_only thread=${Thread.currentThread().name}",
                     )
                     return
                 }
@@ -339,6 +361,7 @@ object WidgetRenderer {
                     stateManagerNullable = stateManager,
                     repository = repository,
                     partialPush = partialPush,
+                    origin = origin,
                 )
                 // A real graph was just painted, so future UI-only ticks for this widget may skip.
                 fullyPaintedDailyWidgetIds.add(appWidgetId)

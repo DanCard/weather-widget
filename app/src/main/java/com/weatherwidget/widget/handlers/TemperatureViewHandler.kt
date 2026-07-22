@@ -64,6 +64,7 @@ object TemperatureViewHandler {
         // Background (worker-driven) repaints push partially — no launcher re-inflate flash.
         // See WidgetViewHandler.
         partialPush: Boolean = false,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UNSPECIFIED,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -184,7 +185,7 @@ object TemperatureViewHandler {
         // Reset sticky visibility from DailyViewHandler
         DailyViewHandler.bindTransientMessage(views, stateManager, appWidgetId, callerTag = "TEMPERATURE")
 
-        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE state=data push=${if (partialPush) "partial" else "full"}${gateReason?.let { " reason=$it" } ?: ""} thread=${Thread.currentThread().name}")
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE origin=${origin.name} state=data push=${if (partialPush) "partial" else "full"}${gateReason?.let { " reason=$it" } ?: ""} thread=${Thread.currentThread().name}")
         com.weatherwidget.widget.WidgetPushDispatcher.push(
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,
@@ -192,6 +193,7 @@ object TemperatureViewHandler {
             partialPush = partialPush,
             caller = "TEMPERATURE",
             appLogDao = appLogDao,
+            origin = origin,
         )
 
         // Persist render metadata for the GraphRepaintGate on future uiOnly cycles.
@@ -375,6 +377,7 @@ object TemperatureViewHandler {
             // a full push. The uiOnly gate in handle() guarantees we only reach here once this
             // process has already backed the widget with a full-body push.
             bodyComplete = false,
+            origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UI_ONLY,
         )
     }
 
@@ -458,6 +461,7 @@ object TemperatureViewHandler {
                 partialPush = true,
                 caller = "TEMPERATURE_REFINE",
                 appLogDao = com.weatherwidget.data.local.WeatherDatabase.getDatabase(appContext).appLogDao(),
+                origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UI_ONLY,
             )
         }
     }

@@ -86,16 +86,32 @@ class WidgetPushDispatcherTest {
     }
 
     @Test
-    fun `message carries pid and the unbacked verdict that 2026-07-14 lacked`() {
+    fun `effectivePartialPush returns false when complete-body partial is unbacked`() {
+        assertFalse(
+            WidgetPushDispatcher.effectivePartialPush(
+                requestedPartialPush = true, bodyComplete = true, hasFullPushedThisProcess = false,
+            ),
+        )
+        assertTrue(
+            WidgetPushDispatcher.effectivePartialPush(
+                requestedPartialPush = true, bodyComplete = true, hasFullPushedThisProcess = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `message carries origin, requested push, effective push, pid and unbacked verdict`() {
         val message = WidgetPushDispatcher.pushLogMessage(
             appWidgetId = 345,
             caller = "TEMPERATURE",
-            partialPush = true,
+            origin = WidgetPushDispatcher.Origin.UI_ONLY,
+            requestedPartialPush = true,
+            effectivePartialPush = true,
             hasFullPushedThisProcess = false,
             pid = 31891,
         )
         assertEquals(
-            "widget=345 caller=TEMPERATURE push=partial pid=31891 fullThisProcess=false unbackedPartial=true",
+            "widget=345 caller=TEMPERATURE origin=UI_ONLY requestedPush=partial push=partial pid=31891 fullThisProcess=false unbackedPartial=true",
             message,
         )
     }
@@ -105,13 +121,84 @@ class WidgetPushDispatcherTest {
         val message = WidgetPushDispatcher.pushLogMessage(
             appWidgetId = 345,
             caller = "DAILY",
-            partialPush = false,
+            origin = WidgetPushDispatcher.Origin.WORKER_FETCH,
+            requestedPartialPush = false,
+            effectivePartialPush = false,
             hasFullPushedThisProcess = true,
             pid = 100,
         )
         assertEquals(
-            "widget=345 caller=DAILY push=full pid=100 fullThisProcess=true unbackedPartial=false",
+            "widget=345 caller=DAILY origin=WORKER_FETCH requestedPush=full push=full pid=100 fullThisProcess=true unbackedPartial=false",
             message,
         )
+    }
+
+    @Test
+    fun `direct loading and error fallbacks report their origins and full mode`() {
+        val loadingMsg = WidgetPushDispatcher.pushLogMessage(
+            appWidgetId = 50,
+            caller = "LOADING",
+            origin = WidgetPushDispatcher.Origin.LOADING,
+            requestedPartialPush = false,
+            effectivePartialPush = false,
+            hasFullPushedThisProcess = false,
+            pid = 100,
+        )
+        assertEquals(
+            "widget=50 caller=LOADING origin=LOADING requestedPush=full push=full pid=100 fullThisProcess=false unbackedPartial=false",
+            loadingMsg,
+        )
+
+        val errorMsg = WidgetPushDispatcher.pushLogMessage(
+            appWidgetId = 50,
+            caller = "ERROR",
+            origin = WidgetPushDispatcher.Origin.ERROR,
+            requestedPartialPush = false,
+            effectivePartialPush = false,
+            hasFullPushedThisProcess = false,
+            pid = 100,
+        )
+        assertEquals(
+            "widget=50 caller=ERROR origin=ERROR requestedPush=full push=full pid=100 fullThisProcess=false unbackedPartial=false",
+            errorMsg,
+        )
+    }
+
+    @Test
+    fun `healthy startup sequence delivers single full then subsequent refresh stays partial`() {
+        var backed = false
+
+        // 1. Initial unbacked request: promoted to full push (effectivePartial = false)
+        val initialEffectivePartial = WidgetPushDispatcher.effectivePartialPush(
+            requestedPartialPush = true,
+            bodyComplete = true,
+            hasFullPushedThisProcess = backed,
+        )
+        assertFalse(initialEffectivePartial)
+
+        // Once the full push succeeds, process marks widget as backed:
+        backed = true
+
+        // 2. Subsequent follow-up refresh requesting partial: remains partial (effectivePartial = true)
+        val followUpEffectivePartial = WidgetPushDispatcher.effectivePartialPush(
+            requestedPartialPush = true,
+            bodyComplete = true,
+            hasFullPushedThisProcess = backed,
+        )
+        assertTrue(followUpEffectivePartial)
+    }
+
+    @Test
+    fun `unbacked or failed first paint still permits recovery full on follow-up`() {
+        // If initial paint failed or did not occur, process remains unbacked (hasFullPushedThisProcess = false)
+        val backed = false
+
+        val followUpEffectivePartial = WidgetPushDispatcher.effectivePartialPush(
+            requestedPartialPush = true,
+            bodyComplete = true,
+            hasFullPushedThisProcess = backed,
+        )
+        // Follow-up is promoted to full (effectivePartial = false) as self-heal
+        assertFalse(followUpEffectivePartial)
     }
 }
