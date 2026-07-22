@@ -131,6 +131,7 @@ fun TemperatureGraph(
     // TEMP DIAGNOSTIC gating keys (see ActualLineDiag / GapLabelDiag below): fire once per change.
     val lastActualDiagKey = remember { mutableStateOf("") }
     val lastGapLabelDiagKey = remember { mutableStateOf("") }
+    val lastGhostLabelDiagKey = remember { mutableStateOf("") }
 
     val backHours = DesktopGraphUtils.backHoursFor(zoomFactor)
     val forwardHours = DesktopGraphUtils.forwardHoursFor(zoomFactor)
@@ -745,6 +746,20 @@ fun TemperatureGraph(
                     padPx = 4f * scale,
                     gapPx = 2.5f * scale,
                 )
+                // Permanent diagnostic mirroring Android's TempGraphRenderer "GhostLineLabel" Log.v:
+                // every future-hour candidate (x@temp, * = has footer label) and which got a label, so
+                // a "missing 8pm marker" can be traced to placement (curve clearance / obstacle) vs
+                // eligibility. Deduped per change like GapLabelDiag. These graph-label bugs recur — keep.
+                run {
+                    val placedXs = placements.map { it.centerX.roundToInt() }.toSet()
+                    val key = ghostCandidates.joinToString { "${it.x.roundToInt()}" } + "->" + placedXs.joinToString()
+                    if (key != lastGhostLabelDiagKey.value) {
+                        lastGhostLabelDiagKey.value = key
+                        val cand = ghostCandidates.joinToString { "${it.x.roundToInt()}@${GhostLineLabel.format(it.expectedTemp)}${if (it.hasHourLabel) "*" else ""}" }
+                        val placed = placements.sortedBy { it.centerX }.joinToString { "${it.centerX.roundToInt()}=${it.text}" }
+                        Log.i("GhostLabelDiag", "spanH=$ghostSpanHours startX=${transitionX.roundToInt()} candidates=[$cand] -> placed=${placements.size}: [$placed]")
+                    }
+                }
                 for (placement in placements) {
                     val layout = textMeasurer.measure(placement.text, ghostStyle)
                     val topLeft = Offset(placement.box.left, placement.box.top)

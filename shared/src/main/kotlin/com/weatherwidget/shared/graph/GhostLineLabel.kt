@@ -34,6 +34,14 @@ object GhostLineLabel {
     /** Curve clearance sampling across the candidate box width. */
     private const val CURVE_SAMPLES = 5
 
+    /**
+     * A ghost label may graze the ghost line by up to this fraction of its own height before the spot
+     * is rejected. A faint dashed line clipping a label corner is acceptable, and it lets a label sit
+     * on a steep segment (e.g. the hour right after NOW) that the strict no-overlap rule skipped.
+     * Kept < 0.5 so a line passing through the label's CENTER is still rejected (guard stays meaningful).
+     */
+    private const val OVERLAP_TOL_FRACTION = 0.4f
+
     /** Text metrics from the platform's ghost-label paint. [ascent] is negative, [descent] positive. */
     data class Metrics(val width: Float, val ascent: Float, val descent: Float) {
         val height: Float get() = descent - ascent
@@ -128,8 +136,9 @@ object GhostLineLabel {
     /**
      * Best placement for a single hour's ghost label: hugs the line (just above, else just below),
      * skipping any box that leaves the plot, overlaps an [obstacles] rect, or has the curve passing
-     * through it. Of the valid above/below options the one with more curve clearance wins. Null when
-     * neither fits.
+     * too deeply through it. Of the valid above/below options the one with more curve clearance wins
+     * (a clean gap always beats a graze), so a slight overlap is only used when nothing better fits.
+     * Null when neither side fits.
      */
     private fun tryPlaceAt(
         c: Candidate,
@@ -142,18 +151,21 @@ object GhostLineLabel {
     ): Placement? {
         val w = metrics.width
         val h = metrics.height
+        val overlapTolPx = h * OVERLAP_TOL_FRACTION
         val cx = c.x.coerceIn(plot.left + w / 2f + padPx, plot.right - w / 2f - padPx)
         val left = cx - w / 2f
         val right = cx + w / 2f
         var best: Placement? = null
-        var bestClearance = -1f
+        // Signed clearance: + = clean gap, - = graze depth (allowed down to -overlapTolPx). Start below
+        // the worst allowed graze so any admissible spot wins; higher clearance (cleaner) still wins.
+        var bestClearance = -Float.MAX_VALUE
         // Hug the line: try just above, then just below.
         for (above in booleanArrayOf(true, false)) {
             val top = if (above) c.ghostY - gapPx - h else c.ghostY + gapPx
             val box = GraphRect(left, top, right, top + h)
             if (box.top < plot.top + padPx || box.bottom > plot.bottom - padPx) continue
             if (obstacles.any { it.intersects(box) }) continue
-            val clearance = curveClearance(box, curveYAt) ?: continue // null = curve intrudes
+            val clearance = curveClearance(box, curveYAt, overlapTolPx) ?: continue // null = curve intrudes past tol
             if (clearance > bestClearance) {
                 bestClearance = clearance
                 best = Placement(
@@ -168,19 +180,26 @@ object GhostLineLabel {
     }
 
     /**
-     * Minimum vertical distance from [box] to the visible curve across the box's x-range, or null when
-     * the curve passes THROUGH the box (no clearance). Lets a box that sits entirely above or below the
-     * curve report its gap so the emptiest hour wins.
+     * Signed vertical clearance between [box] and the visible curve across the box's x-range:
+     * positive = the smallest clean gap to the nearest edge (box sits entirely off the curve),
+     * negative = the deepest the curve penetrates into the box. Returns null only when that penetration
+     * exceeds [overlapTolPx] — i.e. the curve cuts too deep to graze. Letting a box report its gap (or
+     * shallow penetration) lets the emptiest / least-overlapping spot win.
      */
-    private fun curveClearance(box: GraphRect, curveYAt: (Float) -> Float?): Float? {
-        var minGap = Float.MAX_VALUE
+    private fun curveClearance(box: GraphRect, curveYAt: (Float) -> Float?, overlapTolPx: Float): Float? {
+        var minSigned = Float.MAX_VALUE
         for (i in 0..CURVE_SAMPLES) {
             val x = box.left + (box.right - box.left) * (i.toFloat() / CURVE_SAMPLES)
             val y = curveYAt(x) ?: continue
-            if (y in box.top..box.bottom) return null
-            val gap = if (y < box.top) box.top - y else y - box.bottom
-            if (gap < minGap) minGap = gap
+            // + when the curve is outside the box (distance to nearest edge); - when inside (penetration).
+            val signed = when {
+                y < box.top -> box.top - y
+                y > box.bottom -> y - box.bottom
+                else -> -minOf(y - box.top, box.bottom - y)
+            }
+            if (signed < minSigned) minSigned = signed
         }
-        return if (minGap == Float.MAX_VALUE) Float.MAX_VALUE else minGap
+        if (minSigned == Float.MAX_VALUE) return Float.MAX_VALUE // curve not sampled in range
+        return if (minSigned < -overlapTolPx) null else minSigned
     }
 }

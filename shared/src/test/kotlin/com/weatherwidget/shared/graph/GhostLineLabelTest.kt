@@ -81,16 +81,32 @@ class GhostLineLabelTest {
 
     @Test
     fun `skips an hour whose only open spot would overlap an earlier ghost label`() {
-        // Two hours close enough in x that their boxes overlap; the curve sits just below the line so
-        // the "below" spot is blocked. The first hour takes the spot above the line; the second has
-        // nowhere left (above overlaps the first label, below hits the curve) and is skipped.
-        val tightCurve: (Float) -> Float? = { 75f }
+        // Two hours close enough in x that their boxes overlap; the curve runs through the CENTER of
+        // the "below" box (penetration = half the label height, > overlap tolerance) so that spot is
+        // blocked. The first hour takes the spot above the line; the second has nowhere left (above
+        // overlaps the first label, below cuts too deep to graze) and is skipped.
+        // ghostY=60, gap=3, h=14 -> below box = [63, 77]; curve at 70 = box center -> deepest penetration.
+        val tightCurve: (Float) -> Float? = { 70f }
         val p = placeAll(
             listOf(rightCandidate(300f, temp = 60f), rightCandidate(315f, temp = 61f)),
             curveYAt = tightCurve,
         )
         assertEquals(1, p.size)
         assertEquals(300f, p[0].centerX, 0.001f)
+    }
+
+    @Test
+    fun `allows a shallow graze so the second label places instead of being skipped`() {
+        // Same layout as the skip test, but the curve only GRAZES the second's "below" box
+        // (penetration 2, < tolerance) instead of cutting through its center. Its clean "above" spot is
+        // blocked by the first label, so under the old strict rule the second was skipped; now the
+        // shallow graze is accepted and both place. below box = [63, 77]; curve 75 -> penetration 2.
+        val grazeCurve: (Float) -> Float? = { 75f }
+        val p = placeAll(
+            listOf(rightCandidate(300f, temp = 60f), rightCandidate(315f, temp = 61f)),
+            curveYAt = grazeCurve,
+        )
+        assertEquals(2, p.size)
     }
 
     @Test
