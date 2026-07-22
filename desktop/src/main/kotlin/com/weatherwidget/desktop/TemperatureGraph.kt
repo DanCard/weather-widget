@@ -156,8 +156,6 @@ fun TemperatureGraph(
     // clock-hour labels in WIDE, which left every label without its day-night icon.
     val painters: List<Painter> = points.map { painterResource(WeatherIcon.getIconResource(it.condition)) }
 
-    val smoothIterations = DesktopGraphUtils.smoothIterationsFor(totalSpanHours)
-
     if (points.size < 2) return
 
     Canvas(
@@ -180,14 +178,13 @@ fun TemperatureGraph(
         val windowEnd = cutoff
 
         val zoneId = ZoneId.systemDefault()
-        // Smoothed forecast per hourly point (preserves all extrema), fed to the builder so the
-        // assembled dense HourData carries the SAME forecast temps the curve is drawn from — keeping
-        // forecast labels stable and matching Android's dense list by construction.
-        val forecastTemps = com.weatherwidget.shared.util.TemperatureInterpolator
-            .smoothValuesPreservingAllExtrema(points.map { it.temperature }, smoothIterations)
-        val smoothedForecastsMap = points.indices.associate {
-            points[it].dateTime to forecastTemps[it]
-        }
+        // Forecast temps are the RAW hourly values — the Catmull-Rom path (buildCurve) smooths the
+        // LINE without moving any data point, so the curve always passes through the forecast value.
+        // This matches Android (which never value-smooths; HEADER_SMOOTH_ITERATIONS = 0). An earlier
+        // value-smoothing pass here sagged non-peak nodes (e.g. 84° -> ~82.7° on a decline), which put
+        // the current-temp dot on the wrong side of the line vs Android. See plan 260721-forecast-line-
+        // smoothing-parity. `smoothedForecasts = null` below lets the builder fall back to raw too.
+        val forecastTemps = points.map { it.temperature }
         val actualSeries = ActualTemperatureSeriesBuilder.build(
             hourlyForecasts = hourly,
             observations = observations,
@@ -204,7 +201,7 @@ fun TemperatureGraph(
             contextLookaheadHours = maxOf(ACTUALS_CONTEXT_LOOKAHEAD_HOURS, forwardHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
             now = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId),
             zoneId = zoneId,
-            smoothedForecasts = smoothedForecastsMap,
+            smoothedForecasts = null, // raw: builder uses forecast.temperature, matching the line + Android
             personalStationWeight = personalStationWeight,
         )
         // TEMP DIAGNOSTIC: where does the pink actual line start/end vs the visible window? Compares

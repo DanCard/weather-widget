@@ -113,8 +113,8 @@ data class GraphData(
     val fetchDotX: Float?,
     val lastObservedTemp: Float?,
     val anchorDelta: Float,
-    val smoothedForecastTemps: List<Float>,
-    val smoothedExpectedTemps: List<Float>,
+    val forecastTemps: List<Float>,
+    val expectedTemps: List<Float>,
     val originalPoints: List<Pair<Float, Float>>,
     val forecastPoints: List<Pair<Float, Float>>,
     val expectedPoints: List<Pair<Float, Float>>,
@@ -181,8 +181,8 @@ data class RenderContext(
     val iconSize get() = geo.iconSize
     val iconTopPad get() = geo.iconTopPad
     val hourWidth get() = geo.hourWidth
-    val smoothedForecastTemps get() = data.smoothedForecastTemps
-    val smoothedExpectedTemps get() = data.smoothedExpectedTemps
+    val forecastTemps get() = data.forecastTemps
+    val expectedTemps get() = data.expectedTemps
     val expectedPoints get() = data.expectedPoints
     val onGhostLineDebug get() = debug.onGhostLineDebug
     val onActualLineResolved get() = debug.onActualLineResolved
@@ -244,8 +244,8 @@ data class RenderContext(
                 fetchDotX = update.fetchDotX,
                 lastObservedTemp = lastObservedTemp,
                 anchorDelta = update.anchorDelta,
-                smoothedForecastTemps = update.smoothedForecastTemps,
-                smoothedExpectedTemps = update.smoothedExpectedTemps,
+                forecastTemps = update.forecastTemps,
+                expectedTemps = update.expectedTemps,
                 originalPoints = update.originalPoints,
                 forecastPoints = update.forecastPoints,
                 expectedPoints = update.expectedPoints,
@@ -278,8 +278,8 @@ fun RenderContext.tempToY(temp: Float): Float =
     TemperatureGraphStyle.tempToY(temp, graphTop, graphHeight, minTemp, tempRange)
 
 data class RenderContextUpdate(
-    val smoothedForecastTemps: List<Float>,
-    val smoothedExpectedTemps: List<Float>,
+    val forecastTemps: List<Float>,
+    val expectedTemps: List<Float>,
     val originalPoints: List<Pair<Float, Float>>,
     val forecastPoints: List<Pair<Float, Float>>,
     val expectedPoints: List<Pair<Float, Float>>,

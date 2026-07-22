@@ -183,7 +183,11 @@ object TemperatureGraphRenderer {
     ): RenderContextUpdate {
         job?.ensureActive()
         val effectiveDelta = appliedDelta ?: 0f
-        val smoothedForecastTemps = hours.map { it.temperature }
+        // RAW forecast temps — no value smoothing. The Catmull-Rom path smooths the LINE, not the
+        // data, so the curve passes through each forecast value. (Was misnamed `smoothedForecastTemps`
+        // though never smoothed; that lie led desktop to add a real smoothing pass and diverge — see
+        // plan 260721-forecast-line-smoothing-parity.)
+        val forecastTemps = hours.map { it.temperature }
         val actualTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
 
         val fetchTime = observedAt?.let {
@@ -192,7 +196,7 @@ object TemperatureGraphRenderer {
         val fetchIdx = fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
 
         val anchorDelta = effectiveDelta
-        val smoothedExpectedTemps = smoothedForecastTemps.map { it + anchorDelta }
+        val expectedTemps = forecastTemps.map { it + anchorDelta }
 
         val originalPoints = mutableListOf<Pair<Float, Float>>()
         val forecastPoints = mutableListOf<Pair<Float, Float>>()
@@ -205,10 +209,10 @@ object TemperatureGraphRenderer {
             val yTruth = TemperatureGraphStyle.tempToY(actualTemps[index], graphTop, graphHeight, minTemp, tempRange)
             originalPoints.add(x to yTruth)
 
-            val yForecast = TemperatureGraphStyle.tempToY(smoothedForecastTemps[index], graphTop, graphHeight, minTemp, tempRange)
+            val yForecast = TemperatureGraphStyle.tempToY(forecastTemps[index], graphTop, graphHeight, minTemp, tempRange)
             forecastPoints.add(x to yForecast)
 
-            val yExpected = TemperatureGraphStyle.tempToY(smoothedExpectedTemps[index], graphTop, graphHeight, minTemp, tempRange)
+            val yExpected = TemperatureGraphStyle.tempToY(expectedTemps[index], graphTop, graphHeight, minTemp, tempRange)
             expectedPoints.add(x to yExpected)
         }
 
@@ -259,7 +263,7 @@ object TemperatureGraphRenderer {
         val (actualPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(anchoredActualPoints, graphBottom)
 
         return RenderContextUpdate(
-            smoothedForecastTemps, smoothedExpectedTemps, originalPoints, forecastPoints, expectedPoints,
+            forecastTemps, expectedTemps, originalPoints, forecastPoints, expectedPoints,
             originalPath, actualPath, anchoredActualPoints, expectedPath, expectedFillPath, forecastPath, forecastFillPath, forecastSegmentPaths,
             nowX, nowIndicatorVisible, fetchTime, fetchDotX,
             anchorDelta, transitionX, effectiveActualEndIndex
@@ -594,7 +598,7 @@ object TemperatureGraphRenderer {
         val candidates = hours.indices.mapNotNull { i ->
             val (x, ghostY) = ctx.expectedPoints[i]
             if (x <= fetchDotX + X_COORDINATE_MATCH_TOLERANCE) return@mapNotNull null
-            val expectedTemp = ctx.smoothedExpectedTemps[i]
+            val expectedTemp = ctx.expectedTemps[i]
             if (!expectedTemp.isFinite()) return@mapNotNull null
             val displayTemp = if (ctx.useCelsius) TempUtils.fahrenheitToCelsius(expectedTemp) else expectedTemp
             GhostLineLabel.Candidate(
