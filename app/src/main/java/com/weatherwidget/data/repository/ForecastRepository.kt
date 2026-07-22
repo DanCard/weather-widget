@@ -101,8 +101,31 @@ class ForecastRepository
             private const val PREF_FROZEN_DISPLAY_BACKFILL_DONE = "frozen_display_backfill_done"
             private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 30L
 
-            /** Hard ceiling on app_logs rows, enforced in [cleanOldData] after the age cutoff. */
+            /**
+             * Hard ceiling on routine app_logs rows, enforced in [cleanOldData] after the age
+             * cutoff. Does not apply to [APP_LOG_PROTECTED_TAGS], which have their own budget.
+             */
             private const val APP_LOG_MAX_ROWS = 50_000
+
+            /**
+             * Widget push/paint/lifecycle breadcrumbs, held on a budget of their own so routine
+             * telemetry can never evict them. Diagnosing a widget stranded on the bare
+             * widget_weather layout needs the push history spanning the failure, and a single
+             * shared cap was trimming the table to 38h against a 72h age policy.
+             */
+            @androidx.annotation.VisibleForTesting
+            internal val APP_LOG_PROTECTED_TAGS = listOf(
+                "WIDGET_PUSH",
+                "WIDGET_PAINT",
+                "WIDGET_LIFECYCLE",
+            )
+
+            /**
+             * Ceiling for [APP_LOG_PROTECTED_TAGS]. At the observed rate those tags run ~5k
+             * rows/day, so 25k holds the full 72h window with room to spare and only trims a
+             * genuine runaway.
+             */
+            private const val APP_LOG_PROTECTED_MAX_ROWS = 25_000
 
             // A row is rewritten only when its content actually changes — never just to refresh
             // fetchedAt. fetchedAt therefore means "when this content was produced", which is what
@@ -1363,9 +1386,11 @@ class ForecastRepository
             observationDao.deleteOldObservations(tenDaysAgoTimestamp)
             dailyHistoryDao.deleteOldExtremes(thirteenMonthsAgoTimestamp)
             appLogDao.deleteOldLogs(logsCutoffTimestamp)
-            // Backstop the 72h age cutoff with a hard row cap: at high write rates (multi-widget
+            // Backstop the 72h age cutoff with hard row caps: at high write rates (multi-widget
             // devices) the time window alone let app_logs reach ~100k rows / 18MB, slowing every
-            // click's indexed insert. 50k rows keeps ~2 days of normal volume while bounding worst case.
-            appLogDao.capToNewest(APP_LOG_MAX_ROWS)
+            // click's indexed insert. Routine telemetry and the widget breadcrumbs are capped
+            // separately so the ~32k rows/day of the former cannot age out the latter.
+            appLogDao.capUnprotectedToNewest(APP_LOG_MAX_ROWS, APP_LOG_PROTECTED_TAGS)
+            appLogDao.capProtectedToNewest(APP_LOG_PROTECTED_MAX_ROWS, APP_LOG_PROTECTED_TAGS)
         }
     }

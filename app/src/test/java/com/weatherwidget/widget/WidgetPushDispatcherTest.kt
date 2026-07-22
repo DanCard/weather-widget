@@ -32,14 +32,21 @@ class WidgetPushDispatcherTest {
     }
 
     @Test
-    fun `steady-state pushes are not persisted so app_logs is not swamped`() {
-        assertFalse(WidgetPushDispatcher.shouldPersist(isFirstPushForWidget = false, isFirstFullPushForWidget = false))
+    fun `steady-state partials are not persisted so app_logs is not swamped`() {
+        assertFalse(WidgetPushDispatcher.shouldPersist(isFirstPushForWidget = false, isFullPush = false))
     }
 
     @Test
-    fun `first push and first full push per widget are persisted`() {
-        assertTrue(WidgetPushDispatcher.shouldPersist(isFirstPushForWidget = true, isFirstFullPushForWidget = false))
-        assertTrue(WidgetPushDispatcher.shouldPersist(isFirstPushForWidget = false, isFirstFullPushForWidget = true))
+    fun `first push per widget is persisted`() {
+        assertTrue(WidgetPushDispatcher.shouldPersist(isFirstPushForWidget = true, isFullPush = false))
+    }
+
+    @Test
+    fun `every full push is persisted not just the first`() {
+        // A full push replaces the whole view tree, so it is the transition that can strand a
+        // widget on the bare widget_weather layout. Logging only the first per process left the
+        // 2026-07-22 investigation with no row for the push that mattered.
+        assertTrue(WidgetPushDispatcher.shouldPersist(isFirstPushForWidget = false, isFullPush = true))
     }
 
     @Test

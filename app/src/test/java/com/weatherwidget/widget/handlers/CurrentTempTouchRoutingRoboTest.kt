@@ -10,7 +10,9 @@ import android.view.View
 import android.view.View.MeasureSpec
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.RemoteViews
+import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.model.DailyHistory
@@ -30,6 +32,7 @@ import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -181,6 +184,110 @@ class CurrentTempTouchRoutingRoboTest {
         val views = renderCloudCoverWidget()
 
         assertDailyDateHeaderClearedByReapply(views)
+    }
+
+    // Characterization probe for the 2026-07-22 Samsung "Today / --° / --°" report, where a
+    // location change was followed by ~30 min of a live header over an unbound daily body. These
+    // three tests pin down whether a full TEMPERATURE push is what blanks that body. apply() models
+    // updateAppWidget (fresh inflate from XML, then run actions); reapply() models
+    // partiallyUpdateAppWidget (merge into the tree the launcher already has).
+
+    // The reported widget was 574x401dp / 10 columns, so these use the wide options: at
+    // graphOptions() width the daily body is drawn entirely into the graph bitmap and the day
+    // column TextViews are never bound, which makes any assertion on them vacuous.
+
+    @Test
+    fun `an unbound layout is the only state with no graph bitmap`() = runBlocking {
+        // The reported failure looked like "Today / --° / --°" with no graph. Those day2_* defaults
+        // are visible in EVERY state — including both healthy renders — so they do not identify the
+        // fault. The absent graph bitmap is what actually distinguishes a never-bound layout.
+        val bare = applyViews(RemoteViews(context.packageName, com.weatherwidget.R.layout.widget_weather))
+
+        assertEquals(View.GONE, bare.findViewById<View>(R.id.graph_view).visibility)
+        assertNull(bare.findViewById<ImageView>(R.id.graph_view).drawable)
+        assertEquals("--°", bare.findViewById<TextView>(R.id.day2_high).text.toString())
+    }
+
+    @Test
+    fun `wide daily full push binds the graph bitmap`() = runBlocking {
+        val applied = applyViews(renderWideDailyWidget())
+
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.graph_view).visibility)
+        assertNotNull(applied.findViewById<ImageView>(R.id.graph_view).drawable)
+    }
+
+    @Test
+    fun `wide temperature full push also binds the graph bitmap`() = runBlocking {
+        // Regression guard for a mechanism proposed on 2026-07-22 and DISPROVED here: a full
+        // TEMPERATURE push was suspected of blanking the daily body, because it builds a fresh
+        // widget_weather tree and reaches WidgetPushDispatcher without setting bodyComplete=false.
+        // It does bind the graph, so it cannot produce the reported no-graph widget. If this ever
+        // starts failing, that suspicion becomes live again.
+        val applied = applyViews(renderWideTemperatureWidget())
+
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.graph_view).visibility)
+        assertNotNull(applied.findViewById<ImageView>(R.id.graph_view).drawable)
+    }
+
+    @Test
+    fun `temperature partial merge leaves a bound body still bound`() = runBlocking {
+        val applied = applyViews(renderWideDailyWidget())
+
+        renderWideTemperatureWidget().reapply(context, applied)
+
+        // Mirrors the field logs: the partials at 13:40:26 and 13:40:34 neither healed nor broke
+        // the body; only the full push at 13:40:41 changed it.
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.graph_view).visibility)
+        assertNotNull(applied.findViewById<ImageView>(R.id.graph_view).drawable)
+    }
+
+    private suspend fun renderWideDailyWidget(): RemoteViews {
+        val stateManager = WidgetStateManager(context)
+        stateManager.setViewMode(appWidgetId, ViewMode.DAILY)
+        stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
+
+        val appWidgetManager = mockWidgetManager(wideGraphOptions())
+        val now = fixtureNow()
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager.first,
+            appWidgetId = appWidgetId,
+            weatherData = WeatherData(
+                weatherList = sampleWideDailyForecasts(now.toLocalDate()),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = sampleHourlyForecasts(now),
+                currentTemps = emptyList(),
+                dailyActualsBySource = sampleDailyActuals(now.toLocalDate()),
+            ),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
+        )
+        return appWidgetManager.second.captured
+    }
+
+    private suspend fun renderWideTemperatureWidget(): RemoteViews {
+        val stateManager = WidgetStateManager(context)
+        stateManager.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
+        stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
+
+        val appWidgetManager = mockWidgetManager(wideGraphOptions())
+        val now = fixtureNow()
+        TemperatureViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager.first,
+            appWidgetId = appWidgetId,
+            hourlyForecasts = sampleHourlyForecasts(now),
+            currentTempHourlyForecasts = sampleHourlyForecasts(now),
+            centerTime = now,
+            displaySource = WeatherSource.NWS,
+            precipProbability = 20,
+            lastObservedTemp = null,
+            observedAt = now.atZone(zoneId).toInstant().toEpochMilli(),
+        )
+        return appWidgetManager.second.captured
     }
 
     private suspend fun renderDailyWidget(

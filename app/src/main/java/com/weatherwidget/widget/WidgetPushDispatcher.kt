@@ -33,7 +33,7 @@ object WidgetPushDispatcher {
     /** Widget ids that have received a full push from *this* process. Cleared when the process dies. */
     private val fullPushedThisProcess: MutableSet<Int> = ConcurrentHashMap.newKeySet()
 
-    /** Widget ids already given a WIDGET_PUSH row this process, keyed by whether it was a full push. */
+    /** Widget ids already given a WIDGET_PUSH row this process. Fulls are logged unconditionally. */
     private val loggedThisProcess: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     /**
@@ -63,14 +63,20 @@ object WidgetPushDispatcher {
     ): Boolean = bodyComplete && isUnbackedPartial(partialPush, hasFullPushedThisProcess)
 
     /**
-     * Whether this push deserves an app_logs row. Only the first push per widget per process and
-     * the first *full* push per widget per process qualify (≤2 rows per widget per process).
-     * Steady-state pushes stay on Log.v — persisting every one would swamp app_logs the way the
-     * CurrentTempResolver logs once did. Pure for testability.
+     * Whether this push deserves an app_logs row: the first push per widget per process, plus
+     * *every* full push. Repeat partials stay on Log.v — persisting those would swamp app_logs the
+     * way the CurrentTempResolver logs once did. Pure for testability.
+     *
+     * Fulls were previously logged once per widget per process too, which is why the 2026-07-22
+     * investigation could not tell what pushed a widget back to the bare widget_weather layout: the
+     * process had already spent its one full-push row hours earlier. A full push is the destructive
+     * one — updateAppWidget replaces the whole view tree — so it is the transition worth a
+     * breadcrumb. Measured cost on the 5-widget Samsung: ~400-660 fulls/day against ~28k app_logs
+     * rows/day, so this adds ~2% to a table that is already churning at its 50k cap.
      */
     @VisibleForTesting
-    internal fun shouldPersist(isFirstPushForWidget: Boolean, isFirstFullPushForWidget: Boolean): Boolean =
-        isFirstPushForWidget || isFirstFullPushForWidget
+    internal fun shouldPersist(isFirstPushForWidget: Boolean, isFullPush: Boolean): Boolean =
+        isFirstPushForWidget || isFullPush
 
     @VisibleForTesting
     internal fun pushLogMessage(
@@ -127,8 +133,7 @@ object WidgetPushDispatcher {
 
         Log.v(TAG, message)
         val firstPush = loggedThisProcess.add("any-$appWidgetId")
-        val firstFull = !effectivePartial && loggedThisProcess.add("full-$appWidgetId")
-        if (shouldPersist(firstPush, firstFull)) {
+        if (shouldPersist(firstPush, isFullPush = !effectivePartial)) {
             appLogDao.log(TAG_WIDGET_PUSH, message)
         }
     }
