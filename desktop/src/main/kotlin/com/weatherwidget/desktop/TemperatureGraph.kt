@@ -710,8 +710,10 @@ fun TemperatureGraph(
                 hoursFromNowToWindowStart = hoursFromNowToWindowStart,
             )
         ) {
+            // Same width + spacing as the footer strip's own call, so ghost labels land on the very
+            // hour marks the footer draws (hasHourLabel below aligns "→ 69.4°" to them).
             val labeledIndices = DesktopGraphUtils
-                .footerLabels(points, totalSpanHours, ZoneId.systemDefault())
+                .footerLabels(points, totalSpanHours, ZoneId.systemDefault(), w, footerMinLabelSpacingPx(footer, textMeasurer, scale))
                 .map { it.index }.toSet()
             val ghostCandidates = points.indices.mapNotNull { i ->
                 val coord = expectedCoords[i]
@@ -739,6 +741,7 @@ fun TemperatureGraph(
                     candidates = ghostCandidates,
                     spanHours = ghostSpanHours,
                     plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
+                    ghostLineStartX = transitionX,
                     drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
                     curveYAt = { x -> getCurveYAtX(x) },
                     metrics = metrics,

@@ -15,7 +15,7 @@ class GhostLineLabelTest {
     private val metrics = GhostLineLabel.Metrics(width = 40f, ascent = -10f, descent = 4f) // height 14
     private val plot = GraphRect(0f, 0f, 400f, 200f)
 
-    /** A clear hour point near the top of the plot (well above the low curve), in the right half. */
+    /** A clear hour point near the top of the plot (well above the low curve), in the future region. */
     private fun rightCandidate(x: Float, temp: Float = 69.4f, hasHourLabel: Boolean = true) =
         GhostLineLabel.Candidate(x = x, ghostY = 60f, expectedTemp = temp, hasHourLabel = hasHourLabel)
 
@@ -24,10 +24,12 @@ class GhostLineLabelTest {
         spanHours: Long = 6,
         drawnBounds: List<GraphRect> = emptyList(),
         curveYAt: (Float) -> Float? = lowCurve,
+        ghostLineStartX: Float = 200f, // default: mid-plot fetch dot (the pre-tracking behavior)
     ) = GhostLineLabel.placeAll(
         candidates = candidates,
         spanHours = spanHours,
         plot = plot,
+        ghostLineStartX = ghostLineStartX,
         drawnBounds = drawnBounds,
         curveYAt = curveYAt,
         metrics = metrics,
@@ -58,7 +60,7 @@ class GhostLineLabelTest {
     }
 
     @Test
-    fun `places a label hugging the line at a clear right-half hour`() {
+    fun `places a label hugging the line at a clear future hour`() {
         val p = placeAll(listOf(rightCandidate(300f)))
         assertEquals(1, p.size)
         assertEquals("69.4°", p[0].text)
@@ -69,7 +71,7 @@ class GhostLineLabelTest {
     }
 
     @Test
-    fun `labels every clear right-half hour, not just one`() {
+    fun `labels every clear future hour, not just one`() {
         // Two well-separated clear hours: both get a label.
         val p = placeAll(listOf(rightCandidate(260f, temp = 60f), rightCandidate(340f, temp = 70f)))
         assertEquals(2, p.size)
@@ -98,13 +100,24 @@ class GhostLineLabelTest {
     }
 
     @Test
-    fun `ignores left-half hours, only labels the right half`() {
-        // Only a left-half candidate (x below the 200 midpoint): nothing to place.
-        assertTrue(placeAll(listOf(rightCandidate(80f))).isEmpty())
-        // A right-half candidate is placed at its x.
-        val p = placeAll(listOf(rightCandidate(300f)))
+    fun `ignores hours left of the ghost-line start`() {
+        // Candidate left of the ghost-line start (fetch dot at x=200): nothing to place.
+        assertTrue(placeAll(listOf(rightCandidate(80f)), ghostLineStartX = 200f).isEmpty())
+        // A candidate right of the start is placed at its x.
+        val p = placeAll(listOf(rightCandidate(300f)), ghostLineStartX = 200f)
         assertEquals(1, p.size)
         assertEquals(300f, p[0].centerX, 0.001f)
+    }
+
+    @Test
+    fun `tracks a left-shifted ghost start so near-future hours still get labels`() {
+        // Scrolled forward: the fetch dot (ghost start) sits near the left edge (x=60), so the future
+        // fills most of the plot. A near-future hour at x=100 — which the old plot-midpoint (200)
+        // cutoff would have dropped — is now labeled because it is right of the ghost start.
+        val p = placeAll(listOf(rightCandidate(100f, temp = 72f)), ghostLineStartX = 60f)
+        assertEquals(1, p.size)
+        assertEquals(100f, p[0].centerX, 0.001f)
+        assertEquals("72.0°", p[0].text)
     }
 
     @Test
@@ -127,8 +140,8 @@ class GhostLineLabelTest {
     }
 
     @Test
-    fun `empty when every right-half hour collides with an existing label`() {
-        val blocker = GraphRect(200f, 0f, 400f, 200f) // covers the entire right half
+    fun `empty when every future hour collides with an existing label`() {
+        val blocker = GraphRect(200f, 0f, 400f, 200f) // covers the entire future region
         assertTrue(placeAll(listOf(rightCandidate(260f), rightCandidate(340f)), drawnBounds = listOf(blocker)).isEmpty())
     }
 

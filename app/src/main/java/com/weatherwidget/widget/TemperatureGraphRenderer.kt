@@ -623,6 +623,7 @@ object TemperatureGraphRenderer {
             candidates = candidates,
             spanHours = spanHours,
             plot = GraphRect(0f, ctx.graphTop, ctx.widthPx.toFloat(), ctx.graphBottom),
+            ghostLineStartX = fetchDotX,
             drawnBounds = obstacles,
             curveYAt = { x -> sampleVisibleCurveY(ctx, x) },
             metrics = metrics,

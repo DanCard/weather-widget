@@ -133,6 +133,26 @@ internal object DesktopGraphUtils {
         else -> 24
     }
 
+    /**
+     * Clock-friendly hour steps for the width-aware cadence, ascending (densest first). Every value
+     * divides 24 so the `localHour % interval == 0` gate still lands on tidy clock hours. Finer than
+     * [labelIntervalFor]'s ladder (adds 3h and 8h) because the desktop popup is wide enough to use them.
+     */
+    private val LABEL_INTERVAL_STEPS = intArrayOf(1, 2, 3, 4, 6, 8, 12, 24)
+
+    /**
+     * Pixel-budget clock-hour cadence: the densest step (a divisor of 24) whose labels each get at
+     * least [minLabelSpacingPx] of horizontal room across [widthPx]. Unlike [labelIntervalFor] this
+     * scales with the actual graph width, so a wider popup (or a resized window) shows more markers
+     * and a narrow one thins them back out. Falls back to the hours-only table when width/spacing
+     * are unknown (<= 0), and to 24h when even that overflows a very narrow window. Pure.
+     */
+    fun labelIntervalForWidth(spanHours: Int, widthPx: Float, minLabelSpacingPx: Float): Int {
+        if (widthPx <= 0f || minLabelSpacingPx <= 0f) return labelIntervalFor(spanHours)
+        val maxLabels = (widthPx / minLabelSpacingPx).toInt().coerceAtLeast(1)
+        return LABEL_INTERVAL_STEPS.firstOrNull { step -> spanHours / step + 1 <= maxLabels } ?: 24
+    }
+
     /** Curve smoothing scales up with span: tight views stay crisp, wide views read as a trend. */
     fun smoothIterationsFor(totalSpanHours: Int): Int = when {
         totalSpanHours <= 6 -> 1
@@ -239,11 +259,19 @@ internal object DesktopGraphUtils {
     /**
      * The full footer-label decision for the bottom strip, shared by the temperature, cloud-cover
      * and precipitation graphs: *which* points get a label and *what* text they show. Below the
-     * date threshold this is the clock-hour cadence ("12a"/"12p" every [labelIntervalFor] hours);
-     * above it, one date per visible day centered on local noon ("Wed 11"). Returned sorted by
-     * index. Pure — the draw loops only position and paint what this returns.
+     * date threshold this is the pixel-budget clock-hour cadence ("12a"/"12p" via
+     * [labelIntervalForWidth], denser on wide windows); above it, one date per visible day centered
+     * on local noon ("Wed 11"). [widthPx]/[minLabelSpacingPx] drive only the clock-hour cadence and
+     * are ignored in date mode. Returned sorted by index. Pure — the draw loops only position and
+     * paint what this returns.
      */
-    fun footerLabels(points: List<HourlyForecast>, totalSpanHours: Int, zone: ZoneId): List<FooterLabel> {
+    fun footerLabels(
+        points: List<HourlyForecast>,
+        totalSpanHours: Int,
+        zone: ZoneId,
+        widthPx: Float,
+        minLabelSpacingPx: Float,
+    ): List<FooterLabel> {
         if (points.isEmpty()) return emptyList()
         return if (isDateMode(totalSpanHours)) {
             representativeIndicesByDay(points, zone).sorted().map { i ->
@@ -251,7 +279,7 @@ internal object DesktopGraphUtils {
                 FooterLabel(i, formatDateLabel(date))
             }
         } else {
-            val interval = labelIntervalFor(totalSpanHours)
+            val interval = labelIntervalForWidth(totalSpanHours, widthPx, minLabelSpacingPx)
             points.indices.mapNotNull { i ->
                 val hour = Instant.ofEpochMilli(points[i].dateTime).atZone(zone).toLocalDateTime().hour
                 if (hour % interval == 0) FooterLabel(i, formatHourLabel(hour)) else null
@@ -359,6 +387,24 @@ internal fun DrawScope.hourlyFooter(textMeasurer: TextMeasurer, scale: Float): H
 }
 
 /**
+ * Minimum horizontal room one clock-hour footer label needs: its (short) text plus the gap and the
+ * day/night weather icon drawn beside it, plus breathing room. This footprint — icon included — is
+ * what keeps the pixel-budget cadence from crowding icons; clock-hour mode has no post-hoc overlap
+ * guard (unlike date mode), so the icon term must stay in the budget. Uses a representative "12p"
+ * measure so both footer callers agree without re-measuring every label first.
+ */
+internal fun DrawScope.footerMinLabelSpacingPx(
+    footer: HourlyFooter,
+    textMeasurer: TextMeasurer,
+    scale: Float,
+): Float {
+    val sampleTextW = textMeasurer.measure("12p", TextStyle(fontSize = footer.labelFontSize)).size.width.toFloat()
+    val gap = 2.dp.toPx() * scale
+    val breathing = 12.dp.toPx() * scale
+    return sampleTextW + gap + footer.iconPx + breathing
+}
+
+/**
  * The plot bounds and x-axis mapping shared by the cloud-cover and precipitation graphs (the
  * temperature graph computes the same geometry too). Only the per-graph y-mapping (`yAt`, which
  * scales by cloud `topScale` vs precip `yScaleMax`) and the `coords` it produces differ, so those
@@ -423,7 +469,8 @@ internal fun DrawScope.drawHourlyFooterStrip(
     xAt: (Int) -> Float,
 ) {
     val labelStyle = TextStyle(fontSize = footer.labelFontSize, color = Color.Gray)
-    val measured = DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault())
+    val minSpacing = footerMinLabelSpacingPx(footer, textMeasurer, scale)
+    val measured = DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault(), widthPx, minSpacing)
         .map { it to textMeasurer.measure(it.text, labelStyle) }
 
     // In multi-day date mode the one-label-per-day strip crowds at wide zoom (e.g. a 30-day zoom-out

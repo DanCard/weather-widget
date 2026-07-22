@@ -84,6 +84,32 @@ class DesktopGraphZoomTest {
     }
 
     @Test
+    fun `labelIntervalForWidth is denser on wider windows and always divides 24`() {
+        val span = 12
+        val narrow = DesktopGraphUtils.labelIntervalForWidth(span, widthPx = 200f, minLabelSpacingPx = 100f)
+        val wide = DesktopGraphUtils.labelIntervalForWidth(span, widthPx = 1200f, minLabelSpacingPx = 100f)
+        // Wider window -> more labels -> smaller (denser) interval.
+        assertTrue("wider window should be at least as dense: wide=$wide narrow=$narrow", wide <= narrow)
+        assertEquals(0, 24 % narrow)
+        assertEquals(0, 24 % wide)
+        // 1200px / 100px = 12 labels; a 12h span fits every hour (13 labels needs 13, so interval 2 -> 7).
+        assertTrue("very wide window reaches fine cadence", wide <= 2)
+    }
+
+    @Test
+    fun `labelIntervalForWidth falls back to hours-only table when width unknown`() {
+        assertEquals(DesktopGraphUtils.labelIntervalFor(24), DesktopGraphUtils.labelIntervalForWidth(24, 0f, 100f))
+        assertEquals(DesktopGraphUtils.labelIntervalFor(24), DesktopGraphUtils.labelIntervalForWidth(24, 700f, 0f))
+    }
+
+    @Test
+    fun `labelIntervalForWidth caps at 24h for a very narrow window`() {
+        // A 96h span in a window that fits only ~2 labels can't go denser than the coarsest step.
+        val interval = DesktopGraphUtils.labelIntervalForWidth(96, widthPx = 120f, minLabelSpacingPx = 100f)
+        assertEquals(24, interval)
+    }
+
+    @Test
     fun `smoothing increases with span`() {
         assertTrue(DesktopGraphUtils.smoothIterationsFor(168) >= DesktopGraphUtils.smoothIterationsFor(4))
     }
@@ -214,10 +240,13 @@ class DesktopGraphZoomTest {
         val utc = ZoneId.of("UTC")
         val base = Instant.parse("2026-06-10T00:00:00Z").toEpochMilli()
         val hourMs = 3_600_000L
-        // 24h span -> labelIntervalFor(24) == 4, so a label every 4th hour, time-of-day text.
+        // 24h span with a pixel budget of 7 labels -> width-aware interval 4, so a label every 4th
+        // hour, time-of-day text. (700px / 100px per label = 7 labels; interval 4 yields 7 labels.)
         val points = (0..24).map { i -> HourlyForecast(base + i * hourMs, 70f, "Clear") }
 
-        val labels = DesktopGraphUtils.footerLabels(points, totalSpanHours = 24, zone = utc)
+        val labels = DesktopGraphUtils.footerLabels(
+            points, totalSpanHours = 24, zone = utc, widthPx = 700f, minLabelSpacingPx = 100f,
+        )
 
         assertEquals(listOf(0, 4, 8, 12, 16, 20, 24), labels.map { it.index })
         assertEquals(
@@ -237,7 +266,10 @@ class DesktopGraphZoomTest {
             // 72h span -> date mode: Jun 10/11 land on local noon, Jun 12's lone 00:00 point is its rep.
             val points = (0..48).map { i -> HourlyForecast(base + i * hourMs, 70f, "Clear") }
 
-            val labels = DesktopGraphUtils.footerLabels(points, totalSpanHours = 72, zone = utc)
+            // Date mode ignores width/spacing; pass arbitrary values.
+            val labels = DesktopGraphUtils.footerLabels(
+                points, totalSpanHours = 72, zone = utc, widthPx = 700f, minLabelSpacingPx = 100f,
+            )
 
             assertEquals(listOf(12, 36, 48), labels.map { it.index })
             assertEquals(listOf("Wed 10", "Thu 11", "Fri 12"), labels.map { it.text })

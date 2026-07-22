@@ -14,8 +14,10 @@ import kotlin.math.roundToInt
  *
  * - **Value**: the ghost line's own temperature at the chosen hour, to **one decimal** (e.g. `69.4°`).
  * - **Anchor**: snapped to an hour point so it reads against the footer hour labels ("at 6 PM → 69.4°").
- *   Only hour points on the **right half** of the plot are considered; hours whose footer label is
- *   shown are preferred so the temperature sits above a visible hour tick.
+ *   Only hours at/right of the **ghost-line start** (the fetch dot) are considered — the ghost line
+ *   only exists there — so panning into the future keeps labeling the near-future instead of a fixed
+ *   plot midpoint. Hours whose footer label is shown are preferred so the temperature sits above a
+ *   visible hour tick.
  * - **Visibility**: the narrow / zoomed-in view only, gated by [MAX_HOURS_SPAN] (12 h — same as the
  *   fetch-dot age label). The caller additionally gates on the ghost line being drawn at all
  *   (now-indicator visible, meaningful delta, fetch dot present).
@@ -28,9 +30,6 @@ import kotlin.math.roundToInt
 object GhostLineLabel {
     /** Narrow-only gate; matches the fetch-dot age label ([FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN]). */
     const val MAX_HOURS_SPAN = FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN
-
-    /** Only consider ghost-line hour points whose x falls in the right portion of the plot. */
-    const val RIGHT_HALF_FRACTION = 0.5f
 
     /** Curve clearance sampling across the candidate box width. */
     private const val CURVE_SAMPLES = 5
@@ -77,19 +76,23 @@ object GhostLineLabel {
      * show (window too wide, no candidates, or no clear hour point on the right half). One label is
      * placed at each eligible hour mark that has room — the ghost line can carry several labels.
      *
-     * [plot] is the curve-drawing area (exclude the footer). [drawnBounds] are obstacles already on
-     * the canvas. [curveYAt] returns the visible curve's y at a given x, or null off-curve. [padPx]
-     * is the edge clearance; [gapPx] is the gap kept between a label and the ghost line it hugs.
+     * [plot] is the curve-drawing area (exclude the footer). [ghostLineStartX] is the x where the
+     * ghost line begins (the fetch dot); only hours at/right of it are eligible, so the labels track
+     * the fetch dot as the view pans rather than a fixed plot midpoint. [drawnBounds] are obstacles
+     * already on the canvas. [curveYAt] returns the visible curve's y at a given x, or null off-curve.
+     * [padPx] is the edge clearance; [gapPx] is the gap kept between a label and the ghost line it hugs.
      *
      * Hours whose footer label is shown are preferred so each temp sits over a visible tick; if no
-     * right-half hour carries a footer label we fall back to all right-half hours. Labels are placed
-     * against a **running obstacle list** (seeded from [drawnBounds]), so each placed ghost label
-     * becomes an obstacle for the next — they never stack on each other.
+     * future hour carries a footer label we fall back to all future hours. Labels are placed against
+     * a **running obstacle list** (seeded from [drawnBounds]), so each placed ghost label becomes an
+     * obstacle for the next — they never stack on each other. Crowding near the fetch dot is handled
+     * by the obstacle list (the fetch-dot / current-temp labels sit in [drawnBounds]), not by a cutoff.
      */
     fun placeAll(
         candidates: List<Candidate>,
         spanHours: Long,
         plot: GraphRect,
+        ghostLineStartX: Float,
         drawnBounds: List<GraphRect>,
         curveYAt: (Float) -> Float?,
         metrics: Metrics,
@@ -102,14 +105,15 @@ object GhostLineLabel {
         if (candidates.isEmpty()) return emptyList()
         if (metrics.width + 2f * padPx > plot.width) return emptyList()
 
-        val rightCutoff = plot.left + RIGHT_HALF_FRACTION * plot.width
-        val rightHalf = candidates.filter { it.x >= rightCutoff }
-        if (rightHalf.isEmpty()) return emptyList()
+        // The ghost line only exists right of the fetch dot; anchor eligibility there so panning into
+        // the future keeps labeling the near-future (a fixed plot-midpoint cutoff dropped those hours).
+        val future = candidates.filter { it.x >= ghostLineStartX }
+        if (future.isEmpty()) return emptyList()
 
         // Prefer hours whose footer label is shown so each temp sits over a visible tick; fall back to
-        // any right-half hour only if none of them carry a footer label.
-        val labeled = rightHalf.filter { it.hasHourLabel }
-        val eligible = (if (labeled.isNotEmpty()) labeled else rightHalf).sortedBy { it.x }
+        // any future hour only if none of them carry a footer label.
+        val labeled = future.filter { it.hasHourLabel }
+        val eligible = (if (labeled.isNotEmpty()) labeled else future).sortedBy { it.x }
 
         val obstacles = drawnBounds.toMutableList()
         val placed = mutableListOf<Placement>()
