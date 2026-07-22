@@ -31,13 +31,21 @@ Build a signed release AAB (requires RELEASE_STORE_* signing props / release.key
 
 Validate service-account auth and metadata without uploading anything
 
+### android internal
+
+```sh
+[bundle exec] fastlane android internal
+```
+
+Build and upload to the internal testing track
+
 ### android beta
 
 ```sh
 [bundle exec] fastlane android beta
 ```
 
-Build and upload to the internal testing track with listing metadata
+Build and upload to the open beta testing track
 
 ### android production
 

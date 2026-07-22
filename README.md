@@ -81,6 +81,8 @@ tray app that reuses the shared weather/networking layer. It shows the current t
 system-tray icon, a draggable popup with hourly/daily graphs, and a forecast-accuracy view. Weather
 data is cached in a local SQLite database (`~/.local/share/weather-widget/weather.db`).
 
+> **Desktop Environment Note:** Currently, the Linux desktop companion has only been tested on **XFCE**. If you would like support or testing verified on other popular desktop environments like GNOME or KDE, please let me know.
+
 ### Install via apt (Debian/Ubuntu)
 
 The desktop app is published as a GPG-signed apt repository — no building required:

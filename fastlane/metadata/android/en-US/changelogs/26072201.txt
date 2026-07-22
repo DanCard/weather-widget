@@ -1,0 +1,1 @@
+Open beta release: Improved temperature line smoothing and ghost line label visibility, updated SDK target for Android 16 compliance, enhanced observation station fallback, and performance optimizations.
