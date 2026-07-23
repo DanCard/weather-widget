@@ -110,9 +110,16 @@ class GhostLineLabelTest {
     }
 
     @Test
-    fun `suppressed past the narrow-view span max`() {
-        assertTrue(placeAll(listOf(rightCandidate(300f)), spanHours = GhostLineLabel.MAX_HOURS_SPAN).isNotEmpty())
-        assertTrue(placeAll(listOf(rightCandidate(300f)), spanHours = GhostLineLabel.MAX_HOURS_SPAN + 1).isEmpty())
+    fun `suppressed past the label span max`() {
+        assertTrue(placeAll(listOf(rightCandidate(300f)), spanHours = GhostLineLabel.LABEL_MAX_SPAN_HOURS).isNotEmpty())
+        assertTrue(placeAll(listOf(rightCandidate(300f)), spanHours = GhostLineLabel.LABEL_MAX_SPAN_HOURS + 1).isEmpty())
+    }
+
+    @Test
+    fun `labels the default WIDE 24h view (regression - was capped at 12h)`() {
+        // WIDE (ZoomStage) is the default on both platforms at a 24h span; it must still place labels.
+        // The old MAX_HOURS_SPAN (12h) cap left the default view's ghost line unlabeled.
+        assertTrue(placeAll(listOf(rightCandidate(300f)), spanHours = 24).isNotEmpty())
     }
 
     @Test

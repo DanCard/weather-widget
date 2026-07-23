@@ -18,9 +18,11 @@ import kotlin.math.roundToInt
  *   only exists there — so panning into the future keeps labeling the near-future instead of a fixed
  *   plot midpoint. Hours whose footer label is shown are preferred so the temperature sits above a
  *   visible hour tick.
- * - **Visibility**: the narrow / zoomed-in view only, gated by [MAX_HOURS_SPAN] (12 h — same as the
- *   fetch-dot age label). The caller additionally gates on the ghost line being drawn at all
- *   (now-indicator visible, meaningful delta, fetch dot present).
+ * - **Visibility**: up-to-a-day views only, gated by [LABEL_MAX_SPAN_HOURS] (48 h — the point where
+ *   the footer stops showing clock-hour ticks, which these labels read against). This covers the
+ *   default WIDE view (24 h) and a day-click; it excludes the multi-day THREE_DAY view (72 h). The
+ *   caller additionally gates on the ghost line being drawn at all — the same [GhostLineGate] the
+ *   line uses (now-indicator visible, meaningful delta, fetch dot present).
  * - **Placement**: hugs the line (small gap above, else below) and is drawn **only when clear** of
  *   every already-placed label and of the curve; returns null when the right half is crowded.
  *
@@ -30,6 +32,21 @@ import kotlin.math.roundToInt
 object GhostLineLabel {
     /** Narrow-only gate; matches the fetch-dot age label ([FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN]). */
     const val MAX_HOURS_SPAN = FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN
+
+    /**
+     * Widest visible window (hours) that still gets ghost-line labels. The labels are anchored to the
+     * footer's clock-hour ticks ("at 6 PM → 69.4°"), so they only read sensibly while the footer shows
+     * clock hours rather than per-day date labels — which both platforms switch to around 48 h (desktop
+     * `DesktopGraphUtils.DATE_LABEL_SPAN_THRESHOLD_HOURS`; Android's THREE_DAY date footer). This covers
+     * the **default WIDE view (24 h)** and a day-click (24 h) but excludes THREE_DAY (72 h), where a
+     * compressed ghost line hour-anchored against dates would just be clutter.
+     *
+     * Deliberately larger than [MAX_HOURS_SPAN]: the ghost *line* is drawn on any NOW-visible view via
+     * [GhostLineGate], so capping the *labels* at 12 h left the default WIDE view showing an unlabeled
+     * line. [MAX_HOURS_SPAN] still governs the fetch-dot age label and GhostLineGate's off-left
+     * (NOW-off-screen) future-scroll extension; only the label span cap lives here.
+     */
+    const val LABEL_MAX_SPAN_HOURS = 48L
 
     /** Curve clearance sampling across the candidate box width. */
     private const val CURVE_SAMPLES = 5
@@ -106,7 +123,7 @@ object GhostLineLabel {
         metrics: Metrics,
         padPx: Float,
         gapPx: Float,
-        maxSpanHours: Long = MAX_HOURS_SPAN,
+        maxSpanHours: Long = LABEL_MAX_SPAN_HOURS,
     ): List<Placement> {
         if (spanHours > maxSpanHours) return emptyList()
         if (metrics.width <= 0f || metrics.height <= 0f) return emptyList()
