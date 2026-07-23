@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.graph.DualHighLabel
+import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.Log
@@ -128,7 +130,15 @@ fun DailyForecastGraph(
         val graphHeight = (bottom - top).coerceAtLeast(1f)
         val barWidth = (7.dp.toPx() * scale).coerceAtMost(dayWidth * 0.22f)
         val thinWidth = barWidth * 0.65f
-        val tripleOffset = (6.dp.toPx() * scale).coerceAtMost(dayWidth * 0.18f)
+        // Touching triple bars, shared with Android. Desktop's flanking bars are thinner (thinWidth)
+        // than the centre thermostat (barWidth), so the touching offset is their average — the shared
+        // formula handles the unequal widths.
+        val tripleOffset = TodayColumnHighlight.tripleBarSpacing(
+            centerBarWidthPx = barWidth,
+            flankBarWidthPx = thinWidth,
+            dayWidthPx = dayWidth,
+            columnEdgeMarginPx = 2.dp.toPx(),
+        )
 
         fun yAt(temp: Float): Float = top + graphHeight * (1f - (temp - minTemp) / range)
 
@@ -164,6 +174,26 @@ fun DailyForecastGraph(
             val baseColor = forecastColor(day)
 
             if (day.isToday) {
+                // Frosted-glass focal panel behind the three today bars (shared geometry + fill with
+                // Android). Drawn first so the bars, bulb, and labels sit on top of it.
+                val panel = TodayColumnHighlight.panelBounds(
+                    centerXPx = centerX,
+                    tripleBarOffsetPx = tripleOffset,
+                    flankBarWidthPx = thinWidth,
+                    dayWidthPx = dayWidth,
+                    graphTopPx = top,
+                    canvasHeightPx = size.height,
+                    dayLabelBandPx = dayLabelBand,
+                    horizontalPaddingPx = TodayColumnHighlight.PANEL_HORIZONTAL_PADDING_DP.dp.toPx(),
+                    topMarginPx = TodayColumnHighlight.PANEL_TOP_MARGIN_DP.dp.toPx(),
+                )
+                drawRoundRect(
+                    color = Color(TodayColumnHighlight.PANEL_FILL_ARGB),
+                    topLeft = Offset(panel.left, panel.top),
+                    size = Size(panel.width, panel.height),
+                    cornerRadius = CornerRadius(TodayColumnHighlight.PANEL_CORNER_RADIUS_DP.dp.toPx()),
+                )
+
                 val snapshotFlags = WeatherIcon.getConditionFlags(day.snapshot?.condition)
                 val snapshotColor = com.weatherwidget.shared.util.WeatherColors
                     .snapshotBarOverrideArgb(snapshotFlags.isRainy)

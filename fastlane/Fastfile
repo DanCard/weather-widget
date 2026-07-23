@@ -47,6 +47,7 @@ platform :android do
       skip_upload_apk: true,
       skip_upload_images: true,
       skip_upload_screenshots: true,
+      changes_not_sent_for_review: false,
     )
   end
 
@@ -57,6 +58,7 @@ platform :android do
       track: "production",
       aab: "app/build/outputs/bundle/release/app-release.aab",
       skip_upload_apk: true,
+      changes_not_sent_for_review: false,
     )
   end
 

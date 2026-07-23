@@ -9,6 +9,7 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.BuildConfig
 import com.weatherwidget.widget.handlers.HeaderConstants
 import com.weatherwidget.shared.graph.DualHighLabel
+import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.util.WeatherConditionColors
 import com.weatherwidget.util.WeatherIconMapper
 import kotlin.math.abs
@@ -82,6 +83,9 @@ object DailyForecastGraphRenderer {
     // legible over same-colored bars. Much thinner than the reverted heavy outline; gated to past days.
     private const val LABEL_OUTLINE_STROKE_FRACTION = 0.12f
     private const val HEADER_RAIN_OVERLAP_TOLERANCE_DP = 4f
+
+    // Today-column emphasis (frosted-glass panel + touching triple bars) is shared with desktop via
+    // com.weatherwidget.shared.graph.TodayColumnHighlight — see it for the geometry/styling constants.
 
     private data class PaintCache(
         val scaleFactor: Float,
@@ -357,6 +361,12 @@ object DailyForecastGraphRenderer {
             val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
             val rightNeighbor = daysByColumn[columnIndex + 1]
 
+            // Frosted-glass focal panel BEHIND today's triple-bar column (drawn before the bars so it
+            // sits underneath them and their labels).
+            if (day.isToday) {
+                drawTodayHighlightPanel(canvas, centerX, layout)
+            }
+
             // Bars first, then column content (weather icon, low/day labels) so the icon
             // and labels render on top of any bar geometry that might overlap them.
             drawDayBars(canvas, context, day, centerX, layout, paints, onBarDrawn)
@@ -499,6 +509,15 @@ object DailyForecastGraphRenderer {
         val barWidth = dailyBarStrokeWidthPx(density, scaleFactor, bitmapScale)
         val tripleBarWidth = todayTripleBarStrokeWidthPx(density, scaleFactor, bitmapScale)
 
+        // Spread of today's flanking bars from the centre (shared with desktop). Android draws all
+        // three bars at tripleBarWidth, so centre and flank widths are equal here.
+        val tripleBarOffset = TodayColumnHighlight.tripleBarSpacing(
+            centerBarWidthPx = tripleBarWidth,
+            flankBarWidthPx = tripleBarWidth,
+            dayWidthPx = dayWidth,
+            columnEdgeMarginPx = (2f).dp(density),
+        )
+
         if (dayLabelLayout.scale < 0.999f || dayLabelLayout.shortenedLabels) {
             debug {
                 "dayLabel layout adjusted: widthPx=$widthPx columns=$columns dayWidth=$dayWidth" +
@@ -522,7 +541,7 @@ object DailyForecastGraphRenderer {
             dayWidth = dayWidth,
             tempLabelMaxWidthPx = dayWidth + (TEMP_LABEL_OVERLAP_ALLOWANCE_DP * labelScale).dp(density),
             horizontalPadding = horizontalPadding,
-            tripleBarOffset = (8f * scaleFactor * labelScale).dp(density),
+            tripleBarOffset = tripleBarOffset,
             forecastBarOffset = barWidth * FORECAST_BAR_OFFSET_SCALE,
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,
@@ -767,6 +786,36 @@ object DailyForecastGraphRenderer {
             drawable.setTint(tint)
         }
         drawable.draw(canvas)
+    }
+
+    /**
+     * Draws the frosted-glass focal panel behind the today column. Spans the three bars horizontally
+     * (centerX ± tripleBarOffset, plus a little padding, clamped inside the column) and the bar/icon/
+     * low-label area vertically (graphTop → just above the day label). Purely decorative — it changes
+     * no geometry, so the label-placement paths are untouched.
+     */
+    private fun drawTodayHighlightPanel(canvas: Canvas, centerX: Float, layout: LayoutInfo) {
+        val density = layout.density
+        val tripleBarWidth = todayTripleBarStrokeWidthPx(density, layout.scaleFactor, layout.bitmapScale)
+        val bounds = TodayColumnHighlight.panelBounds(
+            centerXPx = centerX,
+            tripleBarOffsetPx = layout.tripleBarOffset,
+            flankBarWidthPx = tripleBarWidth,
+            dayWidthPx = layout.dayWidth,
+            graphTopPx = layout.graphTop,
+            canvasHeightPx = layout.heightPx.toFloat(),
+            dayLabelBandPx = layout.dayLabelHeight,
+            horizontalPaddingPx = TodayColumnHighlight.PANEL_HORIZONTAL_PADDING_DP.dp(density),
+            topMarginPx = TodayColumnHighlight.PANEL_TOP_MARGIN_DP.dp(density),
+        )
+        val radius = TodayColumnHighlight.PANEL_CORNER_RADIUS_DP.dp(density)
+        val rect = RectF(bounds.left, bounds.top, bounds.right, bounds.bottom)
+
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = TodayColumnHighlight.PANEL_FILL_ARGB
+        }
+        canvas.drawRoundRect(rect, radius, radius, fillPaint)
     }
 
     private fun drawDayBars(
