@@ -6,6 +6,8 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import com.weatherwidget.test.category.LongDuration
+import com.weatherwidget.ui.LocationUpdater
+import com.weatherwidget.util.SharedPreferencesUtil
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -41,6 +43,7 @@ class WeatherWidgetProviderEnqueuePolicyTest {
         mockWorkManager = mockk(relaxed = true)
         mockkStatic(WorkManager::class)
         every { WorkManager.getInstance(any()) } returns mockWorkManager
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit().clear().commit()
     }
 
     @After
@@ -82,6 +85,27 @@ class WeatherWidgetProviderEnqueuePolicyTest {
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
                 eq(WeatherWidgetProvider.WORK_NAME_ONE_TIME),
+                eq(ExistingWorkPolicy.KEEP),
+                any<OneTimeWorkRequest>(),
+            )
+        }
+    }
+
+    @Test
+    fun `location candidate refresh keeps running handoff work instead of cancelling it`() {
+        LocationUpdater.proposeFollowDeviceLocation(
+            context = context,
+            lat = 40.7128,
+            lon = -74.0060,
+            label = "Candidate",
+            enqueueRefresh = true,
+            nowMs = 100L,
+            ids = intArrayOf(901),
+        )
+
+        verify(exactly = 1) {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WeatherWidgetWorker.WORK_NAME_LOCATION_CANDIDATE),
                 eq(ExistingWorkPolicy.KEEP),
                 any<OneTimeWorkRequest>(),
             )

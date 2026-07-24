@@ -54,6 +54,7 @@ class WeatherWidgetWorker
 
             val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
             val forceRefresh = inputData.getBoolean(KEY_FORCE_REFRESH, false)
+            val candidateLocationRefresh = inputData.getBoolean(KEY_LOCATION_CANDIDATE_REFRESH, false)
             val currentTempOnly = inputData.getBoolean(KEY_CURRENT_TEMP_ONLY, false)
             val nonPrimaryCurrentTempOnly = inputData.getBoolean(KEY_NONPRIMARY_CURRENT_TEMP_ONLY, false)
             val opportunisticCurrentTemp = inputData.getBoolean(KEY_CURRENT_TEMP_OPPORTUNISTIC, false)
@@ -135,9 +136,12 @@ class WeatherWidgetWorker
                 maybeScheduleDebugFastRefresh()
 
                 // Piggyback GPS resample when charging or battery > 70%
-                if (!uiOnlyRefresh && !currentTempOnly && !nonPrimaryCurrentTempOnly && !observationBackfillMode) {
+                var candidateChangedThisRun = false
+                if (!uiOnlyRefresh && !currentTempOnly && !nonPrimaryCurrentTempOnly &&
+                    !observationBackfillMode && !candidateLocationRefresh
+                ) {
                     try {
-                        gpsResampler.resample(context)
+                        candidateChangedThisRun = gpsResampler.resample(context)
                     } catch (e: Exception) {
                         Log.w(TAG, "GPS resample failed", e)
                     }
@@ -156,9 +160,21 @@ class WeatherWidgetWorker
                 // once the table seeded to the default, every refresh re-fetched the default and the
                 // configured location (used only for rendering) was never honored — pinning the
                 // widget to the wrong place permanently.
-                val location = ActiveLocationResolver.resolve(context, stateManager, WeatherDatabase.getDatabase(context).forecastDao())
+                val activeLocation = ActiveLocationResolver.resolve(
+                    context,
+                    stateManager,
+                    WeatherDatabase.getDatabase(context).forecastDao(),
+                )
+                // Full weather work may prepare the latest candidate while every display path keeps
+                // using activeLocation. UI/current-temp-only work never follows a candidate.
+                val candidateAtLoad = if (!uiOnlyRefresh) LocationHandoffStore.getCandidate(context) else null
+                val location = candidateAtLoad?.location?.let { it.lat to it.lon } ?: activeLocation
                 val configuredLocation = appWidgetIds.toList().firstNotNullOfOrNull { id -> stateManager.getWidgetLocation(id) }
-                Log.d(TAG, "doWork: Location = $location (configured=${configuredLocation != null})")
+                Log.d(
+                    TAG,
+                    "doWork: Location = $location active=$activeLocation candidate=${candidateAtLoad != null} " +
+                        "(configured=${configuredLocation != null})",
+                )
                 val activeSourceList = appWidgetIds.map { id ->
                     stateManager.getCurrentDisplaySource(id).id
                 }.distinct()
@@ -175,7 +191,7 @@ class WeatherWidgetWorker
                     weatherRepository.getWeatherData(
                         latitude = location.first,
                         longitude = location.second,
-                        forceRefresh = forceRefresh && !uiOnlyRefresh,
+                        forceRefresh = (forceRefresh || candidateChangedThisRun) && !uiOnlyRefresh,
                         networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh),
                         targetSourceId = targetSourceId,
                         fetchContext = fetchContext,
@@ -197,6 +213,59 @@ class WeatherWidgetWorker
                         val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
                         val afterHourlyMs = SystemClock.elapsedRealtime()
                         logStage("hourly_fetched count=${hourlyForecasts.size}")
+
+                        if (candidateAtLoad != null) {
+                            val currentCandidate = LocationHandoffStore.getCandidate(context)
+                            if (currentCandidate == null || !LocationHandoffStore.matches(candidateAtLoad, currentCandidate)) {
+                                appLogDao.log(
+                                    "LOCATION_HANDOFF",
+                                    "state=candidate_superseded loaded=${candidateAtLoad.location.lat},${candidateAtLoad.location.lon}",
+                                    "INFO",
+                                )
+                                return@fold Result.success()
+                            }
+
+                            val requiresHourlyData = appWidgetIds.any { id ->
+                                stateManager.getViewMode(id) != ViewMode.DAILY
+                            }
+                            val usability = evaluateCandidateUsability(
+                                forecasts = weatherList,
+                                hourlyForecasts = hourlyForecasts,
+                                requiredSourceIds = activeSourceList.toSet(),
+                                requiresHourlyData = requiresHourlyData,
+                                nowMs = System.currentTimeMillis(),
+                                candidateFirstSeenMs = candidateAtLoad.firstSeenMs,
+                            )
+                            if (!usability.useful) {
+                                appLogDao.log(
+                                    "LOCATION_HANDOFF",
+                                    "state=candidate_waiting_data reason=${usability.reason} " +
+                                        "candidate=${candidateAtLoad.location.lat},${candidateAtLoad.location.lon} " +
+                                        "dailyRows=${weatherList.size} hourlyRows=${hourlyForecasts.size}",
+                                    "INFO",
+                                )
+                                return@fold Result.success()
+                            }
+                            if (!com.weatherwidget.ui.LocationUpdater.promoteCandidateIfMatches(
+                                    context,
+                                    candidateAtLoad,
+                                    appWidgetIds,
+                                )
+                            ) {
+                                appLogDao.log(
+                                    "LOCATION_HANDOFF",
+                                    "state=candidate_superseded phase=promotion",
+                                    "INFO",
+                                )
+                                return@fold Result.success()
+                            }
+                            appLogDao.log(
+                                "LOCATION_HANDOFF",
+                                "state=candidate_promoted reason=${usability.reason} " +
+                                    "location=${candidateAtLoad.location.lat},${candidateAtLoad.location.lon}",
+                                "INFO",
+                            )
+                        }
 
                         // Backfill NWS history if this is a new location or no history exists
                         // ONLY perform if not a UI-only refresh to avoid blocking during frequent updates
@@ -846,6 +915,7 @@ class WeatherWidgetWorker
             const val DEFAULT_LON = -122.0841
             const val KEY_UI_ONLY_REFRESH = "ui_only_refresh"
             const val KEY_FORCE_REFRESH = "force_refresh"
+            const val KEY_LOCATION_CANDIDATE_REFRESH = "location_candidate_refresh"
             const val KEY_CURRENT_TEMP_ONLY = "current_temp_only"
             const val KEY_NONPRIMARY_CURRENT_TEMP_ONLY = "nonprimary_current_temp_only"
             const val KEY_CURRENT_TEMP_OPPORTUNISTIC = "current_temp_opportunistic"
@@ -861,5 +931,6 @@ class WeatherWidgetWorker
             const val KEY_NO_HOURLY_LAT = "no_hourly_lat"
             const val KEY_NO_HOURLY_LON = "no_hourly_lon"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
+            const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
         }
     }

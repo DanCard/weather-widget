@@ -8,7 +8,11 @@ import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.CandidateProposal
+import com.weatherwidget.widget.LocationHandoffStore
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -31,6 +35,7 @@ class LocationUpdaterTest : RobolectricTest() {
         // Clear prefs before each test
         val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
         prefs.edit().clear().commit()
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit().clear().commit()
     }
 
     @Test
@@ -137,5 +142,62 @@ class LocationUpdaterTest : RobolectricTest() {
         // Fresh coordinate is Googleplex (different site)
         val result = LocationUpdater.shouldHealTo(context, 37.4220, -122.0841)
         assertTrue(result)
+    }
+
+    @Test
+    fun `follow-device candidate does not replace active widget coordinates before promotion`() {
+        val widgetId = 204
+        val info = android.appwidget.AppWidgetProviderInfo().apply {
+            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
+        }
+        shadowAppWidgetManager.addBoundWidget(widgetId, info)
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        prefs.edit()
+            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", 37.4168f)
+            .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", -122.0890f)
+            .commit()
+
+        val proposal = LocationUpdater.proposeFollowDeviceLocation(
+            context = context,
+            lat = 37.3774,
+            lon = -122.0749,
+            label = "Away",
+            enqueueRefresh = false,
+            nowMs = 100L,
+            ids = intArrayOf(widgetId),
+        )
+
+        assertEquals(CandidateProposal.UPDATED, proposal)
+        assertEquals(37.4168f, prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN), 0.0001f)
+        assertEquals(-122.0890f, prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN), 0.0001f)
+        assertNotNull(LocationHandoffStore.getCandidate(context))
+    }
+
+    @Test
+    fun `promoting evaluated candidate atomically updates active widget coordinates`() {
+        val widgetId = 205
+        val info = android.appwidget.AppWidgetProviderInfo().apply {
+            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
+        }
+        shadowAppWidgetManager.addBoundWidget(widgetId, info)
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        prefs.edit()
+            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", 37.4168f)
+            .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", -122.0890f)
+            .commit()
+        LocationUpdater.proposeFollowDeviceLocation(
+            context = context,
+            lat = 37.3774,
+            lon = -122.0749,
+            label = "Away",
+            enqueueRefresh = false,
+            nowMs = 100L,
+            ids = intArrayOf(widgetId),
+        )
+        val candidate = LocationHandoffStore.getCandidate(context)!!
+
+        assertTrue(LocationUpdater.promoteCandidateIfMatches(context, candidate, intArrayOf(widgetId)))
+        assertEquals(37.3774f, prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN), 0.0001f)
+        assertEquals(-122.0749f, prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN), 0.0001f)
     }
 }

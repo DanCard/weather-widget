@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.weatherwidget.R
@@ -11,14 +12,18 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
+import com.weatherwidget.widget.CandidateLocation
+import com.weatherwidget.widget.CandidateProposal
+import com.weatherwidget.widget.HandoffLocation
+import com.weatherwidget.widget.LocationHandoffStore
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 
 /**
- * Single source of truth for applying a chosen location to every placed widget. Shared by the
- * manual coordinate entry in [SettingsActivity] and the GPS auto-heal in [MainActivity] so both
- * follow the identical, supported propagation path (widget prefs + historical POI + force refresh).
+ * Owns explicit active-location updates and the passive follow-device candidate handoff.
+ * User-confirmed locations update all widget coordinates immediately. GPS samples stay candidates
+ * until their weather can produce a useful body.
  */
 object LocationUpdater {
 
@@ -146,16 +151,63 @@ object LocationUpdater {
         label: String,
         ids: IntArray = getWidgetIds(context),
     ) {
-        // 1. Update all widgets' configured location.
+        LocationHandoffStore.clear(context)
+        writeActiveLocation(context, lat, lon, ids)
+        recordHistoricalPoi(context, lat, lon, label)
+        enqueueForceRefresh(context)
+    }
+
+    internal fun proposeFollowDeviceLocation(
+        context: Context,
+        lat: Double,
+        lon: Double,
+        label: String,
+        enqueueRefresh: Boolean,
+        nowMs: Long = System.currentTimeMillis(),
+        ids: IntArray = getWidgetIds(context),
+    ): CandidateProposal {
+        val stateManager = WidgetStateManager(context)
+        val active = ids.toList().firstNotNullOfOrNull(stateManager::getWidgetLocation)
+            ?: (WeatherWidgetWorker.DEFAULT_LAT to WeatherWidgetWorker.DEFAULT_LON)
+        val proposal = LocationHandoffStore.propose(
+            context = context,
+            activeLocation = active,
+            freshLocation = HandoffLocation(lat, lon, label),
+            nowMs = nowMs,
+        )
+        if (proposal == CandidateProposal.UPDATED && enqueueRefresh) {
+            enqueueCandidateRefresh(context)
+        }
+        return proposal
+    }
+
+    internal fun promoteCandidateIfMatches(
+        context: Context,
+        candidate: CandidateLocation,
+        ids: IntArray = getWidgetIds(context),
+    ): Boolean = LocationHandoffStore.promoteIfMatches(context, candidate) { location ->
+        writeActiveLocation(context, location.lat, location.lon, ids)
+        recordHistoricalPoi(context, location.lat, location.lon, location.label)
+    }
+
+    private fun writeActiveLocation(
+        context: Context,
+        lat: Double,
+        lon: Double,
+        ids: IntArray,
+    ) {
         val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
         val editor = widgetPrefs.edit()
         for (id in ids) {
             editor.putFloat("${ConfigActivity.KEY_LAT_PREFIX}$id", lat.toFloat())
             editor.putFloat("${ConfigActivity.KEY_LON_PREFIX}$id", lon.toFloat())
         }
-        editor.apply()
+        // Promotion clears the candidate immediately afterward. Persist active coordinates first
+        // so a process death cannot leave neither durable active nor candidate state.
+        editor.commit()
+    }
 
-        // 2. Update default POI in weather_prefs (the current-temp fetch loop reads this).
+    private fun recordHistoricalPoi(context: Context, lat: Double, lon: Double, label: String) {
         val weatherPrefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
         val historicalPois = weatherPrefs.getString("historical_pois", null)
         val newPoi = "$label|$lat|$lon"
@@ -168,8 +220,9 @@ object LocationUpdater {
             pois.takeLast(5).joinToString(";")
         }
         weatherPrefs.edit().putString("historical_pois", updatedPois).apply()
+    }
 
-        // 3. Trigger a forced widget refresh for the new location.
+    private fun enqueueForceRefresh(context: Context) {
         val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
             .setInputData(
                 Data.Builder()
@@ -178,5 +231,21 @@ object LocationUpdater {
             )
             .build()
         WorkManager.getInstance(context).enqueue(workRequest)
+    }
+
+    private fun enqueueCandidateRefresh(context: Context) {
+        val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                    .putBoolean(WeatherWidgetWorker.KEY_LOCATION_CANDIDATE_REFRESH, true)
+                    .build(),
+            )
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WeatherWidgetWorker.WORK_NAME_LOCATION_CANDIDATE,
+            ExistingWorkPolicy.KEEP,
+            workRequest,
+        )
     }
 }

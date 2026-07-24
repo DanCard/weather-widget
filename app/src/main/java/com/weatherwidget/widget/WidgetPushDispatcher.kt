@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.appwidget.AppWidgetManager
 import android.os.Process
+import android.os.SystemClock
 import android.util.Log
 import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
@@ -10,8 +11,8 @@ import com.weatherwidget.data.local.log
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Single seam for handler RemoteViews pushes. Diagnostic only: partial-vs-full remains the
- * caller's decision and the push itself is unchanged.
+ * Single seam for handler RemoteViews pushes. Callers choose partial vs full for normal delivery;
+ * this dispatcher applies the two bounded safety promotions described below.
  *
  * Why this exists (see summaries/260714-widget-partial-push-stale.md): partiallyUpdateAppWidget
  * merges into the RemoteViews the framework caches per widget, and is documented to be ignored
@@ -28,6 +29,8 @@ import java.util.concurrent.ConcurrentHashMap
 object WidgetPushDispatcher {
 
     const val TAG_WIDGET_PUSH = "WIDGET_PUSH"
+    @VisibleForTesting
+    internal const val IDLE_REBIND_GAP_MS = 15 * 60 * 1000L
     private const val TAG = "WidgetPushDispatcher"
 
     /** Entry path that requested a delivery. This is intentionally separate from [caller], which
@@ -53,6 +56,12 @@ object WidgetPushDispatcher {
     /** Widget ids already given a WIDGET_PUSH row this process. Fulls are logged unconditionally. */
     private val loggedThisProcess: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /** Last successful complete-body delivery. Header-only traffic deliberately does not touch it. */
+    private val lastCompleteBodyPushElapsedMs = ConcurrentHashMap<Int, Long>()
+
+    @Volatile
+    private var elapsedRealtimeProvider: () -> Long = SystemClock::elapsedRealtime
+
     /**
      * A partial push with no full push behind it in this process — the state where the framework
      * may discard the update entirely. Pure so it is unit-testable without a Context.
@@ -66,18 +75,25 @@ object WidgetPushDispatcher {
         fullPushedThisProcess.contains(appWidgetId)
 
     /**
-     * An unbacked partial ([isUnbackedPartial]) that carries a COMPLETE body must be promoted to a
-     * full updateAppWidget, or the framework discards it and the launcher keeps rendering the
-     * widget_weather XML defaults ("Today / --° / --°"). A header-only partial ([bodyComplete]=false)
-     * must NOT be promoted — pushing it full would blank the body it never populated — so its caller
-     * is responsible for not emitting it while unbacked (see TemperatureViewHandler's uiOnly gate).
+     * A complete-body partial is promoted when it is unbacked ([isUnbackedPartial]) or follows a
+     * long body-delivery gap. The first case prevents a framework discard; the second gives a
+     * launcher whose hosted tree disappeared while this process survived one bounded rebind.
+     * A header-only partial ([bodyComplete]=false) must NOT be promoted — pushing it full would
+     * blank the body it never populated.
      */
     @VisibleForTesting
     internal fun shouldPromoteToFull(
         partialPush: Boolean,
         bodyComplete: Boolean,
         hasFullPushedThisProcess: Boolean,
-    ): Boolean = bodyComplete && isUnbackedPartial(partialPush, hasFullPushedThisProcess)
+        lastCompleteBodyPushElapsedMs: Long? = null,
+        currentElapsedMs: Long = 0L,
+    ): Boolean {
+        if (!partialPush || !bodyComplete) return false
+        if (!hasFullPushedThisProcess) return true
+        return lastCompleteBodyPushElapsedMs != null &&
+            currentElapsedMs - lastCompleteBodyPushElapsedMs >= IDLE_REBIND_GAP_MS
+    }
 
     /** The requested and actual delivery modes can differ only when an unbacked complete-body
      * partial must be promoted to a full update. Keep this pure so the persisted breadcrumb and
@@ -87,10 +103,14 @@ object WidgetPushDispatcher {
         requestedPartialPush: Boolean,
         bodyComplete: Boolean,
         hasFullPushedThisProcess: Boolean,
+        lastCompleteBodyPushElapsedMs: Long? = null,
+        currentElapsedMs: Long = 0L,
     ): Boolean = requestedPartialPush && !shouldPromoteToFull(
         partialPush = requestedPartialPush,
         bodyComplete = bodyComplete,
         hasFullPushedThisProcess = hasFullPushedThisProcess,
+        lastCompleteBodyPushElapsedMs = lastCompleteBodyPushElapsedMs,
+        currentElapsedMs = currentElapsedMs,
     )
 
     /**
@@ -133,13 +153,30 @@ object WidgetPushDispatcher {
     internal fun resetForTest() {
         fullPushedThisProcess.clear()
         loggedThisProcess.clear()
+        lastCompleteBodyPushElapsedMs.clear()
+        elapsedRealtimeProvider = SystemClock::elapsedRealtime
+    }
+
+    @VisibleForTesting
+    internal fun setElapsedRealtimeProviderForTest(provider: () -> Long) {
+        elapsedRealtimeProvider = provider
+    }
+
+    @VisibleForTesting
+    internal fun markFullPushedForTest(appWidgetId: Int) {
+        fullPushedThisProcess.add(appWidgetId)
+    }
+
+    /** Drop process-local delivery state when the launcher deletes a widget id. */
+    fun forgetWidget(appWidgetId: Int) {
+        fullPushedThisProcess.remove(appWidgetId)
+        lastCompleteBodyPushElapsedMs.remove(appWidgetId)
+        loggedThisProcess.remove("any-$appWidgetId")
     }
 
     /**
-     * Push [views] for [appWidgetId], partially when [partialPush] — except a complete-body
-     * ([bodyComplete]) partial with no full push behind it this process is promoted to a full
-     * updateAppWidget, since the framework would otherwise discard it (see [shouldPromoteToFull]).
-     * Also emits the WIDGET_PUSH breadcrumb.
+     * Push [views] for [appWidgetId], partially when [partialPush], except for a complete-body
+     * safety promotion selected by [shouldPromoteToFull]. Also emits the WIDGET_PUSH breadcrumb.
      */
     suspend fun push(
         appWidgetManager: AppWidgetManager,
@@ -154,9 +191,22 @@ object WidgetPushDispatcher {
         origin: Origin = Origin.UNSPECIFIED,
     ) {
         val hadFull = fullPushedThisProcess.contains(appWidgetId)
+        val currentElapsedMs = elapsedRealtimeProvider()
+        val lastCompleteBodyMs = lastCompleteBodyPushElapsedMs[appWidgetId]
         // Promote a complete-body unbacked partial to a full update so the framework can't drop it.
-        val effectivePartial = effectivePartialPush(partialPush, bodyComplete, hadFull)
+        val effectivePartial = effectivePartialPush(
+            requestedPartialPush = partialPush,
+            bodyComplete = bodyComplete,
+            hasFullPushedThisProcess = hadFull,
+            lastCompleteBodyPushElapsedMs = lastCompleteBodyMs,
+            currentElapsedMs = currentElapsedMs,
+        )
         val promoted = partialPush && !effectivePartial
+        val promotionReason = when {
+            !promoted -> null
+            !hadFull -> "unbacked_partial"
+            else -> "idle_gap"
+        }
         val message = pushLogMessage(
             appWidgetId = appWidgetId,
             caller = caller,
@@ -165,14 +215,20 @@ object WidgetPushDispatcher {
             effectivePartialPush = effectivePartial,
             hasFullPushedThisProcess = hadFull,
             pid = Process.myPid(),
-        ) +
-            if (promoted) " promoted=unbacked_partial" else ""
+        ) + when (promotionReason) {
+            "idle_gap" -> " promoted=idle_gap gapMs=${currentElapsedMs - (lastCompleteBodyMs ?: currentElapsedMs)}"
+            "unbacked_partial" -> " promoted=unbacked_partial"
+            else -> ""
+        }
 
         if (effectivePartial) {
             appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
         } else {
             appWidgetManager.updateAppWidget(appWidgetId, views)
             fullPushedThisProcess.add(appWidgetId)
+        }
+        if (bodyComplete) {
+            lastCompleteBodyPushElapsedMs[appWidgetId] = currentElapsedMs
         }
 
         Log.v(TAG, message)
@@ -194,6 +250,7 @@ object WidgetPushDispatcher {
         appLogDao: AppLogDao,
     ) {
         val hadFull = fullPushedThisProcess.contains(appWidgetId)
+        val currentElapsedMs = elapsedRealtimeProvider()
         val message = pushLogMessage(
             appWidgetId = appWidgetId,
             caller = caller,
@@ -204,6 +261,7 @@ object WidgetPushDispatcher {
             pid = Process.myPid(),
         ) + " direct=true"
         fullPushedThisProcess.add(appWidgetId)
+        lastCompleteBodyPushElapsedMs[appWidgetId] = currentElapsedMs
         Log.v(TAG, message)
         val firstPush = loggedThisProcess.add("any-$appWidgetId")
         if (shouldPersist(firstPush, isFullPush = true)) {

@@ -49,6 +49,7 @@ class GpsResamplerTest : RobolectricTest() {
         coEvery { resolver.fromCoordinates(any(), any()) } answers {
             ResolvedLocation(firstArg(), secondArg(), label = "Testville", source = "test")
         }
+        LocationHandoffStore.clear(context)
     }
 
     private fun resampler(
@@ -64,7 +65,10 @@ class GpsResamplerTest : RobolectricTest() {
         permissionChecker = { _, permission ->
             if (permission == Manifest.permission.ACCESS_FINE_LOCATION) fineGranted else true
         },
-        applyHeal = { _, lat, lon, label -> healed.add(Triple(lat, lon, label)) },
+        proposeCandidate = { _, lat, lon, label, _ ->
+            healed.add(Triple(lat, lon, label))
+            true
+        },
     )
 
     private fun fix(lat: Double, lon: Double): Location =
@@ -112,8 +116,9 @@ class GpsResamplerTest : RobolectricTest() {
         bindWidgetAt(101, 34.0522, -118.2437)
 
         // Within LocationMatch.SAME_SITE_TOLERANCE_DEG (0.002) of the configured location.
-        resampler(fix = fix(34.0525, -118.2438)).resample(context)
+        val changed = resampler(fix = fix(34.0525, -118.2438)).resample(context)
 
+        assertFalse(changed)
         assertTrue(healed.isEmpty())
         assertEquals(1, outcomes().size)
         assertTrue(outcomes()[0].startsWith("outcome=same_site trigger=worker"))
@@ -123,12 +128,13 @@ class GpsResamplerTest : RobolectricTest() {
     fun `differing cached fix heals all widgets with resolved label`() = runTest {
         bindWidgetAt(101, 34.0522, -118.2437)
 
-        resampler(fix = fix(40.7128, -74.0060)).resample(context)
+        val changed = resampler(fix = fix(40.7128, -74.0060)).resample(context)
 
+        assertTrue(changed)
         assertEquals(listOf(Triple(40.7128, -74.0060, "Testville")), healed)
         val healedLog = logged.single { it.tag == GpsResampler.LOG_TAG }
-        assertTrue(healedLog.message.startsWith("outcome=healed trigger=worker"))
-        assertTrue(healedLog.message.endsWith("label=Testville"))
+        assertTrue(healedLog.message.startsWith("outcome=candidate_detected trigger=worker"))
+        assertTrue(healedLog.message.contains("label=Testville"))
         assertEquals("INFO", healedLog.level)
     }
 
@@ -176,7 +182,7 @@ class GpsResamplerTest : RobolectricTest() {
     }
 
     @Test
-    fun `healIfNeeded returns whether a heal was applied`() = runTest {
+    fun `healIfNeeded returns whether a candidate was proposed`() = runTest {
         bindWidgetAt(101, 34.0522, -118.2437)
         val resampler = resampler(fix = null)
 
@@ -184,6 +190,6 @@ class GpsResamplerTest : RobolectricTest() {
         assertTrue(resampler.healIfNeeded(context, 40.7128, -74.0060, trigger = "foreground"))
         assertEquals(1, healed.size)
         assertTrue(outcomes().any { it.startsWith("outcome=same_site trigger=foreground") })
-        assertTrue(outcomes().any { it.startsWith("outcome=healed trigger=foreground") })
+        assertTrue(outcomes().any { it.startsWith("outcome=candidate_detected trigger=foreground") })
     }
 }

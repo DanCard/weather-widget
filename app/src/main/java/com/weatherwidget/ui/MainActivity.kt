@@ -10,7 +10,6 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.Button
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -212,9 +211,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Self-heals widgets whose stored location has drifted from where the device actually is.
-     * Reads only the cached Fused last-known location — never an active GPS fix, which would
-     * trigger Samsung's "app got your precise location" notice. If the cache is empty this
+     * Proposes a follow-device candidate from the cached Fused last-known location — never an
+     * active GPS fix, which would trigger Samsung's "app got your precise location" notice. The
+     * current body remains active until candidate weather is useful. If the cache is empty this
      * no-ops, and [GpsResampler.healIfNeeded] skips when the user pinned a location
      * ([LocationMode.FIXED][com.weatherwidget.util.LocationMode]) so deliberate choices are
      * never overwritten.
@@ -231,9 +230,7 @@ class MainActivity : AppCompatActivity() {
             val lat = location.latitude
             val lon = location.longitude
             lifecycleScope.launch {
-                if (gpsResampler.healIfNeeded(this@MainActivity, lat, lon, trigger = "foreground")) {
-                    Toast.makeText(this@MainActivity, getString(R.string.location_updated_from_gps), Toast.LENGTH_SHORT).show()
-                }
+                gpsResampler.healIfNeeded(this@MainActivity, lat, lon, trigger = "foreground")
             }
         }
     }

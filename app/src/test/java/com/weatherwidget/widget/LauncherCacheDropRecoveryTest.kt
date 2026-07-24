@@ -59,6 +59,7 @@ class LauncherCacheDropRecoveryTest {
     private lateinit var appWidgetManager: AppWidgetManager
 
     private val appWidgetId = 4242
+    private var elapsedMs = 1_000L
 
     /**
      * Stands in for the launcher's widget host.
@@ -117,6 +118,7 @@ class LauncherCacheDropRecoveryTest {
         appLogDao = db.appLogDao()
         launcher = FakeLauncher(context)
         WidgetPushDispatcher.resetForTest()
+        WidgetPushDispatcher.setElapsedRealtimeProviderForTest { elapsedMs }
 
         appWidgetManager = mockk(relaxed = true)
         val fullSlot = slot<RemoteViews>()
@@ -179,33 +181,21 @@ class LauncherCacheDropRecoveryTest {
         assertEquals(0, launcher.ignoredPartials)
     }
 
-    /**
-     * The defect, reproduced. After the host loses its tree the app has no way to notice: its
-     * `fullPushedThisProcess` set still says this widget was backed by a full push, so every
-     * subsequent complete-body repaint goes out partial and is discarded. The widget stays on the
-     * XML defaults for as long as the app happens not to issue a full push.
-     *
-     * This is why the field widget sat blank: the partials at 13:40:26 and 13:40:34 were both
-     * wasted, and only the unrelated DAILY full push at 13:40:41 brought it back.
-     *
-     * Asserts current behaviour on purpose. When the dispatcher learns to recover, this flips to
-     * `assertTrue(launcher.isBound)` — and that inversion is the definition of done for the fix.
-     */
     @Test
-    fun `KNOWN DEFECT - partials after a launcher cache drop are all discarded`() = runTest {
+    fun `first complete body after idle gap recovers a dropped launcher tree`() = runTest {
         push(partialPush = false)
         assertTrue(launcher.isBound)
 
+        elapsedMs += WidgetPushDispatcher.IDLE_REBIND_GAP_MS
         launcher.dropCache()
 
-        repeat(5) { push(partialPush = true) }
+        push(partialPush = true)
 
-        assertFalse(
-            "Documents the defect: the app cannot see the host lost its tree, so it keeps " +
-                "sending partials that never land",
-            launcher.isBound,
-        )
-        assertEquals("Every one of those repaints was wasted", 5, launcher.ignoredPartials)
+        assertTrue("The idle-gap body must be promoted and rebind the launcher", launcher.isBound)
+        assertEquals(0, launcher.ignoredPartials)
+
+        push(partialPush = true)
+        assertEquals("Only the first body after the gap should be promoted", 0, launcher.ignoredPartials)
     }
 
     @Test

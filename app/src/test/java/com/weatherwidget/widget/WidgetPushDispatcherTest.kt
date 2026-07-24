@@ -77,6 +77,62 @@ class WidgetPushDispatcherTest {
     }
 
     @Test
+    fun `complete body after idle delivery gap is promoted once`() {
+        assertTrue(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = true,
+                bodyComplete = true,
+                hasFullPushedThisProcess = true,
+                lastCompleteBodyPushElapsedMs = 1_000L,
+                currentElapsedMs = 1_000L + WidgetPushDispatcher.IDLE_REBIND_GAP_MS,
+            ),
+        )
+    }
+
+    @Test
+    fun `complete body below idle threshold remains partial`() {
+        assertFalse(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = true,
+                bodyComplete = true,
+                hasFullPushedThisProcess = true,
+                lastCompleteBodyPushElapsedMs = 1_000L,
+                currentElapsedMs = 1_000L + WidgetPushDispatcher.IDLE_REBIND_GAP_MS - 1L,
+            ),
+        )
+    }
+
+    @Test
+    fun `header only update is never promoted after idle gap`() {
+        assertFalse(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = true,
+                bodyComplete = false,
+                hasFullPushedThisProcess = true,
+                lastCompleteBodyPushElapsedMs = 1_000L,
+                currentElapsedMs = 1_000L + WidgetPushDispatcher.IDLE_REBIND_GAP_MS,
+            ),
+        )
+    }
+
+    @Test
+    fun `forgetWidget clears process delivery state for a deleted id`() {
+        val deletedWidgetId = 77
+        WidgetPushDispatcher.markFullPushedForTest(deletedWidgetId)
+        WidgetPushDispatcher.forgetWidget(deletedWidgetId)
+
+        assertFalse(WidgetPushDispatcher.hasFullPushedThisProcess(deletedWidgetId))
+        assertTrue(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = true,
+                bodyComplete = true,
+                hasFullPushedThisProcess =
+                    WidgetPushDispatcher.hasFullPushedThisProcess(deletedWidgetId),
+            ),
+        )
+    }
+
+    @Test
     fun `full push is never promoted - it is already full`() {
         assertFalse(
             WidgetPushDispatcher.shouldPromoteToFull(

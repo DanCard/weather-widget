@@ -509,6 +509,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
+        LocationHandoffStore.clear(context)
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_CURRENT_TEMP)
         NonPrimaryObservationScheduler.cancel(context)
@@ -530,6 +531,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         for (appWidgetId in appWidgetIds) {
             stateManager.clearWidgetState(appWidgetId)
             lastUpdateByWidgetId.remove(appWidgetId)
+            WidgetPushDispatcher.forgetWidget(appWidgetId)
         }
     }
 
