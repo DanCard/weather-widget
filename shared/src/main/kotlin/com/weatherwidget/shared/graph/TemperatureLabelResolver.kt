@@ -240,7 +240,29 @@ object TemperatureLabelResolver {
         val boundaryRedundancyWindow = computeRedundantPairWindow(hours, widthPx)
         Log.v(TAG, "RedundancyWindow: boundary=$boundaryRedundancyWindow widthPx=$widthPx hours=${hours.size}")
 
-        val potentialAnchors = buildPotentialAnchors(extrema, hours.size)
+        val actualStartIndex = hours.indexOfFirst { it.isActual }
+        val shortCrossMidnightActualSlice = actualStartIndex == 0 &&
+            extrema.actualEndIndex in hours.indices &&
+            hours[actualStartIndex].dateTime.toLocalDate() != hours[extrema.actualEndIndex].dateTime.toLocalDate() &&
+            Duration.between(hours[actualStartIndex].dateTime, hours[extrema.actualEndIndex].dateTime) <= Duration.ofHours(3)
+        val actualHighLabelIndices = if (shortCrossMidnightActualSlice) {
+            listOfNotNull(extrema.actualHighIndex.takeIf { it == 0 })
+        } else {
+            (extrema.actualDailyHighIndices + listOfNotNull(extrema.actualHighIndex.takeIf { it == 0 })).distinct()
+        }
+        val actualLowLabelIndices = if (shortCrossMidnightActualSlice) {
+            listOfNotNull(extrema.actualLowIndex.takeIf { it == extrema.actualEndIndex })
+        } else {
+            (extrema.actualDailyLowIndices + listOfNotNull(extrema.actualLowIndex.takeIf { it == extrema.actualEndIndex })).distinct()
+        }
+
+        val potentialAnchors = buildPotentialAnchors(extrema, hours)
+        if (shortCrossMidnightActualSlice) {
+            potentialAnchors.removeAll { (idx, role) ->
+                (role == TemperatureRole.ACTUAL_HIGH && idx !in actualHighLabelIndices) ||
+                    (role == TemperatureRole.ACTUAL_LOW && idx !in actualLowLabelIndices)
+            }
+        }
         extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
         Log.v(TAG, "Potential anchors: $potentialAnchors")
 
@@ -360,8 +382,30 @@ object TemperatureLabelResolver {
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
 
-        addCoincidentActuals(specialCandidates, suppressedIndices, extrema.actualDailyHighIndices, TemperatureRole.ACTUAL_HIGH, FORECAST_HIGH_ROLES, hours, labelTemps, actualLabelTemps, "COINCIDENT_WITH_FORECAST_HIGH", useCelsius = useCelsius)
-        addCoincidentActuals(specialCandidates, suppressedIndices, extrema.actualDailyLowIndices, TemperatureRole.ACTUAL_LOW, FORECAST_LOW_ROLES, hours, labelTemps, actualLabelTemps, "COINCIDENT_WITH_FORECAST_LOW", useCelsius = useCelsius)
+        addCoincidentActuals(
+            specialCandidates,
+            suppressedIndices,
+            actualHighLabelIndices,
+            TemperatureRole.ACTUAL_HIGH,
+            FORECAST_HIGH_ROLES,
+            hours,
+            labelTemps,
+            actualLabelTemps,
+            "COINCIDENT_WITH_FORECAST_HIGH",
+            useCelsius = useCelsius,
+        )
+        addCoincidentActuals(
+            specialCandidates,
+            suppressedIndices,
+            actualLowLabelIndices,
+            TemperatureRole.ACTUAL_LOW,
+            FORECAST_LOW_ROLES,
+            hours,
+            labelTemps,
+            actualLabelTemps,
+            "COINCIDENT_WITH_FORECAST_LOW",
+            useCelsius = useCelsius,
+        )
         addForecastMidpointLabel(specialCandidates, effectiveActualEndIndex, hours, labelTemps, useCelsius = useCelsius)
 
         return specialCandidates
@@ -501,6 +545,11 @@ object TemperatureLabelResolver {
         // the right-edge (NOW) or left-edge index, the label must show the observed value rather than
         // the forecast endpoint. Kept BELOW HIGH/LOW so forecast global extrema still drive the
         // dual-label injection in addCoincidentActuals.
+        // The global observed high is a real reading when it is the graph's left boundary. Per-day
+        // extrema still require an interior turning point, but that headline actual high must be
+        // available as a label candidate.
+        extrema.actualHighIndex.takeIf { it == 0 } -> TemperatureRole.ACTUAL_HIGH
+        extrema.actualLowIndex.takeIf { it == extrema.actualEndIndex } -> TemperatureRole.ACTUAL_LOW
         in extrema.actualDailyHighIndices -> TemperatureRole.ACTUAL_HIGH
         in extrema.actualDailyLowIndices -> TemperatureRole.ACTUAL_LOW
         0 -> TemperatureRole.START
@@ -515,11 +564,17 @@ object TemperatureLabelResolver {
 
     private fun buildPotentialAnchors(
         extrema: TemperatureExtrema.ExtremaIndices,
-        hoursCount: Int,
+        hours: List<HourData>,
     ): MutableList<Pair<Int, TemperatureRole>> {
         val anchors = mutableListOf<Pair<Int, TemperatureRole>>()
         if (extrema.dailyHighIndex >= 0) anchors.add(extrema.dailyHighIndex to TemperatureRole.HIGH)
         if (extrema.dailyLowIndex >= 0) anchors.add(extrema.dailyLowIndex to TemperatureRole.LOW)
+        if (extrema.actualHighIndex == 0) {
+            anchors.add(extrema.actualHighIndex to TemperatureRole.ACTUAL_HIGH)
+        }
+        if (extrema.actualLowIndex >= 0 && extrema.actualLowIndex == extrema.actualEndIndex) {
+            anchors.add(extrema.actualLowIndex to TemperatureRole.ACTUAL_LOW)
+        }
         extrema.actualDailyHighIndices.forEach { if (it >= 0) anchors.add(it to TemperatureRole.ACTUAL_HIGH) }
         extrema.actualDailyLowIndices.forEach { if (it >= 0) anchors.add(it to TemperatureRole.ACTUAL_LOW) }
         if (extrema.forecastHighIndex >= 0) anchors.add(extrema.forecastHighIndex to TemperatureRole.FORECAST_HIGH)
@@ -528,7 +583,7 @@ object TemperatureLabelResolver {
         if (extrema.pastForecastLowIndex >= 0) anchors.add(extrema.pastForecastLowIndex to TemperatureRole.PAST_FORECAST_LOW)
         if (extrema.actualEndIndex >= 0) anchors.add(extrema.actualEndIndex to TemperatureRole.ACTUAL_END)
         anchors.add(0 to TemperatureRole.START)
-        if (hoursCount > 1) anchors.add(hoursCount - 1 to TemperatureRole.END)
+        if (hours.size > 1) anchors.add(hours.lastIndex to TemperatureRole.END)
         return anchors
     }
 

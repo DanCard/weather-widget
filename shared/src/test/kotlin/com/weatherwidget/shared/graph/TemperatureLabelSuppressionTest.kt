@@ -13,6 +13,80 @@ import org.junit.experimental.categories.Category
 class TemperatureLabelSuppressionTest {
 
     @Test
+    fun `nearby actual low and high with the same displayed temperature keep one label`() {
+        // Samsung SM-F936U1, 2026-07-24: the last observed low before midnight was 62.48984
+        // and the first observed high after midnight was 62.511925. They are distinct extrema in
+        // their respective calendar days, but both draw as pink "62.5" only 20 minutes apart in
+        // the narrow three-hour view, so the pair is redundant on screen.
+        val start = LocalDateTime.of(2026, 7, 23, 23, 0)
+        val actualTemps = listOf(
+            63.596783f, 63.3f, 63.0f, 62.8f, 62.7f, 62.6f, 62.55f, 62.534042f,
+            62.48984f, 62.504375f, 62.50727f, 62.511f, 62.511925f, 62.50727f,
+            62.5f, 62.45f, 62.43284f,
+        )
+        val observedHours = actualTemps.mapIndexed { offset, actualTemperature ->
+            val dt = start.plusMinutes(offset * 5L)
+            HourData(
+                dateTime = dt,
+                temperature = 61.0f,
+                label = "${dt.hour}:${dt.minute}",
+                isActual = true,
+                actualTemperature = actualTemperature,
+            )
+        }
+        // The captured widget has five-minute observed points through 00:25, then hourly forecast
+        // points at 01:00 and 02:00. That three-hour window makes the 20-minute actual pair 63px
+        // apart at the 567px render width, just inside the visual-pair budget.
+        val hours = observedHours + listOf(1L, 2L).map { forecastHour ->
+            val dt = LocalDateTime.of(2026, 7, 24, forecastHour.toInt(), 0)
+            HourData(dt, 60.0f, "${dt.hour}:00", isActual = false, actualTemperature = 60.0f)
+        }
+
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(
+            hours = hours,
+            transitionX = 252f,
+            effectiveActualEndIndex = observedHours.lastIndex,
+            fetchTime = null,
+            useCelsius = false,
+        )
+        val candidates = TemperatureLabelResolver.collectLabelCandidates(
+            hours = hours,
+            extrema = extrema,
+            effectiveActualEndIndex = observedHours.lastIndex,
+            transitionX = 252f,
+            observedAt = null,
+            widthPx = 567,
+            useCelsius = false,
+        )
+
+        val actual62Point5 = candidates.filter {
+            it.role in setOf(TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW) &&
+                TemperatureLabelResolver.formatTemp(it.labelTemps[it.index], useCelsius = false) == "62.5"
+        }
+        assertEquals(
+            "The endpoint global low supersedes the nearby 62.5 wiggle, got ${actual62Point5.map { it.role to it.index }}",
+            0,
+            actual62Point5.size,
+        )
+        assertTrue(
+            "The actual graph's true left-edge high must be labeled, got ${candidates.map { it.role to it.index }}",
+            candidates.any {
+                it.index == 0 &&
+                    it.role == TemperatureRole.ACTUAL_HIGH &&
+                TemperatureLabelResolver.formatTemp(it.labelTemps[it.index], useCelsius = false) == "63.6"
+            },
+        )
+        assertTrue(
+            "The actual graph's true right-edge low must be labeled, got ${candidates.map { it.role to it.index }}",
+            candidates.any {
+                it.index == observedHours.lastIndex &&
+                    it.role == TemperatureRole.ACTUAL_LOW &&
+                    TemperatureLabelResolver.formatTemp(it.labelTemps[it.index], useCelsius = false) == "62.4"
+            },
+        )
+    }
+
+    @Test
     fun `ACTUAL_HIGH is retained when near HIGH`() {
         val start = LocalDateTime.of(2026, 4, 8, 10, 0)
 
@@ -469,11 +543,10 @@ class TemperatureLabelSuppressionTest {
     }
 
     @Test
-    fun `actual low on the right-edge index is not labeled - it is just an edge value`() {
+    fun `actual low on the right-edge index is labeled as the visible observed low`() {
         // The observed line keeps cooling into the evening, so the absolute actual low lands on the
-        // last (right-edge / NOW) index. Per the edge rule (an edge value is not a confirmed
-        // valley — the real low may lie beyond the window), the right-edge sample is NOT an
-        // ACTUAL_LOW; the boundary shows the forecast END value (70) instead.
+        // last (right-edge / NOW) index. The visible actual curve's true low must be labeled there;
+        // the forecast END value (70) is a different series and must not replace it.
         val start = LocalDateTime.of(2026, 4, 8, 0, 0) // midnight -> all 24 hours are one calendar day
         // Forecast curve: low at idx 3 (54), high at idx 14 (79), END value 70 at idx 23.
         val forecast = listOf(
@@ -509,20 +582,19 @@ class TemperatureLabelSuppressionTest {
 
         val rightEdge = candidates.find { it.index == 23 }
         assertEquals(
-            "right-edge label should be END (edge value), not ACTUAL_LOW, got ${candidates.map { it.role to it.index }}",
-            TemperatureRole.END, rightEdge?.role,
+            "right-edge label should be the visible ACTUAL_LOW, got ${candidates.map { it.role to it.index }}",
+            TemperatureRole.ACTUAL_LOW, rightEdge?.role,
         )
         assertEquals(
-            "right-edge END should carry the forecast endpoint (70), the observed edge low is not labeled",
-            70.0f, rightEdge!!.labelTemps[rightEdge.index], 0.01f,
+            "right-edge actual low should carry the observed endpoint (59)",
+            59.0f, rightEdge!!.labelTemps[rightEdge.index], 0.01f,
         )
     }
 
     @Test
-    fun `actual low on the fetch-dot right edge is not labeled - it is just an edge value`() {
+    fun `actual low on the fetch-dot right edge remains the visible observed low`() {
         // Current-day variant: the right-edge index is NOW, so the fetch dot lands on it. The observed
-        // low (59) sits on that edge, which is no longer a confirmed valley, so the right-edge index
-        // must NOT be an ACTUAL_LOW (it is the END boundary / fetch-dot, not the observed low).
+        // low (59) sits on that edge. The NOW marker must not hide the visible actual curve's true low.
         val start = LocalDateTime.of(2026, 4, 8, 0, 0)
         val forecast = listOf(
             60f, 58f, 56f, 54f, 57f, 60f, 63f, 66f, 69f, 72f, 74f, 76f,
@@ -554,19 +626,19 @@ class TemperatureLabelSuppressionTest {
             widthPx = 600, useCelsius = false,
         )
 
-        assertFalse(
-            "right-edge fetch-dot index (NOW) must NOT be an ACTUAL_LOW — it is an edge value. " +
+        assertTrue(
+            "right-edge fetch-dot index (NOW) must remain the ACTUAL_LOW. " +
                 "got ${candidates.map { it.role to it.index }}",
             candidates.any { it.index == 23 && it.role == TemperatureRole.ACTUAL_LOW },
         )
     }
 
     @Test
-    fun `absolute actual low at the observation cutoff edge is not labeled`() {
+    fun `absolute actual low at the observation cutoff edge is labeled`() {
         // The observed line cools monotonically toward NOW, so the absolute observed low lands on the
-        // observation cutoff (idx 57 = the right edge of the observed data). With no interior valley,
-        // that edge sample is NOT a confirmed turning point, so it must NOT be an ACTUAL_LOW — the real
-        // low may lie beyond the window. (The interior observed peak at idx 20 is still labeled.)
+        // observation cutoff (idx 57 = the right edge of the observed data). It is the visible actual
+        // curve's true low and must be labeled even without an interior turning point. (The interior
+        // observed peak at idx 20 is still labeled.)
         val start = LocalDateTime.of(2026, 6, 13, 0, 0)
         val n = 60
         val effEnd = 57 // observed 0..57; a 2-point forecast tail (58..59) follows
@@ -596,8 +668,8 @@ class TemperatureLabelSuppressionTest {
             widthPx = 567, useCelsius = false,
         )
 
-        assertFalse(
-            "the observation-cutoff edge low at idx 57 must NOT be labeled ACTUAL_LOW (edge value); " +
+        assertTrue(
+            "the observation-cutoff edge low at idx 57 must be labeled ACTUAL_LOW; " +
                 "got ${candidates.map { it.role to it.index }}",
             candidates.any { it.index == 57 && it.role == TemperatureRole.ACTUAL_LOW },
         )
