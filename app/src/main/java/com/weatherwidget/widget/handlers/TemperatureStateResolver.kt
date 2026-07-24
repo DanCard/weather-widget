@@ -35,8 +35,24 @@ import kotlinx.coroutines.Job
 import kotlin.coroutines.coroutineContext
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
+
+internal data class MissingForecastHours(
+    val missingCount: Int,
+    val noSelectedForecastCount: Int,
+    val wrongSourceCount: Int,
+    val spans: List<Pair<LocalDateTime, LocalDateTime>>,
+) {
+    fun diagnosticText(): String {
+        val formatter = DateTimeFormatter.ofPattern("MM-dd HH:mm")
+        val spanText = spans.joinToString(",") { (start, endExclusive) ->
+            "${start.format(formatter)}..${endExclusive.format(formatter)}"
+        }
+        return "missing=$missingCount noSelected=$noSelectedForecastCount wrongSource=$wrongSourceCount spans=[$spanText]"
+    }
+}
 
 internal object TemperatureStateResolver {
     private const val TAG = "TemperatureStateResolver"
@@ -446,25 +462,24 @@ internal object TemperatureStateResolver {
         val zoneId = ZoneId.systemDefault()
         val startHour = alignedCenter.minusHours(zoom.backHours)
         val endHour = alignedCenter.plusHours(zoom.forwardHours)
-        var missingCount = 0
-        var current = startHour
         val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
-        while (current.isBefore(endHour)) {
-            val hourMs = current.atZone(zoneId).toInstant().toEpochMilli()
-            val forecast = forecastsByTime[hourMs]
-            if (forecast == null || forecast.source != displaySource.id) {
-                missingCount++
-            }
-            current = current.plusHours(1)
-        }
+        val missingForecasts = summarizeMissingForecastHours(
+            startHour = startHour,
+            endHour = endHour,
+            zoneId = zoneId,
+            forecastsByTime = forecastsByTime,
+            displaySource = displaySource,
+        )
 
-        if (missingCount > 0) {
+        if (missingForecasts.missingCount > 0) {
             val cooldownMs = 15 * 60 * 1000L
             if (stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)) {
                 stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "hourly_gaps")
                 database.appLogDao().log(
                     "TEMP_GAPS_REFRESH",
-                    "widget=$appWidgetId source=${displaySource.id} missing=$missingCount, requesting immediate API update",
+                    "widget=$appWidgetId source=${displaySource.id} ${missingForecasts.diagnosticText()} " +
+                        "dataRows=${hourlyForecasts.size} dataLoc=${String.format(Locale.US, "%.5f,%.5f", lat, lon)}, " +
+                        "requesting immediate API update",
                     "INFO"
                 )
                 WeatherWidgetProvider.triggerImmediateUpdate(
