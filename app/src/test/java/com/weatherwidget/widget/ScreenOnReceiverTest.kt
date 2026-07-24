@@ -68,7 +68,9 @@ class ScreenOnReceiverTest {
     }
 
     @Test
-    fun `onReceive with USER_PRESENT sends ACTION_REFRESH broadcast`() {
+    fun `onReceive with USER_PRESENT on battery sends cache-only refresh broadcast`() {
+        mockkObject(BatteryStatePolicy)
+        every { BatteryStatePolicy.isEffectivelyCharging(any()) } returns false
         val intent = Intent(Intent.ACTION_USER_PRESENT)
         
         receiver.onReceive(context, intent)
@@ -85,6 +87,29 @@ class ScreenOnReceiverTest {
         
         assertNotNull("Expected broadcast to WeatherWidgetProvider", providerIntent)
         assertEquals(WidgetActions.ACTION_REFRESH, providerIntent?.action)
+        assertTrue(
+            "Unplugged unlock must remain cache-only even at the default high battery reading",
+            providerIntent?.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false) == true,
+        )
+    }
+
+    @Test
+    fun `onReceive with USER_PRESENT while charging sends network-capable refresh broadcast`() {
+        mockkObject(BatteryStatePolicy)
+        every { BatteryStatePolicy.isEffectivelyCharging(any()) } returns true
+
+        receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
+
+        val providerIntent =
+            shadowOf(context as android.app.Application).broadcastIntents.find {
+                it.component?.className == WeatherWidgetProvider::class.java.name
+            }
+        assertNotNull("Expected broadcast to WeatherWidgetProvider", providerIntent)
+        assertEquals(WidgetActions.ACTION_REFRESH, providerIntent?.action)
+        assertFalse(
+            "Charging unlock should remain network-capable",
+            providerIntent?.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false) == true,
+        )
     }
 
     @Test
@@ -203,7 +228,9 @@ class ScreenOnReceiverTest {
     }
 
     @Test
-    fun `onReceive with USER_PRESENT writes unlock policy app log`() = runTest {
+    fun `onReceive with USER_PRESENT on battery logs cache-only policy`() = runTest {
+        mockkObject(BatteryStatePolicy)
+        every { BatteryStatePolicy.isEffectivelyCharging(any()) } returns false
         val beforeCount = unlockPolicyLogCount()
 
         receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
@@ -213,7 +240,7 @@ class ScreenOnReceiverTest {
         val latest =
             WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY", 1).firstOrNull()
         assertNotNull("Expected latest UNLOCK_REFRESH_POLICY log", latest)
-        assertFalse("Expected uiOnly field in log message", latest!!.message.contains("uiOnly=").not())
+        assertTrue("Expected uiOnly=true in log message", latest!!.message.contains("uiOnly=true"))
     }
 
     @Test

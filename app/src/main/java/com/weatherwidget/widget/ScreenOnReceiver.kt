@@ -91,7 +91,6 @@ class ScreenOnReceiver : BroadcastReceiver() {
         val battery = getBatteryState(context)
         val uiOnly = WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
             isCharging = battery.isCharging,
-            batteryLevel = battery.level,
         )
         Log.d(TAG, "Screen unlocked - charging=${battery.isCharging}, battery=${battery.level}%, uiOnly=$uiOnly")
 

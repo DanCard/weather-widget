@@ -9,7 +9,6 @@ import com.weatherwidget.shared.util.BatteryTier
 object BatteryFetchStrategy {
 
     const val STALE_DATA_THRESHOLD_MS = 4 * 60 * 60 * 1000L // 4 hours
-    const val MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH = 30
     private const val CHARGING_FETCH_INTERVAL_MINUTES = 30L
 
     /**
@@ -26,12 +25,5 @@ object BatteryFetchStrategy {
     fun shouldRefreshStaleData(fetchedAtMs: Long?, nowMs: Long): Boolean {
         val fetchedAt = fetchedAtMs ?: 0L
         return (nowMs - fetchedAt) > STALE_DATA_THRESHOLD_MS
-    }
-
-    /**
-     * Returns true when battery is healthy enough to allow a user-triggered opportunistic fetch.
-     */
-    fun shouldAllowOpportunisticFetchOnBattery(batteryLevel: Int): Boolean {
-        return batteryLevel >= MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH
     }
 }

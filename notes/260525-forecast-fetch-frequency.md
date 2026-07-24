@@ -20,22 +20,21 @@ Updates scale according to the `BatteryFetchStrategy`:
 
 ---
 
-## Opportunistic Fetches
+## Opportunistic Updates
 
-Opportunistic fetches are designed to update the widget's data or UI by "piggybacking" on the device when it's already awake, rather than forcing the device to wake up independently and drain the battery.
+Opportunistic updates piggyback on times when the device is already awake rather than creating an
+independent wakeup. Being awake does not make a network request free, so the full-forecast unlock
+path is cache-only whenever the phone is unplugged.
 
-### Battery Limits
-- **Threshold:** `BatteryFetchStrategy.MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH = 30`
-- **Behavior:**
-    - **Battery >= 30%:** Allows network-capable paths in opportunistic contexts (e.g., screen unlock).
-    - **Battery < 30%:** Opportunistic network fetches are blocked. The widget only performs UI-only updates using cached data.
+There is no longer a 30% battery exception for screen-unlock forecast fetches.
 
 ### Triggers
 Opportunistic updates are triggered by events where the system is already active:
 
 1. **Screen On / Device Unlock (`ScreenOnReceiver`):** 
    - Fires on `ACTION_USER_PRESENT`.
-   - Triggers an update because the user is actively interacting with the device.
+   - When unplugged, always repaints from cached data and never starts a full forecast fetch.
+   - When charging, remains network-capable if visible forecast data is stale.
 
 2. **System JobScheduler (`OpportunisticUpdateJobService`):**
    - Scheduled with `JobScheduler` (Android 8+).
@@ -47,8 +46,12 @@ Opportunistic updates are triggered by events where the system is already active
    - Typically used for interpolated current temperature updates (~15-60 min).
 
 ### Network vs. UI-Only Updates
-- **Opportunistic Network Fetch:** If the battery is above the 30% threshold and the logic determines new data is needed, a network call is made to the weather APIs.
-- **Opportunistic UI Update:** If a network fetch is not allowed (low battery) or not yet necessary, the widget updates its visual state (e.g., moving the temperature curve or updating the "Now" indicator) using existing forecast data stored in the local database.
+- **Unplugged screen unlock:** UI-only at every battery level. The widget can move the temperature
+  curve, update the “Now” indicator, and repair the launcher presentation from cached data.
+- **Charging screen unlock:** A stale-data decision may start a network-capable forecast refresh.
+- **Manual refresh:** Remains network-capable on battery because it is an explicit user request.
+- **Other opportunistic jobs:** Continue to follow their own cache/current-temperature policies;
+  they do not inherit a removed screen-unlock battery threshold.
 
 ---
 *Date: May 25, 2026*

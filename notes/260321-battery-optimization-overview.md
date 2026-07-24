@@ -40,7 +40,9 @@ Battery-aware intervals from `BatteryFetchStrategy.kt`:
 | Battery > 50% | 8 hours |
 | Battery ≤ 50% | No scheduled fetch |
 
-Below 30% battery: opportunistic fetches are also blocked (`MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH = 30`).
+Screen unlock never performs a full forecast fetch while unplugged, regardless of battery level.
+It repaints from cache and leaves network cadence to the battery tiers above or an explicit manual
+refresh.
 
 WorkManager runs a 1-hour periodic baseline (`schedulePeriodicUpdate()` in `WeatherWidgetProvider`), but the actual fetch is gated by the above strategy.
 
@@ -60,9 +62,10 @@ Most widget taps render from cached DB with **no network call**. A background fe
 ## Opportunistic Update Sources
 
 ### Screen Unlock (`ScreenOnReceiver`)
-- Always triggers a UI-only refresh
-- If charging: also enqueues a current-temp network fetch
-- If battery < 30% and not charging: forces UI-only mode
+- Always triggers a cache repaint
+- If unplugged: always uses UI-only mode, at every battery percentage
+- If charging: remains network-capable when forecast data is stale and also enqueues a
+  current-temperature network fetch
 
 ### Opportunistic Job Service (`OpportunisticUpdateJobService`)
 - Android 8+ only; uses `JobScheduler` with 30-min period

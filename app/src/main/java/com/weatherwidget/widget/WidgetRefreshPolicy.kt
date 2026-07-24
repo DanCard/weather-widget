@@ -6,19 +6,10 @@ package com.weatherwidget.widget
 object WidgetRefreshPolicy {
 
     /**
-     * On screen unlock, prefer UI-only refresh when charging is unavailable and battery is low.
-     * When on battery with enough charge, allow an opportunistic network-capable path; the
-     * provider still gates actual network fetch on staleness.
+     * Unlocking is not an explicit request for fresh weather. While unplugged, repaint from cache
+     * at every battery level so unlocks cannot bypass the 4h/8h/no-fetch battery tiers.
      */
-    fun shouldUseUiOnlyOnScreenUnlock(
-        isCharging: Boolean,
-        batteryLevel: Int,
-    ): Boolean {
-        if (isCharging) {
-            return false
-        }
-        return !BatteryFetchStrategy.shouldAllowOpportunisticFetchOnBattery(batteryLevel)
-    }
+    fun shouldUseUiOnlyOnScreenUnlock(isCharging: Boolean): Boolean = !isCharging
 
     /**
      * Network fetch after refresh should only happen when UI-only is not requested

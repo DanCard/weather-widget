@@ -16,33 +16,28 @@ class WidgetRefreshPolicyTest {
         assertFalse(
             WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
                 isCharging = true,
-                batteryLevel = 5,
             ),
         )
     }
 
     @Test
-    fun `screen unlock on battery is ui-only when battery is below opportunistic threshold`() {
+    fun `screen unlock on battery is always ui-only`() {
         assertTrue(
             WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
                 isCharging = false,
-                batteryLevel = BatteryFetchStrategy.MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH - 1,
             ),
         )
     }
 
     @Test
-    fun `screen unlock on battery allows opportunistic network at threshold and above`() {
+    fun `stale data cannot turn an unplugged unlock into a network fetch`() {
+        val uiOnly = WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(isCharging = false)
+
+        assertTrue(uiOnly)
         assertFalse(
-            WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
-                isCharging = false,
-                batteryLevel = BatteryFetchStrategy.MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH,
-            ),
-        )
-        assertFalse(
-            WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
-                isCharging = false,
-                batteryLevel = 80,
+            WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(
+                uiOnlyRequested = uiOnly,
+                isDataStale = true,
             ),
         )
     }
