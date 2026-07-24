@@ -1,0 +1,1 @@
+Open beta release: Added frosted-glass today-column highlight to daily forecast graph, improved 24h wide view temp line labels, reduced widget redraw flash during fetches, enhanced launcher cache drop recovery, and optimized diagnostic logging.
