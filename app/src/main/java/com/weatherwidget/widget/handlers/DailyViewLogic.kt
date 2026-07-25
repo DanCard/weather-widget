@@ -367,35 +367,9 @@ object DailyViewLogic {
                 finalLow = actual?.lowTemp
 
                 if (showComparison) {
-                    // Prefer the overlay frozen into daily_history while the day was live (see
-                    // DailyHistoryFreeze) — it survives the forecasts table's retention and can't
-                    // hindcast-drift. High/low are written as a unit, so checking both guards
-                    // against ever mixing a frozen value with a snapshot one.
-                    val frozenHigh = actual?.forecastHighTemp
-                    val frozenLow = actual?.forecastLowTemp
-                    if (frozenHigh != null && frozenLow != null) {
-                        fHigh = frozenHigh
-                        fLow = frozenLow
-                        Log.v(TAG, "prepareGraphDays: past day $date overlay from frozen daily_history high=$frozenHigh low=$frozenLow")
-                    } else {
-                        // Pre-feature rows: fall back to the snapshot table. ONLY use real
-                        // snapshots from the displaySource — skip GENERIC_GAP (climate-normal
-                        // fallback rows) and any isClimateNormal=true row, and require both
-                        // highTemp and lowTemp. NWS evening batches drop lowTemp once the day's
-                        // low has passed, so we must look back at older NWS batches with both
-                        // values populated.
-                        val pastForecast = forecasts
-                            .filter { it.source == displaySource.id }
-                            .filter { !it.isClimateNormal }
-                            .filter { it.highTemp != null && it.lowTemp != null }
-                            .maxByOrNull { it.fetchedAt }
-                        fHigh = pastForecast?.highTemp
-                        fLow = pastForecast?.lowTemp
-
-                        if (fHigh == null || fLow == null) {
-                            Log.d(TAG, "prepareGraphDays: past day $date has no usable forecast snapshot from ${displaySource.id}; skipping forecast overlay")
-                        }
-                    }
+                    val (overlayHigh, overlayLow) = resolvePastDayOverlay(actual, forecasts, displaySource, date)
+                    fHigh = overlayHigh
+                    fLow = overlayLow
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
                 val snapshotCandidates = forecasts
@@ -687,4 +661,24 @@ object DailyViewLogic {
         observedNightPrecipMm = observedNightPrecipMm,
     )
 
+    private fun resolvePastDayOverlay(
+        actual: com.weatherwidget.data.model.DailyHistory?,
+        forecasts: List<ForecastEntity>,
+        displaySource: WeatherSource,
+        date: LocalDate,
+    ): Pair<Float?, Float?> {
+        val frozenHigh = actual?.forecastHighTemp
+        val frozenLow = actual?.forecastLowTemp
+        if (frozenHigh != null && frozenLow != null) {
+            Log.v(TAG, "prepareGraphDays: past day $date overlay from frozen daily_history high=$frozenHigh low=$frozenLow")
+            return Pair(frozenHigh, frozenLow)
+        }
+        val pastForecast = forecasts
+            .filter { it.source == displaySource.id && !it.isClimateNormal && it.highTemp != null && it.lowTemp != null }
+            .maxByOrNull { it.fetchedAt }
+        if (pastForecast == null) {
+            Log.d(TAG, "prepareGraphDays: past day $date has no usable forecast snapshot from ${displaySource.id}; skipping forecast overlay")
+        }
+        return Pair(pastForecast?.highTemp, pastForecast?.lowTemp)
+    }
 }

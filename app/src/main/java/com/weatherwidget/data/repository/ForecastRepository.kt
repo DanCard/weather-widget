@@ -356,61 +356,82 @@ class ForecastRepository
                             displaySourceId = row.source,
                         )
                     fragments.forEach { existing ->
-                        val newDay = if (dayWindowOpen) resolved.dayPrecip else existing.forecastDayPrecipChance
-                        val newNight = if (nightWindowOpen) resolved.nightPrecip else existing.forecastNightPrecipChance
-                        val frozen = com.weatherwidget.shared.util.DailyHistoryFreeze.merge(
+                        val updated = freezeDailyHistoryFragment(
+                            existing = existing,
+                            row = row,
+                            date = date,
+                            dayWindowOpen = dayWindowOpen,
+                            nightWindowOpen = nightWindowOpen,
                             overlayOpen = overlayOpen,
                             noonCloudOpen = noonCloudOpen,
-                            resolvedHigh = overlayRow?.highTemp,
-                            resolvedLow = overlayRow?.lowTemp,
-                            resolvedPrecipAmountMm = overlayRow?.precipAmountMm,
-                            resolvedNoonCloudPercent = resolvedNoonCloud,
-                            existing = com.weatherwidget.shared.util.DailyHistoryFreeze.FrozenDisplay(
-                                forecastHighTemp = existing.forecastHighTemp,
-                                forecastLowTemp = existing.forecastLowTemp,
-                                forecastPrecipAmountMm = existing.forecastPrecipAmountMm,
-                                noonCloudPercent = existing.noonCloudPercent,
-                            ),
+                            resolved = resolved,
+                            resolvedNoonCloud = resolvedNoonCloud,
+                            overlayRow = overlayRow,
                         )
-                        val updated = existing.copy(
-                            forecastDayPrecipChance = newDay,
-                            forecastNightPrecipChance = newNight,
-                            forecastHighTemp = frozen.forecastHighTemp,
-                            forecastLowTemp = frozen.forecastLowTemp,
-                            forecastPrecipAmountMm = frozen.forecastPrecipAmountMm,
-                            noonCloudPercent = frozen.noonCloudPercent,
-                        )
-                        Log.v(
-                            TAG,
-                            "freezeDisplay: date=$date src=${row.source} overlayOpen=$overlayOpen noonCloudOpen=$noonCloudOpen" +
-                                " dayWin=$dayWindowOpen nightWin=$nightWindowOpen" +
-                                " dayChance=${existing.forecastDayPrecipChance}->$newDay(resolved=${resolved.dayPrecip})" +
-                                " nightChance=${existing.forecastNightPrecipChance}->$newNight(resolved=${resolved.nightPrecip})" +
-                                " high=${existing.forecastHighTemp}->${updated.forecastHighTemp}" +
-                                " low=${existing.forecastLowTemp}->${updated.forecastLowTemp}" +
-                                " amount=${existing.forecastPrecipAmountMm}->${updated.forecastPrecipAmountMm}" +
-                                " noonCloud=${existing.noonCloudPercent}->${updated.noonCloudPercent}",
-                        )
-                        // Persist the rain-chance transition to app_logs (VERBOSE above is logcat-only).
-                        // The frozen day/night chance is captured from the live hourly-window max while
-                        // the window is open, so two independently-fetching installs can freeze
-                        // different values if a provider revises the chance between their fetches (e.g.
-                        // NWS 14%->15%). Logging the resolved input + before->after + timestamp lets us
-                        // reconstruct which value each install captured and when, if they ever diverge.
-                        if (newDay != existing.forecastDayPrecipChance || newNight != existing.forecastNightPrecipChance) {
-                            appLogDao.log(
-                                "FREEZE_RAIN_CHANCE",
-                                "date=$date src=${row.source} dayWin=$dayWindowOpen nightWin=$nightWindowOpen" +
-                                    " resolvedDay=${resolved.dayPrecip} resolvedNight=${resolved.nightPrecip}" +
-                                    " day=${existing.forecastDayPrecipChance}->$newDay" +
-                                    " night=${existing.forecastNightPrecipChance}->$newNight",
-                            )
-                        }
                         if (updated != existing) toInsert.add(updated)
                     }
                 }
             }
             if (toInsert.isNotEmpty()) dailyHistoryDao.insertAll(toInsert)
+        }
+
+        private suspend fun freezeDailyHistoryFragment(
+            existing: com.weatherwidget.data.local.DailyHistoryEntity,
+            row: com.weatherwidget.data.local.ForecastEntity,
+            date: LocalDate,
+            dayWindowOpen: Boolean,
+            nightWindowOpen: Boolean,
+            overlayOpen: Boolean,
+            noonCloudOpen: Boolean,
+            resolved: com.weatherwidget.shared.util.DailyRainLabels.ResolvedDailyPrecip,
+            resolvedNoonCloud: Int?,
+            overlayRow: com.weatherwidget.data.local.ForecastEntity?,
+        ): com.weatherwidget.data.local.DailyHistoryEntity {
+            val newDay = if (dayWindowOpen) resolved.dayPrecip else existing.forecastDayPrecipChance
+            val newNight = if (nightWindowOpen) resolved.nightPrecip else existing.forecastNightPrecipChance
+            val frozen = com.weatherwidget.shared.util.DailyHistoryFreeze.merge(
+                overlayOpen = overlayOpen,
+                noonCloudOpen = noonCloudOpen,
+                resolvedHigh = overlayRow?.highTemp,
+                resolvedLow = overlayRow?.lowTemp,
+                resolvedPrecipAmountMm = overlayRow?.precipAmountMm,
+                resolvedNoonCloudPercent = resolvedNoonCloud,
+                existing = com.weatherwidget.shared.util.DailyHistoryFreeze.FrozenDisplay(
+                    forecastHighTemp = existing.forecastHighTemp,
+                    forecastLowTemp = existing.forecastLowTemp,
+                    forecastPrecipAmountMm = existing.forecastPrecipAmountMm,
+                    noonCloudPercent = existing.noonCloudPercent,
+                ),
+            )
+            val updated = existing.copy(
+                forecastDayPrecipChance = newDay,
+                forecastNightPrecipChance = newNight,
+                forecastHighTemp = frozen.forecastHighTemp,
+                forecastLowTemp = frozen.forecastLowTemp,
+                forecastPrecipAmountMm = frozen.forecastPrecipAmountMm,
+                noonCloudPercent = frozen.noonCloudPercent,
+            )
+            Log.v(
+                TAG,
+                "freezeDisplay: date=$date src=${row.source} overlayOpen=$overlayOpen noonCloudOpen=$noonCloudOpen" +
+                    " dayWin=$dayWindowOpen nightWin=$nightWindowOpen" +
+                    " dayChance=${existing.forecastDayPrecipChance}->$newDay(resolved=${resolved.dayPrecip})" +
+                    " nightChance=${existing.forecastNightPrecipChance}->$newNight(resolved=${resolved.nightPrecip})" +
+                    " high=${existing.forecastHighTemp}->${updated.forecastHighTemp}" +
+                    " low=${existing.forecastLowTemp}->${updated.forecastLowTemp}" +
+                    " amount=${existing.forecastPrecipAmountMm}->${updated.forecastPrecipAmountMm}" +
+                    " noonCloud=${existing.noonCloudPercent}->${updated.noonCloudPercent}",
+            )
+            if (newDay != existing.forecastDayPrecipChance || newNight != existing.forecastNightPrecipChance) {
+                appLogDao.log(
+                    "FREEZE_RAIN_CHANCE",
+                    "date=$date src=${row.source} dayWin=$dayWindowOpen nightWin=$nightWindowOpen" +
+                        " resolvedDay=${resolved.dayPrecip} resolvedNight=${resolved.nightPrecip}" +
+                        " day=${existing.forecastDayPrecipChance}->$newDay" +
+                        " night=${existing.forecastNightPrecipChance}->$newNight",
+                )
+            }
+            return updated
         }
 
         /**
@@ -704,7 +725,22 @@ class ForecastRepository
             val tomorrowIo: List<ForecastEntity>?,
         )
 
-       private suspend fun fetchFromAllApis(
+        private suspend fun fetchAndSaveSharedForecast(
+            latitude: Double,
+            longitude: Double,
+            source: WeatherSource,
+            fetch: suspend () -> com.weatherwidget.data.model.ForecastResult?,
+        ): List<ForecastEntity>? {
+            val result = fetch() ?: return null
+            if (result.hourly.isNotEmpty()) {
+                saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, source.id)
+            }
+            return result.daily.map { day ->
+                mapDailyForecast(day, latitude, longitude, source.id, result.hourly)
+            }
+        }
+
+        private suspend fun fetchFromAllApis(
             latitude: Double,
             longitude: Double,
             sourcesToFetch: Set<WeatherSource>,
@@ -719,52 +755,32 @@ class ForecastRepository
             val openWeatherMapDeferred = if (hasOpenWeatherMapApi && WeatherSource.OPEN_WEATHER_MAP in sourcesToFetch) async {
                 safeFetch("FETCH_OWM_FAIL", WeatherSource.OPEN_WEATHER_MAP) {
                     val api = openWeatherMapApi ?: return@safeFetch null
-                    val result = api.getForecast(latitude, longitude)
-                    if (result.hourly.isNotEmpty()) {
-                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_WEATHER_MAP.id)
-                    }
-                    result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, WeatherSource.OPEN_WEATHER_MAP.id, result.hourly)
+                    fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.OPEN_WEATHER_MAP) {
+                        api.getForecast(latitude, longitude)
                     }
                 }
             } else null
 
             val visualCrossingDeferred = if (WeatherSource.VISUAL_CROSSING in sourcesToFetch) async {
                 safeFetch("FETCH_VISUAL_CROSSING_FAIL", WeatherSource.VISUAL_CROSSING) {
-                    val result = visualCrossingApi.getForecast(latitude, longitude)
-                    if (result.hourly.isNotEmpty()) {
-                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.VISUAL_CROSSING.id)
-                    }
-                    result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, WeatherSource.VISUAL_CROSSING.id, result.hourly)
+                    fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.VISUAL_CROSSING) {
+                        visualCrossingApi.getForecast(latitude, longitude)
                     }
                 }
             } else null
             
             val meteoDeferred = if (WeatherSource.OPEN_METEO in sourcesToFetch) async {
                 safeFetch("FETCH_METEO_FAIL", WeatherSource.OPEN_METEO) {
-                    val result = openMeteoApi.getForecast(
-                        latitude,
-                        longitude,
-                        historyDays = WeatherConfig.ACTUALS_HISTORY_DAYS
-                    )
-                    if (result.hourly.isNotEmpty()) {
-                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_METEO.id)
-                    }
-                    result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, WeatherSource.OPEN_METEO.id, result.hourly)
+                    fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.OPEN_METEO) {
+                        openMeteoApi.getForecast(latitude, longitude, historyDays = WeatherConfig.ACTUALS_HISTORY_DAYS)
                     }
                 }
             } else null
             
             val wapiDeferred = if (WeatherSource.WEATHER_API in sourcesToFetch) async {
                 safeFetch("FETCH_WAPI_FAIL", WeatherSource.WEATHER_API) {
-                    val result = weatherApi.getForecast(latitude, longitude)
-                    if (result.hourly.isNotEmpty()) {
-                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.WEATHER_API.id)
-                    }
-                    result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, WeatherSource.WEATHER_API.id, result.hourly)
+                    fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.WEATHER_API) {
+                        weatherApi.getForecast(latitude, longitude)
                     }
                 }
             } else null
@@ -776,36 +792,30 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.SILURIAN.id)
                     }
                     result.daily.map { day ->
-                    mapDailyForecast(
-                        DailyForecast(
-                            day.date,
-                            day.highTemp,
-                            day.lowTemp,
-                            day.condition,
-                            day.condition,
-                            day.precipProbability,
-                            day.precipAmountMm,
-                        ),
-
-                        latitude,
-                        longitude,
-                        WeatherSource.SILURIAN.id,
-                        result.hourly,
-                    )
+                        mapDailyForecast(
+                            com.weatherwidget.data.model.DailyForecast(
+                                day.date,
+                                day.highTemp,
+                                day.lowTemp,
+                                day.condition,
+                                day.condition,
+                                day.precipProbability,
+                                day.precipAmountMm,
+                            ),
+                            latitude,
+                            longitude,
+                            WeatherSource.SILURIAN.id,
+                            result.hourly,
+                        )
                     }
-
                 }
             } else null
 
             val tomorrowIoDeferred = if (WeatherSource.TOMORROW_IO in sourcesToFetch) async {
                 safeFetch("FETCH_TMRW_FAIL", WeatherSource.TOMORROW_IO) {
                     val api = tomorrowIoApi ?: return@safeFetch null
-                    val result = api.getForecast(latitude, longitude)
-                    if (result.hourly.isNotEmpty()) {
-                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.TOMORROW_IO.id)
-                    }
-                    result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, WeatherSource.TOMORROW_IO.id, result.hourly)
+                    fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.TOMORROW_IO) {
+                        api.getForecast(latitude, longitude)
                     }
                 }
             } else null
