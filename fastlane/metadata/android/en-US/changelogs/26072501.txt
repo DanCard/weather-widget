@@ -1,0 +1,1 @@
+Open beta release: Added actual temperature graph endpoint labels in narrow views, preserved useful widget body during location handoffs, made unplugged screen unlock refreshes cache-only to save battery, and improved forecast gap diagnostics.
