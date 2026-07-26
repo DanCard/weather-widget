@@ -245,16 +245,25 @@ object TemperatureLabelResolver {
             extrema.actualEndIndex in hours.indices &&
             hours[actualStartIndex].dateTime.toLocalDate() != hours[extrema.actualEndIndex].dateTime.toLocalDate() &&
             Duration.between(hours[actualStartIndex].dateTime, hours[extrema.actualEndIndex].dateTime) <= Duration.ofHours(3)
-        val actualHighLabelIndices = if (shortCrossMidnightActualSlice) {
+        val dailyActualHighLabelIndices = if (shortCrossMidnightActualSlice) {
             listOfNotNull(extrema.actualHighIndex.takeIf { it == 0 })
         } else {
             (extrema.actualDailyHighIndices + listOfNotNull(extrema.actualHighIndex.takeIf { it == 0 })).distinct()
         }
-        val actualLowLabelIndices = if (shortCrossMidnightActualSlice) {
+        val dailyActualLowLabelIndices = if (shortCrossMidnightActualSlice) {
             listOfNotNull(extrema.actualLowIndex.takeIf { it == extrema.actualEndIndex })
         } else {
             (extrema.actualDailyLowIndices + listOfNotNull(extrema.actualLowIndex.takeIf { it == extrema.actualEndIndex })).distinct()
         }
+        // Daily actual extrema remain the primary labels. Only when a visible slice has no confirmed
+        // actual high (or low) do prominent interior observed turns fill that semantic gap. This
+        // prevents multi-day views that already have daily labels from accumulating extra pink noise.
+        val fallbackActualHighIndices =
+            if (dailyActualHighLabelIndices.isEmpty()) extrema.actualProminentHighIndices else emptyList()
+        val fallbackActualLowIndices =
+            if (dailyActualLowLabelIndices.isEmpty()) extrema.actualProminentLowIndices else emptyList()
+        val actualHighLabelIndices = dailyActualHighLabelIndices + fallbackActualHighIndices
+        val actualLowLabelIndices = dailyActualLowLabelIndices + fallbackActualLowIndices
 
         val potentialAnchors = buildPotentialAnchors(extrema, hours)
         if (shortCrossMidnightActualSlice) {
@@ -382,6 +391,23 @@ object TemperatureLabelResolver {
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
 
+        addActualTurningPointLabels(
+            specialCandidates = specialCandidates,
+            indices = fallbackActualHighIndices,
+            role = TemperatureRole.ACTUAL_HIGH,
+            hours = hours,
+            actualLabelTemps = actualLabelTemps,
+            useCelsius = useCelsius,
+        )
+        addActualTurningPointLabels(
+            specialCandidates = specialCandidates,
+            indices = fallbackActualLowIndices,
+            role = TemperatureRole.ACTUAL_LOW,
+            hours = hours,
+            actualLabelTemps = actualLabelTemps,
+            useCelsius = useCelsius,
+        )
+
         addCoincidentActuals(
             specialCandidates,
             suppressedIndices,
@@ -409,6 +435,39 @@ object TemperatureLabelResolver {
         addForecastMidpointLabel(specialCandidates, effectiveActualEndIndex, hours, labelTemps, useCelsius = useCelsius)
 
         return specialCandidates
+    }
+
+    private fun addActualTurningPointLabels(
+        specialCandidates: MutableList<TempLabelCandidate>,
+        indices: List<Int>,
+        role: TemperatureRole,
+        hours: List<HourData>,
+        actualLabelTemps: List<Float>,
+        useCelsius: Boolean,
+    ) {
+        for (idx in indices) {
+            if (idx !in hours.indices || idx !in actualLabelTemps.indices) continue
+            if (specialCandidates.any { it.index == idx && it.role == role }) continue
+            logLabelDecision(
+                action = "LabelAccepted",
+                role = role,
+                idx = idx,
+                value = actualLabelTemps[idx],
+                hours = hours,
+                reason = "PROMINENT_ACTUAL_TURN",
+                provenance = provenanceFor(role, isMidpoint = false),
+                useCelsius = useCelsius,
+            )
+            specialCandidates.add(
+                TempLabelCandidate(
+                    index = idx,
+                    role = role,
+                    labelTemps = actualLabelTemps,
+                    rawTemperature = hours[idx].temperature,
+                    forceForecastSeries = false,
+                ),
+            )
+        }
     }
 
     // Minimum forecast-region length (in indices ≈ hours) before its bare middle is worth a label.

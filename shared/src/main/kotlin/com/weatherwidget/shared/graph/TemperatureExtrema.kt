@@ -22,6 +22,12 @@ object TemperatureExtrema {
     // night dips many degrees; a split-peak shoulder dips < ~2°.
     private const val INTER_PEAK_LOW_MIN_PROMINENCE_DEGREES = 3f
 
+    // Minimum observed-series reversal needed to call an interior turn label-worthy. The live
+    // emulator slice (2026-07-25 09:00..13:00) contains a broad 71.79 -> 70.73°F peak/valley pair
+    // (1.06°F reversal) plus embedded five-minute wiggles of only 0.04°F. A hysteresis gate between
+    // those scales preserves the visible shape while rejecting station/blend chatter.
+    private const val ACTUAL_TURN_REVERSAL_DEGREES = 0.75f
+
     data class ExtremaIndices(
         val labelTemps: List<Float>,
         val actualLabelTemps: List<Float>,
@@ -31,6 +37,8 @@ object TemperatureExtrema {
         val actualLowIndex: Int,
         val actualDailyHighIndices: List<Int>,
         val actualDailyLowIndices: List<Int>,
+        val actualProminentHighIndices: List<Int>,
+        val actualProminentLowIndices: List<Int>,
         val forecastHighIndex: Int,
         val forecastLowIndex: Int,
         val pastForecastHighIndex: Int,
@@ -81,6 +89,24 @@ object TemperatureExtrema {
         
         val actualHighIndex = actualIndices.maxByOrNull { actualLabelTemps[it] } ?: -1
         val actualLowIndex = actualIndices.minByOrNull { actualLabelTemps[it] } ?: -1
+
+        // A zoomed historical slice can have both absolute observed extrema at the window edges
+        // (correctly not daily-extreme labels) while still containing a meaningful interior peak and
+        // valley. Resolve those turns with hysteresis: a tiny reversal cannot split one broad peak
+        // into several five-minute extrema. Returned indices are always interior, so this does not
+        // weaken the existing "window edges are not confirmed extrema" policy.
+        val actualTurningPoints =
+            findProminentActualTurningPoints(actualIndices.map { actualLabelTemps[it] })
+        val actualProminentHighIndices =
+            actualTurningPoints.highs.map { actualIndices[it] }
+        val actualProminentLowIndices =
+            actualTurningPoints.lows.map { actualIndices[it] }
+        Log.v(
+            TAG,
+            "ACTUAL_LOCAL_EXTREMA: highs=${actualProminentHighIndices.map { "idx=$it t=${hours[it].dateTime.toLocalTime()} temp=${actualLabelTemps[it]}" }} " +
+                "lows=${actualProminentLowIndices.map { "idx=$it t=${hours[it].dateTime.toLocalTime()} temp=${actualLabelTemps[it]}" }} " +
+                "reversal=$ACTUAL_TURN_REVERSAL_DEGREES",
+        )
 
         // Per-day actual extrema: in a multi-day view the actual region spans several days, each
         // with its own valley/peak. The single global high/low above only labels the warmest/coldest
@@ -270,6 +296,7 @@ object TemperatureExtrema {
             dailyHighIndex, dailyLowIndex,
             actualHighIndex, actualLowIndex,
             actualDailyHighIndices, actualDailyLowIndices,
+            actualProminentHighIndices, actualProminentLowIndices,
             forecastHighIndex, forecastLowIndex,
             pastForecastHighIndex, pastForecastLowIndex,
             actualEndIndex,
@@ -293,6 +320,66 @@ object TemperatureExtrema {
             i++
         }
         return extrema
+    }
+
+    private data class ActualTurningPoints(
+        val highs: List<Int>,
+        val lows: List<Int>,
+    )
+
+    /**
+     * Extracts interior peak/valley pairs from the dense observed signal using a Schmitt-trigger-like
+     * reversal gate. The initial direction must first move [ACTUAL_TURN_REVERSAL_DEGREES] away from
+     * the window edge, and the unfinished final trend is never emitted; therefore neither edge can
+     * become a turning-point label.
+     */
+    private fun findProminentActualTurningPoints(temps: List<Float>): ActualTurningPoints {
+        if (temps.size < 3) return ActualTurningPoints(emptyList(), emptyList())
+
+        val highs = mutableListOf<Int>()
+        val lows = mutableListOf<Int>()
+        var direction = 0 // 1 = rising / seek high, -1 = falling / seek low
+        var highIndex = 0
+        var lowIndex = 0
+
+        for (index in 1..temps.lastIndex) {
+            val value = temps[index]
+            when (direction) {
+                0 -> {
+                    if (value >= temps[highIndex]) highIndex = index
+                    if (value <= temps[lowIndex]) lowIndex = index
+                    when {
+                        value - temps[lowIndex] >= ACTUAL_TURN_REVERSAL_DEGREES -> {
+                            direction = 1
+                            highIndex = index
+                        }
+                        temps[highIndex] - value >= ACTUAL_TURN_REVERSAL_DEGREES -> {
+                            direction = -1
+                            lowIndex = index
+                        }
+                    }
+                }
+                1 -> {
+                    if (value >= temps[highIndex]) {
+                        highIndex = index
+                    } else if (temps[highIndex] - value >= ACTUAL_TURN_REVERSAL_DEGREES) {
+                        if (highIndex in 1 until temps.lastIndex) highs += highIndex
+                        direction = -1
+                        lowIndex = index
+                    }
+                }
+                else -> {
+                    if (value <= temps[lowIndex]) {
+                        lowIndex = index
+                    } else if (value - temps[lowIndex] >= ACTUAL_TURN_REVERSAL_DEGREES) {
+                        if (lowIndex in 1 until temps.lastIndex) lows += lowIndex
+                        direction = 1
+                        highIndex = index
+                    }
+                }
+            }
+        }
+        return ActualTurningPoints(highs, lows)
     }
 
     fun bilateralExtremaProminence(index: Int, temps: List<Float>, extrema: List<Int>): Float {
