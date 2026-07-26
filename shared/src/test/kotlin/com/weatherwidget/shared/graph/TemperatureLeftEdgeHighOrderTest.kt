@@ -160,6 +160,42 @@ class TemperatureLeftEdgeHighOrderTest {
     }
 
     @Test
+    fun `cooler observed high at same left-edge sample is drawn below forecast without overlap`() {
+        val forecast = MutableList(24) { 60f }.apply {
+            for (i in 0..12) {
+                this[i] = 72f - i
+            }
+        }
+        val actual = MutableList<Float?>(24) { null }.apply {
+            for (i in 0..11) {
+                this[i] = 71.9334f - i * 0.4f
+            }
+        }
+
+        val placements = runEngineTest(
+            hours = buildHours(forecast, actual),
+            widthPx = 584,
+            heightPx = 385,
+            observedAt = observedAt,
+        )
+
+        val forecastHigh = placements.find { it.role == TemperatureRole.HIGH && it.index == 0 }
+        val actualHigh = placements.find { it.role == TemperatureRole.ACTUAL_HIGH && it.index == 0 }
+        assertNotNull("forecast HIGH should be placed at index 0", forecastHigh)
+        assertNotNull("ACTUAL_HIGH should be placed at index 0", actualHigh)
+
+        assertTrue("warmer 72 forecast high should remain above", forecastHigh!!.placedAbove)
+        assertFalse("lower 71.9 actual high should move below its curve", actualHigh!!.placedAbove)
+
+        val forecastBottom = forecastHigh.baselineY + TestLabelTextMetrics().descent
+        val actualTop = actualHigh.baselineY + TestLabelTextMetrics().ascent
+        assertTrue(
+            "same-index forecast and actual label boxes must not overlap: forecastBottom=$forecastBottom actualTop=$actualTop",
+            actualTop >= forecastBottom,
+        )
+    }
+
+    @Test
     fun `genuinely warmer observed high keeps its default above placement`() {
         // Same geometry, but the observed peak is WARMER than the forecast high: the helper returns
         // empty and ACTUAL_HIGH keeps its force-above placement, proving the fix is scoped to the
