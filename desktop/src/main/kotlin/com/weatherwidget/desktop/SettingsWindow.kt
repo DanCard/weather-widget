@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.desktop.theme.SettingsCard
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 
@@ -89,101 +90,89 @@ internal fun SettingsWindow(
                         .padding(16.dp)
                 ) {
                     // API Sources
-                    Text("API Sources", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(8.dp))
-                    ApiSourcesList(
-                        visibleSources = currentConfig.visibleSources,
-                        onChanged = { newSources ->
-                            currentConfig = currentConfig.copy(visibleSources = newSources)
-                        }
-                    )
-
-                    Spacer(Modifier.height(24.dp))
+                    SettingsCard(title = "API Sources") {
+                        ApiSourcesList(
+                            visibleSources = currentConfig.visibleSources,
+                            onChanged = { newSources ->
+                                currentConfig = currentConfig.copy(visibleSources = newSources)
+                            }
+                        )
+                    }
 
                     // Personal Weather Stations
-                    Text("Personal Weather Stations", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(8.dp))
-                    PersonalStationDiscount(
-                        discountPercent = currentConfig.personalStationDiscount,
-                        onChanged = { newPercent ->
-                            currentConfig = currentConfig.copy(personalStationDiscount = newPercent)
-                        }
-                    )
-
-                    Spacer(Modifier.height(24.dp))
+                    SettingsCard(title = "Personal Weather Stations") {
+                        PersonalStationDiscount(
+                            discountPercent = currentConfig.personalStationDiscount,
+                            onChanged = { newPercent ->
+                                currentConfig = currentConfig.copy(personalStationDiscount = newPercent)
+                            }
+                        )
+                    }
 
                     // API Keys
-                    Text("API Keys", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(8.dp))
-                    ApiKeysList(
-                        apiKeys = currentConfig.apiKeys,
-                        onChanged = { newKeys ->
-                            currentConfig = currentConfig.copy(apiKeys = newKeys)
-                        }
-                    )
-
-                    Spacer(Modifier.height(24.dp))
+                    SettingsCard(title = "API Keys") {
+                        ApiKeysList(
+                            apiKeys = currentConfig.apiKeys,
+                            onChanged = { newKeys ->
+                                currentConfig = currentConfig.copy(apiKeys = newKeys)
+                            }
+                        )
+                    }
 
                     // Icon Gallery
-                    Text("Icon Gallery", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(8.dp))
-                    IconGallery()
-
-                    Spacer(Modifier.height(24.dp))
+                    SettingsCard(title = "Icon Gallery") {
+                        IconGallery()
+                    }
 
                     // Location
-                    Text("Location", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = currentConfig.label.ifEmpty { "No location set" },
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Button(
-                            onClick = onUpdateLocation,
-                            modifier = Modifier.testTag("change_location_btn")
+                    SettingsCard(title = "Location") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Change Location")
+                            Text(
+                                text = currentConfig.label.ifEmpty { "No location set" },
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Button(
+                                onClick = onUpdateLocation,
+                                modifier = Modifier.testTag("change_location_btn")
+                            ) {
+                                Text("Change Location")
+                            }
                         }
                     }
 
-                    Spacer(Modifier.height(24.dp))
-
                     // Units
-                    Text("Units", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Use Celsius",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Switch(
-                            checked = currentConfig.useCelsius,
-                            onCheckedChange = { isChecked ->
-                                currentConfig = currentConfig.copy(useCelsius = isChecked)
-                            },
-                            modifier = Modifier.testTag("use_celsius_switch")
-                        )
+                    SettingsCard(title = "Units") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Use Celsius",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = currentConfig.useCelsius,
+                                onCheckedChange = { isChecked ->
+                                    currentConfig = currentConfig.copy(useCelsius = isChecked)
+                                },
+                                modifier = Modifier.testTag("use_celsius_switch")
+                            )
+                        }
                     }
 
-                    Spacer(Modifier.height(24.dp))
-
                     // Diagnostics / Observations
-                    Text("Diagnostics", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(8.dp))
-                    Button(
-                        onClick = onOpenObservations,
-                        modifier = Modifier.testTag("open_observations_btn")
-                    ) {
-                        Text("Stations / Observations")
+                    SettingsCard(title = "Diagnostics") {
+                        Button(
+                            onClick = onOpenObservations,
+                            modifier = Modifier.testTag("open_observations_btn")
+                        ) {
+                            Text("Stations / Observations")
+                        }
                     }
                 }
 
