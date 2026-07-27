@@ -200,11 +200,8 @@ object DailyViewHandler : WidgetViewHandler {
 
         val yesterday = today.minusDays(1)
         val yesterdayActual = dailyActuals[yesterday]
-        appLogDao.log(LOG_TAG_WIDGET_ACTUAL,
-            "date=$yesterday src=${displaySource.id} low=${yesterdayActual?.lowTemp} " +
-            "allDates=${dailyActuals.keys} allSources=${dailyActualsBySource.keys}",
-            "DEBUG"
-        )
+        Log.v(TAG, "$LOG_TAG_WIDGET_ACTUAL date=$yesterday src=${displaySource.id} low=${yesterdayActual?.lowTemp} " +
+            "allDates=${dailyActuals.keys} allSources=${dailyActualsBySource.keys}")
 
         // Past-day actuals are read from the daily_history cache, which can be wrong when a
         // day's observation coverage is incomplete (e.g. device powered off during the day).
@@ -357,7 +354,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         val availableDates = buildAvailableNavigationDates(weatherList, dailyActuals, displaySource)
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${availableDates.minOrNull()}, maxDate=${availableDates.maxOrNull()}")
-        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, skipYesterday, today, useGraph)
+        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, skipYesterday, today, useGraph, dateOffset)
 
         var prepareMs = 0L
         var renderMs = 0L
@@ -543,13 +540,14 @@ object DailyViewHandler : WidgetViewHandler {
         if (!stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, refreshType, cooldownMs)) {
             return
         }
-        stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, refreshType)
         appLogDao.log(logTag, message, "INFO")
         WeatherWidgetProvider.triggerImmediateUpdate(
             context = context,
             forceRefresh = forceRefresh,
             reason = reason,
         )
+        // Mark after the trigger succeeds so a failure doesn't consume the cooldown.
+        stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, refreshType)
     }
 
     private fun setupCurrentTempToggle(context: Context, views: RemoteViews, appWidgetId: Int) {
@@ -656,13 +654,16 @@ object DailyViewHandler : WidgetViewHandler {
         stateManager: WidgetStateManager, availableDates: Set<LocalDate>,
         numColumns: Int, skipYesterday: Boolean, today: LocalDate,
         useGraph: Boolean,
+        dateOffset: Int,
     ) {
         val sortedDates = availableDates.sorted()
         val minDate = sortedDates.firstOrNull()
         val maxDate = sortedDates.lastOrNull()
 
-        val (leftmost, _) = NavigationUtils.getVisibleDateRange(today, stateManager.getDateOffset(appWidgetId) - 1, numColumns, skipYesterday)
-        val (_, rightmost) = NavigationUtils.getVisibleDateRange(today, stateManager.getDateOffset(appWidgetId) + 1, numColumns, skipYesterday)
+        // Use the offset captured at the start of this update cycle (not a fresh prefs read) so
+        // the nav bounds match the day window actually being rendered.
+        val (leftmost, _) = NavigationUtils.getVisibleDateRange(today, dateOffset - 1, numColumns, skipYesterday)
+        val (_, rightmost) = NavigationUtils.getVisibleDateRange(today, dateOffset + 1, numColumns, skipYesterday)
 
         val canLeft = minDate != null && !minDate.isAfter(leftmost)
         val canRight = maxDate != null && !maxDate.isBefore(rightmost)
@@ -844,12 +845,8 @@ object DailyViewHandler : WidgetViewHandler {
         val visibleDaysInfo = updateTextMode(ctx)
 
         visibleDaysInfo.find { it.isToday }?.let { todayDay ->
-            ctx.appLogDao.log(
-                LOG_TAG_TODAY_BAR_DEBUG,
-                "widget=${ctx.appWidgetId} mode=TEXT high=${todayDay.highLabel} low=${todayDay.lowLabel} " +
-                    "fallback=${todayDay.isTodayForecastFallback}",
-                "DEBUG"
-            )
+            Log.v(TAG, "$LOG_TAG_TODAY_BAR_DEBUG widget=${ctx.appWidgetId} mode=TEXT high=${todayDay.highLabel} low=${todayDay.lowLabel} " +
+                "fallback=${todayDay.isTodayForecastFallback}")
         }
 
         logDailyRenderSummary(

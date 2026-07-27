@@ -98,7 +98,9 @@ object DailyViewLogic {
     ): List<TextDayData> {
         Log.d(TAG, "prepareTextDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, displaySource=${displaySource.id}")
 
-        val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
+        // Narrow widgets (1-2 columns) always start from today regardless of skipHistory,
+        // mirroring NavigationUtils.getDayOffsets — shifting the center there would drop today.
+        val effectiveCenter = if (skipHistory && numColumns >= 3) centerDate.plusDays(1) else centerDate
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
         val daySlots = listOf(-1, 0, 1, 2, 3, 4, 5, 6).mapIndexed { index, offset ->

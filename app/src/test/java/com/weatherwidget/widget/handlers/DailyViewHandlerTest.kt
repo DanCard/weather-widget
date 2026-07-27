@@ -175,6 +175,37 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `prepareTextDays skipHistory keeps today for 1 and 2 column widgets`() {
+        // Narrow widgets always start from today regardless of skipHistory, mirroring
+        // NavigationUtils.getDayOffsets (numColumns <= 2 -> startOffset 0).
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = createWeatherMap(today)
+
+        for (numColumns in listOf(1, 2)) {
+            val result = DailyViewLogic.prepareTextDays(
+                todayLabel = "Today",
+                now = now,
+                centerDate = today,
+                today = today,
+                weatherByDate = weatherByDate,
+                hourlyForecasts = emptyList(),
+                numColumns = numColumns,
+                displaySource = WeatherSource.NWS,
+                skipHistory = true
+            )
+
+            val visibleDates = result.filter { it.isVisible }.map { it.date }
+            assertEquals(numColumns, visibleDates.size)
+            assertEquals(
+                "numColumns=$numColumns should still start from today when skipping history",
+                today,
+                visibleDates.first()
+            )
+        }
+    }
+
+    @Test
     fun `prepareTextDays identifies first rainy day for text display`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
