@@ -23,6 +23,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.desktop.theme.AlertActionButton
 import com.weatherwidget.desktop.theme.PrimaryActionButton
+import com.weatherwidget.desktop.theme.PrimaryActionProminentButton
 import com.weatherwidget.desktop.theme.SecondaryActionButton
 import com.weatherwidget.desktop.theme.SettingsCard
 import com.weatherwidget.desktop.theme.TertiaryActionButton
@@ -79,6 +80,7 @@ internal fun SettingsWindow(
                         // is a secondary navigation action (blue).
                         var isRefreshing by remember { mutableStateOf(false) }
                         PrimaryActionButton(
+                            text = if (isRefreshing) "Refreshing…" else "Refresh Data",
                             onClick = {
                                 scope.launch {
                                     isRefreshing = true
@@ -91,16 +93,13 @@ internal fun SettingsWindow(
                             },
                             enabled = !isRefreshing,
                             modifier = Modifier.padding(horizontal = 4.dp).testTag("refresh_data_btn"),
-                        ) {
-                            Text(if (isRefreshing) "Refreshing…" else "Refresh Data")
-                        }
+                        )
 
                         SecondaryActionButton(
+                            text = "View App Logs",
                             onClick = onViewAppLogs,
                             modifier = Modifier.padding(horizontal = 4.dp).testTag("view_app_logs_btn"),
-                        ) {
-                            Text("View App Logs")
-                        }
+                        )
                     }
 
                     Column(
@@ -182,12 +181,11 @@ internal fun SettingsWindow(
                                     style = MaterialTheme.typography.bodyLarge,
                                     modifier = Modifier.weight(1f).padding(end = 8.dp),
                                 )
-                                PrimaryActionButton(
+                                PrimaryActionProminentButton(
+                                    text = "Change Location",
                                     onClick = onUpdateLocation,
                                     modifier = Modifier.testTag("change_location_btn"),
-                                ) {
-                                    Text("Change Location")
-                                }
+                                )
                             }
                         }
 
@@ -215,11 +213,11 @@ internal fun SettingsWindow(
                         // Diagnostics / Observations
                         SettingsCard(title = "Diagnostics") {
                             SecondaryActionButton(
+                                text = "Stations / Observations",
                                 onClick = onOpenObservations,
                                 modifier = Modifier.testTag("open_observations_btn"),
-                            ) {
-                                Text("Stations / Observations")
-                            }
+                                prominent = true,
+                            )
                         }
 
                         // Phase 4 item 5: Bug Report MVP. The full Android BugReportActivity is a
@@ -229,11 +227,10 @@ internal fun SettingsWindow(
                         // details like app version / OS); SettingsWindow just fires the callback.
                         SettingsCard(title = "Feedback") {
                             AlertActionButton(
+                                text = "Submit Bug Report",
                                 onClick = onSubmitBugReport,
                                 modifier = Modifier.testTag("submit_bug_report_btn"),
-                            ) {
-                                Text("Submit Bug Report")
-                            }
+                            )
                         }
                     }
 
@@ -245,18 +242,19 @@ internal fun SettingsWindow(
                     ) {
                         // Exit the whole app — the only quit affordance when running without a tray
                         // (WEATHER_DESKTOP_NO_TRAY).
-                        WeatherOutlinedButton(onClick = onExit, modifier = Modifier.testTag("exit_app")) {
-                            Text("Exit app")
-                        }
+                        WeatherOutlinedButton(
+                            text = "Exit app",
+                            onClick = onExit,
+                            modifier = Modifier.testTag("exit_app"),
+                        )
                         PrimaryActionButton(
+                            text = "Save",
                             onClick = {
                                 onSave(currentConfig)
                                 onClose()
                             },
                             modifier = Modifier.testTag("save_settings"),
-                        ) {
-                            Text("Save")
-                        }
+                        )
                     }
                 }
 
@@ -424,11 +422,10 @@ private fun ApiKeysList(
                         modifier = Modifier.weight(1f),
                     )
                     TertiaryActionButton(
+                        text = "Get key…",
                         onClick = { openInBrowser(ApiKeySignupUrls.signupUrl(source)) },
                         modifier = Modifier.testTag("get_key_${source.id}"),
-                    ) {
-                        Text("Get key…")
-                    }
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
                 var text by remember(source.id) { mutableStateOf(apiKeys[source.id] ?: "") }
