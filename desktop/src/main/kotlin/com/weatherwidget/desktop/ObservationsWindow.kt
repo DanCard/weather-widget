@@ -36,6 +36,8 @@ import com.weatherwidget.data.local.desktop.DesktopLogEntity
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
+import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.util.StationHistoryUrl
@@ -215,7 +217,7 @@ internal fun ObservationsWindow(
             }
         }
 
-        MaterialTheme(colorScheme = darkColorScheme()) {
+        MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = ObsStyle.background,

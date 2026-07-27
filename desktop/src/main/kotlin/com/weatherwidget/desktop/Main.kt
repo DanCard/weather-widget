@@ -49,6 +49,8 @@ import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.remote.NominatimApi
+import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
+import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.util.NavigationUtils
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -157,7 +159,7 @@ private fun runApp() = application {
         Thread.currentThread().name = "WeatherUI"
     }
 
-    MaterialTheme(colorScheme = darkColorScheme()) {
+    MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
         val startupSmoke = remember { System.getProperty("weatherwidget.desktop.startupSmoke") == "true" }
         val configStore = remember { DesktopConfigStore() }
         var config by remember { mutableStateOf(configStore.load()) }

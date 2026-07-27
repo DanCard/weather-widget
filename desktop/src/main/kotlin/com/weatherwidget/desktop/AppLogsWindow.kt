@@ -18,6 +18,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopLogEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
+import com.weatherwidget.desktop.theme.WeatherTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,7 +74,7 @@ internal fun AppLogsWindow(
             }
         }
 
-        MaterialTheme(colorScheme = darkColorScheme()) {
+        MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
             Surface(
                 modifier = Modifier.fillMaxSize().testTag("app_logs_window")
             ) {

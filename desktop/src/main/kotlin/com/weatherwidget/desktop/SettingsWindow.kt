@@ -20,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
+import com.weatherwidget.desktop.theme.WeatherTypography
 
 @Composable
 internal fun SettingsWindow(
@@ -35,7 +37,7 @@ internal fun SettingsWindow(
     var currentConfig by remember { mutableStateOf(config) }
     val scrollState = rememberScrollState()
 
-    MaterialTheme(colorScheme = darkColorScheme()) {
+    MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Header

@@ -31,6 +31,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
+import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.AxisScale
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ErrorSample
@@ -139,8 +141,9 @@ internal fun ForecastHistoryWindow(
             loading = false
         }
 
-        Surface(color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+        MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
                 Header(
                     targetDate = targetDate,
                     source = source,
@@ -166,6 +169,7 @@ internal fun ForecastHistoryWindow(
                     else -> Content(d, graphMode, source, config.useCelsius)
                 }
             }
+        }
         }
     }
 }

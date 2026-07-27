@@ -20,6 +20,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
+import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.stats.AccuracyPure
 import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
 import kotlinx.coroutines.Dispatchers
@@ -68,8 +70,9 @@ internal fun StatisticsWindow(
             loading = false
         }
 
-        Surface(color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().padding(16.dp)) {
+        MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Column(Modifier.fillMaxSize().padding(16.dp)) {
                 Text("Forecast Accuracy", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("$source · ${config.label} · last 30 days", fontSize = 12.sp, color = Color.Gray)
                 Spacer(Modifier.height(12.dp))
@@ -86,6 +89,7 @@ internal fun StatisticsWindow(
                     }
                 }
             }
+        }
         }
     }
 }
