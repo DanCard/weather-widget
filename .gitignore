@@ -96,3 +96,4 @@ fastlane/play-store-api-key.json
 # Window dump (adb shell dumpsys window)
 window_dump.xml
 
+*.db

@@ -392,14 +392,19 @@ class NwsApi
 
             val skyCoverByHour = parseSkyCoverFromProperties(properties)
             val qpfIntervals = parseQpfFromProperties(properties)
-            val maxByDate = parseDailyExtremes(properties["maxTemperature"]?.jsonObject, isMax = true)
-            val minByDate = parseDailyExtremes(properties["minTemperature"]?.jsonObject, isMax = false)
+            val rejectedTemps = mutableListOf<RejectedNwsTemperature>()
+            val maxByDate = parseDailyExtremes(properties["maxTemperature"]?.jsonObject, isMax = true, rejected = rejectedTemps)
+            val minByDate = parseDailyExtremes(properties["minTemperature"]?.jsonObject, isMax = false, rejected = rejectedTemps)
 
             Log.d(
                 TAG,
-                "getGridpointsBundle: skyCover=${skyCoverByHour.size}h qpf=${qpfIntervals.size} maxDays=${maxByDate.size} minDays=${minByDate.size}",
+                "getGridpointsBundle: skyCover=${skyCoverByHour.size}h qpf=${qpfIntervals.size} maxDays=${maxByDate.size} minDays=${minByDate.size} rejected=${rejectedTemps.size}",
             )
-            return GridpointsBundle(skyCoverByHour, qpfIntervals, DailyTemperatureExtremes(maxByDate, minByDate))
+            return GridpointsBundle(
+                skyCoverByHour,
+                qpfIntervals,
+                DailyTemperatureExtremes(maxByDate, minByDate, rejectedTemps),
+            )
         }
 
         private fun parseSkyCoverFromProperties(properties: JsonObject): Map<String, Int> {
@@ -455,7 +460,11 @@ class NwsApi
             }
         }
 
-        private fun parseDailyExtremes(node: JsonObject?, isMax: Boolean): Map<String, Float> {
+        private fun parseDailyExtremes(
+            node: JsonObject?,
+            isMax: Boolean,
+            rejected: MutableList<RejectedNwsTemperature>,
+        ): Map<String, Float> {
             val values = node?.get("values")?.jsonArray ?: return emptyMap()
             val unitCode = node["uom"]?.jsonPrimitive?.content
             val zone = java.time.ZoneId.systemDefault()
@@ -484,6 +493,21 @@ class NwsApi
                     "wmoUnit:degF" -> rawValue
                     null, "", "wmoUnit:degC" -> (rawValue * 1.8f) + 32f
                     else -> (rawValue * 1.8f) + 32f
+                }
+
+                // NWS leaks a -100°F missing-data sentinel here as -73.333degC. Drop it rather than
+                // let it become the day's low — the hourly series carries the real value.
+                if (!NwsTemperaturePlausibility.isPlausibleF(tempF)) {
+                    rejected += RejectedNwsTemperature(
+                        origin = if (isMax) "GRID:max" else "GRID:min",
+                        dateString = dateString,
+                        isMax = isMax,
+                        windowStartMs = start.toInstant().toEpochMilli(),
+                        windowEndMs = end.toInstant().toEpochMilli(),
+                        rawValueF = tempF,
+                    )
+                    Log.w(TAG, "parseDailyExtremes: rejected implausible ${if (isMax) "max" else "min"}=$tempF°F date=$dateString validTime=$validTime raw=$rawValue uom=$unitCode")
+                    continue
                 }
 
                 val existing = result[dateString]
@@ -580,6 +604,8 @@ class NwsApi
         data class DailyTemperatureExtremes(
             val maxByDate: Map<String, Float>,
             val minByDate: Map<String, Float>,
+            /** Values the plausibility gate refused, for the hourly repair path and diagnostics. */
+            val rejected: List<RejectedNwsTemperature> = emptyList(),
         )
 
         data class GridpointsBundle(

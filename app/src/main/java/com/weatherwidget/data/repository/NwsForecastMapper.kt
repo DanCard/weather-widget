@@ -125,6 +125,32 @@ class NwsForecastMapper @Inject constructor(
             todayDateString, todayForecastPeriods, acc
         )
 
+        // NWS can serve a -100°F missing-data sentinel on both the gridpoint and period paths (see
+        // NwsTemperaturePlausibility). Both were dropped at ingest; recover the real value from the
+        // hourly series, which does not carry the sentinel.
+        val rejectedTemps = gridDailyTemps.rejected + acc.rejectedTemps
+        if (rejectedTemps.isNotEmpty()) {
+            appLogDao.log(
+                "NWS_TEMP_REJECTED",
+                "count=${rejectedTemps.size} ${rejectedTemps.joinToString("; ") { it.describe() }}",
+                "WARN",
+            )
+            val repairs = NwsDailyMapper.fillTemperatureGapsFromHourly(
+                acc.temperatureMap, rejectedTemps, hourlyPeriods,
+                highTempSourceMap = acc.highTempSourceMap,
+                lowTempSourceMap = acc.lowTempSourceMap,
+            )
+            appLogDao.log(
+                "NWS_TEMP_REJECTED",
+                if (repairs.isEmpty()) {
+                    "no hourly repair available for ${rejectedTemps.size} rejected value(s)"
+                } else {
+                    "repaired=${repairs.size} ${repairs.joinToString("; ")}"
+                },
+                "WARN",
+            )
+        }
+
         val preservedTerminalLowOnlyDay = NwsDailyMapper.removePhantomFutureDays(acc.temperatureMap, todayDate)
         preservedTerminalLowOnlyDay?.let { (date, lowTemp) ->
             val source = acc.lowTempSourceMap[date]

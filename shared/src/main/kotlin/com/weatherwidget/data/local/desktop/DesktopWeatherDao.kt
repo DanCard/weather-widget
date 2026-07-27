@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.data.remote.orNullIfImplausibleTempF
 import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.shared.util.Log
 import java.sql.Connection
@@ -859,8 +860,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     result.getOrPut(dateStr) { mutableListOf() }.add(
                         DailyForecastSnapshot(
                             date = dateStr,
-                            highTemp = rs.getNullableFloat("highTemp"),
-                            lowTemp = rs.getNullableFloat("lowTemp"),
+                            // This query intentionally skips the newest batch, so it surfaces older
+                            // rows — including any that predate the NWS sentinel filter.
+                            highTemp = rs.getNullableFloat("highTemp").orNullIfImplausibleTempF(),
+                            lowTemp = rs.getNullableFloat("lowTemp").orNullIfImplausibleTempF(),
                             condition = rs.getString("condition"),
                             iconToken = rs.getString("nativeDailyIconToken"),
                             precipProbability = rs.getNullableInt("precipProbability"),
@@ -1018,8 +1021,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         targetDate = rs.getLong("targetDate"),
                         dateOfPrediction = rs.getLong("dateOfPrediction"),
                         source = rs.getString("source"),
-                        highTemp = rs.getNullableFloat("highTemp"),
-                        lowTemp = rs.getNullableFloat("lowTemp"),
+                        highTemp = rs.getNullableFloat("highTemp").orNullIfImplausibleTempF(),
+                        lowTemp = rs.getNullableFloat("lowTemp").orNullIfImplausibleTempF(),
                         fetchedAt = rs.getLong("fetchedAt"),
                     ))
                 }
@@ -1051,8 +1054,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         targetDate = rs.getLong("targetDate"),
                         dateOfPrediction = rs.getLong("dateOfPrediction"),
                         source = rs.getString("source"),
-                        highTemp = rs.getNullableFloat("highTemp"),
-                        lowTemp = rs.getNullableFloat("lowTemp"),
+                        highTemp = rs.getNullableFloat("highTemp").orNullIfImplausibleTempF(),
+                        lowTemp = rs.getNullableFloat("lowTemp").orNullIfImplausibleTempF(),
                         fetchedAt = rs.getLong("fetchedAt"),
                     ))
                 }

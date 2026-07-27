@@ -44,6 +44,11 @@ object NwsDailyMapper {
                 acc.precipAmountMap[dateString] = periodAmount
             }
 
+            // The same -100°F sentinel that poisons the gridpoint series also appears here. Reject it
+            // before it can become a temperature, but keep the period's condition and precip data.
+            val periodTempF = period.temperature.toFloat()
+            val usableTemp = NwsTemperaturePlausibility.isPlausibleF(periodTempF)
+
             if (period.isDaytime) {
                 period.precipProbability?.let { probability ->
                     acc.daytimePrecipProbabilityMap[dateString] = probability
@@ -52,10 +57,14 @@ object NwsDailyMapper {
                     }
                 }
                 val currentTemps = acc.temperatureMap[dateString] ?: (null to null)
-                val newHigh = currentTemps.first ?: period.temperature.toFloat()
-                acc.temperatureMap[dateString] = newHigh to currentTemps.second
-                if (currentTemps.first == null) {
-                    acc.highTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
+                if (!usableTemp) {
+                    acc.recordRejectedTemp(period, dateString, isMax = true, tempF = periodTempF)
+                } else {
+                    val newHigh = currentTemps.first ?: periodTempF
+                    acc.temperatureMap[dateString] = newHigh to currentTemps.second
+                    if (currentTemps.first == null) {
+                        acc.highTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
+                    }
                 }
                 acc.periodTimeMap[dateString] = period.startTime to period.endTime
             } else {
@@ -64,10 +73,14 @@ object NwsDailyMapper {
                 }
                 val lowDateString = extractNwsForecastDate(period.endTime) ?: dateString
                 val currentLowTemps = acc.temperatureMap[lowDateString] ?: (null to null)
-                val newLow = currentLowTemps.second ?: period.temperature.toFloat()
-                acc.temperatureMap[lowDateString] = currentLowTemps.first to newLow
-                if (currentLowTemps.second == null) {
-                    acc.lowTempSourceMap[lowDateString] = "FCST:${period.name}@${period.startTime}"
+                if (!usableTemp) {
+                    acc.recordRejectedTemp(period, lowDateString, isMax = false, tempF = periodTempF)
+                } else {
+                    val newLow = currentLowTemps.second ?: periodTempF
+                    acc.temperatureMap[lowDateString] = currentLowTemps.first to newLow
+                    if (currentLowTemps.second == null) {
+                        acc.lowTempSourceMap[lowDateString] = "FCST:${period.name}@${period.startTime}"
+                    }
                 }
             }
 
@@ -165,10 +178,19 @@ object NwsDailyMapper {
         periods: List<NwsApi.ForecastPeriod>,
         extremes: NwsApi.DailyTemperatureExtremes,
         today: LocalDate,
+        hourlyPeriods: List<NwsApi.HourlyForecastPeriod> = emptyList(),
     ): List<DailyForecast> {
         val acc = NwsDayAccumulator()
         applyForecastPeriods(periods, today.toString(), acc)
         mergeGridpointTemperatures(acc.temperatureMap, extremes, today)
+        // Recover anything the plausibility gate dropped before phantom-day removal, so a day whose
+        // only defect was a sentinel low is repaired rather than discarded. Keeps desktop at parity
+        // with Android's NwsForecastMapper.
+        fillTemperatureGapsFromHourly(
+            acc.temperatureMap, extremes.rejected + acc.rejectedTemps, hourlyPeriods,
+            highTempSourceMap = acc.highTempSourceMap,
+            lowTempSourceMap = acc.lowTempSourceMap,
+        )
         removePhantomFutureDays(acc.temperatureMap, today)
 
         val periodsByDate = periods.groupBy { extractNwsForecastDate(it.startTime) }
@@ -211,5 +233,81 @@ object NwsDailyMapper {
         val nighttimePrecipProbabilityMap: MutableMap<String, Int> = mutableMapOf(),
         val precipAmountMap: MutableMap<String, Float> = mutableMapOf(),
         val periodTimeMap: MutableMap<String, Pair<String?, String?>> = mutableMapOf(),
-    )
+        /** Implausible values dropped at ingest, for the hourly repair path and diagnostics. */
+        val rejectedTemps: MutableList<RejectedNwsTemperature> = mutableListOf(),
+    ) {
+        internal fun recordRejectedTemp(
+            period: NwsApi.ForecastPeriod,
+            dateString: String,
+            isMax: Boolean,
+            tempF: Float,
+        ) {
+            val startMs = parseInstantMs(period.startTime) ?: return
+            val endMs = parseInstantMs(period.endTime) ?: return
+            rejectedTemps += RejectedNwsTemperature(
+                origin = "FCST:${period.name}",
+                dateString = dateString,
+                isMax = isMax,
+                windowStartMs = startMs,
+                windowEndMs = endMs,
+                rawValueF = tempF,
+            )
+        }
+    }
+
+    private fun parseInstantMs(isoString: String): Long? =
+        runCatching { ZonedDateTime.parse(isoString).toInstant().toEpochMilli() }.getOrNull()
+
+    /**
+     * Fills temperature slots left null by the plausibility gate using NWS's own hourly series,
+     * which does not carry the sentinel. Each repair is computed over the *originating period's*
+     * window rather than the calendar day, preserving NWS's convention that a day's low belongs to
+     * the night ending that morning — for the 2026-07-27 incident that is the difference between
+     * the correct 59°F (18:00→06:00) and a calendar-day 58°F.
+     *
+     * Only fills what is still null, so sane daily data always wins; this is strictly a repair path.
+     * Returns a description of each repair for diagnostics.
+     */
+    fun fillTemperatureGapsFromHourly(
+        temperatureMap: MutableMap<String, Pair<Float?, Float?>>,
+        rejected: List<RejectedNwsTemperature>,
+        hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+        highTempSourceMap: MutableMap<String, String>? = null,
+        lowTempSourceMap: MutableMap<String, String>? = null,
+    ): List<String> {
+        if (rejected.isEmpty() || hourlyPeriods.isEmpty()) return emptyList()
+
+        val repairs = mutableListOf<String>()
+        for (miss in rejected) {
+            val current = temperatureMap[miss.dateString] ?: (null to null)
+            // A later sane value may already have filled this slot — never overwrite it.
+            if (if (miss.isMax) current.first != null else current.second != null) continue
+
+            val inWindow = hourlyPeriods.filter {
+                it.startTime >= miss.windowStartMs && it.startTime < miss.windowEndMs &&
+                    NwsTemperaturePlausibility.isPlausibleF(it.temperature)
+            }
+            if (inWindow.isEmpty()) continue
+
+            val repaired = if (miss.isMax) {
+                inWindow.maxOf { it.temperature }
+            } else {
+                inWindow.minOf { it.temperature }
+            }
+
+            temperatureMap[miss.dateString] = if (miss.isMax) {
+                repaired to current.second
+            } else {
+                current.first to repaired
+            }
+            val sourceLabel = "HOURLY:${if (miss.isMax) "max" else "min"}@${miss.origin}"
+            if (miss.isMax) {
+                highTempSourceMap?.put(miss.dateString, sourceLabel)
+            } else {
+                lowTempSourceMap?.put(miss.dateString, sourceLabel)
+            }
+            repairs += "${miss.describe()} -> $repaired (${inWindow.size}h)"
+        }
+        return repairs
+    }
 }
