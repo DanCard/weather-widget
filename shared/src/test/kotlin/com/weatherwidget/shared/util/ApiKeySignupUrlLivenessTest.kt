@@ -1,4 +1,4 @@
-package com.weatherwidget.ui
+package com.weatherwidget.shared.util
 
 import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertTrue
@@ -17,6 +17,9 @@ import java.net.URL
  * SKIPS (JUnit assumption) rather than fails when the machine is offline — a red suite on a
  * plane would teach people to ignore it. When online, a dead or moved link (>=400 after
  * redirects, or unresolvable host) fails with every broken URL listed.
+ *
+ * Moved from `:app` to `:shared` so both clients (Android + desktop) exercise the same URLs;
+ * the [ApiKeySignupUrls] object it guards also lives in `:shared`.
  */
 @Category(LongDuration::class)
 class ApiKeySignupUrlLivenessTest {

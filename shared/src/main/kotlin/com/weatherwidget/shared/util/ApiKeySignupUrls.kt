@@ -1,4 +1,4 @@
-package com.weatherwidget.ui
+package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.WeatherSource
 
@@ -7,8 +7,11 @@ import com.weatherwidget.data.model.WeatherSource
  * buttons. Kept to top-level, stable entry points — deep "developer console" paths churn; the
  * provider's signup page is where a keyless user needs to land.
  *
- * Extracted from SettingsActivity so ApiKeySignupUrlLivenessTest can verify the links aren't
- * stale without inflating the activity.
+ * Lives in `:shared` so both the Android `SettingsActivity` and the desktop `SettingsWindow`
+ * read the same URLs. The accompanying `ApiKeySignupUrlLivenessTest` (also in `:shared`) verifies
+ * the links aren't stale.
+ *
+ * Phase 1 of the desktop settings parity plan (`plans/260727-desktop-settings-parity-with-android.md`).
  */
 object ApiKeySignupUrls {
 
