@@ -52,8 +52,8 @@ private val prominentButtonPadding = PaddingValues(
     vertical = 18.dp,
 )
 
-private val STANDARD_TEXT_SP = 16.sp
-private val PROMINENT_TEXT_SP = WeatherThemeTokens.ACTION_BUTTON_SP.sp // 21sp
+private val STANDARD_TEXT_SP = 21.sp
+private val PROMINENT_TEXT_SP = 27.sp
 
 @Composable
 private fun buttonColors(
