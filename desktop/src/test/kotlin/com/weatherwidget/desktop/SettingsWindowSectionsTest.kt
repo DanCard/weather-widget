@@ -44,8 +44,8 @@ class SettingsWindowSectionsTest {
         }
         composeTestRule.waitForIdle()
 
-        // The 7 sections that became SettingsCard titles. Each must render exactly once.
-        listOf("API Sources", "Personal Weather Stations", "API Keys", "Icon Gallery", "Location", "Units", "Diagnostics").forEach { title ->
+        // The 8 sections that became SettingsCard titles. Each must render exactly once.
+        listOf("API Sources", "Personal Weather Stations", "API Keys", "Icon Gallery", "Location", "Units", "Diagnostics", "Feedback").forEach { title ->
             composeTestRule.onAllNodesWithText(title).assertCountEquals(1)
         }
     }
@@ -84,11 +84,32 @@ class SettingsWindowSectionsTest {
         composeTestRule.waitForIdle()
 
         // Body-interior content that lived inside the now-card-wrapped sections. Use assertExists
-        // for items below the scroll fold (Units, Diagnostics) so the test is independent of the
-        // window's pixel height vs. the form's natural length.
+        // for items below the scroll fold (Units, Diagnostics, Feedback) so the test is independent
+        // of the window's pixel height vs. the form's natural length.
         composeTestRule.onNodeWithText("Use Celsius").assertExists()
         composeTestRule.onNodeWithText("Change Location").assertExists()
         composeTestRule.onNodeWithText("Test Location").assertExists()
         composeTestRule.onNodeWithText("Stations / Observations").assertExists()
+        composeTestRule.onNodeWithText("Submit Bug Report").assertExists()
+    }
+
+    @Test
+    fun getKeyButtonsRenderForEachKeyRequiringSource() {
+        // Phase 4 item 2: each keyed source gets a "Get key…" button. Verify the count matches
+        // ApiKeySignupUrls.sourcesRequiringKeys (5: TOMORROW_IO, SILURIAN, WEATHER_API,
+        // VISUAL_CROSSING, OPEN_WEATHER_MAP).
+        composeTestRule.setContent {
+            SettingsWindow(
+                config = sampleConfig,
+                onClose = {},
+                onSave = {},
+                onExit = {},
+            )
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onAllNodesWithText("Get key…").assertCountEquals(
+            com.weatherwidget.shared.util.ApiKeySignupUrls.sourcesRequiringKeys.size,
+        )
     }
 }

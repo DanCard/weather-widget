@@ -196,11 +196,16 @@ private fun runApp() = application {
         // ←/→ here. Returns true when the key was consumed (so Escape/default handling stays intact).
         var arrowKeyHandler by remember { mutableStateOf<((left: Boolean) -> Boolean)?>(null) }
         val desktopClients = remember { DesktopClients() }
-        val locationResolver = remember {
-            val sharedLocationResolver = com.weatherwidget.data.repository.SharedLocationResolver(
+        // Held as a top-level remember so SettingsWindow can call friendlyName() directly for the
+        // reverse-geocoded location label, without going through the higher-level LocationResolver
+        // wrapper that LocationPicker uses.
+        val sharedLocationResolver = remember {
+            com.weatherwidget.data.repository.SharedLocationResolver(
                 nominatimApi = NominatimApi(desktopClients.httpClient, desktopClients.json),
                 ipGeolocationApi = IpGeolocationApi(desktopClients.httpClient, desktopClients.json),
             )
+        }
+        val locationResolver = remember {
             LocationResolver(
                 phoneLocator = PhoneLocator(),
                 timezoneLocator = TimezoneLocator(),
@@ -738,7 +743,11 @@ private fun runApp() = application {
                     },
                     onViewAppLogs = {
                         appLogsVisible = true
-                    }
+                    },
+                    locationResolver = sharedLocationResolver,
+                    onSubmitBugReport = {
+                        openInBrowser(buildBugReportMailto(config!!))
+                    },
                 )
             }
         }
