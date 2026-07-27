@@ -12,8 +12,10 @@ import com.weatherwidget.testutil.TestDatabase
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import org.junit.Assert.assertEquals
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -180,6 +182,30 @@ class CurrentTempUpdateSchedulerTest {
                 any<OneTimeWorkRequest>(),
             )
         }
+    }
+
+    @Test
+    fun `immediate current temp update passes targeted source to worker`() {
+        val requestSlot = slot<OneTimeWorkRequest>()
+
+        CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+            context = context,
+            reason = "opportunistic_job",
+            opportunistic = true,
+            targetSourceId = "NWS",
+        )
+
+        verify {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP),
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                capture(requestSlot),
+            )
+        }
+        assertEquals(
+            "NWS",
+            requestSlot.captured.workSpec.input.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE),
+        )
     }
 
     @Test

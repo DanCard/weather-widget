@@ -109,6 +109,7 @@ class WeatherWidgetWorker
             if (currentTempOnly) {
                 return handleCurrentTempOnlyWork(
                     isPlugged = isPlugged,
+                    batteryLevel = batteryLevel,
                     isScreenInteractive = isScreenInteractive,
                     isOpportunisticContext = opportunisticCurrentTemp,
                     reason = currentTempReason,
@@ -574,6 +575,7 @@ class WeatherWidgetWorker
 
         private suspend fun handleCurrentTempOnlyWork(
             isPlugged: Boolean,
+            batteryLevel: Int,
             isScreenInteractive: Boolean,
             isOpportunisticContext: Boolean,
             reason: String,
@@ -597,12 +599,15 @@ class WeatherWidgetWorker
                         isCharging = isPlugged,
                         isScreenInteractive = isScreenInteractive,
                         isOpportunisticContext = isOpportunisticContext,
+                        batteryLevel = batteryLevel,
                         isManual = isManual,
                     )
                 ) {
                     appLogDao.log(
                         "CURR_FETCH_SKIP",
-                        "reason=$reason policy_blocked charging=$isPlugged interactive=$isScreenInteractive opportunistic=$isOpportunisticContext",
+                        "reason=$reason policy_blocked charging=$isPlugged battery=$batteryLevel " +
+                            "cutoff=${CurrentTempFetchPolicy.OPPORTUNISTIC_MIN_BATTERY_PERCENT} " +
+                            "interactive=$isScreenInteractive opportunistic=$isOpportunisticContext",
                         "INFO",
                     )
                     resultMessage = "skipped_policy_blocked"

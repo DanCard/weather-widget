@@ -6,6 +6,9 @@ import android.app.job.JobScheduler
 import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -24,15 +27,34 @@ import java.util.concurrent.TimeUnit
 /**
  * JobService for opportunistic UI updates on Android 8+.
  *
- * Uses JobScheduler to piggyback on system wakeups without creating independent wakeups.
- * Scheduled to run periodically but only when the device is already awake.
+ * JobScheduler may wake the process and holds a wake lock while this service runs. To bound that
+ * battery cost, the job is scheduled only above the battery cutoff. Unplugged work fetches only
+ * the primary source.
  */
 @RequiresApi(Build.VERSION_CODES.O)
 class OpportunisticUpdateJobService : JobService() {
     private var job: Job? = null
 
     override fun onStartJob(params: JobParameters): Boolean {
-        Log.d(TAG, "Opportunistic update job started")
+        val powerState = getPowerState(applicationContext)
+        if (
+            !CurrentTempFetchPolicy.shouldScheduleOpportunisticJob(
+                batteryLevel = powerState.batteryLevel,
+            )
+        ) {
+            Log.d(
+                TAG,
+                "Opportunistic job stopping at battery cutoff: charging=${powerState.isCharging} " +
+                    "battery=${powerState.batteryLevel}% cutoff=${CurrentTempFetchPolicy.OPPORTUNISTIC_MIN_BATTERY_PERCENT}%",
+            )
+            cancelOpportunisticUpdate(applicationContext)
+            return false
+        }
+
+        Log.d(
+            TAG,
+            "Opportunistic update job started charging=${powerState.isCharging} battery=${powerState.batteryLevel}%",
+        )
         val processAgeMs = WeatherWidgetApp.processAgeMs(SystemClock.elapsedRealtime())
         if (processAgeMs < STARTUP_GRACE_PERIOD_MS) {
             Log.d(TAG, "Skipping opportunistic startup churn; processAgeMs=$processAgeMs")
@@ -74,6 +96,11 @@ class OpportunisticUpdateJobService : JobService() {
                         context = applicationContext,
                         reason = "opportunistic_job",
                         opportunistic = true,
+                        targetSourceId =
+                            CurrentTempFetchPolicy.opportunisticTargetSourceId(
+                                isCharging = powerState.isCharging,
+                                primarySourceId = WidgetStateManager(applicationContext).getPrimarySource().id,
+                            ),
                     )
                 } finally {
                     jobFinished(params, false)
@@ -104,12 +131,26 @@ class OpportunisticUpdateJobService : JobService() {
             }
 
             val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
+            val powerState = getPowerState(context)
+            if (
+                !CurrentTempFetchPolicy.shouldScheduleOpportunisticJob(
+                    batteryLevel = powerState.batteryLevel,
+                )
+            ) {
+                jobScheduler.cancel(JOB_ID)
+                Log.d(
+                    TAG,
+                    "Opportunistic update job not scheduled: charging=${powerState.isCharging} " +
+                        "battery=${powerState.batteryLevel}% cutoff=${CurrentTempFetchPolicy.OPPORTUNISTIC_MIN_BATTERY_PERCENT}%",
+                )
+                return
+            }
+
             val componentName = ComponentName(context, OpportunisticUpdateJobService::class.java)
 
             val jobInfo =
                 JobInfo.Builder(JOB_ID, componentName)
-                    // Run every 30 minutes, but only when device is already awake
-                    .setPeriodic(TimeUnit.MINUTES.toMillis(30))
+                    .setPeriodic(TimeUnit.MINUTES.toMillis(CurrentTempFetchPolicy.OPPORTUNISTIC_INTERVAL_MINUTES))
                     // Don't require charging or idle - run opportunistically
                     .setRequiresCharging(false)
                     .setRequiresDeviceIdle(false)
@@ -121,7 +162,12 @@ class OpportunisticUpdateJobService : JobService() {
 
             val result = jobScheduler.schedule(jobInfo)
             if (result == JobScheduler.RESULT_SUCCESS) {
-                Log.d(TAG, "Opportunistic update job scheduled successfully")
+                Log.d(
+                    TAG,
+                    "Opportunistic update job scheduled every " +
+                        "${CurrentTempFetchPolicy.OPPORTUNISTIC_INTERVAL_MINUTES} minutes " +
+                        "charging=${powerState.isCharging} battery=${powerState.batteryLevel}%",
+                )
             } else {
                 Log.e(TAG, "Failed to schedule opportunistic update job")
             }
@@ -139,5 +185,27 @@ class OpportunisticUpdateJobService : JobService() {
             jobScheduler.cancel(JOB_ID)
             Log.d(TAG, "Opportunistic update job cancelled")
         }
+
+        internal fun getPowerState(context: Context): OpportunisticPowerState {
+            val batteryStatus: Intent? =
+                context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val rawLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            val batteryLevel =
+                if (rawLevel >= 0 && scale > 0) {
+                    (rawLevel * 100) / scale
+                } else {
+                    -1
+                }
+            return OpportunisticPowerState(
+                isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus),
+                batteryLevel = batteryLevel,
+            )
+        }
     }
 }
+
+internal data class OpportunisticPowerState(
+    val isCharging: Boolean,
+    val batteryLevel: Int,
+)

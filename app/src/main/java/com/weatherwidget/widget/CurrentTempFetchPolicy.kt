@@ -6,6 +6,8 @@ package com.weatherwidget.widget
 object CurrentTempFetchPolicy {
     const val CHARGING_INTERVAL_MINUTES = 10L
     const val CHARGING_SCREEN_OFF_INTERVAL_MINUTES = 16L
+    const val OPPORTUNISTIC_INTERVAL_MINUTES = 45L
+    const val OPPORTUNISTIC_MIN_BATTERY_PERCENT = 65
 
     /**
      * Returns the appropriate charging loop interval based on screen state.
@@ -14,23 +16,40 @@ object CurrentTempFetchPolicy {
         if (isScreenInteractive) CHARGING_INTERVAL_MINUTES else CHARGING_SCREEN_OFF_INTERVAL_MINUTES
 
     /**
-     * Fetch is allowed while charging (regardless of screen state) or on battery
-     * in opportunistic contexts. Manual triggers always bypass these checks.
+     * Opportunistic work is allowed only above the battery cutoff. Other current-temperature work
+     * is allowed while charging regardless of screen state. Manual triggers bypass these checks.
      */
     fun shouldFetchNow(
         isCharging: Boolean,
         isScreenInteractive: Boolean,
         isOpportunisticContext: Boolean,
+        batteryLevel: Int,
         isManual: Boolean = false,
     ): Boolean {
         if (isManual) return true
 
-        return if (isCharging) {
-            true
-        } else {
-            isOpportunisticContext
+        if (isOpportunisticContext) {
+            return batteryLevel > OPPORTUNISTIC_MIN_BATTERY_PERCENT
         }
+        return isCharging
     }
+
+    /**
+     * Keep the persisted opportunistic job only above the battery-first cutoff. The job rechecks
+     * this when it starts, so a request scheduled at 66% cannot perform network work after the
+     * battery reaches 65%.
+     */
+    fun shouldScheduleOpportunisticJob(batteryLevel: Int): Boolean =
+        batteryLevel > OPPORTUNISTIC_MIN_BATTERY_PERCENT
+
+    /**
+     * Charging preserves the existing all-visible-source behavior. On battery, the opportunistic
+     * fetch targets only the configured primary source.
+     */
+    fun opportunisticTargetSourceId(
+        isCharging: Boolean,
+        primarySourceId: String,
+    ): String? = if (isCharging) null else primarySourceId
 
     /**
      * Whether the post-run widget repaint should be skipped because the run could not have

@@ -19,6 +19,7 @@ class CurrentTempFetchPolicyTest {
                 isCharging = true,
                 isScreenInteractive = true,
                 isOpportunisticContext = false,
+                batteryLevel = 10,
             ),
         )
         assertTrue(
@@ -26,13 +27,7 @@ class CurrentTempFetchPolicyTest {
                 isCharging = true,
                 isScreenInteractive = false,
                 isOpportunisticContext = false,
-            ),
-        )
-        assertTrue(
-            CurrentTempFetchPolicy.shouldFetchNow(
-                isCharging = true,
-                isScreenInteractive = false,
-                isOpportunisticContext = true,
+                batteryLevel = 10,
             ),
         )
     }
@@ -44,18 +39,20 @@ class CurrentTempFetchPolicyTest {
                 isCharging = false,
                 isScreenInteractive = false,
                 isOpportunisticContext = false,
+                batteryLevel = 10,
                 isManual = true,
             ),
         )
     }
 
     @Test
-    fun `battery mode only fetches in opportunistic contexts`() {
+    fun `battery mode fetches opportunistically only above 65 percent`() {
         assertTrue(
             CurrentTempFetchPolicy.shouldFetchNow(
                 isCharging = false,
                 isScreenInteractive = false,
                 isOpportunisticContext = true,
+                batteryLevel = 66,
             ),
         )
         assertFalse(
@@ -63,8 +60,61 @@ class CurrentTempFetchPolicyTest {
                 isCharging = false,
                 isScreenInteractive = true,
                 isOpportunisticContext = false,
+                batteryLevel = 100,
             ),
         )
+        assertFalse(
+            CurrentTempFetchPolicy.shouldFetchNow(
+                isCharging = false,
+                isScreenInteractive = false,
+                isOpportunisticContext = true,
+                batteryLevel = 65,
+            ),
+        )
+    }
+
+    @Test
+    fun `opportunistic job schedule uses exclusive 65 percent cutoff`() {
+        assertTrue(CurrentTempFetchPolicy.shouldScheduleOpportunisticJob(batteryLevel = 66))
+        assertFalse(CurrentTempFetchPolicy.shouldScheduleOpportunisticJob(batteryLevel = 65))
+        assertFalse(CurrentTempFetchPolicy.shouldScheduleOpportunisticJob(batteryLevel = 0))
+        assertFalse(CurrentTempFetchPolicy.shouldScheduleOpportunisticJob(batteryLevel = -1))
+    }
+
+    @Test
+    fun `opportunistic job is gated at 65 percent while charging too`() {
+        assertFalse(CurrentTempFetchPolicy.shouldScheduleOpportunisticJob(batteryLevel = 65))
+        assertFalse(
+            CurrentTempFetchPolicy.shouldFetchNow(
+                isCharging = true,
+                isScreenInteractive = true,
+                isOpportunisticContext = true,
+                batteryLevel = 65,
+            ),
+        )
+    }
+
+    @Test
+    fun `battery opportunistic fetch targets primary while charging remains unrestricted`() {
+        assertEquals(
+            "NWS",
+            CurrentTempFetchPolicy.opportunisticTargetSourceId(
+                isCharging = false,
+                primarySourceId = "NWS",
+            ),
+        )
+        assertEquals(
+            null,
+            CurrentTempFetchPolicy.opportunisticTargetSourceId(
+                isCharging = true,
+                primarySourceId = "NWS",
+            ),
+        )
+    }
+
+    @Test
+    fun `opportunistic interval is 45 minutes`() {
+        assertEquals(45L, CurrentTempFetchPolicy.OPPORTUNISTIC_INTERVAL_MINUTES)
     }
 
     @Test

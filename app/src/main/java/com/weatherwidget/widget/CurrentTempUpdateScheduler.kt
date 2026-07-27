@@ -38,6 +38,7 @@ object CurrentTempUpdateScheduler {
         reason: String,
         opportunistic: Boolean,
         force: Boolean = false,
+        targetSourceId: String? = null,
     ) {
         runCatching {
             val constraints =
@@ -53,6 +54,11 @@ object CurrentTempUpdateScheduler {
                             .putBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_OPPORTUNISTIC, opportunistic)
                             .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
                             .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, force)
+                            .apply {
+                                if (targetSourceId != null) {
+                                    putString(WeatherWidgetWorker.KEY_TARGET_SOURCE, targetSourceId)
+                                }
+                            }
                             .build(),
                     )
                     .setConstraints(constraints)
@@ -70,11 +76,15 @@ object CurrentTempUpdateScheduler {
                 context = context,
                 tag = "CURR_FETCH_WORK_ENQUEUED",
                 message =
-                    "type=immediate reason=$reason opportunistic=$opportunistic force=$force " +
+                    "type=immediate reason=$reason opportunistic=$opportunistic force=$force target=${targetSourceId ?: "all_visible"} " +
                         "policyDelayMinutes=0 dueAt=${formatTime(System.currentTimeMillis())} " +
                         "workId=${workRequest.id}",
             )
-            Log.d(TAG, "enqueueImmediateUpdate: reason=$reason opportunistic=$opportunistic force=$force id=${workRequest.id}")
+            Log.d(
+                TAG,
+                "enqueueImmediateUpdate: reason=$reason opportunistic=$opportunistic force=$force " +
+                    "target=${targetSourceId ?: "all_visible"} id=${workRequest.id}",
+            )
         }.onFailure { e ->
             Log.e(TAG, "enqueueImmediateUpdate failed: ${e.message}", e)
         }
