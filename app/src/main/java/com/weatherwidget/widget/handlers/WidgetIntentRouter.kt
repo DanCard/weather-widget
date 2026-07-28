@@ -18,6 +18,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.ClimateGapFiller
+import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.WeatherTimeUtils
@@ -36,6 +37,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Router for handling widget intent actions.
@@ -48,6 +53,52 @@ object WidgetIntentRouter {
     private const val SOURCE_CHECK_FORECAST_DAYS = 14L
     private const val SLOW_THRESHOLD_MS = 200L
     private const val RESIZE_DEBOUNCE_MS = 250L
+
+    /**
+     * Widget PendingIntents are dispatched into independent IO coroutines by WeatherWidgetProvider.
+     * Serialize state mutation + rendering for one widget so an older, slower interaction cannot
+     * overwrite a newer tap with a stale source/mode/offset snapshot. Different widgets remain
+     * independent.
+     */
+    private val interactionMutexes = ConcurrentHashMap<Int, Mutex>()
+
+    @VisibleForTesting
+    internal suspend fun <T> withWidgetInteractionLock(
+        appWidgetId: Int,
+        block: suspend () -> T,
+    ): T = interactionMutexes.computeIfAbsent(appWidgetId) { Mutex() }.withLock { block() }
+
+    fun forgetWidget(appWidgetId: Int) {
+        interactionMutexes.remove(appWidgetId)
+    }
+
+    @VisibleForTesting
+    internal fun clearInteractionMutexesForTesting() {
+        interactionMutexes.clear()
+    }
+
+    @VisibleForTesting
+    internal suspend fun forEachWidgetIsolated(
+        appWidgetIds: IntArray,
+        onFailure: suspend (Int, Exception) -> Unit = { _, _ -> },
+        render: suspend (Int) -> Unit,
+    ) {
+        for (appWidgetId in appWidgetIds) {
+            try {
+                render(appWidgetId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                try {
+                    onFailure(appWidgetId, e)
+                } catch (reportingCancellation: CancellationException) {
+                    throw reportingCancellation
+                } catch (reportingError: Exception) {
+                    Log.e(TAG, "Failed to report render failure for widget $appWidgetId", reportingError)
+                }
+            }
+        }
+    }
 
     // Switching to a source whose cached data is older than this forces a targeted network fetch.
     // Also acts as the per-source cooldown for repeated toggling.
@@ -106,31 +157,49 @@ object WidgetIntentRouter {
     suspend fun renderAllWidgetsFromCache(context: Context, repository: WeatherRepository? = null) {
         val ids = AppWidgetManager.getInstance(context)
             .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
-        for (id in ids) {
-            if (id == AppWidgetManager.INVALID_APPWIDGET_ID) continue
-            refreshWidget(
-                context = context,
-                appWidgetId = id,
-                reason = "refresh_action_cache_first",
-                repository = repository,
-                actionTag = "REFRESH",
-                partialPush = true,
-                origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.ACTION_REFRESH,
-            )
+            .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+            .toIntArray()
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+        forEachWidgetIsolated(
+            appWidgetIds = ids,
+            onFailure = { id, error ->
+                Log.e(TAG, "renderAllWidgetsFromCache failed for widget $id", error)
+                appLogDao.log(
+                    "WIDGET_RENDER_FAIL",
+                    "widget=$id path=refresh_action_cache_first ${error.javaClass.simpleName}: ${error.message}",
+                    "ERROR",
+                )
+            },
+        ) { id ->
+            withWidgetInteractionLock(id) {
+                refreshWidget(
+                    context = context,
+                    appWidgetId = id,
+                    reason = "refresh_action_cache_first",
+                    repository = repository,
+                    actionTag = "REFRESH",
+                    partialPush = true,
+                    origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.ACTION_REFRESH,
+                )
+            }
         }
     }
 
     /**
      * Handle navigation (left/right) action.
      */
-suspend fun handleNavigation(
+    suspend fun handleNavigation(
         context: Context,
         appWidgetId: Int,
         isLeft: Boolean,
         repository: WeatherRepository? = null,
     ) {
         try {
-            handleNavigationInternal(context, appWidgetId, isLeft, repository)
+            withWidgetInteractionLock(appWidgetId) {
+                handleNavigationInternal(context, appWidgetId, isLeft, repository)
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "handleNavigation failed for widget $appWidgetId", e)
         }
@@ -301,14 +370,18 @@ suspend fun handleNavigation(
     /**
      * Handle zoom level cycle action.
      */
-suspend fun handleCycleZoom(
+    suspend fun handleCycleZoom(
         context: Context,
         appWidgetId: Int,
         zoomCenterOffset: Int? = null,
         repository: WeatherRepository? = null,
     ) {
         try {
-            handleCycleZoomInternal(context, appWidgetId, zoomCenterOffset, repository)
+            withWidgetInteractionLock(appWidgetId) {
+                handleCycleZoomInternal(context, appWidgetId, zoomCenterOffset, repository)
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "handleCycleZoom failed for widget $appWidgetId", e)
         }
@@ -350,13 +423,17 @@ suspend fun handleCycleZoom(
     /**
      * Handle API source toggle action.
      */
-suspend fun handleToggleApi(
+    suspend fun handleToggleApi(
         context: Context,
         appWidgetId: Int,
         repository: WeatherRepository? = null,
     ) {
         try {
-            handleToggleApiInternal(context, appWidgetId, repository)
+            withWidgetInteractionLock(appWidgetId) {
+                handleToggleApiInternal(context, appWidgetId, repository)
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "handleToggleApi failed for widget $appWidgetId", e)
         }
@@ -401,6 +478,12 @@ suspend fun handleToggleApi(
                 centerTime = currentGraphCenterTime,
                 zoom = currentGraphZoom,
                 now = now,
+                lastSuccessfulFetchAtMs = FetchMetadata.getLastForecastSourceSuccessTime(
+                    context = context,
+                    sourceId = newSource.id,
+                    latitude = ctx.location.lat,
+                    longitude = ctx.location.lon,
+                ).takeIf { it > 0L },
             )
 
         // Non-primary sources are throttled, so switching to one often lands on data that is present
@@ -437,13 +520,17 @@ suspend fun handleToggleApi(
     /**
      * Handle view mode toggle action.
      */
-suspend fun handleToggleView(
+    suspend fun handleToggleView(
         context: Context,
         appWidgetId: Int,
         repository: WeatherRepository? = null,
     ) {
         try {
-            handleToggleViewInternal(context, appWidgetId, repository)
+            withWidgetInteractionLock(appWidgetId) {
+                handleToggleViewInternal(context, appWidgetId, repository)
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "handleToggleView failed for widget $appWidgetId", e)
         }
@@ -556,6 +643,8 @@ suspend fun handleToggleView(
         // Newest fetchedAt across both streams — i.e. when this source was last fetched at all.
         // Null when the source has no rows in the window.
         val newestFetchedAtMs: Long?,
+        // Successful provider check, independent of whether unchanged content rewrote a DB row.
+        val lastSuccessfulFetchAtMs: Long? = null,
     )
 
     /**
@@ -571,7 +660,9 @@ suspend fun handleToggleView(
         nowMs: Long,
     ): Boolean {
         if (!state.hasDaily || !state.hasHourly || !state.hasRequiredFutureCoverage) return true
-        val fetchedAt = state.newestFetchedAtMs ?: return true
+        val fetchedAt =
+            listOfNotNull(state.newestFetchedAtMs, state.lastSuccessfulFetchAtMs).maxOrNull()
+                ?: return true
         return nowMs - fetchedAt >= TOGGLE_REFRESH_STALE_MS
     }
 
@@ -585,6 +676,7 @@ suspend fun handleToggleView(
         centerTime: LocalDateTime? = null,
         zoom: ZoomLevel? = null,
         now: LocalDateTime = LocalDateTime.now(),
+        lastSuccessfulFetchAtMs: Long? = null,
     ): SourceWindowState {
         val historyStart = LocalDate.now().minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val futureEnd = LocalDate.now().plusDays(SOURCE_CHECK_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
@@ -632,19 +724,24 @@ suspend fun handleToggleView(
             hasHourly = sourceHourly.isNotEmpty(),
             hasRequiredFutureCoverage = hasRequiredFutureCoverage,
             newestFetchedAtMs = newestFetchedAt,
+            lastSuccessfulFetchAtMs = lastSuccessfulFetchAtMs,
         )
     }
 
     /**
      * Handle precipitation mode toggle action.
      */
-suspend fun handleTogglePrecip(
+    suspend fun handleTogglePrecip(
         context: Context,
         appWidgetId: Int,
         repository: WeatherRepository? = null,
     ) {
         try {
-            handleTogglePrecipInternal(context, appWidgetId, repository)
+            withWidgetInteractionLock(appWidgetId) {
+                handleTogglePrecipInternal(context, appWidgetId, repository)
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "handleTogglePrecip failed for widget $appWidgetId", e)
         }
@@ -678,7 +775,7 @@ suspend fun handleTogglePrecip(
     /**
      * Handle set view mode action.
      */
-suspend fun handleSetView(
+    suspend fun handleSetView(
         context: Context,
         appWidgetId: Int,
         targetMode: ViewMode,
@@ -686,14 +783,18 @@ suspend fun handleSetView(
         repository: WeatherRepository? = null,
     ) {
         try {
-            handleSetViewInternal(context, appWidgetId, targetMode, targetOffset, repository)
-            // Success-only breadcrumb, parallel to WIDGET_RENDER_OK on the refresh path. The day-tap
-            // path bypasses refreshWidget's breadcrumb, which let the 2026-07-08 source-gap NPE hide
-            // from app_logs sweeps entirely; tests also assert on this row.
-            WeatherDatabase.getDatabase(context).appLogDao().log(
-                "SET_VIEW_RENDER_OK",
-                "widget=$appWidgetId mode=${targetMode.name} offset=$targetOffset",
-            )
+            withWidgetInteractionLock(appWidgetId) {
+                handleSetViewInternal(context, appWidgetId, targetMode, targetOffset, repository)
+                // Success-only breadcrumb, parallel to WIDGET_RENDER_OK on the refresh path. The day-tap
+                // path bypasses refreshWidget's breadcrumb, which let the 2026-07-08 source-gap NPE hide
+                // from app_logs sweeps entirely; tests also assert on this row.
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "SET_VIEW_RENDER_OK",
+                    "widget=$appWidgetId mode=${targetMode.name} offset=$targetOffset",
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "handleSetView failed for widget $appWidgetId", e)
             runCatching {
@@ -766,13 +867,17 @@ suspend fun handleSetView(
     /**
      * Handle widget resize.
      */
-suspend fun handleResize(
+    suspend fun handleResize(
         context: Context,
         appWidgetId: Int,
         repository: WeatherRepository? = null,
     ) {
         try {
-            handleResizeInternal(context, appWidgetId, repository)
+            withWidgetInteractionLock(appWidgetId) {
+                handleResizeInternal(context, appWidgetId, repository)
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "handleResize failed for widget $appWidgetId", e)
         }

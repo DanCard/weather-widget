@@ -533,6 +533,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             stateManager.clearWidgetState(appWidgetId)
             lastUpdateByWidgetId.remove(appWidgetId)
             WidgetPushDispatcher.forgetWidget(appWidgetId)
+            WidgetIntentRouter.forgetWidget(appWidgetId)
             // Cancel any tracked in-process coroutine for this widget so its completion does not
             // paint into a deleted appWidgetId (silently no-op via updateAppWidget, but wasteful
             // CPU/DB). Safe to cancel: WidgetUpdateTracker holds launchAsync coroutine Jobs, not

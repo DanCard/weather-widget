@@ -47,6 +47,24 @@ class SourceNeedsRefreshTest {
     }
 
     @Test
+    fun unchangedSuccessfulFetch_advancesCooldownWithoutRewrittenRows() {
+        val oldContentTimestamp = now - 9 * 60 * 60 * 1000L
+        val recentSuccessfulFetch = now - 60_000L
+        val state = complete(oldContentTimestamp).copy(lastSuccessfulFetchAtMs = recentSuccessfulFetch)
+
+        assertFalse(WidgetIntentRouter.sourceNeedsRefresh(state, now))
+    }
+
+    @Test
+    fun staleSuccessfulFetch_doesNotHideOldRows() {
+        val oldContentTimestamp = now - 9 * 60 * 60 * 1000L
+        val oldSuccessfulFetch = now - 2 * WidgetIntentRouter.TOGGLE_REFRESH_STALE_MS
+        val state = complete(oldContentTimestamp).copy(lastSuccessfulFetchAtMs = oldSuccessfulFetch)
+
+        assertTrue(WidgetIntentRouter.sourceNeedsRefresh(state, now))
+    }
+
+    @Test
     fun missingDaily_refreshesEvenWhenFresh() {
         val state = complete(now).copy(hasDaily = false)
         assertTrue(WidgetIntentRouter.sourceNeedsRefresh(state, now))

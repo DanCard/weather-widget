@@ -747,13 +747,13 @@ class ForecastRepository
             hasOpenWeatherMapApi: Boolean,
         ): FetchResult = coroutineScope {
             val nwsDeferred = if (WeatherSource.NWS in sourcesToFetch) async {
-                safeFetch("FETCH_NWS_FAIL", WeatherSource.NWS) {
+                safeFetch("FETCH_NWS_FAIL", WeatherSource.NWS, latitude, longitude) {
                     fetchFromNws(latitude, longitude)
                 }
             } else null
 
             val openWeatherMapDeferred = if (hasOpenWeatherMapApi && WeatherSource.OPEN_WEATHER_MAP in sourcesToFetch) async {
-                safeFetch("FETCH_OWM_FAIL", WeatherSource.OPEN_WEATHER_MAP) {
+                safeFetch("FETCH_OWM_FAIL", WeatherSource.OPEN_WEATHER_MAP, latitude, longitude) {
                     val api = openWeatherMapApi ?: return@safeFetch null
                     fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.OPEN_WEATHER_MAP) {
                         api.getForecast(latitude, longitude)
@@ -762,7 +762,7 @@ class ForecastRepository
             } else null
 
             val visualCrossingDeferred = if (WeatherSource.VISUAL_CROSSING in sourcesToFetch) async {
-                safeFetch("FETCH_VISUAL_CROSSING_FAIL", WeatherSource.VISUAL_CROSSING) {
+                safeFetch("FETCH_VISUAL_CROSSING_FAIL", WeatherSource.VISUAL_CROSSING, latitude, longitude) {
                     fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.VISUAL_CROSSING) {
                         visualCrossingApi.getForecast(latitude, longitude)
                     }
@@ -770,7 +770,7 @@ class ForecastRepository
             } else null
             
             val meteoDeferred = if (WeatherSource.OPEN_METEO in sourcesToFetch) async {
-                safeFetch("FETCH_METEO_FAIL", WeatherSource.OPEN_METEO) {
+                safeFetch("FETCH_METEO_FAIL", WeatherSource.OPEN_METEO, latitude, longitude) {
                     fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.OPEN_METEO) {
                         openMeteoApi.getForecast(latitude, longitude, historyDays = WeatherConfig.ACTUALS_HISTORY_DAYS)
                     }
@@ -778,7 +778,7 @@ class ForecastRepository
             } else null
             
             val wapiDeferred = if (WeatherSource.WEATHER_API in sourcesToFetch) async {
-                safeFetch("FETCH_WAPI_FAIL", WeatherSource.WEATHER_API) {
+                safeFetch("FETCH_WAPI_FAIL", WeatherSource.WEATHER_API, latitude, longitude) {
                     fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.WEATHER_API) {
                         weatherApi.getForecast(latitude, longitude)
                     }
@@ -786,7 +786,7 @@ class ForecastRepository
             } else null
 
             val silurianDeferred = if (WeatherSource.SILURIAN in sourcesToFetch) async {
-                safeFetch("FETCH_SILURIAN_FAIL", WeatherSource.SILURIAN) {
+                safeFetch("FETCH_SILURIAN_FAIL", WeatherSource.SILURIAN, latitude, longitude) {
                     val result = silurianApi.getForecast(latitude, longitude)
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.SILURIAN.id)
@@ -812,7 +812,7 @@ class ForecastRepository
             } else null
 
             val tomorrowIoDeferred = if (WeatherSource.TOMORROW_IO in sourcesToFetch) async {
-                safeFetch("FETCH_TMRW_FAIL", WeatherSource.TOMORROW_IO) {
+                safeFetch("FETCH_TMRW_FAIL", WeatherSource.TOMORROW_IO, latitude, longitude) {
                     val api = tomorrowIoApi ?: return@safeFetch null
                     fetchAndSaveSharedForecast(latitude, longitude, WeatherSource.TOMORROW_IO) {
                         api.getForecast(latitude, longitude)
@@ -896,12 +896,26 @@ class ForecastRepository
         private suspend fun <T> safeFetch(
             tag: String,
             source: WeatherSource,
+            latitude: Double,
+            longitude: Double,
             block: suspend () -> T,
         ): T? {
             return try {
                 val result = block()
                 if (result != null) {
                     widgetStateManager.recordSourceFetchSuccess(source)
+                    // Row fetchedAt is a content timestamp and intentionally does not advance when a
+                    // provider returns unchanged data. Record the successful network check separately
+                    // so API-toggle cooldowns do not force-fetch the same unchanged response repeatedly.
+                    if (result !is Collection<*> || result.isNotEmpty()) {
+                        FetchMetadata.setLastForecastSourceSuccessTime(
+                            context = context,
+                            sourceId = source.id,
+                            latitude = latitude,
+                            longitude = longitude,
+                            time = System.currentTimeMillis(),
+                        )
+                    }
                 }
                 result
             } catch (e: kotlinx.coroutines.CancellationException) {

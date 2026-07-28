@@ -42,6 +42,7 @@ class WeatherRepositoryTest {
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var observationDao: ObservationDao
     private lateinit var dailyHistoryDao: DailyHistoryDao
+    private lateinit var nwsForecastMapper: NwsForecastMapper
 
     private lateinit var forecastRepository: ForecastRepository
     private lateinit var currentTempRepository: CurrentTempRepository
@@ -69,6 +70,7 @@ class WeatherRepositoryTest {
         climateNormalDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
         dailyHistoryDao = mockk(relaxed = true)
+        nwsForecastMapper = mockk(relaxed = true)
 
         forecastRepository = ForecastRepository(
             context,
@@ -88,7 +90,7 @@ class WeatherRepositoryTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            mockk(relaxed = true)
+            nwsForecastMapper,
         )
         currentTempRepository = CurrentTempRepository(
             context,
@@ -139,6 +141,40 @@ class WeatherRepositoryTest {
             repository.getWeatherData(testLat, testLon, forceRefresh = true)
             assertTrue("SharedPreferences should have been written to", capturedTimes.size >= 1)
         }
+
+    @Test
+    fun `successful source fetch persists source and site cooldown timestamp`() = runTest {
+        val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+        every { sharedPrefs.edit() } returns editor
+        val sourceSuccessWrites = mutableListOf<Pair<String, Long>>()
+        every {
+            editor.putLong(
+                match { it.startsWith("last_forecast_source_success_NWS_") },
+                any(),
+            )
+        } answers {
+            sourceSuccessWrites += firstArg<String>() to secondArg<Long>()
+            editor
+        }
+        every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
+        coEvery {
+            forecastDao.getLatestForecastsInRangeAllSites(any(), any(), testLat, testLon)
+        } returns emptyList()
+        coEvery {
+            nwsForecastMapper.fetchFromNws(testLat, testLon)
+        } returns (listOf(createForecastEntity(today, 70, 50)) to emptyList())
+
+        val beforeFetch = System.currentTimeMillis()
+        repository.getWeatherData(
+            latitude = testLat,
+            longitude = testLon,
+            forceRefresh = true,
+            targetSourceId = WeatherSource.NWS.id,
+        )
+
+        assertEquals(1, sourceSuccessWrites.size)
+        assertTrue(sourceSuccessWrites.single().second >= beforeFetch)
+    }
 
     @Test
     fun `getWeatherData returns cached data when not forcing refresh`() =
