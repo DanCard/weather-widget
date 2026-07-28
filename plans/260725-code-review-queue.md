@@ -25,7 +25,7 @@ Each file scored on 4 axes (0-3 each), summed for a total risk score (max 12):
 |--------|-------|------|-------|-------|----------|-------|-------|
 | ✓ done | **11** | `app/.../widget/handlers/DailyViewHandler.kt` | 1211 | 187 | 107 | ✅ | Highest churn + very large + complex. Addressed in 7 findings (F1-F7); file shrunk to 766 lines via DailyHeaderResolver + DailyTextRenderer extraction. |
 | ✓ done | **11** | `app/.../widget/WeatherWidgetProvider.kt` | 1256 | 187 | 145 | ✅ | Entry point, high churn, very complex. Addressed 9 of 10 findings (F1-F5, F7-F9 fixed; F6 deferred); see plans/260727-weatherwidgetprovider-code-review.md for full details. |
-| – | **11** | `app/.../widget/TemperatureGraphRenderer.kt` | 1010 | 159 | 133 | ✅ | High churn, complex rendering |
+| – | **11** | `app/.../widget/TemperatureGraphRenderer.kt` | 1010 | 159 | 133 | ✅ | High churn, complex rendering. Addressed 9 of 10 findings (F1-F8, F10 fixed; F9 deferred); see plans/260728-temperaturegraphrenderer-code-review.md. File mostly a thin canvas adapter — "god class" verdict doesn't apply. |
 | – | **10** | `app/.../widget/DailyForecastGraphRenderer.kt` | 1396 | 138 | 171 | ✅ | Very large, complex rendering |
 | – | **10** | `app/.../widget/handlers/WidgetIntentRouter.kt` | 1234 | 107 | 134 | ✅ | Large, high churn, complex routing |
 | – | **10** | `app/.../data/repository/ForecastRepository.kt` | 1406 | 89 | 239 | ✅ | Largest file, highest branch count |

@@ -32,6 +32,13 @@ object TemperatureGraphStyle {
     const val DAY_LABEL_BOTTOM_PADDING_DP = 14f
     const val FORECAST_DASH_ON_DP = 8f
     const val FORECAST_DASH_OFF_DP = 4f
+
+    // Ghost-line label palette. Hoisted here so the cached ghostLineLabelPaint in PaintSet can
+    // be built once instead of per-render (see placeGhostLineLabel).
+    /** Faint, translucent white that echoes the ghost line, but opaque enough to read. */
+    const val GHOST_LINE_LABEL_ALPHA = 110
+    /** Smaller than forecast/actual temp labels so it reads as a wispier annotation. */
+    const val GHOST_LINE_LABEL_SIZE_SCALE = 0.7f
     const val EXPECTED_FILL_ALPHA_TOP = 68
     const val EXPECTED_FILL_ALPHA_BOTTOM = 0
     const val GHOST_ALPHA = 55
@@ -212,6 +219,17 @@ object TemperatureGraphStyle {
             style = Paint.Style.FILL
         }
 
+        // Ghost-line label paint: italic translucent white, smaller than the forecast label so
+        // it reads as a wispier annotation. Constructed once and held in PaintSet — repeated
+        // Typeface.create() per render was flagged as an unnecessary allocation in
+        // placeGhostLineLabel (it's documented as not cached by the system on older API levels).
+        val ghostLineLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = withAlpha(android.graphics.Color.WHITE, GHOST_LINE_LABEL_ALPHA)
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.ITALIC)
+            textAlign = android.graphics.Paint.Align.CENTER
+            textSize = forecastTempLabelTextPaint.textSize * GHOST_LINE_LABEL_SIZE_SCALE
+        }
+
         return PaintSet(
             density = density,
             labelScale = labelScale,
@@ -233,6 +251,7 @@ object TemperatureGraphStyle {
             actualLeaderLinePaint = actualLeaderLinePaint,
             forecastLeaderLinePaint = forecastLeaderLinePaint,
             dotPaint = dotPaint,
+            ghostLineLabelPaint = ghostLineLabelPaint,
         ).also { cachedPaints = it }
     }
 

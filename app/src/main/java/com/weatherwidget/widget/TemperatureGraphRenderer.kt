@@ -37,7 +37,12 @@ object TemperatureGraphRenderer {
     private const val CURVE_AVOIDANCE_CLEAR_PX = 1.5f
     private const val CURVE_AVOIDANCE_ALLOWED_DIP_DP = 5f
 
-    private val CURVE_AVOIDANCE_ROLES: Set<TemperatureRole> = setOf(
+    /**
+     * Roles that both (a) participate in curve-avoidance during label placement and
+     * (b) get a placement-debug log row. Same set, two purposes — declared once to avoid
+     * drift between the avoidance engine's input and the log filter.
+     */
+    private val TEMPERATURE_ROLES_OF_INTEREST: Set<TemperatureRole> = setOf(
         TemperatureRole.ACTUAL_END,
         TemperatureRole.ACTUAL_HIGH,
         TemperatureRole.ACTUAL_LOW,
@@ -48,13 +53,9 @@ object TemperatureGraphRenderer {
         TemperatureRole.END,
     )
 
-    private val LOGGED_ROLES: Set<TemperatureRole> = setOf(
-        TemperatureRole.ACTUAL_LOW, TemperatureRole.LOW,
-        TemperatureRole.ACTUAL_HIGH, TemperatureRole.HIGH,
-        TemperatureRole.ACTUAL_END, TemperatureRole.LOCAL,
-        TemperatureRole.START, TemperatureRole.END,
-    )
-    private fun shouldLogPlacement(role: TemperatureRole): Boolean = role in LOGGED_ROLES
+    private val CURVE_AVOIDANCE_ROLES: Set<TemperatureRole> get() = TEMPERATURE_ROLES_OF_INTEREST
+
+    private fun shouldLogPlacement(role: TemperatureRole): Boolean = role in TEMPERATURE_ROLES_OF_INTEREST
 
     private const val VALUE_NEIGHBOR_WINDOW = 5
     private const val SIGNIFICANT_MAX_GAP = 1.0f
@@ -137,10 +138,6 @@ object TemperatureGraphRenderer {
     private const val YESTERDAY_DELTA_LABEL_PAD_DP = 6f
     private const val GHOST_LINE_LABEL_PAD_DP = 4f
     private const val GHOST_LINE_LABEL_GAP_DP = 2.5f
-    // Ghost-like: faint, translucent white that echoes the ghost line, but opaque enough to read.
-    private const val GHOST_LINE_LABEL_ALPHA = 110
-    // Smaller than the forecast/actual temp labels so it reads as a wispier annotation.
-    private const val GHOST_LINE_LABEL_SIZE_SCALE = 0.7f
     private const val STALENESS_MINOR_OVERLAP_RATIO = 0.40f
     private const val MAX_STALENESS_DISPLACEMENT_STEPS = 15
     private const val STALENESS_LEADER_LINE_MIN_STEPS = 2
@@ -332,16 +329,27 @@ object TemperatureGraphRenderer {
         )
     }
 
-    private fun drawFillAndCurves(ctx: RenderContext, expectedFillPath: Path, hours: List<HourData>) {
-        val paints = ctx.paints
+    /**
+     * Full ghost-line render gate — combines the shared GhostLineGate's window/visibility check
+     * with the local MIN_GHOST_LINE_DELTA threshold and the fetchDotX presence requirement.
+     * Both drawFillAndCurves and placeGhostLineLabel consult this single gate so the three
+     * conditions can't drift apart (was previously inlined at both sites).
+     */
+    private fun shouldRenderGhostLine(ctx: RenderContext, hours: List<HourData>): Boolean {
         val appliedDelta = ctx.appliedDelta
         val fetchDotX = ctx.fetchDotX
+        return shouldProcessGhostLine(ctx, hours) &&
+            appliedDelta != null &&
+            abs(appliedDelta) >= MIN_GHOST_LINE_DELTA &&
+            fetchDotX != null
+    }
+
+    private fun drawFillAndCurves(ctx: RenderContext, expectedFillPath: Path, hours: List<HourData>) {
+        val paints = ctx.paints
+        val fetchDotX = ctx.fetchDotX
         val lastObservedTemp = ctx.lastObservedTemp
-        val processGhost =
-            shouldProcessGhostLine(ctx, hours) &&
-                appliedDelta != null &&
-                abs(appliedDelta) >= MIN_GHOST_LINE_DELTA &&
-                fetchDotX != null
+        val processGhost = shouldRenderGhostLine(ctx, hours)
+        val appliedDelta = ctx.appliedDelta
 
         if (processGhost) {
             paints.expectedFillPaint.shader = buildTempGradient(
@@ -349,11 +357,13 @@ object TemperatureGraphRenderer {
             )
             ctx.canvas.drawPath(expectedFillPath, paints.expectedFillPaint)
 
+            // shouldRenderGhostLine guarantees fetchDotX != null here; assert once for the block.
+            val fetchDotXNN = fetchDotX!!
             val expectedY = lastObservedTemp?.let { ctx.tempToY(it) }
-            if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(fetchDotX, expectedY))
+            if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(fetchDotXNN, expectedY))
 
             ctx.canvas.save()
-            val clipStart = fetchDotX.coerceAtLeast(0f)
+            val clipStart = fetchDotXNN.coerceAtLeast(0f)
             ctx.canvas.clipRect(clipStart, 0f, ctx.widthPx.toFloat(), ctx.heightPx.toFloat())
             ctx.canvas.drawPath(ctx.expectedPath, paints.ghostPaint)
             ctx.canvas.restore()
@@ -416,6 +426,13 @@ object TemperatureGraphRenderer {
                 androidx.core.content.ContextCompat.getDrawable(ctx.context, res)?.let { drawable ->
                     drawnIconBounds.add(iconRect)
                     drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
+                    // NOTE: this tint mapping intentionally diverges from
+                    // WeatherIconMapper.resolveDailyTextIconTint (file 1's F5 fix). Daily text
+                    // icons sit in cells next to high/low text and want R.color.sunny_yellow for
+                    // visibility against the cell background; hourly icons sit inline with the
+                    // footer hour labels on the graph and want HourlyGraphDefaults.ICON_TINT_*
+                    // (cooler hues calibrated against the graph background). Different contexts,
+                    // different palettes — keep separate.
                     if (!hour.isRainy && !hour.isMixed) {
                         drawable.setTint(when {
                             hour.isNight -> HourlyGraphDefaults.ICON_TINT_NIGHT
@@ -438,14 +455,17 @@ object TemperatureGraphRenderer {
         fetchDotBounds: List<RectF>,
         numColumns: Int,
     ) {
-        val paint = ctx.paints.actualTempLabelTextPaint
+        // The actual-series paint is used ONLY as a metrics source for ascent/descent — the
+        // per-placement label paint is picked below (actual vs forecast). Renamed to make the
+        // metrics-only role explicit; otherwise readers assume this draws the actual-series labels.
+        val metricsSourcePaint = ctx.paints.actualTempLabelTextPaint
         val textMetrics = object : LabelTextMetrics {
             override fun width(text: String, isFuture: Boolean): Float {
                 val measurePaint = if (isFuture) ctx.paints.forecastTempLabelTextPaint else ctx.paints.actualTempLabelTextPaint
                 return measurePaint.measureText(text)
             }
-            override val ascent: Float = fontAscent(paint)
-            override val descent: Float = fontDescent(paint)
+            override val ascent: Float = fontAscent(metricsSourcePaint)
+            override val descent: Float = fontDescent(metricsSourcePaint)
         }
 
         val neutralIconBounds = drawnIconBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
@@ -588,16 +608,18 @@ object TemperatureGraphRenderer {
     private fun placeGhostLineLabel(ctx: RenderContext, hours: List<HourData>) {
         val appliedDelta = ctx.appliedDelta
         val fetchDotX = ctx.fetchDotX
-        if (!shouldProcessGhostLine(ctx, hours)) return
-        if (!(appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null)) return
+        // Full gate (window + delta + fetchDotX) is centralized in shouldRenderGhostLine;
+        // no need to re-apply MIN_GHOST_LINE_DELTA here.
+        if (!shouldRenderGhostLine(ctx, hours)) return
         if (hours.size < 2 || ctx.expectedPoints.size != hours.size) return
         val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
 
         // Only ghost-region hours (right of the on-screen fetch dot). Off-left extension is limited
         // to narrow near-term scrolls by [GhostLineGate].
+        val fetchDotXNN = fetchDotX!!
         val candidates = hours.indices.mapNotNull { i ->
             val (x, ghostY) = ctx.expectedPoints[i]
-            if (x <= fetchDotX + X_COORDINATE_MATCH_TOLERANCE) return@mapNotNull null
+            if (x <= fetchDotXNN + X_COORDINATE_MATCH_TOLERANCE) return@mapNotNull null
             val expectedTemp = ctx.expectedTemps[i]
             if (!expectedTemp.isFinite()) return@mapNotNull null
             val displayTemp = if (ctx.useCelsius) TempUtils.fahrenheitToCelsius(expectedTemp) else expectedTemp
@@ -610,12 +632,8 @@ object TemperatureGraphRenderer {
         }
         if (candidates.isEmpty()) return
 
-        val paint = Paint(ctx.paints.forecastTempLabelTextPaint).apply {
-            color = withAlpha(Color.WHITE, GHOST_LINE_LABEL_ALPHA)
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
-            textAlign = Paint.Align.CENTER
-            textSize *= GHOST_LINE_LABEL_SIZE_SCALE
-        }
+        // Reuse the cached paint from PaintSet (constructed once; was per-render Paint+Typeface.create).
+        val paint = ctx.paints.ghostLineLabelPaint
         val metrics = GhostLineLabel.Metrics(
             // Widest candidate so the recorded collision box always covers the drawn text.
             width = candidates.maxOf { paint.measureText(GhostLineLabel.format(it.expectedTemp)) },
@@ -627,7 +645,7 @@ object TemperatureGraphRenderer {
             candidates = candidates,
             spanHours = spanHours,
             plot = GraphRect(0f, ctx.graphTop, ctx.widthPx.toFloat(), ctx.graphBottom),
-            ghostLineStartX = fetchDotX,
+            ghostLineStartX = fetchDotXNN,
             drawnBounds = obstacles,
             curveYAt = { x -> sampleVisibleCurveY(ctx, x) },
             metrics = metrics,
@@ -660,9 +678,19 @@ object TemperatureGraphRenderer {
         val dayYMid = (ctx.graphTop + ctx.graphBottom) / 2f
         val dayYBottom = ctx.heightPx - dpToPx(ctx.context, TemperatureGraphStyle.DAY_LABEL_BOTTOM_PADDING_DP)
 
-        fun collides(bounds: RectF): Boolean =
+        // Day labels live at fixed x positions (left/right edges). Pre-filter drawnIconBounds
+        // once to those that could possibly intersect either candidate's x range, so the
+        // per-candidate collision check doesn't re-scan the full immutable icon list each time.
+        // drawnLabelBounds is still scanned in full because it grows during the loop.
+        fun candidateXsOverlap(b: RectF, candidateX: Float, halfW: Float): Boolean {
+            val left = candidateX - halfW
+            val right = candidateX + halfW
+            return b.right >= left && b.left <= right
+        }
+
+        fun collides(bounds: RectF, candidateX: Float, halfW: Float): Boolean =
             ctx.drawnLabelBounds.any { RectF.intersects(it, bounds) } ||
-            drawnIconBounds.any { RectF.intersects(it, bounds) }
+            drawnIconBounds.any { candidateXsOverlap(it, candidateX, halfW) && RectF.intersects(it, bounds) }
 
         val today = ctx.currentTime.toLocalDate()
         val leftDate = hours.first().dateTime.toLocalDate()
@@ -684,24 +712,52 @@ object TemperatureGraphRenderer {
             fun bounds(y: Float) = RectF(candidate.x - tw / 2f, y + fm.ascent, candidate.x + tw / 2f, y + fm.descent)
 
             val topB = bounds(dayYTop)
-            if (!collides(topB) && !drawnDayBounds.any { RectF.intersects(it, topB) }) {
+            if (!collides(topB, candidate.x, tw / 2f) && !drawnDayBounds.any { RectF.intersects(it, topB) }) {
                 ctx.canvas.drawText(candidate.text, candidate.x, dayYTop, paint)
                 drawnDayBounds.add(topB)
                 ctx.onDayLabelPlaced?.invoke(DayLabelPlacementDebug(if (idx == 0) "LEFT" else "RIGHT", candidate.text, candidate.date, candidate.x, dayYTop, "TOP", isToday))
                 continue
             }
             val midB = bounds(dayYMid)
-            if (!collides(midB) && !drawnDayBounds.any { RectF.intersects(it, midB) }) {
+            if (!collides(midB, candidate.x, tw / 2f) && !drawnDayBounds.any { RectF.intersects(it, midB) }) {
                 ctx.canvas.drawText(candidate.text, candidate.x, dayYMid, paint)
                 drawnDayBounds.add(midB)
                 ctx.onDayLabelPlaced?.invoke(DayLabelPlacementDebug(if (idx == 0) "LEFT" else "RIGHT", candidate.text, candidate.date, candidate.x, dayYMid, "MIDDLE", isToday))
                 continue
             }
+            val bottomB = bounds(dayYBottom)
+            val bottomForced = collides(bottomB, candidate.x, tw / 2f) || drawnDayBounds.any { RectF.intersects(it, bottomB) }
+            // Fall through to BOTTOM only when no other slot fit. If BOTTOM also collides we
+            // still draw (day-of-week labels are navigation context the user needs) but mark the
+            // placement as BOTTOM_FORCED_OVERLAP so a downstream test/log can tell it from a
+            // clean placement. drawText is unconditional because hiding a day-of-week label
+            // leaves the user without navigation context.
             ctx.canvas.drawText(candidate.text, candidate.x, dayYBottom, paint)
-            ctx.onDayLabelPlaced?.invoke(DayLabelPlacementDebug(if (idx == 0) "LEFT" else "RIGHT", candidate.text, candidate.date, candidate.x, dayYBottom, "BOTTOM", isToday))
+            drawnDayBounds.add(bottomB)
+            ctx.onDayLabelPlaced?.invoke(
+                DayLabelPlacementDebug(
+                    if (idx == 0) "LEFT" else "RIGHT",
+                    candidate.text,
+                    candidate.date,
+                    candidate.x,
+                    dayYBottom,
+                    if (bottomForced) "BOTTOM_FORCED_OVERLAP" else "BOTTOM",
+                    isToday,
+                )
+            )
         }
     }
 
+    /**
+     * Picks a position for the fetch-dot value label (e.g. "72°") around the dot, in priority
+     * order: RIGHT of dot → LEFT of dot → ABOVE dot. We avoid BELOW because the staleness age
+     * label ("3m", "1h") sits there (see drawFetchDot's staleness branch). Each branch checks
+     * the full available width before committing, so a wide value label on a narrow widget
+     * gracefully falls back through the cascade rather than clipping at the edge.
+     *
+     * Returns null only when all three positions are infeasible — caller treats that as
+     * "skip the value label entirely" rather than forcing an overlap.
+     */
     private fun resolveValueLabelLayout(
         clampedX: Float,
         fetchY: Float,
@@ -823,8 +879,7 @@ object TemperatureGraphRenderer {
         return FetchDotLayout(observedAt, clampedX, fetchY, dotRadius, outerRadius, lastObservedTemp, valueLabel, valueLayout, staleness)
     }
 
-    private fun computeFetchDotBounds(ctx: RenderContext, hours: List<HourData>): List<RectF> {
-        val layout = resolveFetchDotLayout(ctx, hours) ?: return emptyList()
+    private fun computeFetchDotBounds(layout: FetchDotLayout, ctx: RenderContext): List<RectF> {
         val bounds = mutableListOf<RectF>()
         bounds.add(RectF(layout.clampedX - layout.outerRadius, layout.fetchY - layout.outerRadius, layout.clampedX + layout.outerRadius, layout.fetchY + layout.outerRadius))
         layout.valueLayout?.let { bounds.add(it.bounds) }
@@ -834,8 +889,7 @@ object TemperatureGraphRenderer {
         return bounds
     }
 
-    private fun drawFetchDot(ctx: RenderContext, hours: List<HourData>): List<RectF> {
-        val layout = resolveFetchDotLayout(ctx, hours) ?: return emptyList()
+    private fun drawFetchDot(layout: FetchDotLayout, ctx: RenderContext): List<RectF> {
         val drawnBounds = mutableListOf<RectF>()
 
         val localDotPaint = Paint(ctx.paints.dotPaint).apply { color = TemperatureGraphStyle.tempToColor(layout.lastObservedTemp) }
@@ -973,13 +1027,16 @@ object TemperatureGraphRenderer {
         val drawnIconBounds = drawHourLabelsAndIcons(ctx, hours, numColumns)
         timings.mark("icons")
 
-        val fetchDotPreBounds = computeFetchDotBounds(ctx, hours)
+        // Single resolveFetchDotLayout pass for the whole render: its result feeds both the
+        // pre-bounds (so temperature labels avoid the dot region) and the actual draw.
+        val fetchDotLayout = resolveFetchDotLayout(ctx, hours)
+        val fetchDotPreBounds = fetchDotLayout?.let { computeFetchDotBounds(it, ctx) } ?: emptyList()
         ctx.drawnLabelBounds.addAll(fetchDotPreBounds)
         placeTemperatureLabels(ctx, hours, drawnIconBounds, fetchDotPreBounds, numColumns)
         placeDayLabels(ctx, hours, drawnIconBounds)
         timings.mark("labels")
 
-        val fetchDotBounds = drawFetchDot(ctx, hours)
+        val fetchDotBounds = fetchDotLayout?.let { drawFetchDot(it, ctx) } ?: emptyList()
         ctx.drawnLabelBounds.addAll(fetchDotBounds)
 
         placeYesterdayDeltaLabel(ctx, hours, deltaFromYesterday)

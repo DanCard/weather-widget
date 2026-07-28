@@ -37,6 +37,12 @@ data class PaintSet(
     val actualLeaderLinePaint: android.graphics.Paint,
     val forecastLeaderLinePaint: android.graphics.Paint,
     val dotPaint: android.graphics.Paint,
+    /**
+     * Italic translucent-white paint for the ghost-line label ("at 6 PM → 69.4°"). Hoisted into
+     * PaintSet so it isn't re-allocated (Typeface.create + Paint copy) every render in
+     * placeGhostLineLabel.
+     */
+    val ghostLineLabelPaint: android.graphics.Paint,
 )
 
 data class FetchDotDebug(
