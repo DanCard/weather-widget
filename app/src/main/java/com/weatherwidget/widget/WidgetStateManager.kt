@@ -23,6 +23,17 @@ enum class ViewMode {
 
     val isGraphMode: Boolean
         get() = this in listOf(TEMPERATURE, PRECIPITATION, CLOUD_COVER)
+
+    companion object {
+        /**
+         * Parse a view-mode name from an Intent extra, returning [default] on unknown/null/blank
+         * values. Centralizes the try/catch so all call sites (day-click, set-view) get the same
+         * parsing behavior if future enum changes add aliasing or case-insensitivity.
+         */
+        fun parseOrDefault(name: String?, default: ViewMode): ViewMode =
+            if (name.isNullOrBlank()) default
+            else try { valueOf(name) } catch (_: IllegalArgumentException) { default }
+    }
 }
 
 // The zoom-stage table now lives in :shared so Android and desktop share one definition.

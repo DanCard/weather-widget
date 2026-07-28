@@ -207,6 +207,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         filteredIds = filteredIds,
                         result = queryResult,
                         startupToken = startupToken,
+                        appLogDao = appLogDao,
                     )
                     staleCheckMs = checkStalenessAndFetch(context)
                 }
@@ -405,9 +406,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         filteredIds: IntArray,
         result: StartupQueryResult,
         startupToken: String,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
     ) = coroutineScope {
         val stateManager = stateManager(context)
-        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
         for (appWidgetId in filteredIds) {
             // HOURLY_PAINT_TRACE: persisted (survives process freeze) lifecycle of each startup paint.
             // Diagnoses widgets stuck on the "Loading..." placeholder — a paint that is cancelled (e.g.
@@ -532,6 +533,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             stateManager.clearWidgetState(appWidgetId)
             lastUpdateByWidgetId.remove(appWidgetId)
             WidgetPushDispatcher.forgetWidget(appWidgetId)
+            // Cancel any tracked in-process coroutine for this widget so its completion does not
+            // paint into a deleted appWidgetId (silently no-op via updateAppWidget, but wasteful
+            // CPU/DB). Safe to cancel: WidgetUpdateTracker holds launchAsync coroutine Jobs, not
+            // WeatherWidgetWorker WorkManager work — the AGENTS.md "never cancel running worker"
+            // rule applies to the latter, not the former.
+            WidgetUpdateTracker.cancelJob(appWidgetId)
         }
     }
 
@@ -658,12 +665,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         targetViewName: String,
         targetOffset: Int,
     ) {
-        val targetMode =
-            try {
-                ViewMode.valueOf(targetViewName)
-            } catch (_: Exception) {
-                ViewMode.PRECIPITATION
-            }
+        val targetMode = ViewMode.parseOrDefault(targetViewName, ViewMode.PRECIPITATION)
+        // Single stateManager read for both branches below — avoids a second
+        // SharedPreferences lookup and the risk of inconsistent state if a write
+        // lands between two reads.
+        val stateManager = stateManager(context)
         val hasHourlyData =
             hasHourlyDataForDate(
                 context = context,
@@ -671,11 +677,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 appWidgetId = appWidgetId,
                 dateStr = dateStr,
                 intent = intent,
+                stateManager = stateManager,
             )
         Log.d(TAG, "handleDayClickAction branch: hasHourlyData=$hasHourlyData targetMode=$targetMode date=$dateStr offset=$targetOffset")
         if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE || targetMode == ViewMode.CLOUD_COVER)) {
             Log.w(TAG, "handleDayClickAction: NO hourly data for date=$dateStr mode=$targetMode -> pending+refresh")
-            val stateManager = stateManager(context)
             val dayLabel = NoHourlyDayClickCoordinator.formatDayLabel(dateStr)
             val pendingMessage = NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)
             stateManager.setTransientMessage(
@@ -706,7 +712,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 },
             )
         } else {
-            val stateManager = stateManager(context)
             // Day-click navigates the hourly view by jumping the hourly offset to the clicked day
             // (handleSetView below). The window then follows the single rolling/anchor rule in
             // resolveHourlyCenterTime: it rolls while NOW is in-window (today) and is pinned to a fixed
@@ -733,12 +738,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int,
         dateStr: String,
         intent: Intent,
+        stateManager: WidgetStateManager,
     ): Boolean {
         val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
         val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
         return NoHourlyDayClickCoordinator.hasHourlyForTappedDay(
             database = database,
-            stateManager = stateManager(context),
+            stateManager = stateManager,
             appWidgetId = appWidgetId,
             dateStr = dateStr,
             lat = lat,
@@ -843,22 +849,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             Log.d(TAG, "onReceive: direct cache repaint of all widgets (uiOnly=$uiOnly, stale=$isDataStale)")
 
             if (needsNetworkFetch) {
-                val tempWorkRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                    .setInputData(
-                        Data.Builder()
-                            .putBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_ONLY, true)
-                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
-                            .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "manual_refresh")
-                            .build()
-                    )
-                    .build()
-                WorkManager.getInstance(context).enqueueUniqueWork(
-                    WORK_NAME_ONE_TIME + "_current_temp",
-                    // KEEP, not REPLACE: a current-temp fetch already in flight satisfies this request;
-                    // cancelling it segfaults ART (see [[samsung_widget_dead_native_sigsegv]]).
-                    ExistingWorkPolicy.KEEP,
-                    tempWorkRequest
-                )
+                // triggerImmediateUpdate enqueues the full fetch (KEY_FORCE_REFRESH=true), whose
+                // WeatherWidgetWorker.doWork path covers current-temp as part of its normal sync.
+                // Previously a separate KEY_CURRENT_TEMP_ONLY worker was enqueued in parallel "for
+                // latency" but both hit the network for the same observations — pure redundancy.
+                // If a deliberate current-temp-first latency optimization is needed later, it
+                // should be a chained beginWith(temp).then(full), not parallel fire-and-forget.
                 Log.d(TAG, "onReceive: Data is stale, triggering background fetch")
                 triggerImmediateUpdate(context, forceRefresh = true, reason = "refresh_action_stale")
             }
@@ -975,12 +971,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "onReceive: Set View action for widget $appWidgetId, target=$targetViewName, offset=$targetOffset")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             launchAsync(context) {
-                val targetMode =
-                    try {
-                        ViewMode.valueOf(targetViewName)
-                    } catch (_: Exception) {
-                        ViewMode.DAILY
-                    }
+                val targetMode = ViewMode.parseOrDefault(targetViewName, ViewMode.DAILY)
                 WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
             }
         }
@@ -1076,10 +1067,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
          * message as still-active) and leave the banner up until the next opportunistic update.
          */
         const val NO_HOURLY_CLEAR_BUFFER_MS = 500L
-
-        /** Formats a yyyy-MM-dd date string as e.g. "Tue Jul 7" for transient widget messages. */
-        internal fun formatNoHourlyDayLabel(dateStr: String): String =
-            NoHourlyDayClickCoordinator.formatDayLabel(dateStr)
 
         private val lastUpdateByWidgetId = java.util.concurrent.ConcurrentHashMap<Int, Long>()
         private const val STARTUP_DEBOUNCE_MS = 500L
@@ -1224,14 +1211,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
          * @return the offset to center on when zooming into/out of this zone
          */
         fun zoneIndexToOffset(zoneIndex: Int, currentHourlyOffset: Int, zoom: ZoomLevel = ZoomLevel.WIDE): Int {
-            // 13 zones span the full rendered window (back+forward hours). Zone 6 is the visual
-            // (pixel) center, which for an asymmetric window sits (forward-back)/2 hours off the
-            // window center. This generalizes the old symmetric WIDE (2h/zone) and NARROW
-            // (1/3h/zone) cases and handles history-leaning levels like THREE_DAY (48 back/24 fwd:
+            // HOUR_ZONE_COUNT zones span the full rendered window (back+forward hours). The visual
+            // (pixel) center is the middle zone — index HOUR_ZONE_COUNT/2 (=6 for the 13-zone grid),
+            // which for an asymmetric window sits (forward-back)/2 hours off the window center.
+            // This generalizes the old symmetric WIDE (2h/zone) and NARROW (1/3h/zone) cases and
+            // handles history-leaning levels like THREE_DAY (48 back/24 fwd:
             // zone 0 -> -48h, zone 12 -> +24h).
-            val perZoneHours = (zoom.backHours + zoom.forwardHours) / 12f
+            val zoneSpan = HOUR_ZONE_COUNT - 1
+            val perZoneHours = (zoom.backHours + zoom.forwardHours) / zoneSpan.toFloat()
             val asymmetryShift = (zoom.forwardHours - zoom.backHours) / 2f
-            return currentHourlyOffset + (perZoneHours * (zoneIndex - 6) + asymmetryShift).roundToInt()
+            return currentHourlyOffset + (perZoneHours * (zoneIndex - zoneSpan / 2) + asymmetryShift).roundToInt()
         }
         private const val TAG = "WeatherWidgetProvider"
 

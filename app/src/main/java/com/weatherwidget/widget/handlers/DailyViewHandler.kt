@@ -70,9 +70,10 @@ object DailyViewHandler : WidgetViewHandler {
     internal const val LOG_TAG_TODAY_HIGH_PROVENANCE = "TODAY_HIGH_PROVENANCE"
     private const val LOG_TAG_DAILY_RENDER = "DAILY_RENDER"
     private const val LOG_TAG_DAILY_RENDER_EMPTY = "DAILY_RENDER_EMPTY"
-    // Locale captured at class-load time is safe: Android restarts the process on locale change,
-    // which re-initializes this singleton with the new default locale.
-    internal val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
+    // Locale is resolved per call (not captured at class-load) so ACTION_LOCALE_CHANGED —
+    // which does NOT restart the process — is honoured the next time the widget paints.
+    // DateTimeFormatter.of_pattern allocation is microseconds; negligible per render.
+    internal fun headerDateFormatter() = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
 
     internal class DailyRenderContext(
         val context: Context,
@@ -299,7 +300,7 @@ object DailyViewHandler : WidgetViewHandler {
             useGraph = useGraph,
             smoothedForecasts = smoothedForecasts,
             sunInfo = sunInfo,
-            headerDateFormatter = headerDateFormatter,
+            headerDateFormatter = headerDateFormatter(),
         )
 
         val currentTemp = headerResolution.state.currentTemp

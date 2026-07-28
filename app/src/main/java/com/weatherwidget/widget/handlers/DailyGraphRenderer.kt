@@ -149,7 +149,7 @@ internal object DailyGraphRenderer {
         }
 
         val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(ctx.context, dimensions.widthDp, dimensions.heightDp)
-        val dateText = if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS) ctx.today.format(DailyViewHandler.headerDateFormatter) else null
+        val dateText = if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS) ctx.today.format(DailyViewHandler.headerDateFormatter()) else null
 
         val graphRefreshDecisions = computeMissingDataRefreshes(
             today = ctx.today,
