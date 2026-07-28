@@ -92,6 +92,55 @@ class WidgetIntentRouterExecutionTest {
     }
 
     @Test
+    fun `resize debounce keeps only the newest request per widget`() = runTest {
+        val survived = mutableListOf<Int>()
+
+        // Three rapid resize events for widget 7, as a drag emits. Only the last may render.
+        repeat(3) { index ->
+            launch {
+                if (WidgetIntentRouter.awaitLatestResizeRequest(appWidgetId = 7)) survived += index
+            }
+            runCurrent()
+        }
+        advanceUntilIdle()
+
+        assertEquals(listOf(2), survived)
+    }
+
+    @Test
+    fun `resize debounce treats widgets independently`() = runTest {
+        val survived = mutableListOf<Int>()
+
+        launch { if (WidgetIntentRouter.awaitLatestResizeRequest(appWidgetId = 7)) survived += 7 }
+        launch { if (WidgetIntentRouter.awaitLatestResizeRequest(appWidgetId = 8)) survived += 8 }
+        advanceUntilIdle()
+
+        assertEquals(listOf(7, 8), survived)
+    }
+
+    @Test
+    fun `resize debounce does not hold the interaction lock while waiting`() = runTest {
+        val events = mutableListOf<String>()
+
+        launch {
+            if (WidgetIntentRouter.awaitLatestResizeRequest(appWidgetId = 7)) events += "resize-render"
+        }
+        runCurrent()
+
+        // The debounce is sleeping. A tap on the same widget must still acquire the lock immediately —
+        // this is the regression the additive-sleep-under-lock bug caused.
+        launch {
+            WidgetIntentRouter.withWidgetInteractionLock(appWidgetId = 7) { events += "tap" }
+        }
+        runCurrent()
+
+        assertEquals(listOf("tap"), events)
+
+        advanceUntilIdle()
+        assertEquals(listOf("tap", "resize-render"), events)
+    }
+
+    @Test
     fun `batch render propagates cancellation and stops later widgets`() = runTest {
         val rendered = mutableListOf<Int>()
         var cancelled = false
