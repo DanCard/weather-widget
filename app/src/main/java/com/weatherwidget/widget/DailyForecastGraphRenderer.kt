@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.widget.handlers.CloudCoverDiagnosticRow
 import com.weatherwidget.widget.handlers.HeaderConstants
+import com.weatherwidget.data.remote.NwsTemperaturePlausibility.isPlausibleF
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import java.time.LocalDate
@@ -221,8 +222,20 @@ object DailyForecastGraphRenderer {
         val density: Float,
         val useCelsius: Boolean,
     ) {
+        /**
+         * Maps a temperature to its y position, clamped to the graph area.
+         *
+         * The clamp is an identity for every value that set the axis range — [minTemp]/[maxTemp] are
+         * accumulated from the same seven fields every caller passes in, so an in-range temperature
+         * always lands inside `[graphTop, graphBottom]` on its own. It bites only values that
+         * computeLayout deliberately *excluded* from the range as implausible: without it, excluding
+         * a -100 sentinel from the axis still leaves its own bar drawn at y≈1585 on a 400px canvas,
+         * overdrawing the day labels and everything below it. Hardening the axis is only half the
+         * job — a bad value has to stay inside its own cell too.
+         */
         fun tempToY(temp: Float): Float =
-            graphTop + graphHeight * (1 - (temp - minTemp) / tempRange)
+            (graphTop + graphHeight * (1 - (temp - minTemp) / tempRange))
+                .coerceIn(graphTop, graphBottom)
     }
 
     @VisibleForTesting
@@ -477,21 +490,37 @@ object DailyForecastGraphRenderer {
         // render during navigation/zoom. Inline the tempToY range math down the same path.
         var minTemp = Float.POSITIVE_INFINITY
         var maxTemp = Float.NEGATIVE_INFINITY
+        // Axis backstop: snapshotHigh/snapshotLow/ghostLineHigh feed the y-axis range but are never
+        // printed as text, so a bad value in one of them is invisible as a number while still
+        // rescaling EVERY column through tempToY. That is the 2026-07-27 / 2026-07-28 failure mode —
+        // a single -100 stretched today's bar past the day-label row and squashed the other nine
+        // into stubs, while each label alongside read perfectly healthy. The DAO read guard keeps
+        // known sentinels out of these values; this keeps any that still get through (from any
+        // source) inside their own cell. The bounds are physical, not provider-specific, despite the
+        // NWS-prefixed object name. Kept flat/inline rather than a local fun so the per-render
+        // allocation win noted above isn't given back to closure capture.
+        var rejected = 0
+        var firstRejected = Float.NaN
         for (d in days) {
             val a = d.solidLineHigh
-            if (a != null) { if (a < minTemp) minTemp = a; if (a > maxTemp) maxTemp = a }
+            if (a != null) { if (isPlausibleF(a)) { if (a < minTemp) minTemp = a; if (a > maxTemp) maxTemp = a } else { if (rejected == 0) firstRejected = a; rejected++ } }
             val b = d.solidLineLow
-            if (b != null) { if (b < minTemp) minTemp = b; if (b > maxTemp) maxTemp = b }
+            if (b != null) { if (isPlausibleF(b)) { if (b < minTemp) minTemp = b; if (b > maxTemp) maxTemp = b } else { if (rejected == 0) firstRejected = b; rejected++ } }
             val c = d.dashedLineHigh
-            if (c != null) { if (c < minTemp) minTemp = c; if (c > maxTemp) maxTemp = c }
+            if (c != null) { if (isPlausibleF(c)) { if (c < minTemp) minTemp = c; if (c > maxTemp) maxTemp = c } else { if (rejected == 0) firstRejected = c; rejected++ } }
             val e = d.dashedLineLow
-            if (e != null) { if (e < minTemp) minTemp = e; if (e > maxTemp) maxTemp = e }
+            if (e != null) { if (isPlausibleF(e)) { if (e < minTemp) minTemp = e; if (e > maxTemp) maxTemp = e } else { if (rejected == 0) firstRejected = e; rejected++ } }
             val f = d.snapshotHigh
-            if (f != null) { if (f < minTemp) minTemp = f; if (f > maxTemp) maxTemp = f }
+            if (f != null) { if (isPlausibleF(f)) { if (f < minTemp) minTemp = f; if (f > maxTemp) maxTemp = f } else { if (rejected == 0) firstRejected = f; rejected++ } }
             val g = d.snapshotLow
-            if (g != null) { if (g < minTemp) minTemp = g; if (g > maxTemp) maxTemp = g }
+            if (g != null) { if (isPlausibleF(g)) { if (g < minTemp) minTemp = g; if (g > maxTemp) maxTemp = g } else { if (rejected == 0) firstRejected = g; rejected++ } }
             val h = d.ghostLineHigh
-            if (h != null) { if (h < minTemp) minTemp = h; if (h > maxTemp) maxTemp = h }
+            if (h != null) { if (isPlausibleF(h)) { if (h < minTemp) minTemp = h; if (h > maxTemp) maxTemp = h } else { if (rejected == 0) firstRejected = h; rejected++ } }
+        }
+        if (rejected > 0) {
+            // Permanent breadcrumb — the next occurrence should be one logcat query away rather than
+            // another screenshot investigation.
+            Log.w(TAG, "computeLayout: excluded $rejected implausible temp(s) from axis range, first=$firstRejected days=${days.size}")
         }
         if (!minTemp.isFinite()) minTemp = 0f
         if (!maxTemp.isFinite()) maxTemp = 100f

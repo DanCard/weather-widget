@@ -3,6 +3,7 @@ package com.weatherwidget.data.remote
 import com.weatherwidget.data.model.DailyForecast
 import java.time.LocalDate
 import java.time.ZonedDateTime
+import kotlin.math.abs
 
 /**
  * Pure NWS daily-forecast mapping logic shared between the Android widget and the desktop app.
@@ -257,6 +258,94 @@ object NwsDailyMapper {
 
     private fun parseInstantMs(isoString: String): Long? =
         runCatching { ZonedDateTime.parse(isoString).toInstant().toEpochMilli() }.getOrNull()
+
+    /**
+     * How far a stored daily extreme may sit from the same day's hourly extreme before we stop
+     * believing it. Deliberately wide.
+     *
+     * The two series legitimately disagree by a degree or two: NWS files a day's low against the
+     * night that *ends* that morning, while this check buckets hourly readings by calendar day, and
+     * provider rounding differs between the daily and hourly endpoints. Observed on 2026-07-28:
+     * daily high 78°F against a calendar-day hourly max of 80°F — normal, and it must not trip.
+     * A sentinel, by contrast, diverges by ~140°F. The gap between those two magnitudes is where
+     * this threshold lives; tightening it toward equality would produce constant false positives.
+     */
+    const val HOURLY_DIVERGENCE_TOLERANCE_F = 20f
+
+    /**
+     * A day needs this many plausible hourly readings before its hourly extreme is trustworthy
+     * enough to judge the daily value. The last day of a forecast horizon is often a short partial
+     * (57 rows spanning a fraction of the day, in the 2026-07-28 capture), and a partial day's min
+     * can be far off the true min purely because the cold hours are missing.
+     */
+    const val MIN_HOURS_FOR_DIVERGENCE_CHECK = 12
+
+    /**
+     * Cross-checks each stored daily extreme against the same day's hourly series and reports the
+     * ones that diverge implausibly far, as [RejectedNwsTemperature] so they feed the existing
+     * [fillTemperatureGapsFromHourly] repair path.
+     *
+     * This is the *relative* counterpart to [NwsTemperaturePlausibility]'s absolute range gate. The
+     * absolute gate can only catch values outside all of terrestrial weather; a July low of 20°F is
+     * badly wrong but sails straight through it. Comparing against what the same provider said in
+     * the same fetch is a far sharper instrument.
+     *
+     * The reported window is the calendar day, not the originating forecast period — that is the
+     * span we can reconstruct reliably here, and it costs at most a degree or two of precision on
+     * the subsequent repair (see [HOURLY_DIVERGENCE_TOLERANCE_F]). A degree of imprecision is an
+     * enormously better outcome than a sentinel reaching the renderer.
+     */
+    fun detectHourlyDivergence(
+        temperatureMap: Map<String, Pair<Float?, Float?>>,
+        hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+        toleranceF: Float = HOURLY_DIVERGENCE_TOLERANCE_F,
+    ): List<RejectedNwsTemperature> {
+        if (hourlyPeriods.isEmpty()) return emptyList()
+        val byDate = hourlyPeriods
+            .filter { NwsTemperaturePlausibility.isPlausibleF(it.temperature) }
+            .groupBy { it.localDate }
+
+        val diverged = mutableListOf<RejectedNwsTemperature>()
+        for ((dateString, temps) in temperatureMap) {
+            val hours = byDate[dateString] ?: continue
+            if (hours.size < MIN_HOURS_FOR_DIVERGENCE_CHECK) continue
+
+            val windowStartMs = hours.minOf { it.startTime }
+            // +1ms so the last reading falls inside the half-open [start, end) the repair applies.
+            val windowEndMs = hours.maxOf { it.startTime } + 1
+            val (high, low) = temps
+
+            if (high != null && abs(high - hours.maxOf { it.temperature }) > toleranceF) {
+                diverged += RejectedNwsTemperature(
+                    origin = "XCHK:hourly", dateString = dateString, isMax = true,
+                    windowStartMs = windowStartMs, windowEndMs = windowEndMs, rawValueF = high,
+                )
+            }
+            if (low != null && abs(low - hours.minOf { it.temperature }) > toleranceF) {
+                diverged += RejectedNwsTemperature(
+                    origin = "XCHK:hourly", dateString = dateString, isMax = false,
+                    windowStartMs = windowStartMs, windowEndMs = windowEndMs, rawValueF = low,
+                )
+            }
+        }
+        return diverged
+    }
+
+    /**
+     * Nulls the slots named by [rejected] so [fillTemperatureGapsFromHourly] will repair them —
+     * that function only ever fills nulls, so a value rejected by the *relative* check must be
+     * cleared first (unlike the absolute gate's rejections, which never got written).
+     */
+    fun clearRejectedTemps(
+        temperatureMap: MutableMap<String, Pair<Float?, Float?>>,
+        rejected: List<RejectedNwsTemperature>,
+    ) {
+        for (miss in rejected) {
+            val current = temperatureMap[miss.dateString] ?: continue
+            temperatureMap[miss.dateString] =
+                if (miss.isMax) null to current.second else current.first to null
+        }
+    }
 
     /**
      * Fills temperature slots left null by the plausibility gate using NWS's own hourly series,

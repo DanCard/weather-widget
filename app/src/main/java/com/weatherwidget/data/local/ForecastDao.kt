@@ -1,12 +1,30 @@
 package com.weatherwidget.data.local
 
+import android.util.Log
 import androidx.room.*
+import com.weatherwidget.data.remote.orNullIfImplausibleTempF
 import com.weatherwidget.shared.actuals.DailyForecastSelector
 
+/**
+ * Every read that returns [ForecastEntity] passes through [withPlausibleTemps]. The `...Raw` methods
+ * are the Room-generated queries; the same-named wrappers below them are what callers use.
+ *
+ * Why the whole surface and not just the snapshot query: the 2026-07-27 sentinel incident was
+ * diagnosed as desktop-only because Android's DAO "always takes the newest batch". That was true of
+ * the latest-forecast reads but not of the today-column snapshot, which deliberately reaches ~24h
+ * backwards (`DailySnapshotSelector.selectPriorDaySnapshot`), so a poisoned row written before the
+ * ingest gate existed kept rendering for another day. Guarding one query would rebuild that trap for
+ * the next backward-reaching reader. See plans/260728c-sentinel-android-read-guard-and-axis-hardening.md.
+ *
+ * Note that `highTemp IS NOT NULL` in some queries is NOT a substitute: a `-100` sentinel is
+ * perfectly non-null and passes those filters untouched.
+ */
 @Dao
 interface ForecastDao {
     @Query("SELECT * FROM forecasts ORDER BY batchFetchedAt DESC, fetchedAt DESC LIMIT 1")
-    suspend fun getLatestWeather(): ForecastEntity?
+    suspend fun getLatestWeatherRaw(): ForecastEntity?
+
+    suspend fun getLatestWeather(): ForecastEntity? = getLatestWeatherRaw()?.withPlausibleTemps()
 
     @Query(
         """
@@ -17,11 +35,17 @@ interface ForecastDao {
         LIMIT 1
     """,
     )
-    suspend fun getLatestForecastBySource(
+    suspend fun getLatestForecastBySourceRaw(
         source: String,
         lat: Double,
         lon: Double,
     ): ForecastEntity?
+
+    suspend fun getLatestForecastBySource(
+        source: String,
+        lat: Double,
+        lon: Double,
+    ): ForecastEntity? = getLatestForecastBySourceRaw(source, lat, lon)?.withPlausibleTemps()
 
     @Query(
         """
@@ -31,7 +55,10 @@ interface ForecastDao {
         LIMIT 1
     """,
     )
-    suspend fun getLatestWeatherBySource(source: String): ForecastEntity?
+    suspend fun getLatestWeatherBySourceRaw(source: String): ForecastEntity?
+
+    suspend fun getLatestWeatherBySource(source: String): ForecastEntity? =
+        getLatestWeatherBySourceRaw(source)?.withPlausibleTemps()
 
     @Query(
         """
@@ -42,11 +69,17 @@ interface ForecastDao {
         LIMIT 1
     """,
     )
-    suspend fun getForecastForDate(
+    suspend fun getForecastForDateRaw(
         targetDate: Long,
         lat: Double,
         lon: Double,
     ): ForecastEntity?
+
+    suspend fun getForecastForDate(
+        targetDate: Long,
+        lat: Double,
+        lon: Double,
+    ): ForecastEntity? = getForecastForDateRaw(targetDate, lat, lon)?.withPlausibleTemps()
 
     @Query(
         """
@@ -58,12 +91,20 @@ interface ForecastDao {
         LIMIT 1
     """,
     )
-    suspend fun getSpecificForecast(
+    suspend fun getSpecificForecastRaw(
         targetDate: Long,
         dateOfPrediction: Long,
         lat: Double,
         lon: Double,
     ): ForecastEntity?
+
+    suspend fun getSpecificForecast(
+        targetDate: Long,
+        dateOfPrediction: Long,
+        lat: Double,
+        lon: Double,
+    ): ForecastEntity? =
+        getSpecificForecastRaw(targetDate, dateOfPrediction, lat, lon)?.withPlausibleTemps()
 
     @Query(
         """
@@ -76,13 +117,22 @@ interface ForecastDao {
         LIMIT 1
     """,
     )
-    suspend fun getForecastForDateBySource(
+    suspend fun getForecastForDateBySourceRaw(
         targetDate: Long,
         dateOfPrediction: Long,
         lat: Double,
         lon: Double,
         source: String,
     ): ForecastEntity?
+
+    suspend fun getForecastForDateBySource(
+        targetDate: Long,
+        dateOfPrediction: Long,
+        lat: Double,
+        lon: Double,
+        source: String,
+    ): ForecastEntity? =
+        getForecastForDateBySourceRaw(targetDate, dateOfPrediction, lat, lon, source)?.withPlausibleTemps()
 
     @Query(
         """
@@ -100,12 +150,20 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getForecastsInRangeAllSites(
+    suspend fun getForecastsInRangeAllSitesRaw(
         startDate: Long,
         endDate: Long,
         lat: Double,
         lon: Double,
     ): List<ForecastEntity>
+
+    suspend fun getForecastsInRangeAllSites(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+    ): List<ForecastEntity> =
+        getForecastsInRangeAllSitesRaw(startDate, endDate, lat, lon).withPlausibleTemps()
 
     @Query(
         """
@@ -124,13 +182,22 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getForecastsInRangeForSourcesAllSites(
+    suspend fun getForecastsInRangeForSourcesAllSitesRaw(
         startDate: Long,
         endDate: Long,
         lat: Double,
         lon: Double,
         sources: List<String>
     ): List<ForecastEntity>
+
+    suspend fun getForecastsInRangeForSourcesAllSites(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+        sources: List<String>
+    ): List<ForecastEntity> =
+        getForecastsInRangeForSourcesAllSitesRaw(startDate, endDate, lat, lon, sources).withPlausibleTemps()
 
     @Query(
         """
@@ -149,13 +216,22 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getLatestForecastsInRangeBySourceAllSites(
+    suspend fun getLatestForecastsInRangeBySourceAllSitesRaw(
         startDate: Long,
         endDate: Long,
         lat: Double,
         lon: Double,
         source: String,
     ): List<ForecastEntity>
+
+    suspend fun getLatestForecastsInRangeBySourceAllSites(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+        source: String,
+    ): List<ForecastEntity> =
+        getLatestForecastsInRangeBySourceAllSitesRaw(startDate, endDate, lat, lon, source).withPlausibleTemps()
 
     @Query(
         """
@@ -178,13 +254,22 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getLatestForecastsInRangeForSourcesAllSites(
+    suspend fun getLatestForecastsInRangeForSourcesAllSitesRaw(
         startDate: Long,
         endDate: Long,
         lat: Double,
         lon: Double,
         sources: List<String>,
     ): List<ForecastEntity>
+
+    suspend fun getLatestForecastsInRangeForSourcesAllSites(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+        sources: List<String>,
+    ): List<ForecastEntity> =
+        getLatestForecastsInRangeForSourcesAllSitesRaw(startDate, endDate, lat, lon, sources).withPlausibleTemps()
 
     @Query(
         """
@@ -206,12 +291,20 @@ interface ForecastDao {
         ORDER BY targetDate ASC
     """,
     )
-    suspend fun getLatestForecastsInRangeAllSites(
+    suspend fun getLatestForecastsInRangeAllSitesRaw(
         startDate: Long,
         endDate: Long,
         lat: Double,
         lon: Double,
     ): List<ForecastEntity>
+
+    suspend fun getLatestForecastsInRangeAllSites(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+    ): List<ForecastEntity> =
+        getLatestForecastsInRangeAllSitesRaw(startDate, endDate, lat, lon).withPlausibleTemps()
 
     @Query(
         """
@@ -222,12 +315,20 @@ interface ForecastDao {
         ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
     """,
     )
-    suspend fun getAllForecastsInRange(
+    suspend fun getAllForecastsInRangeRaw(
         startDate: Long,
         endDate: Long,
         lat: Double,
         lon: Double,
     ): List<ForecastEntity>
+
+    suspend fun getAllForecastsInRange(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+    ): List<ForecastEntity> =
+        getAllForecastsInRangeRaw(startDate, endDate, lat, lon).withPlausibleTemps()
 
     @Query(
         """
@@ -239,13 +340,22 @@ interface ForecastDao {
         ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
     """,
     )
-    suspend fun getAllForecastsInRangeForSources(
+    suspend fun getAllForecastsInRangeForSourcesRaw(
         startDate: Long,
         endDate: Long,
         lat: Double,
         lon: Double,
         sources: List<String>
     ): List<ForecastEntity>
+
+    suspend fun getAllForecastsInRangeForSources(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+        sources: List<String>
+    ): List<ForecastEntity> =
+        getAllForecastsInRangeForSourcesRaw(startDate, endDate, lat, lon, sources).withPlausibleTemps()
 
     @Query(
         """
@@ -257,13 +367,22 @@ interface ForecastDao {
         ORDER BY targetDate ASC, dateOfPrediction DESC, batchFetchedAt DESC, fetchedAt DESC
     """,
     )
-    suspend fun getForecastsInRangeBySource(
+    suspend fun getForecastsInRangeBySourceRaw(
         startDate: Long,
         endDate: Long,
         lat: Double,
         lon: Double,
         source: String,
     ): List<ForecastEntity>
+
+    suspend fun getForecastsInRangeBySource(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+        source: String,
+    ): List<ForecastEntity> =
+        getForecastsInRangeBySourceRaw(startDate, endDate, lat, lon, source).withPlausibleTemps()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertForecast(forecast: ForecastEntity)
@@ -320,12 +439,45 @@ interface ForecastDao {
         ORDER BY dateOfPrediction ASC, batchFetchedAt ASC, fetchedAt ASC
     """,
     )
-    suspend fun getForecastEvolution(
+    suspend fun getForecastEvolutionRaw(
         targetDate: Long,
         lat: Double,
         lon: Double,
     ): List<ForecastEntity>
+
+    suspend fun getForecastEvolution(
+        targetDate: Long,
+        lat: Double,
+        lon: Double,
+    ): List<ForecastEntity> = getForecastEvolutionRaw(targetDate, lat, lon).withPlausibleTemps()
 }
+
+private const val SANITIZE_TAG = "ForecastDao"
+
+/**
+ * Read-side plausibility guard: an implausible stored temperature is reported as missing rather than
+ * as weather. Sibling of the ingest gate in `NwsTemperaturePlausibility` — the ingest filter can only
+ * protect rows written after it landed, so rows already in the 1-month retention window need this.
+ *
+ * A sentinel reaching a renderer is worse than a gap: it drags bar geometry and axis scaling
+ * off-screen while the label beside it shows a perfectly healthy number.
+ */
+internal fun ForecastEntity.withPlausibleTemps(): ForecastEntity {
+    val high = highTemp.orNullIfImplausibleTempF()
+    val low = lowTemp.orNullIfImplausibleTempF()
+    if (high == highTemp && low == lowTemp) return this
+    // Rare by construction (only genuinely poisoned rows), so this stays a permanent breadcrumb
+    // rather than log spam — the next occurrence should be one logcat query away.
+    Log.w(
+        SANITIZE_TAG,
+        "withPlausibleTemps: rejected stored temp targetDate=$targetDate source=$source" +
+            " high=$highTemp->$high low=$lowTemp->$low fetchedAt=$fetchedAt",
+    )
+    return copy(highTemp = high, lowTemp = low)
+}
+
+internal fun List<ForecastEntity>.withPlausibleTemps(): List<ForecastEntity> =
+    map { it.withPlausibleTemps() }
 
 /**
  * Site-collapsing wrappers over the `...AllSites` range queries. Those queries keep the freshest

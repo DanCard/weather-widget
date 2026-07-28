@@ -128,7 +128,23 @@ class NwsForecastMapper @Inject constructor(
         // NWS can serve a -100°F missing-data sentinel on both the gridpoint and period paths (see
         // NwsTemperaturePlausibility). Both were dropped at ingest; recover the real value from the
         // hourly series, which does not carry the sentinel.
-        val rejectedTemps = gridDailyTemps.rejected + acc.rejectedTemps
+        // Relative cross-check, on top of the absolute range gate above: a value can be inside
+        // NwsTemperaturePlausibility's bounds and still be plainly wrong (a July low of 20°F). The
+        // absolute gate cannot see that; the provider's own hourly series for the same day can.
+        // Diverging values must be cleared before the repair runs, because the repair only fills
+        // nulls — unlike the absolute gate's rejections, these were actually written.
+        val divergedTemps = NwsDailyMapper.detectHourlyDivergence(acc.temperatureMap, hourlyPeriods)
+        if (divergedTemps.isNotEmpty()) {
+            appLogDao.log(
+                "NWS_TEMP_DIVERGED",
+                "count=${divergedTemps.size} tolerance=${NwsDailyMapper.HOURLY_DIVERGENCE_TOLERANCE_F}" +
+                    " ${divergedTemps.joinToString("; ") { it.describe() }}",
+                "WARN",
+            )
+            NwsDailyMapper.clearRejectedTemps(acc.temperatureMap, divergedTemps)
+        }
+
+        val rejectedTemps = gridDailyTemps.rejected + acc.rejectedTemps + divergedTemps
         if (rejectedTemps.isNotEmpty()) {
             appLogDao.log(
                 "NWS_TEMP_REJECTED",
