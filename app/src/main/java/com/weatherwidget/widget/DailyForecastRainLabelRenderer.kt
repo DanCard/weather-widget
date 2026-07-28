@@ -124,7 +124,7 @@ internal object DailyForecastRainLabelRenderer {
         val rainText = day.rainData.dailyRainLabelText ?: return null
         val localRainPaint = createScaledRainPaint(day, day.rainData.dailyPrecipProbability, RainLabelType.DAY, layout.density, paints)
         val textWidth = localRainPaint.measureText(rainText)
-        val highBaseline = DailyForecastGraphRenderer.resolveHighLabelBaseline(day, layout, paints) ?: return null
+        val highBaseline = DailyHighLabelPlanner.resolveHighLabelBaseline(day, layout, paints) ?: return null
         val tempPaint = when {
             day.isToday -> paints.todayTempTextPaint
             day.isPast -> paints.pastTempTextPaint
@@ -134,7 +134,7 @@ internal object DailyForecastRainLabelRenderer {
         // "75.6°"), so its rendered top is lower than the full-size metrics imply. Anchor the rain
         // label to the high label *as drawn* by scaling the high metrics by that same draw scale —
         // otherwise the percentage floats well above the temperature with a large gap.
-        val highScale = DailyForecastGraphRenderer.resolveHighLabelDrawScale(day, layout, paints)
+        val highScale = DailyHighLabelPlanner.resolveHighLabelDrawScale(day, layout, paints)
         val fullHighMetrics = textMetrics(tempPaint)
         val drawnHighMetrics = TextMetrics(fullHighMetrics.ascent * highScale, fullHighMetrics.descent * highScale)
         val placement = resolveRainAboveHighPlacement(

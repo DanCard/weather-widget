@@ -6,14 +6,10 @@ import android.content.Context
 import android.graphics.*
 import android.util.Log
 import androidx.annotation.VisibleForTesting
-import com.weatherwidget.BuildConfig
 import com.weatherwidget.widget.handlers.CloudCoverDiagnosticRow
 import com.weatherwidget.widget.handlers.HeaderConstants
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.TodayColumnHighlight
-import com.weatherwidget.util.WeatherConditionColors
-import com.weatherwidget.util.WeatherIconMapper
-import kotlin.math.abs
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -42,23 +38,15 @@ object DailyForecastGraphRenderer {
     private const val MIN_TEMP_LABEL_FIT_SCALE = 0.7f
     private const val MIN_BAR_HEIGHT_DP = 1.0f
 
-    private val COLOR_FORECAST = 0xFF5AC8FA.toInt()
-    private val COLOR_TODAY_HIGHLIGHT = 0xFFFFFF00.toInt()
-    private val COLOR_OBSERVED_RED = WeatherConditionColors.OBSERVED
     private val COLOR_LABEL_GRAY = 0xFFAAAAAA.toInt()
     private val COLOR_TODAY_TEXT = 0xFFFFEACC.toInt()
     private val COLOR_WHITE = 0xFFFFFFFF.toInt()
-    private val COLOR_GAP_FALLBACK = 0xFF34C759.toInt()
     private val COLOR_SUNNY = 0xFFFFD60A.toInt()
     internal val HEADER_TEXT_COLOR = 0xAAFFFFFF.toInt()
     private const val RAIN_FONT_SCALE_K = 0.6f
     private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
     private const val TEMP_LABEL_TEXT_SIZE_DP = 24f
     private const val TOP_PADDING_DP = 50f
-    private const val FORECAST_BAR_WIDTH_DP = 9f
-    private const val TODAY_TRIPLE_BAR_WIDTH_DP = 8f
-
-    private const val HIGH_LABEL_OFFSET_DP = 8f
     private const val ICON_BELOW_BAR_SPACING_DP = 3f
     private const val TEMP_LABEL_SPACING_DP = -1f
     private const val RAIN_TEXT_MARGIN_DP = 4f
@@ -69,14 +57,6 @@ object DailyForecastGraphRenderer {
     private val RAIN_TEXT_SIZE_DP = HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP
     // Tiny margin in dp so day label baseline sits just inside bitmap bottom edge across densities.
     internal const val DAY_LABEL_BOTTOM_MARGIN_DP = 1f
-    private const val GHOST_BAR_ALPHA = 75
-    private const val CLIMATE_OVERLAY_ALPHA = 80
-    private const val BULB_RADIUS_SCALE = 1.2f
-    private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
-    private const val HISTORY_BAR_WIDTH_SCALE = 0.7f
-    private const val FORECAST_OVERLAY_WIDTH_SCALE = 0.7f
-    private const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f
-    private const val FORECAST_BAR_OFFSET_SCALE = 0.7f
     private const val PAST_TEMP_SCALE = 0.9f
     private const val LABEL_SHADOW_RADIUS_DP = 2.5f
     private const val LABEL_SHADOW_DY_DP = 1.0f
@@ -84,6 +64,9 @@ object DailyForecastGraphRenderer {
     // legible over same-colored bars. Much thinner than the reverted heavy outline; gated to past days.
     private const val LABEL_OUTLINE_STROKE_FRACTION = 0.12f
     private const val HEADER_RAIN_OVERLAP_TOLERANCE_DP = 4f
+    // Edge margin (dp) used in three places: triple-bar spacing, today-panel horizontal padding,
+    // and header-rain overlap detection. Named once so the three stay in sync.
+    private const val COLUMN_EDGE_MARGIN_DP = 2f
 
     // Today-column emphasis (frosted-glass panel + touching triple bars) is shared with desktop via
     // com.weatherwidget.shared.graph.TodayColumnHighlight — see it for the geometry/styling constants.
@@ -95,6 +78,12 @@ object DailyForecastGraphRenderer {
         val set: PaintSet,
     )
     private const val PAINT_CACHE_LRU_SIZE = 3
+    // @Volatile gives visibility but not atomicity for this read-modify-write. Two concurrent
+    // renders can both miss the cache and both write — the loser's PaintSet is still returned to
+    // its own caller (work duplicated, not lost), and the cache briefly carries one extra entry
+    // before the LRU truncate. Acceptable: renders are short, concurrency is rare (resize during
+    // fetch), and correctness doesn't depend on a single winner. Use a lock only if profiling
+    // ever shows wasted Paint construction.
     @Volatile
     private var paintCaches: List<PaintCache> = emptyList()
 
@@ -205,15 +194,6 @@ object DailyForecastGraphRenderer {
         val nowHour: Int? = null,
     ) : CloudCoverDiagnosticRow
 
-    private fun DayData.effectiveHigh(): Float? =
-        com.weatherwidget.shared.util.DailyDayValueResolver.effectiveHighForLabel(
-            isToday = isToday,
-            solidHigh = solidLineHigh,
-            forecastHigh = dashedLineHigh,
-            ghostHigh = ghostLineHigh,
-            nowHour = nowHour,
-        )
-
     data class LayoutInfo(
         val widthPx: Int,
         val heightPx: Int,
@@ -292,6 +272,7 @@ object DailyForecastGraphRenderer {
         val pastTempTextPaint: Paint,
         val todayTempTextPaint: Paint,
         val rainTextPaint: Paint,
+        val todayPanelFillPaint: Paint,
     ) {
         private val barByColor = ConcurrentHashMap<Int, Paint>()
         private val forecastByColor = ConcurrentHashMap<Int, Paint>()
@@ -305,8 +286,11 @@ object DailyForecastGraphRenderer {
             Paint(forecastBarPaint).apply { this.color = color }
         }
         fun climateOverlayForColor(color: Int): Paint = climateOverlayByColor.getOrPut(color) {
-            // Paint.setColor overwrites alpha, so re-apply CLIMATE_OVERLAY_ALPHA after.
-            Paint(climateOverlayBarPaint).apply { this.color = color; alpha = CLIMATE_OVERLAY_ALPHA }
+            // Paint.setColor overwrites alpha, so re-apply the climate overlay alpha after.
+            Paint(climateOverlayBarPaint).apply {
+                this.color = color
+                alpha = DailyBarRenderer.CLIMATE_OVERLAY_ALPHA
+            }
         }
         fun todayForecastForColor(color: Int): Paint = todayForecastByColor.getOrPut(color) {
             Paint(todayForecastBluePaint).apply { this.color = color }
@@ -352,6 +336,26 @@ object DailyForecastGraphRenderer {
         debug { "renderGraph: days=${days.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx" }
 
         val daysByColumn = days.withIndex().associate { (i, d) -> (d.columnIndex ?: i) to d }
+
+        // Per-day cache of the DAILY (daytime) rain-label debug rect, populated as a side-effect
+        // of drawDayColumn's onRainLabelDrawn callback. Night-rain draws go through the same
+        // callback, so we filter by exact-match against day.rainData.dailyRainLabelText — the
+        // cached version is then reused by suppressHeaderDateForRainOverlap to skip the second
+        // text-measure + geometry pass per day (F1).
+        val dailyRainTextByDate = days.associate { it.date to it.rainData.dailyRainLabelText }
+        val drawnDailyRainLabelByDate = mutableMapOf<java.time.LocalDate, RainLabelDrawnDebug>()
+        fun collectDailyRainLabel(dbg: RainLabelDrawnDebug) {
+            val expectedText = dailyRainTextByDate[dbg.date]
+            if (expectedText != null && dbg.text == expectedText) {
+                drawnDailyRainLabelByDate[dbg.date] = dbg
+            }
+        }
+        val collectAndEmitRainLabel: ((RainLabelDrawnDebug) -> Unit)? = if (onRainLabelDrawn != null) {
+            { dbg -> collectDailyRainLabel(dbg); onRainLabelDrawn.invoke(dbg) }
+        } else {
+            { dbg -> collectDailyRainLabel(dbg) }
+        }
+
         days.forEachIndexed { index, day ->
             job?.ensureActive()
             val rawColumnIndex = day.columnIndex ?: index
@@ -365,16 +369,18 @@ object DailyForecastGraphRenderer {
             // Frosted-glass focal panel BEHIND today's triple-bar column (drawn before the bars so it
             // sits underneath them and their labels).
             if (day.isToday) {
-                drawTodayHighlightPanel(canvas, centerX, layout)
+                DailyBarRenderer.drawTodayHighlightPanel(canvas, centerX, layout, paints)
             }
 
             // Bars first, then column content (weather icon, low/day labels) so the icon
             // and labels render on top of any bar geometry that might overlap them.
-            drawDayBars(canvas, context, day, centerX, layout, paints, onBarDrawn)
-            drawDayColumn(canvas, context, day, rightNeighbor, centerX, layout, paints, onRainLabelDrawn, onDayLabelDrawn)
+            DailyBarRenderer.drawDayBars(canvas, day, centerX, layout, paints, onBarDrawn)
+            drawDayColumn(canvas, context, day, rightNeighbor, centerX, layout, paints, collectAndEmitRainLabel, onDayLabelDrawn)
         }
 
-        val finalHeaderData = headerData?.let { suppressHeaderDateForRainOverlap(it, days, layout, paints, widthPx) }
+        val finalHeaderData = headerData?.let {
+            suppressHeaderDateForRainOverlap(it, days, layout, paints, widthPx, drawnDailyRainLabelByDate)
+        }
         if (finalHeaderData != null) {
             DailyForecastHeaderRenderer.drawHeader(canvas, context, finalHeaderData, widthPx, layout)
             onHeaderDrawn?.invoke(
@@ -399,9 +405,15 @@ object DailyForecastGraphRenderer {
         layout: LayoutInfo,
         paints: PaintSet,
         widthPx: Int,
+        // Reused from the render pass — daily rain labels actually drawn on the canvas, indexed by
+        // day.date. When non-null for a day we use the cached geometry and SKIP the second
+        // resolveDailyRainLabelPlacement call (the original cause of F1's duplicate text-measure +
+        // geometry pass per day). Caller may pass an empty map to fall back to the re-resolve path
+        // (used by tests and the legacy single-pass entry).
+        drawnDailyRainLabelByDate: Map<java.time.LocalDate, RainLabelDrawnDebug> = emptyMap(),
     ): HeaderRenderData {
         if (headerData.dateText.isNullOrBlank()) return headerData
-        val padding = (2f).dp(layout.density)
+        val padding = COLUMN_EDGE_MARGIN_DP.dp(layout.density)
         val dateBounds = DailyForecastHeaderRenderer.resolveHeaderDateBounds(
             header = headerData,
             widthPx = widthPx,
@@ -413,18 +425,24 @@ object DailyForecastGraphRenderer {
             val rawColumnIndex = day.columnIndex ?: index
             val columnIndex = rawColumnIndex.coerceIn(0, layout.columns - 1)
             val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
-            val rainLabel = DailyForecastRainLabelRenderer.resolveDailyRainLabelPlacement(
-                day = day,
-                centerX = centerX,
-                layout = layout,
-                paints = paints,
-            )?.debug ?: return@forEachIndexed
+            // F1: prefer the geometry that was actually drawn (already cached during drawDayColumn's
+            // onRainLabelDrawn callback). Only re-resolve when the cache missed (e.g. callers that
+            // test this function in isolation with an empty cache).
+            val rainLabel = drawnDailyRainLabelByDate[day.date]
+                ?: DailyForecastRainLabelRenderer.resolveDailyRainLabelPlacement(
+                    day = day,
+                    centerX = centerX,
+                    layout = layout,
+                    paints = paints,
+                )?.debug
+                ?: return@forEachIndexed
             val rainBounds = RectF(rainLabel.leftX, rainLabel.topY, rainLabel.rightX, rainLabel.bottomY)
             if (hasMeaningfulHeaderRainOverlap(dateBounds, rainBounds, layout.density)) {
                 Log.d(
                     TAG,
                     "suppressHeaderDateForRainOverlap: dateText=${headerData.dateText} rainDate=${day.date}" +
-                        " rainText=${rainLabel.text} dateBounds=$dateBounds rainBounds=$rainBounds",
+                        " rainText=${rainLabel.text} dateBounds=$dateBounds rainBounds=$rainBounds" +
+                        " fromCache=${drawnDailyRainLabelByDate.containsKey(day.date)}",
                 )
                 return headerData.copy(dateText = null)
             }
@@ -455,9 +473,28 @@ object DailyForecastGraphRenderer {
         useCelsius: Boolean,
     ): LayoutInfo {
         job?.ensureActive()
-        val allTemps = days.flatMap { listOfNotNull(it.solidLineHigh, it.solidLineLow, it.dashedLineHigh, it.dashedLineLow, it.snapshotHigh, it.snapshotLow, it.ghostLineHigh) }
-        val minTemp = allTemps.minOrNull() ?: 0f
-        val maxTemp = allTemps.maxOrNull() ?: 100f
+        // Single-pass running min/max — avoid the flatMap→7N-alloc→2-walk pattern that fired per
+        // render during navigation/zoom. Inline the tempToY range math down the same path.
+        var minTemp = Float.POSITIVE_INFINITY
+        var maxTemp = Float.NEGATIVE_INFINITY
+        for (d in days) {
+            val a = d.solidLineHigh
+            if (a != null) { if (a < minTemp) minTemp = a; if (a > maxTemp) maxTemp = a }
+            val b = d.solidLineLow
+            if (b != null) { if (b < minTemp) minTemp = b; if (b > maxTemp) maxTemp = b }
+            val c = d.dashedLineHigh
+            if (c != null) { if (c < minTemp) minTemp = c; if (c > maxTemp) maxTemp = c }
+            val e = d.dashedLineLow
+            if (e != null) { if (e < minTemp) minTemp = e; if (e > maxTemp) maxTemp = e }
+            val f = d.snapshotHigh
+            if (f != null) { if (f < minTemp) minTemp = f; if (f > maxTemp) maxTemp = f }
+            val g = d.snapshotLow
+            if (g != null) { if (g < minTemp) minTemp = g; if (g > maxTemp) maxTemp = g }
+            val h = d.ghostLineHigh
+            if (h != null) { if (h < minTemp) minTemp = h; if (h > maxTemp) maxTemp = h }
+        }
+        if (!minTemp.isFinite()) minTemp = 0f
+        if (!maxTemp.isFinite()) maxTemp = 100f
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
 
         val density = context.resources.displayMetrics.density
@@ -516,7 +553,7 @@ object DailyForecastGraphRenderer {
             centerBarWidthPx = tripleBarWidth,
             flankBarWidthPx = tripleBarWidth,
             dayWidthPx = dayWidth,
-            columnEdgeMarginPx = (2f).dp(density),
+            columnEdgeMarginPx = COLUMN_EDGE_MARGIN_DP.dp(density),
         )
 
         if (dayLabelLayout.scale < 0.999f || dayLabelLayout.shortenedLabels) {
@@ -543,11 +580,11 @@ object DailyForecastGraphRenderer {
             tempLabelMaxWidthPx = dayWidth + (TEMP_LABEL_OVERLAP_ALLOWANCE_DP * labelScale).dp(density),
             horizontalPadding = horizontalPadding,
             tripleBarOffset = tripleBarOffset,
-            forecastBarOffset = barWidth * FORECAST_BAR_OFFSET_SCALE,
+            forecastBarOffset = barWidth * DailyBarRenderer.FORECAST_BAR_OFFSET_SCALE,
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,
             tempLabelHeight = tempLabelHeight,
-            bulbRadius = tripleBarWidth * BULB_RADIUS_SCALE,
+            bulbRadius = tripleBarWidth * DailyBarRenderer.BULB_RADIUS_SCALE,
             bitmapScale = bitmapScale,
             minBarHeightPx = (MIN_BAR_HEIGHT_DP).dp(density),
             dayLabelTextByDate = dayLabelLayout.textByDate,
@@ -571,19 +608,32 @@ object DailyForecastGraphRenderer {
         val shadowDy = (LABEL_SHADOW_DY_DP * labelScale).dp(layout.density)
 
         val set = PaintSet(
-            barPaint = createBarPaint(COLOR_FORECAST, barWidth),
-            todayObservedRedPaint = createBarPaint(COLOR_OBSERVED_RED, tripleBarWidth),
-            todayObservedGhostPaint = createBarPaint(COLOR_OBSERVED_RED, tripleBarWidth).apply { alpha = GHOST_BAR_ALPHA },
+            barPaint = createBarPaint(DailyBarRenderer.COLOR_FORECAST, barWidth),
+            todayObservedRedPaint = createBarPaint(DailyBarRenderer.COLOR_OBSERVED_RED, tripleBarWidth),
+            todayObservedGhostPaint = createBarPaint(DailyBarRenderer.COLOR_OBSERVED_RED, tripleBarWidth).apply {
+                alpha = DailyBarRenderer.GHOST_BAR_ALPHA
+            },
             todayObservedRedBulbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = COLOR_OBSERVED_RED
+                color = DailyBarRenderer.COLOR_OBSERVED_RED
                 style = Paint.Style.FILL
             },
-            todaySnapshotYellowPaint = createBarPaint(COLOR_TODAY_HIGHLIGHT, tripleBarWidth),
-            todayForecastBluePaint = createBarPaint(COLOR_FORECAST, tripleBarWidth),
-            historyBarPaint = createBarPaint(COLOR_OBSERVED_RED, barWidth * HISTORY_BAR_WIDTH_SCALE),
-            forecastBarPaint = createBarPaint(COLOR_FORECAST, barWidth * FORECAST_OVERLAY_WIDTH_SCALE),
-            climateOverlayBarPaint = createBarPaint(COLOR_FORECAST, barWidth * CLIMATE_OVERLAY_WIDTH_SCALE).apply { alpha = CLIMATE_OVERLAY_ALPHA },
-            gapFallbackBarPaint = createBarPaint(COLOR_GAP_FALLBACK, barWidth),
+            todaySnapshotYellowPaint = createBarPaint(DailyBarRenderer.COLOR_TODAY_HIGHLIGHT, tripleBarWidth),
+            todayForecastBluePaint = createBarPaint(DailyBarRenderer.COLOR_FORECAST, tripleBarWidth),
+            historyBarPaint = createBarPaint(
+                DailyBarRenderer.COLOR_OBSERVED_RED,
+                barWidth * DailyBarRenderer.HISTORY_BAR_WIDTH_SCALE,
+            ),
+            forecastBarPaint = createBarPaint(
+                DailyBarRenderer.COLOR_FORECAST,
+                barWidth * DailyBarRenderer.FORECAST_OVERLAY_WIDTH_SCALE,
+            ),
+            climateOverlayBarPaint = createBarPaint(
+                DailyBarRenderer.COLOR_FORECAST,
+                barWidth * DailyBarRenderer.CLIMATE_OVERLAY_WIDTH_SCALE,
+            ).apply {
+                alpha = DailyBarRenderer.CLIMATE_OVERLAY_ALPHA
+            },
+            gapFallbackBarPaint = createBarPaint(DailyBarRenderer.COLOR_GAP_FALLBACK, barWidth),
             textPaint = createTextPaint(
                 COLOR_LABEL_GRAY,
                 layout.dayLabelHeight / DAY_LABEL_SIZE_MULTIPLIER
@@ -599,11 +649,23 @@ object DailyForecastGraphRenderer {
             // History actuals (low label, and single high when not a dual-label mismatch) read as
             // the thermostat/observed color rather than plain white, matching the dual-high actual
             // label and today's settled-high recolor below.
-            pastTempTextPaint = createTextPaint(COLOR_OBSERVED_RED, layout.tempLabelHeight * PAST_TEMP_SCALE),
+            pastTempTextPaint = createTextPaint(
+                DailyBarRenderer.COLOR_OBSERVED_RED,
+                layout.tempLabelHeight * PAST_TEMP_SCALE,
+            ),
             // Today temp labels are NOT bold (matches desktop's default weight); they stand out via
             // the COLOR_TODAY_TEXT highlight + outline, not weight.
             todayTempTextPaint = createTextPaint(COLOR_TODAY_TEXT, layout.tempLabelHeight),
-            rainTextPaint = createTextPaint(COLOR_FORECAST, (RAIN_TEXT_SIZE_DP * scaleFactor * labelScale).dp(layout.density), shadowRadius = shadowRadius, shadowDy = shadowDy),
+            rainTextPaint = createTextPaint(
+                DailyBarRenderer.COLOR_FORECAST,
+                (RAIN_TEXT_SIZE_DP * scaleFactor * labelScale).dp(layout.density),
+                shadowRadius = shadowRadius,
+                shadowDy = shadowDy,
+            ),
+            todayPanelFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = TodayColumnHighlight.PANEL_FILL_ARGB
+            },
         )
 
         val newCache = PaintCache(scaleFactor, layout.dayLabelHeight, layout.tempLabelHeight, set)
@@ -631,59 +693,6 @@ object DailyForecastGraphRenderer {
         if (shadowRadius > 0f) {
             setShadowLayer(shadowRadius, 0f, shadowDy, 0xFF000000.toInt())
         }
-    }
-
-    private fun drawWeatherAdaptiveBar(
-        canvas: Canvas,
-        centerX: Float,
-        topY: Float,
-        bottomY: Float,
-        paint: Paint,
-        day: DayData,
-        logPrefix: String,
-        allowAdaptiveSegments: Boolean = true,
-    ) {
-        if (!allowAdaptiveSegments || !shouldUseAdaptiveSegments(day) || day.iconRes == null) {
-            canvas.drawLine(centerX, topY, centerX, bottomY, paint)
-            return
-        }
-
-        val split = WeatherConditionColors.resolveMixedBarSplit(day.iconRes, day.cloudCoverRatioOverride)
-        if (split == null) {
-            canvas.drawLine(centerX, topY, centerX, bottomY, paint)
-            return
-        }
-
-        val barHeight = bottomY - topY
-        if (barHeight <= 1f) {
-            canvas.drawLine(centerX, topY, centerX, bottomY, paint)
-            return
-        }
-
-        val topSegmentEndY = (topY + barHeight * split.topFraction).coerceIn(topY, bottomY)
-        val bottomPaint = Paint(paint).apply {
-            color = split.bottomColor
-            shader = null
-        }
-        val topPaint = Paint(paint).apply {
-            color = paint.color
-            shader = null
-        }
-
-        canvas.drawLine(centerX, topY, centerX, bottomY, bottomPaint)
-        if (abs(topSegmentEndY - topY) > 0.5f) {
-            canvas.drawLine(centerX, topY, centerX, topSegmentEndY, topPaint)
-        }
-
-        debug {
-            "$logPrefix mixed bar geometry: date=${day.date} centerX=$centerX topY=$topY bottomY=$bottomY height=${barHeight}" +
-                " splitRatio=${split.ratio} topFraction=${split.topFraction} topEndY=$topSegmentEndY" +
-                " topColor=${String.format("#%08X", split.topColor)} bottomColor=${String.format("#%08X", split.bottomColor)}"
-        }
-    }
-
-    private fun shouldUseAdaptiveSegments(day: DayData): Boolean {
-        return day.isMixed || (day.cloudCoverRatioOverride ?: 0f) > 0f
     }
 
     private fun drawDayColumn(
@@ -750,7 +759,8 @@ object DailyForecastGraphRenderer {
                     solidLow = day.solidLineLow,
                     nowHour = day.nowHour,
                 )
-                val lowColorOverride = if (todayLowSettled) COLOR_OBSERVED_RED else null
+                val lowColorOverride =
+                    if (todayLowSettled) DailyBarRenderer.COLOR_OBSERVED_RED else null
                 drawTempLabel(canvas, lowLabelText, centerX, lowTempY, tempPaint,
                     colorOverride = lowColorOverride, drawOutline = day.isPast,
                     maxWidthPx = layout.tempLabelMaxWidthPx)
@@ -778,180 +788,23 @@ object DailyForecastGraphRenderer {
     private fun drawWeatherIcon(canvas: Canvas, context: Context, day: DayData, centerX: Float, iconY: Float, iconSize: Int) {
         if (day.iconRes == null) return
         val drawable = androidx.core.content.ContextCompat.getDrawable(context, day.iconRes)?.mutate() ?: return
-        
+
         val iconX = centerX - iconSize / 2f
         drawable.setBounds(iconX.toInt(), iconY.toInt(), (iconX + iconSize).toInt(), (iconY + iconSize).toInt())
-        
+
+        // Tint palette intentionally diverges from DailyTextRenderer (file 1) and the hourly-graph
+        // icon tint (file 3): this icon sits over a coloured weather bar against the widget's
+        // surface, not against a text row or a temperature curve. The two-tone sunny/gray split
+        // keeps the rain/mixed icons full-colour (their drawable already encodes severity) while
+        // dimming the sun/cloud icons to match the muted	daily-bar palette. DailyTextRenderer
+        // uses WeatherIconMapper.resolveDailyTextIconTint (text-row palette, more contrast against
+        // zero-bar background); the hourly curve uses its own accent tint against the curve. Three
+        // contexts, three palettes — don't fold this into a shared helper.
         if (!day.isRainy && !day.isMixed) {
             val tint = if (day.isSunny) COLOR_SUNNY else COLOR_LABEL_GRAY
             drawable.setTint(tint)
         }
         drawable.draw(canvas)
-    }
-
-    /**
-     * Draws the frosted-glass focal panel behind the today column. Spans the three bars horizontally
-     * (centerX ± tripleBarOffset, plus a little padding, clamped inside the column) and the bar/icon/
-     * low-label area vertically (graphTop → just above the day label). Purely decorative — it changes
-     * no geometry, so the label-placement paths are untouched.
-     */
-    private fun drawTodayHighlightPanel(canvas: Canvas, centerX: Float, layout: LayoutInfo) {
-        val density = layout.density
-        val tripleBarWidth = todayTripleBarStrokeWidthPx(density, layout.scaleFactor, layout.bitmapScale)
-        val bounds = TodayColumnHighlight.panelBounds(
-            centerXPx = centerX,
-            tripleBarOffsetPx = layout.tripleBarOffset,
-            flankBarWidthPx = tripleBarWidth,
-            dayWidthPx = layout.dayWidth,
-            graphTopPx = layout.graphTop,
-            canvasHeightPx = layout.heightPx.toFloat(),
-            dayLabelBandPx = layout.dayLabelHeight,
-            horizontalPaddingPx = TodayColumnHighlight.PANEL_HORIZONTAL_PADDING_DP.dp(density),
-            topMarginPx = TodayColumnHighlight.PANEL_TOP_MARGIN_DP.dp(density),
-        )
-        val radius = TodayColumnHighlight.PANEL_CORNER_RADIUS_DP.dp(density)
-        val rect = RectF(bounds.left, bounds.top, bounds.right, bounds.bottom)
-
-        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            color = TodayColumnHighlight.PANEL_FILL_ARGB
-        }
-        canvas.drawRoundRect(rect, radius, radius, fillPaint)
-    }
-
-    private fun drawDayBars(
-        canvas: Canvas,
-        context: Context,
-        day: DayData,
-        centerX: Float,
-        layout: LayoutInfo,
-        paints: PaintSet,
-        onBarDrawn: ((BarDrawnDebug) -> Unit)?
-    ) {
-        val highY = day.solidLineHigh?.let { layout.tempToY(it) }
-        val lowY = day.solidLineLow?.let { layout.tempToY(it) }
-
-        if (day.isToday) {
-            drawTodayTripleBar(canvas, context, day, centerX, highY, lowY, layout, paints, onBarDrawn)
-        } else if (highY != null || lowY != null) {
-            val endpoints = resolveBarEndpoints(highY, lowY, layout.minBarHeightPx)
-            if (endpoints == null) {
-                Log.w(TAG, "drawDayBars: resolveBarEndpoints returned null despite non-null guard date=${day.date} highY=$highY lowY=$lowY")
-            } else {
-                val (hY, effectiveLowY) = endpoints
-                val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-                val paint = when {
-                    day.isPast -> paints.historyBarPaint
-                    day.isSourceGapFallback -> paints.gapFallbackBarPaint
-                    else -> paints.barForColor(condColor)
-                }
-
-                val usesAdaptiveSegments = !day.isPast && day.iconRes != null && shouldUseAdaptiveSegments(day)
-                debug {
-                    "Bar color decision: date=${day.date}" +
-                        " isPast=${day.isPast} isSunny=${day.isSunny} isRainy=${day.isRainy}" +
-                        " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
-                        " color=${String.format("#%08X", paint.color)} gradient=$usesAdaptiveSegments cloudRatioOverride=${day.cloudCoverRatioOverride}"
-                }
-                drawWeatherAdaptiveBar(
-                    canvas = canvas,
-                    centerX = centerX,
-                    topY = hY,
-                    bottomY = effectiveLowY,
-                    paint = paint,
-                    day = day,
-                    logPrefix = "primary",
-                    allowAdaptiveSegments = !day.isPast,
-                )
-                onBarDrawn?.invoke(BarDrawnDebug(day.date, if (day.isPast) "HISTORY" else "FUTURE", hY, effectiveLowY, centerX, paint.color))
-            }
-        }
-
-        if (!day.isToday && day.dashedLineHigh != null && day.dashedLineLow != null) {
-            val fHighY = layout.tempToY(day.dashedLineHigh)
-            val fLowY = layout.tempToY(day.dashedLineLow)
-            val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
-            
-            val forecastX = centerX + layout.forecastBarOffset
-            val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-            val overlayPaint = if (day.isClimateNormal) {
-                paints.climateOverlayForColor(condColor)
-            } else {
-                paints.forecastForColor(condColor)
-            }
-            val overlayGradient = day.iconRes != null && shouldUseAdaptiveSegments(day)
-            debug {
-                "Overlay color decision: date=${day.date}" +
-                    " isSunny=${day.isSunny} isRainy=${day.isRainy}" +
-                    " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
-                    " color=${String.format("#%08X", condColor)} gradient=$overlayGradient cloudRatioOverride=${day.cloudCoverRatioOverride}" +
-                    " isClimateNormal=${day.isClimateNormal}"
-            }
-            drawWeatherAdaptiveBar(
-                canvas = canvas,
-                centerX = forecastX,
-                topY = fHighY,
-                bottomY = effectiveFLowY,
-                paint = overlayPaint,
-                day = day,
-                logPrefix = "overlay",
-            )
-            onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", fHighY, effectiveFLowY, forecastX, overlayPaint.color))
-        }
-
-        if (day.solidLineHigh != null) {
-            val basePaint = when {
-                day.isToday -> paints.todayTempTextPaint
-                day.isPast -> paints.pastTempTextPaint
-                else -> paints.tempTextPaint
-            }
-            // History — and today once its high is settled (past the 5pm cutoff) — can label BOTH the
-            // actual (thermostat color) and the forecast (forecast-bar color) when the forecast missed
-            // by enough AND there's vertical room (DualHighLabel). The plan (shared with the rain-label
-            // resolvers) decides that and carries both baselines. Today's "actual" is the observed peak
-            // (effectiveHigh).
-            //
-            // Horizontal anchor: today centers BOTH high labels on the column (centerX), matching its
-            // single-high label. Today's forecast bar sits a full triple-bar step (tripleBarOffset) to
-            // the right of the observed thermostat, so labeling over that bar would stagger the two
-            // stacked numbers and read as misaligned; color already distinguishes forecast (gold) from
-            // actual (thermostat), so the bar association isn't needed. A past day's forecast overlay
-            // sits right beside its bar (small forecastBarOffset), so labeling over it stays aligned.
-            val plan = resolveHighLabelPlan(day, layout, paints)
-            if (plan != null && plan.showBoth && plan.forecastHigh != null && plan.forecastBaseline != null) {
-                // Dual highs render for past days and settled-today, so both labels are outlined.
-                val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-                val forecastLabelX = if (day.isToday) centerX else centerX + layout.forecastBarOffset
-                drawTempLabel(canvas, formatTempLabel(plan.actualHigh, useCelsius = layout.useCelsius), centerX, plan.actualBaseline, basePaint,
-                    extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE, colorOverride = COLOR_OBSERVED_RED, drawOutline = true,
-                    maxWidthPx = layout.tempLabelMaxWidthPx)
-                // The forecast shrinks (DUAL_FORECAST_FONT_SCALE) only when the plan found the two
-                // labels colliding at full size; otherwise it draws at the normal dual-label size.
-                drawTempLabel(canvas, formatTempLabel(plan.forecastHigh, useCelsius = layout.useCelsius), forecastLabelX, plan.forecastBaseline,
-                    basePaint, extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE * plan.forecastFontScale,
-                    colorOverride = condColor, drawOutline = true,
-                    maxWidthPx = layout.tempLabelMaxWidthPx)
-            } else {
-                val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
-                val highLabel = formatTempLabel(displayHigh, useCelsius = layout.useCelsius)
-                // The single label sits at the headline (effective) high — the plan's anchorBaseline
-                // when no dual label is shown.
-                val labelBaseline = plan?.anchorBaseline ?: run {
-                    Log.w(TAG, "drawDayBars: high label plan null despite non-null solidLineHigh date=${day.date}")
-                    val labelOffset = (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density)
-                    (highY ?: layout.graphTop) - labelOffset
-                }
-                // Once today's high is settled (past the 5pm cutoff) the single number tracks the
-                // observed actual — recolor it the thermostat (observed) color so it reads as a real
-                // reading, not a forecast. Mirrors effectiveHigh()'s own actual-vs-forecast branch.
-                val highColorOverride = if (plan?.todayHighSettled == true) COLOR_OBSERVED_RED else null
-                // History and today get the thin outline (today's headline sits over the triple bars);
-                // future days stay plain.
-                drawTempLabel(canvas, highLabel, centerX, labelBaseline, basePaint,
-                    colorOverride = highColorOverride, drawOutline = day.isPast || day.isToday,
-                    maxWidthPx = layout.tempLabelMaxWidthPx)
-            }
-        }
     }
 
     /**
@@ -961,6 +814,37 @@ object DailyForecastGraphRenderer {
      * When [drawOutline] is true (history labels), a thin black stroke is drawn behind the fill to keep
      * the label legible over a same-colored bar.
      */
+    internal fun drawTempLabel(
+        canvas: Canvas,
+        text: String,
+        centerX: Float,
+        baselineY: Float,
+        base: Paint,
+        extraScale: Float = 1f,
+        colorOverride: Int? = null,
+        drawOutline: Boolean = false,
+        maxWidthPx: Float = Float.MAX_VALUE,
+    ) {
+        // Start from the existing fixed wide-label step, then shrink-to-fit against the column width
+        // so 3+ digit / decimal temps (e.g. "77.7°") never spill their degree symbol into the next
+        // column on dense layouts. Keeps the ° and the tenths; only the font size adapts.
+        val scale = tempLabelDrawScale(base, text, extraScale, maxWidthPx)
+        val paint = if (colorOverride == null && scale == 1f) base else Paint(base).apply {
+            if (colorOverride != null) color = colorOverride
+            textSize = base.textSize * scale
+        }
+        if (drawOutline) {
+            val outlinePaint = Paint(paint).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = paint.textSize * LABEL_OUTLINE_STROKE_FRACTION
+                color = 0xFF000000.toInt()
+                clearShadowLayer()
+            }
+            canvas.drawText(text, centerX, baselineY, outlinePaint)
+        }
+        canvas.drawText(text, centerX, baselineY, paint)
+    }
+
     /**
      * Reduces [currentScale] just enough that a label measuring [measuredWidthAtScale] px fits
      * within [maxWidthPx], never going below [minScale]. Returns [currentScale] unchanged when the
@@ -992,254 +876,12 @@ object DailyForecastGraphRenderer {
         return fitScaleForWidth(measureTextWidth(base, text) * baseScale, maxWidthPx, baseScale)
     }
 
-    private fun drawTempLabel(
-        canvas: Canvas,
-        text: String,
-        centerX: Float,
-        baselineY: Float,
-        base: Paint,
-        extraScale: Float = 1f,
-        colorOverride: Int? = null,
-        drawOutline: Boolean = false,
-        maxWidthPx: Float = Float.MAX_VALUE,
-    ) {
-        // Start from the existing fixed wide-label step, then shrink-to-fit against the column width
-        // so 3+ digit / decimal temps (e.g. "77.7°") never spill their degree symbol into the next
-        // column on dense layouts. Keeps the ° and the tenths; only the font size adapts.
-        val scale = tempLabelDrawScale(base, text, extraScale, maxWidthPx)
-        val paint = if (colorOverride == null && scale == 1f) base else Paint(base).apply {
-            if (colorOverride != null) color = colorOverride
-            textSize = base.textSize * scale
-        }
-        if (drawOutline) {
-            val outlinePaint = Paint(paint).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = paint.textSize * LABEL_OUTLINE_STROKE_FRACTION
-                color = 0xFF000000.toInt()
-                clearShadowLayer()
-            }
-            canvas.drawText(text, centerX, baselineY, outlinePaint)
-        }
-        canvas.drawText(text, centerX, baselineY, paint)
-    }
-
-    private fun drawTodayTripleBar(
-        canvas: Canvas,
-        context: Context,
-        day: DayData,
-        centerX: Float,
-        highY: Float?,
-        lowY: Float?,
-        layout: LayoutInfo,
-        paints: PaintSet,
-        onBarDrawn: ((BarDrawnDebug) -> Unit)?
-    ) {
-        val (obsHighY, effectiveObsLowY) = resolveBarEndpoints(highY, lowY, layout.minBarHeightPx) ?: return
-
-        day.snapshotHigh?.let { sHigh ->
-            day.snapshotLow?.let { sLow ->
-                val sHighY = layout.tempToY(sHigh)
-                val sLowY = layout.tempToY(sLow)
-                val effectiveSLowY = clampMinBarHeight(sHighY, sLowY, layout.minBarHeightPx)
-                val snapshotX = centerX - layout.tripleBarOffset
-
-                val sIsSunny = day.snapshotIconRes?.let { WeatherIconMapper.isSunny(it) } ?: false
-                val sIsRainy = day.snapshotIconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false
-                val sIsMixed = day.snapshotIconRes?.let { WeatherIconMapper.isMixed(it) } ?: false
-
-                val sCondColor = com.weatherwidget.shared.util.WeatherColors.snapshotBarOverrideArgb(sIsRainy)
-                    ?: paints.todaySnapshotYellowPaint.color
-                val sPaint = paints.todayForecastForColor(sCondColor)
-
-                // The snapshot bar (yesterday's forecast for today) describes the same day as
-                // the live forecast bar, so it carries today's resolved cloud-cover ratio.
-                val snapshotDay = day.copy(
-                    iconRes = day.snapshotIconRes,
-                    isSunny = sIsSunny,
-                    isRainy = sIsRainy,
-                    isMixed = sIsMixed,
-                    cloudCoverRatioOverride = day.cloudCoverRatioOverride
-                        ?: day.snapshotIconRes?.let { WeatherConditionColors.cloudRatio(it) },
-                )
-
-                drawWeatherAdaptiveBar(
-                    canvas = canvas,
-                    centerX = snapshotX,
-                    topY = sHighY,
-                    bottomY = effectiveSLowY,
-                    paint = sPaint,
-                    day = snapshotDay,
-                    logPrefix = "today_snapshot",
-                    allowAdaptiveSegments = true
-                )
-                onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY_SNAPSHOT", sHighY, effectiveSLowY, snapshotX, sPaint.color, adaptiveSegments = true))
-            }
-        }
-
-        val fHigh = day.dashedLineHigh ?: day.solidLineHigh ?: return
-        val fLow = day.dashedLineLow ?: day.solidLineLow ?: return
-        val fHighY = layout.tempToY(fHigh)
-        val fLowY = layout.tempToY(fLow)
-        val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
-
-        val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-        val forecastPaint = paints.todayForecastForColor(condColor)
-        // Today's live forecast sits RIGHT of the thermostat.
-        val todayForecastX = centerX + layout.tripleBarOffset
-        drawWeatherAdaptiveBar(
-            canvas = canvas,
-            centerX = todayForecastX,
-            topY = fHighY,
-            bottomY = effectiveFLowY,
-            paint = forecastPaint,
-            day = day,
-            logPrefix = "today_forecast",
-        )
-        onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY_FORECAST", fHighY, effectiveFLowY, todayForecastX, forecastPaint.color))
-
-        canvas.drawLine(centerX, obsHighY, centerX, effectiveObsLowY, paints.todayObservedRedPaint)
-        canvas.drawCircle(centerX, effectiveObsLowY + (layout.bulbRadius * BULB_VERTICAL_CENTER_FRACTION), layout.bulbRadius, paints.todayObservedRedBulbPaint)
-        
-        day.ghostLineHigh?.let { trueHigh ->
-            val obsHighTemp = day.solidLineHigh ?: 0f
-            if (trueHigh > obsHighTemp) {
-                val ghostHighY = layout.tempToY(trueHigh)
-                canvas.drawLine(centerX, ghostHighY, centerX, obsHighY, paints.todayObservedGhostPaint)
-                onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY_GHOST", ghostHighY, obsHighY, centerX, paints.todayObservedGhostPaint.color))
-            }
-        }
-        
-        onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", obsHighY, effectiveObsLowY, centerX, paints.todayObservedRedPaint.color))
-    }
-
     // ── Baseline resolvers (shared by bars and rain labels) ────────────────
-
-    /**
-     * The high label(s) a column draws, and the anchor the daily rain % rides above. A past day (or
-     * settled-today) can print BOTH the observed actual high and the forecast high (DualHighLabel);
-     * when it does, the two labels sit at different heights and the rain % must clear the TOPMOST
-     * (warmer) of the two — anchoring only to the actual wedges the % between them (see the "yesterday
-     * 15%" report). Single-label days anchor to the headline effective high. Shared by [drawDayBars]
-     * and the rain-label resolvers so the dual-high decision is made in exactly one place.
-     */
-    internal data class HighLabelPlan(
-        val showBoth: Boolean,
-        val todayHighSettled: Boolean,
-        /** Observed-actual (or headline) high, drawn at column center. */
-        val actualHigh: Float,
-        /** Forecast high, drawn offset to the side — only when [showBoth]. */
-        val forecastHigh: Float?,
-        val actualBaseline: Float,
-        val forecastBaseline: Float?,
-        /**
-         * Extra scale for the forecast label: [DualHighLabel.DUAL_FORECAST_FONT_SCALE] only when the
-         * two labels would collide at full size, else 1f (the shrink is collision-only by request).
-         */
-        val forecastFontScale: Float,
-        /** Warmer of the drawn highs (== [actualHigh] when single) — the value the rain % sits above. */
-        val anchorHigh: Float,
-        /** Topmost drawn high-label baseline — the rain %'s vertical anchor. */
-        val anchorBaseline: Float,
-    )
-
-    internal fun resolveHighLabelPlan(
-        day: DayData,
-        layout: LayoutInfo,
-        paints: PaintSet,
-    ): HighLabelPlan? {
-        day.solidLineHigh ?: return null
-        val effective = day.effectiveHigh() ?: return null
-        val labelOffset = (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density)
-        val basePaint = when {
-            day.isToday -> paints.todayTempTextPaint
-            day.isPast -> paints.pastTempTextPaint
-            else -> paints.tempTextPaint
-        }
-        val todayHighSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isHighTrackingActual(
-            isToday = day.isToday,
-            solidHigh = day.solidLineHigh,
-            ghostHigh = day.ghostLineHigh,
-            nowHour = day.nowHour,
-        )
-        // actualHigh == effective in every case (past: solid == effective; today: actual IS effective),
-        // so the actual label baseline is always the headline (effective) baseline.
-        val actualHigh = effective
-        val effectiveBaseline = layout.tempToY(effective) - labelOffset
-        val forecastHigh = if (day.isPast || todayHighSettled) day.dashedLineHigh else null
-        // Two labels this close together (the gap IS the forecast miss, so a 2° miss is only a couple
-        // of label-heights on a compressed graph) collide at their natural above-the-bar positions.
-        // Move each away from the other before the room test, so the test measures what is drawn.
-        // Digits have no descender, so a label's bottom edge is effectively its baseline.
-        val offsets = forecastHigh?.let {
-            DualHighLabel.bottomOffsetsDp(actualHigh, it, normalGapDp = HIGH_LABEL_OFFSET_DP)
-        }
-        val offsetScale = layout.bitmapScale.coerceAtMost(1f)
-        fun offsetPx(dp: Float) = (dp * offsetScale).dp(layout.density)
-        val nudgedActualBaseline = offsets?.let { layout.tempToY(effective) + offsetPx(it.actualDp) }
-            ?: effectiveBaseline
-        val forecastBaseline = forecastHigh?.let { layout.tempToY(it) + offsetPx(offsets!!.forecastDp) }
-        // Label height for the room test; fontMetrics is null under stubbed-Paint unit tests, so fall
-        // back to textSize there. Only needed when a forecast label is in play. This is the FULL
-        // (unshrunk) dual-label size — both the room test and the collision test below measure the
-        // labels at the size they'd draw before any collision shrink.
-        val twoLabelHeight = (basePaint.fontMetrics?.let { it.descent - it.ascent } ?: basePaint.textSize) *
-            DualHighLabel.TWO_LABEL_FONT_SCALE
-        val showBoth = forecastHigh != null && forecastBaseline != null &&
-            DualHighLabel.showBoth(actualHigh, forecastHigh, nudgedActualBaseline, forecastBaseline, twoLabelHeight)
-        // Shrink the forecast label only when it sits BELOW the actual and the two boxes would
-        // collide at full size; a well-separated (or upper) forecast keeps the normal dual-label
-        // font. Baselines are the labels' bottom edges (digits have no descenders) and don't move
-        // with font size (bottom-pinned), so the full-size test needs no re-measure.
-        val forecastFontScale = if (showBoth && forecastBaseline != null)
-            DualHighLabel.forecastFontScale(nudgedActualBaseline, forecastBaseline, twoLabelHeight)
-        else 1f
-        // The nudge only applies when two labels actually render; a lone high label keeps its true
-        // above-the-bar position.
-        val actualBaseline = if (showBoth) nudgedActualBaseline else effectiveBaseline
-        val anchorHigh = if (showBoth && forecastHigh != null) maxOf(actualHigh, forecastHigh) else effective
-        val anchorBaseline = if (showBoth && forecastBaseline != null) minOf(actualBaseline, forecastBaseline) else actualBaseline
-        return HighLabelPlan(
-            showBoth = showBoth,
-            todayHighSettled = todayHighSettled,
-            actualHigh = actualHigh,
-            forecastHigh = forecastHigh,
-            actualBaseline = actualBaseline,
-            forecastBaseline = forecastBaseline,
-            forecastFontScale = forecastFontScale,
-            anchorHigh = anchorHigh,
-            anchorBaseline = anchorBaseline,
-        )
-    }
-
-    internal fun resolveHighLabelBaseline(
-        day: DayData,
-        layout: LayoutInfo,
-        paints: PaintSet,
-    ): Float? = resolveHighLabelPlan(day, layout, paints)?.anchorBaseline
-
-    /**
-     * The fit-to-width font scale the anchored high-temp label is actually drawn at. The rain label
-     * multiplies the full-size temp metrics by this so it anchors to that label's *rendered* top, not
-     * its full-size top — otherwise a shrunk wide temp (e.g. dual-label "75.6°" in a narrow column)
-     * leaves a large gap above the high. Uses the topmost (anchor) high's text so a dual-label day
-     * measures the label the rain actually sits above. The 2% dual-label shrink is immaterial next to
-     * the fit factor, so we pass extraScale = 1.
-     */
-    internal fun resolveHighLabelDrawScale(
-        day: DayData,
-        layout: LayoutInfo,
-        paints: PaintSet,
-    ): Float {
-        val anchorHigh = resolveHighLabelPlan(day, layout, paints)?.anchorHigh
-            ?: day.effectiveHigh() ?: day.solidLineHigh ?: return 1f
-        val highText = formatTempLabel(anchorHigh, useCelsius = layout.useCelsius)
-        val tempPaint = when {
-            day.isToday -> paints.todayTempTextPaint
-            day.isPast -> paints.pastTempTextPaint
-            else -> paints.tempTextPaint
-        }
-        return tempLabelDrawScale(tempPaint, highText, extraScale = 1f, maxWidthPx = layout.tempLabelMaxWidthPx)
-    }
+    //
+    // HIGH-label resolution lives in DailyHighLabelPlanner (resolveHighLabelPlan /
+    // resolveHighLabelBaseline / resolveHighLabelDrawScale / DayData.effectiveHigh()) — extracted as
+    // split A of plans/260728b-dailyforecastgraphrenderer-code-review.md so the dense dual-high math
+    // is one cohesive unit, callable from the bar drawer here AND from DailyForecastRainLabelRenderer.
 
     internal fun resolveLowLabelBaseline(
         day: DayData,
@@ -1362,33 +1004,25 @@ object DailyForecastGraphRenderer {
         density: Float,
         scaleFactor: Float = 1f,
         bitmapScale: Float = 1f,
-    ): Float {
-        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
-        return (FORECAST_BAR_WIDTH_DP * scaleFactor * labelScale).dp(density)
-    }
+    ): Float = DailyBarRenderer.dailyBarStrokeWidthPx(density, scaleFactor, bitmapScale)
 
     @VisibleForTesting
     internal fun todayTripleBarStrokeWidthPx(
         density: Float,
         scaleFactor: Float = 1f,
         bitmapScale: Float = 1f,
-    ): Float {
-        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
-        return (TODAY_TRIPLE_BAR_WIDTH_DP * scaleFactor * labelScale).dp(density)
-    }
-
-    private fun clampMinBarHeight(highY: Float, lowY: Float, minBarHeight: Float): Float =
-        if (abs(highY - lowY) < minBarHeight) highY + minBarHeight else lowY
-
-    private fun resolveBarEndpoints(highY: Float?, lowY: Float?, minBarHeight: Float): Pair<Float, Float>? {
-        val hY = highY ?: (lowY?.let { it - minBarHeight }) ?: return null
-        val lY = lowY ?: (hY + minBarHeight)
-        return hY to clampMinBarHeight(hY, lY, minBarHeight)
-    }
+    ): Float = DailyBarRenderer.todayTripleBarStrokeWidthPx(density, scaleFactor, bitmapScale)
 
     // Show the tenth (e.g. "77.5°") for any non-integer value, suppressing the ".0" case
     // so whole-degree sources (NWS integer forecasts) stay clean. forceInteger overrides
     // this for the low label when a night-rain label sits alongside it (collision avoidance).
+    //
+    // Two formatting paths on purpose: the non-integer branch reuses TempUtils.formatTemp so the
+    // rounding rules (banker's rounding for .5, locale-aware minus sign) stay shared with the rest
+    // of the app. The integer branch is a hand-rolled `roundToInt() + "°"` because formatTemp
+    // currently doesn't take a force-integer flag — adding one would touch every caller, so a
+    // local fast path is cheaper until/unless a second caller needs it. If a second force-integer
+    // caller shows up, lift this into TempUtils.formatTemp instead of duplicating again.
     internal fun formatTempLabel(value: Float, forceInteger: Boolean = false, useCelsius: Boolean): String {
         val displayVal = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(value) else value
         if (forceInteger) return "${displayVal.roundToInt()}°"
