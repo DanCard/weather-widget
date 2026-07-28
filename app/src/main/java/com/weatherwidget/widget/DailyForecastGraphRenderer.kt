@@ -7,6 +7,7 @@ import android.graphics.*
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.BuildConfig
+import com.weatherwidget.widget.handlers.CloudCoverDiagnosticRow
 import com.weatherwidget.widget.handlers.HeaderConstants
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.TodayColumnHighlight
@@ -176,7 +177,7 @@ object DailyForecastGraphRenderer {
     )
 
     data class DayData(
-        val date: LocalDate,
+        override val date: LocalDate,
         val label: String,
         val solidLineHigh: Float?,
         val solidLineLow: Float?,
@@ -198,11 +199,11 @@ object DailyForecastGraphRenderer {
         val snapshotLow: Float? = null,
         val snapshotIconRes: Int? = null,
         val ghostLineHigh: Float? = null,
-        val cloudCoverRatioOverride: Float? = null,
-        val daysFromToday: Int = 0,
+        override val cloudCoverRatioOverride: Float? = null,
+        override val daysFromToday: Int = 0,
         /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
         val nowHour: Int? = null,
-    )
+    ) : CloudCoverDiagnosticRow
 
     private fun DayData.effectiveHigh(): Float? =
         com.weatherwidget.shared.util.DailyDayValueResolver.effectiveHighForLabel(

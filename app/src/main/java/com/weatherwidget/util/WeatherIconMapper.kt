@@ -129,4 +129,19 @@ object WeatherIconMapper {
     fun isMixed(iconRes: Int): Boolean = iconRes in MIXED_ICONS
 
     fun isCloudForecastEligible(iconRes: Int): Boolean = iconRes in CLOUD_FORECAST_ELIGIBLE_ICONS
+
+    /**
+     * Tint decision for a daily text-mode icon cell. Returns the color resource id to apply
+     * via `RemoteViews.setInt(..., "setColorFilter", color)`, or null to clear the filter
+     * (used for precipitation/mixed icons that should display their natural colors).
+     *
+     * Centralized here so the predicate→color mapping lives next to the predicates
+     * themselves rather than being re-derived at each call site.
+     */
+    fun resolveDailyTextIconTint(iconRes: Int): Int? =
+        if (!isPrecipitation(iconRes) && !isMixed(iconRes)) {
+            if (isSunny(iconRes)) R.color.sunny_yellow else R.color.weather_icon_tint_default
+        } else {
+            null
+        }
 }

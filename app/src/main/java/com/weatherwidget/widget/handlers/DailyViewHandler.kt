@@ -33,7 +33,6 @@ import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.DailyActualMap
 import com.weatherwidget.widget.DailyActualsBySource
-import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -54,8 +53,6 @@ import java.util.Locale
 object DailyViewHandler : WidgetViewHandler {
     private const val TAG = "DailyViewHandler"
     private const val CELL_HEIGHT_DP = 90
-    private const val DELTA_VISIBILITY_THRESHOLD = DailyHeaderBinder.DELTA_VISIBILITY_THRESHOLD
-    private const val DELTA_COLOR_HEX = "#FF6B35"
     // Extra vertical space (dp) added to widget height before dividing by cell height,
     // accounts for header and padding so the row count rounds more accurately.
     private const val GRAPH_HEIGHT_PADDING_DP = 25f
@@ -63,20 +60,13 @@ object DailyViewHandler : WidgetViewHandler {
     // 2.2 (not 2.0) because the header consumes ~0.2 rows of vertical space,
     // so a 2-row widget needs slightly more than 2.0 to have room for the graph.
     private const val GRAPH_ROW_THRESHOLD = 2.2f
-    private const val GRAPH_CONTENT_PADDING_DP = 24
-    private const val TEXT_MODE_ROOT_LEFT_PADDING_DP = 2
-    private const val TEXT_MODE_ROOT_TOP_PADDING_DP = 0
-    private const val TEXT_MODE_ROOT_RIGHT_PADDING_DP = 8
-    private const val TEXT_MODE_ROOT_BOTTOM_PADDING_DP = 0
-    private const val TEXT_MODE_CONTENT_RIGHT_PADDING_DP = 18
-    private const val HEADER_ICON_TINT = 0xAAFFFFFF.toInt()
     private const val NAV_BUTTON_PADDING_DP = 10
     // Only probe for incomplete-history backfill when the visible window is recent enough that
     // NWS observation history can still serve it. Older days are beyond the fetch horizon.
     private const val HISTORY_BACKFILL_VISIBLE_DAYS = 3L
     // Log tags for diagnostic database entries
     private const val LOG_TAG_WIDGET_ACTUAL = "WIDGET_ACTUAL"
-    internal const val LOG_TAG_TODAY_BAR_DEBUG = "TODAY_BAR_DEBUG"
+    internal const val LOG_TAG_TODAY_BAR_DEBUG = DailyTextRenderer.LOG_TAG_TODAY_BAR_DEBUG
     internal const val LOG_TAG_TODAY_HIGH_PROVENANCE = "TODAY_HIGH_PROVENANCE"
     private const val LOG_TAG_DAILY_RENDER = "DAILY_RENDER"
     private const val LOG_TAG_DAILY_RENDER_EMPTY = "DAILY_RENDER_EMPTY"
@@ -111,15 +101,6 @@ object DailyViewHandler : WidgetViewHandler {
         val isIconWidth: Boolean,
         val sunInfo: SunInfo,
         val database: WeatherDatabase,
-    )
-
-    private data class DayIds(
-        val container: Int,
-        val label: Int,
-        val icon: Int,
-        val high: Int,
-        val low: Int,
-        val rain: Int,
     )
 
     override fun canHandle(
@@ -271,23 +252,34 @@ object DailyViewHandler : WidgetViewHandler {
                             items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null }
                                 ?: preferred
                         } else {
-                            preferred ?: items.first()
+                            // Prefer a complete preferred row; otherwise a complete Climate Normal row;
+                            // otherwise the preferred (even if incomplete). Avoids items.first() which
+                            // is non-deterministic when multiple rows share the same source.
+                            preferred
+                                ?: items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null }
+                                ?: items.firstOrNull()
                         }
                     } else {
                         // History / today / +1 / +2: real display-source only, never GENERIC_GAP filler.
                         // (Today's incomplete-source recovery lives in DailyViewLogic / DailyActualsEstimator.)
                         preferred
                     }
-                    chosen?.let { date to it } ?: run {
-                        Log.d(TAG, "weatherByDate: dropping date=$date (no renderable source, allowGapFallback=$allowGapFallback, items=${items.map { it.source }})")
-                        null
+                    chosen?.let { date to it }
+                }.also { result ->
+                    val dropped = weatherList.size - result.size
+                    if (dropped > 0) {
+                        Log.i(
+                            TAG,
+                            "weatherByDate: dropped=$dropped entries (kept=${result.size}/${weatherList.size}, " +
+                                "displaySource=${displaySource.id})",
+                        )
                     }
                 }
                 .toMap()
 
         val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
 
-        val headerResolution = resolveAndBindHeader(
+        val headerResolution = DailyHeaderResolver.resolveAndBind(
             context = context,
             views = views,
             displaySource = displaySource,
@@ -307,6 +299,7 @@ object DailyViewHandler : WidgetViewHandler {
             useGraph = useGraph,
             smoothedForecasts = smoothedForecasts,
             sunInfo = sunInfo,
+            headerDateFormatter = headerDateFormatter,
         )
 
         val currentTemp = headerResolution.state.currentTemp
@@ -402,7 +395,7 @@ object DailyViewHandler : WidgetViewHandler {
             prepareMs = metrics.prepareMs
             renderMs = metrics.renderMs
         } else {
-            val visibleDaysInfo = renderTextMode(ctx)
+            val visibleDaysInfo = DailyTextRenderer.render(ctx)
             val textTodayWeather = ctx.weatherByDate[today]
             val textTodayHasSnapshot = ctx.forecastSnapshots[today]
                 ?.any { it.source == ctx.displaySource.id && it.highTemp != null && it.lowTemp != null }
@@ -584,7 +577,7 @@ object DailyViewHandler : WidgetViewHandler {
         skipYesterday: Boolean,
         centerDate: LocalDate,
         visibleDates: List<LocalDate>,
-        cloudDays: List<DailyForecastGraphRenderer.DayData>? = null,
+        cloudDays: List<CloudCoverDiagnosticRow>? = null,
         hourlyForecasts: List<HourlyForecastEntity>? = null,
     ) {
         val mode = if (useGraph) "GRAPH" else "TEXT"
@@ -609,7 +602,7 @@ object DailyViewHandler : WidgetViewHandler {
      * the display source so a window/coverage gap is visible from app_logs alone.
      */
     internal fun buildCloudCoverDiagnostic(
-        cloudDays: List<DailyForecastGraphRenderer.DayData>,
+        cloudDays: List<CloudCoverDiagnosticRow>,
         hourlyForecasts: List<HourlyForecastEntity>?,
         displaySource: WeatherSource,
     ): String {
@@ -661,7 +654,8 @@ object DailyViewHandler : WidgetViewHandler {
         val maxDate = sortedDates.lastOrNull()
 
         // Use the offset captured at the start of this update cycle (not a fresh prefs read) so
-        // the nav bounds match the day window actually being rendered.
+        // the nav bounds match the day window actually being rendered. One (left, right) pair
+        // per direction instead of two single-edge calls.
         val (leftmost, _) = NavigationUtils.getVisibleDateRange(today, dateOffset - 1, numColumns, skipYesterday)
         val (_, rightmost) = NavigationUtils.getVisibleDateRange(today, dateOffset + 1, numColumns, skipYesterday)
 
@@ -746,124 +740,6 @@ object DailyViewHandler : WidgetViewHandler {
         views.setOnClickPendingIntent(zoneId, pendingIntent)
     }
 
-    private fun updateTextMode(
-        ctx: DailyRenderContext,
-    ): List<DailyViewLogic.TextDayData> {
-        val textCols = ctx.numColumns.coerceAtLeast(1)
-        val dayDataList = DailyViewLogic.prepareTextDays(
-            ctx.now, ctx.centerDate, ctx.today, ctx.weatherByDate, ctx.forecastSnapshots, ctx.hourlyForecasts, textCols,
-            ctx.displaySource, ctx.skipHistory, ctx.stateManager, ctx.appWidgetId, ctx.precipProb, ctx.dailyActuals,
-            ctx.climateNormals,
-            ctx.currentTemps,
-            currentTemp = ctx.currentTemp,
-            observedAt = ctx.observedAt,
-            todayLabel = ctx.context.getString(R.string.today)
-        )
-
-        val dayIds = listOf(
-            DayIds(R.id.day1_container, R.id.day1_label, R.id.day1_icon, R.id.day1_high, R.id.day1_low, R.id.day1_rain),
-            DayIds(R.id.day2_container, R.id.day2_label, R.id.day2_icon, R.id.day2_high, R.id.day2_low, R.id.day2_rain),
-            DayIds(R.id.day3_container, R.id.day3_label, R.id.day3_icon, R.id.day3_high, R.id.day3_low, R.id.day3_rain),
-            DayIds(R.id.day4_container, R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low, R.id.day4_rain),
-            DayIds(R.id.day5_container, R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low, R.id.day5_rain),
-            DayIds(R.id.day6_container, R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low, R.id.day6_rain),
-            DayIds(R.id.day7_container, R.id.day7_label, R.id.day7_icon, R.id.day7_high, R.id.day7_low, R.id.day7_rain),
-            DayIds(R.id.day8_container, R.id.day8_label, R.id.day8_icon, R.id.day8_high, R.id.day8_low, R.id.day8_rain),
-        )
-        check(dayDataList.size <= dayIds.size) { "dayDataList has ${dayDataList.size} items but only ${dayIds.size} DayIds available" }
-
-        dayDataList.forEachIndexed { index, data ->
-            val ids = dayIds[index]
-            if (data.isVisible) {
-                ctx.views.setViewVisibility(ids.container, View.VISIBLE)
-                populateDay(ctx.context, ctx.views, ctx.now, ids, data, ctx.hourlyForecasts, ctx.displaySource)
-            } else {
-                ctx.views.setViewVisibility(ids.container, View.GONE)
-            }
-        }
-
-        if (dayDataList.any { it.isToday && it.rainSummary != null }) {
-            ctx.stateManager.markRainShown(ctx.appWidgetId, ctx.today.format(DateTimeFormatter.ISO_LOCAL_DATE))
-        }
-
-        return dayDataList.filter { it.isVisible }
-    }
-
-    private fun populateDay(
-        context: Context, views: RemoteViews, now: LocalDateTime,
-        ids: DayIds, data: DailyViewLogic.TextDayData,
-        hourlyForecasts: List<HourlyForecastEntity>, displaySource: WeatherSource
-    ) {
-        views.setTextViewText(ids.label, data.label)
-        views.setViewVisibility(ids.label, if (data.showLabel) View.VISIBLE else View.GONE)
-        
-        val iconRes = data.iconRes
-        views.setImageViewResource(ids.icon, iconRes)
-
-        if (!WeatherIconMapper.isPrecipitation(iconRes) && !WeatherIconMapper.isMixed(iconRes)) {
-            val tintColor = if (WeatherIconMapper.isSunny(iconRes)) {
-                context.getColor(R.color.sunny_yellow)
-            } else {
-                context.getColor(R.color.weather_icon_tint_default)
-            }
-            views.setInt(ids.icon, "setColorFilter", tintColor)
-        } else {
-            // Clear tint to show natural colors (e.g. blue raindrops)
-            views.setInt(ids.icon, "setColorFilter", 0)
-        }
-
-        views.setViewVisibility(ids.icon, View.VISIBLE)
-        views.setTextViewText(ids.high, data.highLabel ?: "--°")
-        views.setTextViewText(ids.low, data.lowLabel ?: "--°")
-
-        if (data.showRain && !data.rainSummary.isNullOrEmpty()) {
-            views.setTextViewText(ids.rain, data.rainSummary)
-            views.setViewVisibility(ids.rain, View.VISIBLE)
-        } else {
-            views.setViewVisibility(ids.rain, View.GONE)
-        }
-    }
-
-    private suspend fun renderTextMode(
-        ctx: DailyRenderContext,
-    ): List<DailyViewLogic.TextDayData> {
-        DailyVisibilityManager.setTextModeViews(ctx.views)
-
-        val textCols = ctx.numColumns.coerceAtLeast(1)
-        val rootRightPaddingDp = if (ctx.isIconWidth) TEXT_MODE_ROOT_LEFT_PADDING_DP else TEXT_MODE_ROOT_RIGHT_PADDING_DP
-        val contentRightPaddingDp = if (ctx.isIconWidth) 0 else TEXT_MODE_CONTENT_RIGHT_PADDING_DP
-        ctx.views.setViewPadding(
-            R.id.widget_root,
-            WidgetSizeCalculator.dpToPx(ctx.context, TEXT_MODE_ROOT_LEFT_PADDING_DP),
-            WidgetSizeCalculator.dpToPx(ctx.context, TEXT_MODE_ROOT_TOP_PADDING_DP),
-            WidgetSizeCalculator.dpToPx(ctx.context, rootRightPaddingDp),
-            WidgetSizeCalculator.dpToPx(ctx.context, TEXT_MODE_ROOT_BOTTOM_PADDING_DP),
-        )
-        val rightPaddingPx = WidgetSizeCalculator.dpToPx(ctx.context, contentRightPaddingDp)
-        ctx.views.setViewPadding(R.id.text_container, 0, 0, rightPaddingPx, 0)
-
-        val visibleDaysInfo = updateTextMode(ctx)
-
-        visibleDaysInfo.find { it.isToday }?.let { todayDay ->
-            Log.v(TAG, "$LOG_TAG_TODAY_BAR_DEBUG widget=${ctx.appWidgetId} mode=TEXT high=${todayDay.highLabel} low=${todayDay.lowLabel} " +
-                "fallback=${todayDay.isTodayForecastFallback}")
-        }
-
-        logDailyRenderSummary(
-            appLogDao = ctx.appLogDao,
-            appWidgetId = ctx.appWidgetId,
-            dateOffset = ctx.dateOffset,
-            displaySource = ctx.displaySource,
-            numColumns = ctx.numColumns,
-            numRows = ctx.numRows,
-            useGraph = false,
-            skipYesterday = ctx.skipYesterday,
-            centerDate = ctx.centerDate,
-            visibleDates = visibleDaysInfo.map { it.date },
-        )
-        return visibleDaysInfo
-    }
-
     internal data class RenderMetrics(
         val prepareMs: Long,
         val renderMs: Long,
@@ -877,6 +753,7 @@ object DailyViewHandler : WidgetViewHandler {
         val observedTemp: Float?,
         val appliedDelta: Float?,
         val deltaVisible: Boolean,
+        val deltaText: String?,
         val precipProb: Int?,
         val isPrecipVisible: Boolean,
         val precipTextSizeDp: Float?,
@@ -886,323 +763,4 @@ object DailyViewHandler : WidgetViewHandler {
         val headerScale: Float,
         val resolveMs: Long,
     )
-
-    private data class HeaderResolution(
-        val state: HeaderState,
-        val precipPlacement: DailyHeaderBinder.HeaderPrecipPlacement,
-    )
-
-    private fun resolveAndBindHeader(
-        context: Context,
-        views: RemoteViews,
-        displaySource: WeatherSource,
-        now: LocalDateTime,
-        lat: Double,
-        lon: Double,
-        weatherByDate: Map<LocalDate, ForecastEntity>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        currentTempHourlyForecasts: List<HourlyForecastEntity>,
-        lastObservedTemp: Float?,
-        observedAt: Long?,
-        dimensions: WidgetDimensions,
-        stateManager: WidgetStateManager,
-        appWidgetId: Int,
-        numColumns: Int,
-        numRows: Int,
-        useGraph: Boolean,
-        smoothedForecasts: Map<Long, Float>?,
-        sunInfo: SunInfo,
-    ): HeaderResolution {
-        val resolution = resolveHeaderState(
-            context = context,
-            displaySource = displaySource,
-            now = now,
-            lat = lat,
-            lon = lon,
-            weatherByDate = weatherByDate,
-            hourlyForecasts = hourlyForecasts,
-            currentTempHourlyForecasts = currentTempHourlyForecasts,
-            lastObservedTemp = lastObservedTemp,
-            observedAt = observedAt,
-            dimensions = dimensions,
-            stateManager = stateManager,
-            appWidgetId = appWidgetId,
-            numColumns = numColumns,
-            numRows = numRows,
-            useGraph = useGraph,
-            smoothedForecasts = smoothedForecasts,
-            sunInfo = sunInfo,
-        )
-        bindHeaderState(
-            context = context,
-            views = views,
-            state = resolution.state,
-            precipPlacement = resolution.precipPlacement,
-            useGraph = useGraph,
-            isIconWidth = dimensions.isIconWidth,
-        )
-        return resolution
-    }
-
-    private fun resolveHeaderState(
-        context: Context,
-        displaySource: WeatherSource,
-        now: LocalDateTime,
-        lat: Double,
-        lon: Double,
-        weatherByDate: Map<LocalDate, ForecastEntity>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        currentTempHourlyForecasts: List<HourlyForecastEntity>,
-        lastObservedTemp: Float?,
-        observedAt: Long?,
-        dimensions: WidgetDimensions,
-        stateManager: WidgetStateManager,
-        appWidgetId: Int,
-        numColumns: Int,
-        numRows: Int,
-        useGraph: Boolean,
-        smoothedForecasts: Map<Long, Float>?,
-        sunInfo: SunInfo,
-    ): HeaderResolution {
-        val today = now.toLocalDate()
-        val isIconWidth = dimensions.isIconWidth
-
-        val todayHeaderForecast = DailyHeaderBinder.resolveTodayHeaderForecast(
-            now = now,
-            hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
-        )
-        val iconRes =
-            if (todayHeaderForecast != null) {
-                WeatherIconMapper.getIconResource(
-                    condition = todayHeaderForecast.condition,
-                    isNight = sunInfo.isNight,
-                    cloudCover = todayHeaderForecast.cloudCover,
-                    precipProbability = todayHeaderForecast.precipProbability,
-                )
-            } else {
-                DailyForecastIconResolver.resolveIcon(
-                    weather = weatherByDate[today],
-                    targetDate = today,
-                    now = now,
-                    latitude = lat,
-                    longitude = lon,
-                )
-            }
-
-        val (currentTempResolution, resolveMs) =
-            CurrentTempResolutionHelper.resolveAndPersistDelta(
-                now = now,
-                displaySource = displaySource,
-                hourlyForecasts = currentTempHourlyForecasts.ifEmpty { hourlyForecasts },
-                lastObservedTemp = lastObservedTemp,
-                observedAt = observedAt,
-                stateManager = stateManager,
-                appWidgetId = appWidgetId,
-                lat = lat,
-                lon = lon,
-                smoothedForecasts = smoothedForecasts,
-            )
-        val currentTemp = currentTempResolution.displayTemp
-
-        val formattedTemp =
-            currentTemp?.let {
-                CurrentTemperatureResolver.formatDisplayTemperature(
-                    temp = it,
-                    numColumns = numColumns,
-                    isStaleEstimate = currentTempResolution.isStaleEstimate,
-                    useCelsius = stateManager.useCelsius(),
-                )
-            }
-
-        val todayWeather = weatherByDate[today]
-        val precipProb =
-            HeaderPrecipCalculator.getNext8HourPrecipProbability(
-                hourlyForecasts = hourlyForecasts,
-                displaySource = displaySource,
-                fallbackDailyProbability = todayWeather?.precipProbability,
-                referenceTime = now,
-            )
-        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(precipProb)
-        val isNightPrecip = precipProb != null && HeaderPrecipCalculator.isNext8HourPrecipPredominantlyNight(
-            hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
-            referenceTime = now,
-            sunriseHour = sunInfo.sunTimes.sunriseHour,
-            sunsetHour = sunInfo.sunTimes.sunsetHour,
-        )
-        val precipTextSizeDp = if (precipProb != null) {
-            HeaderPrecipCalculator.getPrecipTextSize(precipProb) *
-                if (isNightPrecip) HeaderPrecipCalculator.NIGHT_SCALE else 1f
-        } else null
-
-        val delta = currentTempResolution.appliedDelta
-        val deltaVisible =
-            currentTemp != null &&
-            delta != null &&
-            abs(delta) >= DELTA_VISIBILITY_THRESHOLD
-
-        // Pick API label
-        val apiSourceText = displaySource.shortDisplayName
-        val apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows)
-        val deltaTextForFit = if (deltaVisible) String.format("%+.1f", delta) else null
-        val precipTextForFit = if (isPrecipVisible) "${precipProb}%" else null
-        
-        val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
-            context = context,
-            widthDp = dimensions.widthDp,
-            apiSourceText = apiSourceText,
-            apiTextSizeDp = apiTextSizeDp,
-            currentTempText = formattedTemp,
-            deltaText = deltaTextForFit,
-            precipText = precipTextForFit,
-            precipTextSizeDp = precipTextSizeDp,
-        )
-
-        val headerScale = HeaderWidthChecker.computeHeaderScale(
-            context = context,
-            widthDp = dimensions.widthDp,
-            apiSourceText = apiSourceText,
-            apiTextSizeDp = apiTextSizeDp,
-            currentTempText = formattedTemp,
-            deltaText = deltaTextForFit,
-            precipText = precipTextForFit,
-            precipTextSizeDp = precipTextSizeDp,
-        )
-
-        val widthDpForPrecip = dimensions.widthDp - GRAPH_CONTENT_PADDING_DP
-        val dateText = if (numColumns >= HeaderConstants.DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
-        val headerPrecipPlacement = DailyHeaderBinder.resolveHeaderPrecipPlacement(
-            context = context,
-            widthDp = widthDpForPrecip,
-            numColumns = numColumns,
-            currentTempText = formattedTemp,
-            deltaText = if (deltaVisible && disclosure.showsDelta()) String.format("%+.1f", delta) else null,
-            precipText = if (isPrecipVisible) "$precipProb%" else null,
-            precipTextSizeDp = precipTextSizeDp,
-            apiSourceText = apiSourceText,
-            apiTextSizeDp = apiTextSizeDp,
-            dateText = dateText,
-            headerCanShowPrecip = disclosure.showsPrecip(),
-            includeIcon = disclosure.showsIcon(),
-        )
-
-        val headerState = HeaderState(
-            iconRes = iconRes,
-            currentTemp = currentTemp,
-            formattedTemp = formattedTemp,
-            estimatedTemp = currentTempResolution.estimatedTemp,
-            observedTemp = currentTempResolution.observedTemp,
-            appliedDelta = delta,
-            deltaVisible = deltaVisible,
-            precipProb = precipProb,
-            isPrecipVisible = isPrecipVisible,
-            precipTextSizeDp = precipTextSizeDp,
-            apiSourceText = apiSourceText,
-            apiTextSizeDp = apiTextSizeDp,
-            disclosure = disclosure,
-            headerScale = headerScale,
-            resolveMs = resolveMs,
-        )
-        return HeaderResolution(headerState, headerPrecipPlacement)
-    }
-
-    private fun bindHeaderState(
-        context: Context,
-        views: RemoteViews,
-        state: HeaderState,
-        precipPlacement: DailyHeaderBinder.HeaderPrecipPlacement,
-        useGraph: Boolean,
-        isIconWidth: Boolean,
-    ) {
-
-        // Set initial API source indicator (overwritten later once dual-source fit is decided)
-        views.setTextViewText(R.id.api_source, state.apiSourceText)
-        views.setTextViewText(R.id.text_mode_api_source, state.apiSourceText)
-
-        if (useGraph) {
-            views.setImageViewResource(R.id.weather_icon, state.iconRes)
-            views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
-            views.setViewVisibility(R.id.current_weather_container, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.weather_icon, View.GONE)
-            views.setViewVisibility(R.id.current_weather_container, View.GONE)
-        }
-
-        views.setViewVisibility(R.id.header_date_center, View.GONE)
-        views.setViewVisibility(R.id.header_date_right, View.GONE)
-
-        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, state.isPrecipVisible)
-
-        // Bind header elements with proper scale
-        HeaderRemoteViewsBinder.bindApiSource(
-            context = context,
-            views = views,
-            sourceText = state.apiSourceText,
-            textSizeDp = state.apiTextSizeDp,
-            scale = state.headerScale,
-        )
-
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.weather_icon,
-            iconRes = state.iconRes,
-            sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
-            scale = state.headerScale,
-        )
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.settings_icon,
-            iconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
-            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
-            scale = state.headerScale,
-            tintColor = HEADER_ICON_TINT
-        )
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.text_mode_settings_icon,
-            iconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
-            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
-            scale = state.headerScale,
-            tintColor = HEADER_ICON_TINT
-        )
-        HeaderRemoteViewsBinder.bindCurrentTemp(
-            context = context,
-            views = views,
-            formattedTemp = state.formattedTemp,
-            hideDeltaOnNull = true,
-            scale = state.headerScale
-        )
-        HeaderRemoteViewsBinder.bindPrecipProbability(
-            context = context,
-            views = views,
-            precipText = if (state.isPrecipVisible) "${state.precipProb ?: 0}%" else null,
-            textSizeDp = state.precipTextSizeDp ?: 0f,
-            scale = state.headerScale,
-        )
-        HeaderRemoteViewsBinder.bindDelta(
-            context = context,
-            views = views,
-            deltaText = if (state.deltaVisible) {
-                val displayDelta = state.appliedDelta?.let { if (WidgetStateManager(context).useCelsius()) it / 1.8f else it }
-                if (displayDelta != null) String.format("%+.1f", displayDelta) else null
-            } else null,
-            deltaVisible = state.deltaVisible,
-            scale = state.headerScale,
-        )
-
-        if (useGraph && state.disclosure != HeaderDisclosureLevel.NONE) {
-            HeaderRemoteViewsBinder.applyDisclosure(
-                views,
-                state.disclosure,
-                isDeltaVisible = state.deltaVisible,
-                isPrecipVisible = state.isPrecipVisible,
-            )
-        } else if (useGraph) {
-            views.setViewVisibility(R.id.current_weather_container, View.GONE)
-        }
-    }
 }

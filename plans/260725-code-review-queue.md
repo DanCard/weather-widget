@@ -2,6 +2,12 @@
 
 Generated from metrics gathered on 2026-07-25.
 
+## Progress Tracking
+
+Reviews are processed top-down within each priority tier. Mark each row's Status as
+`✓ done`, `▸ in progress`, or `–` (pending) so a resumed session can pick up where it
+left off. Findings + fixes for each file are summarized in the commit that closes them.
+
 ## Scoring Method
 
 Each file scored on 4 axes (0-3 each), summed for a total risk score (max 12):
@@ -15,17 +21,17 @@ Each file scored on 4 axes (0-3 each), summed for a total risk score (max 12):
 
 ## Priority 1 — Critical (score ≥ 9)
 
-| Score | File | Lines | Churn | Branches | Tests | Notes |
-|-------|------|-------|-------|----------|-------|-------|
-| **11** | `app/.../widget/handlers/DailyViewHandler.kt` | 1211 | 187 | 107 | ✅ | Highest churn + very large + complex |
-| **11** | `app/.../widget/WeatherWidgetProvider.kt` | 1256 | 187 | 145 | ✅ | Entry point, high churn, very complex |
-| **11** | `app/.../widget/TemperatureGraphRenderer.kt` | 1010 | 159 | 133 | ✅ | High churn, complex rendering |
-| **10** | `app/.../widget/DailyForecastGraphRenderer.kt` | 1396 | 138 | 171 | ✅ | Very large, complex rendering |
-| **10** | `app/.../widget/handlers/WidgetIntentRouter.kt` | 1234 | 107 | 134 | ✅ | Large, high churn, complex routing |
-| **10** | `app/.../data/repository/ForecastRepository.kt` | 1406 | 89 | 239 | ✅ | Largest file, highest branch count |
-| **9** | `app/.../widget/WeatherWidgetWorker.kt` | 936 | 103 | 108 | ❌ | No tests, high churn, large |
-| **9** | `app/.../widget/PrecipitationGraphRenderer.kt` | 931 | 96 | — | ✅ | Large, high churn |
-| **9** | `app/.../widget/handlers/PrecipViewHandler.kt` | 658 | 101 | — | ✅ | High churn |
+| Status | Score | File | Lines | Churn | Branches | Tests | Notes |
+|--------|-------|------|-------|-------|----------|-------|-------|
+| ✓ done | **11** | `app/.../widget/handlers/DailyViewHandler.kt` | 1211 | 187 | 107 | ✅ | Highest churn + very large + complex. Addressed in 7 findings (F1-F7); file shrunk to 766 lines via DailyHeaderResolver + DailyTextRenderer extraction. |
+| – | **11** | `app/.../widget/WeatherWidgetProvider.kt` | 1256 | 187 | 145 | ✅ | Entry point, high churn, very complex |
+| – | **11** | `app/.../widget/TemperatureGraphRenderer.kt` | 1010 | 159 | 133 | ✅ | High churn, complex rendering |
+| – | **10** | `app/.../widget/DailyForecastGraphRenderer.kt` | 1396 | 138 | 171 | ✅ | Very large, complex rendering |
+| – | **10** | `app/.../widget/handlers/WidgetIntentRouter.kt` | 1234 | 107 | 134 | ✅ | Large, high churn, complex routing |
+| – | **10** | `app/.../data/repository/ForecastRepository.kt` | 1406 | 89 | 239 | ✅ | Largest file, highest branch count |
+| – | **9** | `app/.../widget/WeatherWidgetWorker.kt` | 936 | 103 | 108 | ❌ | No tests, high churn, large |
+| – | **9** | `app/.../widget/PrecipitationGraphRenderer.kt` | 931 | 96 | — | ✅ | Large, high churn |
+| – | **9** | `app/.../widget/handlers/PrecipViewHandler.kt` | 658 | 101 | — | ✅ | High churn |
 
 ## Priority 2 — High (score 7-8)
 
