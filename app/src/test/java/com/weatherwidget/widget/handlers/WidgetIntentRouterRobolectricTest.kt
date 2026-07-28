@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.DailyActualsLoader
 import com.weatherwidget.widget.ZoomLevel
 import com.weatherwidget.widget.handlers.CurrentTempResolver
 import com.weatherwidget.widget.handlers.GraphDataLoader
@@ -267,7 +268,7 @@ class WidgetIntentRouterRobolectricTest {
     }
 
     @Test
-    fun `getDailyActuals uses live today actuals instead of persisted today extremes`() = runTest {
+    fun `DailyActualsLoader uses live today actuals instead of persisted today extremes`() = runTest {
         val db = TestDatabase.create()
         try {
             val today = LocalDate.now()
@@ -319,7 +320,7 @@ class WidgetIntentRouterRobolectricTest {
                 ),
             )
 
-            val result = WidgetIntentRouter.getDailyActuals(db, lat, lon)
+            val result = DailyActualsLoader.load(db, lat, lon)
             val actual = result[WeatherSource.NWS.id]?.get(today)
 
             assertNotNull("Expected live NWS actual for today", actual)

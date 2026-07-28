@@ -37,6 +37,8 @@ class HourlyProximityQueryAllowlistTest {
         "HourlyForecastDao.kt" to "the DAO itself",
         "GraphDataLoader.kt" to "the sanctioned chokepoint (sameSite filter / stitcher / unifyToNearestSite)",
         "WidgetIntentRouter.kt" to "all call sites wrapped in unifyToNearestSite (2026-07-10)",
+        "DailyActualsLoader.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
+        "SourceStalenessProbe.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
         "WeatherWidgetProvider.kt" to "loadStartupData raw rows are unified downstream by WidgetRenderer",
         "ForecastRepository.kt" to "write-path dedup legitimately needs raw per-site rows",
         "CurrentTempRepository.kt" to "pre-existing; audit before touching (current-temp windows)",
