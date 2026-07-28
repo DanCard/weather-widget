@@ -2,7 +2,7 @@
 #
 # Auth: fastlane/Appfile -> fastlane/play-store-api-key.json (gitignored service account).
 #
-# versionCode workflow: bump versionCode (and versionName) in app/build.gradle.kts before every
+# versionCode workflow: bump versionCode and set versionName to match (e.g. versionCode = 26072701, versionName = "26072701") in app/build.gradle.kts before every
 # upload — Play rejects a reused versionCode. `beta`/`production` fail fast if the versionCode
 # already exists on any track.
 

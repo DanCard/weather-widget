@@ -1,0 +1,1 @@
+Open beta release: Fixed widget layout state initialization and locale-aware date headers, optimized renderer performance by eliminating redundant database and SharedPreferences reads during navigation, improved cleanup on widget deletion, and modularized daily view handlers.

@@ -97,6 +97,8 @@ fastlane/play-store-api-key.json
 window_dump.xml
 
 # JVM attach-pid files written when jps/jcmd/jstack attaches to a running Gradle daemon
-.attach_pid*
+# Hidden directories
+.*/
 
 *.db
+
