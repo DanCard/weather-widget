@@ -47,7 +47,10 @@ class DesktopUiTest {
     private val stubConfig = DesktopConfig(
         lat = 37.4220,
         lon = -122.0841,
-        label = "Mountain View"
+        label = "Mountain View",
+        // Keep temperature assertions independent of the JVM's process locale. CI may expose a
+        // language-only locale (for example "en"), whose intentional application default is °C.
+        useCelsius = false,
     )
 
     @Test

@@ -114,6 +114,20 @@ internal fun dayClickConfig(
     )
 }
 
+/**
+ * Persists the latest Settings draft when a close request beats the idle auto-save timer.
+ * Keeping this decision pure makes title-bar and Escape handling independently testable.
+ */
+internal fun flushSettingsDraft(
+    persistedConfig: DesktopConfig?,
+    draft: DesktopConfig?,
+    onSave: (DesktopConfig) -> Unit,
+) {
+    draft
+        ?.takeIf { it != persistedConfig }
+        ?.let(onSave)
+}
+
 fun main(args: Array<String>) {
     // Surface shared-module diagnostics on the console (default JulSink drops DEBUG). First thing so
     // even startup logging from :shared is visible.
@@ -187,6 +201,7 @@ private fun runApp() = application {
         }
         var pickerVisible by remember { mutableStateOf(config == null) }
         var settingsVisible by remember { mutableStateOf(false) }
+        var settingsDraft by remember { mutableStateOf<DesktopConfig?>(null) }
         var statsVisible by remember { mutableStateOf(false) }
         var historyVisible by remember { mutableStateOf(false) }
         var observationsVisible by remember { mutableStateOf(false) }
@@ -286,7 +301,14 @@ private fun runApp() = application {
                     val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
                     java.nio.file.Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
                 }
+                Unit
             }
+        }
+
+        fun closeSettings() {
+            flushSettingsDraft(config, settingsDraft, saveConfigAndNotify)
+            settingsDraft = null
+            settingsVisible = false
         }
 
         // On-demand deep-history pull: fired by WidgetPopup when the hourly graph is zoomed/panned
@@ -706,13 +728,13 @@ private fun runApp() = application {
                 height = 700.dp,
             )
             Window(
-                onCloseRequest = { settingsVisible = false },
+                onCloseRequest = { closeSettings() },
                 state = settingsState,
                 title = "Weather Settings",
                 icon = appIcon,
                 onKeyEvent = { keyEvent ->
                     if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
-                        settingsVisible = false
+                        closeSettings()
                         true
                     } else {
                         false
@@ -721,9 +743,13 @@ private fun runApp() = application {
             ) {
                 SettingsWindow(
                     config = config!!, // guarded by `config != null` in outer if
-                    onClose = { settingsVisible = false },
+                    onClose = { closeSettings() },
                     onSave = { newConfig ->
                         saveConfigAndNotify(newConfig)
+                        settingsDraft = null
+                    },
+                    onDraftChanged = { draft ->
+                        settingsDraft = draft.takeIf { it != config }
                     },
                     onExit = { quit() },
                     onUpdateLocation = {
@@ -830,6 +856,7 @@ private fun runApp() = application {
                         saveConfigAndNotify(newConfig)
                     },
                     onOpenSettings = {
+                        settingsDraft = null
                         settingsVisible = true
                     },
                     onOpenObservations = {

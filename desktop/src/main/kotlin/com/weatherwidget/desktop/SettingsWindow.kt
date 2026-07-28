@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import androidx.compose.foundation.Image
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,6 +35,9 @@ import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.WeatherSourceDescriptions
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 
+/** Phase 5: default auto-save kicks in this many ms after the last edit if the window stays open. */
+private const val DEFAULT_AUTO_SAVE_DELAY_MS = 5_000L
+
 @Composable
 internal fun SettingsWindow(
     config: DesktopConfig,
@@ -51,11 +55,43 @@ internal fun SettingsWindow(
     // Phase 4 item 5: Bug Report MVP. Main.kt wires this to a mailto: launcher; default no-op so
     // existing tests / preview paths keep working unchanged.
     onSubmitBugReport: () -> Unit = {},
+    // Phase 5: auto-save delay in ms after the last edit. Tests pass a short value; production
+    // uses the 5s default.
+    autoSaveDelayMs: Long = DEFAULT_AUTO_SAVE_DELAY_MS,
+    // Keeps the owning Window aware of the latest draft so title-bar close and Escape can flush
+    // changes made less than [autoSaveDelayMs] ago.
+    onDraftChanged: (DesktopConfig) -> Unit = {},
 ) {
-    var currentConfig by remember { mutableStateOf(config) }
+    var currentConfig by remember(config) { mutableStateOf(config) }
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    fun updateConfig(updated: DesktopConfig) {
+        currentConfig = updated
+        onDraftChanged(updated)
+    }
+
+    // `config` is the latest persisted snapshot supplied by Main. It changes after either an
+    // explicit save or auto-save, which clears the dirty marker without closing the window.
+    val isDirty = currentConfig != config
+
+    // Re-launch on either a new draft or a newly persisted baseline. A baseline update cancels any
+    // stale timer, while a flurry of edits keeps resetting the five-second idle window.
+    LaunchedEffect(currentConfig, config) {
+        if (!isDirty) return@LaunchedEffect
+        delay(autoSaveDelayMs)
+        if (currentConfig != config) {
+            onSave(currentConfig)
+        }
+    }
+
+    // Used by both the back arrow and the Save button so an explicit click always flushes
+    // before closing, regardless of the auto-save timer.
+    val saveAndClose: () -> Unit = {
+        if (isDirty) onSave(currentConfig)
+        onClose()
+    }
 
     MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -66,7 +102,9 @@ internal fun SettingsWindow(
                         modifier = Modifier.fillMaxWidth().padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onClose) {
+                        // Phase 5: back arrow flushes dirty edits before closing so users who
+                        // click "back" don't lose unsaved changes.
+                        IconButton(onClick = saveAndClose) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                         Text(
@@ -108,12 +146,35 @@ internal fun SettingsWindow(
                             .verticalScroll(scrollState)
                             .padding(16.dp)
                     ) {
-                        // API Sources
-                        SettingsCard(title = "API Sources") {
+                        // Units — Android keeps this high-use display preference directly below
+                        // the Settings header.
+                        SettingsCard(title = "Units") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Use Celsius",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Switch(
+                                    checked = currentConfig.useCelsius,
+                                    onCheckedChange = { isChecked ->
+                                        updateConfig(currentConfig.copy(useCelsius = isChecked))
+                                    },
+                                    modifier = Modifier.testTag("use_celsius_switch")
+                                )
+                            }
+                        }
+
+                        // Weather Data Sources -- title matches Android's
+                        // R.string.api_sources_title = "Weather Data Sources".
+                        SettingsCard(title = "Weather Data Sources") {
                             ApiSourcesList(
                                 visibleSources = currentConfig.visibleSources,
                                 onChanged = { newSources ->
-                                    currentConfig = currentConfig.copy(visibleSources = newSources)
+                                    updateConfig(currentConfig.copy(visibleSources = newSources))
                                 },
                                 onMustKeepOne = {
                                     // Phase 4 item 3: Android shows a toast; Snackbar is the
@@ -132,7 +193,7 @@ internal fun SettingsWindow(
                             PersonalStationDiscount(
                                 discountPercent = currentConfig.personalStationDiscount,
                                 onChanged = { newPercent ->
-                                    currentConfig = currentConfig.copy(personalStationDiscount = newPercent)
+                                    updateConfig(currentConfig.copy(personalStationDiscount = newPercent))
                                 }
                             )
                         }
@@ -142,7 +203,7 @@ internal fun SettingsWindow(
                             ApiKeysList(
                                 apiKeys = currentConfig.apiKeys,
                                 onChanged = { newKeys ->
-                                    currentConfig = currentConfig.copy(apiKeys = newKeys)
+                                    updateConfig(currentConfig.copy(apiKeys = newKeys))
                                 }
                             )
                         }
@@ -189,27 +250,6 @@ internal fun SettingsWindow(
                             }
                         }
 
-                        // Units
-                        SettingsCard(title = "Units") {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Use Celsius",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Switch(
-                                    checked = currentConfig.useCelsius,
-                                    onCheckedChange = { isChecked ->
-                                        currentConfig = currentConfig.copy(useCelsius = isChecked)
-                                    },
-                                    modifier = Modifier.testTag("use_celsius_switch")
-                                )
-                            }
-                        }
-
                         // Diagnostics / Observations
                         SettingsCard(title = "Diagnostics") {
                             SecondaryActionButton(
@@ -248,11 +288,8 @@ internal fun SettingsWindow(
                             modifier = Modifier.testTag("exit_app"),
                         )
                         PrimaryActionButton(
-                            text = "Save",
-                            onClick = {
-                                onSave(currentConfig)
-                                onClose()
-                            },
+                            text = if (isDirty) "Save •" else "Save",
+                            onClick = saveAndClose,
                             modifier = Modifier.testTag("save_settings"),
                         )
                     }

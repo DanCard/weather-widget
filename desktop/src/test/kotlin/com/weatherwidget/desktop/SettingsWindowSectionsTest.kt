@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import com.weatherwidget.test.category.LongDuration
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertTrue
 import org.junit.experimental.categories.Category
 
 /**
@@ -45,9 +46,36 @@ class SettingsWindowSectionsTest {
         composeTestRule.waitForIdle()
 
         // The 8 sections that became SettingsCard titles. Each must render exactly once.
-        listOf("API Sources", "Personal Weather Stations", "API Keys", "Icon Gallery", "Location", "Units", "Diagnostics", "Feedback").forEach { title ->
+        // Phase 5: "API Sources" was renamed to "Weather Data Sources" to match Android's
+        // strings.xml R.string.api_sources_title = "Weather Data Sources".
+        listOf("Units", "Weather Data Sources", "Personal Weather Stations", "API Keys", "Icon Gallery", "Location", "Diagnostics", "Feedback").forEach { title ->
             composeTestRule.onAllNodesWithText(title).assertCountEquals(1)
         }
+    }
+
+    @Test
+    fun unitsSectionPrecedesWeatherSources_likeAndroid() {
+        composeTestRule.setContent {
+            SettingsWindow(
+                config = sampleConfig,
+                onClose = {},
+                onSave = {},
+                onExit = {},
+            )
+        }
+        composeTestRule.waitForIdle()
+
+        val unitsTop = composeTestRule.onNodeWithText("Units").fetchSemanticsNode().boundsInRoot.top
+        val sourcesTop = composeTestRule
+            .onNodeWithText("Weather Data Sources")
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+
+        assertTrue(
+            "Units should be the first Settings section, matching Android",
+            unitsTop < sourcesTop,
+        )
     }
 
     @Test
@@ -84,7 +112,7 @@ class SettingsWindowSectionsTest {
         composeTestRule.waitForIdle()
 
         // Body-interior content that lived inside the now-card-wrapped sections. Use assertExists
-        // for items below the scroll fold (Units, Diagnostics, Feedback) so the test is independent
+        // for items below the scroll fold (Diagnostics and Feedback) so the test is independent
         // of the window's pixel height vs. the form's natural length.
         composeTestRule.onNodeWithText("Use Celsius").assertExists()
         composeTestRule.onNodeWithText("Change Location").assertExists()
