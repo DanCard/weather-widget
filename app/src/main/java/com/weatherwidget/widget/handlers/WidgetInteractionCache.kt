@@ -3,6 +3,9 @@ package com.weatherwidget.widget.handlers
 import android.os.SystemClock
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.widget.DailyActualsBySource
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Short-lived cache for the two heaviest, location-keyed loads on the widget interaction path:
@@ -10,13 +13,13 @@ import com.weatherwidget.widget.DailyActualsBySource
  * builds ~1k candidate points — ~150-350ms each).
  *
  * Both are keyed on `(lat, lon, today)`, NOT on the widget, so a burst of taps across several widget
- * instances — or repeated taps on one widget faster than a repaint completes — can share a single
- * load instead of re-querying per tap. On a 5-widget device this is what turned a ~500ms paint into
+ * instances — or repeated taps on one widget faster than a repaint completes — share a single load
+ * instead of re-querying per tap. On a 5-widget device this is what turned a ~500ms paint into
  * a ~1.4s handler under contention (see TEMP_ACTUALS_PERF / *_SLOW app_logs).
  *
- * Scope is deliberately the interaction path only ([WidgetIntentRouter.refreshDailyView] and the
- * daily-nav bounds check). The background/worker paint uses a different path (WidgetRenderer) and is
- * untouched, so a stale entry can never leak into a scheduled/fetch-driven repaint.
+ * Scope is deliberately the interaction path only ([DailyInteractionRenderer]). The
+ * background/worker paint uses a different path (WidgetRenderer) and is untouched, so a stale entry
+ * can never leak into a scheduled/fetch-driven repaint.
  *
  * A [TTL_MS] of 2s is imperceptible staleness during active tapping and self-heals immediately after
  * — the next interaction >2s later reloads fresh, and any real data fetch repaints via the worker
@@ -46,25 +49,52 @@ internal object WidgetInteractionCache {
         val dailyActuals: DailyActualsBySource,
     )
 
-    private class Entry(val key: Key, val data: Data, val storedAtElapsedMs: Long)
+    private class Entry(val data: Data, val storedAtElapsedMs: Long)
 
-    @Volatile private var entry: Entry? = null
+    private val entries = ConcurrentHashMap<Key, Entry>()
+    private val loadMutexes = ConcurrentHashMap<Key, Mutex>()
 
     /** Returns cached [Data] for [key] if present and within [TTL_MS] of [nowElapsedMs], else null. */
     fun get(key: Key, nowElapsedMs: Long): Data? {
-        val e = entry ?: return null
-        if (e.key != key) return null
-        if (nowElapsedMs - e.storedAtElapsedMs > TTL_MS) return null
+        val e = entries[key] ?: return null
+        if (nowElapsedMs - e.storedAtElapsedMs > TTL_MS) {
+            entries.remove(key, e)
+            return null
+        }
         return e.data
     }
 
     fun put(key: Key, data: Data, nowElapsedMs: Long) {
-        entry = Entry(key, data, nowElapsedMs)
+        entries[key] = Entry(data, nowElapsedMs)
+    }
+
+    /**
+     * Returns a fresh cached value or performs exactly one load for [key]. Concurrent callers for
+     * the same key await the same critical section; unrelated locations use unrelated mutexes.
+     *
+     * The completion clock is read after [loader] returns, so a slow database aggregation does not
+     * consume the short cache lifetime while it is still running.
+     */
+    suspend fun getOrLoad(
+        key: Key,
+        nowElapsedMs: () -> Long = ::nowMs,
+        loader: suspend () -> Data,
+    ): Data {
+        get(key, nowElapsedMs())?.let { return it }
+
+        val mutex = loadMutexes.computeIfAbsent(key) { Mutex() }
+        return mutex.withLock {
+            get(key, nowElapsedMs())?.let { return@withLock it }
+            loader().also { loaded ->
+                put(key, loaded, nowElapsedMs())
+            }
+        }
     }
 
     /** Drops any cached entry. Not required for correctness (TTL bounds staleness); used by tests. */
     fun clear() {
-        entry = null
+        entries.clear()
+        loadMutexes.clear()
     }
 
     fun nowMs(): Long = SystemClock.elapsedRealtime()

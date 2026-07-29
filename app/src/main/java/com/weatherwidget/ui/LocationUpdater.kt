@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
+import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.CandidateLocation
 import com.weatherwidget.widget.CandidateProposal
 import com.weatherwidget.widget.HandoffLocation
@@ -67,6 +68,9 @@ object LocationUpdater {
     private data class EffectiveLocation(val lat: Double, val lon: Double, val isWidgetLocation: Boolean)
 
     private fun effectiveLocation(context: Context): EffectiveLocation {
+        ActiveLocationResolver.current(context)?.let { (lat, lon) ->
+            return EffectiveLocation(lat, lon, isWidgetLocation = true)
+        }
         val ids = getWidgetIds(context)
         if (ids.isNotEmpty()) {
             WidgetStateManager(context).getWidgetLocation(ids[0])?.let { (lat, lon) ->
@@ -151,9 +155,26 @@ object LocationUpdater {
         label: String,
         ids: IntArray = getWidgetIds(context),
     ) {
+        applyActiveLocationToAllWidgets(context, lat, lon, label, ids)
+    }
+
+    /**
+     * Enforces the app-wide active-location invariant for widget-add and Settings flows. The worker,
+     * GPS handoff, and startup renderer all operate on one active site, so allowing widget setup to
+     * write only one ID would create preferences the rest of the application cannot honor.
+     */
+    internal fun applyActiveLocationToAllWidgets(
+        context: Context,
+        lat: Double,
+        lon: Double,
+        label: String?,
+        ids: IntArray = getWidgetIds(context),
+    ) {
         LocationHandoffStore.clear(context)
         writeActiveLocation(context, lat, lon, ids)
-        recordHistoricalPoi(context, lat, lon, label)
+        if (label != null) {
+            recordHistoricalPoi(context, lat, lon, label)
+        }
         enqueueForceRefresh(context)
     }
 
@@ -167,7 +188,8 @@ object LocationUpdater {
         ids: IntArray = getWidgetIds(context),
     ): CandidateProposal {
         val stateManager = WidgetStateManager(context)
-        val active = ids.toList().firstNotNullOfOrNull(stateManager::getWidgetLocation)
+        val active = ActiveLocationResolver.current(context)
+            ?: ids.toList().firstNotNullOfOrNull(stateManager::getWidgetLocation)
             ?: (WeatherWidgetWorker.DEFAULT_LAT to WeatherWidgetWorker.DEFAULT_LON)
         val proposal = LocationHandoffStore.propose(
             context = context,
@@ -196,15 +218,11 @@ object LocationUpdater {
         lon: Double,
         ids: IntArray,
     ) {
-        val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        val editor = widgetPrefs.edit()
-        for (id in ids) {
-            editor.putFloat("${ConfigActivity.KEY_LAT_PREFIX}$id", lat.toFloat())
-            editor.putFloat("${ConfigActivity.KEY_LON_PREFIX}$id", lon.toFloat())
-        }
+        ActiveLocationResolver.persist(context, lat, lon)
+        val stateManager = WidgetStateManager(context)
         // Promotion clears the candidate immediately afterward. Persist active coordinates first
         // so a process death cannot leave neither durable active nor candidate state.
-        editor.commit()
+        stateManager.setWidgetLocations(ids, lat, lon)
     }
 
     private fun recordHistoricalPoi(context: Context, lat: Double, lon: Double, label: String) {

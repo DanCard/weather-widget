@@ -51,12 +51,12 @@ object RefreshScheduler {
 
     @VisibleForTesting
     internal fun buildRefreshScheduleDecision(
-        latestFetchedAt: Long?,
+        latestSuccessfulOrContentAtMs: Long?,
         nowMs: Long,
         reason: String,
         lastEnqueueForReasonMs: Long?,
     ): RefreshScheduleDecision {
-        if (!BatteryFetchStrategy.shouldRefreshStaleData(latestFetchedAt, nowMs)) {
+        if (!BatteryFetchStrategy.shouldRefreshStaleData(latestSuccessfulOrContentAtMs, nowMs)) {
             return RefreshScheduleDecision(
                 shouldEnqueue = false,
                 policy = ExistingWorkPolicy.KEEP,
@@ -138,7 +138,7 @@ object RefreshScheduler {
 
     suspend fun refreshIfStale(
         context: Context,
-        latestFetchedAt: Long?,
+        latestSuccessfulOrContentAtMs: Long?,
         reason: String,
         appLogDao: AppLogDao? = null,
     ) {
@@ -150,7 +150,7 @@ object RefreshScheduler {
         val prefs = context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE)
         val lastEnqueueMs = prefs.getLong("last_enqueue_$staleReason", -1L).takeIf { it >= 0L }
         val decision = buildRefreshScheduleDecision(
-            latestFetchedAt = latestFetchedAt,
+            latestSuccessfulOrContentAtMs = latestSuccessfulOrContentAtMs,
             nowMs = nowMs,
             reason = staleReason,
             lastEnqueueForReasonMs = lastEnqueueMs,
@@ -164,7 +164,7 @@ object RefreshScheduler {
             }
             return
         }
-        val ageMin = (nowMs - (latestFetchedAt ?: 0L)) / 1000 / 60
+        val ageMin = (nowMs - (latestSuccessfulOrContentAtMs ?: 0L)) / 1000 / 60
         prefs.edit().putLong("last_enqueue_${decision.reason}", nowMs).apply()
         enqueueForcedRefresh(context, reason = decision.reason, policy = decision.policy)
         appLogDao?.let {

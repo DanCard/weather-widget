@@ -36,7 +36,7 @@ class HourlyProximityQueryAllowlistTest {
     private val allowlist = mapOf(
         "HourlyForecastDao.kt" to "the DAO itself",
         "GraphDataLoader.kt" to "the sanctioned chokepoint (sameSite filter / stitcher / unifyToNearestSite)",
-        "WidgetIntentRouter.kt" to "all call sites wrapped in unifyToNearestSite (2026-07-10)",
+        "DailyInteractionRenderer.kt" to "daily render query is immediately wrapped in unifyToNearestSite",
         "DailyActualsLoader.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
         "SourceStalenessProbe.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
         "WeatherWidgetProvider.kt" to "loadStartupData raw rows are unified downstream by WidgetRenderer",

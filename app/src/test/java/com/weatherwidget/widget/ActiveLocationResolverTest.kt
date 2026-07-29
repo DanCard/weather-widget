@@ -30,6 +30,7 @@ class ActiveLocationResolverTest : RobolectricTest() {
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
+        ActiveLocationResolver.clearForTesting(context)
         stateManager = WidgetStateManager(context)
         forecastDao = mockk(relaxed = true)
         
@@ -82,5 +83,39 @@ class ActiveLocationResolverTest : RobolectricTest() {
         val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)
         assertEquals(34.0522, result.first, 0.001)
         assertEquals(-118.2437, result.second, 0.001)
+    }
+
+    @Test
+    fun `canonical location wins and heals divergent widget compatibility copies`() = runTest {
+        val info = android.appwidget.AppWidgetProviderInfo().apply {
+            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
+        }
+        shadowAppWidgetManager.addBoundWidget(101, info)
+        shadowAppWidgetManager.addBoundWidget(202, info)
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        prefs.edit()
+            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}101", 47.6062f)
+            .putFloat("${ConfigActivity.KEY_LON_PREFIX}101", -122.3321f)
+            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}202", 40.7128f)
+            .putFloat("${ConfigActivity.KEY_LON_PREFIX}202", -74.0060f)
+            .commit()
+        ActiveLocationResolver.persist(context, 37.4219, -122.0840)
+
+        val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)
+
+        assertEquals(37.4219, result.first, 0.001)
+        assertEquals(-122.0840, result.second, 0.001)
+        for (id in intArrayOf(101, 202)) {
+            assertEquals(
+                37.4219f,
+                prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$id", Float.NaN),
+                0.0001f,
+            )
+            assertEquals(
+                -122.0840f,
+                prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$id", Float.NaN),
+                0.0001f,
+            )
+        }
     }
 }

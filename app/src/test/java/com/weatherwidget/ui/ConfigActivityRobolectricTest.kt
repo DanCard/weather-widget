@@ -19,6 +19,7 @@ import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.ActiveLocationResolver
 import io.mockk.coEvery
 import io.mockk.mockk
 import org.junit.After
@@ -51,6 +52,7 @@ class ConfigActivityRobolectricTest {
         clearTestPrefs("weather_widget_prefs")
         clearTestPrefs("widget_state_prefs")
         clearTestPrefs("weather_prefs")
+        ActiveLocationResolver.clearForTesting(context)
     }
 
     @After
@@ -58,6 +60,7 @@ class ConfigActivityRobolectricTest {
         clearTestPrefs("weather_widget_prefs")
         clearTestPrefs("widget_state_prefs")
         clearTestPrefs("weather_prefs")
+        ActiveLocationResolver.clearForTesting(context)
     }
 
     private fun clearTestPrefs(name: String) {
@@ -111,6 +114,36 @@ class ConfigActivityRobolectricTest {
 
         // A deliberate manual choice pins the location against the GPS auto-heal
         assertEquals(LocationMode.FIXED, LocationMode.get(context))
+    }
+
+    @Test
+    fun `widget-add location synchronizes existing widgets`() {
+        bindWidget(9001, 47.6062, -122.3321)
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        val scenario = ActivityScenario.launch<ConfigActivity>(intent)
+        val mockResolver = mockk<SharedLocationResolver>()
+        coEvery { mockResolver.fromCoordinates(34.0522, -118.2437) } returns ResolvedLocation(
+            lat = 34.0522,
+            lon = -118.2437,
+            label = "Los Angeles, CA",
+            source = "Manual coordinates",
+        )
+
+        scenario.onActivity { activity ->
+            activity.sharedLocationResolver = mockResolver
+            activity.findViewById<EditText>(R.id.lat_input).setText("34.0522")
+            activity.findViewById<EditText>(R.id.lon_input).setText("-118.2437")
+            activity.findViewById<Button>(R.id.use_coordinates_button).performClick()
+        }
+        shadowOf(context.mainLooper).idle()
+
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        for (id in intArrayOf(9001, widgetId)) {
+            assertEquals(34.0522f, prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$id", Float.NaN), 0.0001f)
+            assertEquals(-118.2437f, prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$id", Float.NaN), 0.0001f)
+        }
     }
 
     @Test

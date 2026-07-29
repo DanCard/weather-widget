@@ -69,6 +69,49 @@ class WidgetIntentRouterExecutionTest {
     }
 
     @Test
+    fun `interaction metadata is captured after acquiring widget lock`() = runTest {
+        val appLogDao = mockk<AppLogDao>(relaxed = true)
+        val firstEntered = CompletableDeferred<Unit>()
+        val releaseFirst = CompletableDeferred<Unit>()
+        var state = "A"
+
+        launch {
+            WidgetInteractionCoordinator.runInteraction(
+                appLogDao = appLogDao,
+                appWidgetId = 7,
+                tag = "TOGGLE",
+                metadata = { WidgetInteractionCoordinator.Metadata("from=$state") },
+            ) {
+                firstEntered.complete(Unit)
+                releaseFirst.await()
+                state = "B"
+            }
+        }
+        firstEntered.await()
+        launch {
+            WidgetInteractionCoordinator.runInteraction(
+                appLogDao = appLogDao,
+                appWidgetId = 7,
+                tag = "TOGGLE",
+                metadata = { WidgetInteractionCoordinator.Metadata("from=$state") },
+            ) {
+                state = "C"
+            }
+        }
+        runCurrent()
+        releaseFirst.complete(Unit)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            appLogDao.insert(match { it.tag == "TOGGLE_RENDER_OK" && it.message.contains("from=A") })
+        }
+        coVerify(exactly = 1) {
+            appLogDao.insert(match { it.tag == "TOGGLE_RENDER_OK" && it.message.contains("from=B") })
+        }
+        assertEquals("C", state)
+    }
+
+    @Test
     fun `batch render continues after one widget fails`() = runTest {
         val rendered = mutableListOf<Int>()
         val failures = mutableListOf<Int>()

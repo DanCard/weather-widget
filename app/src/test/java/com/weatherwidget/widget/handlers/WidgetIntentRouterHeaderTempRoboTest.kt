@@ -35,7 +35,7 @@ import org.junit.experimental.categories.Category
 /**
  * Regression test for: current temp top-left label changes when scrolling the temperature graph.
  *
- * Root cause: WidgetIntentRouter.refreshGraphView() loaded two hourly windows:
+ * Root cause: the graph interaction renderer loaded two hourly windows:
  *   - hourlyForecasts: graph-window centered on the scrolled centerTime (no current hour when scrolled)
  *   - currentTempHourlyForecasts: NOW-centered window
  * The graph-window list was incorrectly passed to CurrentTemperatureResolver, causing the header

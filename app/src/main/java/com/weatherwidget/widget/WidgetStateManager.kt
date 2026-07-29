@@ -814,36 +814,58 @@ class WidgetStateManager
         }
 
         fun getWidgetLocation(widgetId: Int): Pair<Double, Double>? {
-            val widgetPrefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+            getStoredWidgetLocation(widgetId)?.let { return it }
+
+            val deltaLat = prefs.getString("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$widgetId", null)?.toDoubleOrNull()
+            val deltaLon = prefs.getString("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$widgetId", null)?.toDoubleOrNull()
+            if (deltaLat != null && deltaLon != null) {
+                return deltaLat to deltaLon
+            }
+
+            val weatherPrefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs")
+            val historicalPois = weatherPrefs.getString("historical_pois", null)
+            return historicalPois
+                ?.split("|")
+                ?.takeLast(3)
+                ?.let { parts ->
+                    if (parts.size == 3) {
+                        parts[1].toDoubleOrNull()?.let { lat ->
+                            parts[2].toDoubleOrNull()?.let { lon -> lat to lon }
+                        }
+                    } else {
+                        null
+                    }
+                }
+        }
+
+        fun getStoredWidgetLocation(widgetId: Int): Pair<Double, Double>? {
+            val widgetPrefs =
+                com.weatherwidget.util.SharedPreferencesUtil.getPrefs(
+                    context,
+                    ConfigActivity.PREFS_NAME,
+                )
             if (!widgetPrefs.contains("${ConfigActivity.KEY_LAT_PREFIX}$widgetId") ||
                 !widgetPrefs.contains("${ConfigActivity.KEY_LON_PREFIX}$widgetId")
-            ) {
-                val deltaLat = prefs.getString("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$widgetId", null)?.toDoubleOrNull()
-                val deltaLon = prefs.getString("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$widgetId", null)?.toDoubleOrNull()
-                if (deltaLat != null && deltaLon != null) {
-                    return deltaLat to deltaLon
-                }
+            ) return null
 
-                val weatherPrefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs")
-                val historicalPois = weatherPrefs.getString("historical_pois", null)
-                val lastPoi = historicalPois
-                    ?.split("|")
-                    ?.takeLast(3)
-                    ?.let { parts ->
-                        if (parts.size == 3) {
-                            parts[1].toDoubleOrNull()?.let { lat -> parts[2].toDoubleOrNull()?.let { lon -> lat to lon } }
-                        } else {
-                            null
-                        }
-                    }
-                return lastPoi
-            }
             val lat = widgetPrefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN)
             val lon = widgetPrefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN)
-            if (lat.isNaN() || lon.isNaN()) {
-                return null
-            }
+            if (lat.isNaN() || lon.isNaN()) return null
             return lat.toDouble() to lon.toDouble()
+        }
+
+        fun setWidgetLocations(widgetIds: IntArray, lat: Double, lon: Double) {
+            val widgetPrefs =
+                com.weatherwidget.util.SharedPreferencesUtil.getPrefs(
+                    context,
+                    ConfigActivity.PREFS_NAME,
+                )
+            val editor = widgetPrefs.edit()
+            widgetIds.forEach { widgetId ->
+                editor.putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", lat.toFloat())
+                editor.putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", lon.toFloat())
+            }
+            editor.commit()
         }
 
         private fun sourceForStep(step: Int, sequence: List<WeatherSource>): WeatherSource {

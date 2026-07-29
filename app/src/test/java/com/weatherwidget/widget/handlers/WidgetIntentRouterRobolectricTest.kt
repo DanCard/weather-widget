@@ -93,7 +93,7 @@ class WidgetIntentRouterRobolectricTest {
         val now = System.currentTimeMillis()
 
         val decision = RefreshScheduler.buildRefreshScheduleDecision(
-            latestFetchedAt = now - 5 * 60 * 60 * 1000L,
+            latestSuccessfulOrContentAtMs = now - 5 * 60 * 60 * 1000L,
             nowMs = now,
             reason = "manual_refresh",
             lastEnqueueForReasonMs = now - 1_000L,
@@ -112,7 +112,7 @@ class WidgetIntentRouterRobolectricTest {
         val now = System.currentTimeMillis()
 
         val decision = RefreshScheduler.buildRefreshScheduleDecision(
-            latestFetchedAt = now - 5 * 60 * 60 * 1000L,
+            latestSuccessfulOrContentAtMs = now - 5 * 60 * 60 * 1000L,
             nowMs = now,
             reason = "stale_on_toggle_view",
             lastEnqueueForReasonMs = null,
@@ -129,7 +129,7 @@ class WidgetIntentRouterRobolectricTest {
         val now = System.currentTimeMillis()
 
         val decision = RefreshScheduler.buildRefreshScheduleDecision(
-            latestFetchedAt = now - 5 * 60 * 60 * 1000L,
+            latestSuccessfulOrContentAtMs = now - 5 * 60 * 60 * 1000L,
             nowMs = now,
             reason = "stale_on_toggle_view",
             lastEnqueueForReasonMs = now - 5_000L,

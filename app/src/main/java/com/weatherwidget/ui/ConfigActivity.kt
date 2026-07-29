@@ -414,8 +414,10 @@ class ConfigActivity : AppCompatActivity() {
         }
 
     /**
-     * Single save sink for all four options. Records the location mode, then routes to the
-     * per-widget prefs (widget config) or to every widget (Settings entry, [isGlobalMode]).
+     * Single save sink for all four options. The application has one active location: its worker,
+     * startup renderer, Settings surface, and GPS handoff all operate on one site. Coordinates are
+     * replicated into the per-widget preference keys for compatibility, but every save synchronizes
+     * all placed widgets rather than creating unsupported per-widget locations.
      */
     private fun saveChosenLocation(lat: Double, lon: Double, label: String?, mode: String) {
         LocationMode.set(this, mode)
@@ -436,17 +438,23 @@ class ConfigActivity : AppCompatActivity() {
             return
         }
 
-        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(this, PREFS_NAME)
-        prefs.edit()
-            .putFloat("${KEY_LAT_PREFIX}$appWidgetId", lat.toFloat())
-            .putFloat("${KEY_LON_PREFIX}$appWidgetId", lon.toFloat())
-            .apply()
+        val widgetIds =
+            (LocationUpdater.getWidgetIds(this).toList() + appWidgetId)
+                .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+                .distinct()
+                .toIntArray()
+        LocationUpdater.applyActiveLocationToAllWidgets(
+            context = this,
+            lat = lat,
+            lon = lon,
+            label = label,
+            ids = widgetIds,
+        )
 
         lifecycleScope.launch {
             appLogDao.log("CONFIG", "Widget $appWidgetId configured with lat=$lat, lon=$lon mode=$mode")
         }
 
-        triggerWidgetUpdate()
         finishWithSuccess()
     }
 

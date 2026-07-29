@@ -90,7 +90,8 @@ class GpsResampler(
             return false
         }
         val stateManager = WidgetStateManager(context)
-        val active = ids.toList().firstNotNullOfOrNull(stateManager::getWidgetLocation)
+        val active = ActiveLocationResolver.current(context)
+            ?: ids.toList().firstNotNullOfOrNull(stateManager::getWidgetLocation)
             ?: (WeatherWidgetWorker.DEFAULT_LAT to WeatherWidgetWorker.DEFAULT_LON)
         val existingCandidate = LocationHandoffStore.getCandidate(context)
         if (LocationMatch.sameSite(active.first, active.second, lat, lon)) {

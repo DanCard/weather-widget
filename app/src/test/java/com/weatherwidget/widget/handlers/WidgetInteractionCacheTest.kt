@@ -1,7 +1,14 @@
 package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.test.category.ShortDuration
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -9,6 +16,7 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 @Category(ShortDuration::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class WidgetInteractionCacheTest {
 
     @After
@@ -57,5 +65,82 @@ class WidgetInteractionCacheTest {
         )
         val jittered = WidgetInteractionCache.Key.of(lat = 37.421904, lon = -122.084012, epochDay = 20_289L)
         assertNotNull("jitter under 3dp must hit the same entry", WidgetInteractionCache.get(jittered, 1_100L))
+    }
+
+    @Test
+    fun `concurrent same-key misses execute loader once`() = runTest {
+        val loaderEntered = CompletableDeferred<Unit>()
+        val releaseLoader = CompletableDeferred<Unit>()
+        val loadCount = AtomicInteger()
+        val expected = data()
+        val clock = { 1_000L }
+
+        val first = async {
+            WidgetInteractionCache.getOrLoad(key(), clock) {
+                loadCount.incrementAndGet()
+                loaderEntered.complete(Unit)
+                releaseLoader.await()
+                expected
+            }
+        }
+        loaderEntered.await()
+        val second = async {
+            WidgetInteractionCache.getOrLoad(key(), clock) {
+                loadCount.incrementAndGet()
+                data()
+            }
+        }
+        runCurrent()
+
+        assertEquals(1, loadCount.get())
+        releaseLoader.complete(Unit)
+        assertSame(expected, first.await())
+        assertSame(expected, second.await())
+        assertEquals(1, loadCount.get())
+    }
+
+    @Test
+    fun `different keys load independently`() = runTest {
+        val firstEntered = CompletableDeferred<Unit>()
+        val secondEntered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val elsewhere = WidgetInteractionCache.Key.of(40.7128, -74.0060, 20_289L)
+
+        val first = async {
+            WidgetInteractionCache.getOrLoad(key(), { 1_000L }) {
+                firstEntered.complete(Unit)
+                release.await()
+                data()
+            }
+        }
+        firstEntered.await()
+        val second = async {
+            WidgetInteractionCache.getOrLoad(elsewhere, { 1_000L }) {
+                secondEntered.complete(Unit)
+                release.await()
+                data()
+            }
+        }
+
+        secondEntered.await()
+        release.complete(Unit)
+        first.await()
+        second.await()
+    }
+
+    @Test
+    fun `TTL starts when a slow load completes`() = runTest {
+        var nowMs = 1_000L
+        val expected = data()
+
+        WidgetInteractionCache.getOrLoad(key(), { nowMs }) {
+            nowMs += WidgetInteractionCache.TTL_MS
+            expected
+        }
+
+        assertSame(
+            expected,
+            WidgetInteractionCache.get(key(), nowElapsedMs = nowMs + WidgetInteractionCache.TTL_MS),
+        )
     }
 }
