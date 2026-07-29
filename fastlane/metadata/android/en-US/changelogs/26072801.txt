@@ -1,0 +1,1 @@
+Open beta release: Hardened widget intent routing and refresh cooldowns, optimized daily forecast graph rendering, guarded against sentinel temperatures on graph axes, refactored forecast repository, enhanced weather source selection during setup, and automated WeatherAPI history backfill.
