@@ -23,6 +23,17 @@ class DailyNoonCloudCoverTest {
         source = source,
     )
 
+    private fun siteHour(
+        cloud: Int,
+        lat: Double,
+        lon: Double,
+        fetchedAt: Long,
+    ) = hour(12, cloud, "NWS").copy(
+        locationLat = lat,
+        locationLon = lon,
+        fetchedAt = fetchedAt,
+    )
+
     private fun resolve(hourly: List<HourlyForecast>, displaySource: String, rowSource: String? = null) =
         DailyNoonCloudCover.resolveNoonCloudCoverPercent(hourly, date, displaySource, rowSource, zone)
 
@@ -88,16 +99,35 @@ class DailyNoonCloudCoverTest {
 
     @Test
     fun firstNoonRowWinsWhenDuplicatesExist_callersMustUnifySitesFirst() {
-        // The shared model carries no coordinates, so this resolver cannot tell a fresh row
-        // from a frozen coordinate-fragment duplicate — it takes the FIRST noon match. Callers
-        // must collapse fragments before calling (GraphDataLoader.unifyToNearestSite on
-        // Android); skipping that made the daily bar's cloud split flap between 65% and a
-        // 2-day-old 25% (plans/260710-daily-cloud-cover-flap-stale-fragment.md).
+        // The base resolver intentionally has no query centre, so it cannot select among
+        // coordinate fragments — it takes the FIRST noon match. Callers holding raw persistence
+        // rows must use resolveMeasuredNoonCloudCoverPercentAtSite (or pre-unify them); skipping
+        // that made the daily bar's cloud split flap between 65% and a 2-day-old 25%.
         val hourly = listOf(
             hour(12, 25, "NWS"), // stale fragment's noon row, sorted first
             hour(12, 65, "NWS"), // fresh site's noon row
         )
         assertEquals(25, resolve(hourly, "NWS"))
+    }
+
+    @Test
+    fun siteAwareResolutionSelectsFreshDisplaySiteInsteadOfFirstNeighbor() {
+        val hourly = listOf(
+            siteHour(cloud = 25, lat = 37.37, lon = -122.06, fetchedAt = 1_000L),
+            siteHour(cloud = 65, lat = 37.42, lon = -122.08, fetchedAt = 2_000L),
+        )
+
+        assertEquals(
+            65,
+            DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercentAtSite(
+                hourly = hourly,
+                date = date,
+                displaySourceId = "NWS",
+                centerLat = 37.42,
+                centerLon = -122.08,
+                zone = zone,
+            ),
+        )
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.HourlyForecastSelector
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -18,6 +19,40 @@ import java.time.ZoneId
  * forecast row is [WeatherSource.GENERIC_GAP] we look at GENERIC_GAP hourly instead.
  */
 object DailyNoonCloudCover {
+
+    /**
+     * Site-aware variant for callers holding raw proximity-box rows. Selects the freshest row per
+     * hour at the display site before resolving noon, preventing a stale neighboring coordinate
+     * fragment from winning [resolveMeasuredNoonCloudCoverPercent]'s first-noon selection.
+     */
+    fun resolveMeasuredNoonCloudCoverPercentAtSite(
+        hourly: List<HourlyForecast>,
+        date: LocalDate,
+        displaySourceId: String,
+        centerLat: Double,
+        centerLon: Double,
+        rowSourceId: String? = null,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Int? {
+        val targetSourceId = if (rowSourceId == WeatherSource.GENERIC_GAP.id) {
+            WeatherSource.GENERIC_GAP.id
+        } else {
+            displaySourceId
+        }
+        val selected = HourlyForecastSelector.selectForecastsByTime(
+            rows = hourly,
+            displaySourceId = targetSourceId,
+            centerLat = centerLat,
+            centerLon = centerLon,
+        ).values.toList()
+        return resolveMeasuredNoonCloudCoverPercent(
+            hourly = selected,
+            date = date,
+            displaySourceId = targetSourceId,
+            rowSourceId = targetSourceId,
+            zone = zone,
+        )
+    }
 
     /**
      * Measured noon cloud cover (0–100) for the target source, or null when noon data is absent.

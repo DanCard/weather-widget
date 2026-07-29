@@ -2,7 +2,9 @@ package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.DailyNoonCloudCover
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestDatabase
@@ -239,6 +241,83 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
         assertEquals(55f, stored.forecastLowTemp)
         assertEquals(1.5f, stored.forecastPrecipAmountMm)
         assertEquals(60, stored.noonCloudPercent)
+    }
+
+    @Test
+    fun `freezes noon cloud from display site instead of stale neighboring fragment`() = runTest {
+        val staleLat = lat - 0.05
+        val staleLon = lon + 0.02
+        val noon = today.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+
+        db.forecastDao().insertAll(
+            listOf(
+                TestData.forecast(
+                    targetDate = today.toString(),
+                    dateOfPrediction = today.toString(),
+                    source = WeatherSource.NWS.id,
+                    lat = lat,
+                    lon = lon,
+                    highTemp = 80f,
+                    lowTemp = 55f,
+                ),
+            ),
+        )
+        // Insert the stale site first. With ORDER BY dateTime only, this recreates the observed raw
+        // proximity ordering where DailyNoonCloudCover.firstOrNull chose the stale fragment.
+        db.hourlyForecastDao().insertAll(
+            listOf(
+                TestData.hourly(
+                    dateTime = today.atTime(12, 0).toString(),
+                    source = WeatherSource.NWS.id,
+                    lat = staleLat,
+                    lon = staleLon,
+                    fetchedAt = 1_000L,
+                ).copy(cloudCover = 25),
+                TestData.hourly(
+                    dateTime = today.atTime(12, 0).toString(),
+                    source = WeatherSource.NWS.id,
+                    lat = lat,
+                    lon = lon,
+                    fetchedAt = 2_000L,
+                ).copy(cloudCover = 65),
+            ),
+        )
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                    source = WeatherSource.NWS.id,
+                    locationLat = lat,
+                    locationLon = lon,
+                    highTemp = 70f,
+                    lowTemp = 55f,
+                    condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                ),
+            ),
+        )
+
+        val rawRows = db.hourlyForecastDao().getHourlyForecasts(noon, noon, lat, lon)
+        assertEquals(
+            "test setup must reproduce stale first-row selection before repository site filtering",
+            25,
+            DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
+                hourly = rawRows.map { it.toHourlyForecast() },
+                date = today,
+                displaySourceId = WeatherSource.NWS.id,
+                zone = zone,
+            ),
+        )
+
+        repository.snapshotDisplayedRainChance(lat, lon)
+
+        val stored = db.dailyHistoryDao().getExtremesInRange(
+            today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            lat,
+            lon,
+        ).first { it.source == WeatherSource.NWS.id }
+        assertEquals("frozen noon cloud must come from the display site", 65, stored.noonCloudPercent)
     }
 
     @Test

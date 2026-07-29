@@ -94,6 +94,109 @@ class ForecastSnapshotDeduplicationTest {
     }
 
     @Test
+    fun `daily change gate updates exact display site when neighboring fragment already has revision`() = runTest {
+        val predictionDate = LocalDate.now().toString()
+        val neighboringLat = LAT + 0.05
+        val neighboringLon = LON + 0.02
+
+        db.forecastDao().insertAll(
+            listOf(
+                TestData.forecast(
+                    targetDate = tomorrow,
+                    dateOfPrediction = predictionDate,
+                    source = "NWS",
+                    highTemp = 70f,
+                    lowTemp = 50f,
+                    lat = LAT,
+                    lon = LON,
+                    fetchedAt = 1_000L,
+                    batchFetchedAt = 1_000L,
+                ),
+                TestData.forecast(
+                    targetDate = tomorrow,
+                    dateOfPrediction = predictionDate,
+                    source = "NWS",
+                    highTemp = 75f,
+                    lowTemp = 50f,
+                    lat = neighboringLat,
+                    lon = neighboringLon,
+                    fetchedAt = 2_000L,
+                    batchFetchedAt = 2_000L,
+                ),
+            ),
+        )
+
+        repository.saveForecastSnapshot(
+            listOf(
+                TestData.forecast(
+                    targetDate = tomorrow,
+                    dateOfPrediction = predictionDate,
+                    source = "NWS",
+                    highTemp = 75f,
+                    lowTemp = 50f,
+                ),
+            ),
+            LAT,
+            LON,
+            "NWS",
+            batchFetchedAt = 3_000L,
+        )
+
+        val displaySiteLatest = db.forecastDao()
+            .getForecastsInRangeBySource(
+                dateEpoch(tomorrow),
+                dateEpoch(tomorrow),
+                LAT,
+                LON,
+                "NWS",
+            )
+            .filter { it.locationLat == LAT && it.locationLon == LON }
+            .maxBy { it.batchFetchedAt }
+
+        assertEquals(
+            "neighboring fragment must not mask the revised display-site high",
+            75f,
+            displaySiteLatest.highTemp,
+        )
+        assertEquals(3_000L, displaySiteLatest.batchFetchedAt)
+    }
+
+    @Test
+    fun `identical sixteen day fetch keeps a coherent latest source batch`() = runTest {
+        val forecasts = (0L until 16L).map { dayOffset ->
+            TestData.forecast(
+                targetDate = LocalDate.now().plusDays(dayOffset).toString(),
+                dateOfPrediction = today,
+                source = WeatherSource.OPEN_METEO.id,
+                highTemp = 70f + dayOffset.toFloat(),
+                lowTemp = 50f + dayOffset.toFloat(),
+            )
+        }
+
+        repository.saveForecastSnapshot(
+            forecasts,
+            LAT,
+            LON,
+            WeatherSource.OPEN_METEO.id,
+            batchFetchedAt = 1_000L,
+        )
+        repository.saveForecastSnapshot(
+            forecasts,
+            LAT,
+            LON,
+            WeatherSource.OPEN_METEO.id,
+            batchFetchedAt = 2_000L,
+        )
+
+        assertEquals("unchanged second fetch must not append history rows", 16, db.forecastDao().getCount())
+
+        val latestBatch = repository.getCachedDataBySource(LAT, LON, WeatherSource.OPEN_METEO)
+            .filter { it.source == WeatherSource.OPEN_METEO.id }
+        assertEquals("all sixteen provider days must remain in the latest coherent batch", 16, latestBatch.size)
+        assertTrue(latestBatch.all { it.batchFetchedAt == 2_000L })
+    }
+
+    @Test
     fun `changed high temp within a snapshot bucket collapses to one updated row`() = runTest {
         repository.saveForecastSnapshot(listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f)), LAT, LON, "NWS")
         repository.saveForecastSnapshot(listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 72f, lowTemp = 50f)), LAT, LON, "NWS")
