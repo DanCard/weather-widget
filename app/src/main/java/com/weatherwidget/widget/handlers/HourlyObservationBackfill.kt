@@ -19,7 +19,6 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 private const val HOURLY_BACKFILL_COOLDOWN_MS = 30 * 60 * 1000L
-private const val HOURLY_BACKFILL_SOURCE_KEY = "NWS_HOURLY_HISTORY"
 
 @androidx.annotation.VisibleForTesting
 internal data class HourlyBackfillDecision(
@@ -71,8 +70,48 @@ internal fun evaluateHourlyBackfillNeed(
     observations: List<ObservationEntity>,
     now: LocalDateTime = LocalDateTime.now(),
 ): HourlyBackfillDecision {
+    if (displaySource == WeatherSource.WEATHER_API) {
+        val yesterday = now.toLocalDate().minusDays(1)
+        if (graphStart.toLocalDate().isAfter(yesterday)) {
+            return HourlyBackfillDecision(false, "weatherapi_history_not_visible")
+        }
+        val zone = ZoneId.systemDefault()
+        val distinctHours =
+            observations.asSequence()
+                .filter { matchesObservationSource(it, displaySource) }
+                .filter {
+                    java.time.Instant.ofEpochMilli(it.timestamp)
+                        .atZone(zone)
+                        .toLocalDate() == yesterday
+                }
+                .map { it.timestamp / 3_600_000L }
+                .distinct()
+                .count()
+        return if (
+            distinctHours <
+            com.weatherwidget.shared.history.ProviderHistoryPolicy.COMPLETE_DAY_MIN_DISTINCT_HOURS
+        ) {
+            HourlyBackfillDecision(
+                true,
+                "weatherapi_history_sparse hours=$distinctHours date=$yesterday",
+            )
+        } else {
+            HourlyBackfillDecision(
+                false,
+                "weatherapi_history_covered hours=$distinctHours date=$yesterday",
+            )
+        }
+    }
+
     if (displaySource != WeatherSource.NWS) {
-        return HourlyBackfillDecision(false, "organic_backfill_active")
+        val reason =
+            when (displaySource) {
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
+                WeatherSource.TOMORROW_IO -> "provider_history_in_forecast"
+                else -> "provider_history_unsupported"
+            }
+        return HourlyBackfillDecision(false, reason)
     }
 
     val sourceObservations = observations.filter { matchesObservationSource(it, displaySource) }
@@ -143,10 +182,30 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
         return
     }
 
-    if (!stateManager.shouldRefreshMissingActuals(appWidgetId, HOURLY_BACKFILL_SOURCE_KEY, HOURLY_BACKFILL_COOLDOWN_MS)) {
+    val sourceKey = "${displaySource.id}_HOURLY_HISTORY"
+    if (!stateManager.shouldRefreshMissingActuals(appWidgetId, sourceKey, HOURLY_BACKFILL_COOLDOWN_MS)) {
         database.appLogDao().log(
             "OBS_HOURLY_BACKFILL_SKIP",
             "widget=$appWidgetId source=${displaySource.id} reason=cooldown ${decision.reason}",
+            "INFO",
+        )
+        return
+    }
+
+    val delayMs = com.weatherwidget.widget.StartupFetchPolicy.historyRepairDelayMs()
+    if (displaySource == WeatherSource.WEATHER_API) {
+        RefreshScheduler.enqueueForcedRefresh(
+            context = context,
+            reason = "weatherapi_history_sparse widget=$appWidgetId",
+            policy = ExistingWorkPolicy.KEEP,
+            initialDelayMs = delayMs,
+            targetSourceId = WeatherSource.WEATHER_API.id,
+        )
+        stateManager.markMissingActualsRefreshRequested(appWidgetId, sourceKey)
+        database.appLogDao().log(
+            "OBS_HOURLY_BACKFILL_REQ",
+            "widget=$appWidgetId source=${displaySource.id} mode=provider_history " +
+                "reason=${decision.reason} graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs",
             "INFO",
         )
         return
@@ -162,7 +221,6 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     // Jittered short delay: avoids landing in the first-second startup scrum (see
     // StartupFetchPolicy) without meaningfully slowing the interactive missing-hourly-data banner
     // flow, which already tolerates a several-second wait.
-    val delayMs = com.weatherwidget.widget.StartupFetchPolicy.historyRepairDelayMs()
     val request =
         OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
             .setInputData(
@@ -193,7 +251,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
         ExistingWorkPolicy.KEEP,
         request,
     )
-    stateManager.markMissingActualsRefreshRequested(appWidgetId, HOURLY_BACKFILL_SOURCE_KEY)
+    stateManager.markMissingActualsRefreshRequested(appWidgetId, sourceKey)
     database.appLogDao().log(
         "OBS_HOURLY_BACKFILL_REQ",
         "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason} graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs",

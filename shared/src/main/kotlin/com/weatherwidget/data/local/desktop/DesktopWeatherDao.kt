@@ -397,6 +397,36 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
+    fun getLatestLogByTagAndMessagePrefix(
+        tag: String,
+        messagePrefix: String,
+    ): DesktopLogEntity? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                SELECT timestamp, level, tag, message
+                FROM app_logs
+                WHERE tag = ? AND message LIKE ?
+                ORDER BY timestamp DESC, id DESC
+                LIMIT 1
+                """.trimIndent(),
+            ).use { stmt ->
+                stmt.setString(1, tag)
+                stmt.setString(2, "$messagePrefix%")
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    return DesktopLogEntity(
+                        timestamp = rs.getLong("timestamp"),
+                        level = rs.getString("level"),
+                        tag = rs.getString("tag"),
+                        message = rs.getString("message"),
+                    )
+                }
+            }
+        }
+        return null
+    }
+
     fun getLastSuccessfulFetch(source: String? = null): Long? {
         db.getConnection().use { conn ->
             val sql = if (source != null) {

@@ -88,6 +88,13 @@ class ForecastRepository
             dailyHistoryDao = dailyHistoryDao,
             appLogDao = appLogDao,
         )
+        private val weatherApiHistoryBackfiller = WeatherApiHistoryBackfiller(
+            weatherApi = weatherApi,
+            observationDao = observationDao,
+            hourlyStore = hourlyStore,
+            observationRepository = observationRepository,
+            appLogDao = appLogDao,
+        )
         private val fetchCoordinator = ForecastFetchCoordinator(
             context = context,
             appLogDao = appLogDao,
@@ -101,6 +108,7 @@ class ForecastRepository
             nwsForecastMapper = nwsForecastMapper,
             snapshotStore = snapshotStore,
             hourlyStore = hourlyStore,
+            weatherApiHistoryBackfiller = weatherApiHistoryBackfiller,
         )
         private val retentionManager = WeatherRetentionManager(
             forecastDao = forecastDao,

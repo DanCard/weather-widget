@@ -43,6 +43,20 @@ interface AppLogDao {
     @Query(
         """
         SELECT * FROM app_logs
+        WHERE tag = :tag
+          AND message LIKE :messagePrefix || '%'
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun getLatestLogByTagAndMessagePrefix(
+        tag: String,
+        messagePrefix: String,
+    ): AppLogEntity?
+
+    @Query(
+        """
+        SELECT * FROM app_logs
         WHERE tag LIKE 'CURR_FETCH%'
             OR tag LIKE 'OBS_CURRENT%'
             OR tag LIKE 'OBS_HOURLY_BACKFILL%'

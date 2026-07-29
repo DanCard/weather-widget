@@ -40,6 +40,7 @@ internal class ForecastFetchCoordinator(
     private val nwsForecastMapper: NwsForecastMapper,
     private val snapshotStore: ForecastSnapshotStore,
     private val hourlyStore: HourlyForecastStore,
+    private val weatherApiHistoryBackfiller: WeatherApiHistoryBackfiller,
 ) {
     fun requiresNetworkFetch(
         forecasts: List<ForecastEntity>,
@@ -163,13 +164,15 @@ internal class ForecastFetchCoordinator(
                     latitude,
                     longitude,
                 ) {
-                    fetchAndSaveSharedForecast(
+                    val forecasts = fetchAndSaveSharedForecast(
                         latitude,
                         longitude,
                         WeatherSource.WEATHER_API,
                     ) {
                         weatherApi.getForecast(latitude, longitude)
                     }
+                    weatherApiHistoryBackfiller.backfillIfNeeded(latitude, longitude)
+                    forecasts
                 }
             }
         } else {

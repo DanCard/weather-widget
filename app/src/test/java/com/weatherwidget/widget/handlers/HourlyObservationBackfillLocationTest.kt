@@ -9,6 +9,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * Pure tests for the observation-backfill location resolution (plan 260721). These lock in the two
@@ -77,6 +79,54 @@ class HourlyObservationBackfillLocationTest {
         val b = observationAt(37.41684, -122.08904).withQuantizedLocation()
         assertEquals(a.locationLat, b.locationLat, 0.0)
         assertEquals(a.locationLon, b.locationLon, 0.0)
+    }
+
+    @Test
+    fun `WeatherAPI requests repair when visible yesterday is missing`() {
+        val now = LocalDateTime.of(2026, 7, 28, 12, 0)
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.WEATHER_API,
+                graphStart = now.minusHours(72),
+                graphEnd = now.plusHours(6),
+                observations = emptyList(),
+                now = now,
+            )
+
+        assertTrue(decision.shouldRequest)
+        assertTrue(decision.reason.startsWith("weatherapi_history_sparse"))
+    }
+
+    @Test
+    fun `WeatherAPI does not request repair when yesterday has twenty hours`() {
+        val now = LocalDateTime.of(2026, 7, 28, 12, 0)
+        val zone = ZoneId.systemDefault()
+        val start = now.toLocalDate().minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val observations =
+            (0 until 20).map { index ->
+                ObservationEntity(
+                    stationId = "WEATHER_API_MAIN",
+                    stationName = "WeatherAPI history",
+                    timestamp = start + index * 3_600_000L,
+                    temperature = 60f + index,
+                    condition = "Clear",
+                    locationLat = 37.417,
+                    locationLon = -122.089,
+                    api = com.weatherwidget.data.model.WeatherSource.WEATHER_API.id,
+                )
+            }
+
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.WEATHER_API,
+                graphStart = now.minusHours(72),
+                graphEnd = now.plusHours(6),
+                observations = observations,
+                now = now,
+            )
+
+        assertEquals(false, decision.shouldRequest)
+        assertTrue(decision.reason.startsWith("weatherapi_history_covered"))
     }
 
     @Test

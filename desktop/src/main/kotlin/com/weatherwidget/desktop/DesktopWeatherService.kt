@@ -171,6 +171,12 @@ class DesktopWeatherService(
         return openMeteo.getForecast(latitude, longitude, days = 1, historyDays = historyDays)
     }
 
+    suspend fun fetchWeatherApiHistory(date: LocalDate): ForecastResult =
+        withHistoricalActuals(
+            weatherApi.getHistory(latitude, longitude, date),
+            WeatherSource.WEATHER_API.id,
+        )
+
     /**
      * On-demand deep history of NWS station observations for the graph's pink actual line, used when
      * the user zooms/pans the hourly graph past the [HISTORY_DAYS] window the normal forecast fetch

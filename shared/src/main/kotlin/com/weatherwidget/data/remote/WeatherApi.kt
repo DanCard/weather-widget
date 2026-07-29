@@ -1,22 +1,22 @@
 package com.weatherwidget.data.remote
 
-import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.request.*
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.parameter
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
-import kotlinx.serialization.json.*
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-
-private const val TAG = "WeatherApi"
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.floatOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import java.time.LocalDate
 
 class WeatherApi(
     private val httpClient: HttpClient,
@@ -24,7 +24,8 @@ class WeatherApi(
     private val apiKeyProvider: () -> String?,
 ) {
     companion object {
-        private const val BASE_URL = "https://api.weatherapi.com/v1/forecast.json"
+        private const val FORECAST_URL = "https://api.weatherapi.com/v1/forecast.json"
+        private const val HISTORY_URL = "https://api.weatherapi.com/v1/history.json"
     }
 
     suspend fun getForecast(
@@ -32,30 +33,65 @@ class WeatherApi(
         lon: Double,
         days: Int = 14,
     ): ForecastResult {
-        val apiKey = apiKeyProvider()
-        if (apiKey.isNullOrBlank()) {
-            throw IllegalStateException("WEATHER_API_KEY is missing.")
-        }
+        val apiKey = requireApiKey()
 
-        val response: HttpResponse = httpClient.get(BASE_URL) {
+        val response: HttpResponse = httpClient.get(FORECAST_URL) {
             parameter("key", apiKey)
             parameter("q", "$lat,$lon")
             parameter("days", days.coerceIn(1, 14))
             parameter("aqi", "no")
             parameter("alerts", "no")
         }
+        return parseResponse(requireSuccess(response, "forecast", apiKey))
+    }
 
+    /**
+     * Fetches one local calendar day from WeatherAPI's History endpoint.
+     *
+     * One date per request intentionally works with the bundled Free-plan credential and avoids
+     * `end_dt`, which WeatherAPI reserves for paid plans.
+     */
+    suspend fun getHistory(
+        lat: Double,
+        lon: Double,
+        date: LocalDate,
+    ): ForecastResult {
+        val apiKey = requireApiKey()
+        val response = httpClient.get(HISTORY_URL) {
+            parameter("key", apiKey)
+            parameter("q", "$lat,$lon")
+            parameter("dt", date.toString())
+        }
+        return parseResponse(requireSuccess(response, "history", apiKey))
+    }
+
+    private fun requireApiKey(): String =
+        apiKeyProvider()?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("WEATHER_API_KEY is missing.")
+
+    private suspend fun requireSuccess(
+        response: HttpResponse,
+        operation: String,
+        apiKey: String,
+    ): String {
         if (response.status.value !in 200..299) {
-            val errorBody = runCatching { response.bodyAsText() }.getOrDefault("No error body")
+            val errorBody =
+                runCatching { response.bodyAsText() }
+                    .getOrDefault("No error body")
+                    .replace(apiKey, "[redacted]")
             throw ApiAccessException(
                 source = WeatherSource.WEATHER_API,
                 statusCode = response.status.value,
                 detail = errorBody,
-                message = "WeatherAPI fetch failed: status ${response.status.value}. Detail: $errorBody"
+                message =
+                    "WeatherAPI $operation failed: status ${response.status.value}. " +
+                        "Detail: $errorBody",
             )
         }
+        return response.bodyAsText()
+    }
 
-        val responseBody: String = response.body()
+    private fun parseResponse(responseBody: String): ForecastResult {
         val root = json.parseToJsonElement(responseBody).jsonObject
 
         val currentObj = root["current"]?.jsonObject
@@ -88,7 +124,7 @@ class WeatherApi(
             for (hourElement in hours) {
                 val hourObj = hourElement.jsonObject
                 val timeEpoch = hourObj["time_epoch"]?.jsonPrimitive?.longOrNull ?: continue
-                
+
                 hourlyForecasts.add(
                     HourlyForecast(
                         dateTime = timeEpoch * 1000,

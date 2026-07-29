@@ -1,10 +1,15 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
+import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.shared.history.ProviderHistoryDecision
+import com.weatherwidget.shared.history.ProviderHistoryFailureClass
+import com.weatherwidget.shared.history.ProviderHistoryPolicy
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.widget.CurrentTemperatureResolver
@@ -150,22 +155,38 @@ class DesktopWeatherRepository(
     /**
      * Cheap, no-network check of whether [ensureHistory] would actually fetch at this depth. Lets the
      * UI show the "fetching" toast only when a real pull is about to happen, not on every zoom tick.
-     * Gated to NWS: it's the only source whose deep history we extend on demand (station observations).
+     * NWS can extend deep station history; WeatherAPI can repair its bounded previous-day archive.
      */
     fun needsDeeperHistory(neededBackHours: Int): Boolean =
-        weatherSource == "NWS" && neededHistoryDays(neededBackHours) > deepestHistoryDaysFetched
+        when (weatherSource) {
+            WeatherSource.NWS.id ->
+                neededHistoryDays(neededBackHours) > deepestHistoryDaysFetched
+            WeatherSource.WEATHER_API.id ->
+                neededBackHours >= 24 && weatherApiHistoryDecision(System.currentTimeMillis()) is
+                    ProviderHistoryDecision.Fetch
+            else -> false
+        }
 
     /**
-     * Pulls older NWS station observations on demand when the user zooms/pans the graph past what's
-     * cached — these drive the pink actual line. Idempotent and guarded so rapid wheel events don't
-     * spam the network; returns true only when new data was persisted (caller then reloads the cache).
+     * Pulls supported provider history when the graph reaches a locally missing window. Idempotent
+     * and guarded so rapid wheel events do not spam the network; returns true only when new data was
+     * persisted (caller then reloads the cache).
      *
      * Deliberately does NOT backfill an Open-Meteo forecast curve: GENERIC_GAP is future-only and must
      * never fill history (its Open-Meteo decimals would masquerade as the real, whole-degree NWS
-     * forecast). The past forecast curve comes solely from real accumulated NWS snapshots.
+     * forecast). Provider history is stored only as observations; past forecast curves continue to
+     * come solely from real accumulated snapshots.
      */
     suspend fun ensureHistory(neededBackHours: Int): Boolean = withContext(Dispatchers.IO) {
-        if (weatherSource != "NWS") return@withContext false
+        if (weatherSource == WeatherSource.WEATHER_API.id) {
+            if (neededBackHours < 24) return@withContext false
+            return@withContext historyFetchMutex.withLock {
+                val stored = backfillWeatherApiHistoryIfNeeded(System.currentTimeMillis())
+                if (stored > 0) recomputeDailyExtremes(System.currentTimeMillis())
+                stored > 0
+            }
+        }
+        if (weatherSource != WeatherSource.NWS.id) return@withContext false
         val neededDays = neededHistoryDays(neededBackHours)
         if (neededDays <= deepestHistoryDaysFetched) return@withContext false
         historyFetchMutex.withLock {
@@ -206,6 +227,7 @@ class DesktopWeatherRepository(
             if (result.rawObservations.isNotEmpty()) {
                 weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
             }
+            val historyObsCount = backfillWeatherApiHistoryIfNeeded(now)
 
             // Derive actual daily highs/lows from the stored observation window — the actuals that
             // forecast-accuracy comparisons are measured against.
@@ -229,7 +251,7 @@ class DesktopWeatherRepository(
             weatherDao.log(
                 tag = "REFRESH",
                 message = "source=$weatherSource hourly=${result.hourly.size} daily=${result.daily.size} " +
-                    "obs=${result.rawObservations.size} extremes=$extremesCount",
+                    "obs=${result.rawObservations.size} historyObs=$historyObsCount extremes=$extremesCount",
             )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
@@ -240,6 +262,149 @@ class DesktopWeatherRepository(
             }
             throw e
         }
+    }
+
+    private fun weatherApiHistoryDecision(now: Long): ProviderHistoryDecision {
+        val zoneId = ZoneId.systemDefault()
+        val targetDate = ProviderHistoryPolicy.targetDate(now, zoneId)
+        val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMs = targetDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val timestamps =
+            weatherDao.getObservationsInRange(startMs, endMs, latitude, longitude)
+                .asSequence()
+                .filter {
+                    it.api == WeatherSource.WEATHER_API.id &&
+                        LocationMatch.sameSite(
+                            it.locationLat,
+                            it.locationLon,
+                            latitude,
+                            longitude,
+                        )
+                }
+                .map { it.timestamp }
+                .toList()
+        val prefix =
+            "site=${ProviderHistoryPolicy.siteKey(latitude, longitude)} date=$targetDate"
+        val retryAtMs =
+            weatherDao.getLatestLogByTagAndMessagePrefix(
+                WAPI_HISTORY_RESULT_TAG,
+                prefix,
+            )?.message
+                ?.let(ProviderHistoryPolicy::retryAtFromMessage)
+        return ProviderHistoryPolicy.decide(
+            source = WeatherSource.WEATHER_API,
+            nowMs = now,
+            zoneId = zoneId,
+            storedTimestamps = timestamps,
+            retryAtMs = retryAtMs,
+        )
+    }
+
+    internal suspend fun backfillWeatherApiHistoryIfNeeded(now: Long): Int {
+        if (weatherSource != WeatherSource.WEATHER_API.id) return 0
+        val zoneId = ZoneId.systemDefault()
+        val decision = weatherApiHistoryDecision(now)
+        when (decision) {
+            is ProviderHistoryDecision.AlreadyCovered -> {
+                Log.v(
+                    TAG,
+                    "WeatherAPI history covered date=${decision.date} hours=${decision.distinctHours}",
+                )
+                return 0
+            }
+            is ProviderHistoryDecision.Cooldown -> {
+                Log.v(
+                    TAG,
+                    "WeatherAPI history cooldown date=${decision.date} " +
+                        "retryAtMs=${decision.retryAtMs}",
+                )
+                return 0
+            }
+            is ProviderHistoryDecision.NotApplicable -> return 0
+            is ProviderHistoryDecision.Fetch -> {
+                val prefix =
+                    "site=${ProviderHistoryPolicy.siteKey(latitude, longitude)} " +
+                        "date=${decision.date}"
+                weatherDao.log(
+                    WAPI_HISTORY_CHECK_TAG,
+                    "$prefix coverage=${decision.distinctHours} decision=fetch",
+                    "DEBUG",
+                )
+                return try {
+                    val history = weatherService.fetchWeatherApiHistory(decision.date)
+                    val targetReadings =
+                        history.rawObservations.filter {
+                            it.api == WeatherSource.WEATHER_API.id &&
+                                Instant.ofEpochMilli(it.timestamp)
+                                    .atZone(zoneId)
+                                    .toLocalDate() == decision.date
+                        }
+                    if (targetReadings.isEmpty()) {
+                        recordWeatherApiHistoryFailure(
+                            prefix,
+                            now,
+                            ProviderHistoryFailureClass.MALFORMED_RESPONSE,
+                            "empty_target_day",
+                        )
+                        return 0
+                    }
+                    weatherDao.upsertObservations(targetReadings.map { it.toEntity(now) })
+                    val distinctHours =
+                        targetReadings.asSequence()
+                            .map { it.timestamp / ProviderHistoryPolicy.HOUR_MS }
+                            .distinct()
+                            .count()
+                    val partialRetryAt =
+                        if (
+                            distinctHours <
+                            ProviderHistoryPolicy.COMPLETE_DAY_MIN_DISTINCT_HOURS
+                        ) {
+                            now + ProviderHistoryPolicy.retryDelayMs(
+                                ProviderHistoryFailureClass.MALFORMED_RESPONSE,
+                            )
+                        } else {
+                            null
+                        }
+                    weatherDao.log(
+                        WAPI_HISTORY_RESULT_TAG,
+                        buildString {
+                            append("$prefix result=stored hours=$distinctHours")
+                            if (partialRetryAt != null) append(" retryAtMs=$partialRetryAt")
+                        },
+                        "INFO",
+                    )
+                    distinctHours
+                } catch (cancellation: kotlinx.coroutines.CancellationException) {
+                    throw cancellation
+                } catch (exception: Exception) {
+                    val statusCode = (exception as? ApiAccessException)?.statusCode
+                    recordWeatherApiHistoryFailure(
+                        prefix = prefix,
+                        now = now,
+                        failureClass =
+                            ProviderHistoryPolicy.failureClassForStatus(statusCode),
+                        detail = statusCode?.let { "http_$it" }
+                            ?: exception.javaClass.simpleName.ifBlank { "error" },
+                    )
+                    0
+                }
+            }
+        }
+    }
+
+    private fun recordWeatherApiHistoryFailure(
+        prefix: String,
+        now: Long,
+        failureClass: ProviderHistoryFailureClass,
+        detail: String,
+    ) {
+        val retryAtMs = now + ProviderHistoryPolicy.retryDelayMs(failureClass)
+        weatherDao.log(
+            WAPI_HISTORY_RESULT_TAG,
+            "$prefix result=cooldown failure=${failureClass.name.lowercase()} " +
+                "detail=$detail retryAtMs=$retryAtMs",
+            "WARN",
+        )
     }
 
     suspend fun refreshObservations(): ForecastResult = withContext(Dispatchers.IO) {
@@ -640,6 +805,9 @@ class DesktopWeatherRepository(
     }
 
     companion object {
+        private const val TAG = "DesktopWeatherRepository"
+        private const val WAPI_HISTORY_CHECK_TAG = "WAPI_HISTORY_CHECK"
+        private const val WAPI_HISTORY_RESULT_TAG = "WAPI_HISTORY_RESULT"
         private const val HISTORY_WINDOW_DAYS = 7L
         private const val ACTUALS_HISTORY_DAYS = 547L
         private const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L

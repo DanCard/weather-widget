@@ -6,40 +6,41 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * Locks the precip-provenance policy: only sources with a genuine historical data product may
- * persist past-day precip as a measured "actual" (see `saveHistoricalActuals`). Forecast-only
- * sources must NOT — otherwise their own past forecast is shown as a measurement, the bug we
- * removed for NWS. This test forces a deliberate choice whenever a source is added, rather than
- * silently inheriting the `providesHistoricalActuals = false` default.
+ * Locks the provider-history provenance policy. Every source must explicitly identify what its
+ * past-hour product represents rather than collapsing station observations, reanalysis, archived
+ * provider history, and forecast-only data into one misleading boolean.
  */
 @Category(ShortDuration::class)
 class WeatherSourceHistoricalActualsTest {
 
     @Test
-    fun `sources with a real historical product provide historical actuals`() {
-        val expectedTrue = setOf(
-            WeatherSource.NWS,            // station observations
-            WeatherSource.OPEN_METEO,     // past_days reanalysis archive
-            WeatherSource.WEATHER_API,    // /history.json
-            WeatherSource.SILURIAN,       // /history/hourly
-            WeatherSource.TOMORROW_IO,    // rolling <24h window via /v4/timelines (fetch capped at 23h back)
+    fun `every source has the expected historical data provenance`() {
+        val expected = mapOf(
+            WeatherSource.NWS to HistoricalDataKind.STATION_OBSERVATION,
+            WeatherSource.OPEN_METEO to HistoricalDataKind.REANALYSIS_ARCHIVE,
+            WeatherSource.WEATHER_API to HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
+            WeatherSource.SILURIAN to HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
+            WeatherSource.TOMORROW_IO to HistoricalDataKind.RECENT_ANALYSIS,
+            WeatherSource.VISUAL_CROSSING to HistoricalDataKind.NONE,
+            WeatherSource.OPEN_WEATHER_MAP to HistoricalDataKind.NONE,
+            WeatherSource.GENERIC_GAP to HistoricalDataKind.NONE,
         )
-        val actualTrue = WeatherSource.values().filter { it.providesHistoricalActuals }.toSet()
         assertEquals(
-            "Only sources with a genuine history product may persist measured past-day precip. " +
-                "A new entry here means a new source was added — confirm it truly has historical " +
-                "actuals (not just a forecast sliced into the past) before flipping the flag.",
-            expectedTrue,
-            actualTrue,
+            "A new source must make an explicit provider-history provenance choice.",
+            expected,
+            WeatherSource.values().associateWith { it.historicalDataKind },
         )
     }
 
     @Test
-    fun `forecast-only sources do not provide historical actuals`() {
-        // No history endpoint / archive — their past hours are just forecast.
-        // (Tomorrow.io is NOT here: its fetch is capped at 23h back, so its past hours are
-        // genuinely-recent data, not stale multi-day forecast — see WeatherSource doc.)
-        assertEquals(false, WeatherSource.VISUAL_CROSSING.providesHistoricalActuals)
-        assertEquals(false, WeatherSource.OPEN_WEATHER_MAP.providesHistoricalActuals)
+    fun `forecast-only sources do not retain historical precipitation`() {
+        assertEquals(
+            false,
+            WeatherSource.VISUAL_CROSSING.historicalDataKind.preservesHistoricalPrecipitation,
+        )
+        assertEquals(
+            false,
+            WeatherSource.OPEN_WEATHER_MAP.historicalDataKind.preservesHistoricalPrecipitation,
+        )
     }
 }

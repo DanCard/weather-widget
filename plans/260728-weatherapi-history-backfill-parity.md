@@ -1,9 +1,81 @@
 # WeatherAPI history backfill parity
 
 **Date:** 2026-07-28  
-**Status:** Proposed  
+**Status:** Implemented and verified
 **Scope:** Shared WeatherAPI client, Android forecast/history orchestration, and desktop
 forecast/history orchestration.
+
+## Implementation result
+
+Implemented on 2026-07-28 after checkpoint commit `d310e671`:
+
+1. `WeatherApi.getHistory` calls `/v1/history.json` for exactly one date and shares the existing
+   forecast/history response parser.
+2. `HistoricalDataKind` now separates source history availability from provenance, including
+   WeatherAPI's `ARCHIVED_PROVIDER_HISTORY`.
+3. `ProviderHistoryPolicy` provides one shared previous-day target, 20-distinct-hour completion
+   rule, normalized site key, and persisted auth/plan, quota/malformed, and transient cooldowns.
+4. Android's normal targeted WeatherAPI refresh now performs the optional history request after
+   the live forecast is stored. Graph-demand routing schedules that existing path with
+   `ExistingWorkPolicy.KEEP`.
+5. Desktop's normal WeatherAPI refresh and bounded graph-demand path use the same coverage and
+   cooldown policy.
+6. Both platforms store returned history as source-tagged observations, recompute daily extrema,
+   preserve a successful forecast when history fails, and never write history into forecast
+   snapshot/vintage tables.
+7. Sparse `WAPI_HISTORY_CHECK` and `WAPI_HISTORY_RESULT` rows persist the outcome without API keys
+   or full request URLs.
+
+No database migration, new worker type, runtime fallback, or source disabling was added.
+
+## Verification evidence
+
+### Automated
+
+1. Focused shared, Android, and desktop WeatherAPI history/policy tests passed.
+2. All affected duration suites passed together:
+
+   ```text
+   ./gradlew :shared:test :app:testByDurationDebugUnitTest :desktop:testByDurationDesktop
+   BUILD SUCCESSFUL in 1m 9s
+   ```
+
+3. The focused category suites and release WeatherAPI key guard passed before the checkpoint
+   commit.
+4. `git diff --check`, Android debug assembly, and the desktop distributable build passed.
+
+### Desktop runtime
+
+At the configured site `37.417,-122.089`, the rebuilt desktop app produced:
+
+```text
+WAPI_HISTORY_CHECK  site=37.417,-122.089 date=2026-07-27 coverage=0 decision=fetch
+WAPI_HISTORY_RESULT site=37.417,-122.089 date=2026-07-27 result=stored hours=24
+REFRESH             source=WEATHER_API ... historyObs=24 ...
+REFRESH             source=WEATHER_API ... historyObs=0 ...
+```
+
+The live database then contained 24 WeatherAPI observations from `00:00` through `23:00` on
+2026-07-27 and a WeatherAPI daily-history row with high `78.3°F` and low `55.2°F`. The immediate
+second refresh made no history call. Both prior-day daily forecast-vintage and hourly
+forecast-history counts remained zero.
+
+### Android emulator runtime
+
+The final debug APK was installed without clearing data on `emulator-5554`, identified through
+`getprop` as Google `sdk_gphone64_x86_64`, API 36. Switching widget 2 to WAPI caused the graph's
+missing-history check to enqueue the existing targeted source path:
+
+```text
+NET_FETCH_START      force=true target=WEATHER_API
+WAPI_HISTORY_CHECK   site=37.417,-122.089 date=2026-07-27 coverage=0 decision=fetch
+WAPI_HISTORY_RESULT  site=37.417,-122.089 date=2026-07-27 result=stored hours=24 daily=1
+```
+
+The pulled Room database, including WAL/SHM, contained 24 prior-day WeatherAPI observations from
+`00:00` through `23:00`, a daily-history row at `78.3°F`/`55.2°F`, and zero prior-day daily or
+hourly forecast-snapshot rows. The launcher screenshot showed WAPI selected and the July 27
+history bar rendered. The emulator was left running.
 
 ## Requirement
 
@@ -569,4 +641,3 @@ Do not shut down the emulator afterward.
 7. Verify Android on the emulator using logs, database rows, and screenshots.
 8. Verify desktop using logs, database rows, and graph behavior.
 9. Update this plan's status and evidence with the exact test/runtime results.
-

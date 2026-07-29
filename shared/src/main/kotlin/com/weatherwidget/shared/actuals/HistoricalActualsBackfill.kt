@@ -29,10 +29,9 @@ object HistoricalActualsBackfill {
      *   spans both history and forecast. Only entries at or before [nowMs] are kept.
      * @param sourceId the [WeatherSource] id these hours belong to; becomes the observation `api`.
      *
-     * Temperature is always carried over. Precipitation is kept only for sources whose past hours
-     * are genuine actuals ([WeatherSource.providesHistoricalActuals] — a real history/reanalysis
-     * product); otherwise it is nulled so a source's own past forecast is not presented as a
-     * measured amount.
+     * Temperature is always carried over. Precipitation is kept only when the source's explicit
+     * [WeatherSource.historicalDataKind] permits provider-history precipitation; otherwise it is
+     * nulled so an ordinary forecast sliced into the past is not presented as historical weather.
      */
     fun build(
         hourly: List<HourlyForecast>,
@@ -42,7 +41,10 @@ object HistoricalActualsBackfill {
         nowMs: Long,
         fetchedAt: Long = nowMs,
     ): List<ObservationReading> {
-        val keepMeasuredPrecip = WeatherSource.fromId(sourceId).providesHistoricalActuals
+        val keepHistoricalPrecip =
+            WeatherSource.fromId(sourceId)
+                .historicalDataKind
+                .preservesHistoricalPrecipitation
         return hourly
             .filter { it.dateTime <= nowMs }
             .map { hour ->
@@ -58,7 +60,7 @@ object HistoricalActualsBackfill {
                     stationType = "OFFICIAL",
                     api = sourceId,
                     fetchedAt = fetchedAt,
-                    precipAmountMm = if (keepMeasuredPrecip) hour.precipAmountMm else null,
+                    precipAmountMm = if (keepHistoricalPrecip) hour.precipAmountMm else null,
                 )
             }
     }
