@@ -30,6 +30,7 @@ class WeatherApi(
     suspend fun getForecast(
         lat: Double,
         lon: Double,
+        days: Int = 14,
     ): ForecastResult {
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
@@ -39,7 +40,7 @@ class WeatherApi(
         val response: HttpResponse = httpClient.get(BASE_URL) {
             parameter("key", apiKey)
             parameter("q", "$lat,$lon")
-            parameter("days", "14")
+            parameter("days", days.coerceIn(1, 14))
             parameter("aqi", "no")
             parameter("alerts", "no")
         }

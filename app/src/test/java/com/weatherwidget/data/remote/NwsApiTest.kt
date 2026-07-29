@@ -72,6 +72,60 @@ class NwsApiTest {
         }
 
     @Test
+    fun `getGridPoint classifies NWS InvalidPoint as unsupported`() =
+        runTest {
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content =
+                                    """
+                                    {
+                                      "type": "https://api.weather.gov/problems/InvalidPoint",
+                                      "title": "Data Unavailable For Requested Point",
+                                      "status": 404
+                                    }
+                                    """.trimIndent(),
+                                status = HttpStatusCode.NotFound,
+                                headers = headersOf(HttpHeaders.ContentType, "application/problem+json"),
+                            )
+                        }
+                    }
+                }
+
+            val error =
+                runCatching { NwsApi(client, json).getGridPoint(51.5074, -0.1278) }.exceptionOrNull()
+
+            assertTrue(error is NwsPointUnavailableException)
+            assertEquals(404, (error as NwsPointUnavailableException).statusCode)
+        }
+
+    @Test
+    fun `getGridPoint leaves unrelated 404 as generic API failure`() =
+        runTest {
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content = """{"title":"Not Found","status":404}""",
+                                status = HttpStatusCode.NotFound,
+                                headers = headersOf(HttpHeaders.ContentType, "application/problem+json"),
+                            )
+                        }
+                    }
+                }
+
+            val error =
+                runCatching { NwsApi(client, json).getGridPoint(51.5074, -0.1278) }.exceptionOrNull()
+
+            assertTrue(error is ApiAccessException)
+            assertFalse(error is NwsPointUnavailableException)
+            assertEquals(404, (error as ApiAccessException).statusCode)
+        }
+
+    @Test
     fun `getForecast parses periods correctly`() =
         runTest {
             val forecastResponse =

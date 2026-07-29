@@ -20,6 +20,7 @@ import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
+import com.weatherwidget.data.remote.WeatherApiCredentialProvider
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.data.remote.NominatimApi
@@ -32,6 +33,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.GpsResampler
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.ui.SetupSourceSelector
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -57,6 +59,7 @@ interface RepositoryEntryPoint {
     fun forecastRepository(): ForecastRepository
     fun currentTempRepository(): CurrentTempRepository
     fun observationRepository(): ObservationRepository
+    fun setupSourceSelector(): SetupSourceSelector
 }
 
 @Module
@@ -284,9 +287,9 @@ object AppModule {
     fun provideWeatherApi(
         httpClient: HttpClient,
         json: Json,
-        widgetStateManager: WidgetStateManager,
-    ): WeatherApi = WeatherApi(httpClient, json) { 
-        widgetStateManager.getApiKey(WeatherSource.WEATHER_API) ?: com.weatherwidget.BuildConfig.WEATHER_API_KEY 
+        credentialProvider: WeatherApiCredentialProvider,
+    ): WeatherApi = WeatherApi(httpClient, json) {
+        credentialProvider.get()
     }
 
     @Provides

@@ -5,6 +5,8 @@ import com.weatherwidget.shared.util.Log
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -15,6 +17,15 @@ import javax.inject.Inject
 import java.time.Duration
 import java.time.ZonedDateTime
 import kotlin.math.roundToInt
+
+class NwsPointUnavailableException(
+    detail: String,
+) : ApiAccessException(
+        source = com.weatherwidget.data.model.WeatherSource.NWS,
+        statusCode = HttpStatusCode.NotFound.value,
+        detail = detail,
+        message = "NWS does not provide data for the requested point.",
+    )
 
 class NwsApi
     @Inject
@@ -141,13 +152,26 @@ class NwsApi
             lat: Double,
             lon: Double,
         ): GridPointInfo {
-            val response: String =
+            val response =
                 httpClient.get("$BASE_URL/points/$lat,$lon") {
                     header("User-Agent", USER_AGENT)
                     header("Accept", "application/json")
-                }.body()
+                }
+            val responseBody = response.bodyAsText()
 
-            val jsonObj = json.parseToJsonElement(response).jsonObject
+            if (response.status.value !in 200..299) {
+                if (response.status == HttpStatusCode.NotFound && isUnsupportedPointProblem(responseBody)) {
+                    throw NwsPointUnavailableException(responseBody)
+                }
+                throw ApiAccessException(
+                    source = com.weatherwidget.data.model.WeatherSource.NWS,
+                    statusCode = response.status.value,
+                    detail = responseBody,
+                    message = "NWS points lookup failed: status ${response.status.value}.",
+                )
+            }
+
+            val jsonObj = json.parseToJsonElement(responseBody).jsonObject
             val properties =
                 jsonObj["properties"]?.jsonObject
                     ?: throw Exception("Invalid NWS response")
@@ -162,6 +186,15 @@ class NwsApi
                 forecastUrl = properties["forecast"]?.jsonPrimitive?.content ?: "",
                 observationStationsUrl = observationStationsUrl,
             )
+        }
+
+        private fun isUnsupportedPointProblem(responseBody: String): Boolean {
+            val problem = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull()
+                ?: return false
+            val type = problem["type"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val title = problem["title"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            return type.substringAfterLast('/').equals("InvalidPoint", ignoreCase = true) ||
+                title.equals("Data Unavailable For Requested Point", ignoreCase = true)
         }
 
         suspend fun getObservationStations(stationsUrl: String): List<StationInfo> {

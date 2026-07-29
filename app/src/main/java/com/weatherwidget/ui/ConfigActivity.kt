@@ -35,6 +35,8 @@ import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
@@ -77,6 +79,10 @@ class ConfigActivity : AppCompatActivity() {
     /** Set by [finishWithSuccess]; onDestroy logs any widget-add exit that never got here. */
     private var completedOk = false
 
+    /** Guards the one-time setup network decision and duplicate save taps. */
+    private var saveInProgress = false
+    private var saveJob: Job? = null
+
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
 
@@ -85,6 +91,9 @@ class ConfigActivity : AppCompatActivity() {
 
     @Inject
     lateinit var sharedLocationResolver: com.weatherwidget.data.repository.SharedLocationResolver
+
+    @Inject
+    lateinit var setupSourceSelector: SetupSourceSelector
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -420,9 +429,8 @@ class ConfigActivity : AppCompatActivity() {
      * all placed widgets rather than creating unsupported per-widget locations.
      */
     private fun saveChosenLocation(lat: Double, lon: Double, label: String?, mode: String) {
-        LocationMode.set(this, mode)
-
         if (isGlobalMode) {
+            LocationMode.set(this, mode)
             if (label != null) {
                 finishGlobalSave(lat, lon, label, mode)
             } else {
@@ -438,11 +446,68 @@ class ConfigActivity : AppCompatActivity() {
             return
         }
 
+        if (saveInProgress || completedOk) {
+            logConfig("SAVE_IGNORED widget=$appWidgetId inProgress=$saveInProgress completed=$completedOk")
+            return
+        }
+        saveInProgress = true
+        setSaveControlsEnabled(false)
+
         val widgetIds =
             (LocationUpdater.getWidgetIds(this).toList() + appWidgetId)
                 .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                 .distinct()
                 .toIntArray()
+        saveJob = lifecycleScope.launch {
+            val startedAt = SystemClock.elapsedRealtime()
+            val currentSources = widgetStateManager.getVisibleSourcesOrder()
+            val selection = try {
+                setupSourceSelectorForTesting?.invoke(currentSources, lat, lon)
+                    ?: setupSourceSelector.select(currentSources, lat, lon)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                SetupSourceSelection(
+                    sources = currentSources,
+                    nwsCoverage = SetupNwsCoverage.INCONCLUSIVE,
+                    reason = "selector_${e.javaClass.simpleName}",
+                )
+            }
+            if (!isActive) return@launch
+
+            val sourceChanged = selection.sources != currentSources
+            logSetupDecision(
+                "widget=$appWidgetId lat=$lat lon=$lon " +
+                    "result=${selection.nwsCoverage.name.lowercase(Locale.US)} " +
+                    "weatherapi=${selection.weatherApiAvailability.name.lowercase(Locale.US)} " +
+                    "reason=${selection.reason ?: "none"} " +
+                    "sourceChange=${if (sourceChanged) "updated" else "none"} " +
+                    "elapsedMs=${SystemClock.elapsedRealtime() - startedAt}",
+            )
+
+            widgetStateManager.setVisibleSourcesOrderForSetup(selection.sources, widgetIds)
+            LocationMode.set(this@ConfigActivity, mode)
+            persistWidgetLocation(lat, lon, label, mode, widgetIds)
+            finishWithSuccess()
+        }.also { job ->
+            job.invokeOnCompletion {
+                if (!completedOk) {
+                    runOnUiThread {
+                        saveInProgress = false
+                        setSaveControlsEnabled(true)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun persistWidgetLocation(
+        lat: Double,
+        lon: Double,
+        label: String?,
+        mode: String,
+        widgetIds: IntArray,
+    ) {
         LocationUpdater.applyActiveLocationToAllWidgets(
             context = this,
             lat = lat,
@@ -454,8 +519,15 @@ class ConfigActivity : AppCompatActivity() {
         lifecycleScope.launch {
             appLogDao.log("CONFIG", "Widget $appWidgetId configured with lat=$lat, lon=$lon mode=$mode")
         }
+    }
 
-        finishWithSuccess()
+    private fun setSaveControlsEnabled(enabled: Boolean) {
+        findViewById<Button>(R.id.use_gps_button)?.isEnabled = enabled
+        findViewById<Button>(R.id.search_location_button)?.isEnabled = enabled
+        findViewById<Button>(R.id.use_coordinates_button)?.isEnabled = enabled
+        findViewById<EditText>(R.id.location_search_input)?.isEnabled = enabled
+        findViewById<EditText>(R.id.lat_input)?.isEnabled = enabled
+        findViewById<EditText>(R.id.lon_input)?.isEnabled = enabled
     }
 
     private fun finishGlobalSave(lat: Double, lon: Double, label: String, mode: String) {
@@ -484,15 +556,31 @@ class ConfigActivity : AppCompatActivity() {
      *   replaces with a real fix (same as the manual GPS-failure path).
      */
     private fun completeWidgetAddOnExit(trigger: String) {
+        val cancelledPendingCheck = saveInProgress
+        if (cancelledPendingCheck) {
+            saveJob?.cancel()
+            saveJob = null
+            saveInProgress = false
+            setSaveControlsEnabled(true)
+            logConfig("BACK_SAVE_CANCELLED_CHECK trigger=$trigger widget=$appWidgetId")
+        }
         val fix = prefetchedFix
         val pinned = LocationMode.get(this) == LocationMode.FIXED
         logConfig("BACK_SAVE trigger=$trigger widget=$appWidgetId usedFix=${fix != null} pinned=$pinned")
         when {
+            fix != null && cancelledPendingCheck ->
+                finishWidgetLocationWithoutSourceCheck(fix.lat, fix.lon, null, LocationMode.FOLLOW_DEVICE)
             fix != null -> saveChosenLocation(fix.lat, fix.lon, null, LocationMode.FOLLOW_DEVICE)
             pinned -> {
                 triggerWidgetUpdate()
                 finishWithSuccess()
             }
+            cancelledPendingCheck -> finishWidgetLocationWithoutSourceCheck(
+                WeatherWidgetWorker.DEFAULT_LAT,
+                WeatherWidgetWorker.DEFAULT_LON,
+                null,
+                LocationMode.FOLLOW_DEVICE,
+            )
             else -> saveChosenLocation(
                 WeatherWidgetWorker.DEFAULT_LAT,
                 WeatherWidgetWorker.DEFAULT_LON,
@@ -500,6 +588,22 @@ class ConfigActivity : AppCompatActivity() {
                 LocationMode.FOLLOW_DEVICE,
             )
         }
+    }
+
+    private fun finishWidgetLocationWithoutSourceCheck(
+        lat: Double,
+        lon: Double,
+        label: String?,
+        mode: String,
+    ) {
+        val widgetIds =
+            (LocationUpdater.getWidgetIds(this).toList() + appWidgetId)
+                .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+                .distinct()
+                .toIntArray()
+        LocationMode.set(this, mode)
+        persistWidgetLocation(lat, lon, label, mode, widgetIds)
+        finishWithSuccess()
     }
 
     private fun finishWithSuccess() {
@@ -542,6 +646,12 @@ class ConfigActivity : AppCompatActivity() {
         }
     }
 
+    private fun logSetupDecision(message: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            appLogDao.log("NWS_SETUP_CHECK", message)
+        }
+    }
+
     /** The two [LocationFixFlow] stages, as a swappable pair. */
     internal class LocationStages(
         val activeFix: suspend () -> LocationFixFlow.Coordinates?,
@@ -565,5 +675,13 @@ class ConfigActivity : AppCompatActivity() {
          */
         @VisibleForTesting
         internal var locationStagesForTesting: LocationStages? = null
+
+        /**
+         * Test seam for the setup-only source decision. Production always uses the injected
+         * selector; tests replace network coverage and credential calls with deterministic data.
+         */
+        @VisibleForTesting
+        internal var setupSourceSelectorForTesting:
+            (suspend (List<com.weatherwidget.data.model.WeatherSource>, Double, Double) -> SetupSourceSelection)? = null
     }
 }

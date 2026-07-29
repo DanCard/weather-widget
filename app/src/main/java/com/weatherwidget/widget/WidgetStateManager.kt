@@ -398,6 +398,45 @@ class WidgetStateManager
             resetAllToggleStates()
         }
 
+        /**
+         * Applies the one-time launcher-setup source decision without resetting unrelated widgets
+         * to the first source. Selections are captured by source identity and translated to the
+         * new indexes; widgets that were displaying a removed source move to the first survivor.
+         */
+        fun setVisibleSourcesOrderForSetup(
+            sources: List<WeatherSource>,
+            widgetIds: IntArray,
+        ): Boolean {
+            val oldOrder = getVisibleSourcesOrder()
+            val filtered = sources
+                .filter { it != WeatherSource.GENERIC_GAP && it != WeatherSource.OPEN_WEATHER_MAP }
+                .distinct()
+            if (filtered.isEmpty() || filtered == oldOrder) {
+                return false
+            }
+
+            val selectedByWidget = widgetIds.distinct().associateWith { widgetId ->
+                sourceForStep(getDisplaySourceToggleStep(widgetId), oldOrder)
+            }
+            val editor = prefs.edit()
+                .putString(KEY_VISIBLE_SOURCES_ORDER, filtered.joinToString(",") { it.name })
+            selectedByWidget.forEach { (widgetId, selectedSource) ->
+                val newIndex = filtered.indexOf(selectedSource).takeIf { it >= 0 } ?: 0
+                editor.putInt("$KEY_DISPLAY_SOURCE_PREFIX$widgetId", newIndex)
+            }
+            editor.commit()
+
+            val oldNames = oldOrder.map { it.name }
+            val newNames = filtered.map { it.name }
+            Log.d("SOURCE_ORDER", "setVisibleSourcesOrderForSetup: $oldNames -> $newNames")
+            appLogDao?.let { dao ->
+                logScope.launch {
+                    dao.log("SOURCE_ORDER", "Setup order changed: $oldNames -> $newNames")
+                }
+            }
+            return true
+        }
+
         fun isSourceVisible(source: WeatherSource): Boolean {
             return source in getVisibleSourcesOrder()
         }

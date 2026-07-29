@@ -10,8 +10,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.SharedPreferencesUtil
+import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -63,12 +65,22 @@ class ConfigActivityAddFlowRoboTest {
                 Manifest.permission.ACCESS_COARSE_LOCATION,
                 Manifest.permission.ACCESS_BACKGROUND_LOCATION,
             )
+        ConfigActivity.setupSourceSelectorForTesting = { current, _, _ ->
+            SetupSourceSelection(
+                sources = current,
+                nwsCoverage = SetupNwsCoverage.SUPPORTED,
+            )
+        }
+        WidgetStateManager.setPrefsNameOverrideForTesting(null)
+        context.getSharedPreferences("widget_state_prefs", Context.MODE_PRIVATE).edit().clear().commit()
         clearSavedLocation()
     }
 
     @After
     fun tearDown() {
         ConfigActivity.locationStagesForTesting = null
+        ConfigActivity.setupSourceSelectorForTesting = null
+        context.getSharedPreferences("widget_state_prefs", Context.MODE_PRIVATE).edit().clear().commit()
         clearSavedLocation()
     }
 
@@ -129,6 +141,110 @@ class ConfigActivityAddFlowRoboTest {
             prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$TEST_WIDGET_ID", Float.NaN),
             0.0001f,
         )
+        scenario.close()
+    }
+
+    @Test
+    fun `unsupported NWS enables validated WeatherAPI during launcher setup`() {
+        ConfigActivity.locationStagesForTesting = fixedStages(activeFix = LONDON_FIX)
+        val stateManager = WidgetStateManager(context)
+        stateManager.setVisibleSourcesOrder(
+            listOf(
+                WeatherSource.NWS,
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
+            ),
+        )
+        ConfigActivity.setupSourceSelectorForTesting = { _, _, _ ->
+            SetupSourceSelection(
+                sources =
+                    listOf(
+                        WeatherSource.OPEN_METEO,
+                        WeatherSource.SILURIAN,
+                        WeatherSource.WEATHER_API,
+                    ),
+                nwsCoverage = SetupNwsCoverage.UNSUPPORTED,
+                weatherApiAvailability = SetupWeatherApiAvailability.AVAILABLE,
+            )
+        }
+
+        val scenario = launchAddFlow()
+        drainUntil("London auto-fill resolved") { scenario.confirmButtonIsOffered() }
+        scenario.onActivity {
+            it.findViewById<Button>(R.id.use_gps_button).performClick()
+        }
+
+        assertEquals(
+            listOf(
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
+                WeatherSource.WEATHER_API,
+            ),
+            stateManager.getVisibleSourcesOrder(),
+        )
+        assertEquals(Activity.RESULT_OK, scenario.result.resultCode)
+        scenario.close()
+    }
+
+    @Test
+    fun `failed WeatherAPI validation still removes unsupported NWS`() {
+        ConfigActivity.locationStagesForTesting = fixedStages(activeFix = LONDON_FIX)
+        val stateManager = WidgetStateManager(context)
+        stateManager.setVisibleSourcesOrder(
+            listOf(
+                WeatherSource.NWS,
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
+            ),
+        )
+        ConfigActivity.setupSourceSelectorForTesting = { _, _, _ ->
+            SetupSourceSelection(
+                sources = listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+                nwsCoverage = SetupNwsCoverage.UNSUPPORTED,
+                weatherApiAvailability = SetupWeatherApiAvailability.UNAVAILABLE,
+                reason = "http_401",
+            )
+        }
+
+        val scenario = launchAddFlow()
+        drainUntil("London auto-fill resolved") { scenario.confirmButtonIsOffered() }
+        scenario.onActivity {
+            it.findViewById<Button>(R.id.use_gps_button).performClick()
+        }
+
+        assertEquals(
+            listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+            stateManager.getVisibleSourcesOrder(),
+        )
+        assertEquals(Activity.RESULT_OK, scenario.result.resultCode)
+        scenario.close()
+    }
+
+    @Test
+    fun `second save tap is blocked and Back cancels the pending check without changing sources`() {
+        ConfigActivity.locationStagesForTesting = fixedStages(activeFix = LONDON_FIX)
+        val stateManager = WidgetStateManager(context)
+        val originalSources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO)
+        stateManager.setVisibleSourcesOrder(originalSources)
+        var calls = 0
+        ConfigActivity.setupSourceSelectorForTesting = { _, _, _ ->
+            calls += 1
+            awaitCancellation()
+        }
+
+        val scenario = launchAddFlow()
+        drainUntil("London auto-fill resolved") { scenario.confirmButtonIsOffered() }
+        scenario.onActivity { activity ->
+            val button = activity.findViewById<Button>(R.id.use_gps_button)
+            button.performClick()
+            button.performClick()
+            assertFalse("Save controls must stay disabled during the check", button.isEnabled)
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+
+        assertEquals(1, calls)
+        assertEquals(originalSources, stateManager.getVisibleSourcesOrder())
+        assertEquals(Activity.RESULT_OK, scenario.result.resultCode)
         scenario.close()
     }
 
@@ -229,5 +345,6 @@ class ConfigActivityAddFlowRoboTest {
         const val TEST_WIDGET_ID = 8898
         const val DRAIN_TIMEOUT_MS = 10_000L
         val FIX = LocationFixFlow.Coordinates(lat = 37.4168, lon = -122.0890)
+        val LONDON_FIX = LocationFixFlow.Coordinates(lat = 51.5074, lon = -0.1278)
     }
 }

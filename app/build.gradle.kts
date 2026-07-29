@@ -33,7 +33,8 @@ if (localPropertiesFile.exists()) {
 }
 val weatherApiKey =
     (
-        localProperties.getProperty("WEATHER_API_KEY")
+        project.findProperty("WEATHER_API_KEY") as? String
+            ?: localProperties.getProperty("WEATHER_API_KEY")
             ?: System.getenv("WEATHER_API_KEY")
             ?: ""
     )
@@ -203,6 +204,28 @@ android {
         // so this stays signal, not noise — keep both checks: lint gates release builds,
         // the JUnit test runs in the fast unit-test lane with a better failure message.
         error += setOf("MissingTranslation", "ExtraTranslation")
+    }
+}
+
+val validateReleaseWeatherApiKey =
+    tasks.register("validateReleaseWeatherApiKey") {
+        group = "verification"
+        description = "Fails release publication builds when the bundled WeatherAPI key is blank."
+        inputs.property("weatherApiKeyConfigured", weatherApiKey.isNotBlank())
+        doLast {
+            if (inputs.properties["weatherApiKeyConfigured"] != true) {
+                throw GradleException(
+                    "WEATHER_API_KEY is required for Android release builds because setup may " +
+                        "automatically enable WeatherAPI when NWS is unavailable.",
+                )
+            }
+            logger.lifecycle("Android release WeatherAPI key check: configured")
+        }
+    }
+
+tasks.configureEach {
+    if (name == "assembleRelease" || name == "bundleRelease") {
+        dependsOn(validateReleaseWeatherApiKey)
     }
 }
 

@@ -226,6 +226,57 @@ class WidgetStateManagerTest {
     }
 
     @Test
+    fun `setup source change preserves surviving widget selections by source identity`() {
+        val secondWidget = 2
+        val thirdWidget = 3
+        stateManager.setVisibleSourcesOrder(
+            listOf(
+                WeatherSource.NWS,
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
+            ),
+        )
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.OPEN_METEO)
+        stateManager.setCurrentDisplaySource(secondWidget, WeatherSource.SILURIAN)
+
+        val changed =
+            stateManager.setVisibleSourcesOrderForSetup(
+                sources =
+                    listOf(
+                        WeatherSource.OPEN_METEO,
+                        WeatherSource.SILURIAN,
+                        WeatherSource.WEATHER_API,
+                    ),
+                widgetIds = intArrayOf(testWidgetId, secondWidget, thirdWidget),
+            )
+
+        assertTrue(changed)
+        assertEquals(WeatherSource.OPEN_METEO, stateManager.getCurrentDisplaySource(testWidgetId))
+        assertEquals(WeatherSource.SILURIAN, stateManager.getCurrentDisplaySource(secondWidget))
+        assertEquals(
+            "A widget displaying removed NWS must move to the first surviving source",
+            WeatherSource.OPEN_METEO,
+            stateManager.getCurrentDisplaySource(thirdWidget),
+        )
+    }
+
+    @Test
+    fun `setup source no-op does not reset widget selection`() {
+        val order = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO)
+        stateManager.setVisibleSourcesOrder(order)
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.OPEN_METEO)
+
+        val changed =
+            stateManager.setVisibleSourcesOrderForSetup(
+                sources = order,
+                widgetIds = intArrayOf(testWidgetId),
+            )
+
+        assertFalse(changed)
+        assertEquals(WeatherSource.OPEN_METEO, stateManager.getCurrentDisplaySource(testWidgetId))
+    }
+
+    @Test
     fun `getVisibleSourcesOrder uses tomorrow io default order on fresh install (debug build)`() {
         // Unit tests run against the debug variant (BuildConfig.DEBUG = true), where Tomorrow.io
         // IS in the default set. Release builds default to "NWS,OPEN_METEO,SILURIAN" (Tomorrow.io

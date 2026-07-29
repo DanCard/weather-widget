@@ -53,6 +53,12 @@ class ConfigActivityRobolectricTest {
         clearTestPrefs("widget_state_prefs")
         clearTestPrefs("weather_prefs")
         ActiveLocationResolver.clearForTesting(context)
+        ConfigActivity.setupSourceSelectorForTesting = { current, _, _ ->
+            SetupSourceSelection(
+                sources = current,
+                nwsCoverage = SetupNwsCoverage.SUPPORTED,
+            )
+        }
     }
 
     @After
@@ -61,6 +67,7 @@ class ConfigActivityRobolectricTest {
         clearTestPrefs("widget_state_prefs")
         clearTestPrefs("weather_prefs")
         ActiveLocationResolver.clearForTesting(context)
+        ConfigActivity.setupSourceSelectorForTesting = null
     }
 
     private fun clearTestPrefs(name: String) {
@@ -156,6 +163,14 @@ class ConfigActivityRobolectricTest {
 
     @Test
     fun `global mode saves to all widgets and never sets RESULT_OK`() {
+        var setupChecks = 0
+        ConfigActivity.setupSourceSelectorForTesting = { current, _, _ ->
+            setupChecks += 1
+            SetupSourceSelection(
+                sources = current,
+                nwsCoverage = SetupNwsCoverage.SUPPORTED,
+            )
+        }
         bindWidget(9001, 34.0522, -118.2437)
         bindWidget(9002, 40.7128, -74.0060)
 
@@ -200,6 +215,7 @@ class ConfigActivityRobolectricTest {
             assertTrue(activity.isFinishing)
             assertEquals(Activity.RESULT_CANCELED, shadowOf(activity).resultCode)
         }
+        assertEquals("Settings/global saves must not run setup source checks", 0, setupChecks)
     }
 
     @Test
