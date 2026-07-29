@@ -6,7 +6,7 @@ import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestData.LAT
 import com.weatherwidget.testutil.TestData.LON
 import com.weatherwidget.testutil.TestDatabase
-import com.weatherwidget.widget.WeatherWidgetProvider.Companion.HOURLY_LOOKAHEAD_HOURS
+import com.weatherwidget.widget.WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.*

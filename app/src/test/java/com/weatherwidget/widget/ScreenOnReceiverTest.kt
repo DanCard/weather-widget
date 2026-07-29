@@ -80,16 +80,16 @@ class ScreenOnReceiverTest {
         
         assertTrue("Expected at least one broadcast intent", broadcastIntents.isNotEmpty())
         
-        // Find the specific intent sent to WeatherWidgetProvider
-        val providerIntent = broadcastIntents.find { 
-            it.component?.className == WeatherWidgetProvider::class.java.name 
+        // Find the specific intent sent to the internal action receiver.
+        val actionIntent = broadcastIntents.find {
+            it.component?.className == WidgetActionReceiver::class.java.name
         }
         
-        assertNotNull("Expected broadcast to WeatherWidgetProvider", providerIntent)
-        assertEquals(WidgetActions.ACTION_REFRESH, providerIntent?.action)
+        assertNotNull("Expected broadcast to WidgetActionReceiver", actionIntent)
+        assertEquals(WidgetActions.ACTION_REFRESH, actionIntent?.action)
         assertTrue(
             "Unplugged unlock must remain cache-only even at the default high battery reading",
-            providerIntent?.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false) == true,
+            actionIntent?.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false) == true,
         )
     }
 
@@ -100,15 +100,15 @@ class ScreenOnReceiverTest {
 
         receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
 
-        val providerIntent =
+        val actionIntent =
             shadowOf(context as android.app.Application).broadcastIntents.find {
-                it.component?.className == WeatherWidgetProvider::class.java.name
+                it.component?.className == WidgetActionReceiver::class.java.name
             }
-        assertNotNull("Expected broadcast to WeatherWidgetProvider", providerIntent)
-        assertEquals(WidgetActions.ACTION_REFRESH, providerIntent?.action)
+        assertNotNull("Expected broadcast to WidgetActionReceiver", actionIntent)
+        assertEquals(WidgetActions.ACTION_REFRESH, actionIntent?.action)
         assertFalse(
             "Charging unlock should remain network-capable",
-            providerIntent?.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false) == true,
+            actionIntent?.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false) == true,
         )
     }
 
@@ -122,11 +122,11 @@ class ScreenOnReceiverTest {
         val broadcastIntents = shadowApplication.broadcastIntents
         
         // Ensure no relevant broadcasts were sent
-        val providerIntent = broadcastIntents.find { 
-            it.component?.className == WeatherWidgetProvider::class.java.name 
+        val actionIntent = broadcastIntents.find {
+            it.component?.className == WidgetActionReceiver::class.java.name
         }
         
-        assertTrue("Did not expect broadcast to WeatherWidgetProvider", providerIntent == null)
+        assertTrue("Did not expect broadcast to WidgetActionReceiver", actionIntent == null)
     }
 
     @Test
@@ -136,13 +136,13 @@ class ScreenOnReceiverTest {
         receiver.onReceive(context, intent)
 
         val shadowApplication = shadowOf(context as android.app.Application)
-        val providerIntent =
+        val actionIntent =
             shadowApplication.broadcastIntents.find {
-                it.component?.className == WeatherWidgetProvider::class.java.name &&
+                it.component?.className == WidgetActionReceiver::class.java.name &&
                     it.action == WidgetActions.ACTION_REFRESH
             }
 
-        assertTrue("Did not expect refresh broadcast on screen off", providerIntent == null)
+        assertTrue("Did not expect refresh broadcast on screen off", actionIntent == null)
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.WidgetQueryWindows
+
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.ZoomLevel
@@ -44,17 +46,17 @@ class GraphQueryWindowCoversBlendContextTest {
         ZoomLevel.entries.forEach { zoom ->
             val window = GraphDataLoader.buildGraphQueryWindow(centre, zoom, now)
 
-            val requiredStart = rounded.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
-            val requiredEnd = rounded.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS)
+            val requiredStart = rounded.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)
+            val requiredEnd = rounded.plusHours(WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS)
 
             assertTrue(
                 "zoom=$zoom query start ${window.centerStart} must reach back to the blend context " +
-                    "start $requiredStart (HOURLY_LOOKBACK_HOURS=${WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS})",
+                    "start $requiredStart (HOURLY_LOOKBACK_HOURS=${WidgetQueryWindows.HOURLY_LOOKBACK_HOURS})",
                 !window.centerStart.isAfter(requiredStart),
             )
             assertTrue(
                 "zoom=$zoom query end ${window.centerEnd} must reach forward to the blend context " +
-                    "end $requiredEnd (HOURLY_LOOKAHEAD_HOURS=${WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS})",
+                    "end $requiredEnd (HOURLY_LOOKAHEAD_HOURS=${WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS})",
                 !window.centerEnd.isBefore(requiredEnd),
             )
         }
@@ -77,8 +79,8 @@ class GraphQueryWindowCoversBlendContextTest {
         )
         assertTrue(
             "NARROW query span ${spanHours}h must cover the full blend context " +
-                "(${WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS}+${WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS}h)",
-            spanHours >= WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS + WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS,
+                "(${WidgetQueryWindows.HOURLY_LOOKBACK_HOURS}+${WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS}h)",
+            spanHours >= WidgetQueryWindows.HOURLY_LOOKBACK_HOURS + WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS,
         )
     }
 
@@ -89,7 +91,7 @@ class GraphQueryWindowCoversBlendContextTest {
         // widget keeps rendering two different curves depending on which loader ran last.
         val window = GraphDataLoader.buildGraphQueryWindow(now, ZoomLevel.NARROW, now)
         val providerStart = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            .minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
+            .minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)
 
         assertTrue(
             "interaction-path start ${window.centerStart} must reach at least as far back as the " +

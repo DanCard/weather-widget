@@ -23,6 +23,7 @@ class WeatherWidgetProviderRobolectricTest {
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
     private lateinit var provider: WeatherWidgetProvider
+    private lateinit var actionReceiver: WidgetActionReceiver
     private val widgetId = 9011
 
     @Before
@@ -30,6 +31,7 @@ class WeatherWidgetProviderRobolectricTest {
         context = ApplicationProvider.getApplicationContext()
         stateManager = WidgetStateManager(context)
         provider = WeatherWidgetProvider()
+        actionReceiver = WidgetActionReceiver()
         stateManager.clearWidgetState(widgetId)
     }
 
@@ -56,27 +58,41 @@ class WeatherWidgetProviderRobolectricTest {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
         }
 
-        provider.onReceive(context, intent)
+        actionReceiver.onReceive(context, intent)
 
         assertEquals(2, stateManager.getDateOffset(widgetId))
     }
 
     @Test
+    fun `malformed set-view action is rejected without changing widget state`() {
+        stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
+        val intent =
+            Intent(WidgetActions.ACTION_SET_VIEW).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                putExtra(WidgetActions.EXTRA_TARGET_VIEW, "not-a-view")
+            }
+
+        actionReceiver.onReceive(context, intent)
+
+        assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
+    }
+
+    @Test
     fun `zoneIndexToOffset maps edge zones correctly`() {
-        assertEquals(-12, WeatherWidgetProvider.zoneIndexToOffset(0, 0))
-        assertEquals(12, WeatherWidgetProvider.zoneIndexToOffset(12, 0))
-        assertEquals(0, WeatherWidgetProvider.zoneIndexToOffset(6, 0))
-        assertEquals(-2, WeatherWidgetProvider.zoneIndexToOffset(5, 0))
+        assertEquals(-12, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0))
+        assertEquals(12, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0))
+        assertEquals(0, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0))
+        assertEquals(-2, HourlyTouchZoneMapper.zoneIndexToOffset(5, 0))
     }
 
     @Test
     fun `zoneIndexToOffset maps THREE_DAY asymmetric window`() {
         // THREE_DAY spans 48h back / 24h forward (72h). The visual-center zone (6) sits at
         // (24-48)/2 = -12h, and the edges land exactly on the window bounds.
-        assertEquals(-48, WeatherWidgetProvider.zoneIndexToOffset(0, 0, ZoomLevel.THREE_DAY))
-        assertEquals(-12, WeatherWidgetProvider.zoneIndexToOffset(6, 0, ZoomLevel.THREE_DAY))
-        assertEquals(24, WeatherWidgetProvider.zoneIndexToOffset(12, 0, ZoomLevel.THREE_DAY))
+        assertEquals(-48, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0, ZoomLevel.THREE_DAY))
+        assertEquals(-12, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomLevel.THREE_DAY))
+        assertEquals(24, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0, ZoomLevel.THREE_DAY))
         // Base offset is added through.
-        assertEquals(-38, WeatherWidgetProvider.zoneIndexToOffset(0, 10, ZoomLevel.THREE_DAY))
+        assertEquals(-38, HourlyTouchZoneMapper.zoneIndexToOffset(0, 10, ZoomLevel.THREE_DAY))
     }
 }

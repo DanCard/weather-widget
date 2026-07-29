@@ -3,15 +3,11 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import android.util.Log
 import androidx.annotation.VisibleForTesting
-import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.BatteryFetchStrategy
-import com.weatherwidget.widget.WeatherWidgetProvider
-import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetWorkScheduler
 
 object RefreshScheduler {
     private const val TAG = "RefreshScheduler"
@@ -109,30 +105,12 @@ object RefreshScheduler {
             return
         }
 
-        val workRequest =
-            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                .setInputData(
-                    Data.Builder()
-                        .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
-                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
-                        .apply {
-                            if (targetSourceId != null) {
-                                putString(WeatherWidgetWorker.KEY_TARGET_SOURCE, targetSourceId)
-                            }
-                        }
-                        .build(),
-                )
-                .apply {
-                    if (initialDelayMs > 0) {
-                        setInitialDelay(initialDelayMs, java.util.concurrent.TimeUnit.MILLISECONDS)
-                    }
-                }
-                .build()
-
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            WeatherWidgetProvider.WORK_NAME_ONE_TIME,
-            policy,
-            workRequest,
+        WidgetWorkScheduler.enqueueForcedSync(
+            context = context,
+            reason = reason,
+            policy = policy,
+            initialDelayMs = initialDelayMs,
+            targetSourceId = targetSourceId,
         )
     }
 

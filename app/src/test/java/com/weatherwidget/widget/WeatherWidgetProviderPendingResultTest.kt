@@ -18,7 +18,7 @@ class WeatherWidgetProviderPendingResultTest {
 
     @Test
     fun `finishPendingResultSafely ignores null pending result`() {
-        WeatherWidgetProvider.finishPendingResultSafely(
+        BroadcastAsyncRunner.finishPendingResultSafely(
             pendingResult = null,
             caller = "test",
         )
@@ -28,7 +28,7 @@ class WeatherWidgetProviderPendingResultTest {
     fun `finishPendingResultSafely finishes non-null pending result`() {
         val pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true)
 
-        WeatherWidgetProvider.finishPendingResultSafely(
+        BroadcastAsyncRunner.finishPendingResultSafely(
             pendingResult = pendingResult,
             caller = "test",
         )
@@ -41,7 +41,7 @@ class WeatherWidgetProviderPendingResultTest {
         val pendingResult = mockk<BroadcastReceiver.PendingResult>()
         every { pendingResult.finish() } throws RuntimeException("boom")
 
-        WeatherWidgetProvider.finishPendingResultSafely(
+        BroadcastAsyncRunner.finishPendingResultSafely(
             pendingResult = pendingResult,
             caller = "test",
         )

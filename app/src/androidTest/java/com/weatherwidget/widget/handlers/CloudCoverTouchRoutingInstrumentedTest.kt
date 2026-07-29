@@ -1,5 +1,7 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.WidgetActionReceiver
+
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Intent
@@ -99,7 +101,7 @@ class CloudCoverTouchRoutingInstrumentedTest : IsolatedIntegrationTest("cloud_co
 
     private fun buildBottomTapViews(): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
-        val goTempIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val goTempIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.TEMPERATURE.name)

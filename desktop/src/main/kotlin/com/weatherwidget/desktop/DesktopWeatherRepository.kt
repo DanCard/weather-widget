@@ -30,7 +30,8 @@ class DesktopWeatherRepository(
     private val latitude: Double,
     private val longitude: Double,
     private val weatherSource: String,
-    private val personalStationWeight: Double = 1.0
+    private val personalStationWeight: Double = 1.0,
+    private val currentTimeMillis: () -> Long = System::currentTimeMillis,
 ) {
     private fun resolveForForecastResult(
         hourly: List<HourlyForecast>,
@@ -90,7 +91,7 @@ class DesktopWeatherRepository(
         return resolveForForecastResult(forecast.hourly, forecast.rawObservations, now, resultLogLevel = "VERBOSE")
     }
 
-    suspend fun loadCached(now: Long = System.currentTimeMillis()): ForecastResult? = withContext(Dispatchers.IO) {
+    suspend fun loadCached(now: Long = currentTimeMillis()): ForecastResult? = withContext(Dispatchers.IO) {
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
         // Cover the widest zoom-out (6 days back) so the continuous-zoom graph never truncates history.
         val stitchedStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
@@ -162,7 +163,7 @@ class DesktopWeatherRepository(
             WeatherSource.NWS.id ->
                 neededHistoryDays(neededBackHours) > deepestHistoryDaysFetched
             WeatherSource.WEATHER_API.id ->
-                neededBackHours >= 24 && weatherApiHistoryDecision(System.currentTimeMillis()) is
+                neededBackHours >= 24 && weatherApiHistoryDecision(currentTimeMillis()) is
                     ProviderHistoryDecision.Fetch
             else -> false
         }
@@ -181,8 +182,8 @@ class DesktopWeatherRepository(
         if (weatherSource == WeatherSource.WEATHER_API.id) {
             if (neededBackHours < 24) return@withContext false
             return@withContext historyFetchMutex.withLock {
-                val stored = backfillWeatherApiHistoryIfNeeded(System.currentTimeMillis())
-                if (stored > 0) recomputeDailyExtremes(System.currentTimeMillis())
+                val stored = backfillWeatherApiHistoryIfNeeded(currentTimeMillis())
+                if (stored > 0) recomputeDailyExtremes(currentTimeMillis())
                 stored > 0
             }
         }
@@ -196,7 +197,7 @@ class DesktopWeatherRepository(
             try {
                 val obs = weatherService.fetchObservationHistory(neededDays.toLong())
                 if (obs.isNotEmpty()) {
-                    weatherDao.upsertObservations(obs.map { it.toEntity(System.currentTimeMillis()) })
+                    weatherDao.upsertObservations(obs.map { it.toEntity(currentTimeMillis()) })
                     fetchedAny = true
                 }
             } catch (e: Exception) {
@@ -211,7 +212,7 @@ class DesktopWeatherRepository(
     }
 
     suspend fun refresh(
-        now: Long = System.currentTimeMillis(),
+        now: Long = currentTimeMillis(),
     ): ForecastResult = withContext(Dispatchers.IO) {
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
         try {
@@ -411,7 +412,7 @@ class DesktopWeatherRepository(
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
         try {
             val result = weatherService.fetchObservationsOnly()
-            val now = System.currentTimeMillis()
+            val now = currentTimeMillis()
 
             if (result.rawObservations.isNotEmpty()) {
                 weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })

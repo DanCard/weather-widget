@@ -225,14 +225,14 @@ class ZoomCycleRoboTest {
 
         val expectedOffsets = listOf(-12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12)
 
-        for (zoneIndex in 0 until WeatherWidgetProvider.HOUR_ZONE_COUNT) {
+        for (zoneIndex in 0 until HourlyTouchZoneMapper.HOUR_ZONE_COUNT) {
             stateManager.clearWidgetState(testWidgetId)
             stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
             stateManager.setHourlyOffset(testWidgetId, baseOffset)
             assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
 
-            val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(zoneIndex, baseOffset, ZoomLevel.WIDE)
-            val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(zoneIndex, baseOffset, ZoomLevel.WIDE)
+            val intent = Intent(context, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
                 putExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
@@ -260,8 +260,8 @@ class ZoomCycleRoboTest {
         val baseOffset = 6
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset, ZoomLevel.WIDE)
-        val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(0, baseOffset, ZoomLevel.WIDE)
+        val intent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
             putExtra(EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
@@ -285,8 +285,8 @@ class ZoomCycleRoboTest {
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset, ZoomLevel.NARROW)
-        val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(0, baseOffset, ZoomLevel.NARROW)
+        val intent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
             putExtra(EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)

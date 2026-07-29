@@ -17,8 +17,8 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.widget.GraphRepaintGate
-import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -511,7 +511,7 @@ object TemperatureViewHandler {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             }
-            appContext.sendBroadcast(Intent(appContext, WeatherWidgetProvider::class.java).apply {
+            appContext.sendBroadcast(Intent(appContext, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(WidgetActions.EXTRA_UI_ONLY, true)

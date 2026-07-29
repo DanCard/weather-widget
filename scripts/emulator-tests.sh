@@ -39,6 +39,33 @@ debug_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$DEBUG_LOG"
 }
 
+recover_widget_ui() {
+    local serial="$1"
+    local recovery_output
+
+    # Instrumentation and the explicit cleanup above leave the target package force-stopped.
+    # ACTION_REFRESH moved to a non-exported, explicit-only receiver when provider interaction
+    # routing was extracted, so a shell-owned implicit package broadcast can no longer recover it.
+    # Run the explicit broadcast as the debug app UID and include stopped packages; this both
+    # clears the stopped state and asks the app to repaint every launcher widget from cache.
+    if ! recovery_output=$(
+        "$ADB_BIN" -s "$serial" shell run-as com.weatherwidget \
+            am broadcast --user 0 \
+            -n com.weatherwidget/.widget.WidgetActionReceiver \
+            -a com.weatherwidget.ACTION_REFRESH \
+            -f 0x00000020 \
+            --ez com.weatherwidget.EXTRA_UI_ONLY true 2>&1
+    ); then
+        debug_log "Widget recovery failed on $serial: $recovery_output"
+        return 1
+    fi
+
+    if [[ "$recovery_output" != *"Broadcast completed"* ]]; then
+        debug_log "Widget recovery did not complete on $serial: $recovery_output"
+        return 1
+    fi
+}
+
 parse_duration_seconds() {
     local value=$1
     local number=""
@@ -462,8 +489,9 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
             local run_duration=$((run_end - run_start))
 
             $ADB_BIN -s "$serial" shell am force-stop com.weatherwidget >/dev/null 2>&1 || true
-            $ADB_BIN -s "$serial" shell am broadcast \
-                -a com.weatherwidget.ACTION_REFRESH -f 0x00000020 -p com.weatherwidget >/dev/null 2>&1 || true
+            if ! recover_widget_ui "$serial"; then
+                echo -e "${YELLOW}Warning: widget UI recovery failed on $serial; see $DEBUG_LOG${NC}"
+            fi
 
             # Parse summary from am instrument output (format: "OK (158 tests)" or "Tests run: N, Failures: N")
             local total failed errors
@@ -1048,7 +1076,9 @@ if [ "$VERBOSE_MODE" = true ]; then
     echo -e "${BLUE}Triggering widget refresh to recover UI...${NC}"
 fi
 $ADB_BIN -s "$EMULATOR_SERIAL" shell am force-stop com.weatherwidget >/dev/null 2>&1 || true
-$ADB_BIN -s "$EMULATOR_SERIAL" shell am broadcast -a com.weatherwidget.ACTION_REFRESH -f 0x00000020 -p com.weatherwidget >/dev/null 2>&1 || true
+if ! recover_widget_ui "$EMULATOR_SERIAL"; then
+    echo -e "${YELLOW}Warning: widget UI recovery failed on $EMULATOR_SERIAL; see $DEBUG_LOG${NC}"
+fi
 
 # Return appropriate exit code
 if [ "$TEST_SUCCESS" = true ]; then

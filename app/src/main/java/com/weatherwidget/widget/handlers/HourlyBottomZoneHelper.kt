@@ -8,8 +8,9 @@ import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
+import com.weatherwidget.widget.HourlyTouchZoneMapper
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.ZoomLevel
 import kotlin.math.roundToInt
@@ -117,7 +118,7 @@ object HourlyBottomZoneHelper {
     ): ZoneAction {
         return ZoneAction(
             targetView = DayClickHelper.resolveHourlyBottomRowAction(iconRes, currentViewMode),
-            zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(zoneIndex, hourlyOffset, zoom),
+            zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(zoneIndex, hourlyOffset, zoom),
         )
     }
 
@@ -165,7 +166,7 @@ object HourlyBottomZoneHelper {
 
             val pendingIntent = if (zoneAction.targetView == null) {
                 // Zoom — same offset calculation as the body zoom zones
-                val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                val zoomIntent = Intent(context, WidgetActionReceiver::class.java).apply {
                     action = WidgetActions.ACTION_CYCLE_ZOOM
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                     putExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, zoneAction.zoneCenterOffset)
@@ -178,7 +179,7 @@ object HourlyBottomZoneHelper {
                 )
             } else {
                 // Navigate to the icon's home graph
-                val navIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                val navIntent = Intent(context, WidgetActionReceiver::class.java).apply {
                     action = WidgetActions.ACTION_SET_VIEW
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                     putExtra(WidgetActions.EXTRA_TARGET_VIEW, zoneAction.targetView.name)

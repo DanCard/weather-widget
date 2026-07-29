@@ -26,7 +26,7 @@ import org.robolectric.annotation.Config
  * Covers the goAsync() watchdog added to guard against the broadcast-ANR/process-kill scenario:
  * a widget interaction whose render is slow (e.g. competing with a startup fetch storm) used to
  * blow the ~10s foreground-broadcast deadline and get the process killed. The watchdog now
- * finishes the PendingResult early (best-effort) at [WeatherWidgetProvider.GO_ASYNC_WATCHDOG_MS]
+ * finishes the PendingResult early (best-effort) at [BroadcastAsyncRunner.WATCHDOG_MS]
  * while [block] keeps running in [WeatherWidgetProvider.scope] and completes whenever it can.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -60,12 +60,12 @@ class WeatherWidgetProviderLaunchAsyncWatchdogTest {
         var blockCompleted = false
         provider.launchAsync(context) {
             // Deliberately slower than the watchdog deadline.
-            delay(WeatherWidgetProvider.GO_ASYNC_WATCHDOG_MS + 5_000L)
+            delay(BroadcastAsyncRunner.WATCHDOG_MS + 5_000L)
             blockCompleted = true
         }
 
         // Just past the watchdog deadline, before the slow block finishes.
-        advanceTimeBy(WeatherWidgetProvider.GO_ASYNC_WATCHDOG_MS + 100L)
+        advanceTimeBy(BroadcastAsyncRunner.WATCHDOG_MS + 100L)
         assertFalse("block should still be running", blockCompleted)
         assertTrue(
             "watchdog should have logged CLICK_WATCHDOG once it fired",
@@ -106,7 +106,7 @@ class WeatherWidgetProviderLaunchAsyncWatchdogTest {
         // Both the watchdog and the block will attempt to finish the (null, in this harness)
         // PendingResult; finishOnce()'s guard must make that safe regardless of which fires first.
         provider.launchAsync(context) {
-            delay(WeatherWidgetProvider.GO_ASYNC_WATCHDOG_MS + 1_000L)
+            delay(BroadcastAsyncRunner.WATCHDOG_MS + 1_000L)
         }
 
         // Should not throw (e.g. from a double PendingResult.finish()) as time crosses both the

@@ -3,7 +3,9 @@ package com.weatherwidget.widget
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequest
+import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.ui.LocationUpdater
@@ -22,7 +24,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Guards the crash-prevention invariant for [WeatherWidgetProvider]'s worker enqueues: an
+ * Guards the crash-prevention invariant for [WidgetWorkScheduler]'s worker enqueues: an
  * *immediate* (running-capable) unique work must NEVER use [ExistingWorkPolicy.REPLACE], because
  * REPLACE cancels a running [WeatherWidgetWorker] and cancelling its coroutine continuation segfaults
  * the ART interpreter (see AGENTS.md "NEVER cancel a running WeatherWidgetWorker"). Only *delayed*
@@ -53,11 +55,11 @@ class WeatherWidgetProviderEnqueuePolicyTest {
 
     @Test
     fun `immediate UI-only update never cancels a running repaint`() {
-        WeatherWidgetProvider.triggerUiOnlyUpdate(context, reason = "test", initialDelayMs = 0L)
+        WidgetWorkScheduler.enqueueUiRepaint(context, reason = "test")
 
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
-                eq(WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui"),
+                eq(WidgetWorkScheduler.WORK_NAME_UI),
                 eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
                 any<OneTimeWorkRequest>(),
             )
@@ -65,14 +67,18 @@ class WeatherWidgetProviderEnqueuePolicyTest {
     }
 
     @Test
-    fun `delayed UI-only clear may replace the pending not-running request`() {
-        WeatherWidgetProvider.triggerUiOnlyUpdate(context, reason = "test", initialDelayMs = 5_000L)
+    fun `delayed UI-only clear uses a per-widget non-cancelling lane`() {
+        WidgetWorkScheduler.enqueueDelayedUiRepaint(
+            context = context,
+            appWidgetId = 42,
+            reason = "test",
+            initialDelayMs = 5_000L,
+        )
 
-        // Delayed work has no live coroutine to cancel, so REPLACE (keep only the latest clear) is safe.
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
-                eq(WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui_delayed"),
-                eq(ExistingWorkPolicy.REPLACE),
+                eq(WidgetWorkScheduler.delayedUiWorkName(42)),
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
                 any<OneTimeWorkRequest>(),
             )
         }
@@ -80,13 +86,68 @@ class WeatherWidgetProviderEnqueuePolicyTest {
 
     @Test
     fun `immediate full-fetch update keeps a running sync instead of cancelling it`() {
-        WeatherWidgetProvider.triggerImmediateUpdate(context, forceRefresh = true, reason = "test")
+        WidgetWorkScheduler.enqueueRedundantImmediateSync(context, forceRefresh = true, reason = "test")
 
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
-                eq(WeatherWidgetProvider.WORK_NAME_ONE_TIME),
+                eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
                 eq(ExistingWorkPolicy.KEEP),
                 any<OneTimeWorkRequest>(),
+            )
+        }
+    }
+
+    @Test
+    fun `required no-hourly follow-up is appended instead of discarded`() {
+        WidgetWorkScheduler.enqueueRequiredNoHourlyFollowUp(
+            context = context,
+            appWidgetId = 17,
+            date = "2026-07-30",
+            lat = 37.42,
+            lon = -122.08,
+            targetSourceId = "NWS",
+        )
+
+        verify(exactly = 1) {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                match<OneTimeWorkRequest> {
+                    it.workSpec.input.getInt(
+                        WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID,
+                        -1,
+                    ) == 17
+                },
+            )
+        }
+    }
+
+    @Test
+    fun `delayed startup sync cannot occupy the urgent one-time lane`() {
+        WidgetWorkScheduler.enqueueDelayedStartupSync(
+            context = context,
+            reason = "test",
+            initialDelayMs = 60_000,
+        )
+
+        verify(exactly = 1) {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WidgetWorkScheduler.WORK_NAME_STARTUP_DELAYED),
+                eq(ExistingWorkPolicy.KEEP),
+                any<OneTimeWorkRequest>(),
+            )
+        }
+    }
+
+    @Test
+    fun `periodic sync updates without cancelling a running instance`() {
+        WidgetWorkScheduler.schedulePeriodicSync(context)
+
+        verify(exactly = 1) {
+            mockWorkManager.enqueueUniquePeriodicWork(
+                eq(WidgetWorkScheduler.WORK_NAME_PERIODIC),
+                eq(ExistingPeriodicWorkPolicy.UPDATE),
+                any<PeriodicWorkRequest>(),
             )
         }
     }

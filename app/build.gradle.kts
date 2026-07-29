@@ -451,6 +451,7 @@ dependencies {
     testImplementation(libs.coroutines.test)
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.room.testing)
+    testImplementation(libs.workmanager.testing)
 
     // Instrumented tests
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

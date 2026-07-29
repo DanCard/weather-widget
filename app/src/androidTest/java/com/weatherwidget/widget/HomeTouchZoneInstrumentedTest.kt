@@ -32,7 +32,7 @@ class HomeTouchZoneInstrumentedTest {
     fun homeIcon_andHomeTouchZone_canShareDailyViewPendingIntent() {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
 
-        val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val homeIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, TEST_WIDGET_ID)
             putExtra(EXTRA_TARGET_VIEW, ViewMode.DAILY.name)

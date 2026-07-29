@@ -22,11 +22,12 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.PrecipitationGraphRenderer
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
-import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.GraphRepaintGate
 import java.time.Instant
 import java.time.LocalDate
@@ -172,7 +173,7 @@ object PrecipViewHandler {
         )
 
         // Weather icon + bottom graph zone → cloud cover view
-        val goCloudIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val goCloudIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra(WidgetActions.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.CLOUD_COVER.name)
@@ -364,7 +365,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                         "widget=$appWidgetId source=${displaySource.id} missing=$missingHours, requesting immediate API update",
                         "INFO"
                     )
-                    WeatherWidgetProvider.triggerImmediateUpdate(
+                    WidgetWorkScheduler.enqueueRedundantImmediateSync(
                         context = context,
                         forceRefresh = true,
                         reason = "hourly_gaps"

@@ -404,7 +404,7 @@ class WeatherWidgetWorker
             lon: Double,
         ) {
             val completeIntent =
-                Intent(context, WeatherWidgetProvider::class.java).apply {
+                Intent(context, WidgetActionReceiver::class.java).apply {
                     action = WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
                     putExtra("date", dateStr)

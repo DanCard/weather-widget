@@ -36,9 +36,10 @@ import dagger.hilt.android.AndroidEntryPoint
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.ApiKeySignupUrls
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.WidgetWorkScheduler
 import java.util.UUID
 
 import javax.inject.Inject
@@ -75,13 +76,10 @@ class SettingsActivity : AppCompatActivity() {
         val refreshDataButton = findViewById<Button>(R.id.refresh_data_button)
         refreshDataButton.setOnClickListener {
             val forecastRefreshWork =
-                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                    .setInputData(
-                        Data.Builder()
-                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
-                            .build(),
-                    )
-                    .build()
+                WidgetWorkScheduler.enqueueRequiredImmediateSync(
+                    context = this,
+                    reason = "settings_manual_refresh",
+                )
             val currentRefreshWork =
                 OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInputData(
@@ -99,16 +97,8 @@ class SettingsActivity : AppCompatActivity() {
                     .build()
 
             val workManager = WorkManager.getInstance(this)
-            // APPEND_OR_REPLACE (not REPLACE): a manual "Refresh now" must never cancel a running
-            // worker — that segfaults ART on debuggable builds ([[samsung_widget_dead_native_sigsegv]]).
-            // The fresh fetch still runs, queued after any in-flight one.
             workManager.enqueueUniqueWork(
-                WeatherWidgetProvider.WORK_NAME_ONE_TIME,
-                ExistingWorkPolicy.APPEND_OR_REPLACE,
-                forecastRefreshWork,
-            )
-            workManager.enqueueUniqueWork(
-                WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP,
+                WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP,
                 ExistingWorkPolicy.APPEND_OR_REPLACE,
                 currentRefreshWork,
             )
@@ -151,7 +141,7 @@ class SettingsActivity : AppCompatActivity() {
             // The old triggerUiOnlyUpdate() went through WorkManager, whose "expedited" request
             // silently degrades to deferred work under quota/Doze — the repaint then took minutes.
             sendBroadcast(
-                Intent(this, WeatherWidgetProvider::class.java).apply {
+                Intent(this, WidgetActionReceiver::class.java).apply {
                     action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
                     putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
                 },

@@ -8,7 +8,7 @@ import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 
 internal object HeaderTapTargetHelper {
@@ -22,7 +22,7 @@ internal object HeaderTapTargetHelper {
         interactionSource: String? = null,
     ) {
         val toggleIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
+            Intent(context, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_TOGGLE_VIEW
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 interactionSource?.let {
@@ -48,7 +48,7 @@ internal object HeaderTapTargetHelper {
         targetViewMode: ViewMode,
     ) {
         val intent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
+            Intent(context, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_SET_VIEW
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(WidgetActions.EXTRA_TARGET_VIEW, targetViewMode.name)
@@ -71,7 +71,7 @@ internal object HeaderTapTargetHelper {
         appWidgetId: Int,
     ) {
         val precipIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
+            Intent(context, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_TOGGLE_PRECIP
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }

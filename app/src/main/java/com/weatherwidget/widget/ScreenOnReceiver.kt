@@ -40,7 +40,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
 
     private fun handlePowerConnected(context: Context) {
         // Re-enqueue the periodic forecast worker with the charging-cadence interval (60 min).
-        WeatherWidgetProvider.schedulePeriodicUpdate(context)
+        WidgetWorkScheduler.schedulePeriodicSync(context)
         OpportunisticUpdateJobService.scheduleOpportunisticUpdate(context)
 
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
@@ -84,7 +84,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
     private fun handlePowerDisconnected(context: Context) {
         // Re-enqueue with the off-charger interval (BatteryFetchStrategy tiers).
         Log.d(TAG, "Power disconnected - rescheduling periodic forecast worker")
-        WeatherWidgetProvider.schedulePeriodicUpdate(context)
+        WidgetWorkScheduler.schedulePeriodicSync(context)
         OpportunisticUpdateJobService.scheduleOpportunisticUpdate(context)
         NonPrimaryObservationScheduler.cancel(context)
     }
@@ -97,7 +97,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         Log.d(TAG, "Screen unlocked - charging=${battery.isCharging}, battery=${battery.level}%, uiOnly=$uiOnly")
 
         val providerIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
+            Intent(context, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_REFRESH
                 if (uiOnly) {
                     putExtra(WidgetActions.EXTRA_UI_ONLY, true)

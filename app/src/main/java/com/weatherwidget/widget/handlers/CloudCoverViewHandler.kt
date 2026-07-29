@@ -21,11 +21,12 @@ import com.weatherwidget.widget.CloudCoverGraphRenderer
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.GraphRepaintGate
 import kotlinx.coroutines.Job
 import kotlin.coroutines.coroutineContext
@@ -222,7 +223,7 @@ object CloudCoverViewHandler {
         )
 
         // Weather icon + bottom zone → back to temperature view
-        val goTempIconIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val goTempIconIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra(WidgetActions.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.TEMPERATURE.name)
@@ -409,7 +410,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                         "widget=$appWidgetId source=${effectiveDisplaySource.id} missing=$missingHours, requesting immediate API update",
                         "INFO"
                     )
-                    WeatherWidgetProvider.triggerImmediateUpdate(
+                    WidgetWorkScheduler.enqueueRedundantImmediateSync(
                         context = context,
                         forceRefresh = true,
                         reason = "hourly_gaps"

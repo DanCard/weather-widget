@@ -331,7 +331,7 @@ object WidgetRenderer {
                 // repaint that removes the banner.
                 val transientPending = stateManager.hasTransientMessagePending(
                     appWidgetId,
-                    WeatherWidgetProvider.NO_HOURLY_MESSAGE_DURATION_MS,
+                    WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
                 )
                 if (shouldSkipDailyUiOnlyRepaint(uiOnly, fullyPaintedDailyWidgetIds.contains(appWidgetId)) && !transientPending) {
                     WeatherDatabase.getDatabase(context).appLogDao().log(

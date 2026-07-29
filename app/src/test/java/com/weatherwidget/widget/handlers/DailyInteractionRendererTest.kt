@@ -1,5 +1,7 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.WidgetQueryWindows
+
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.WeatherWidgetProvider
 import java.time.LocalDate
@@ -25,12 +27,12 @@ class DailyInteractionRendererTest {
             bounds.todayStartMs,
         )
         assertEquals(
-            now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
+            now.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)
                 .atZone(zone).toInstant().toEpochMilli(),
             bounds.hourlyStartMs,
         )
         assertEquals(
-            now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS)
+            now.plusHours(WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS)
                 .atZone(zone).toInstant().toEpochMilli(),
             bounds.hourlyEndMs,
         )

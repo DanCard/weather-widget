@@ -27,7 +27,7 @@ import java.time.temporal.ChronoUnit
  * chain against the production crash shape: full OPEN_METEO hourly coverage, NWS missing two
  * hours, NWS displayed.
  *
- * The provider runs with its real IO scope, so completion is detected by awaiting the
+ * The command receiver runs with its real IO scope, so completion is detected by awaiting the
  * SET_VIEW_RENDER_OK / SET_VIEW_FAIL app_logs breadcrumbs that handleSetView persists (the old
  * failure mode was a swallowed logcat-only exception — invisible to app_logs sweeps).
  *
@@ -65,8 +65,7 @@ class DayTapSourceGapInstrumentedTest : IsolatedIntegrationTest("day_tap_source_
 
     @Test
     fun dayTapRendersHourlyViewDespiteSourceGaps() {
-        val provider = WeatherWidgetProvider()
-        provider.onReceive(context, dayClickIntent(LocalDate.now()))
+        context.sendBroadcast(dayClickIntent(LocalDate.now()))
 
         val (renderOk, fails) = awaitSetViewOutcome(timeoutMs = 15_000)
 
@@ -143,7 +142,7 @@ class DayTapSourceGapInstrumentedTest : IsolatedIntegrationTest("day_tap_source_
         )
 
     private fun dayClickIntent(targetDay: LocalDate): Intent =
-        Intent(context, WeatherWidgetProvider::class.java).apply {
+        Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_DAY_CLICK
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             putExtra("date", targetDay.toString())

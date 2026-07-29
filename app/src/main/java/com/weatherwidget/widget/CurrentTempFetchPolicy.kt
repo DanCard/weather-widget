@@ -82,7 +82,7 @@ object CurrentTempFetchPolicy {
      * What a worker should do with the charging-loop heartbeat once a current-temp run finishes.
      *
      * Deliberately has NO "cancel" option. Cancelling the unique current-temp work by name
-     * (WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP) truncates any concurrently-running
+     * (WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP) truncates any concurrently-running
      * opportunistic fetch, because the opportunistic UI-only worker and the fetch worker are
      * enqueued together under that same unique name — the root cause of current temp being slow
      * to refresh on battery (the UI worker would finish first and cancel the in-flight fetch).

@@ -227,7 +227,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         super.onDestroy()
         // If we were launched from a widget and changed the source, trigger a UI update
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            val refreshIntent = Intent(this, com.weatherwidget.widget.WeatherWidgetProvider::class.java).apply {
+            val refreshIntent = Intent(this, com.weatherwidget.widget.WidgetActionReceiver::class.java).apply {
                 action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)

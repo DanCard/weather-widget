@@ -52,6 +52,7 @@ class DesktopWeatherApiHistoryBackfillTest {
                 latitude = lat,
                 longitude = lon,
                 weatherSource = WeatherSource.WEATHER_API.id,
+                currentTimeMillis = { now },
             )
         coEvery { service.fetchForecast() } returns currentForecast()
         coEvery { service.fetchHistoricalDailyTemps(any(), any()) } returns emptyList()

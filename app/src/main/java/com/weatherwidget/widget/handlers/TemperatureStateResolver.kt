@@ -26,10 +26,11 @@ import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.FetchDotDebug
-import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetPerfLogger
+import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.ZoomLevel
 import kotlinx.coroutines.Job
 import kotlin.coroutines.coroutineContext
@@ -422,8 +423,8 @@ internal object TemperatureStateResolver {
         val observations = if (deferStartupGraphActuals) {
             emptyList()
         } else {
-            val minEpoch = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            val maxEpoch = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val minEpoch = alignedCenter.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val maxEpoch = alignedCenter.plusHours(WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             val obsStartMs = System.currentTimeMillis()
             val loaded = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
             obsQueryMs = System.currentTimeMillis() - obsStartMs
@@ -434,8 +435,8 @@ internal object TemperatureStateResolver {
                 stateManager = stateManager,
                 appWidgetId = appWidgetId,
                 displaySource = displaySource,
-                graphStart = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS),
-                graphEnd = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS),
+                graphStart = alignedCenter.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS),
+                graphEnd = alignedCenter.plusHours(WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS),
                 observations = loaded,
                 repositoryPresent = repository != null,
             )
@@ -482,7 +483,7 @@ internal object TemperatureStateResolver {
                         "requesting immediate API update",
                     "INFO"
                 )
-                WeatherWidgetProvider.triggerImmediateUpdate(
+                WidgetWorkScheduler.enqueueRedundantImmediateSync(
                     context = context,
                     forceRefresh = true,
                     reason = "hourly_gaps"

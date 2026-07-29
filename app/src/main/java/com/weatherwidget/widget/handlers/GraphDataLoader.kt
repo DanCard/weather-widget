@@ -8,7 +8,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.ZoomLevel
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -36,8 +36,8 @@ object GraphDataLoader {
         // Same widget, same centre, same observations — two loaders, two curves, flipping ~1 min apart.
         //
         // maxOf keeps this correct if a zoom ever reaches past the blend context.
-        val lookbackHours = maxOf(zoom.backHours, WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
-        val lookaheadHours = maxOf(zoom.forwardHours, WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS)
+        val lookbackHours = maxOf(zoom.backHours, WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)
+        val lookaheadHours = maxOf(zoom.forwardHours, WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS)
         val centerStart = roundedCenter.minusHours(lookbackHours)
         val centerEnd = roundedCenter.plusHours(lookaheadHours)
 

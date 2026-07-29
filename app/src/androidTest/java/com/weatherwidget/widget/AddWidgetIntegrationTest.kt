@@ -60,7 +60,7 @@ class AddWidgetIntegrationTest : IsolatedIntegrationTest("add_widget") {
     }
 
     @Test
-    fun addWidget_bindsAndPaintsFullContent() = runBlocking {
+    fun addWidget_bindsPaintsAndHandlesResize() = runBlocking {
         val manager = AppWidgetManager.getInstance(context)
         val provider = ComponentName(context, WeatherWidgetProvider::class.java)
 
@@ -104,9 +104,36 @@ class AddWidgetIntegrationTest : IsolatedIntegrationTest("add_widget") {
                 .joinToString("\n") { "${it.getFormattedTime()} ${it.tag}: ${it.message}" }
             fail(
                 "Widget $widgetId bound successfully but never painted full content " +
-                    "within ${RENDER_TIMEOUT_MS}ms. Paint trace:\n$trace",
+                "within ${RENDER_TIMEOUT_MS}ms. Paint trace:\n$trace",
             )
         }
+
+        // Stage 4: the bound widget also receives the real options-changed callback while the
+        // provider is non-exported. This avoids relying on a pre-placed launcher widget.
+        val resizeStartMs = System.currentTimeMillis()
+        val originalOptions = manager.getAppWidgetOptions(widgetId)
+        manager.updateAppWidgetOptions(
+            widgetId,
+            Bundle(originalOptions).apply {
+                putInt(
+                    AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,
+                    originalOptions.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 140) + 10,
+                )
+            },
+        )
+        val resizeDeadline = System.currentTimeMillis() + RENDER_TIMEOUT_MS
+        var resized = false
+        while (!resized && System.currentTimeMillis() < resizeDeadline) {
+            resized =
+                db.appLogDao().getLogsByTag("RESIZE_RENDER_OK", 50).any {
+                    it.timestamp >= resizeStartMs && it.message.contains("widget=$widgetId")
+                }
+            if (!resized) delay(POLL_INTERVAL_MS)
+        }
+        assertTrue(
+            "Bound widget $widgetId did not receive a successful options-changed render",
+            resized,
+        )
     }
 
     /**

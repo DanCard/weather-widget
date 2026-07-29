@@ -50,7 +50,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     private lateinit var context: Context
     private lateinit var db: WeatherDatabase
     private lateinit var stateManager: WidgetStateManager
-    private lateinit var provider: WeatherWidgetProvider
+    private lateinit var receiver: WidgetActionReceiver
     private lateinit var mockWorkManager: WorkManager
     private val widgetId = 9112
     private val lat = 37.42
@@ -71,7 +71,9 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         mockkStatic(WorkManager::class)
         every { WorkManager.getInstance(any()) } returns mockWorkManager
 
-        provider = WeatherWidgetProvider()
+        receiver = WidgetActionReceiver().also {
+            it.repository = mockk(relaxed = true)
+        }
     }
 
     @After
@@ -84,7 +86,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     @Test
     fun `day click when no hourly data sets pending message and enqueues scoped refresh`() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        provider.scope = CoroutineScope(SupervisorJob() + testDispatcher)
+        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
 
         val targetDay = LocalDate.now().plusDays(7)
         seedMissingHourlyScenario(targetDay)
@@ -92,13 +94,13 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         val workSlot = slot<OneTimeWorkRequest>()
         every {
             mockWorkManager.enqueueUniqueWork(
-                eq(WeatherWidgetProvider.WORK_NAME_ONE_TIME),
+                eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
                 any<ExistingWorkPolicy>(),
                 capture(workSlot),
             )
         } returns mockk()
 
-        provider.onReceive(context, dayClickIntent(targetDay))
+        receiver.onReceive(context, dayClickIntent(targetDay))
         advanceUntilIdle()
 
         val message = stateManager.getActiveTransientMessage(widgetId)
@@ -117,7 +119,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
 
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
-                eq(WeatherWidgetProvider.WORK_NAME_ONE_TIME),
+                eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
                 any<ExistingWorkPolicy>(),
                 any<OneTimeWorkRequest>(),
             )
@@ -127,15 +129,15 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     @Test
     fun `refresh complete still missing posts result message`() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        provider.scope = CoroutineScope(SupervisorJob() + testDispatcher)
+        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
 
         val targetDay = LocalDate.now().plusDays(7)
         seedMissingHourlyScenario(targetDay)
 
-        provider.onReceive(context, dayClickIntent(targetDay))
+        receiver.onReceive(context, dayClickIntent(targetDay))
         advanceUntilIdle()
 
-        provider.onReceive(context, refreshCompleteIntent(targetDay))
+        receiver.onReceive(context, refreshCompleteIntent(targetDay))
         advanceUntilIdle()
 
         val message = stateManager.getActiveTransientMessage(widgetId)
@@ -153,7 +155,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     @Test
     fun `refresh complete with new hourly posts available message`() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        provider.scope = CoroutineScope(SupervisorJob() + testDispatcher)
+        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
 
         val targetDay = LocalDate.now().plusDays(7)
         seedMissingHourlyScenario(targetDay)
@@ -176,7 +178,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
             )
         }
 
-        provider.onReceive(context, refreshCompleteIntent(targetDay))
+        receiver.onReceive(context, refreshCompleteIntent(targetDay))
         advanceUntilIdle()
 
         val message = stateManager.getActiveTransientMessage(widgetId)
@@ -189,21 +191,49 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     @Test
     fun `result message expires after display duration`() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        provider.scope = CoroutineScope(SupervisorJob() + testDispatcher)
+        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
 
         val targetDay = LocalDate.now().plusDays(7)
         seedMissingHourlyScenario(targetDay)
 
-        provider.onReceive(context, refreshCompleteIntent(targetDay))
+        receiver.onReceive(context, refreshCompleteIntent(targetDay))
         advanceUntilIdle()
         assertNotNull(stateManager.getActiveTransientMessage(widgetId))
 
         val afterExpiry =
             System.currentTimeMillis() +
-                WeatherWidgetProvider.NO_HOURLY_MESSAGE_DURATION_MS +
-                WeatherWidgetProvider.NO_HOURLY_CLEAR_BUFFER_MS +
+                WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
+                WidgetTransientMessagePolicy.CLEAR_BUFFER_MS +
                 1
         assertNull(stateManager.getActiveTransientMessage(widgetId, nowMs = afterExpiry))
+    }
+
+    @Test
+    fun `refresh result returns promptly and leaves a durable per-widget clear`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
+        val targetDay = LocalDate.now().plusDays(7)
+        seedMissingHourlyScenario(targetDay)
+        val delayedClear = slot<OneTimeWorkRequest>()
+        every {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WidgetWorkScheduler.delayedUiWorkName(widgetId)),
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                capture(delayedClear),
+            )
+        } returns mockk()
+
+        receiver.onReceive(context, refreshCompleteIntent(targetDay))
+        advanceUntilIdle()
+
+        assertEquals(
+            WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
+                WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
+            delayedClear.captured.workSpec.initialDelay,
+        )
+        assertTrue(
+            db.appLogDao().getLogsByTag("CLICK_WATCHDOG", 10).isEmpty(),
+        )
     }
 
     private fun seedMissingHourlyScenario(targetDay: LocalDate) {
@@ -247,7 +277,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     }
 
     private fun dayClickIntent(targetDay: LocalDate): Intent =
-        Intent(context, WeatherWidgetProvider::class.java).apply {
+        Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_DAY_CLICK
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             putExtra("date", targetDay.toString())
@@ -262,7 +292,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         }
 
     private fun refreshCompleteIntent(targetDay: LocalDate): Intent =
-        Intent(context, WeatherWidgetProvider::class.java).apply {
+        Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             putExtra("date", targetDay.toString())

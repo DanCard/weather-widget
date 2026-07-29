@@ -14,9 +14,10 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.ui.WeatherObservationsActivity
+import com.weatherwidget.widget.HourlyTouchZoneMapper
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
@@ -54,8 +55,8 @@ internal fun setupZoomTapZones(
     views.setOnClickPendingIntent(R.id.graph_body_tap_zone, null)
 
     HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
-        val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset, zoom)
-        val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(i, hourlyOffset, zoom)
+        val zoomIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
@@ -83,7 +84,7 @@ internal fun setupNavigationButtons(
     views.setViewVisibility(R.id.nav_left_zone, View.VISIBLE)
 
     if (canLeft) {
-        val leftIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val leftIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_NAV_LEFT
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         }
@@ -94,7 +95,7 @@ internal fun setupNavigationButtons(
         views.setOnClickPendingIntent(R.id.nav_left, leftPendingIntent)
         views.setOnClickPendingIntent(R.id.nav_left_zone, leftPendingIntent)
     } else {
-        val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val toastIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SHOW_TOAST
             putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "No additional history available")
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -111,7 +112,7 @@ internal fun setupNavigationButtons(
     views.setViewVisibility(R.id.nav_right_zone, View.VISIBLE)
 
     if (canRight) {
-        val rightIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val rightIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_NAV_RIGHT
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         }
@@ -122,7 +123,7 @@ internal fun setupNavigationButtons(
         views.setOnClickPendingIntent(R.id.nav_right, rightPendingIntent)
         views.setOnClickPendingIntent(R.id.nav_right_zone, rightPendingIntent)
     } else {
-        val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val toastIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SHOW_TOAST
             putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "No more forecast available")
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -145,7 +146,7 @@ internal fun setupApiToggle(
     scale: Float = 1.0f,
 ) {
     val toggleIntent =
-        Intent(context, WeatherWidgetProvider::class.java).apply {
+        Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_TOGGLE_API
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         }
@@ -185,7 +186,7 @@ internal fun setupHistoryShortcut(
     val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
     val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
-    val historyIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+    val historyIntent = Intent(context, WidgetActionReceiver::class.java).apply {
         action = WidgetActions.ACTION_DAY_CLICK
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         putExtra("date", dateStr)
@@ -236,7 +237,7 @@ internal fun setupHomeShortcut(
     setVisibility: Boolean = false,
     scale: Float = 1.0f,
 ) {
-    val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+    val homeIntent = Intent(context, WidgetActionReceiver::class.java).apply {
         action = WidgetActions.ACTION_SET_VIEW
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.DAILY.name)
@@ -448,7 +449,7 @@ internal fun setupDeadZoneCatchAll(
     views: RemoteViews,
     appWidgetId: Int,
 ) {
-    val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+    val toastIntent = Intent(context, WidgetActionReceiver::class.java).apply {
         action = WidgetActions.ACTION_SHOW_TOAST
         putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "Dead zone tapped")
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

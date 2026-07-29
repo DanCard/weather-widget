@@ -1,5 +1,7 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.WidgetQueryWindows
+
 import android.app.Application
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -53,9 +55,9 @@ class PrecipGraphQueryWindowTest {
         val requiredLookahead = maxDailyOffset + wideForwardHours // 164h
 
         assertTrue(
-            "HOURLY_GRAPH_LOOKAHEAD_HOURS=${WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS} " +
+            "HOURLY_GRAPH_LOOKAHEAD_HOURS=${WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS} " +
                 "must be >= $requiredLookahead (maxDailyOffset=$maxDailyOffset + wideForward=$wideForwardHours)",
-            WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS >= requiredLookahead,
+            WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS >= requiredLookahead,
         )
     }
 
@@ -66,9 +68,9 @@ class PrecipGraphQueryWindowTest {
     @Test
     fun `HOURLY_GRAPH_LOOKAHEAD_HOURS is larger than HOURLY_LOOKAHEAD_HOURS`() {
         assertTrue(
-            "Graph lookahead (${WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS}h) should exceed " +
-                "rain analysis lookahead (${WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS}h)",
-            WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS > WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS,
+            "Graph lookahead (${WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS}h) should exceed " +
+                "rain analysis lookahead (${WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS}h)",
+            WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS > WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS,
         )
     }
 

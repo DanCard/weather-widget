@@ -39,7 +39,7 @@ class HourlyProximityQueryAllowlistTest {
         "DailyInteractionRenderer.kt" to "daily render query is immediately wrapped in unifyToNearestSite",
         "DailyActualsLoader.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
         "SourceStalenessProbe.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
-        "WeatherWidgetProvider.kt" to "loadStartupData raw rows are unified downstream by WidgetRenderer",
+        "WidgetStartupCoordinator.kt" to "startup raw rows are unified downstream by WidgetRenderer",
         "HourlyForecastStore.kt" to "write-path dedup filters to the exact quantized site",
         "DailyHistorySnapshotter.kt" to "freeze calculations use site-aware rain and noon-cloud resolvers",
         "CurrentTempRepository.kt" to "pre-existing; audit before touching (current-temp windows)",

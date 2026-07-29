@@ -1,5 +1,7 @@
 package com.weatherwidget.util
 
+import com.weatherwidget.widget.WidgetQueryWindows
+
 import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -47,8 +49,8 @@ class RainAnalyzerIntegrationTest {
         val targetDateStr = targetDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
         // Build hourly forecasts spanning the standard query window
-        val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
-        val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS)
+        val hourlyStart = now.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)
+        val hourlyEnd = now.plusHours(WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS)
         val forecasts = buildHourlyForecasts(hourlyStart, hourlyEnd, targetDate)
 
         // Verify we have forecasts for the target date (the whole point of the wide window)
@@ -56,7 +58,7 @@ class RainAnalyzerIntegrationTest {
             Instant.ofEpochMilli(it.dateTime).atZone(ZoneId.systemDefault()).toLocalDate() == targetDate
         }
         assertTrue(
-            "Standard query window (${WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS}h) should include " +
+            "Standard query window (${WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS}h) should include " +
                 "forecasts for $targetDateStr, but found ${targetDateForecasts.size}",
             targetDateForecasts.isNotEmpty(),
         )

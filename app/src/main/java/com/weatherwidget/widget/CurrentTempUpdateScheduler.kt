@@ -65,7 +65,7 @@ object CurrentTempUpdateScheduler {
                     .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
-                WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP,
+                WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP,
                 // APPEND_OR_REPLACE (not REPLACE): never cancel a running current-temp worker — the
                 // cancelled coroutine resume segfaults ART on debuggable builds
                 // ([[samsung_widget_dead_native_sigsegv]]); the fetch still runs, after any in-flight one.
@@ -126,7 +126,7 @@ object CurrentTempUpdateScheduler {
 
         val existingWork =
             withContext(Dispatchers.IO) {
-                workManager.getWorkInfosForUniqueWork(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP).get()
+                workManager.getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP).get()
             }
                 .map(ChargingWorkInfo::fromWorkInfo)
         val decision = decideChargingLoopWork(existingWork, nowMs, ignoreRunningWorkId, intervalMinutes)
@@ -163,7 +163,7 @@ object CurrentTempUpdateScheduler {
                         ChargingLoopAction.KEEP -> ExistingWorkPolicy.KEEP
                     }
                 workManager.enqueueUniqueWork(
-                    WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP,
+                    WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP,
                     policy,
                     workRequest,
                 )
@@ -299,13 +299,13 @@ object CurrentTempUpdateScheduler {
 
     fun cancel(context: Context) {
         runCatching {
-            WorkManager.getInstance(context).cancelUniqueWork(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP)
+            WorkManager.getInstance(context).cancelUniqueWork(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP)
             logSchedulerEvent(
                 context = context,
                 tag = "CURR_FETCH_WORK_CANCELLED",
-                message = "name=${WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP}",
+                message = "name=${WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP}",
             )
-            Log.d(TAG, "cancel: canceled ${WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP}")
+            Log.d(TAG, "cancel: canceled ${WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP}")
         }.onFailure { e ->
             Log.e(TAG, "cancel failed: ${e.message}", e)
         }

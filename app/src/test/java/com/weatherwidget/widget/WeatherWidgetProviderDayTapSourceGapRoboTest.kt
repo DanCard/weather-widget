@@ -10,6 +10,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.ui.ForecastHistoryActivity
@@ -64,7 +65,7 @@ class WeatherWidgetProviderDayTapSourceGapRoboTest {
     private lateinit var context: Context
     private lateinit var db: WeatherDatabase
     private lateinit var stateManager: WidgetStateManager
-    private lateinit var provider: WeatherWidgetProvider
+    private lateinit var receiver: WidgetActionReceiver
     private lateinit var mockAppWidgetManager: AppWidgetManager
     private val viewsSlot = slot<android.widget.RemoteViews>()
     private val widgetId = 9113
@@ -102,7 +103,9 @@ class WeatherWidgetProviderDayTapSourceGapRoboTest {
         mockkStatic(AppWidgetManager::class)
         every { AppWidgetManager.getInstance(any()) } returns mockAppWidgetManager
 
-        provider = WeatherWidgetProvider()
+        receiver = WidgetActionReceiver().also {
+            it.repository = mockk<WeatherRepository>(relaxed = true)
+        }
     }
 
     @After
@@ -115,11 +118,11 @@ class WeatherWidgetProviderDayTapSourceGapRoboTest {
     @Test
     fun `day tap broadcast renders hourly view despite display-source hour gaps`() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        provider.scope = CoroutineScope(SupervisorJob() + testDispatcher)
+        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
 
         seedSourceGapToday()
 
-        provider.onReceive(context, dayClickIntent(LocalDate.now()))
+        receiver.onReceive(context, dayClickIntent(LocalDate.now()))
         advanceUntilIdle()
 
         assertEquals(
@@ -192,7 +195,7 @@ class WeatherWidgetProviderDayTapSourceGapRoboTest {
         )
 
     private fun dayClickIntent(targetDay: LocalDate): Intent =
-        Intent(context, WeatherWidgetProvider::class.java).apply {
+        Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_DAY_CLICK
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             putExtra("date", targetDay.toString())

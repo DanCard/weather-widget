@@ -6,7 +6,7 @@ import kotlin.random.Random
  * Pure decision functions for delaying automatic startup catch-up fetches so a freshly-started
  * process doesn't stampede every source's fetch/backfill work at once (the "thundering herd" that
  * competes with a user's tap for I/O and can push a click past the broadcast ANR deadline — see
- * [WeatherWidgetProvider.GO_ASYNC_WATCHDOG_MS]). Jitter spreads repeated app starts across the
+ * [BroadcastAsyncRunner.WATCHDOG_MS]). Jitter spreads repeated app starts across the
  * window instead of every restart landing on the same offset. Explicit user-initiated refreshes
  * (manual tap, unlock-while-charging) bypass this policy entirely and stay immediate.
  */

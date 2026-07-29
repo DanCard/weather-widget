@@ -1,5 +1,7 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.HourlyTouchZoneMapper
+
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
@@ -99,7 +101,7 @@ class CloudCoverViewHandlerTest {
 
     @Test
     fun `cloud cover body tap uses zoom offset for clear temperature-home zone`() {
-        val offset = WeatherWidgetProvider.zoneIndexToOffset(
+        val offset = HourlyTouchZoneMapper.zoneIndexToOffset(
             zoneIndex = 6,
             currentHourlyOffset = 0,
             zoom = ZoomLevel.WIDE,
@@ -110,7 +112,7 @@ class CloudCoverViewHandlerTest {
 
     @Test
     fun `cloud cover body tap uses zoom offset for rainy zone instead of rerouting`() {
-        val offset = WeatherWidgetProvider.zoneIndexToOffset(
+        val offset = HourlyTouchZoneMapper.zoneIndexToOffset(
             zoneIndex = 0,
             currentHourlyOffset = 0,
             zoom = ZoomLevel.WIDE,
@@ -121,7 +123,7 @@ class CloudCoverViewHandlerTest {
 
     @Test
     fun `cloud cover body tap preserves narrow zoom offset calculation`() {
-        val offset = WeatherWidgetProvider.zoneIndexToOffset(
+        val offset = HourlyTouchZoneMapper.zoneIndexToOffset(
             zoneIndex = 12,
             currentHourlyOffset = 5,
             zoom = ZoomLevel.NARROW,

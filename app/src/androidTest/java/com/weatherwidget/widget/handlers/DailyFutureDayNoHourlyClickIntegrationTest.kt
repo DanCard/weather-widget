@@ -35,8 +35,8 @@ import java.time.LocalDateTime
  * show a brief on-widget "no hourly data — refreshing" message, kick a refresh, and stay put.
  *
  * The target day (today + 7) has a daily forecast (so the column renders) but NO hourly forecast
- * rows, which makes WeatherWidgetProvider.hasHourlyDataForDate() return false — the exact condition
- * that previously triggered the Settings launch.
+ * rows, which makes the day-click coordinator's hourly availability check return false — the exact
+ * condition that previously triggered the Settings launch.
  */
 @RunWith(AndroidJUnit4::class)
 class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("daily_future_no_hourly_click") {

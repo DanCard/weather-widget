@@ -91,9 +91,11 @@ class LocaleSwitchIntegrationTest : IsolatedIntegrationTest("locale_switch") {
             localeManager.applicationLocales = LocaleList.forLanguageTags(tag)
 
             // Trigger update via ACTION_REFRESH (cache repaint)
-            val intent = Intent("com.weatherwidget.ACTION_REFRESH").apply {
-                setPackage(context.packageName)
-            }
+            val intent =
+                Intent(context, WidgetActionReceiver::class.java).apply {
+                    action = WidgetActions.ACTION_REFRESH
+                    putExtra(WidgetActions.EXTRA_UI_ONLY, true)
+                }
             context.sendBroadcast(intent)
 
             // Wait for render

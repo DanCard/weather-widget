@@ -42,7 +42,7 @@ class PrecipTouchZoneInstrumentedTest {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
 
         // Create the precip toggle intent (same as used in handlers)
-        val precipIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val precipIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_TOGGLE_PRECIP
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, TEST_WIDGET_ID)
         }
@@ -128,7 +128,7 @@ class PrecipTouchZoneInstrumentedTest {
     @Test
     fun navigationIntent_hasCorrectExtras() {
         // Verify the intent structure used for precipitation navigation
-        val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        val intent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_TOGGLE_PRECIP
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, TEST_WIDGET_ID)
         }

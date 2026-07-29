@@ -1,5 +1,8 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.HourlyTouchZoneMapper
+import com.weatherwidget.widget.WidgetActionReceiver
+
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Intent
@@ -124,8 +127,8 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
             )
             if (zoneIdResId == 0) continue
 
-            val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, 0, zoom)
-            val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(i, 0, zoom)
+            val zoomIntent = Intent(context, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)

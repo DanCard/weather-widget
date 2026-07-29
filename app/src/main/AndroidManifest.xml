@@ -84,13 +84,9 @@
 
         <receiver
             android:name=".widget.WeatherWidgetProvider"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.weatherwidget.ACTION_REFRESH" />
-                <action android:name="com.weatherwidget.ACTION_NAV_LEFT" />
-                <action android:name="com.weatherwidget.ACTION_NAV_RIGHT" />
-                <action android:name="com.weatherwidget.ACTION_TOGGLE_API" />
                 <action android:name="android.intent.action.LOCALE_CHANGED" />
             </intent-filter>
             <intent-filter>
@@ -100,6 +96,10 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/weather_widget_info" />
         </receiver>
+
+        <receiver
+            android:name=".widget.WidgetActionReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".widget.ScreenOnReceiver"

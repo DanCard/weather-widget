@@ -30,8 +30,9 @@ import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.widget.EvolutionPoint
 import com.weatherwidget.widget.ForecastEvolutionRenderer
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetConstants
+import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.DayClickHelper
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
@@ -520,7 +521,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         Log.d(TAG, "Still missing NWS daily_history after local recompute for ${missingDates.size} date(s): $missingDates")
         // Opening history surfaces gaps in stored actuals; trigger a widget refresh so the
         // background fetch backfills them before the user looks at another day.
-        WeatherWidgetProvider.triggerImmediateUpdate(
+        WidgetWorkScheduler.enqueueRedundantImmediateSync(
             context = this,
             forceRefresh = true,
             reason = "history_missing_extremes_NWS",
@@ -693,7 +694,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             widgetStateManager.setCurrentDisplaySource(appWidgetId, nextSource)
             
             // Trigger UI update to reflect the new source
-            val updateIntent = Intent(this, com.weatherwidget.widget.WeatherWidgetProvider::class.java).apply {
+            val updateIntent = Intent(this, WidgetActionReceiver::class.java).apply {
                 action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)

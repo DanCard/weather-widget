@@ -174,7 +174,7 @@ class CurrentTempUpdateSchedulerTest {
 
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
-                eq(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP),
+                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP),
                 // APPEND_OR_REPLACE, not REPLACE: cancelling a running current-temp worker segfaults
                 // ART on debuggable builds. Callers are opportunistic (screen-on/power/opportunistic),
                 // so running after an in-flight fetch instead of cancelling it is fine.
@@ -197,7 +197,7 @@ class CurrentTempUpdateSchedulerTest {
 
         verify {
             mockWorkManager.enqueueUniqueWork(
-                eq(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP),
+                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP),
                 eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
                 capture(requestSlot),
             )
@@ -231,7 +231,7 @@ class CurrentTempUpdateSchedulerTest {
 
         verify {
             mockWorkManager.enqueueUniqueWork(
-                eq(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP),
+                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP),
                 eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
                 any<OneTimeWorkRequest>()
             )

@@ -114,8 +114,8 @@ class WidgetIntentRouterHeaderTempRoboTest {
 
             // Simulate loadGraphWindowHourlyForecasts(centerTime): window around the scrolled day
             // This mirrors the real WidgetIntentRouter query: uses center-based window
-            val graphLookbackHours = com.weatherwidget.widget.WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS
-            val graphLookaheadHours = com.weatherwidget.widget.WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS
+            val graphLookbackHours = com.weatherwidget.widget.WidgetQueryWindows.HOURLY_LOOKBACK_HOURS
+            val graphLookaheadHours = com.weatherwidget.widget.WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS
             val graphMinEpoch = centerTime.minusHours(graphLookbackHours).atZone(zoneId).toInstant().toEpochMilli()
             val graphMaxEpoch = centerTime.plusHours(graphLookaheadHours).atZone(zoneId).toInstant().toEpochMilli()
             val graphWindowHourly = db.hourlyForecastDao().getHourlyForecasts(graphMinEpoch, graphMaxEpoch, lat, lon)

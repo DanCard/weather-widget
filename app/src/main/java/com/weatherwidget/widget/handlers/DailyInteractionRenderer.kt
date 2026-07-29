@@ -16,7 +16,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.DailyActualsLoader
 import com.weatherwidget.widget.ObservationResolver
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.WidgetPushDispatcher
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
@@ -59,10 +59,10 @@ internal object DailyInteractionRenderer {
             today = today,
             todayStartMs = today.atStartOfDay(zoneId).toInstant().toEpochMilli(),
             hourlyStartMs =
-                now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
+                now.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)
                     .atZone(zoneId).toInstant().toEpochMilli(),
             hourlyEndMs =
-                now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS)
+                now.plusHours(WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS)
                     .atZone(zoneId).toInstant().toEpochMilli(),
         )
     }

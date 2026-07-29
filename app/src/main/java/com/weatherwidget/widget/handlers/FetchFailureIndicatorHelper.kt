@@ -8,7 +8,7 @@ import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import java.time.Instant
 import java.time.ZoneId
@@ -82,7 +82,7 @@ internal object FetchFailureIndicatorHelper {
         if (errorMessage != null) {
             views.setViewVisibility(R.id.current_temp_warning, View.VISIBLE)
             
-            val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            val intent = Intent(context, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_SHOW_TOAST
                 putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, errorMessage)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

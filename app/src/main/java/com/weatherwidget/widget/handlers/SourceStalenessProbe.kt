@@ -6,7 +6,7 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.WeatherTimeUtils
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.ZoomLevel
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -136,8 +136,8 @@ object SourceStalenessProbe {
                 )
             } else {
                 val zoneId = ZoneId.systemDefault()
-                val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
-                val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                val hourlyStart = now.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                val hourlyEnd = now.plusHours(WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
                 // Unify so a frozen fragment from an earlier GPS fix can't satisfy this
                 // "has hourly data?" gate when the current site actually has none.
                 GraphDataLoader.unifyToNearestSite(

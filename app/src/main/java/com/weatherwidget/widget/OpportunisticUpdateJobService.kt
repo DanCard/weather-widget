@@ -69,24 +69,9 @@ class OpportunisticUpdateJobService : JobService() {
                     if (DataFreshness.hasRecentHourlyData(applicationContext)) {
                         Log.d(TAG, "Triggering UI-only update from opportunistic job")
 
-                        // Trigger UI-only update (no network fetch)
-                        val workRequest =
-                            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                                .setInputData(
-                                    Data.Builder()
-                                        .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
-                                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "opportunistic_job_ui")
-                                        .build(),
-                                )
-                                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                                .build()
-
-                        WorkManager.getInstance(applicationContext).enqueueUniqueWork(
-                            WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui",
-                            // Same "_ui" worker as triggerUiOnlyUpdate: never cancel a running repaint
-                            // (segfaults ART on debuggable builds — [[samsung_widget_dead_native_sigsegv]]).
-                            androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE,
-                            workRequest,
+                        WidgetWorkScheduler.enqueueUiRepaint(
+                            applicationContext,
+                            reason = "opportunistic_job_ui",
                         )
                     } else {
                         Log.d(TAG, "No recent hourly data, skipping opportunistic update")

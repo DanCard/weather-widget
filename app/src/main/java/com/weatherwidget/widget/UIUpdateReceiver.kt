@@ -4,10 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import androidx.work.Data
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.OutOfQuotaPolicy
-import androidx.work.WorkManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,25 +49,7 @@ class UIUpdateReceiver : BroadcastReceiver() {
             )
         val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
 
-        // Trigger UI-only update (no network fetch)
-        val workRequest =
-            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                .setInputData(
-                    Data.Builder()
-                        .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
-                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "ui_update_alarm")
-                        .build(),
-                )
-                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                .build()
-
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui",
-            // Same "_ui" worker as triggerUiOnlyUpdate: never cancel a running repaint (segfaults ART
-            // on debuggable builds — [[samsung_widget_dead_native_sigsegv]]); render latest state after.
-            androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE,
-            workRequest,
-        )
+        WidgetWorkScheduler.enqueueUiRepaint(context, reason = "ui_update_alarm")
         Log.d(TAG, "UI-only update enqueued")
 
         // Heartbeat recovery: Ensure the charging loop is running if the device is plugged in.

@@ -21,7 +21,7 @@ import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.HourDataAssembler
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.ZoomLevel
 import java.time.Instant
 import java.time.LocalDateTime
@@ -192,8 +192,8 @@ internal fun buildHourDataResult(
         userLon = lon,
         backHours = zoom.backHours,
         forwardHours = zoom.forwardHours,
-        contextLookbackHours = WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS,
-        contextLookaheadHours = WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS,
+        contextLookbackHours = WidgetQueryWindows.HOURLY_LOOKBACK_HOURS,
+        contextLookaheadHours = WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS,
         now = now,
         zoneId = zoneId,
         smoothedForecasts = smoothedForecasts,

@@ -57,12 +57,12 @@ object DailyActualsLoader {
                 .filter { it.stationId != "NWS_BLEND" }
 
         val hourlyLookbackStart =
-            now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
+            now.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)
                 .atZone(zone)
                 .toInstant()
                 .toEpochMilli()
         val hourlyLookaheadEnd =
-            now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS)
+            now.plusHours(WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS)
                 .atZone(zone)
                 .toInstant()
                 .toEpochMilli()

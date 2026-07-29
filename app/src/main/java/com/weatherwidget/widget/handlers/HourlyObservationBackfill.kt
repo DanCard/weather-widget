@@ -12,9 +12,9 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.WidgetWorkScheduler
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -247,7 +247,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
             .build()
 
     WorkManager.getInstance(context).enqueueUniqueWork(
-        WeatherWidgetProvider.WORK_NAME_OBSERVATION_BACKFILL,
+        WidgetWorkScheduler.WORK_NAME_OBSERVATION_BACKFILL,
         ExistingWorkPolicy.KEEP,
         request,
     )
