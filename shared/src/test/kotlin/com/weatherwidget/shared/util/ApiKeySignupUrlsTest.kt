@@ -34,8 +34,6 @@ class ApiKeySignupUrlsTest {
             WeatherSource.TOMORROW_IO,
             WeatherSource.SILURIAN,
             WeatherSource.WEATHER_API,
-            WeatherSource.VISUAL_CROSSING,
-            WeatherSource.OPEN_WEATHER_MAP,
         )
         assertEquals(expected, ApiKeySignupUrls.sourcesRequiringKeys.toSet())
     }

@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.ui.ConfigActivity
 import com.weatherwidget.util.SharedPreferencesUtil
 import org.junit.Assert.*
 import org.junit.After
@@ -13,6 +14,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
+import java.time.Clock
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -196,7 +201,7 @@ class WidgetStateManagerTest {
 
     @Test
     fun `toggleDisplaySource cycles through visible sources in order`() {
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.VISUAL_CROSSING, WeatherSource.OPEN_METEO))
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.OPEN_METEO))
 
         val first = stateManager.getCurrentDisplaySource(testWidgetId)
         val second = stateManager.toggleDisplaySource(testWidgetId)
@@ -204,7 +209,7 @@ class WidgetStateManagerTest {
         val fourth = stateManager.toggleDisplaySource(testWidgetId)
 
         assertEquals(WeatherSource.NWS, first)
-        assertEquals(WeatherSource.VISUAL_CROSSING, second)
+        assertEquals(WeatherSource.SILURIAN, second)
         assertEquals(WeatherSource.OPEN_METEO, third)
         assertEquals(WeatherSource.NWS, fourth)
     }
@@ -274,6 +279,34 @@ class WidgetStateManagerTest {
 
         assertFalse(changed)
         assertEquals(WeatherSource.OPEN_METEO, stateManager.getCurrentDisplaySource(testWidgetId))
+    }
+
+    @Test
+    fun `regular source reorder preserves selected source identity`() {
+        stateManager.setVisibleSourcesOrder(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+        )
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.OPEN_METEO)
+
+        stateManager.setVisibleSourcesOrder(
+            listOf(WeatherSource.SILURIAN, WeatherSource.NWS, WeatherSource.OPEN_METEO),
+        )
+
+        assertEquals(WeatherSource.OPEN_METEO, stateManager.getCurrentDisplaySource(testWidgetId))
+    }
+
+    @Test
+    fun `source removal moves removed selection to first survivor`() {
+        stateManager.setVisibleSourcesOrder(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+        )
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.OPEN_METEO)
+
+        stateManager.setVisibleSourcesOrder(
+            listOf(WeatherSource.SILURIAN, WeatherSource.NWS),
+        )
+
+        assertEquals(WeatherSource.SILURIAN, stateManager.getCurrentDisplaySource(testWidgetId))
     }
 
     @Test
@@ -396,7 +429,7 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getVisibleSourcesOrder migrates existing stored order to append silurian remove owm and insert visual crossing second`() {
+    fun `getVisibleSourcesOrder migrates existing order to append silurian and remove deprecated sources`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val migrationPrefs = context.getSharedPreferences("migration_test_prefs_1", Context.MODE_PRIVATE)
         migrationPrefs.edit().clear().apply()
@@ -408,7 +441,7 @@ class WidgetStateManagerTest {
             .putBoolean("silurian_migration_done_v2", false)
             .putBoolean("hide_open_weather_map_migration_done_v4", false)
             .putBoolean("visual_crossing_migration_done_v5", false)
-            .putString("visible_sources_order", "NWS,WEATHER_API,OPEN_METEO")
+            .putString("visible_sources_order", "NWS,VISUAL_CROSSING,WEATHER_API,OPEN_METEO")
             .apply()
 
         val sources = migrationManager.getVisibleSourcesOrder()
@@ -416,7 +449,6 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 WeatherSource.NWS,
-                WeatherSource.VISUAL_CROSSING,
                 WeatherSource.WEATHER_API,
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,
@@ -427,7 +459,7 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getVisibleSourcesOrder strips open weather map and inserts visual crossing second`() {
+    fun `getVisibleSourcesOrder strips open weather map and visual crossing`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val migrationPrefs = context.getSharedPreferences("migration_test_prefs_2", Context.MODE_PRIVATE)
         migrationPrefs.edit().clear().apply()
@@ -439,7 +471,7 @@ class WidgetStateManagerTest {
             .putBoolean("silurian_migration_done_v2", true)
             .putBoolean("hide_open_weather_map_migration_done_v4", false)
             .putBoolean("visual_crossing_migration_done_v5", false)
-            .putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN")
+            .putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,VISUAL_CROSSING,OPEN_METEO,SILURIAN")
             .apply()
 
         val sources = migrationManager.getVisibleSourcesOrder()
@@ -447,11 +479,34 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 WeatherSource.NWS,
-                WeatherSource.VISUAL_CROSSING,
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,
             ),
             sources
+        )
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+    }
+
+    @Test
+    fun `getVisibleSourcesOrder repairs deprecated-only order to debug defaults`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val migrationPrefs = context.getSharedPreferences("deprecated_only_test_prefs", Context.MODE_PRIVATE)
+        migrationPrefs.edit().clear().commit()
+        WidgetStateManager.setPrefsNameOverrideForTesting("deprecated_only_test_prefs")
+        val migrationManager = WidgetStateManager(context)
+        migrationPrefs.edit()
+            .putBoolean("api_pref_migrated", true)
+            .putString("visible_sources_order", "VISUAL_CROSSING,OPEN_WEATHER_MAP")
+            .commit()
+
+        assertEquals(
+            listOf(
+                WeatherSource.NWS,
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
+                WeatherSource.TOMORROW_IO,
+            ),
+            migrationManager.getVisibleSourcesOrder(),
         )
         WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
     }
@@ -471,6 +526,92 @@ class WidgetStateManagerTest {
         val source = toggleManager.getCurrentDisplaySource(testWidgetId)
 
         assertEquals(WeatherSource.OPEN_METEO, source)
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+    }
+
+    @Test
+    fun `getCurrentDisplaySource migrates legacy boolean toggle without crashing`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val togglePrefs = context.getSharedPreferences("legacy_toggle_test_prefs", Context.MODE_PRIVATE)
+        togglePrefs.edit().clear().commit()
+        WidgetStateManager.setPrefsNameOverrideForTesting("legacy_toggle_test_prefs")
+        val toggleManager = WidgetStateManager(context)
+        toggleManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
+        togglePrefs.edit()
+            .putBoolean("widget_display_source_$testWidgetId", true)
+            .putBoolean("widget_display_source_2", false)
+            .commit()
+
+        val trueSource = toggleManager.getCurrentDisplaySource(testWidgetId)
+        val falseSource = toggleManager.getCurrentDisplaySource(2)
+
+        assertEquals(WeatherSource.OPEN_METEO, trueSource)
+        assertEquals(WeatherSource.NWS, falseSource)
+        assertEquals(WeatherSource.OPEN_METEO.id, togglePrefs.all["widget_display_source_$testWidgetId"])
+        assertEquals(WeatherSource.NWS.id, togglePrefs.all["widget_display_source_2"])
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+    }
+
+    @Test
+    fun `getCurrentDisplaySource migrates integer step to stable source id`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val togglePrefs = context.getSharedPreferences("integer_toggle_test_prefs", Context.MODE_PRIVATE)
+        togglePrefs.edit().clear().commit()
+        WidgetStateManager.setPrefsNameOverrideForTesting("integer_toggle_test_prefs")
+        val toggleManager = WidgetStateManager(context)
+        toggleManager.setVisibleSourcesOrder(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+        )
+        togglePrefs.edit().putInt("widget_display_source_$testWidgetId", 5).commit()
+
+        val source = toggleManager.getCurrentDisplaySource(testWidgetId)
+
+        assertEquals(WeatherSource.SILURIAN, source)
+        assertEquals(WeatherSource.SILURIAN.id, togglePrefs.all["widget_display_source_$testWidgetId"])
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+    }
+
+    @Test
+    fun `getCurrentDisplaySource normalizes unknown stored type to first source`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val togglePrefs = context.getSharedPreferences("unknown_toggle_test_prefs", Context.MODE_PRIVATE)
+        togglePrefs.edit().clear().commit()
+        WidgetStateManager.setPrefsNameOverrideForTesting("unknown_toggle_test_prefs")
+        val toggleManager = WidgetStateManager(context)
+        toggleManager.setVisibleSourcesOrder(listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS))
+        togglePrefs.edit()
+            .putStringSet("widget_display_source_$testWidgetId", setOf(WeatherSource.NWS.id))
+            .commit()
+
+        val source = toggleManager.getCurrentDisplaySource(testWidgetId)
+
+        assertEquals(WeatherSource.OPEN_METEO, source)
+        assertEquals(WeatherSource.OPEN_METEO.id, togglePrefs.all["widget_display_source_$testWidgetId"])
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+    }
+
+    @Test
+    fun `deprecated selected source migrates to first surviving source`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val migrationPrefs = context.getSharedPreferences("deprecated_selection_test_prefs", Context.MODE_PRIVATE)
+        migrationPrefs.edit().clear().commit()
+        WidgetStateManager.setPrefsNameOverrideForTesting("deprecated_selection_test_prefs")
+        val migrationManager = WidgetStateManager(context)
+        migrationPrefs.edit()
+            .putBoolean("api_pref_migrated", true)
+            .putBoolean("silurian_migration_done_v2", true)
+            .putString("visible_sources_order", "VISUAL_CROSSING,NWS,OPEN_METEO")
+            .putString("widget_display_source_$testWidgetId", WeatherSource.VISUAL_CROSSING.id)
+            .commit()
+
+        val source = migrationManager.getCurrentDisplaySource(testWidgetId)
+
+        assertEquals(WeatherSource.NWS, source)
+        assertEquals(WeatherSource.NWS.id, migrationPrefs.all["widget_display_source_$testWidgetId"])
+        assertEquals(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO),
+            migrationManager.getVisibleSourcesOrder(),
+        )
         WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
     }
 
@@ -586,5 +727,129 @@ class WidgetStateManagerTest {
         stateManager.clearWidgetState(testWidgetId)
 
         assertNull(stateManager.getLastGraphRender(testWidgetId))
+    }
+
+    @Test
+    fun `clearWidgetState removes every target widget key and preserves other widget and global state`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val otherWidgetId = 12
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
+        stateManager.setUseCelsius(true)
+        stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
+        stateManager.setHourlyOffset(testWidgetId, -48)
+        stateManager.setTransientMessage(testWidgetId, "stale", Long.MAX_VALUE)
+        stateManager.markMissingDataRefreshRequested(testWidgetId, WeatherSource.NWS.id, "hourly_gaps")
+        stateManager.setWidgetLocations(intArrayOf(testWidgetId), 37.42, -122.08)
+        stateManager.setViewMode(otherWidgetId, ViewMode.PRECIPITATION)
+        stateManager.setTransientMessage(otherWidgetId, "keep", Long.MAX_VALUE)
+        stateManager.markMissingDataRefreshRequested(otherWidgetId, WeatherSource.NWS.id, "hourly_gaps")
+        stateManager.setWidgetLocations(intArrayOf(otherWidgetId), 40.0, -75.0)
+
+        stateManager.clearWidgetState(testWidgetId)
+
+        assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
+        assertNull(stateManager.getActiveTransientMessage(testWidgetId))
+        assertTrue(stateManager.shouldRefreshMissingData(testWidgetId, WeatherSource.NWS.id, "hourly_gaps", Long.MAX_VALUE))
+        assertNull(stateManager.getStoredWidgetLocation(testWidgetId))
+
+        assertEquals(ViewMode.PRECIPITATION, stateManager.getViewMode(otherWidgetId))
+        assertEquals("keep", stateManager.getActiveTransientMessage(otherWidgetId))
+        assertFalse(stateManager.shouldRefreshMissingData(otherWidgetId, WeatherSource.NWS.id, "hourly_gaps", Long.MAX_VALUE))
+        assertEquals(40.0, stateManager.getStoredWidgetLocation(otherWidgetId)?.first ?: 0.0, 0.001)
+
+        assertTrue(stateManager.useCelsius())
+        assertEquals(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO),
+            stateManager.getVisibleSourcesOrder(),
+        )
+
+        val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        assertFalse(widgetPrefs.contains("${ConfigActivity.KEY_LAT_PREFIX}$testWidgetId"))
+        assertFalse(widgetPrefs.contains("${ConfigActivity.KEY_LON_PREFIX}$testWidgetId"))
+    }
+
+    @Test
+    fun `view mode and zoom migrate ordinal values to stable names`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = SharedPreferencesUtil.getPrefs(context, "test_widget_state_prefs")
+        prefs.edit()
+            .putInt("widget_view_mode_$testWidgetId", ViewMode.CLOUD_COVER.ordinal)
+            .putInt("widget_zoom_level_$testWidgetId", ZoomLevel.NARROW.ordinal)
+            .commit()
+
+        assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
+        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ViewMode.CLOUD_COVER.name, prefs.all["widget_view_mode_$testWidgetId"])
+        assertEquals(ZoomLevel.NARROW.name, prefs.all["widget_zoom_level_$testWidgetId"])
+    }
+
+    @Test
+    fun `unknown persisted view mode and zoom normalize to defaults`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = SharedPreferencesUtil.getPrefs(context, "test_widget_state_prefs")
+        prefs.edit()
+            .putString("widget_view_mode_$testWidgetId", "FUTURE_MODE")
+            .putString("widget_zoom_level_$testWidgetId", "FUTURE_ZOOM")
+            .commit()
+
+        assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ViewMode.DAILY.name, prefs.all["widget_view_mode_$testWidgetId"])
+        assertEquals(ZoomLevel.WIDE.name, prefs.all["widget_zoom_level_$testWidgetId"])
+    }
+
+    @Test
+    fun `fetch cooldown allows retry after wall clock rollback and at exact boundary`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = SharedPreferencesUtil.getPrefs(context, "test_widget_state_prefs")
+        val zone = ZoneId.of("UTC")
+        val initial = WidgetFetchStateStore(prefs, Clock.fixed(Instant.ofEpochMilli(10_000L), zone))
+        initial.markMissingDataRefreshRequested(testWidgetId, "NWS", "clock")
+
+        val rolledBack = WidgetFetchStateStore(prefs, Clock.fixed(Instant.ofEpochMilli(9_000L), zone))
+        val exactBoundary = WidgetFetchStateStore(prefs, Clock.fixed(Instant.ofEpochMilli(15_000L), zone))
+
+        assertTrue(rolledBack.shouldRefreshMissingData(testWidgetId, "NWS", "clock", 5_000L))
+        assertTrue(exactBoundary.shouldRefreshMissingData(testWidgetId, "NWS", "clock", 5_000L))
+    }
+
+    @Test
+    fun `transient message expires at exact boundary`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = SharedPreferencesUtil.getPrefs(context, "test_widget_state_prefs")
+        val store = WidgetPresentationStateStore(prefs)
+        store.setTransientMessage(testWidgetId, "refresh complete", 10_000L)
+
+        assertEquals("refresh complete", store.activeTransientMessage(testWidgetId, 9_999L))
+        assertNull(store.activeTransientMessage(testWidgetId, 10_000L))
+        assertFalse(prefs.contains("widget_transient_msg_$testWidgetId"))
+        assertFalse(prefs.contains("widget_transient_msg_expires_$testWidgetId"))
+    }
+
+    @Test
+    fun `hourly anchor preserves elapsed hours across daylight saving transition`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = SharedPreferencesUtil.getPrefs(context, "test_widget_state_prefs")
+        val zone = ZoneId.of("America/Los_Angeles")
+        var activeZone = zone
+        val clock = Clock.fixed(Instant.parse("2026-03-08T09:30:00Z"), zone)
+        val store = WidgetPresentationStateStore(prefs, clock) { activeZone }
+        store.setHourlyOffset(testWidgetId, 24)
+
+        val center = store.resolveHourlyCenterTime(
+            widgetId = testWidgetId,
+            now = LocalDateTime.of(2026, 3, 8, 1, 30),
+            zoom = ZoomLevel.NARROW,
+        )
+
+        assertEquals(LocalDateTime.of(2026, 3, 9, 2, 30), center)
+
+        activeZone = ZoneId.of("America/New_York")
+        val afterZoneChange = store.resolveHourlyCenterTime(
+            widgetId = testWidgetId,
+            now = LocalDateTime.of(2026, 3, 8, 4, 30),
+            zoom = ZoomLevel.NARROW,
+        )
+        assertEquals(LocalDateTime.of(2026, 3, 9, 5, 30), afterZoneChange)
     }
 }

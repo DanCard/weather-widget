@@ -36,6 +36,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.ApiKeySignupUrls
+import com.weatherwidget.shared.util.WeatherSourceOrdering
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -181,17 +182,6 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    /** All configurable weather sources (excludes GENERIC_GAP). */
-    private val allSources =
-        listOf(
-            WeatherSource.NWS,
-            WeatherSource.TOMORROW_IO,
-            WeatherSource.OPEN_METEO,
-            WeatherSource.SILURIAN,
-            WeatherSource.WEATHER_API,
-            WeatherSource.VISUAL_CROSSING,
-        )
-
     private val sourcesRequiringKeys = ApiKeySignupUrls.sourcesRequiringKeys
 
     private fun setupApiKeysList() {
@@ -253,7 +243,7 @@ class SettingsActivity : AppCompatActivity() {
         val visibleSources = widgetStateManager.getVisibleSourcesOrder()
 
         // Build full ordered list: visible sources first (in order), then hidden sources
-        val availableSources = allSources
+        val availableSources = WeatherSourceOrdering.ALL_CONFIGURABLE
         val hiddenSources = availableSources.filter { it !in visibleSources }
         val orderedSources = visibleSources + hiddenSources
 
@@ -285,44 +275,34 @@ class SettingsActivity : AppCompatActivity() {
             downButton.visibility = if (isVisible && visibleSources.indexOf(source) < visibleSources.size - 1) View.VISIBLE else View.INVISIBLE
 
             checkbox.setOnCheckedChangeListener { _, isChecked ->
-                val current = widgetStateManager.getVisibleSourcesOrder().toMutableList()
-                if (isChecked) {
-                    if (source !in current) current.add(source)
-                    Log.d("SOURCE_ORDER", "Checkbox: enabled ${source.name}, new list=$current")
-                } else {
-                    if (current.size <= 1) {
-                        // Prevent unchecking the last source
-                        checkbox.isChecked = true
-                        Toast.makeText(this, getString(R.string.must_keep_one_source), Toast.LENGTH_SHORT).show()
-                        return@setOnCheckedChangeListener
-                    }
-                    current.remove(source)
-                    Log.d("SOURCE_ORDER", "Checkbox: disabled ${source.name}, new list=$current")
+                val currentIds = widgetStateManager.getVisibleSourcesOrder().map { it.id }
+                val updatedIds = WeatherSourceOrdering.toggle(currentIds, source, isChecked)
+                if (updatedIds == null) {
+                    checkbox.isChecked = true
+                    Toast.makeText(this, getString(R.string.must_keep_one_source), Toast.LENGTH_SHORT).show()
+                    return@setOnCheckedChangeListener
                 }
-                widgetStateManager.setVisibleSourcesOrder(current)
+                Log.d("SOURCE_ORDER", "Checkbox: ${if (isChecked) "enabled" else "disabled"} ${source.name}, new list=$updatedIds")
+                widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
                 rebuildSourceRows(container)
             }
 
             upButton.setOnClickListener {
-                val current = widgetStateManager.getVisibleSourcesOrder().toMutableList()
-                val pos = current.indexOf(source)
-                if (pos > 0) {
-                    Log.d("SOURCE_ORDER", "Move up: ${source.name} from pos $pos to ${pos - 1}")
-                    current[pos] = current[pos - 1]
-                    current[pos - 1] = source
-                    widgetStateManager.setVisibleSourcesOrder(current)
+                val currentIds = widgetStateManager.getVisibleSourcesOrder().map { it.id }
+                val updatedIds = WeatherSourceOrdering.moveUp(currentIds, source)
+                if (updatedIds != currentIds) {
+                    Log.d("SOURCE_ORDER", "Move up: ${source.name}, new list=$updatedIds")
+                    widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
                     rebuildSourceRows(container)
                 }
             }
 
             downButton.setOnClickListener {
-                val current = widgetStateManager.getVisibleSourcesOrder().toMutableList()
-                val pos = current.indexOf(source)
-                if (pos < current.size - 1) {
-                    Log.d("SOURCE_ORDER", "Move down: ${source.name} from pos $pos to ${pos + 1}")
-                    current[pos] = current[pos + 1]
-                    current[pos + 1] = source
-                    widgetStateManager.setVisibleSourcesOrder(current)
+                val currentIds = widgetStateManager.getVisibleSourcesOrder().map { it.id }
+                val updatedIds = WeatherSourceOrdering.moveDown(currentIds, source)
+                if (updatedIds != currentIds) {
+                    Log.d("SOURCE_ORDER", "Move down: ${source.name}, new list=$updatedIds")
+                    widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
                     rebuildSourceRows(container)
                 }
             }

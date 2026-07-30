@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,6 +43,9 @@ class WeatherWidgetProviderRobolectricTest {
         stateManager.setHourlyOffset(widgetId, 24)
         stateManager.setDateOffset(widgetId, 5)
         stateManager.setZoomLevel(widgetId, ZoomLevel.NARROW)
+        stateManager.setTransientMessage(widgetId, "stale", Long.MAX_VALUE)
+        stateManager.markMissingDataRefreshRequested(widgetId, "NWS", "hourly_gaps")
+        stateManager.setWidgetLocations(intArrayOf(widgetId), 37.42, -122.08)
 
         provider.onDeleted(context, intArrayOf(widgetId))
 
@@ -48,6 +53,9 @@ class WeatherWidgetProviderRobolectricTest {
         assertEquals(0, stateManager.getHourlyOffset(widgetId))
         assertEquals(0, stateManager.getDateOffset(widgetId))
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(widgetId))
+        assertNull(stateManager.getActiveTransientMessage(widgetId))
+        assertNull(stateManager.getStoredWidgetLocation(widgetId))
+        assertTrue(stateManager.shouldRefreshMissingData(widgetId, "NWS", "hourly_gaps", Long.MAX_VALUE))
     }
 
     @Test

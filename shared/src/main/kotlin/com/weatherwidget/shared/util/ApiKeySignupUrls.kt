@@ -20,8 +20,6 @@ object ApiKeySignupUrls {
             WeatherSource.TOMORROW_IO,
             WeatherSource.SILURIAN,
             WeatherSource.WEATHER_API,
-            WeatherSource.VISUAL_CROSSING,
-            WeatherSource.OPEN_WEATHER_MAP,
         )
 
     fun signupUrl(source: WeatherSource): String = when (source) {

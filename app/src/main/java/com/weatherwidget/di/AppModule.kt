@@ -29,9 +29,11 @@ import com.weatherwidget.data.remote.SynopticApi
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.data.local.log
+import com.weatherwidget.widget.AppLogWidgetStateEventLogger
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.GpsResampler
 import com.weatherwidget.widget.WidgetConstants
+import com.weatherwidget.widget.WidgetStateEventLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.ui.SetupSourceSelector
 import dagger.Module
@@ -51,6 +53,9 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import javax.inject.Singleton
 import dagger.hilt.EntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @EntryPoint
@@ -65,6 +70,12 @@ interface RepositoryEntryPoint {
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+    @Provides
+    @Singleton
+    @ApplicationIoScope
+    fun provideApplicationIoScope(): CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     @Provides
     @Singleton
     fun provideJson(): Json =
@@ -245,8 +256,15 @@ object AppModule {
     @Singleton
     fun provideWidgetStateManager(
         @ApplicationContext context: Context,
+        eventLogger: WidgetStateEventLogger,
+    ): WidgetStateManager = WidgetStateManager(context, eventLogger)
+
+    @Provides
+    @Singleton
+    fun provideWidgetStateEventLogger(
         appLogDao: AppLogDao,
-    ): WidgetStateManager = WidgetStateManager(context, appLogDao)
+        @ApplicationIoScope scope: CoroutineScope,
+    ): WidgetStateEventLogger = AppLogWidgetStateEventLogger(appLogDao, scope)
 
     @Provides
     @Singleton

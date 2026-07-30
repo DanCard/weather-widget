@@ -68,7 +68,7 @@ class WeatherObservationsActivityRobolectricTest {
 
         now = System.currentTimeMillis()
 
-        stateManager = WidgetStateManager(context, database.appLogDao())
+        stateManager = WidgetStateManager(context)
         WeatherObservationsActivity.autoRefreshDebounceMs = 0L
 
         val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)

@@ -1581,13 +1581,13 @@ class DailyViewHandlerTest {
         val weatherList = listOf(
             createWeather(todayStr, highTemp = 70f, lowTemp = 55f).copy(
                 condition = "Rain",
-                source = WeatherSource.VISUAL_CROSSING.id,
-                nativeDailyIconToken = "partly-cloudy-day",
+                source = WeatherSource.WEATHER_API.id,
+                nativeDailyIconToken = "1003",
             )
         )
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(45)
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.VISUAL_CROSSING, WeatherSource.NWS, WeatherSource.OPEN_METEO))
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.WEATHER_API, WeatherSource.NWS, WeatherSource.OPEN_METEO))
 
         val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 45, widthDp = 300, heightDp = 200)
 
@@ -1599,8 +1599,8 @@ class DailyViewHandlerTest {
                 weatherList = weatherList,
                 forecastSnapshots = emptyMap(),
                 hourlyForecasts = listOf(
-                    HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.VISUAL_CROSSING.id, 0, 90, null, 1L),
-                    HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.VISUAL_CROSSING.id, 0, 0, null, 1L),
+                    HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.WEATHER_API.id, 0, 90, null, 1L),
+                    HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.WEATHER_API.id, 0, 0, null, 1L),
                 ),
             ),
             observationData = ObservationData(),
@@ -1629,18 +1629,18 @@ class DailyViewHandlerTest {
         val weatherList = listOf(
             createWeather(todayStr, highTemp = 70f, lowTemp = 55f).copy(
                 condition = "Rain",
-                source = WeatherSource.VISUAL_CROSSING.id,
-                nativeDailyIconToken = "partly-cloudy-day",
+                source = WeatherSource.WEATHER_API.id,
+                nativeDailyIconToken = "1003",
             ),
             createWeather(tomorrowStr, highTemp = 71f, lowTemp = 56f).copy(
                 condition = "Clear",
-                source = WeatherSource.VISUAL_CROSSING.id,
-                nativeDailyIconToken = "clear-day",
+                source = WeatherSource.WEATHER_API.id,
+                nativeDailyIconToken = "1000",
             ),
         )
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(46)
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.VISUAL_CROSSING, WeatherSource.NWS, WeatherSource.OPEN_METEO))
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.WEATHER_API, WeatherSource.NWS, WeatherSource.OPEN_METEO))
 
         val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 46, widthDp = 200, heightDp = 90)
 
@@ -1652,8 +1652,8 @@ class DailyViewHandlerTest {
                 weatherList = weatherList,
                 forecastSnapshots = emptyMap(),
                 hourlyForecasts = listOf(
-                    HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.VISUAL_CROSSING.id, 0, 90, null, 1L),
-                    HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.VISUAL_CROSSING.id, 0, 0, null, 1L)
+                    HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.WEATHER_API.id, 0, 90, null, 1L),
+                    HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.WEATHER_API.id, 0, 0, null, 1L)
                 ),
             ),
             observationData = ObservationData(),

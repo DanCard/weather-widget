@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.nio.file.Path
@@ -61,12 +62,28 @@ class DesktopConfigStore(
         if (!configPath.exists()) return null
         return runCatching {
             json.decodeFromString<DesktopConfig>(configPath.readText())
+        }.map { decoded ->
+            val normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(decoded.visibleSources)
+            val normalizedSource = decoded.weatherSource.takeIf { it in normalizedVisible }
+                ?: normalizedVisible.first()
+            val normalized = decoded.copy(
+                weatherSource = normalizedSource,
+                visibleSources = normalizedVisible,
+            )
+            if (normalized != decoded) save(normalized)
+            normalized
         }.getOrNull()
     }
 
     fun save(config: DesktopConfig) {
+        val normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(config.visibleSources)
+        val normalized = config.copy(
+            weatherSource = config.weatherSource.takeIf { it in normalizedVisible }
+                ?: normalizedVisible.first(),
+            visibleSources = normalizedVisible,
+        )
         configPath.parent?.createDirectories()
-        configPath.writeText(json.encodeToString(DesktopConfig.serializer(), config))
+        configPath.writeText(json.encodeToString(DesktopConfig.serializer(), normalized))
     }
 
     companion object {

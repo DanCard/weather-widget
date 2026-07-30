@@ -20,8 +20,8 @@ object WeatherSourceOrdering {
 
     /**
      * Every source the user can enable in Settings. Excludes [WeatherSource.GENERIC_GAP]
-     * (synthetic climate-normal fallback, never user-selectable). Order is the canonical
-     * "hidden source" display order — i.e. the order hidden sources appear below visible ones.
+     * (synthetic climate-normal fallback) and deprecated providers retained only for historical
+     * data parsing. Order is the canonical hidden-source display order.
      *
      * Mirrors `SettingsActivity.allSources` and `SettingsWindow.ApiSourcesList.allSources`.
      */
@@ -31,7 +31,6 @@ object WeatherSourceOrdering {
         WeatherSource.OPEN_METEO,
         WeatherSource.SILURIAN,
         WeatherSource.WEATHER_API,
-        WeatherSource.VISUAL_CROSSING,
     )
 
     /** The default visible-source list on a fresh install (mirrors both platforms' defaults). */
@@ -42,13 +41,37 @@ object WeatherSourceOrdering {
     )
 
     /**
+     * Canonicalizes a persisted visible-source list. Unknown, duplicate, synthetic, and deprecated
+     * ids are removed. A completely invalid list falls back to [DEFAULT_VISIBLE_IDS] so callers
+     * never expose an empty source cycle.
+     */
+    fun sanitizeVisibleIds(
+        visibleIds: List<String>,
+        fallbackIds: List<String> = DEFAULT_VISIBLE_IDS,
+    ): List<String> {
+        val configurableIds = ALL_CONFIGURABLE.mapTo(linkedSetOf()) { it.id }
+        val sanitized = visibleIds
+            .map(String::trim)
+            .filter { it in configurableIds }
+            .distinct()
+        if (sanitized.isNotEmpty()) return sanitized
+
+        return fallbackIds
+            .map(String::trim)
+            .filter { it in configurableIds }
+            .distinct()
+            .ifEmpty { listOf(WeatherSource.OPEN_METEO.id) }
+    }
+
+    /**
      * Returns the full source list for rendering: visible sources first (in their stored order),
      * then hidden sources in [ALL_CONFIGURABLE] order. Unknown ids in [visibleIds] are dropped,
      * matching both platforms' existing behavior.
      */
     fun ordered(visibleIds: List<String>): List<WeatherSource> {
-        val visible = visibleIds.mapNotNull { id -> ALL_CONFIGURABLE.find { it.id == id } }
-        val hidden = ALL_CONFIGURABLE.filter { it.id !in visibleIds }
+        val sanitized = sanitizeVisibleIds(visibleIds)
+        val visible = sanitized.mapNotNull { id -> ALL_CONFIGURABLE.find { it.id == id } }
+        val hidden = ALL_CONFIGURABLE.filter { it.id !in sanitized }
         return visible + hidden
     }
 
@@ -61,7 +84,8 @@ object WeatherSourceOrdering {
      * - [makeVisible] = false: removes [source] unless that would leave an empty list.
      */
     fun toggle(visibleIds: List<String>, source: WeatherSource, makeVisible: Boolean): List<String>? {
-        val current = visibleIds.toMutableList()
+        if (source !in ALL_CONFIGURABLE) return sanitizeVisibleIds(visibleIds)
+        val current = sanitizeVisibleIds(visibleIds).toMutableList()
         return when (makeVisible) {
             true -> {
                 if (source.id !in current) current.add(source.id)
@@ -80,9 +104,10 @@ object WeatherSourceOrdering {
      * unchanged) if [source] is already at the top or not in the list.
      */
     fun moveUp(visibleIds: List<String>, source: WeatherSource): List<String> {
-        val pos = visibleIds.indexOf(source.id)
-        if (pos <= 0) return visibleIds
-        val current = visibleIds.toMutableList()
+        val sanitized = sanitizeVisibleIds(visibleIds)
+        val pos = sanitized.indexOf(source.id)
+        if (pos <= 0) return sanitized
+        val current = sanitized.toMutableList()
         current[pos] = current[pos - 1]
         current[pos - 1] = source.id
         return current
@@ -93,9 +118,10 @@ object WeatherSourceOrdering {
      * unchanged) if [source] is already at the bottom or not in the list.
      */
     fun moveDown(visibleIds: List<String>, source: WeatherSource): List<String> {
-        val pos = visibleIds.indexOf(source.id)
-        if (pos < 0 || pos >= visibleIds.size - 1) return visibleIds
-        val current = visibleIds.toMutableList()
+        val sanitized = sanitizeVisibleIds(visibleIds)
+        val pos = sanitized.indexOf(source.id)
+        if (pos < 0 || pos >= sanitized.size - 1) return sanitized
+        val current = sanitized.toMutableList()
         current[pos] = current[pos + 1]
         current[pos + 1] = source.id
         return current
