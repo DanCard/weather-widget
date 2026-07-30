@@ -2,11 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import android.content.Context
 import android.util.Log
-import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
@@ -221,40 +217,22 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     // Jittered short delay: avoids landing in the first-second startup scrum (see
     // StartupFetchPolicy) without meaningfully slowing the interactive missing-hourly-data banner
     // flow, which already tolerates a several-second wait.
-    val request =
-        OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-            .setInputData(
-                androidx.work.Data.Builder()
-                    .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, true)
-                    .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, lat)
-                    .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, lon)
-                    .putLong(
-                        WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS,
-                        WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,
-                    )
-                    .putString(
-                        WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON,
-                        "temperature_graph_sparse_history widget=$appWidgetId reason=${decision.reason}",
-                    )
-                    .build(),
-            )
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build(),
-            )
-            .setInitialDelay(delayMs, java.util.concurrent.TimeUnit.MILLISECONDS)
-            .build()
-
-    WorkManager.getInstance(context).enqueueUniqueWork(
-        WidgetWorkScheduler.WORK_NAME_OBSERVATION_BACKFILL,
-        ExistingWorkPolicy.KEEP,
-        request,
+    val backfillReason =
+        "temperature_graph_sparse_history widget=$appWidgetId reason=${decision.reason}"
+    val request = WidgetWorkScheduler.enqueueRequiredObservationBackfill(
+        context = context,
+        latitude = lat,
+        longitude = lon,
+        lookbackHours = WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,
+        reason = backfillReason,
+        initialDelayMs = delayMs,
     )
     stateManager.markMissingActualsRefreshRequested(appWidgetId, sourceKey)
     database.appLogDao().log(
         "OBS_HOURLY_BACKFILL_REQ",
-        "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason} graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs",
+        "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason} " +
+            "graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs " +
+            "policy=append_or_replace requestId=${request.id}",
         "INFO",
     )
 }

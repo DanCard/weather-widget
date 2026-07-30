@@ -159,6 +159,53 @@ object WidgetWorkScheduler {
             },
         )
 
+    /**
+     * Enqueues a required observation-history repair after any active repair.
+     *
+     * A newer request is not redundant with a running request because its lookback window ends
+     * later. KEEP can therefore discard the only request that covers a newly visible overnight
+     * gap. APPEND_OR_REPLACE retains that follow-up without cancelling a running worker.
+     */
+    fun enqueueRequiredObservationBackfill(
+        context: Context,
+        latitude: Double,
+        longitude: Double,
+        lookbackHours: Long,
+        reason: String,
+        initialDelayMs: Long,
+    ): OneTimeWorkRequest {
+        val request =
+            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                .setInputData(
+                    Data.Builder()
+                        .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, true)
+                        .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, latitude)
+                        .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, longitude)
+                        .putLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, lookbackHours)
+                        .putString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON, reason)
+                        .build(),
+                )
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build(),
+                )
+                .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
+                .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WORK_NAME_OBSERVATION_BACKFILL,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            request,
+        )
+        Log.d(
+            TAG,
+            "Observation backfill enqueued policy=APPEND_OR_REPLACE reason=$reason " +
+                "delayMs=$initialDelayMs id=${request.id}",
+        )
+        return request
+    }
+
     fun enqueueUiRepaint(
         context: Context,
         reason: String = "unspecified",

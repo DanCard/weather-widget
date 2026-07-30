@@ -89,4 +89,37 @@ class WidgetWorkSchedulerCollisionTest {
         assertTrue(startupIds.contains(delayed.id))
         assertTrue(updatedOneTimeIds.contains(urgent.id))
     }
+
+    @Test
+    fun `new observation history repair survives an older active repair`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val older =
+            WidgetWorkScheduler.enqueueRequiredObservationBackfill(
+                context = context,
+                latitude = 37.417,
+                longitude = -122.089,
+                lookbackHours = 72,
+                reason = "older_window",
+                initialDelayMs = 60_000,
+            )
+        val newer =
+            WidgetWorkScheduler.enqueueRequiredObservationBackfill(
+                context = context,
+                latitude = 37.417,
+                longitude = -122.089,
+                lookbackHours = 72,
+                reason = "newer_window",
+                initialDelayMs = 60_000,
+            )
+
+        val retainedIds =
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_OBSERVATION_BACKFILL)
+                .get(5, TimeUnit.SECONDS)
+                .map { it.id }
+
+        assertTrue(retainedIds.contains(older.id))
+        assertTrue(retainedIds.contains(newer.id))
+        assertEquals(2, retainedIds.size)
+    }
 }

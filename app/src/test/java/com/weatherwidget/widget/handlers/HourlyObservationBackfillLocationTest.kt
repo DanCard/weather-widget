@@ -130,6 +130,53 @@ class HourlyObservationBackfillLocationTest {
     }
 
     @Test
+    fun `NWS requests repair for a seven PM to seven AM history gap`() {
+        val zone = ZoneId.systemDefault()
+        val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
+        val now = LocalDateTime.of(2026, 7, 30, 7, 0)
+        val observations =
+            listOf(graphStart, now).map { dateTime ->
+                nwsObservationAt(dateTime.atZone(zone).toInstant().toEpochMilli())
+            }
+
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = graphStart,
+                graphEnd = now.plusHours(11),
+                observations = observations,
+                now = now,
+            )
+
+        assertTrue(decision.shouldRequest)
+        assertEquals("max_gap_min=720", decision.reason)
+    }
+
+    @Test
+    fun `NWS does not request repair for continuous overnight history`() {
+        val zone = ZoneId.systemDefault()
+        val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
+        val now = LocalDateTime.of(2026, 7, 30, 7, 0)
+        val observations =
+            generateSequence(graphStart) { it.plusMinutes(15) }
+                .takeWhile { !it.isAfter(now) }
+                .map { nwsObservationAt(it.atZone(zone).toInstant().toEpochMilli()) }
+                .toList()
+
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = graphStart,
+                graphEnd = now.plusHours(11),
+                observations = observations,
+                now = now,
+            )
+
+        assertEquals(false, decision.shouldRequest)
+        assertEquals("coverage_ok latest_gap_min=0 max_gap_min=15", decision.reason)
+    }
+
+    @Test
     fun `withQuantizedLocation is idempotent`() {
         val once = observationAt(37.416797637939453, -122.08899688720703).withQuantizedLocation()
         val twice = once.withQuantizedLocation()
@@ -147,4 +194,7 @@ class HourlyObservationBackfillLocationTest {
         locationLon = lon,
         api = "NWS",
     )
+
+    private fun nwsObservationAt(timestamp: Long) =
+        observationAt(37.417, -122.089).copy(timestamp = timestamp)
 }

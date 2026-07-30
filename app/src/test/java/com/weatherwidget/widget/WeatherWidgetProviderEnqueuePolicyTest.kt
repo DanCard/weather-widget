@@ -13,8 +13,10 @@ import com.weatherwidget.util.SharedPreferencesUtil
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import org.junit.Assert.assertEquals
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -119,6 +121,34 @@ class WeatherWidgetProviderEnqueuePolicyTest {
                     ) == 17
                 },
             )
+        }
+    }
+
+    @Test
+    fun `required observation history repair is appended instead of discarded`() {
+        val requestSlot = slot<OneTimeWorkRequest>()
+
+        WidgetWorkScheduler.enqueueRequiredObservationBackfill(
+            context = context,
+            latitude = 37.417,
+            longitude = -122.089,
+            lookbackHours = 72,
+            reason = "temperature_graph_sparse_history widget=2 reason=max_gap_min=563",
+            initialDelayMs = 15_000,
+        )
+
+        verify(exactly = 1) {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WidgetWorkScheduler.WORK_NAME_OBSERVATION_BACKFILL),
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                capture(requestSlot),
+            )
+        }
+        with(requestSlot.captured.workSpec.input) {
+            assertEquals(true, getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, false))
+            assertEquals(37.417, getDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, 0.0), 0.0)
+            assertEquals(-122.089, getDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, 0.0), 0.0)
+            assertEquals(72L, getLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, 0))
         }
     }
 
