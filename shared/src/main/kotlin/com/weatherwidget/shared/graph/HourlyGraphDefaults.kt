@@ -57,7 +57,7 @@ object HourlyGraphDefaults {
     const val LABEL_SAFE_BOTTOM_INSET_DP = 2f
     const val DEFAULT_HOUR_LABEL_SPACING_DP = 28f
     // Minimum clear gap between adjacent THREE_DAY date footer labels ("Tue 23") before the later one
-    // is dropped as overlapping. See GraphRenderUtils.placeDateLabelCenter.
+    // is dropped as overlapping. See the platform hourly-footer layout planner.
     const val DATE_LABEL_MIN_GAP_DP = 6f
     const val WATERMARK_ALPHA = 96
     const val WATERMARK_MIN_HOURS = 3

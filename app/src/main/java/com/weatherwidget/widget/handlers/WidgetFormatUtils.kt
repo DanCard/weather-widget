@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.HourlyFooterRenderer
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
@@ -26,7 +27,7 @@ internal fun formatHourLabel(time: LocalDateTime): String =
 /**
  * Compact date label used on the hourly graph footer when zoomed out to multiple days, where a
  * bare time-of-day ("12a") can't tell you which day a region belongs to. Weekday + day-of-month,
- * e.g. 2026-06-11 -> "Wed 11". The renderer ([GraphRenderUtils.drawHourLabels]) draws this string
+ * e.g. 2026-06-11 -> "Wed 11". The renderer ([HourlyFooterRenderer.drawHourLabels]) draws this string
  * whole next to the day's weather icon, so the lack of an a/p suffix is fine.
  */
 internal fun formatDateLabel(date: LocalDate): String =

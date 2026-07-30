@@ -60,7 +60,7 @@ class CurveMathTest {
     private fun curveValueInSegment(values: List<Float>, i: Int, t: Float): Float {
         val tan = CurveMath.computeTangents(values.indices.map { it.toFloat() to values[it] })
         val p0 = values[i]
-        val p1 = values[i] + tan[i].second / 3f       // cp1 = point + tangent/3   (buildCurve / GraphRenderUtils)
+        val p1 = values[i] + tan[i].second / 3f       // cp1 = point + tangent/3 (platform path builders)
         val p2 = values[i + 1] - tan[i + 1].second / 3f // cp2 = next  - nextTangent/3
         val p3 = values[i + 1]
         val u = 1f - t

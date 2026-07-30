@@ -104,7 +104,7 @@ internal object HourlyGraphViewCommon {
      * at the per-day representative hours in [dateLabelMillis]; otherwise it shows a time-of-day label
      * ("3p") governed by each graph's own cadence ([nonDateShowLabel]). [isDateLabel] downstream
      * drives both the drop-when-clipped and keep-the-last-day-icon behavior in
-     * [com.weatherwidget.widget.GraphRenderUtils.drawHourLabels].
+     * [com.weatherwidget.widget.HourlyFooterRenderer.drawHourLabels].
      */
     fun resolveHourLabel(
         time: LocalDateTime,

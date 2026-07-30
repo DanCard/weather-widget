@@ -46,7 +46,7 @@ import kotlin.math.roundToInt
  * Faithfully reuses the Android widget's temperature→color model and gradient logic from
  * `TemperatureGraphStyle` (cold #5AC8FA ≤50°F, mild #E8A24E @70°F, hot #FF6B35 ≥90°F, blended in
  * between), but draws through Compose's Skia-backed DrawScope rather than android.graphics. The
- * curve smoothing is the same Catmull-Rom approach used by the widget's GraphRenderUtils.
+ * curve smoothing is the same Catmull-Rom approach used by the widget's AndroidCurvePathBuilder.
  *
  * When [observations] are provided, past hours show a solid pink actual line (matching Android's
  * OBSERVED color) and future hours show a dashed forecast line. Without observations the full curve

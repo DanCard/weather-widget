@@ -1,7 +1,7 @@
 package com.weatherwidget.shared.graph
 
 /**
- * Platform-free curve math shared by the Android widget (`GraphRenderUtils`) and the desktop
+ * Platform-free curve math shared by the Android widget (`AndroidCurvePathBuilder`) and the desktop
  * Compose graphs (`DesktopGraphUtils`). Only the geometry lives here — actual path construction
  * (android.graphics.Path vs Compose Path) stays in each platform renderer, since those APIs differ.
  *

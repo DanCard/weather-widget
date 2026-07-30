@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.TemperatureInterpolator
+import com.weatherwidget.shared.graph.SeriesSmoothing
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.TempUtils
 import java.time.LocalDateTime
@@ -75,7 +76,7 @@ object CurrentTemperatureResolver {
         }
         val sortedTimes = forecastsByTime.keys.sorted()
         val rawTemps = sortedTimes.map { forecastsByTime.getValue(it).temperature }
-        val smoothedTemps = TemperatureInterpolator.smoothValuesPreservingAllExtrema(
+        val smoothedTemps = SeriesSmoothing.smoothValuesPreservingAllExtrema(
             rawTemps,
             iterations = smoothIterations,
         )

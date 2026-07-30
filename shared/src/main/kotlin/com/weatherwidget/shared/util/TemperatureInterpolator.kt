@@ -1,11 +1,9 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
-import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 object TemperatureInterpolator {
     const val INTERPOLATION_THRESHOLD = 0.1f
@@ -63,69 +61,6 @@ object TemperatureInterpolator {
             maxDiff >= 4f -> 2
             else -> 1
         }
-    }
-
-    fun smoothValuesPreservingAllExtrema(
-        values: List<Float>,
-        iterations: Int = 1,
-    ): List<Float> {
-        if (values.size < 3 || iterations <= 0) return values
-
-        val intValues = values.map { it.roundToInt() }
-        val maxima = findLocalExtremaIndices(intValues, isMax = true)
-        val minima = findLocalExtremaIndices(intValues, isMax = false)
-        
-        val preservedIndices = mutableSetOf(0, values.lastIndex)
-        preservedIndices.addAll(maxima)
-        preservedIndices.addAll(minima)
-
-        var current = values
-        repeat(iterations) {
-            val smoothed = MutableList(current.size) { 0f }
-            for (i in current.indices) {
-                val prev = if (i > 0) current[i - 1] else current[i]
-                val curr = current[i]
-                val next = if (i < current.lastIndex) current[i + 1] else current[i]
-                smoothed[i] = prev * 0.25f + curr * 0.5f + next * 0.25f
-            }
-            preservedIndices.forEach { smoothed[it] = values[it] }
-            current = smoothed
-        }
-        return current
-    }
-
-    private fun findLocalExtremaIndices(
-        values: List<Int>,
-        isMax: Boolean,
-    ): Set<Int> {
-        if (values.size < 3) return emptySet()
-
-        val extrema = mutableSetOf<Int>()
-        var i = 1
-        while (i < values.lastIndex) {
-            val current = values[i]
-            val prev = values[i - 1]
-
-            val isPotential = if (isMax) current > prev else current < prev
-
-            if (isPotential) {
-                var j = i
-                while (j < values.lastIndex && values[j + 1] == current) {
-                    j++
-                }
-
-                if (j < values.lastIndex) {
-                    val next = values[j + 1]
-                    val isExtremum = if (isMax) next < current else next > current
-                    if (isExtremum) {
-                        extrema.add(i + (j - i) / 2)
-                    }
-                }
-                i = j 
-            }
-            i++
-        }
-        return extrema
     }
 
     /**

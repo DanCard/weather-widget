@@ -83,7 +83,7 @@ fun CloudCoverGraph(
         val windowEnd = cutoff
 
         val rawCloudValues = points.map { it.cloudCover?.toFloat() ?: 0f }
-        val smoothedClouds = com.weatherwidget.shared.util.TemperatureInterpolator.smoothValuesPreservingAllExtrema(rawCloudValues, smoothIterations)
+        val smoothedClouds = com.weatherwidget.shared.graph.SeriesSmoothing.smoothValuesPreservingAllExtrema(rawCloudValues, smoothIterations)
         
         val visibleMax = smoothedClouds.maxOrNull()?.coerceIn(0f, 100f) ?: 0f
         val topScale = (visibleMax + 12f).coerceIn(85f, 100f)

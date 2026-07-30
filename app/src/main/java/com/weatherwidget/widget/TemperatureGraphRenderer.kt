@@ -215,16 +215,16 @@ object TemperatureGraphRenderer {
 
         onPointsResolved?.invoke(PointsDebug(originalPoints, forecastPoints, expectedPoints))
 
-        val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
-        val (expectedPath, expectedFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
-        val (forecastPath, forecastFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
-        val forecastSegmentPaths = GraphRenderUtils.buildPerSegmentPaths(forecastPoints)
+        val (originalPath, _) = AndroidCurvePathBuilder.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
+        val (expectedPath, expectedFillPath) = AndroidCurvePathBuilder.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
+        val (forecastPath, forecastFillPath) = AndroidCurvePathBuilder.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
+        val forecastSegmentPaths = AndroidCurvePathBuilder.buildPerSegmentPaths(forecastPoints)
 
-        val nowX = GraphRenderUtils.computeNowX(hours, originalPoints, currentTime, hourWidth, { it.isCurrentHour }, { it.dateTime })
+        val nowX = HourlyTimelineGeometry.computeNowX(hours, originalPoints, currentTime, hourWidth, { it.isCurrentHour }, { it.dateTime })
         val nowIndicatorVisible = nowX != null && nowX in 0f..widthPx.toFloat()
 
         val fetchDotX: Float? = if (observedAt != null && fetchTime != null) {
-            GraphRenderUtils.computeXForTime(fetchTime, hours, originalPoints, hourWidth) { it.dateTime }
+            HourlyTimelineGeometry.computeXForTime(fetchTime, hours, originalPoints, hourWidth) { it.dateTime }
         } else null
         val lastObservedActualIndex = hours.indexOfLast { it.isObservedActual }
         val lastObservedActualX: Float? = if (lastObservedActualIndex >= 0) originalPoints[lastObservedActualIndex].first else null
@@ -257,7 +257,7 @@ object TemperatureGraphRenderer {
                 graphHeight = graphHeight,
                 job = job,
             )
-        val (actualPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(anchoredActualPoints, graphBottom)
+        val (actualPath, _) = AndroidCurvePathBuilder.buildSmoothCurveAndFillPaths(anchoredActualPoints, graphBottom)
 
         return RenderContextUpdate(
             forecastTemps, expectedTemps, originalPoints, forecastPoints, expectedPoints,
@@ -344,6 +344,25 @@ object TemperatureGraphRenderer {
             fetchDotX != null
     }
 
+    @androidx.annotation.VisibleForTesting
+    internal fun resolveForecastSegmentColors(
+        hours: List<HourData>,
+        segments: List<AndroidCurvePathBuilder.IndexedCurvePath>,
+    ): List<Int> = segments.map { segment ->
+        val hour = hours.getOrNull(segment.endPointIndex)
+            ?: error(
+                "Curve segment end index ${segment.endPointIndex} is outside " +
+                    "${hours.size} hourly items",
+            )
+        WeatherConditionColors.forecastColor(
+            hour.isSunny,
+            hour.isRainy,
+            hour.isMixed,
+            hour.isNight,
+            hour.isTwilight,
+        )
+    }
+
     private fun drawFillAndCurves(ctx: RenderContext, expectedFillPath: Path, hours: List<HourData>) {
         val paints = ctx.paints
         val fetchDotX = ctx.fetchDotX
@@ -375,14 +394,13 @@ object TemperatureGraphRenderer {
         val segmentPaint = Paint(paints.forecastDashedPaint)
         val pathMeasure = PathMeasure()
         var cumulativeLength = 0f
-        for (i in ctx.forecastSegmentPaths.indices) {
-            val hour = hours[i + 1]
-            segmentPaint.color = WeatherConditionColors.forecastColor(
-                hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight, hour.isTwilight
-            )
+        val segmentColors = resolveForecastSegmentColors(hours, ctx.forecastSegmentPaths)
+        for ((index, segment) in ctx.forecastSegmentPaths.withIndex()) {
+            if (segment.startsContour) cumulativeLength = 0f
+            segmentPaint.color = segmentColors[index]
             segmentPaint.pathEffect = DashPathEffect(dashPattern, cumulativeLength)
-            ctx.canvas.drawPath(ctx.forecastSegmentPaths[i], segmentPaint)
-            pathMeasure.setPath(ctx.forecastSegmentPaths[i], false)
+            ctx.canvas.drawPath(segment.path, segmentPaint)
+            pathMeasure.setPath(segment.path, false)
             cumulativeLength += pathMeasure.length
         }
 
@@ -405,8 +423,7 @@ object TemperatureGraphRenderer {
     ): List<RectF> {
         val drawnIconBounds = mutableListOf<RectF>()
         val minHourLabelSpacing = dpToPx(ctx.context, TemperatureGraphStyle.HOUR_LABEL_SPACING_DP * ctx.labelScale)
-        GraphRenderUtils.drawHourLabels(
-            canvas = ctx.canvas,
+        val footerPlan = HourlyFooterRenderer.planHourLabels(
             items = hours,
             points = ctx.originalPoints,
             widthPx = ctx.widthPx,
@@ -417,33 +434,30 @@ object TemperatureGraphRenderer {
             showLabel = { it.showLabel },
             labelText = { it.label },
             iconSize = ctx.iconSize.toFloat(),
-            iconTextGapDp = GraphRenderUtils.footerIconGapDp(numColumns),
+            iconTextGapDp = HourlyFooterRenderer.iconGapDp(numColumns),
             hasIcon = { it.iconRes != null },
             isDateLabel = { it.isDateLabel },
+            iconsAvailable = true,
+        )
+        HourlyFooterRenderer.drawPlan(
+            canvas = ctx.canvas,
+            plan = footerPlan,
+            hourLabelTextPaint = ctx.paints.hourLabelTextPaint,
         ) { index, iconRect ->
             val hour = hours[index]
-            hour.iconRes?.let { res ->
-                androidx.core.content.ContextCompat.getDrawable(ctx.context, res)?.let { drawable ->
-                    drawnIconBounds.add(iconRect)
-                    drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
-                    // NOTE: this tint mapping intentionally diverges from
-                    // WeatherIconMapper.resolveDailyTextIconTint (file 1's F5 fix). Daily text
-                    // icons sit in cells next to high/low text and want R.color.sunny_yellow for
-                    // visibility against the cell background; hourly icons sit inline with the
-                    // footer hour labels on the graph and want HourlyGraphDefaults.ICON_TINT_*
-                    // (cooler hues calibrated against the graph background). Different contexts,
-                    // different palettes — keep separate.
-                    if (!hour.isRainy && !hour.isMixed) {
-                        drawable.setTint(when {
-                            hour.isNight -> HourlyGraphDefaults.ICON_TINT_NIGHT
-                            hour.isTwilight -> HourlyGraphDefaults.ICON_TINT_TWILIGHT
-                            hour.isSunny -> HourlyGraphDefaults.ICON_TINT_SUNNY
-                            else -> HourlyGraphDefaults.ICON_TINT_DEFAULT
-                        })
-                    }
-                    drawable.draw(ctx.canvas)
-                }
-            }
+            val iconRes = hour.iconRes ?: return@drawPlan
+            drawnIconBounds.add(iconRect)
+            HourlyFooterRenderer.drawHourIcon(
+                context = ctx.context,
+                canvas = ctx.canvas,
+                iconRes = iconRes,
+                iconRect = iconRect,
+                isRainy = hour.isRainy,
+                isMixed = hour.isMixed,
+                isNight = hour.isNight,
+                isTwilight = hour.isTwilight,
+                isSunny = hour.isSunny,
+            )
         }
         return drawnIconBounds
     }
@@ -968,7 +982,7 @@ object TemperatureGraphRenderer {
             Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+                GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
             }
             return bitmap
         }
@@ -982,7 +996,7 @@ object TemperatureGraphRenderer {
         timings.mark("paints")
 
         val (minTemp, maxTemp, tempRange) = GraphLayout.computeScaling(hours)
-        val footerIconSize = GraphRenderUtils.footerIconSize(paints.hourLabelTextPaint)
+        val footerIconSize = HourlyFooterRenderer.iconSize(paints.hourLabelTextPaint)
         val layout = GraphLayout.computeLayout(context, heightPx, labelScale, footerIconSize)
         timings.mark("layout")
 
@@ -1016,7 +1030,7 @@ object TemperatureGraphRenderer {
         )
 
         // Draw Now Line early so it's behind all labels and curves (lowest z-order)
-        GraphRenderUtils.drawNowLine(
+        HourlyIndicatorRenderer.drawNowLine(
             canvas, if (update.nowIndicatorVisible) update.nowX else null, ctx.graphTop, ctx.graphHeight,
             paints.currentTimePaint
         )
@@ -1042,7 +1056,7 @@ object TemperatureGraphRenderer {
         placeYesterdayDeltaLabel(ctx, hours, deltaFromYesterday)
         placeGhostLineLabel(ctx, hours)
 
-        GraphRenderUtils.drawNowIndicator(
+        HourlyIndicatorRenderer.drawNowIndicator(
             canvas = canvas,
             nowX = if (update.nowIndicatorVisible) update.nowX else null,
             graphTop = ctx.graphTop,
@@ -1059,7 +1073,7 @@ object TemperatureGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+            GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
         }
 
         return bitmap

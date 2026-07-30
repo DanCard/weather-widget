@@ -583,7 +583,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         )
 
         // Footer icon size derives from the hour-label text, same as renderGraph computes it.
-        val footerIconSize = GraphRenderUtils.footerIconSize(
+        val footerIconSize = HourlyFooterRenderer.iconSize(
             TemperatureGraphStyle.ensurePaints(context, 1f).hourLabelTextPaint,
         )
         val layout = GraphLayout.computeLayout(context, heightPx, 1f, footerIconSize)
@@ -1125,8 +1125,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         }
 
         var iconDrawCount = 0
-        GraphRenderUtils.drawHourLabels(
-            canvas = canvas,
+        val footerPlan = HourlyFooterRenderer.planHourLabels(
             items = items,
             points = points,
             widthPx = 400,
@@ -1140,9 +1139,15 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             iconTextGapDp = 2f,
             hasIcon = { true },
             isDateLabel = { false },
-            drawIcon = { index, rect ->
+            iconsAvailable = true,
+        )
+        HourlyFooterRenderer.drawPlan(
+            canvas = canvas,
+            plan = footerPlan,
+            hourLabelTextPaint = paint,
+            drawIcon = { _, _ ->
                 iconDrawCount++
-            }
+            },
         )
         // Check that layout runs successfully, and the icons are either dropped or some labels skipped.
         assertTrue("Icon draw count should be limited to prevent crowding", iconDrawCount == 0 || iconDrawCount < items.size)

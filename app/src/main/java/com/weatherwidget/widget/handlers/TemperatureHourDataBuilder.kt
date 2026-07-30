@@ -15,7 +15,7 @@ import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.CurrentTemperatureResolver
-import com.weatherwidget.widget.GraphRenderUtils
+import com.weatherwidget.widget.HourlyFooterRenderer
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
@@ -241,7 +241,7 @@ internal fun buildHourDataResult(
     // Narrow widgets space WIDE-zoom hour markers further apart (every 6h vs 4h) so the wider
     // inline <hour><icon><a|p> footer groups don't crowd. Wide widgets keep the default cadence.
     val labelInterval =
-        if (zoom == ZoomLevel.WIDE && GraphRenderUtils.isNarrowWidget(numColumns)) {
+        if (zoom == ZoomLevel.WIDE && HourlyFooterRenderer.isNarrowWidget(numColumns)) {
             HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
         } else {
             zoom.labelInterval

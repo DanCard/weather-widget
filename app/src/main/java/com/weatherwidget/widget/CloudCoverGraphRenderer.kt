@@ -3,6 +3,8 @@ package com.weatherwidget.widget
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.ValueLabelEngine
+import com.weatherwidget.shared.graph.HourlyTimelineGeometry
+import com.weatherwidget.shared.graph.SeriesSmoothing
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context
@@ -142,7 +144,7 @@ object CloudCoverGraphRenderer {
             }
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+                GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
             }
             return bitmap
         }
@@ -158,8 +160,8 @@ object CloudCoverGraphRenderer {
         val topPadding = dpToPx(context, GRAPH_TOP_PADDING_DP * labelScale)
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && widthPx >= HourlyGraphDefaults.MIN_ICON_GRAPH_WIDTH_PX
-        // Inline footer row sized to the hour-label text (see GraphRenderUtils.footerIconSize).
-        val footerIconSize = GraphRenderUtils.footerIconSize(paints.hourLabelTextPaint)
+        // Inline footer row sized to the hour-label text.
+        val footerIconSize = HourlyFooterRenderer.iconSize(paints.hourLabelTextPaint)
         val labelHeight = dpToPx(context, HourlyGraphDefaults.BOTTOM_LABEL_HEIGHT_DP * labelScale)
         val bottomPadding = dpToPx(context, GRAPH_BOTTOM_PADDING_DP * labelScale)
         val bottomInset = dpToPx(context, HourlyGraphDefaults.FOOTER_BOTTOM_INSET_DP)
@@ -184,7 +186,7 @@ object CloudCoverGraphRenderer {
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawValues = hours.map { it.cloudCover.coerceIn(0, 100).toFloat() }
-        val smoothedValues = GraphRenderUtils.smoothValuesPreservingAllExtrema(rawValues, iterations = smoothIterations)
+        val smoothedValues = SeriesSmoothing.smoothValuesPreservingAllExtrema(rawValues, iterations = smoothIterations)
         val verticalScale = computeVerticalScale(smoothedValues)
         Log.d(
             TAG,
@@ -212,10 +214,10 @@ object CloudCoverGraphRenderer {
             )
         }
 
-        val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(points, graphBottom)
+        val (curvePath, fillPath) = AndroidCurvePathBuilder.buildSmoothCurveAndFillPaths(points, graphBottom)
 
         // Draw Now Line early so it's behind all labels and curves (lowest z-order)
-        val nowX = GraphRenderUtils.computeNowX(
+        val nowX = HourlyTimelineGeometry.computeNowX(
             items = hours,
             points = points,
             currentTime = currentTime,
@@ -223,7 +225,7 @@ object CloudCoverGraphRenderer {
             isCurrentHour = { it.isCurrentHour },
             dateTimeOf = { it.dateTime }
         )
-        GraphRenderUtils.drawNowLine(
+        HourlyIndicatorRenderer.drawNowLine(
             canvas = canvas,
             nowX = nowX,
             graphTop = graphTop,
@@ -238,8 +240,7 @@ object CloudCoverGraphRenderer {
         val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
         val drawnIconBounds = mutableListOf<RectF>()
 
-        GraphRenderUtils.drawHourLabels(
-            canvas = canvas,
+        val footerPlan = HourlyFooterRenderer.planHourLabels(
             items = hours,
             points = points,
             widthPx = widthPx,
@@ -250,14 +251,20 @@ object CloudCoverGraphRenderer {
             showLabel = { it.showLabel },
             labelText = { it.label },
             iconSize = footerIconSize,
-            iconTextGapDp = GraphRenderUtils.footerIconGapDp(numColumns),
+            iconTextGapDp = HourlyFooterRenderer.iconGapDp(numColumns),
             hasIcon = { showHourlyIcons && it.iconRes != null },
             isDateLabel = { it.isDateLabel },
+            iconsAvailable = true,
+        )
+        HourlyFooterRenderer.drawPlan(
+            canvas = canvas,
+            plan = footerPlan,
+            hourLabelTextPaint = paints.hourLabelTextPaint,
         ) { index, iconRect ->
             val hour = hours[index]
-            val iconRes = hour.iconRes ?: return@drawHourLabels
+            val iconRes = hour.iconRes ?: return@drawPlan
             drawnIconBounds.add(iconRect)
-            GraphRenderUtils.drawHourIcon(
+            HourlyFooterRenderer.drawHourIcon(
                 context, canvas, iconRes, iconRect,
                 isRainy = hour.isRainy, isMixed = hour.isMixed,
                 isNight = hour.isNight, isTwilight = hour.isTwilight, isSunny = hour.isSunny,
@@ -297,15 +304,14 @@ object CloudCoverGraphRenderer {
 
         // --- Day labels ---
         val (today, leftDate, rightDate, leftText, rightText) =
-            GraphRenderUtils.dayLabelEndpoints(hours.first().dateTime, hours.last().dateTime, currentTime)
+            HourlyTimelineGeometry.dayLabelEndpoints(hours.first().dateTime, hours.last().dateTime, currentTime)
 
         val leftPaint = if (leftDate == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint
         val rightPaint = if (rightDate == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint
         val leftTextWidth = leftPaint.measureText(leftText)
         val rightTextWidth = rightPaint.measureText(rightText)
 
-        GraphRenderUtils.drawDayLabels(
-            context = context,
+        HourlyIndicatorRenderer.drawDayLabels(
             canvas = canvas,
             leftDate = leftDate,
             rightDate = rightDate,
@@ -328,7 +334,7 @@ object CloudCoverGraphRenderer {
         )
 
         // --- NOW indicator ---
-        GraphRenderUtils.drawNowIndicator(
+        HourlyIndicatorRenderer.drawNowIndicator(
             canvas = canvas,
             nowX = nowX,
             graphTop = graphTop,
@@ -414,7 +420,7 @@ object CloudCoverGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+            GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
         }
 
         return bitmap
