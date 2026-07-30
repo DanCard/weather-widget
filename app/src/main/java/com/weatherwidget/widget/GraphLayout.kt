@@ -7,6 +7,7 @@ import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 
 object GraphLayout {
+    private const val TAG = "TempGraphRenderer"
     private const val TOP_TEMP_BUFFER_RATIO = 0.1f
     private const val BOTTOM_TEMP_BUFFER_RATIO = 0.03f
     private const val MIN_TOP_TEMP_BUFFER_DEGREES = 3f
@@ -39,7 +40,7 @@ object GraphLayout {
         val minTemp = rawMin - bottomBuffer
         val maxTemp = rawMax + topBuffer
         val tempRange = (maxTemp - minTemp).coerceAtLeast(MIN_TEMP_RANGE)
-        Log.d("TempGraphRenderer", "Scaling: rawMin=$rawMin, rawMax=$rawMax, minTemp=$minTemp, maxTemp=$maxTemp, tempRange=$tempRange")
+        Log.v(TAG, "Scaling: rawMin=$rawMin, rawMax=$rawMax, minTemp=$minTemp, maxTemp=$maxTemp, tempRange=$tempRange")
         return Triple(minTemp, maxTemp, tempRange)
     }
 
@@ -54,7 +55,7 @@ object GraphLayout {
         val footerTop = heightPx - footerIconSize - bottomInset
         val graphBottom = (footerTop - dpToPx(context, GRAPH_TO_FOOTER_GAP_DP * labelScale)).coerceAtLeast(graphTop + MIN_GRAPH_HEIGHT_DP * labelScale)
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(MIN_GRAPH_HEIGHT_DP * labelScale)
-        Log.d("TempGraphRenderer", "Layout: heightPx=$heightPx, footerTop=$footerTop, graphTop=$graphTop, graphBottom=$graphBottom, graphHeight=$graphHeight")
+        Log.v(TAG, "Layout: heightPx=$heightPx, footerTop=$footerTop, graphTop=$graphTop, graphBottom=$graphBottom, graphHeight=$graphHeight")
         return Layout(topPadding, footerIconSize.toInt(), footerTop, graphTop, graphBottom, graphHeight, iconTopPad = 0f)
     }
 

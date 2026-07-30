@@ -91,6 +91,12 @@ object TemperatureGraphStyle {
     @Volatile
     private var cachedPaints: PaintSet? = null
 
+    /**
+     * Returns immutable base paints that may be shared by concurrent widget renders.
+     *
+     * Callers must copy a paint before assigning any render-specific mutable property such as a
+     * shader, color, alignment, alpha, path effect, stroke, or typeface.
+     */
     fun ensurePaints(context: Context, labelScale: Float): PaintSet {
         val density = context.resources.displayMetrics.density
         val current = cachedPaints

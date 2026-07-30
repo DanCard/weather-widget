@@ -18,6 +18,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
@@ -809,42 +811,253 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     @Test
     fun `staleness time label is placed above dot when colliding with bottom bounds or other labels`() {
         val start = LocalDateTime.of(2026, 4, 6, 10, 0)
-        // Create a graph where the dot is at the global minimum to force a LOW label
-        val hours = (0..5).map { i ->
-            val time = start.plusHours(i.toLong())
-            val temp = if (i == 2) 40.0f else 50.0f
-            HourData(
-                dateTime = time,
-                temperature = temp,
-                actualTemperature = if (i <= 2) temp else null,
-                isActual = i <= 2,
-                label = "${time.hour}h"
+        val hours =
+            (0..5).map { index ->
+                val time = start.plusHours(index.toLong())
+                HourData(
+                    dateTime = time,
+                    temperature = 50f,
+                    label = "${time.hour}h",
+                )
+            }
+        val observedAtMs =
+            start
+                .plusHours(2)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        var fetchDotDebug: FetchDotDebug? = null
+        val input =
+            TemperatureFetchDotRenderer.Input(
+            context = context,
+                canvas =
+                    android.graphics.Canvas(
+                        android.graphics.Bitmap.createBitmap(
+                            800,
+                            180,
+                            android.graphics.Bitmap.Config.ARGB_8888,
+                        ),
+                    ),
+                widthPx = 800,
+                heightPx = 180,
+                labelScale = 1f,
+                graphTop = 20f,
+                graphHeight = 150f,
+                minTemp = 40f,
+                tempRange = 10f,
+                fetchTime = start.plusHours(2),
+                fetchDotX = 400f,
+                lastObservedTemp = 40f,
+                observedAt = observedAtMs,
+                currentTime = start.plusHours(2).plusMinutes(90),
+            hours = hours,
+                paints = TemperatureGraphStyle.ensurePaints(context, 1f),
+                useCelsius = false,
+                onResolved = { fetchDotDebug = it },
             )
-        }
+        val plan = requireNotNull(TemperatureFetchDotRenderer.plan(input))
+        val obstacles = TemperatureGraphObstacleRegistry()
+        TemperatureFetchDotRenderer.reserve(plan, obstacles)
+        TemperatureFetchDotRenderer.draw(plan, input, obstacles)
 
-        // We observe at hour 2
-        val observedAtMs = start.plusHours(2).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val resolved = requireNotNull(fetchDotDebug) { "fetchDotDebug must be captured" }
+        val fetchY = requireNotNull(resolved.fetchY) { "fetchY must be captured" }
+        val labelY =
+            requireNotNull(resolved.stalenessLabelY) {
+                "stalenessLabelY must be captured"
+            }
         
+        assertTrue("Staleness label ($labelY) should be placed ABOVE the dot ($fetchY) due to collision", labelY < fetchY)
+    }
+
+    @Test
+    fun `staleness time label stays below an unobstructed middle dot`() {
+        val start = LocalDateTime.of(2026, 4, 6, 10, 0)
+        val hours =
+            listOf(50f, 52f, 54f, 52f, 50f).mapIndexed { index, temp ->
+                HourData(
+                    dateTime = start.plusHours(index.toLong()),
+                    temperature = temp,
+                    label = "${start.plusHours(index.toLong()).hour}h",
+                    showLabel = false,
+                    isCurrentHour = index == 2,
+                )
+            }
+        val observedAtMs =
+            start
+                .plusHours(2)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
         var fetchDotDebug: FetchDotDebug? = null
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 800,
-            heightPx = 200,
-            currentTime = start.plusHours(2).plusMinutes(90), // 90 min staleness so it shows "1h 30m"
+            heightPx = 300,
+            currentTime = start.plusHours(2).plusMinutes(25),
             observedAt = observedAtMs,
-            lastObservedTemp = 40f, // Minimum temp, places dot at bottom
-            onFetchDotResolved = { fetchDotDebug = it }, useCelsius = false
+            lastObservedTemp = 52f,
+            onFetchDotResolved = { fetchDotDebug = it },
+            useCelsius = false,
         )
 
-        assertNotNull("fetchDotDebug must be captured", fetchDotDebug)
-        assertNotNull("stalenessLabelY must be captured", fetchDotDebug!!.stalenessLabelY)
-        
-        val fetchY = fetchDotDebug!!.fetchY!!
-        val labelY = fetchDotDebug!!.stalenessLabelY!!
-        
-        assertTrue("Staleness label ($labelY) should be placed ABOVE the dot ($fetchY) due to collision", labelY < fetchY)
+        val resolved = requireNotNull(fetchDotDebug) { "fetchDotDebug must be captured" }
+        val labelY =
+            requireNotNull(resolved.stalenessLabelY) {
+                "stalenessLabelY must be captured"
+            }
+        val fetchY = requireNotNull(resolved.fetchY) { "fetchY must be captured" }
+        assertTrue(
+            "Unobstructed staleness label ($labelY) should remain below " +
+                "the middle fetch dot ($fetchY)",
+            labelY > fetchY,
+        )
+    }
+
+    @Test
+    fun `ghost fill render does not mutate cached base paint shader`() {
+        val start = LocalDateTime.of(2026, 4, 6, 10, 0)
+        val hours =
+            (0..4).map { index ->
+                HourData(
+                    dateTime = start.plusHours(index.toLong()),
+                    temperature = 50f + index,
+                    label = "${start.plusHours(index.toLong()).hour}h",
+                    showLabel = false,
+                    isCurrentHour = index == 2,
+                )
+            }
+        val observedAtMs =
+            start
+                .plusHours(2)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        val cachedPaint = TemperatureGraphStyle.ensurePaints(context, 1f).expectedFillPaint
+        assertNull("Cached base fill paint must begin without a shader", cachedPaint.shader)
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 300,
+            currentTime = start.plusHours(2),
+            appliedDelta = 2f,
+            observedAt = observedAtMs,
+            lastObservedTemp = 54f,
+            useCelsius = false,
+        )
+
+        assertNull(
+            "Render-specific ghost gradient must not be retained by the shared cached PaintSet",
+            cachedPaint.shader,
+        )
+    }
+
+    @Test
+    fun `parallel same-scale renders match their serial bitmap baselines`() {
+        val start = LocalDateTime.of(2026, 4, 6, 10, 0)
+
+        fun hours(base: Float): List<HourData> =
+            (0..6).map { index ->
+                HourData(
+                    dateTime = start.plusHours(index.toLong()),
+                    temperature = base + index * 2f,
+                    label = "${start.plusHours(index.toLong()).hour}h",
+                    showLabel = index % 2 == 0,
+                    isCurrentHour = index == 2,
+                )
+            }
+
+        fun render(
+            values: List<HourData>,
+            width: Int,
+            height: Int,
+            lastObservedTemp: Float,
+        ) = TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = values,
+            widthPx = width,
+            heightPx = height,
+            currentTime = start.plusHours(2),
+            appliedDelta = 2f,
+            observedAt =
+                start
+                    .plusHours(2)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli(),
+            lastObservedTemp = lastObservedTemp,
+            useCelsius = false,
+        )
+
+        val coldHours = hours(20f)
+        val hotHours = hours(80f)
+        val expectedCold = render(coldHours, 640, 280, 25f)
+        val expectedHot = render(hotHours, 920, 420, 85f)
+        val executor = Executors.newFixedThreadPool(2)
+
+        try {
+            repeat(4) {
+                val cold = executor.submit<android.graphics.Bitmap> {
+                    render(coldHours, 640, 280, 25f)
+                }
+                val hot = executor.submit<android.graphics.Bitmap> {
+                    render(hotHours, 920, 420, 85f)
+                }
+                assertTrue(
+                    "Concurrent cold graph must match its serial-render baseline",
+                    expectedCold.sameAs(cold.get(20, TimeUnit.SECONDS)),
+                )
+                assertTrue(
+                    "Concurrent hot graph must match its serial-render baseline",
+                    expectedHot.sameAs(hot.get(20, TimeUnit.SECONDS)),
+                )
+            }
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `replacing fetch age reservation preserves unrelated obstacles`() {
+        val registry = TemperatureGraphObstacleRegistry()
+        val dayBounds = android.graphics.RectF(0f, 0f, 20f, 10f)
+        val reservation = android.graphics.RectF(40f, 40f, 60f, 50f)
+        val finalAge = android.graphics.RectF(40f, 60f, 60f, 70f)
+        registry.add(TemperatureGraphObstacleType.DAY_LABEL, dayBounds)
+        registry.add(
+            TemperatureGraphObstacleType.FETCH_DOT_AGE_RESERVATION,
+            reservation,
+        )
+
+        registry.replace(
+            removedType = TemperatureGraphObstacleType.FETCH_DOT_AGE_RESERVATION,
+            finalType = TemperatureGraphObstacleType.FETCH_DOT_AGE,
+            bounds = finalAge,
+        )
+
+        val snapshot = registry.snapshot()
+        assertEquals(
+            1,
+            snapshot.count { it.type == TemperatureGraphObstacleType.DAY_LABEL },
+        )
+        assertEquals(
+            dayBounds,
+            snapshot.single { it.type == TemperatureGraphObstacleType.DAY_LABEL }.bounds,
+        )
+        assertEquals(
+            0,
+            snapshot.count {
+                it.type == TemperatureGraphObstacleType.FETCH_DOT_AGE_RESERVATION
+            },
+        )
+        assertEquals(
+            finalAge,
+            snapshot.single { it.type == TemperatureGraphObstacleType.FETCH_DOT_AGE }.bounds,
+        )
     }
 
     @Test
