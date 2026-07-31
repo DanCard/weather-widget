@@ -72,6 +72,12 @@ object DailyViewLogic {
         val isTodayForecastFallback: Boolean = false,
     )
 
+    data class PreparedGraphDay(
+        val renderDay: DailyForecastGraphRenderer.DayData,
+        val rainSummary: String?,
+        val hasRainForecast: Boolean,
+    )
+
     fun prepareTextDays(
         now: LocalDateTime,
         centerDate: LocalDate,
@@ -304,12 +310,59 @@ object DailyViewLogic {
         observedAt: Long? = null,
         allowTodayRainChanceLabel: Boolean = false,
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
+        todayLabel: String,
+    ): List<DailyForecastGraphRenderer.DayData> =
+        prepareGraphDayInputs(
+            now = now,
+            centerDate = centerDate,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            numColumns = numColumns,
+            displaySource = displaySource,
+            skipYesterday = skipYesterday,
+            skipHistory = skipHistory,
+            hourlyForecasts = hourlyForecasts,
+            stateManager = stateManager,
+            appWidgetId = appWidgetId,
+            todayNext8HourPrecipProbability = todayNext8HourPrecipProbability,
+            dailyActuals = dailyActuals,
+            climateNormals = climateNormals,
+            currentTemps = currentTemps,
+            currentTemp = currentTemp,
+            observedAt = observedAt,
+            allowTodayRainChanceLabel = allowTodayRainChanceLabel,
+            rainSummaryProvider = rainSummaryProvider,
+            todayLabel = todayLabel,
+        ).map(PreparedGraphDay::renderDay)
+
+    fun prepareGraphDayInputs(
+        now: LocalDateTime,
+        centerDate: LocalDate,
+        today: LocalDate,
+        weatherByDate: Map<LocalDate, ForecastEntity>,
+        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
+        numColumns: Int,
+        displaySource: WeatherSource,
+        skipYesterday: Boolean,
+        skipHistory: Boolean,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        stateManager: WidgetStateManager? = null,
+        appWidgetId: Int = 0,
+        todayNext8HourPrecipProbability: Int? = null,
+        dailyActuals: DailyActualMap = emptyMap(),
+        climateNormals: Map<java.time.MonthDay, Pair<Float, Float>> = emptyMap(),
+        currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
+        currentTemp: Float? = null,
+        observedAt: Long? = null,
+        allowTodayRainChanceLabel: Boolean = false,
+        rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
         // See prepareTextDays: required localized "Today" label, no English fallback.
         todayLabel: String,
-    ): List<DailyForecastGraphRenderer.DayData> {
+    ): List<PreparedGraphDay> {
         Log.d(TAG, "prepareGraphDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, forecastSnapshotKeys=${forecastSnapshots.keys}")
 
-        val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
+        val days = mutableListOf<PreparedGraphDay>()
         val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
@@ -534,57 +587,60 @@ object DailyViewLogic {
             )
 
             days.add(
-                DailyForecastGraphRenderer.DayData(
-                    date = date,
-                    label = label,
-                    solidLineHigh = finalHigh,
-                    solidLineLow = finalLow,
-                    bottomStackLow = bottomStackLow ?: finalLow,
-                    iconRes = iconRes,
-                    isSunny = WeatherIconMapper.isSunny(iconRes),
-                    isRainy = WeatherIconMapper.isPrecipitation(iconRes),
-                    isMixed = WeatherIconMapper.isMixed(iconRes),
-                    isToday = isToday,
-                    isPast = isPastDate,
-                    isClimateNormal = isClimateOverlay,
-                    isSourceGapFallback = weather?.source == WeatherSource.GENERIC_GAP.id,
-                    dashedLineHigh = fHigh,
-                    dashedLineLow = fLow,
-                    rainData = DailyForecastGraphRenderer.RainData(
-                        rainSummary = rainSummary,
-                        // Size the day rain label off the SAME day chance it displays (and the icon
-                        // uses) — resolvedPrecip.dayPrecip — not the raw daily precipProbability. The
-                        // two diverge (e.g. an 8am–8pm window max vs a night-inclusive daily field), so
-                        // sizing off the raw value shrank a "15%" day label below an equal-chance night
-                        // label once history became probability-scaled. Mirrors nighttimePrecipProbability.
-                        dailyPrecipProbability = dayPrecipForIcon,
-                        nighttimePrecipProbability = nightPrecipForIcon,
-                        dailyPrecipAmountMm = weather?.precipAmountMm,
-                        dailyRainLabelText = dailyRainLabelText,
-                        nightRainLabelText = buildNightRainLabel(
-                            date = date,
-                            today = today,
-                            isPastDate = isPastDate,
+                PreparedGraphDay(
+                    renderDay = DailyForecastGraphRenderer.DayData(
+                        date = date,
+                        label = label,
+                        solidLineHigh = finalHigh,
+                        solidLineLow = finalLow,
+                        bottomStackLow = bottomStackLow ?: finalLow,
+                        iconRes = iconRes,
+                        isSunny = WeatherIconMapper.isSunny(iconRes),
+                        isRainy = WeatherIconMapper.isPrecipitation(iconRes),
+                        isMixed = WeatherIconMapper.isMixed(iconRes),
+                        isToday = isToday,
+                        isPast = isPastDate,
+                        isClimateNormal = isClimateOverlay,
+                        isSourceGapFallback = weather?.source == WeatherSource.GENERIC_GAP.id,
+                        dashedLineHigh = fHigh,
+                        dashedLineLow = fLow,
+                        rainData = DailyForecastGraphRenderer.RainLabelData(
+                            // Size the day rain label off the SAME day chance it displays (and the
+                            // icon uses) — resolvedPrecip.dayPrecip — not the raw daily
+                            // precipProbability. The two diverge (e.g. an 8am–8pm window max vs a
+                            // night-inclusive daily field), so sizing off the raw value shrank a
+                            // "15%" day label below an equal-chance night label once history became
+                            // probability-scaled. Mirrors nighttimePrecipProbability.
+                            dailyPrecipProbability = dayPrecipForIcon,
+                            nighttimePrecipProbability = nightPrecipForIcon,
                             dailyRainLabelText = dailyRainLabelText,
-                            nightPrecipProbability = nightPrecipForIcon,
-                            observedNightPrecipMm = actual?.precipNightMm,
+                            nightRainLabelText = buildNightRainLabel(
+                                date = date,
+                                today = today,
+                                isPastDate = isPastDate,
+                                dailyRainLabelText = dailyRainLabelText,
+                                nightPrecipProbability = nightPrecipForIcon,
+                                observedNightPrecipMm = actual?.precipNightMm,
+                            ),
                         ),
-                        hasRainForecast = hasRainForecast,
+                        columnIndex = days.size,
+                        isTodayForecastFallback = isTodayForecastFallback,
+                        snapshotHigh = snapshotHigh,
+                        snapshotLow = snapshotLow,
+                        snapshotIconRes = snapshotIconRes,
+                        ghostLineHigh = trueActualHigh,
+                        cloudCoverRatioOverride = cloudCoverRatioOverride,
+                        daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
+                        nowHour = if (isToday) now.hour else null,
                     ),
-                    columnIndex = days.size,
-                    isTodayForecastFallback = isTodayForecastFallback,
-                    snapshotHigh = snapshotHigh,
-                    snapshotLow = snapshotLow,
-                    snapshotIconRes = snapshotIconRes,
-                    ghostLineHigh = trueActualHigh,
-                    cloudCoverRatioOverride = cloudCoverRatioOverride,
-                    daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
-                    nowHour = if (isToday) now.hour else null,
-                )
+                    rainSummary = rainSummary,
+                    hasRainForecast = hasRainForecast,
+                ),
             )
-            }
-            return days
-            }
+        }
+        return days
+    }
+
     private fun mapHourlyForecastsForNoonCloud(
         hourlyForecasts: List<HourlyForecastEntity>,
     ): List<com.weatherwidget.data.model.HourlyForecast> =

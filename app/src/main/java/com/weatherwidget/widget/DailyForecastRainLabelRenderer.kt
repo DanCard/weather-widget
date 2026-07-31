@@ -2,14 +2,14 @@ package com.weatherwidget.widget
 
 import android.graphics.*
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.util.HeaderPrecipCalculator
-import com.weatherwidget.widget.DailyForecastGraphRenderer.LayoutInfo
-import com.weatherwidget.widget.DailyForecastGraphRenderer.PaintSet
+import com.weatherwidget.widget.DailyGraphLayoutInfo
+import com.weatherwidget.widget.DailyGraphPaintSet
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DayData
-import com.weatherwidget.widget.DailyForecastGraphRenderer.RainLabelDrawnDebug
-import com.weatherwidget.widget.DailyForecastGraphRenderer.TextMetrics
-import com.weatherwidget.widget.DailyForecastGraphRenderer.RainAboveHighPlacement
+import com.weatherwidget.widget.DailyForecastGraphRenderer.DailyRainLabelPlacement
+import com.weatherwidget.widget.DailyForecastGraphRenderer.RainLabelKind
 
 internal object DailyForecastRainLabelRenderer {
     private const val TAG = "DailyRainLabelRenderer"
@@ -62,17 +62,32 @@ internal object DailyForecastRainLabelRenderer {
         val baseline: Float,
     )
 
-    internal data class DailyRainLabelPlacement(
-        val debug: RainLabelDrawnDebug,
+    internal data class ResolvedDailyRainLabel(
+        val debug: DailyRainLabelPlacement,
         val fitsPreferredTopMargin: Boolean,
+    )
+
+    @VisibleForTesting
+    internal data class RainAboveHighPlacement(
+        val baseline: Float,
+        val top: Float,
+        val bottom: Float,
+        val highLabelTop: Float,
+        val fits: Boolean,
+    )
+
+    @VisibleForTesting
+    internal data class TextMetrics(
+        val ascent: Float,
+        val descent: Float,
     )
 
     fun drawDailyRainLabel(
         day: DayData,
         centerX: Float,
-        layout: LayoutInfo,
-        paints: PaintSet,
-        onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
+        onRainLabelDrawn: ((DailyRainLabelPlacement) -> Unit)?,
         canvas: Canvas,
     ) {
         val placement = resolveDailyRainLabelPlacement(day, centerX, layout, paints) ?: run {
@@ -118,9 +133,9 @@ internal object DailyForecastRainLabelRenderer {
     internal fun resolveDailyRainLabelPlacement(
         day: DayData,
         centerX: Float,
-        layout: LayoutInfo,
-        paints: PaintSet,
-    ): DailyRainLabelPlacement? {
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
+    ): ResolvedDailyRainLabel? {
         val rainText = day.rainData.dailyRainLabelText ?: return null
         val localRainPaint = createScaledRainPaint(day, day.rainData.dailyPrecipProbability, RainLabelType.DAY, layout.density, paints)
         val textWidth = localRainPaint.measureText(rainText)
@@ -145,11 +160,12 @@ internal object DailyForecastRainLabelRenderer {
             gap = (RAIN_HIGH_TEMP_GAP_DP * layout.bitmapScale.coerceAtMost(1f)).toPx(layout.density),
         )
 
-        return DailyRainLabelPlacement(
-            debug = RainLabelDrawnDebug(
+        return ResolvedDailyRainLabel(
+            debug = DailyRainLabelPlacement(
                 date = day.date,
                 text = rainText,
                 placement = "ABOVE_HIGH",
+                kind = RainLabelKind.DAY,
                 centerX = centerX,
                 leftX = centerX - textWidth / 2f,
                 rightX = centerX + textWidth / 2f,
@@ -158,7 +174,6 @@ internal object DailyForecastRainLabelRenderer {
                 bottomY = placement.bottom,
                 anchorTopY = placement.highLabelTop,
                 anchorBaselineY = highBaseline,
-                isNightLabel = false,
             ),
             fitsPreferredTopMargin = placement.fits,
         )
@@ -168,10 +183,10 @@ internal object DailyForecastRainLabelRenderer {
         day: DayData,
         rightNeighbor: DayData?,
         centerX: Float,
-        layout: LayoutInfo,
-        paints: PaintSet,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
         ownLowLabel: LowLabelBox?,
-        onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
+        onRainLabelDrawn: ((DailyRainLabelPlacement) -> Unit)?,
         canvas: Canvas,
     ) {
         val rainText = day.rainData.nightRainLabelText ?: return
@@ -187,7 +202,7 @@ internal object DailyForecastRainLabelRenderer {
         val fit = resolveNightHorizontalFit(day, rainText, centerX, layout, hNudgePx, paints) ?: return
 
         val metrics = fit.paint.fontMetrics
-        val hardBottomLimit = layout.heightPx - (DailyForecastGraphRenderer.DAY_LABEL_BOTTOM_MARGIN_DP * layout.density)
+        val hardBottomLimit = layout.heightPx - (DailyColumnRenderer.DAY_LABEL_BOTTOM_MARGIN_DP * layout.density)
 
         val finalTopOverlap = (tuck.dynamicOverlapDp).toPx(layout.density)
         val finalTopY = tuck.anchorBaseline + tuck.tempMetrics.descent - finalTopOverlap
@@ -227,7 +242,7 @@ internal object DailyForecastRainLabelRenderer {
 
         val resolvedBottom = resolvedBaseline + metrics.descent
 
-        Log.d(TAG, "nightRainLabel position: date=${day.date} text=\"$rainText\"" +
+        Log.v(TAG, "nightRainLabel position: date=${day.date} text=\"$rainText\"" +
             " anchorBaseline=${tuck.anchorBaseline} tightFraction=${tuck.tightFraction}" +
             " dynamicOverlapDp=${tuck.dynamicOverlapDp} finalTopOverlap=${finalTopOverlap}px" +
             " finalTopY=$finalTopY finalBaseline=$finalBaseline resolvedBaseline=$resolvedBaseline" +
@@ -238,10 +253,11 @@ internal object DailyForecastRainLabelRenderer {
         if (resolvedBottom <= hardBottomLimit) {
             canvas.drawText(rainText, resolvedCenterX, resolvedBaseline, fit.paint)
             onRainLabelDrawn?.invoke(
-                RainLabelDrawnDebug(
+                DailyRainLabelPlacement(
                     date = day.date,
                     text = rainText,
                     placement = fit.placementType,
+                    kind = RainLabelKind.NIGHT,
                     centerX = resolvedCenterX,
                     leftX = resolvedCenterX - nightHalfWidth,
                     rightX = resolvedCenterX + nightHalfWidth,
@@ -249,7 +265,6 @@ internal object DailyForecastRainLabelRenderer {
                     topY = resolvedBaseline + metrics.ascent,
                     bottomY = resolvedBottom,
                     anchorBaselineY = tuck.anchorBaseline,
-                    isNightLabel = true,
                 )
             )
             return
@@ -327,11 +342,11 @@ internal object DailyForecastRainLabelRenderer {
     internal fun resolveNightAnchorBaseline(
         day: DayData,
         rightNeighbor: DayData?,
-        layout: LayoutInfo,
-        paints: PaintSet,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
     ): NightTuckParams? {
-        val leftBaseline = DailyForecastGraphRenderer.resolveLowLabelBaseline(day, layout) ?: return null
-        val rightNeighborBaseline = rightNeighbor?.let { DailyForecastGraphRenderer.resolveLowLabelBaseline(it, layout) }
+        val leftBaseline = DailyColumnRenderer.resolveLowLabelBaseline(day, layout) ?: return null
+        val rightNeighborBaseline = rightNeighbor?.let { DailyColumnRenderer.resolveLowLabelBaseline(it, layout) }
         val anchorBaseline = if (rightNeighborBaseline != null) {
             minOf(leftBaseline, rightNeighborBaseline)
         } else {
@@ -341,7 +356,7 @@ internal object DailyForecastRainLabelRenderer {
         val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
         val tempMetrics = tempPaint.fontMetrics
 
-        val hardBottomLimit = layout.heightPx - (DailyForecastGraphRenderer.DAY_LABEL_BOTTOM_MARGIN_DP * layout.density)
+        val hardBottomLimit = layout.heightPx - (DailyColumnRenderer.DAY_LABEL_BOTTOM_MARGIN_DP * layout.density)
         val roomBelowPx = (hardBottomLimit - anchorBaseline).coerceAtLeast(0f)
         val roomBelowDp = roomBelowPx / layout.density
 
@@ -369,9 +384,9 @@ internal object DailyForecastRainLabelRenderer {
         day: DayData,
         rainText: String,
         centerX: Float,
-        layout: LayoutInfo,
+        layout: DailyGraphLayoutInfo,
         hNudgePx: Float,
-        paints: PaintSet,
+        paints: DailyGraphPaintSet,
     ): NightHorizontalFit? {
         val currentPaint = createScaledRainPaint(day, day.rainData.nighttimePrecipProbability, RainLabelType.NIGHT, layout.density, paints)
         val textWidth = currentPaint.measureText(rainText)
@@ -400,7 +415,7 @@ internal object DailyForecastRainLabelRenderer {
         probability: Int?,
         labelType: RainLabelType,
         density: Float,
-        paints: PaintSet,
+        paints: DailyGraphPaintSet,
         extraScale: Float = 1.0f,
     ): Paint {
         val nightScale = if (labelType == RainLabelType.NIGHT) NIGHT_SCALE else 1.0f

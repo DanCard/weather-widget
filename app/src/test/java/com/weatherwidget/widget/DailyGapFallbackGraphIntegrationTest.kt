@@ -230,7 +230,7 @@ class DailyGapFallbackGraphIntegrationTest {
                 hourlyForecasts = emptyList(),
             )
 
-            val rainLabels = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
+            val rainLabels = mutableListOf<DailyForecastGraphRenderer.DailyRainLabelPlacement>()
             runBlocking {
                 DailyForecastGraphRenderer.renderGraph(
                     context = context,

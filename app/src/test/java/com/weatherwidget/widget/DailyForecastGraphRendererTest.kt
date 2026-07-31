@@ -2,6 +2,8 @@ package com.weatherwidget.widget
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
@@ -11,33 +13,112 @@ import kotlin.math.roundToInt
 class DailyForecastGraphRendererTest {
 
     @Test
+    fun `input normalizer removes every invalid temperature slot`() {
+        val date = LocalDate.of(2026, 7, 30)
+        val result =
+            DailyGraphInputNormalizer.normalize(
+                days =
+                    listOf(
+                        DailyForecastGraphRenderer.DayData(
+                            date = date,
+                            label = "Thu",
+                            solidLineHigh = Float.NaN,
+                            solidLineLow = Float.POSITIVE_INFINITY,
+                            bottomStackLow = Float.NEGATIVE_INFINITY,
+                            dashedLineHigh = Float.NaN,
+                            dashedLineLow = Float.POSITIVE_INFINITY,
+                            snapshotHigh = Float.NEGATIVE_INFINITY,
+                            snapshotLow = Float.NaN,
+                            ghostLineHigh = Float.POSITIVE_INFINITY,
+                        ),
+                    ),
+                columns = 1,
+            )
+
+        val day = result.days.single().day
+        assertNull(day.solidLineHigh)
+        assertNull(day.solidLineLow)
+        assertNull(day.bottomStackLow)
+        assertNull(day.dashedLineHigh)
+        assertNull(day.dashedLineLow)
+        assertNull(day.snapshotHigh)
+        assertNull(day.snapshotLow)
+        assertNull(day.ghostLineHigh)
+        assertEquals(8, result.rejectedTemperatures.size)
+    }
+
+    @Test
+    fun `input normalizer keeps valid cold temperatures`() {
+        val day =
+            DailyForecastGraphRenderer.DayData(
+                date = LocalDate.of(2026, 1, 15),
+                label = "Thu",
+                solidLineHigh = -60f,
+                solidLineLow = -80f,
+            )
+
+        val normalized = DailyGraphInputNormalizer.normalize(listOf(day), columns = 1)
+
+        assertEquals(-60f, normalized.days.single().day.solidLineHigh!!, 0f)
+        assertEquals(-80f, normalized.days.single().day.solidLineLow!!, 0f)
+        assertTrue(normalized.rejectedTemperatures.isEmpty())
+    }
+
+    @Test
+    fun `input normalizer retains first day when resolved columns collide`() {
+        val firstDate = LocalDate.of(2026, 7, 30)
+        val result =
+            DailyGraphInputNormalizer.normalize(
+                days =
+                    listOf(
+                        DailyForecastGraphRenderer.DayData(
+                            date = firstDate,
+                            label = "Thu",
+                            solidLineHigh = 70f,
+                            solidLineLow = 50f,
+                            columnIndex = 2,
+                        ),
+                        DailyForecastGraphRenderer.DayData(
+                            date = firstDate.plusDays(1),
+                            label = "Fri",
+                            solidLineHigh = 71f,
+                            solidLineLow = 51f,
+                            columnIndex = 99,
+                        ),
+                    ),
+                columns = 3,
+            )
+
+        assertEquals(listOf(firstDate), result.days.map { it.day.date })
+        assertEquals(1, result.columnCollisions.size)
+        assertEquals(firstDate.plusDays(1), result.columnCollisions.single().skippedDate)
+    }
+
+    @Test
     fun `formatTempLabel rounds to integer when forceInteger`() {
-        val renderer = DailyForecastGraphRenderer
-        assertEquals("49°", renderer.formatTempLabel(48.6f, forceInteger = true, useCelsius = false))
+        assertEquals("49°", DailyTemperatureLabelRenderer.format(48.6f, forceInteger = true, useCelsius = false))
     }
 
     @Test
     fun `formatTempLabel preserves decimal for fractional part by default`() {
-        val renderer = DailyForecastGraphRenderer
-        assertEquals("48.6°", renderer.formatTempLabel(48.6f, useCelsius = false))
+        assertEquals("48.6°", DailyTemperatureLabelRenderer.format(48.6f, useCelsius = false))
     }
 
     @Test
     fun `formatTempLabel suppresses the point-zero case`() {
-        val renderer = DailyForecastGraphRenderer
-        assertEquals("49°", renderer.formatTempLabel(49.0f, useCelsius = false))
+        assertEquals("49°", DailyTemperatureLabelRenderer.format(49.0f, useCelsius = false))
     }
 
     @Test
     fun `fitScaleForWidth leaves a label that already fits unchanged`() {
         // "78°" comfortably inside the column: no shrink.
-        assertEquals(1f, DailyForecastGraphRenderer.fitScaleForWidth(40f, maxWidthPx = 60f, currentScale = 1f))
+        assertEquals(1f, DailyTemperatureLabelRenderer.fitScaleForWidth(40f, maxWidthPx = 60f, currentScale = 1f))
     }
 
     @Test
     fun `fitScaleForWidth shrinks an overflowing label to fit the column`() {
         // 80px label, 60px budget -> scale down to 0.75 so it fits.
-        assertEquals(0.75f, DailyForecastGraphRenderer.fitScaleForWidth(80f, maxWidthPx = 60f, currentScale = 1f), 0.0001f)
+        assertEquals(0.75f, DailyTemperatureLabelRenderer.fitScaleForWidth(80f, maxWidthPx = 60f, currentScale = 1f), 0.0001f)
     }
 
     @Test
@@ -46,7 +127,7 @@ class DailyForecastGraphRendererTest {
         val minScale = 0.7f
         assertEquals(
             0.7f,
-            DailyForecastGraphRenderer.fitScaleForWidth(1000f, maxWidthPx = 10f, currentScale = 1f, minScale = minScale),
+            DailyTemperatureLabelRenderer.fitScaleForWidth(1000f, maxWidthPx = 10f, currentScale = 1f, minScale = minScale),
             0.0001f,
         )
     }
@@ -56,7 +137,7 @@ class DailyForecastGraphRendererTest {
         // Starting from the 0.95 wide-label step, an 80px@0.95 label in a 60px column shrinks
         // further to 0.95 * 0.75 (still above the 0.95 * 0.7 floor).
         val current = 0.95f
-        val result = DailyForecastGraphRenderer.fitScaleForWidth(80f, maxWidthPx = 60f, currentScale = current)
+        val result = DailyTemperatureLabelRenderer.fitScaleForWidth(80f, maxWidthPx = 60f, currentScale = current)
         assertEquals(current * (60f / 80f), result, 0.0001f)
     }
 
@@ -72,7 +153,7 @@ class DailyForecastGraphRendererTest {
             isToday = true,
         )
 
-        assertEquals(65f, DailyForecastGraphRenderer.resolveBottomStackLow(day)!!, 0.1f)
+        assertEquals(65f, DailyColumnRenderer.resolveBottomStackLow(day)!!, 0.1f)
     }
 
     @Test
@@ -84,15 +165,15 @@ class DailyForecastGraphRendererTest {
             solidLineLow = 58f,
         )
 
-        assertEquals(58f, DailyForecastGraphRenderer.resolveBottomStackLow(day)!!, 0.1f)
+        assertEquals(58f, DailyColumnRenderer.resolveBottomStackLow(day)!!, 0.1f)
     }
 
     @Test
     fun `resolveRainAboveHighPlacement fits when rain label clears top margin`() {
         val placement = DailyForecastRainLabelRenderer.resolveRainAboveHighPlacement(
             highBaseline = 80f,
-            highMetrics = DailyForecastGraphRenderer.TextMetrics(ascent = -24f, descent = 6f),
-            rainMetrics = DailyForecastGraphRenderer.TextMetrics(ascent = -14f, descent = 4f),
+            highMetrics = DailyForecastRainLabelRenderer.TextMetrics(ascent = -24f, descent = 6f),
+            rainMetrics = DailyForecastRainLabelRenderer.TextMetrics(ascent = -14f, descent = 4f),
             topMargin = 8f,
             gap = 3f,
         )
@@ -107,8 +188,8 @@ class DailyForecastGraphRendererTest {
     fun `resolveRainAboveHighPlacement rejects label when top space is insufficient`() {
         val placement = DailyForecastRainLabelRenderer.resolveRainAboveHighPlacement(
             highBaseline = 36f,
-            highMetrics = DailyForecastGraphRenderer.TextMetrics(ascent = -24f, descent = 6f),
-            rainMetrics = DailyForecastGraphRenderer.TextMetrics(ascent = -14f, descent = 4f),
+            highMetrics = DailyForecastRainLabelRenderer.TextMetrics(ascent = -24f, descent = 6f),
+            rainMetrics = DailyForecastRainLabelRenderer.TextMetrics(ascent = -14f, descent = 4f),
             topMargin = 8f,
             gap = 3f,
         )

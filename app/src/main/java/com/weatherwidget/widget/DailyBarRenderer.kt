@@ -11,8 +11,8 @@ import com.weatherwidget.util.WeatherConditionColors
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer.BarDrawnDebug
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DayData
-import com.weatherwidget.widget.DailyForecastGraphRenderer.LayoutInfo
-import com.weatherwidget.widget.DailyForecastGraphRenderer.PaintSet
+import com.weatherwidget.widget.DailyGraphLayoutInfo
+import com.weatherwidget.widget.DailyGraphPaintSet
 import kotlin.math.abs
 
 /**
@@ -47,7 +47,9 @@ internal object DailyBarRenderer {
     internal val COLOR_GAP_FALLBACK = 0xFF34C759.toInt()
 
     private inline fun debug(msg: () -> String) {
-        Log.d(TAG, msg())
+        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+            Log.v(TAG, msg())
+        }
     }
 
     /**
@@ -58,8 +60,8 @@ internal object DailyBarRenderer {
     internal fun drawTodayHighlightPanel(
         canvas: Canvas,
         centerX: Float,
-        layout: LayoutInfo,
-        paints: PaintSet,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
     ) {
         val density = layout.density
         val tripleBarWidth = todayTripleBarStrokeWidthPx(
@@ -87,8 +89,8 @@ internal object DailyBarRenderer {
         canvas: Canvas,
         day: DayData,
         centerX: Float,
-        layout: LayoutInfo,
-        paints: PaintSet,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
         onBarDrawn: ((BarDrawnDebug) -> Unit)?,
     ) {
         val highY = day.solidLineHigh?.let { layout.tempToY(it) }
@@ -206,8 +208,8 @@ internal object DailyBarRenderer {
         day: DayData,
         centerX: Float,
         highY: Float?,
-        layout: LayoutInfo,
-        paints: PaintSet,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
     ) {
         if (day.solidLineHigh == null) return
 
@@ -234,9 +236,9 @@ internal object DailyBarRenderer {
             // Today centers both labels on the column; past forecast labels follow their overlay.
             val forecastLabelX =
                 if (day.isToday) centerX else centerX + layout.forecastBarOffset
-            DailyForecastGraphRenderer.drawTempLabel(
+            DailyTemperatureLabelRenderer.draw(
                 canvas = canvas,
-                text = DailyForecastGraphRenderer.formatTempLabel(
+                text = DailyTemperatureLabelRenderer.format(
                     plan.actualHigh,
                     useCelsius = layout.useCelsius,
                 ),
@@ -249,9 +251,9 @@ internal object DailyBarRenderer {
                 maxWidthPx = layout.tempLabelMaxWidthPx,
             )
             // The forecast shrinks only when the planner found the two labels colliding at full size.
-            DailyForecastGraphRenderer.drawTempLabel(
+            DailyTemperatureLabelRenderer.draw(
                 canvas = canvas,
-                text = DailyForecastGraphRenderer.formatTempLabel(
+                text = DailyTemperatureLabelRenderer.format(
                     plan.forecastHigh,
                     useCelsius = layout.useCelsius,
                 ),
@@ -268,7 +270,7 @@ internal object DailyBarRenderer {
 
         // Reuse the plan's anchorHigh so today's cutoff resolution runs once per day per render.
         val displayHigh = plan?.anchorHigh ?: day.effectiveHigh() ?: day.solidLineHigh
-        val highLabel = DailyForecastGraphRenderer.formatTempLabel(
+        val highLabel = DailyTemperatureLabelRenderer.format(
             displayHigh,
             useCelsius = layout.useCelsius,
         )
@@ -285,7 +287,7 @@ internal object DailyBarRenderer {
         }
         val highColorOverride =
             if (plan?.todayHighSettled == true) COLOR_OBSERVED_RED else null
-        DailyForecastGraphRenderer.drawTempLabel(
+        DailyTemperatureLabelRenderer.draw(
             canvas = canvas,
             text = highLabel,
             centerX = centerX,
@@ -303,8 +305,8 @@ internal object DailyBarRenderer {
         centerX: Float,
         highY: Float?,
         lowY: Float?,
-        layout: LayoutInfo,
-        paints: PaintSet,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
         onBarDrawn: ((BarDrawnDebug) -> Unit)?,
     ) {
         val (obsHighY, effectiveObsLowY) =

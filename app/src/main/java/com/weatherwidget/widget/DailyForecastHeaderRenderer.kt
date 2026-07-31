@@ -4,10 +4,10 @@ import android.content.Context
 import android.graphics.*
 import android.util.Log
 import com.weatherwidget.widget.handlers.HeaderConstants
-import com.weatherwidget.widget.DailyForecastGraphRenderer.LayoutInfo
-import com.weatherwidget.widget.DailyForecastGraphRenderer.HEADER_TEXT_COLOR
+import com.weatherwidget.widget.DailyGraphLayoutInfo
 
 internal object DailyForecastHeaderRenderer {
+    private val HEADER_TEXT_COLOR = 0xAAFFFFFF.toInt()
     private const val TAG = "DailyHeaderRenderer"
 
     internal data class HeaderPaintSet(
@@ -34,7 +34,7 @@ internal object DailyForecastHeaderRenderer {
         context: Context,
         header: DailyForecastGraphRenderer.HeaderRenderData,
         widthPx: Int,
-        layout: LayoutInfo,
+        layout: DailyGraphLayoutInfo,
     ) {
         val labelScale = layout.bitmapScale.coerceAtMost(1f) * header.headerScale
         val headerPaints = getHeaderPaintSet(header, labelScale, layout.density)
@@ -133,7 +133,7 @@ internal object DailyForecastHeaderRenderer {
     internal fun resolveHeaderDateBounds(
         header: DailyForecastGraphRenderer.HeaderRenderData,
         widthPx: Int,
-        layout: LayoutInfo,
+        layout: DailyGraphLayoutInfo,
         extraPaddingPx: Float = 0f,
     ): RectF? {
         val labelScale = layout.bitmapScale.coerceAtMost(1f) * header.headerScale
@@ -170,7 +170,7 @@ internal object DailyForecastHeaderRenderer {
     private fun resolveHeaderDateLayout(
         header: DailyForecastGraphRenderer.HeaderRenderData,
         widthPx: Int,
-        layout: LayoutInfo,
+        layout: DailyGraphLayoutInfo,
         leftClusterRight: Float,
         dateRightBoundary: Float,
         headerPaints: HeaderPaintSet,

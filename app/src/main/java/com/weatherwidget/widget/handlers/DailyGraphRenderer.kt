@@ -85,7 +85,7 @@ internal object DailyGraphRenderer {
                 "hourlyRows=${ctx.hourlyForecasts.count { it.source == ctx.displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }}",
         )
 
-        val days = DailyViewLogic.prepareGraphDays(
+        val preparedDays = DailyViewLogic.prepareGraphDayInputs(
             ctx.now, ctx.centerDate, ctx.today, ctx.weatherByDate, ctx.forecastSnapshots,
             ctx.numColumns, ctx.displaySource, ctx.skipYesterday, ctx.skipHistory,
             ctx.hourlyForecasts, ctx.stateManager, ctx.appWidgetId, ctx.precipProb,
@@ -95,6 +95,7 @@ internal object DailyGraphRenderer {
             allowTodayRainChanceLabel = true,
             todayLabel = ctx.context.getString(R.string.today),
         )
+        val days = preparedDays.map(DailyViewLogic.PreparedGraphDay::renderDay)
         val prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
 
         days.find { it.isToday }?.let { todayDay ->
@@ -177,7 +178,13 @@ internal object DailyGraphRenderer {
             )
         }
 
-        if (displayDays.any { it.isToday && it.rainData.rainSummary != null }) {
+        val displayedMetadata =
+            preparedDays
+                .take(displayDays.size)
+                .associateBy { it.renderDay.date }
+        if (displayDays.any { day ->
+                day.isToday && displayedMetadata[day.date]?.rainSummary != null
+            }) {
             ctx.stateManager.markRainShown(ctx.appWidgetId, todayStr)
         }
 
@@ -195,7 +202,12 @@ internal object DailyGraphRenderer {
             cloudDays = displayDays,
             hourlyForecasts = ctx.hourlyForecasts,
         )
-        logGraphDayIconDetails(ctx.context, ctx.appWidgetId, displayDays)
+        logGraphDayIconDetails(
+            context = ctx.context,
+            appWidgetId = ctx.appWidgetId,
+            displayDays = displayDays,
+            metadataByDate = displayedMetadata,
+        )
 
         val isNightPrecip = ctx.precipProb != null && HeaderPrecipCalculator.isNext8HourPrecipPredominantlyNight(
             hourlyForecasts = ctx.hourlyForecasts,
@@ -228,9 +240,8 @@ internal object DailyGraphRenderer {
             )
         } else null
 
-        val nightRainLabelDraws = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
         val renderStartMs = SystemClock.elapsedRealtime()
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
+        val renderResult = DailyForecastGraphRenderer.renderGraph(
             ctx.context,
             displayDays,
             bitmapDims.widthPx,
@@ -238,11 +249,6 @@ internal object DailyGraphRenderer {
             bitmapDims.bitmapScale,
             displayDays.size,
             job = coroutineContext[Job],
-            onRainLabelDrawn = {
-                if (it.isNightLabel) {
-                    nightRainLabelDraws.add(it)
-                }
-            },
             headerData = headerRenderData,
             showErrorWatermark = ctx.stateManager.isSourceErrored(ctx.displaySource),
             errorSourceLabel = ctx.displaySource.displayName,
@@ -250,6 +256,11 @@ internal object DailyGraphRenderer {
             errorFailureTimeMs = ctx.stateManager.getSourceLastFailureTime(ctx.displaySource),
             useCelsius = ctx.stateManager.useCelsius(),
         )
+        val bitmap = renderResult.bitmap
+        val nightRainLabelDraws =
+            renderResult.rainLabelPlacements.filter {
+                it.kind == DailyForecastGraphRenderer.RainLabelKind.NIGHT
+            }
         val renderMs = SystemClock.elapsedRealtime() - renderStartMs
         ctx.views.setImageViewBitmap(R.id.graph_view, bitmap)
 
@@ -288,6 +299,7 @@ internal object DailyGraphRenderer {
         context: Context,
         appWidgetId: Int,
         displayDays: List<DailyForecastGraphRenderer.DayData>,
+        metadataByDate: Map<LocalDate, DailyViewLogic.PreparedGraphDay>,
     ) {
         displayDays.forEachIndexed { index, day ->
             // columnIndex is always set by DailyViewLogic; fallback to list position for safety
@@ -303,7 +315,7 @@ internal object DailyGraphRenderer {
                     "isToday=${day.isToday} iconRes=$iconRes iconName=$iconName " +
                     "isRainy=${iconRes?.let(WeatherIconMapper::isPrecipitation) ?: false} " +
                     "isCloudEligible=${iconRes?.let(WeatherIconMapper::isCloudForecastEligible) ?: false} " +
-                    "hasRainForecast=${day.rainData.hasRainForecast}",
+                    "hasRainForecast=${metadataByDate[day.date]?.hasRainForecast ?: false}",
             )
         }
     }

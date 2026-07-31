@@ -2,8 +2,8 @@ package com.weatherwidget.widget
 
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DayData
-import com.weatherwidget.widget.DailyForecastGraphRenderer.LayoutInfo
-import com.weatherwidget.widget.DailyForecastGraphRenderer.PaintSet
+import com.weatherwidget.widget.DailyGraphLayoutInfo
+import com.weatherwidget.widget.DailyGraphPaintSet
 
 /**
  * Resolves the day's high-label(s) for the daily forecast graph: the [HighLabelPlan] (shared with
@@ -60,8 +60,8 @@ internal object DailyHighLabelPlanner {
 
     internal fun resolveHighLabelPlan(
         day: DayData,
-        layout: LayoutInfo,
-        paints: PaintSet,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
     ): HighLabelPlan? {
         day.solidLineHigh ?: return null
         val effective = day.effectiveHigh() ?: return null
@@ -135,8 +135,8 @@ internal object DailyHighLabelPlanner {
 
     internal fun resolveHighLabelBaseline(
         day: DayData,
-        layout: LayoutInfo,
-        paints: PaintSet,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
     ): Float? = resolveHighLabelPlan(day, layout, paints)?.anchorBaseline
 
     /**
@@ -149,17 +149,17 @@ internal object DailyHighLabelPlanner {
      */
     internal fun resolveHighLabelDrawScale(
         day: DayData,
-        layout: LayoutInfo,
-        paints: PaintSet,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
     ): Float {
         val anchorHigh = resolveHighLabelPlan(day, layout, paints)?.anchorHigh
             ?: day.effectiveHigh() ?: day.solidLineHigh ?: return 1f
-        val highText = DailyForecastGraphRenderer.formatTempLabel(anchorHigh, useCelsius = layout.useCelsius)
+        val highText = DailyTemperatureLabelRenderer.format(anchorHigh, useCelsius = layout.useCelsius)
         val tempPaint = when {
             day.isToday -> paints.todayTempTextPaint
             day.isPast -> paints.pastTempTextPaint
             else -> paints.tempTextPaint
         }
-        return DailyForecastGraphRenderer.tempLabelDrawScale(tempPaint, highText, extraScale = 1f, maxWidthPx = layout.tempLabelMaxWidthPx)
+        return DailyTemperatureLabelRenderer.drawScale(tempPaint, highText, extraScale = 1f, maxWidthPx = layout.tempLabelMaxWidthPx)
     }
 }

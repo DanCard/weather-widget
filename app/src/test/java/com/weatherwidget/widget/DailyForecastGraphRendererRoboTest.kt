@@ -43,6 +43,7 @@ class DailyForecastGraphRendererRoboTest {
         days: List<DailyForecastGraphRenderer.DayData>,
         widthPx: Int = 300,
         heightPx: Int = 200,
+        numColumns: Int = 0,
     ): List<DailyForecastGraphRenderer.BarDrawnDebug> {
         val results = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
         val bitmap = runBlocking {
@@ -51,6 +52,7 @@ class DailyForecastGraphRendererRoboTest {
                 days = days,
                 widthPx = widthPx,
                 heightPx = heightPx,
+                numColumns = numColumns,
                 onBarDrawn = { results.add(it) }, useCelsius = false,
             )
         }
@@ -63,8 +65,8 @@ class DailyForecastGraphRendererRoboTest {
         widthPx: Int = 300,
         heightPx: Int = 200,
         numColumns: Int = 0,
-    ): List<DailyForecastGraphRenderer.RainLabelDrawnDebug> {
-        val results = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
+    ): List<DailyForecastGraphRenderer.DailyRainLabelPlacement> {
+        val results = mutableListOf<DailyForecastGraphRenderer.DailyRainLabelPlacement>()
         val bitmap = runBlocking {
             DailyForecastGraphRenderer.renderGraph(
                 context = context,
@@ -343,7 +345,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 70f,
                     solidLineLow = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(dailyRainLabelText = "65%"),
                 ),
             ),
             widthPx = 800,
@@ -367,7 +369,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 100f,
                     solidLineLow = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(dailyRainLabelText = "65%"),
                 ),
             ),
             widthPx = 800,
@@ -393,7 +395,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 70f,
                     solidLineLow = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(dailyRainLabelText = "65%"),
                 ),
             ),
             widthPx = 500,
@@ -418,7 +420,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 100f,
                     solidLineLow = 72f,
-                    rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(dailyRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
@@ -448,7 +450,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 100f,
                     solidLineLow = 72f,
-                    rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(dailyRainLabelText = "65%"),
                 ),
             ),
             widthPx = 500,
@@ -471,7 +473,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 100f,
                     solidLineLow = 72f,
-                    rainData = DailyForecastGraphRenderer.RainData(
+                    rainData = DailyForecastGraphRenderer.RainLabelData(
                         dailyPrecipProbability = 100,
                         dailyRainLabelText = "100%",
                     ),
@@ -497,7 +499,7 @@ class DailyForecastGraphRendererRoboTest {
             label = "Mon",
             solidLineHigh = 100f,
             solidLineLow = 72f,
-            rainData = DailyForecastGraphRenderer.RainData(
+            rainData = DailyForecastGraphRenderer.RainLabelData(
                 dailyPrecipProbability = 100,
                 dailyRainLabelText = "100%",
             ),
@@ -560,7 +562,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 100f,
                     solidLineLow = 72f,
-                    rainData = DailyForecastGraphRenderer.RainData(
+                    rainData = DailyForecastGraphRenderer.RainLabelData(
                         dailyPrecipProbability = 100,
                         dailyRainLabelText = "100000000000000000000000000000000000000000000000000000%",
                     ),
@@ -580,6 +582,37 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun renderGraph_equalDayAndNightRainTextUsesDayBoundsForHeaderOverlap() {
+        val sameLabel = "100000000000000000000000000000000000000000000000000000%"
+        val headerDraws = renderHeaderDraws(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    solidLineHigh = 100f,
+                    solidLineLow = 72f,
+                    rainData = DailyForecastGraphRenderer.RainLabelData(
+                        dailyPrecipProbability = 100,
+                        nighttimePrecipProbability = 100,
+                        dailyRainLabelText = sameLabel,
+                        nightRainLabelText = sameLabel,
+                    ),
+                ),
+            ),
+            widthPx = 800,
+            heightPx = 200,
+            headerData = DailyForecastGraphRenderer.HeaderRenderData(
+                dateText = "Mon",
+                headerScale = 6f,
+            ),
+        )
+
+        assertEquals(1, headerDraws.size)
+        assertNull(headerDraws.first().dateText)
+        assertTrue(headerDraws.first().dateSuppressedForRainOverlap)
+    }
+
+    @Test
     fun renderGraph_nightRainLabelDoesNotSuppressHeaderDate() {
         val headerDraws = renderHeaderDraws(
             days = listOf(
@@ -588,7 +621,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 70f,
                     solidLineLow = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(
+                    rainData = DailyForecastGraphRenderer.RainLabelData(
                         nighttimePrecipProbability = 100,
                         nightRainLabelText = "100%",
                     ),
@@ -612,7 +645,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 70f,
                     solidLineLow = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
@@ -645,7 +678,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 70f,
                     solidLineLow = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "30%", nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(dailyRainLabelText = "30%", nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
@@ -672,7 +705,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 70f,
                     solidLineLow = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
@@ -698,7 +731,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 70f,
                     solidLineLow = 30f,
-                    rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
@@ -726,7 +759,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 70f,
                     solidLineLow = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 100, nightRainLabelText = "100000000000000000000000000000000000000000000000000000%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(nighttimePrecipProbability = 100, nightRainLabelText = "100000000000000000000000000000000000000000000000000000%"),
                 ),
             ),
             widthPx = 40,
@@ -745,7 +778,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     solidLineHigh = 70f,
                     solidLineLow = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "1000000%"),
+                    rainData = DailyForecastGraphRenderer.RainLabelData(dailyRainLabelText = "1000000%"),
                 ),
             ),
             widthPx = 40,
@@ -774,32 +807,22 @@ class DailyForecastGraphRendererRoboTest {
                 label = "Mon",
                 solidLineHigh = 70f,
                 solidLineLow = 50f,
-                rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "39%", dailyPrecipProbability = 39),
+                rainData = DailyForecastGraphRenderer.RainLabelData(dailyRainLabelText = "39%", dailyPrecipProbability = 39),
                 daysFromToday = 5
             ),
         )
 
-        val rendererClass = DailyForecastGraphRenderer::class.java
-        val paintCachesField = rendererClass.getDeclaredField("paintCaches")
-        paintCachesField.isAccessible = true
-
         val width = 1000
         val height = 1000
+        DailyGraphPaintCache.clearForTesting()
         runBlocking {
             DailyForecastGraphRenderer.renderGraph(context, listOf(DailyForecastGraphRenderer.DayData(date = today, label = "X", solidLineHigh = 0f, solidLineLow = 0f)), width, height, useCelsius = false)
         }
-        @Suppress("UNCHECKED_CAST")
-        val caches = paintCachesField.get(null) as List<Any>
+        val caches = DailyGraphPaintCache.entriesForTesting()
         assertTrue("paintCaches should have at least one entry after warmup render", caches.isNotEmpty())
-        val cache = caches.first()
-        val paintSetField = cache.javaClass.getDeclaredField("set")
-        paintSetField.isAccessible = true
-        val paintSet = paintSetField.get(cache)
+        val paintSet = caches.first().set
         assertNotNull(paintSet)
-        
-        val rainTextPaintField = paintSet!!.javaClass.getDeclaredField("rainTextPaint")
-        rainTextPaintField.isAccessible = true
-        val rainPaint = rainTextPaintField.get(paintSet) as Paint
+        val rainPaint = paintSet.rainTextPaint
         
         var sizeDuringFirstRender: Float = 0f
         var sizeDuringSecondRender: Float = 0f
@@ -943,6 +966,120 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun renderGraph_clampedColumnParticipatesInResolvedNeighborTopology() {
+        fun anchorWithRightColumn(rightColumn: Int): Float {
+            val leftDate = LocalDate.of(2026, 2, 3)
+            val labels = renderRainLabels(
+                days = listOf(
+                    DailyForecastGraphRenderer.DayData(
+                        date = leftDate,
+                        label = "Mon",
+                        solidLineHigh = 70f,
+                        solidLineLow = 20f,
+                        columnIndex = 3,
+                        rainData = DailyForecastGraphRenderer.RainLabelData(
+                            nighttimePrecipProbability = 65,
+                            nightRainLabelText = "65%",
+                        ),
+                    ),
+                    DailyForecastGraphRenderer.DayData(
+                        date = leftDate.plusDays(1),
+                        label = "Tue",
+                        solidLineHigh = 70f,
+                        solidLineLow = 50f,
+                        columnIndex = rightColumn,
+                    ),
+                ),
+                widthPx = 500,
+                heightPx = 400,
+                numColumns = 5,
+            )
+            return labels.single {
+                it.date == leftDate &&
+                    it.kind == DailyForecastGraphRenderer.RainLabelKind.NIGHT
+            }.anchorBaselineY
+        }
+
+        assertEquals(anchorWithRightColumn(4), anchorWithRightColumn(99), 0.01f)
+    }
+
+    @Test
+    fun renderGraph_duplicateResolvedColumnsDrawOnlyFirstDay() {
+        val firstDate = LocalDate.of(2026, 2, 2)
+        val bars =
+            render(
+                days =
+                    listOf(
+                        DailyForecastGraphRenderer.DayData(
+                            date = firstDate,
+                            label = "Mon",
+                            solidLineHigh = 70f,
+                            solidLineLow = 50f,
+                            columnIndex = 4,
+                        ),
+                        DailyForecastGraphRenderer.DayData(
+                            date = firstDate.plusDays(1),
+                            label = "Tue",
+                            solidLineHigh = 75f,
+                            solidLineLow = 55f,
+                            columnIndex = 99,
+                        ),
+                    ),
+                widthPx = 500,
+                heightPx = 400,
+                numColumns = 5,
+            )
+
+        assertEquals(listOf(firstDate), bars.map { it.date }.distinct())
+    }
+
+    @Test
+    fun renderGraph_nonFiniteLabelInputsDoNotAbortRender() {
+        val today = LocalDate.of(2026, 2, 2)
+        val bars = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Today",
+                solidLineHigh = Float.NaN,
+                solidLineLow = 50f,
+                bottomStackLow = Float.NaN,
+                isToday = true,
+            ),
+            DailyForecastGraphRenderer.DayData(
+                date = today.plusDays(1),
+                label = "Mon",
+                solidLineHigh = 70f,
+                solidLineLow = 50f,
+                bottomStackLow = Float.POSITIVE_INFINITY,
+                dashedLineHigh = Float.NEGATIVE_INFINITY,
+                dashedLineLow = Float.NaN,
+                snapshotHigh = Float.POSITIVE_INFINITY,
+                snapshotLow = Float.NEGATIVE_INFINITY,
+                ghostLineHigh = Float.NaN,
+            ),
+        )
+
+        val result = runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 500,
+                heightPx = 300,
+                onBarDrawn = bars::add,
+                useCelsius = false,
+            )
+        }
+
+        assertNotNull(result)
+        assertTrue(bars.isNotEmpty())
+        assertTrue(
+            "Normalized overlays must not emit non-finite geometry: $bars",
+            bars.all { it.highY.isFinite() && it.lowY.isFinite() && it.centerX.isFinite() },
+        )
+    }
+
+    @Test
     fun renderGraph_paintCacheLruRetainsPriorEntries() {
         val today = LocalDate.of(2026, 2, 2)
         val days = listOf(
@@ -951,33 +1088,26 @@ class DailyForecastGraphRendererRoboTest {
         val width = 400
         val height = 200
 
-        val rendererClass = DailyForecastGraphRenderer::class.java
-        val paintCachesField = rendererClass.getDeclaredField("paintCaches")
-        paintCachesField.isAccessible = true
-        paintCachesField.set(null, emptyList<Any>())
+        DailyGraphPaintCache.clearForTesting()
 
         runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 1.0f, useCelsius = false) }
-        @Suppress("UNCHECKED_CAST")
-        val cachesAfter1 = paintCachesField.get(null) as List<Any>
+        val cachesAfter1 = DailyGraphPaintCache.entriesForTesting()
         assertEquals("First render should add one cache entry", 1, cachesAfter1.size)
-        val setField = cachesAfter1.first().javaClass.getDeclaredField("set").apply { isAccessible = true }
-        val firstSet = setField.get(cachesAfter1.first())
+        val firstSet = cachesAfter1.first().set
 
         runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 0.8f, useCelsius = false) }
         runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 0.6f, useCelsius = false) }
 
-        @Suppress("UNCHECKED_CAST")
-        val cachesAfter3 = paintCachesField.get(null) as List<Any>
+        val cachesAfter3 = DailyGraphPaintCache.entriesForTesting()
         assertEquals("LRU should hold exactly 3 entries after 3 distinct renders", 3, cachesAfter3.size)
-        val setsRetained = cachesAfter3.map { setField.get(it) }
+        val setsRetained = cachesAfter3.map { it.set }
         assertTrue(
             "PaintSet from the first render should still live in the LRU",
             setsRetained.any { it === firstSet },
         )
 
         runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 1.0f, useCelsius = false) }
-        @Suppress("UNCHECKED_CAST")
-        val cachesAfter4 = paintCachesField.get(null) as List<Any>
+        val cachesAfter4 = DailyGraphPaintCache.entriesForTesting()
         assertEquals("Re-rendering at a cached scale must not grow the LRU past 3", 3, cachesAfter4.size)
     }
 

@@ -21,14 +21,14 @@ class DailyForecastGraphRendererSizingTest {
 
     @Test
     fun `day label width scale shrinks only slightly on tight columns`() {
-        val scale = DailyForecastGraphRenderer.computeDayLabelWidthScale(dayWidthDp = 60f)
+        val scale = DailyGraphLayoutResolver.computeDayLabelWidthScale(dayWidthDp = 60f)
 
         assertEquals(0.96f, scale, 0.0001f)
     }
 
     @Test
     fun `day label width scale stays at baseline on standard columns`() {
-        val scale = DailyForecastGraphRenderer.computeDayLabelWidthScale(dayWidthDp = 70f)
+        val scale = DailyGraphLayoutResolver.computeDayLabelWidthScale(dayWidthDp = 70f)
 
         assertEquals(1.0f, scale, 0.0001f)
     }
@@ -37,7 +37,7 @@ class DailyForecastGraphRendererSizingTest {
     fun `forecast temperature label size uses larger daily baseline`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density)
+        val sizePx = DailyGraphLayoutResolver.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density)
 
         assertEquals(24f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
@@ -46,7 +46,7 @@ class DailyForecastGraphRendererSizingTest {
     fun `forecast temperature label size compensates for bitmap downscale`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density, bitmapScale = 0.34f)
+        val sizePx = DailyGraphLayoutResolver.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density, bitmapScale = 0.34f)
 
         assertEquals(12f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
@@ -55,7 +55,7 @@ class DailyForecastGraphRendererSizingTest {
     fun `forecast temperature label size uses smaller scale for short widgets`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density, heightScaleFactor = 0.92f)
+        val sizePx = DailyGraphLayoutResolver.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density, heightScaleFactor = 0.92f)
 
         assertEquals(22.08f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
@@ -64,7 +64,7 @@ class DailyForecastGraphRendererSizingTest {
     fun `forecast temperature label size stays at baseline for tall widgets`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density, heightScaleFactor = 1.0f)
+        val sizePx = DailyGraphLayoutResolver.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density, heightScaleFactor = 1.0f)
 
         assertEquals(24f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
@@ -73,8 +73,8 @@ class DailyForecastGraphRendererSizingTest {
     fun `daily bar stroke uses wider baseline and bitmap scale floor`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val fullScale = DailyForecastGraphRenderer.dailyBarStrokeWidthPx(context.resources.displayMetrics.density)
-        val downscaled = DailyForecastGraphRenderer.dailyBarStrokeWidthPx(context.resources.displayMetrics.density, bitmapScale = 0.34f)
+        val fullScale = DailyBarRenderer.dailyBarStrokeWidthPx(context.resources.displayMetrics.density)
+        val downscaled = DailyBarRenderer.dailyBarStrokeWidthPx(context.resources.displayMetrics.density, bitmapScale = 0.34f)
 
         assertEquals(9f * context.resources.displayMetrics.density, fullScale, 0.01f)
         assertEquals(4.5f * context.resources.displayMetrics.density, downscaled, 0.01f)
@@ -84,11 +84,11 @@ class DailyForecastGraphRendererSizingTest {
     fun `day label layout keeps baseline size when labels fit`() {
         val today = LocalDate.of(2026, 4, 21)
 
-        val layout = DailyForecastGraphRenderer.resolveDayLabelLayout(
+        val layout = DailyGraphLayoutResolver.resolveDayLabelLayout(
             labels = listOf(
-                DailyForecastGraphRenderer.DayLabelInput(today, "Today", isToday = true),
-                DailyForecastGraphRenderer.DayLabelInput(today.plusDays(1), "Wed"),
-                DailyForecastGraphRenderer.DayLabelInput(today.plusDays(2), "Thu"),
+                DailyDayLabelInput(today, "Today", isToday = true),
+                DailyDayLabelInput(today.plusDays(1), "Wed"),
+                DailyDayLabelInput(today.plusDays(2), "Thu"),
             ),
             baseTextSizePx = 24f,
             maxTextWidthPx = 120f,
@@ -104,11 +104,11 @@ class DailyForecastGraphRendererSizingTest {
     fun `day label layout shrinks labels when shortening does not apply`() {
         val today = LocalDate.of(2026, 4, 21)
 
-        val layout = DailyForecastGraphRenderer.resolveDayLabelLayout(
+        val layout = DailyGraphLayoutResolver.resolveDayLabelLayout(
             labels = listOf(
-                DailyForecastGraphRenderer.DayLabelInput(today, "Monday"),
-                DailyForecastGraphRenderer.DayLabelInput(today.plusDays(1), "Wednesday"),
-                DailyForecastGraphRenderer.DayLabelInput(today.plusDays(2), "Thu"),
+                DailyDayLabelInput(today, "Monday"),
+                DailyDayLabelInput(today.plusDays(1), "Wednesday"),
+                DailyDayLabelInput(today.plusDays(2), "Thu"),
             ),
             baseTextSizePx = 40f,
             maxTextWidthPx = 1f,
@@ -123,11 +123,11 @@ class DailyForecastGraphRendererSizingTest {
     fun `day label layout shortens today when minimum scale is not enough`() {
         val today = LocalDate.of(2026, 4, 21)
 
-        val layout = DailyForecastGraphRenderer.resolveDayLabelLayout(
+        val layout = DailyGraphLayoutResolver.resolveDayLabelLayout(
             labels = listOf(
-                DailyForecastGraphRenderer.DayLabelInput(today, "Today", isToday = true),
-                DailyForecastGraphRenderer.DayLabelInput(today.plusDays(1), "Wed"),
-                DailyForecastGraphRenderer.DayLabelInput(today.plusDays(2), "Thu"),
+                DailyDayLabelInput(today, "Today", isToday = true),
+                DailyDayLabelInput(today.plusDays(1), "Wed"),
+                DailyDayLabelInput(today.plusDays(2), "Thu"),
             ),
             baseTextSizePx = 80f,
             maxTextWidthPx = 1f,

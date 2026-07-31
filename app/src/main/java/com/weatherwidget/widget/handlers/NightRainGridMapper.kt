@@ -51,7 +51,7 @@ internal object NightRainGridMapper {
         displaySource: WeatherSource,
         bitmapWidthPx: Int,
         bitmapHeightPx: Int,
-        nightLabelDraws: List<DailyForecastGraphRenderer.RainLabelDrawnDebug>,
+        nightLabelDraws: List<DailyForecastGraphRenderer.DailyRainLabelPlacement>,
         buildClickIntent: (
             appWidgetId: Int, dayIndex: Int, date: LocalDate,
             iconRes: Int?, lat: Double, lon: Double,
@@ -74,7 +74,15 @@ internal object NightRainGridMapper {
 
         val daysByDate = days.associateBy { it.date }
         var wired = 0
-        nightLabelDraws.filter { it.isNightLabel }.forEach { labelDraw ->
+        nightLabelDraws.forEach { labelDraw ->
+            if (labelDraw.kind != DailyForecastGraphRenderer.RainLabelKind.NIGHT) {
+                Log.w(
+                    TAG,
+                    "nightRainZone skip: date=${labelDraw.date} reason=non_night_placement" +
+                        " kind=${labelDraw.kind}",
+                )
+                return@forEach
+            }
             val day = daysByDate[labelDraw.date]
             if (day == null) {
                 Log.w(TAG, "nightRainZone skip: date=${labelDraw.date} reason=no_day_match")
@@ -139,7 +147,7 @@ internal object NightRainGridMapper {
 
     @VisibleForTesting
     internal fun computeNightRainGridCells(
-        labelDraw: DailyForecastGraphRenderer.RainLabelDrawnDebug,
+        labelDraw: DailyForecastGraphRenderer.DailyRainLabelPlacement,
         bitmapWidthPx: Int,
         bitmapHeightPx: Int,
     ): List<Pair<Int, Int>> {

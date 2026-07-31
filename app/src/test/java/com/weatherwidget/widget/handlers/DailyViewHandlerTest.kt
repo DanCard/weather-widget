@@ -239,6 +239,31 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `prepareGraphDayInputs keeps handler rain metadata outside render day`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val prepared =
+            DailyViewLogic.prepareGraphDayInputs(
+                todayLabel = "Today",
+                now = now,
+                centerDate = today,
+                today = today,
+                weatherByDate = createWeatherMap(today),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+                numColumns = 1,
+                displaySource = WeatherSource.NWS,
+                skipYesterday = false,
+                skipHistory = true,
+                rainSummaryProvider = { _, _, _, _ -> "9am" },
+            ).single()
+
+        assertEquals(today, prepared.renderDay.date)
+        assertEquals("9am", prepared.rainSummary)
+        assertTrue(prepared.hasRainForecast)
+    }
+
+    @Test
     fun `prepareGraphDays compositions triple line data for today`() {
         val now = LocalDateTime.of(2030, 6, 15, 20, 0) // 8 PM
         val today = now.toLocalDate()

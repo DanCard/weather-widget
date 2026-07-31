@@ -127,7 +127,10 @@ class DailyViewHandlerTodayDropIntegrationTest {
             DailyForecastGraphRenderer.renderGraph(
                 any(), capture(daysSlot), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), useCelsius = false
             )
-        } returns Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+        } returns DailyForecastGraphRenderer.DailyGraphRenderResult(
+            bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888),
+            rainLabelPlacements = emptyList(),
+        )
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -273,7 +276,10 @@ class DailyViewHandlerTodayDropIntegrationTest {
             DailyForecastGraphRenderer.renderGraph(
                 any(), capture(daysSlot), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), useCelsius = false
             )
-        } returns Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+        } returns DailyForecastGraphRenderer.DailyGraphRenderResult(
+            bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888),
+            rainLabelPlacements = emptyList(),
+        )
 
         DailyViewHandler.updateWidget(
             context = context,
