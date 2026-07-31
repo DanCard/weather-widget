@@ -215,6 +215,14 @@ class DesktopWeatherRepository(
         now: Long = currentTimeMillis(),
     ): ForecastResult = withContext(Dispatchers.IO) {
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
+        // Entry marker. The terminal REFRESH row below only lands on success, so without this an
+        // aborted fetch is invisible unless it also throws (the catch logs a WARN); a hang or a
+        // cancellation leaves no trace at all.
+        weatherDao.log(
+            tag = "REFRESH_ENTER",
+            message = "source=$weatherSource lat=$latitude lon=$longitude",
+            level = "INFO",
+        )
         try {
             // NOTE: no Open-Meteo history backfill here. GENERIC_GAP is future-only; past forecast history
             // must come only from real accumulated NWS snapshots (a fresh install simply starts sparse and
@@ -258,7 +266,18 @@ class DesktopWeatherRepository(
 
             loadCached(now) ?: result
         } catch (e: Exception) {
-            if (e !is kotlinx.coroutines.CancellationException) {
+            if (e is kotlinx.coroutines.CancellationException) {
+                // Cancellation is not a pipeline failure, so it stays out of CURRENT_TEMP_STATUS
+                // (which drives the staleness badge) — but it must not be silent either. A refresh
+                // cancelled mid-flight by its caller's scope being torn down previously left no row
+                // at all, which is why a dropped manual refresh was indistinguishable from a click
+                // that never happened.
+                weatherDao.log(
+                    tag = "REFRESH_CANCELLED",
+                    message = "source=$weatherSource lat=$latitude lon=$longitude",
+                    level = "WARN",
+                )
+            } else {
                 weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(displaySource.id, e), "WARN")
             }
             throw e

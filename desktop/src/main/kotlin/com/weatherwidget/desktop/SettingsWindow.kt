@@ -46,7 +46,18 @@ internal fun SettingsWindow(
     onExit: () -> Unit,
     onUpdateLocation: () -> Unit = {},
     onOpenObservations: () -> Unit = {},
-    onRefreshData: suspend () -> Unit = {},
+    // Fire-and-forget: the caller owns both the coroutine and the progress flag. Fetching weather is
+    // app-level work, not this window's, so it must NOT run on the local rememberCoroutineScope —
+    // closing Settings during the ~5s fetch cancelled the scope and threw the completed result away
+    // (ForgottenCoroutineScopeException), leaving the DB updated but the UI never repainted.
+    onRefreshData: () -> Unit = {},
+    // Driven by the caller now that the work outlives this window.
+    isRefreshing: Boolean = false,
+    // Diagnostic breadcrumb for the Refresh Data click path. The button can *look* like it worked —
+    // "Refreshing…" flashes and clears — while leaving no REFRESH row in app_logs at all, so the
+    // click and each downstream stage need their own persistent marker to tell "never clicked" from
+    // "clicked but no-op" from "threw". Default no-op keeps preview/test call sites unchanged.
+    onRefreshBreadcrumb: (String) -> Unit = {},
     onViewAppLogs: () -> Unit = {},
     // Phase 4 item 4: reverse-geocoded location label. Null on first-launch / preview paths so the
     // caller still sees config.label verbatim; non-null in Main.kt where the resolver is already
@@ -116,18 +127,11 @@ internal fun SettingsWindow(
                         // Phase 4 item 1: color-coded header buttons matching Android's drawable
                         // palette. Refresh Data is the primary "go" action (green); View App Logs
                         // is a secondary navigation action (blue).
-                        var isRefreshing by remember { mutableStateOf(false) }
                         PrimaryActionButton(
                             text = if (isRefreshing) "Refreshing…" else "Refresh Data",
                             onClick = {
-                                scope.launch {
-                                    isRefreshing = true
-                                    try {
-                                        onRefreshData()
-                                    } finally {
-                                        isRefreshing = false
-                                    }
-                                }
+                                onRefreshBreadcrumb("click received (isRefreshing=$isRefreshing)")
+                                onRefreshData()
                             },
                             enabled = !isRefreshing,
                             modifier = Modifier.padding(horizontal = 4.dp).testTag("refresh_data_btn"),

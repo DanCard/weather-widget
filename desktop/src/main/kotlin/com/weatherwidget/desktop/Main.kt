@@ -207,6 +207,9 @@ private fun runApp() = application {
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
+        // Owned here rather than in SettingsWindow: the refresh it drives runs on uiScope and
+        // outlives that window, so the flag has to outlive it too.
+        var refreshInFlight by remember { mutableStateOf(false) }
         // Registered by WidgetPopup for whichever view is active (daily/hourly); the popup Window forwards
         // ←/→ here. Returns true when the key was consumed (so Escape/default handling stays intact).
         var arrowKeyHandler by remember { mutableStateOf<((left: Boolean) -> Boolean)?>(null) }
@@ -759,12 +762,50 @@ private fun runApp() = application {
                         observationsVisible = true
                         obsShowRequestId++
                     },
+                    isRefreshing = refreshInFlight,
+                    onRefreshBreadcrumb = { msg -> weatherDao.log("REFRESH_CLICK", msg, "INFO") },
                     onRefreshData = {
-                        repository?.let {
-                            forecast = it.refresh()
-                            // UI → daemon direction: tell the daemon to pick up the rows this
-                            // refresh just wrote. (.data-updated is daemon → UI only.)
-                            notifyRefreshRequested()
+                        val repo = repository
+                        // A null repository makes the whole handler a silent no-op, which is
+                        // indistinguishable from success at the UI. Record which branch we took.
+                        weatherDao.log(
+                            "REFRESH_CLICK",
+                            "onRefreshData repository=" +
+                                (if (repo == null) "NULL (no-op)" else "present") +
+                                " config=" +
+                                (currentConfig?.let { "lat=${it.lat} lon=${it.lon} src=${it.weatherSource}" }
+                                    ?: "null"),
+                            "INFO",
+                        )
+                        if (repo != null && !refreshInFlight) {
+                            refreshInFlight = true
+                            // uiScope, not the Settings window's rememberCoroutineScope: this scope
+                            // owns the database and repository and outlives every child window, so
+                            // closing Settings mid-fetch can no longer cancel the work or discard a
+                            // completed result. Mirrors onNeedHistory above.
+                            uiScope.launch {
+                                try {
+                                    forecast = repo.refresh()
+                                    weatherDao.log("REFRESH_CLICK", "repository.refresh() completed", "INFO")
+                                    // UI → daemon direction: tell the daemon to pick up the rows this
+                                    // refresh just wrote. (.data-updated is daemon → UI only.)
+                                    notifyRefreshRequested()
+                                    weatherDao.log("REFRESH_CLICK", "notifyRefreshRequested() sent", "INFO")
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    weatherDao.log("REFRESH_CLICK", "refresh cancelled", "WARN")
+                                    throw e
+                                } catch (e: Exception) {
+                                    // Swallowed deliberately: rethrowing from a launched coroutine
+                                    // would take down uiScope and every other feature hanging off it.
+                                    weatherDao.log(
+                                        "REFRESH_CLICK",
+                                        "refresh failed ${e::class.simpleName}: ${e.message}",
+                                        "WARN",
+                                    )
+                                } finally {
+                                    refreshInFlight = false
+                                }
+                            }
                         }
                     },
                     onViewAppLogs = {

@@ -592,6 +592,56 @@ class DesktopUiTest {
         assert(logsClicked)
     }
 
+    /**
+     * Refresh progress is caller-owned, not window-owned.
+     *
+     * Regression: the button used to run the fetch on SettingsWindow's own `rememberCoroutineScope`
+     * and track progress in a local `remember`. Closing Settings during the ~5s fetch cancelled that
+     * scope, so the completed result was discarded on resume (ForgottenCoroutineScopeException) —
+     * the DB got fresh rows but the UI never repainted, and the `finally` cleared the spinner so a
+     * cancelled refresh looked exactly like a successful one. Progress state living with the caller
+     * is what lets the work outlive this window; assert the window renders it rather than owning it.
+     */
+    @Test
+    fun testRefreshingStateIsDrivenByCaller() {
+        composeTestRule.setContent {
+            SettingsWindow(
+                config = stubConfig,
+                onClose = {},
+                onSave = {},
+                onExit = {},
+                isRefreshing = true,
+            )
+        }
+
+        composeTestRule.onNodeWithText("Refreshing…").assertExists()
+        composeTestRule.onNodeWithTag("refresh_data_btn").assertIsNotEnabled()
+    }
+
+    /**
+     * A refresh already in flight must not be re-dispatched: the caller owns the in-flight flag, so
+     * the window has to honour it. Without this the disabled state is decorative and rapid clicks
+     * stack concurrent fetches.
+     */
+    @Test
+    fun testRefreshClickSuppressedWhileRefreshInFlight() {
+        var refreshClicks = 0
+        composeTestRule.setContent {
+            SettingsWindow(
+                config = stubConfig,
+                onClose = {},
+                onSave = {},
+                onExit = {},
+                isRefreshing = true,
+                onRefreshData = { refreshClicks++ },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("refresh_data_btn").performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(0, refreshClicks)
+    }
+
     @Test
     fun testAppLogsWindowShowsLogsAndFilters() {
         val tempDbPath = java.nio.file.Files.createTempFile("weather-ui-test", ".db")
