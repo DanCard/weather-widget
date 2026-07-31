@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -153,5 +154,54 @@ class ObservationRepositoryTodayPrecipTest {
         assertEquals("Total precip = forecast sum", 4.0f, todayActual!!.precipAmountMm!!, 0.01f)
         assertEquals("Day precip = 10AM forecast", 1.5f, todayActual.precipDayMm!!, 0.01f)
         assertEquals("Night precip = 22:00 forecast", 2.5f, todayActual.precipNightMm!!, 0.01f)
+    }
+
+    @Test
+    fun `live daily actuals include only active sources`() = runTest {
+        val nws = TestData.observation(
+            stationId = "KNUQ",
+            timestamp = tsAt(10),
+            temperature = 65f,
+            api = WeatherSource.NWS.id,
+        )
+        val openMeteo = TestData.observation(
+            stationId = "OPEN_METEO_MAIN",
+            timestamp = tsAt(10),
+            temperature = 75f,
+            api = WeatherSource.OPEN_METEO.id,
+        )
+        db.observationDao().insertAll(listOf(nws, openMeteo))
+
+        val result = repository.getDailyActualsWithLiveToday(
+            latitude = lat,
+            longitude = lon,
+            hourlyForecasts = emptyList(),
+            activeSourceList = listOf(WeatherSource.NWS.id),
+        )
+
+        assertEquals(setOf(WeatherSource.NWS.id), result.keys)
+    }
+
+    @Test
+    fun `empty active source list returns no daily actuals`() = runTest {
+        db.observationDao().insertAll(
+            listOf(
+                TestData.observation(
+                    stationId = "KNUQ",
+                    timestamp = tsAt(10),
+                    temperature = 65f,
+                    api = WeatherSource.NWS.id,
+                ),
+            ),
+        )
+
+        val result = repository.getDailyActualsWithLiveToday(
+            latitude = lat,
+            longitude = lon,
+            hourlyForecasts = emptyList(),
+            activeSourceList = emptyList(),
+        )
+
+        assertTrue(result.isEmpty())
     }
 }

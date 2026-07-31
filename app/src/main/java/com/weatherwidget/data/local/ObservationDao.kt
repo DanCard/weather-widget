@@ -23,7 +23,7 @@ interface ObservationDao {
         SELECT * FROM observations
         WHERE timestamp >= :sinceMs
           AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY timestamp DESC, stationId ASC
+        ORDER BY timestamp DESC, stationId ASC, locationLat ASC, locationLon ASC
     """,
     )
     suspend fun getRecentObservationsNear(
@@ -35,10 +35,10 @@ interface ObservationDao {
     @Query("SELECT MAX(fetchedAt) FROM observations")
     fun observeLatestFetchedAt(): Flow<Long?>
 
-    // ORDER BY must be TOTAL: (timestamp, stationId) is the primary key, so adding stationId makes the
-    // row order fully determined. `ORDER BY timestamp` alone does NOT — several stations report on the
-    // same timestamps (AW020/KSJC both cover 23:05-03:25), and SQLite is free to return tied rows in
-    // any order, which varied run-to-run in practice.
+    // ORDER BY must be TOTAL: all four primary-key fields are included so the raw candidate order is
+    // fully determined. `ORDER BY timestamp` alone does NOT — several stations report on the same
+    // timestamps (AW020/KSJC both cover 23:05-03:25), and the same station/timestamp can now coexist
+    // at multiple fetch sites.
     //
     // That mattered because row order leaks into the blend: ActualTemperatureSeriesBuilder does
     // `filtered.groupBy { stationId }`, so byStation's ITERATION order follows row order, which then
@@ -53,21 +53,51 @@ interface ObservationDao {
         WHERE timestamp >= :startTs
           AND timestamp < :endTs
           AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY timestamp ASC, stationId ASC
+        ORDER BY timestamp ASC, stationId ASC, locationLat ASC, locationLon ASC
     """,
     )
-    suspend fun getObservationsInRange(
+    suspend fun getObservationCandidatesInRange(
         startTs: Long,
         endTs: Long,
         lat: Double,
         lon: Double
     ): List<ObservationEntity>
 
+    /**
+     * Returns one physical site's observations from the coarse [LocationMatch.ROOM_WHERE] box.
+     * Centralizing this boundary keeps direct DAO consumers from accidentally mixing two nearby
+     * widget locations now that the site is part of observation identity.
+     */
+    suspend fun getObservationsInRange(
+        startTs: Long,
+        endTs: Long,
+        lat: Double,
+        lon: Double,
+    ): List<ObservationEntity> =
+        selectNearestObservationSite(
+            getObservationCandidatesInRange(startTs, endTs, lat, lon),
+            lat,
+            lon,
+        )
+
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")
     suspend fun deleteOldObservations(cutoffMs: Long)
 
-    @Query("SELECT * FROM observations WHERE stationId = :stationId ORDER BY timestamp DESC LIMIT 1")
-    suspend fun getLatestForStation(stationId: String): ObservationEntity?
+    @Query(
+        """
+        SELECT * FROM observations
+        WHERE stationId = :stationId
+          AND locationLat = :lat
+          AND locationLon = :lon
+        ORDER BY timestamp DESC
+        LIMIT 1
+    """,
+    )
+    suspend fun getLatestForStation(
+        stationId: String,
+        lat: Double,
+        lon: Double,
+    ): ObservationEntity?
 
     // fetchedAt records the last completed fetch *attempt* for the station, not just the last
     // stored data: a fetch that completes but yields nothing storable (station publishing
@@ -77,35 +107,92 @@ interface ObservationDao {
         """
         UPDATE observations SET fetchedAt = :nowMs
         WHERE stationId = :stationId
-          AND timestamp = (SELECT MAX(timestamp) FROM observations WHERE stationId = :stationId)
+          AND locationLat = :lat
+          AND locationLon = :lon
+          AND timestamp = (
+              SELECT MAX(timestamp) FROM observations
+              WHERE stationId = :stationId
+                AND locationLat = :lat
+                AND locationLon = :lon
+          )
     """,
     )
-    suspend fun touchLatestFetchedAt(stationId: String, nowMs: Long)
+    suspend fun touchLatestFetchedAt(
+        stationId: String,
+        lat: Double,
+        lon: Double,
+        nowMs: Long,
+    )
 
     @Query("""
         SELECT * FROM observations
         WHERE stationId LIKE '%\_MAIN' ESCAPE '\'
           AND ${LocationMatch.ROOM_WHERE}
           AND timestamp > :sinceMs
-        ORDER BY timestamp DESC
+        ORDER BY timestamp DESC, stationId ASC, locationLat ASC, locationLon ASC
     """)
-    suspend fun getLatestMainObservationsExcludingNws(lat: Double, lon: Double, sinceMs: Long): List<ObservationEntity>
+    suspend fun getLatestMainObservationCandidatesExcludingNws(
+        lat: Double,
+        lon: Double,
+        sinceMs: Long,
+    ): List<ObservationEntity>
+
+    suspend fun getLatestMainObservationsExcludingNws(
+        lat: Double,
+        lon: Double,
+        sinceMs: Long,
+    ): List<ObservationEntity> =
+        selectNearestObservationSite(
+            getLatestMainObservationCandidatesExcludingNws(lat, lon, sinceMs),
+            lat,
+            lon,
+        )
 
     @Query("""
         SELECT * FROM observations
         WHERE api = 'NWS'
           AND ${LocationMatch.ROOM_WHERE}
           AND fetchedAt > :sinceMs
-        ORDER BY stationId, timestamp DESC
+        ORDER BY stationId ASC, timestamp DESC, locationLat ASC, locationLon ASC
     """)
-    suspend fun getLatestNwsObservationsByStationAllTime(lat: Double, lon: Double, sinceMs: Long): List<ObservationEntity>
+    suspend fun getLatestNwsObservationCandidatesByStationAllTime(
+        lat: Double,
+        lon: Double,
+        sinceMs: Long,
+    ): List<ObservationEntity>
+
+    suspend fun getLatestNwsObservationsByStationAllTime(
+        lat: Double,
+        lon: Double,
+        sinceMs: Long,
+    ): List<ObservationEntity> =
+        selectNearestObservationSite(
+            getLatestNwsObservationCandidatesByStationAllTime(lat, lon, sinceMs),
+            lat,
+            lon,
+        )
 
     @Query("""
         SELECT * FROM observations
         WHERE stationId LIKE '%\_MAIN' ESCAPE '\'
           AND ${LocationMatch.ROOM_WHERE}
           AND timestamp > :sinceMs
-        ORDER BY timestamp DESC
+        ORDER BY timestamp DESC, stationId ASC, locationLat ASC, locationLon ASC
     """)
-    suspend fun getLatestMainObservations(lat: Double, lon: Double, sinceMs: Long): List<ObservationEntity>
+    suspend fun getLatestMainObservationCandidates(
+        lat: Double,
+        lon: Double,
+        sinceMs: Long,
+    ): List<ObservationEntity>
+
+    suspend fun getLatestMainObservations(
+        lat: Double,
+        lon: Double,
+        sinceMs: Long,
+    ): List<ObservationEntity> =
+        selectNearestObservationSite(
+            getLatestMainObservationCandidates(lat, lon, sinceMs),
+            lat,
+            lon,
+        )
 }

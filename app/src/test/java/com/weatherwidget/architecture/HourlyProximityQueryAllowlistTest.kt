@@ -43,7 +43,7 @@ class HourlyProximityQueryAllowlistTest {
         "HourlyForecastStore.kt" to "write-path dedup filters to the exact quantized site",
         "DailyHistorySnapshotter.kt" to "freeze calculations use site-aware rain and noon-cloud resolvers",
         "CurrentTempRepository.kt" to "pre-existing; audit before touching (current-temp windows)",
-        "ObservationRepository.kt" to "pre-existing; audit before touching (actuals context)",
+        "DailyActualsStore.kt" to "actuals context read is immediately wrapped in unifyToNearestSite",
         "UIUpdateScheduler.kt" to "pre-existing; audit before touching (update cadence heuristics)",
         "DataFreshness.kt" to "staleness check; freshest row wins regardless of site",
         "WeatherWidgetWorker.kt" to "pre-existing; audit before touching",

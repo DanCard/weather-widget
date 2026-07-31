@@ -11,9 +11,16 @@ import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.CurrentTempRepository
+import com.weatherwidget.data.repository.CurrentObservationReader
+import com.weatherwidget.data.repository.DailyActualsStore
 import com.weatherwidget.data.repository.ForecastRepository
 import com.weatherwidget.data.repository.NwsForecastMapper
+import com.weatherwidget.data.repository.NwsCurrentObservationUpdater
+import com.weatherwidget.data.repository.NwsObservationBackfiller
+import com.weatherwidget.data.repository.NwsObservationSource
 import com.weatherwidget.data.repository.ObservationRepository
+import com.weatherwidget.data.repository.PersonalStationWeightProvider
+import com.weatherwidget.data.repository.WidgetPersonalStationWeightProvider
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -192,16 +199,33 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideObservationRepository(
+    fun providePersonalStationWeightProvider(
+        provider: WidgetPersonalStationWeightProvider,
+    ): PersonalStationWeightProvider = provider
+
+    @Provides
+    @Singleton
+    fun provideNwsObservationSource(
         @ApplicationContext context: Context,
-        observationDao: ObservationDao,
-        dailyHistoryDao: DailyHistoryDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
-        hourlyForecastDao: HourlyForecastDao,
         synopticApi: SynopticApi,
+    ): NwsObservationSource = NwsObservationSource(context, nwsApi, appLogDao, synopticApi)
+
+    @Provides
+    @Singleton
+    fun provideObservationRepository(
+        observationDao: ObservationDao,
+        currentUpdater: NwsCurrentObservationUpdater,
+        backfiller: NwsObservationBackfiller,
+        dailyActualsStore: DailyActualsStore,
+        currentReader: CurrentObservationReader,
     ): ObservationRepository = ObservationRepository(
-        context, observationDao, dailyHistoryDao, appLogDao, nwsApi, hourlyForecastDao, synopticApi
+        observationDao,
+        currentUpdater,
+        backfiller,
+        dailyActualsStore,
+        currentReader,
     )
 
     @Provides

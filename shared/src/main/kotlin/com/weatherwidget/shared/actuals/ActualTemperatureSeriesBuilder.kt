@@ -228,12 +228,21 @@ object ActualTemperatureSeriesBuilder {
         // from SQL, where ties come back in whatever order the query plan chose — so the same rows
         // produced different observed curves run-to-run, alternating between two stable states and
         // blinking the graph's high/low labels on hours with no new data.
-        // (timestamp, stationId) is the observations primary key, so this order is fully determined.
+        // Android observation identity also includes the stored fetch site, so include its coordinates
+        // to keep same-station/same-timestamp rows deterministic if a same-site boundary fragment
+        // survives the read-path site collapse.
         // Sorting HERE keeps every caller deterministic — Android, desktop, and ActualsAggregator all
         // reach this function with their own queries. See ActualsRowOrderDeterminismTest.
         val filtered = observations
             .filter { !it.qcFailed && matchesObservationSource(it, displaySourceId) }
-            .sortedWith(compareBy({ it.timestamp }, { it.stationId }))
+            .sortedWith(
+                compareBy(
+                    { it.timestamp },
+                    { it.stationId },
+                    { it.locationLat },
+                    { it.locationLon },
+                ),
+            )
 
         if (filtered.isEmpty()) {
             return BlendObservationResult(

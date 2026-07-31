@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 56,
+    version = 57,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -232,6 +232,68 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Makes the observation fetch site part of row identity. A station can serve multiple widget
+         * locations at the same timestamp; the old (stationId, timestamp) key let the last location
+         * silently replace the earlier site's coordinates, distance, and fetched-at state.
+         */
+        val MIGRATION_56_57 = object : Migration(56, 57) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `observations_new` (
+                        `stationId` TEXT NOT NULL,
+                        `stationName` TEXT NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        `temperature` REAL NOT NULL,
+                        `condition` TEXT NOT NULL,
+                        `locationLat` REAL NOT NULL,
+                        `locationLon` REAL NOT NULL,
+                        `distanceKm` REAL NOT NULL,
+                        `stationType` TEXT NOT NULL,
+                        `fetchedAt` INTEGER NOT NULL,
+                        `maxTempLast24h` REAL,
+                        `minTempLast24h` REAL,
+                        `api` TEXT NOT NULL,
+                        `precipAmountMm` REAL,
+                        `isWebFallback` INTEGER NOT NULL,
+                        `qcFailed` INTEGER NOT NULL,
+                        PRIMARY KEY(`stationId`, `timestamp`, `locationLat`, `locationLon`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `observations_new` (
+                        `stationId`, `stationName`, `timestamp`, `temperature`, `condition`,
+                        `locationLat`, `locationLon`, `distanceKm`, `stationType`, `fetchedAt`,
+                        `maxTempLast24h`, `minTempLast24h`, `api`, `precipAmountMm`,
+                        `isWebFallback`, `qcFailed`
+                    )
+                    SELECT
+                        `stationId`, `stationName`, `timestamp`, `temperature`, `condition`,
+                        `locationLat`, `locationLon`, `distanceKm`, `stationType`, `fetchedAt`,
+                        `maxTempLast24h`, `minTempLast24h`, `api`, `precipAmountMm`,
+                        `isWebFallback`, `qcFailed`
+                    FROM `observations`
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE `observations`")
+                db.execSQL("ALTER TABLE `observations_new` RENAME TO `observations`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_observations_locationLat_locationLon` " +
+                        "ON `observations` (`locationLat`, `locationLon`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_observations_timestamp_locationLat_locationLon` " +
+                        "ON `observations` (`timestamp`, `locationLat`, `locationLon`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_observations_api` ON `observations` (`api`)",
+                )
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -294,7 +356,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

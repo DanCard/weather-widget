@@ -10,7 +10,7 @@ import androidx.room.Index
  */
 @Entity(
     tableName = "observations",
-    primaryKeys = ["stationId", "timestamp"],
+    primaryKeys = ["stationId", "timestamp", "locationLat", "locationLon"],
     indices = [
         Index(value = ["locationLat", "locationLon"]),
         Index(value = ["timestamp", "locationLat", "locationLon"]),
@@ -48,6 +48,26 @@ fun ObservationEntity.withQuantizedLocation(): ObservationEntity =
     copy(
         locationLat = LocationMatch.quantize(locationLat),
         locationLon = LocationMatch.quantize(locationLon),
+    )
+
+/**
+ * Collapses a coarse location-box query to the nearest stored observation site.
+ *
+ * Observation identity includes the fetch site, so rows for two nearby widget locations can now
+ * coexist instead of replacing each other. Every coordinate-scoped read must therefore select one
+ * physical site before blending or aggregating the rows.
+ */
+fun selectNearestObservationSite(
+    observations: List<ObservationEntity>,
+    latitude: Double,
+    longitude: Double,
+): List<ObservationEntity> =
+    LocationMatch.selectNearestSite(
+        observations,
+        latitude,
+        longitude,
+        ObservationEntity::locationLat,
+        ObservationEntity::locationLon,
     )
 
 fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationReading(

@@ -42,7 +42,7 @@ class WeatherRepositoryStationFallbackTest {
         val obs = TestData.observation(stationId = "KSFO", temperature = 62f)
         db.observationDao().insertAll(listOf(obs))
 
-        val result = db.observationDao().getLatestForStation("KSFO")
+        val result = db.observationDao().getLatestForStation("KSFO", TestData.LAT, TestData.LON)
         assertNotNull(result)
         assertEquals("KSFO", result!!.stationId)
     }
@@ -56,9 +56,9 @@ class WeatherRepositoryStationFallbackTest {
             TestData.observation(stationId = "KSJC", temperature = 65f, timestamp = ts),
         ))
 
-        val ksfo = db.observationDao().getLatestForStation("KSFO")
-        val koak = db.observationDao().getLatestForStation("KOAK")
-        val ksjc = db.observationDao().getLatestForStation("KSJC")
+        val ksfo = db.observationDao().getLatestForStation("KSFO", TestData.LAT, TestData.LON)
+        val koak = db.observationDao().getLatestForStation("KOAK", TestData.LAT, TestData.LON)
+        val ksjc = db.observationDao().getLatestForStation("KSJC", TestData.LAT, TestData.LON)
 
         assertEquals(62f, ksfo!!.temperature)
         assertEquals(58f, koak!!.temperature)

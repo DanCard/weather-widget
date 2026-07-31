@@ -25,14 +25,20 @@ class ObservationDaoTouchTest {
     private lateinit var db: WeatherDatabase
     private lateinit var dao: ObservationDao
 
-    private fun obs(stationId: String, timestamp: Long, fetchedAt: Long) = ObservationEntity(
+    private fun obs(
+        stationId: String,
+        timestamp: Long,
+        fetchedAt: Long,
+        lat: Double = 37.42,
+        lon: Double = -122.08,
+    ) = ObservationEntity(
         stationId = stationId,
         stationName = "$stationId name",
         timestamp = timestamp,
         temperature = 70f,
         condition = "Fair",
-        locationLat = 37.42,
-        locationLon = -122.08,
+        locationLat = lat,
+        locationLon = lon,
         fetchedAt = fetchedAt,
         api = "NWS",
     )
@@ -61,12 +67,12 @@ class ObservationDaoTouchTest {
             ),
         )
 
-        dao.touchLatestFetchedAt("KNUQ", nowMs = 9_000L)
+        dao.touchLatestFetchedAt("KNUQ", 37.42, -122.08, nowMs = 9_000L)
 
         val knuq = dao.getRecentObservations(0L).filter { it.stationId == "KNUQ" }.sortedBy { it.timestamp }
         assertEquals(1_500L, knuq[0].fetchedAt) // older row untouched
         assertEquals(9_000L, knuq[1].fetchedAt) // newest row records the attempt
-        assertEquals(3_500L, dao.getLatestForStation("KSJC")?.fetchedAt) // other station untouched
+        assertEquals(3_500L, dao.getLatestForStation("KSJC", 37.42, -122.08)?.fetchedAt) // other station untouched
     }
 
     @Test
@@ -79,7 +85,7 @@ class ObservationDaoTouchTest {
         dao.insertAll(listOf(obs("KPAO", timestamp = 2_000L, fetchedAt = 2_500L))) // newest reading, old attempt
         dao.insertAll(listOf(obs("KPAO", timestamp = 1_000L, fetchedAt = 9_000L))) // older reading, new attempt
 
-        dao.touchLatestFetchedAt("KPAO", nowMs = 9_000L)
+        dao.touchLatestFetchedAt("KPAO", 37.42, -122.08, nowMs = 9_000L)
 
         val kpao = dao.getRecentObservations(0L).filter { it.stationId == "KPAO" }.sortedBy { it.timestamp }
         assertEquals(9_000L, kpao[0].fetchedAt) // the older reading keeps its own attempt stamp
@@ -90,9 +96,47 @@ class ObservationDaoTouchTest {
     fun touch_unknownStationIsNoOp() = runTest {
         dao.insertAll(listOf(obs("KSJC", timestamp = 3_000L, fetchedAt = 3_500L)))
 
-        dao.touchLatestFetchedAt("KNUQ", nowMs = 9_000L)
+        dao.touchLatestFetchedAt("KNUQ", 37.42, -122.08, nowMs = 9_000L)
 
-        assertEquals(3_500L, dao.getLatestForStation("KSJC")?.fetchedAt)
+        assertEquals(3_500L, dao.getLatestForStation("KSJC", 37.42, -122.08)?.fetchedAt)
         assertEquals(1, dao.getRecentObservations(0L).size) // nothing inserted
+    }
+
+    @Test
+    fun sameStationTimestamp_isStoredAndTouchedIndependentlyPerSite() = runTest {
+        dao.insertAll(
+            listOf(
+                obs("KPAO", timestamp = 2_000L, fetchedAt = 2_500L, lat = 37.42, lon = -122.08),
+                obs("KPAO", timestamp = 2_000L, fetchedAt = 3_500L, lat = 38.58, lon = -121.49),
+            ),
+        )
+
+        dao.touchLatestFetchedAt("KPAO", 37.42, -122.08, nowMs = 9_000L)
+
+        val rows = dao.getRecentObservations(0L).filter { it.stationId == "KPAO" }
+        assertEquals(2, rows.size)
+        assertEquals(9_000L, rows.single { it.locationLat == 37.42 }.fetchedAt)
+        assertEquals(3_500L, rows.single { it.locationLat == 38.58 }.fetchedAt)
+    }
+
+    @Test
+    fun rangeQuery_returnsOnlyTheNearestPhysicalSite() = runTest {
+        dao.insertAll(
+            listOf(
+                obs("KPAO", timestamp = 2_000L, fetchedAt = 2_500L, lat = 37.420, lon = -122.080),
+                obs("KPAO", timestamp = 2_000L, fetchedAt = 3_500L, lat = 37.425, lon = -122.075),
+            ),
+        )
+
+        val currentSite = dao.getObservationsInRange(
+            startTs = 0L,
+            endTs = 3_000L,
+            lat = 37.420,
+            lon = -122.080,
+        )
+
+        assertEquals(1, currentSite.size)
+        assertEquals(37.420, currentSite.single().locationLat, 0.0)
+        assertEquals(-122.080, currentSite.single().locationLon, 0.0)
     }
 }

@@ -310,4 +310,38 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate56To57_preservesRowsAndAllowsSameStationTimestampAtTwoSites() {
+        helper.createDatabase(testDb, 56).apply {
+            execSQL(
+                "INSERT INTO observations (stationId, stationName, timestamp, temperature, " +
+                    "condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, " +
+                    "maxTempLast24h, minTempLast24h, api, precipAmountMm, isWebFallback, qcFailed) " +
+                    "VALUES ('KPAO', 'Palo Alto Airport', 1000, 70.0, 'Fair', 37.42, -122.08, 6.1, " +
+                    "'OFFICIAL', 2000, NULL, NULL, 'NWS', NULL, 0, 0)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 57, true, WeatherDatabase.MIGRATION_56_57)
+        db.execSQL(
+            "INSERT INTO observations (stationId, stationName, timestamp, temperature, " +
+                "condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, " +
+                "maxTempLast24h, minTempLast24h, api, precipAmountMm, isWebFallback, qcFailed) " +
+                "VALUES ('KPAO', 'Palo Alto Airport', 1000, 68.0, 'Fair', 38.58, -121.49, 15.0, " +
+                "'OFFICIAL', 3000, NULL, NULL, 'NWS', NULL, 0, 0)",
+        )
+
+        db.query("SELECT locationLat, fetchedAt FROM observations WHERE stationId = 'KPAO' ORDER BY locationLat").use { c ->
+            assertEquals(2, c.count)
+            assertTrue(c.moveToFirst())
+            assertEquals(37.42, c.getDouble(0), 0.0001)
+            assertEquals(2000L, c.getLong(1))
+            assertTrue(c.moveToNext())
+            assertEquals(38.58, c.getDouble(0), 0.0001)
+            assertEquals(3000L, c.getLong(1))
+        }
+        db.close()
+    }
 }
