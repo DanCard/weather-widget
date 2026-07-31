@@ -24,8 +24,42 @@ class DualHighLabelTest {
     @Test
     fun `difference below floor does not show both even with room`() {
         // Just under the floor but plenty of vertical room -> still suppressed by the floor.
-        val belowFloor = DualHighLabel.MIN_DIFF_DEG - 1f
+        // Expressed as a fraction of the constant (not `- 1f`) so the floor can be tuned without
+        // the "below" case silently going negative and asserting the opposite of its name.
+        val belowFloor = DualHighLabel.MIN_DIFF_DEG * 0.5f
         assertFalse(DualHighLabel.showBoth(72f, 72f - belowFloor, 0f, 100f, labelH))
+    }
+
+    @Test
+    fun `a one-degree miss on a real graph shows both - the room test is the gate, not the floor`() {
+        // Regression for the Samsung history report (2026-07-31): Mon showed only the actual high
+        // while Sun/Wed/Thu showed both, purely because its miss (75.9 actual vs 77.0 forecast =
+        // 1.08°) fell under the old 2° floor -- with obvious empty space above the label.
+        //
+        // Reproduces that column's real geometry rather than abstract Y values: the fold renders
+        // ~20px/° at density 3.03, and the planner feeds showBoth the baselines AFTER
+        // bottomOffsetsDp has moved the two labels apart (DailyHighLabelPlanner.resolveHighLabelPlan).
+        val pxPerDeg = 20f
+        val density = 3.03f
+        val fullLabelH = 60f // measured "75.9°" box on the device
+        val actualHigh = 75.9f
+        val forecastHigh = 77.0f
+
+        fun tempToY(t: Float) = -t * pxPerDeg // warmer temp -> smaller Y, as on both renderers
+        val offsets = DualHighLabel.bottomOffsetsDp(actualHigh, forecastHigh, normalGapDp = 8f)
+        val actualBaseline = tempToY(actualHigh) + offsets.actualDp * density
+        val forecastBaseline = tempToY(forecastHigh) + offsets.forecastDp * density
+        val twoLabelH = fullLabelH * DualHighLabel.TWO_LABEL_FONT_SCALE
+
+        assertTrue(
+            "a 1.08° miss with ~37px of label separation has room for both labels",
+            DualHighLabel.showBoth(actualHigh, forecastHigh, actualBaseline, forecastBaseline, twoLabelH),
+        )
+        // Falsifies the fix: this is the assertion that fails at the old 2° floor.
+        assertTrue(
+            "the floor must not pre-empt the room test at sub-2° misses",
+            DualHighLabel.MIN_DIFF_DEG <= kotlin.math.abs(actualHigh - forecastHigh),
+        )
     }
 
     @Test
@@ -108,6 +142,79 @@ class DualHighLabelTest {
         // Unreachable through showBoth (MIN_DIFF_DEG gates it), but the pure fn must stay total.
         val o = DualHighLabel.bottomOffsetsDp(80f, 80f, normalGapDp = gap)
         assertTrue(o.actualDp < o.forecastDp)
+    }
+
+    // ── extraUpperPushPx (on-demand raise for the upper label) ───────────
+
+    // The separation the push aims for, given labelH.
+    private val targetGap = labelH * DualHighLabel.DUAL_TARGET_SEPARATION_FRACTION
+
+    @Test
+    fun `a pair already at the target separation gets no extra push`() {
+        assertEquals(0f, DualHighLabel.extraUpperPushPx(targetGap, labelH, 100f), 0.001f)
+        assertEquals(0f, DualHighLabel.extraUpperPushPx(targetGap + 50f, labelH, 100f), 0.001f)
+    }
+
+    @Test
+    fun `extra push covers exactly the shortfall against the target separation`() {
+        val shortfall = 3f
+        assertEquals(shortfall, DualHighLabel.extraUpperPushPx(targetGap - shortfall, labelH, 100f), 0.001f)
+    }
+
+    @Test
+    fun `the push aims past the admission tolerance, not at it`() {
+        // The bug this encodes: aiming at MAX_OVERLAP_FRACTION parks the labels AT the maximum
+        // tolerated overlap, which prints digits on top of each other ("I don't like the overlap
+        // ... there is lots of room above"). Admission is a tolerance; placement is a target.
+        assertTrue(
+            "target separation must exceed the admission threshold",
+            DualHighLabel.DUAL_TARGET_SEPARATION_FRACTION > (1f - DualHighLabel.MAX_OVERLAP_FRACTION),
+        )
+        // Cap height is ~0.61 of a measured box for the default font; clearing the visible digits
+        // is the whole point of the target, so it must sit above that with air to spare.
+        assertTrue(
+            "target separation must clear the visible digits",
+            DualHighLabel.DUAL_TARGET_SEPARATION_FRACTION > 0.61f,
+        )
+    }
+
+    @Test
+    fun `extra push is capped, and a pair still too tight stays rejected`() {
+        val cap = 2f
+        assertEquals(cap, DualHighLabel.extraUpperPushPx(0f, labelH, cap), 0.001f)
+        // Capped push isn't enough here, so showBoth must still say no -- the cap is not a bypass.
+        assertFalse(DualHighLabel.showBoth(80f, 72f, 0f, 0f + cap, labelH))
+    }
+
+    @Test
+    fun `pushing the upper label clears a borderline pair instead of dropping or overlapping it`() {
+        // The device case (2026-07-31 Samsung history, Mon): actual 75.9 / forecast 77.0 at
+        // 7.75px per degree in bitmap space landed 13.53px apart against a 13.84px admission
+        // threshold -- rejected by 0.31px, with empty space directly above the upper (forecast)
+        // label. Aiming only at that threshold would have printed them overlapping instead.
+        val pxPerDeg = 7.75f
+        val deviceLabelH = 34.59f
+        val fixedNudgePx = 5.16f // bottomOffsetsDp's -5dp vs -10dp, at this device's density
+        val gapBefore = 1.08f * pxPerDeg + fixedNudgePx
+
+        assertFalse(
+            "precondition: the pre-push positions really are short of the admission test",
+            DualHighLabel.showBoth(75.9f, 77.0f, 0f, gapBefore, deviceLabelH),
+        )
+        val push = DualHighLabel.extraUpperPushPx(
+            gapBefore,
+            deviceLabelH,
+            maxExtraPushPx = deviceLabelH * DualHighLabel.DUAL_UPPER_MAX_EXTRA_PUSH_FRACTION,
+        )
+        val gapAfter = gapBefore + push
+        assertTrue(
+            "after the push the pair is admitted",
+            DualHighLabel.showBoth(75.9f, 77.0f, 0f, gapAfter, deviceLabelH),
+        )
+        assertTrue(
+            "and the digits actually clear each other (cap height ~0.61 of the box)",
+            gapAfter >= deviceLabelH * 0.61f,
+        )
     }
 
     // ── forecastFontScale (collision-gated shrink) ───────────────────────

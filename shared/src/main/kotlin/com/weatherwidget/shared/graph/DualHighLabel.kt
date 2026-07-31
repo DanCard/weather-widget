@@ -29,10 +29,17 @@ import kotlin.math.abs
 object DualHighLabel {
     /**
      * Minimum actual-vs-forecast high difference (°) before a second label is ever shown.
-     * Deliberately low so the room test below is the real gate — a meaningless ~1° difference
-     * never shows two labels, but anything genuinely off does (when there's room).
+     * Deliberately low so the room test below is the real gate — the floor only exists to refuse
+     * two numbers that would print as effectively the same value.
+     *
+     * Was 2f, which silently WAS the gate on a normally-sized graph and hid genuine misses: at
+     * ~20px/° (Samsung fold, density 3.03) a 1.1° miss clears the room test with ~50% margin, so
+     * days like "actual 75.9° / forecast 77.0°" dropped their forecast label with obvious empty
+     * space above it. 0.5f is the smallest gap that still shows as two distinct numbers at the
+     * one-decimal display precision; below that the room test refuses them anyway (a sub-0.5°
+     * miss is only ~10px of natural separation).
      */
-    const val MIN_DIFF_DEG = 2f
+    const val MIN_DIFF_DEG = 0.5f
 
     /** Fraction of a label height the two boxes may overlap and still count as "enough room". */
     const val MAX_OVERLAP_FRACTION = 0.6f
@@ -104,8 +111,59 @@ object DualHighLabel {
      * How much further UP (dp) the higher-valued of the two high labels goes, beyond its normal gap.
      * Deliberately much smaller than the lower label's move: up is the expensive direction (the rain
      * % and the day header live there) and past attempts at a bigger raise read as exaggerated.
+     *
+     * This is the *baseline* push, always applied. [extraUpperPushPx] adds to it on demand.
      */
     const val DUAL_UPPER_PUSH_UP_DP = 2f
+
+    /**
+     * Separation [extraUpperPushPx] AIMS for, as a fraction of a label box height — distinct from
+     * [MAX_OVERLAP_FRACTION], which only decides whether the pair is worth drawing at all.
+     *
+     * Placement and admission are deliberately different numbers. [MAX_OVERLAP_FRACTION] is a
+     * tolerance: it says a squeezed pair still beats dropping a label. Sitting AT that tolerance is
+     * not a target — a measured box is only ~0.6 visible digits tall (cap height ≈ 0.61 × box for
+     * the default font), so a 0.4-of-a-box gap prints digits that genuinely overlap. That was the
+     * "I don't like the overlap on Mon and Tue, there is lots of room above" report.
+     *
+     * 0.85 clears the digits (0.61) with ~0.24 of a box of air, while keeping the raised label near
+     * enough to its own bar to still read as that bar's number.
+     */
+    const val DUAL_TARGET_SEPARATION_FRACTION = 0.85f
+
+    /**
+     * Ceiling on the on-demand extra raise, as a fraction of a label height. Expressed relative to
+     * the label rather than in dp because what the raise has to clear IS a label; a dp constant
+     * would over- or under-shoot as the graph's font scales with widget size.
+     *
+     * A caller with a hard ceiling of its own (the top of the bitmap, a header) should pass the
+     * smaller of the two — the raise is worth skipping before it clips the label.
+     */
+    const val DUAL_UPPER_MAX_EXTRA_PUSH_FRACTION = 1f
+
+    /**
+     * Extra upward push (px) for the HIGHER-valued of the two labels, beyond the fixed
+     * [DUAL_UPPER_PUSH_UP_DP] already in [bottomOffsetsDp]: whatever it takes to reach
+     * [DUAL_TARGET_SEPARATION_FRACTION], capped at [maxExtraPushPx], and 0 when the pair is already
+     * that far apart.
+     *
+     * Why this exists: the natural gap between the two labels IS the forecast miss, so a small miss
+     * leaves them nearly on top of each other however the fixed nudges are tuned. The first symptom
+     * was a dropped label (the "Mon shows no forecast high" report — short of the admission test by
+     * 0.31px of 13.84); the second was two labels printed on top of each other. Both are the same
+     * bug: the space directly ABOVE the upper label was sitting empty. Spending it fixes both.
+     *
+     * Only the upper label moves, so the pair separates and can never cross —
+     * [bottomOffsetsDp]'s ordering property is preserved.
+     *
+     * @param currentGapPx distance between the two labels' edges with [bottomOffsetsDp] applied
+     *   (same edge for both — Android passes baselines, desktop passes tops)
+     * @param labelHeightPx height of a high label at the size it will be drawn
+     */
+    fun extraUpperPushPx(currentGapPx: Float, labelHeightPx: Float, maxExtraPushPx: Float): Float {
+        val shortfall = labelHeightPx * DUAL_TARGET_SEPARATION_FRACTION - currentGapPx
+        return shortfall.coerceIn(0f, maxExtraPushPx)
+    }
 
     /** True when a formatted temp has 3+ numeric digits (triple-digit ints or decimals like 84.3). */
     fun isWideLabel(label: String): Boolean = label.count { it.isDigit() } >= 3

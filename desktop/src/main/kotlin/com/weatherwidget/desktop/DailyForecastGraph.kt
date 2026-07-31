@@ -287,14 +287,23 @@ fun DailyForecastGraph(
             // size (DualHighLabel.forecastFontScale), decided inside the room-test block below.
             val dualBase = 12f * scale * DualHighLabel.TWO_LABEL_FONT_SCALE
             var dualForecastScale = 1f
+            // Extra raise for the higher-valued label when the pair falls just short of the room
+            // test, decided in the room-test block and reused verbatim by the draw below so both
+            // measure the same positions. See DualHighLabel.extraUpperPushPx.
+            var dualExtraPush = 0f
             // The two labels are only |miss| * pixelsPerDegree apart at their natural positions, so
             // they collide on any small miss. Move each away from the other: the lower-valued one
             // down onto its own bar, the higher-valued one a little further up (DualHighLabel).
             val dualOffsets = if (dualActualHigh != null && dualForecastHigh != null)
                 DualHighLabel.bottomOffsetsDp(dualActualHigh, dualForecastHigh, normalGapDp = DUAL_NORMAL_GAP)
             else null
-            fun dualTop(temp: Float, height: Float, offsetDp: Float): Float =
-                (yAt(temp) + offsetDp * scale - height).coerceAtLeast(-headerBleed)
+            // pushPx raises the label further (Y grows downward); the header clamp still wins, so a
+            // push that would run off the top is simply absorbed and the room test sees that.
+            fun dualTop(temp: Float, height: Float, offsetDp: Float, pushPx: Float = 0f): Float =
+                (yAt(temp) + offsetDp * scale - height - pushPx).coerceAtLeast(-headerBleed)
+            // Only the higher-valued label is raised, so the pair can never cross.
+            val dualActualIsUpper = dualActualHigh != null && dualForecastHigh != null &&
+                dualActualHigh >= dualForecastHigh
             val showDualHighs = if (dualActualHigh != null && dualForecastHigh != null && dualOffsets != null) {
                 val aText = formatTemp(dualActualHigh)
                 val fText = formatTemp(dualForecastHigh)
@@ -308,20 +317,43 @@ fun DailyForecastGraph(
                 val fH = if (dualForecastScale == 1f) fHFull else
                     textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBase * dualForecastScale).sp)).size.height.toFloat()
                 val fTop = dualTop(dualForecastHigh, fH, dualOffsets.forecastDp)
-                DualHighLabel.showBoth(dualActualHigh, dualForecastHigh, aTop, fTop, maxOf(aH, fH))
+                // A small miss leaves the pair nearly on top of each other no matter how the fixed
+                // nudges are tuned; spend the empty space above the upper label rather than
+                // dropping a label or printing the two numbers over each other. dualTop's
+                // -headerBleed clamp is the hard ceiling, so no separate headroom cap is needed.
+                dualExtraPush = DualHighLabel.extraUpperPushPx(
+                    currentGapPx = kotlin.math.abs(aTop - fTop),
+                    labelHeightPx = maxOf(aH, fH),
+                    maxExtraPushPx = maxOf(aH, fH) * DualHighLabel.DUAL_UPPER_MAX_EXTRA_PUSH_FRACTION,
+                )
+                val aTopPushed = if (dualActualIsUpper) dualTop(dualActualHigh, aH, dualOffsets.actualDp, dualExtraPush) else aTop
+                val fTopPushed = if (dualActualIsUpper) fTop else dualTop(dualForecastHigh, fH, dualOffsets.forecastDp, dualExtraPush)
+                DualHighLabel.showBoth(dualActualHigh, dualForecastHigh, aTopPushed, fTopPushed, maxOf(aH, fH))
             } else false
 
             if (showDualHighs && dualActualHigh != null && dualForecastHigh != null && dualOffsets != null) {
                 val aText = formatTemp(dualActualHigh)
                 val aSize = tempFontSize(aText, dualBase)
                 val aLayout = textMeasurer.measure(aText, TextStyle(fontSize = aSize.sp, color = COLOR_OBSERVED))
-                val aY = dualTop(dualActualHigh, aLayout.size.height.toFloat(), dualOffsets.actualDp)
+                // Same pushed positions the room test measured (dualExtraPush applies to the
+                // higher-valued label only).
+                val aY = dualTop(
+                    dualActualHigh,
+                    aLayout.size.height.toFloat(),
+                    dualOffsets.actualDp,
+                    if (dualActualIsUpper) dualExtraPush else 0f,
+                )
                 drawOutlinedText(textMeasurer, aLayout, Offset(centerX - aLayout.size.width / 2f, aY))
 
                 val fText = formatTemp(dualForecastHigh)
                 val fSize = tempFontSize(fText, dualBase * dualForecastScale)
                 val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
-                val fY = dualTop(dualForecastHigh, fLayout.size.height.toFloat(), dualOffsets.forecastDp)
+                val fY = dualTop(
+                    dualForecastHigh,
+                    fLayout.size.height.toFloat(),
+                    dualOffsets.forecastDp,
+                    if (dualActualIsUpper) 0f else dualExtraPush,
+                )
                 val fLabelX = if (day.isToday) centerX else centerX + tripleOffset
                 drawOutlinedText(textMeasurer, fLayout, Offset(fLabelX - fLayout.size.width / 2f, fY))
                 // Rain % anchors above the TOPMOST of the two high labels (warmer temp = higher on

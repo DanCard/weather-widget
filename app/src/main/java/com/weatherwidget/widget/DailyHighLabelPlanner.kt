@@ -1,6 +1,8 @@
 package com.weatherwidget.widget
 
+import android.util.Log
 import com.weatherwidget.shared.graph.DualHighLabel
+import kotlin.math.abs
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DayData
 import com.weatherwidget.widget.DailyGraphLayoutInfo
 import com.weatherwidget.widget.DailyGraphPaintSet
@@ -23,6 +25,8 @@ internal fun DailyForecastGraphRenderer.DayData.effectiveHigh(): Float? =
     )
 
 internal object DailyHighLabelPlanner {
+
+    private const val TAG = "DailyHighLabel"
 
     /** Gap in dp between a high-temp label and the top of its bar / the upper sibling in a dual. */
     internal const val HIGH_LABEL_OFFSET_DP = 8f
@@ -100,33 +104,84 @@ internal object DailyHighLabelPlanner {
         val forecastBaseline = forecastHigh?.let { high ->
             offsets?.let { layout.tempToY(high) + offsetPx(it.forecastDp) }
         }
-        // Label height for the room test; fontMetrics is null under stubbed-Paint unit tests, so fall
-        // back to textSize there. Only needed when a forecast label is in play. This is the FULL
-        // (unshrunk) dual-label size — both the room test and the collision test below measure the
-        // labels at the size they'd draw before any collision shrink.
-        val twoLabelHeight = (basePaint.fontMetrics?.let { it.descent - it.ascent } ?: basePaint.textSize) *
-            DualHighLabel.TWO_LABEL_FONT_SCALE
-        val showBoth = forecastHigh != null && forecastBaseline != null &&
-            DualHighLabel.showBoth(actualHigh, forecastHigh, nudgedActualBaseline, forecastBaseline, twoLabelHeight)
+        // Label height for the room test, measured at the size each label is actually DRAWN — the
+        // two can differ (a wide "75.9°" takes WIDE_LABEL_FONT_SCALE, a plain "77°" does not, and
+        // either may be fit-shrunk to the column), and drawScale folds all of that in. The taller
+        // of the two boxes governs, matching the desktop renderer's maxOf(aH, fH).
+        // See [[label_redundancy_measured_where_drawn]]: measure where the label lands.
+        // fontMetrics is null under stubbed-Paint unit tests, so fall back to textSize there.
+        val fullFontHeight = basePaint.fontMetrics?.let { it.descent - it.ascent } ?: basePaint.textSize
+        fun drawnScale(high: Float) = DailyTemperatureLabelRenderer.drawScale(
+            base = basePaint,
+            text = DailyTemperatureLabelRenderer.format(high, useCelsius = layout.useCelsius),
+            // The FULL (unshrunk) dual size: DUAL_FORECAST_FONT_SCALE is decided below, from this.
+            extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE,
+            maxWidthPx = layout.tempLabelMaxWidthPx,
+        )
+        val twoLabelHeight = fullFontHeight *
+            maxOf(drawnScale(actualHigh), forecastHigh?.let { drawnScale(it) } ?: 0f)
+        // A small miss leaves the pair nearly on top of each other however the fixed nudges are
+        // tuned — the gap IS the miss. Spend the empty space directly above the upper label to
+        // reach a clean separation, instead of dropping the forecast label or printing the two
+        // numbers over each other. Only the upper label moves, so they can never cross.
+        val extraUpperPush = if (forecastHigh != null && forecastBaseline != null) {
+            val upperBaseline = minOf(nudgedActualBaseline, forecastBaseline)
+            DualHighLabel.extraUpperPushPx(
+                currentGapPx = abs(nudgedActualBaseline - forecastBaseline),
+                labelHeightPx = twoLabelHeight,
+                // Never raise the upper label off the top of the bitmap: its top edge is roughly a
+                // label height above its baseline, so that much headroom is the real ceiling.
+                maxExtraPushPx = minOf(
+                    twoLabelHeight * DualHighLabel.DUAL_UPPER_MAX_EXTRA_PUSH_FRACTION,
+                    (upperBaseline - twoLabelHeight).coerceAtLeast(0f),
+                ),
+            )
+        } else {
+            0f
+        }
+        // Y grows downward, so raising the upper label means subtracting.
+        val actualIsUpper = forecastHigh != null && actualHigh >= forecastHigh
+        val pushedActualBaseline = if (actualIsUpper) nudgedActualBaseline - extraUpperPush else nudgedActualBaseline
+        val pushedForecastBaseline = forecastBaseline?.let { if (actualIsUpper) it else it - extraUpperPush }
+        val showBoth = forecastHigh != null && pushedForecastBaseline != null &&
+            DualHighLabel.showBoth(actualHigh, forecastHigh, pushedActualBaseline, pushedForecastBaseline, twoLabelHeight)
+        if (forecastHigh != null && pushedForecastBaseline != null) {
+            // Permanent VERBOSE breadcrumb — the dual-high decision had no logging at all, so every
+            // "why is there no forecast label" report cost a screenshot-measuring session. Log.v is
+            // never persisted to app_logs, so this stays off the widget's log budget.
+            Log.v(
+                TAG,
+                "dualHigh date=${day.date} actual=$actualHigh forecast=$forecastHigh " +
+                    "gap=${abs(pushedActualBaseline - pushedForecastBaseline)} " +
+                    "(prePush=${abs(nudgedActualBaseline - (forecastBaseline ?: 0f))} push=$extraUpperPush) " +
+                    "labelH=$twoLabelHeight (full=$fullFontHeight) " +
+                    "needGap=${twoLabelHeight * (1f - DualHighLabel.MAX_OVERLAP_FRACTION)} showBoth=$showBoth",
+            )
+        }
         // Shrink the forecast label only when it sits BELOW the actual and the two boxes would
-        // collide at full size; a well-separated (or upper) forecast keeps the normal dual-label
-        // font. Baselines are the labels' bottom edges (digits have no descenders) and don't move
-        // with font size (bottom-pinned), so the full-size test needs no re-measure.
-        val forecastFontScale = if (showBoth && forecastBaseline != null)
-            DualHighLabel.forecastFontScale(nudgedActualBaseline, forecastBaseline, twoLabelHeight)
+        // collide before that shrink; a well-separated (or upper) forecast keeps the normal
+        // dual-label font. Baselines are the labels' bottom edges (digits have no descenders) and
+        // don't move with font size (bottom-pinned), so no re-measure is needed here.
+        val forecastFontScale = if (showBoth && pushedForecastBaseline != null)
+            DualHighLabel.forecastFontScale(pushedActualBaseline, pushedForecastBaseline, twoLabelHeight)
         else 1f
-        // The nudge only applies when two labels actually render; a lone high label keeps its true
-        // above-the-bar position.
-        val actualBaseline = if (showBoth) nudgedActualBaseline else effectiveBaseline
+        // The nudge (and the extra push) only apply when two labels actually render; a lone high
+        // label keeps its true above-the-bar position.
+        val actualBaseline = if (showBoth) pushedActualBaseline else effectiveBaseline
+        val forecastLabelBaseline = if (showBoth) pushedForecastBaseline else forecastBaseline
         val anchorHigh = if (showBoth && forecastHigh != null) maxOf(actualHigh, forecastHigh) else effective
-        val anchorBaseline = if (showBoth && forecastBaseline != null) minOf(actualBaseline, forecastBaseline) else actualBaseline
+        val anchorBaseline = if (showBoth && forecastLabelBaseline != null) {
+            minOf(actualBaseline, forecastLabelBaseline)
+        } else {
+            actualBaseline
+        }
         return HighLabelPlan(
             showBoth = showBoth,
             todayHighSettled = todayHighSettled,
             actualHigh = actualHigh,
             forecastHigh = forecastHigh,
             actualBaseline = actualBaseline,
-            forecastBaseline = forecastBaseline,
+            forecastBaseline = forecastLabelBaseline,
             forecastFontScale = forecastFontScale,
             anchorHigh = anchorHigh,
             anchorBaseline = anchorBaseline,
