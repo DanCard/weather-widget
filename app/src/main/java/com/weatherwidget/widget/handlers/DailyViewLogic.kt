@@ -4,6 +4,7 @@ import android.util.Log
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.RainAnalyzer
@@ -29,6 +30,35 @@ import kotlin.math.roundToInt
  */
 object DailyViewLogic {
     private const val TAG = "DailyViewLogic"
+
+    /**
+     * Today's freshest batch is often high-only (the NWS evening drop: once the daytime period has
+     * passed, the grid returns a low-less period). [incomplete] is that row; this finds the most
+     * recent COMPLETE row to stand in for it.
+     *
+     * Candidates must be the same physical site as [incomplete], not merely the same source. The
+     * snapshot pool is built by the deliberately uncollapsed `getAllForecastsInRange*` queries (see
+     * `ForecastDao.collapseSites`), so it spans the whole ~7 mi [LocationMatch] proximity box — and
+     * on a day the device moved, a forecast fetched at a town the user passed through is the newest
+     * complete row and would win `maxByOrNull(fetchedAt)`. Observed on-device: Samsung rendered
+     * today's high as 84° (a 37.377/-122.075 batch fetched at 14:34) over the widget site's own 81°,
+     * disagreeing with its own hourly graph and with every other device.
+     */
+    private fun completeSameSiteReplacement(
+        incomplete: ForecastEntity,
+        snapshots: List<ForecastEntity>,
+    ): ForecastEntity? =
+        snapshots.filter {
+            it.source == incomplete.source &&
+                it.highTemp != null &&
+                it.lowTemp != null &&
+                LocationMatch.sameSite(
+                    incomplete.locationLat,
+                    incomplete.locationLon,
+                    it.locationLat,
+                    it.locationLon,
+                )
+        }.maxByOrNull { it.fetchedAt }
 
     private fun isTerminalLowOnlyNwsFutureDay(
         weather: ForecastEntity?,
@@ -165,10 +195,9 @@ object DailyViewLogic {
             val isToday = date == today
             if (isToday && weather != null && (weather.highTemp == null || weather.lowTemp == null)) {
                 // Latest batch for Today is incomplete (likely NWS evening drop).
-                // Search snapshots for the most recent complete forecast from the same source.
-                val completeSnapshot = (forecastSnapshots?.get(date) ?: emptyList()).filter {
-                    it.source == weather.source && it.highTemp != null && it.lowTemp != null
-                }.maxByOrNull { it.fetchedAt }
+                // Search snapshots for the most recent complete forecast from the same source AND site.
+                val completeSnapshot =
+                    completeSameSiteReplacement(weather, forecastSnapshots?.get(date) ?: emptyList())
                 if (completeSnapshot != null) {
                     Log.d(TAG, "prepareTextDays: today weather incomplete (high=${weather.highTemp} low=${weather.lowTemp}), using complete snapshot from ${Instant.ofEpochMilli(completeSnapshot.fetchedAt)}")
                     weather = completeSnapshot
@@ -378,10 +407,9 @@ object DailyViewLogic {
                 ?: forecastSnapshots[date]?.firstOrNull { allowGapFallback || it.source != WeatherSource.GENERIC_GAP.id }
             if (isToday && weather != null && (weather.highTemp == null || weather.lowTemp == null)) {
                 // Latest batch for Today is incomplete (likely NWS evening drop).
-                // Search snapshots for the most recent complete forecast from the same source.
-                val completeSnapshot = forecastSnapshots[date]?.filter {
-                    it.source == weather.source && it.highTemp != null && it.lowTemp != null
-                }?.maxByOrNull { it.fetchedAt }
+                // Search snapshots for the most recent complete forecast from the same source AND site.
+                val completeSnapshot =
+                    completeSameSiteReplacement(weather, forecastSnapshots[date] ?: emptyList())
                 if (completeSnapshot != null) {
                     Log.d(TAG, "prepareGraphDays: today weather incomplete (high=${weather.highTemp} low=${weather.lowTemp}), using complete snapshot from ${Instant.ofEpochMilli(completeSnapshot.fetchedAt)}")
                     weather = completeSnapshot

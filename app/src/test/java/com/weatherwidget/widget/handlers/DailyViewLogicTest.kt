@@ -1493,6 +1493,77 @@ class DailyViewLogicTest {
     }
 
     @Test
+    fun `prepareGraphDays today ignores complete snapshot from a different site`() {
+        val now = LocalDateTime.of(2030, 6, 15, 20, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        // The widget's own site: freshest batch is high-only (NWS evening drop), so the
+        // incomplete-today repair fires.
+        val widgetSite = createWeather(todayStr, highTemp = 81f, lowTemp = null, source = WeatherSource.NWS.id)
+        val weatherByDate = mapOf(today to widgetSite)
+
+        // The snapshot pool is uncollapsed, so it also holds a batch fetched at a town the device
+        // passed through earlier today (~2.7 mi away) — newer, complete, and from the same source.
+        val otherTownSnapshot = createWeather(todayStr, highTemp = 84f, lowTemp = 57f, source = WeatherSource.NWS.id)
+            .copy(locationLat = 37.735, locationLon = -122.404, fetchedAt = 200L)
+        val sameSiteSnapshot = createWeather(todayStr, highTemp = 81f, lowTemp = 57f, source = WeatherSource.NWS.id)
+            .copy(fetchedAt = 100L)
+
+        val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = mapOf(today to listOf(otherTownSnapshot, sameSiteSnapshot)),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList()
+        )
+
+        val todayDay = result.first { it.date == today }
+        assertEquals(
+            "Today's forecast high must come from the widget's own site, not the newer off-site batch",
+            81f,
+            todayDay.dashedLineHigh,
+        )
+        assertEquals("Repair should still supply the missing low from the same site", 57f, todayDay.dashedLineLow)
+    }
+
+    @Test
+    fun `prepareTextDays today ignores complete snapshot from a different site`() {
+        val now = LocalDateTime.of(2030, 6, 15, 20, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val weatherByDate = mapOf(
+            today to createWeather(todayStr, highTemp = 81f, lowTemp = null, source = WeatherSource.NWS.id)
+        )
+        val otherTownSnapshot = createWeather(todayStr, highTemp = 84f, lowTemp = 57f, source = WeatherSource.NWS.id)
+            .copy(locationLat = 37.735, locationLon = -122.404, fetchedAt = 200L)
+        val sameSiteSnapshot = createWeather(todayStr, highTemp = 81f, lowTemp = 57f, source = WeatherSource.NWS.id)
+            .copy(fetchedAt = 100L)
+
+        val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = mapOf(today to listOf(otherTownSnapshot, sameSiteSnapshot)),
+            hourlyForecasts = emptyList(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS
+        )
+
+        val todayDay = result.first { it.date == today }
+        assertEquals("Today text high must not come from the off-site batch", "81°", todayDay.highLabel)
+    }
+
+    @Test
     fun `prepareTextDays today uses complete snapshot when latest batch is missing high or low`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
