@@ -1,0 +1,1 @@
+Open beta release: Refactored observation repository coordination into location-safe collaborators with Room composite identity, and fixed cross-site incomplete forecast snapshot repairs to strictly match physical site location.

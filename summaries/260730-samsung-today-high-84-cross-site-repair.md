@@ -85,7 +85,20 @@ Desktop has no equivalent repair, which is why it was already correct. No deskto
 - Pre-existing evening-drop tests (`DailyViewLogicTest`, `DailyViewHandlerTodayDropIntegrationTest`)
   unaffected — their fixtures use a single site, so `sameSite` is satisfied.
 
-Not yet installed to devices.
+**Live on-device, installed 22:49, against unchanged poisoned data.** The preconditions were still
+present at verification time — the widget site's newest batch was still `81/NULL` and the off-site
+`84/57` was still the newest complete NWS row in the box — so the repair ran with every opportunity
+to pick the wrong row and did not:
+
+| Surface | `fHigh` before | `fHigh` after |
+|---|---|---|
+| Samsung SM-F936U1 `RFCT71FR9NT` | 84 (flapping) | **81** |
+| Pixel 7 Pro `2A191FDH300PPW` | 81 | 81 (unchanged) |
+| Emulator `emulator-5554` | 81 | 81 (unchanged) |
+
+The confirming Samsung render came through `origin=PROVIDER_ON_UPDATE` / `token=startup-279046122`
+— the exact path that produced 84. `RESIZE` and `ACTION_REFRESH` agree at 81, so the flapping is
+gone rather than merely landing on the correct side. Screenshot confirms Today renders `81°`.
 
 ## Watch for
 
