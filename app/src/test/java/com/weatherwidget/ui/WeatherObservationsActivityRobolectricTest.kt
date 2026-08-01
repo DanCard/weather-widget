@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Looper
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
@@ -166,6 +167,52 @@ class WeatherObservationsActivityRobolectricTest {
             assertTrue(logs.contains("source reason=charging_loop source=NWS success=true temp=70.0"))
             assertTrue(logs.contains("start reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API"))
             assertTrue(logs.contains("done reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API updated=3"))
+        }
+    }
+
+    @Test
+    fun `observations and fetch logs use separate tabs`() {
+        launchActivity().onActivity { activity ->
+            val observationsTab = activity.findViewById<TextView>(R.id.observations_tab)
+            val fetchLogsTab = activity.findViewById<TextView>(R.id.fetch_logs_tab)
+            val observationsContent = activity.findViewById<View>(R.id.observations_content)
+            val fetchLogsContent = activity.findViewById<View>(R.id.fetch_logs_content)
+
+            assertTrue(observationsTab.isSelected)
+            assertFalse(fetchLogsTab.isSelected)
+            assertEquals(View.VISIBLE, observationsContent.visibility)
+            assertEquals(View.GONE, fetchLogsContent.visibility)
+
+            fetchLogsTab.performClick()
+
+            assertFalse(observationsTab.isSelected)
+            assertTrue(fetchLogsTab.isSelected)
+            assertEquals(View.GONE, observationsContent.visibility)
+            assertEquals(View.VISIBLE, fetchLogsContent.visibility)
+
+            observationsTab.performClick()
+
+            assertTrue(observationsTab.isSelected)
+            assertFalse(fetchLogsTab.isSelected)
+            assertEquals(View.VISIBLE, observationsContent.visibility)
+            assertEquals(View.GONE, fetchLogsContent.visibility)
+        }
+    }
+
+    @Test
+    fun `selected fetch logs tab survives activity recreation`() {
+        val scenario = launchActivity()
+        scenario.onActivity { activity ->
+            activity.findViewById<TextView>(R.id.fetch_logs_tab).performClick()
+        }
+
+        scenario.recreate()
+
+        scenario.onActivity { activity ->
+            assertFalse(activity.findViewById<TextView>(R.id.observations_tab).isSelected)
+            assertTrue(activity.findViewById<TextView>(R.id.fetch_logs_tab).isSelected)
+            assertEquals(View.GONE, activity.findViewById<View>(R.id.observations_content).visibility)
+            assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.fetch_logs_content).visibility)
         }
     }
 

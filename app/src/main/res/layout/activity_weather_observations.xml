@@ -77,61 +77,128 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="48dp"
+        android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/subtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/obs_subtitle_nearby_stations"
-            android:textColor="#AAAAAA"
-            android:textSize="14sp"
-            android:layout_marginBottom="8dp" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/observations_list"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            <TextView
+                android:id="@+id/observations_tab"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="@string/current_observations_title"
+                android:textColor="#4FC3F7"
+                android:textSize="16sp" />
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#222226"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="8dp" />
+            <View
+                android:id="@+id/observations_tab_indicator"
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:background="#4FC3F7" />
+        </LinearLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/fetch_logs"
-            android:textColor="#888888"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/fetch_logs"
-            android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:background="#0A0A0A"
-            android:padding="8dp"
-            android:textColor="#00FF00"
-            android:textSize="10sp"
-            android:fontFamily="monospace"
-            android:text="@string/loading_logs"
-            android:scrollbars="vertical" />
+            <TextView
+                android:id="@+id/fetch_logs_tab"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="@string/fetch_logs"
+                android:textColor="#AAAAAA"
+                android:textSize="16sp" />
 
-        <Button
-            android:id="@+id/close_button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/close"
-            android:layout_marginTop="16dp"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF" />
-
+            <View
+                android:id="@+id/fetch_logs_tab_indicator"
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:background="#4FC3F7"
+                android:visibility="invisible" />
+        </LinearLayout>
     </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#222226" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="16dp">
+
+        <LinearLayout
+            android:id="@+id/observations_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="@string/obs_subtitle_nearby_stations"
+                android:textColor="#AAAAAA"
+                android:textSize="14sp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/observations_list"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/fetch_logs_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/fetch_logs"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#0A0A0A"
+                android:fontFamily="monospace"
+                android:padding="8dp"
+                android:scrollbars="vertical"
+                android:text="@string/loading_logs"
+                android:textColor="#00FF00"
+                android:textSize="10sp" />
+        </FrameLayout>
+    </FrameLayout>
+
+    <Button
+        android:id="@+id/close_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="#333333"
+        android:text="@string/close"
+        android:textColor="#FFFFFF" />
+
 </LinearLayout>

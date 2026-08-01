@@ -81,6 +81,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private var activeLocation: Pair<Double, Double>? = null
     private var loadObservationsJob: Job? = null
     private var loadFetchLogsJob: Job? = null
+    private var selectedTab: Int = TAB_OBSERVATIONS
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,9 +117,17 @@ class WeatherObservationsActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.title).setOnClickListener { finish() }
         findViewById<Button>(R.id.close_button).setOnClickListener { finish() }
 
-        // The fetch-logs panel is a fixed-height TextView with android:scrollbars="vertical".
-        // That attribute only draws the scrollbar track; a movement method is what actually
-        // lets the user drag-scroll through clipped log lines.
+        selectedTab = savedInstanceState?.getInt(STATE_SELECTED_TAB, TAB_OBSERVATIONS) ?: TAB_OBSERVATIONS
+        findViewById<View>(R.id.observations_tab).setOnClickListener {
+            showTab(TAB_OBSERVATIONS)
+        }
+        findViewById<View>(R.id.fetch_logs_tab).setOnClickListener {
+            showTab(TAB_FETCH_LOGS)
+        }
+        showTab(selectedTab)
+
+        // android:scrollbars only draws the scrollbar track; the movement method is what lets the
+        // user drag-scroll through the full-height Fetch Logs tab.
         findViewById<TextView>(R.id.fetch_logs).movementMethod = ScrollingMovementMethod.getInstance()
 
         findViewById<TextView>(R.id.api_source_button).setOnClickListener {
@@ -136,6 +145,42 @@ class WeatherObservationsActivity : AppCompatActivity() {
         loadObservations()
         loadFetchLogs()
         observeCurrentObservationUpdates()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt(STATE_SELECTED_TAB, selectedTab)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun showTab(tab: Int) {
+        selectedTab = tab
+        val observationsSelected = tab == TAB_OBSERVATIONS
+
+        findViewById<View>(R.id.observations_content).visibility =
+            if (observationsSelected) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.fetch_logs_content).visibility =
+            if (observationsSelected) View.GONE else View.VISIBLE
+
+        updateTab(
+            tabView = findViewById(R.id.observations_tab),
+            indicatorView = findViewById(R.id.observations_tab_indicator),
+            selected = observationsSelected,
+        )
+        updateTab(
+            tabView = findViewById(R.id.fetch_logs_tab),
+            indicatorView = findViewById(R.id.fetch_logs_tab_indicator),
+            selected = !observationsSelected,
+        )
+    }
+
+    private fun updateTab(
+        tabView: TextView,
+        indicatorView: View,
+        selected: Boolean,
+    ) {
+        tabView.isSelected = selected
+        tabView.setTextColor(Color.parseColor(if (selected) "#4FC3F7" else "#AAAAAA"))
+        indicatorView.visibility = if (selected) View.VISIBLE else View.INVISIBLE
     }
 
     @OptIn(kotlinx.coroutines.FlowPreview::class)
@@ -611,6 +656,10 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     internal companion object {
+        private const val TAB_OBSERVATIONS = 0
+        private const val TAB_FETCH_LOGS = 1
+        private const val STATE_SELECTED_TAB = "selected_tab"
+
         @VisibleForTesting
         internal var autoRefreshDebounceMs: Long = 500L
     }
