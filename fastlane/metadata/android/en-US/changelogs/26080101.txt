@@ -1,0 +1,1 @@
+Open beta release: Separated Android observation storage and fetch log auditing, refined daily header temperature display layout, fixed dual high label collision handling for close forecast misses, and improved desktop refresh responsiveness.
