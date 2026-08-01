@@ -218,6 +218,7 @@ internal object DailyHeaderResolver {
             deltaText = deltaTextForFit,
             precipText = precipTextForFit,
             precipTextSizeDp = precipTextSizeDp,
+            currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
         )
 
         val headerScale = HeaderWidthChecker.computeHeaderScale(
@@ -229,6 +230,7 @@ internal object DailyHeaderResolver {
             deltaText = deltaTextForFit,
             precipText = precipTextForFit,
             precipTextSizeDp = precipTextSizeDp,
+            currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
         )
 
         val widthDpForPrecip = dimensions.widthDp - GRAPH_CONTENT_PADDING_DP
@@ -334,6 +336,7 @@ internal object DailyHeaderResolver {
             context = context,
             views = views,
             formattedTemp = state.formattedTemp,
+            textSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
             hideDeltaOnNull = true,
             scale = state.headerScale
         )

@@ -243,7 +243,7 @@ internal object DailyForecastHeaderRenderer {
         val cache = headerPaintCache
         if (cache?.key == key) return cache.set
 
-        val tempTextSizePx = (HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP * labelScale).dp(density)
+        val tempTextSizePx = (HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP * labelScale).dp(density)
         val set = HeaderPaintSet(
             tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = HEADER_TEXT_COLOR

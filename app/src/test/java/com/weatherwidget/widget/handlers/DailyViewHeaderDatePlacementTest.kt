@@ -204,7 +204,7 @@ class DailyViewHeaderDatePlacementTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val metrics = context.resources.displayMetrics
         val originalScaledDensity = metrics.scaledDensity
-        val expectedPx = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP * metrics.density
+        val expectedPx = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP * metrics.density
 
         try {
             metrics.scaledDensity = metrics.density * 0.8f

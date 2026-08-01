@@ -41,6 +41,7 @@ object HeaderWidthChecker {
         deltaText: String?,
         precipText: String?,
         precipTextSizeDp: Float?,
+        currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
     ): Float {
         val widthPx = dpToPx(context, widthDp.toFloat())
         if (widthPx <= 0f) return 1f
@@ -54,6 +55,7 @@ object HeaderWidthChecker {
             precipText = precipText,
             precipTextSizeDp = precipTextSizeDp,
             includeIcon = true,
+            currentTempSizeDp = currentTempSizeDp,
         )
         val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
 
@@ -74,6 +76,7 @@ object HeaderWidthChecker {
         deltaText: String?,
         precipText: String?,
         precipTextSizeDp: Float?,
+        currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
 ): HeaderDisclosureLevel {
     val widthPx = dpToPx(context, widthDp.toFloat())
 
@@ -84,6 +87,7 @@ object HeaderWidthChecker {
             precipText = precipText,
             precipTextSizeDp = precipTextSizeDp,
             includeIcon = true,
+            currentTempSizeDp = currentTempSizeDp,
         )
         val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
         val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
@@ -99,6 +103,7 @@ object HeaderWidthChecker {
             precipText = precipText,
             precipTextSizeDp = precipTextSizeDp,
             includeIcon = false,
+            currentTempSizeDp = currentTempSizeDp,
         )
         if (leftClusterRightNoIcon + gapPx <= apiLeft) {
             return HeaderDisclosureLevel.NO_ICON
@@ -111,6 +116,7 @@ object HeaderWidthChecker {
             precipText = precipText,
             precipTextSizeDp = precipTextSizeDp,
             includeIcon = false,
+            currentTempSizeDp = currentTempSizeDp,
         )
         if (leftClusterRightNoIconNoDelta + gapPx <= apiLeft) {
             return HeaderDisclosureLevel.NO_ICON_NO_DELTA
@@ -123,6 +129,7 @@ object HeaderWidthChecker {
             precipText = null,
             precipTextSizeDp = null,
             includeIcon = false,
+            currentTempSizeDp = currentTempSizeDp,
         )
         if (leftClusterRightMinimal + gapPx <= apiLeft) {
             return HeaderDisclosureLevel.MINIMAL
@@ -138,13 +145,14 @@ object HeaderWidthChecker {
         precipText: String?,
         precipTextSizeDp: Float?,
         includeIcon: Boolean,
+        currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
     ): Float {
         var width = 0f
         if (includeIcon) {
             width += dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP)
         }
         if (!currentTempText.isNullOrBlank()) {
-            width += currentTempTextWidthPx(context, currentTempText)
+            width += currentTempTextWidthPx(context, currentTempText, currentTempSizeDp)
         }
         if (!deltaText.isNullOrBlank()) {
             width += dpToPx(context, HeaderConstants.DELTA_MARGIN_START_DP)
@@ -188,10 +196,14 @@ object HeaderWidthChecker {
         return measurePaint.measureText(text)
     }
 
-    internal fun currentTempTextWidthPx(context: Context, text: String): Float {
+    internal fun currentTempTextWidthPx(
+        context: Context,
+        text: String,
+        currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
+    ): Float {
         measurePaint.textSize = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
+            currentTempSizeDp,
             context.resources.displayMetrics,
         )
         return measurePaint.measureText(text)

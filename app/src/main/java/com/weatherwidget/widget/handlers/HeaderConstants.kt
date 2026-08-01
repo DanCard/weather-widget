@@ -5,6 +5,10 @@ package com.weatherwidget.widget.handlers
  */
 object HeaderConstants {
     const val CURRENT_TEMP_TEXT_SIZE_DP = 18f
+    // The daily forecast view runs its header temperature 20% larger than the other views.
+    // Used both for the canvas paint (DailyForecastHeaderRenderer) and for the daily header
+    // fit math (disclosure / header scale / date placement) so measurement matches what's drawn.
+    const val DAILY_CURRENT_TEMP_TEXT_SIZE_DP = CURRENT_TEMP_TEXT_SIZE_DP * 1.2f
     const val WEATHER_ICON_SIZE_DP = 24f
     const val DELTA_TEXT_SIZE_DP = 14f
     const val WEATHER_ICON_END_MARGIN_DP = 2f

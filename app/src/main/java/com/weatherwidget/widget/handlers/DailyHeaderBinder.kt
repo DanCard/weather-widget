@@ -94,6 +94,7 @@ internal object DailyHeaderBinder {
                 precipText = precipText,
                 precipTextSizeDp = precipTextSizeDp,
                 includeIcon = includeIcon,
+                currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
             )
         val apiLeft = HeaderWidthChecker.resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
         val dateWidth = HeaderWidthChecker.textWidthPx(context, dateText, HeaderConstants.DATE_TEXT_SIZE_DP)
@@ -204,7 +205,7 @@ internal object DailyHeaderBinder {
     internal fun currentTempTextSizePx(context: Context): Float =
         TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
+            HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
             context.resources.displayMetrics,
         )
 
