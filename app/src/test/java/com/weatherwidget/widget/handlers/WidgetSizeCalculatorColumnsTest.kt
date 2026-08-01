@@ -1,5 +1,8 @@
 package com.weatherwidget.widget.handlers
 
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
+import android.view.Surface
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -67,5 +70,75 @@ class WidgetSizeCalculatorColumnsTest {
         assertEquals(1, WidgetSizeCalculator.rowsForHeightDp(109))
         assertEquals(2, WidgetSizeCalculator.rowsForHeightDp(110))
         assertEquals(1, WidgetSizeCalculator.rowsForHeightDp(0))
+    }
+
+    @Test
+    fun `nosensor home uses natural portrait while a foreground app is landscape`() {
+        val decision =
+            WidgetSizeCalculator.resolveHostOrientation(
+                deviceOrientation = Configuration.ORIENTATION_LANDSCAPE,
+                naturalOrientation = Configuration.ORIENTATION_PORTRAIT,
+                homeScreenOrientation = ActivityInfo.SCREEN_ORIENTATION_NOSENSOR,
+            )
+
+        assertEquals(Configuration.ORIENTATION_PORTRAIT, decision.orientation)
+        assertEquals("home_nosensor_natural", decision.source)
+    }
+
+    @Test
+    fun `Pixel Launcher uses natural orientation when its manifest policy is unspecified`() {
+        val decision =
+            WidgetSizeCalculator.resolveHostOrientation(
+                deviceOrientation = Configuration.ORIENTATION_LANDSCAPE,
+                naturalOrientation = Configuration.ORIENTATION_PORTRAIT,
+                homeScreenOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
+                homePackageName = "com.google.android.apps.nexuslauncher",
+            )
+
+        assertEquals(Configuration.ORIENTATION_PORTRAIT, decision.orientation)
+        assertEquals("pixel_launcher_natural", decision.source)
+    }
+
+    @Test
+    fun `rotating home follows the current device orientation`() {
+        val decision =
+            WidgetSizeCalculator.resolveHostOrientation(
+                deviceOrientation = Configuration.ORIENTATION_LANDSCAPE,
+                naturalOrientation = Configuration.ORIENTATION_PORTRAIT,
+                homeScreenOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
+            )
+
+        assertEquals(Configuration.ORIENTATION_LANDSCAPE, decision.orientation)
+        assertEquals("device_configuration", decision.source)
+    }
+
+    @Test
+    fun `explicit home orientation overrides device orientation`() {
+        val portrait =
+            WidgetSizeCalculator.resolveHostOrientation(
+                deviceOrientation = Configuration.ORIENTATION_LANDSCAPE,
+                naturalOrientation = Configuration.ORIENTATION_PORTRAIT,
+                homeScreenOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT,
+            )
+        val landscape =
+            WidgetSizeCalculator.resolveHostOrientation(
+                deviceOrientation = Configuration.ORIENTATION_PORTRAIT,
+                naturalOrientation = Configuration.ORIENTATION_PORTRAIT,
+                homeScreenOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+            )
+
+        assertEquals(Configuration.ORIENTATION_PORTRAIT, portrait.orientation)
+        assertEquals(Configuration.ORIENTATION_LANDSCAPE, landscape.orientation)
+    }
+
+    @Test
+    fun `landscape at ninety degrees recovers portrait natural orientation`() {
+        assertEquals(
+            Configuration.ORIENTATION_PORTRAIT,
+            WidgetSizeCalculator.naturalOrientationForRotation(
+                currentOrientation = Configuration.ORIENTATION_LANDSCAPE,
+                rotation = Surface.ROTATION_90,
+            ),
+        )
     }
 }

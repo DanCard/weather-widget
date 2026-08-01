@@ -265,6 +265,11 @@ internal object DailyHeaderBinder {
         "headerState widget=$widgetId mode=${viewMode.name} source=${displaySource.id} " +
             "configuredLoc=${formatLocation(configuredLocation)} dataLoc=${formatLocation(dataLat to dataLon)} " +
             "cols=${dimensions.cols} rows=${dimensions.rows} sizeDp=${dimensions.widthDp}x${dimensions.heightDp} " +
+            "deviceOrientation=${WidgetSizeCalculator.orientationName(dimensions.deviceOrientation)} " +
+            "hostOrientation=${WidgetSizeCalculator.orientationName(dimensions.hostOrientation)} " +
+            "orientationSource=${dimensions.orientationSource} " +
+            "homePackage=${dimensions.homePackageName ?: "none"} " +
+            "homeScreenOrientation=${dimensions.homeScreenOrientation} " +
             "currentTemp=${formatTemp(currentTemp)} estimatedTemp=${formatTemp(estimatedTemp)} " +
             "observedTemp=${formatTemp(observedTemp)} appliedDelta=${formatTemp(appliedDelta)} " +
             "deltaVisible=$deltaVisible deltaHiddenReason=${deltaHiddenReason ?: "none"} " +

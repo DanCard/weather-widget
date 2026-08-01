@@ -2,8 +2,14 @@ package com.weatherwidget.widget.handlers
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.hardware.display.DisplayManager
 import android.util.TypedValue
+import android.view.Display
+import android.view.Surface
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -19,6 +25,11 @@ data class WidgetDimensions(
     val widthDp: Int,
     val heightDp: Int,
     val isIconWidth: Boolean,
+    val deviceOrientation: Int = Configuration.ORIENTATION_UNDEFINED,
+    val hostOrientation: Int = Configuration.ORIENTATION_UNDEFINED,
+    val orientationSource: String = "unknown",
+    val homePackageName: String? = null,
+    val homeScreenOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
 )
 
 /**
@@ -58,6 +69,7 @@ object WidgetSizeCalculator {
      */
     private const val ROW_FIT_BIAS_DP = 25
     private const val MAX_BITMAP_PIXELS = 225_000 // Limit bitmap to ~900KB (ARGB_8888 is 4 bytes/px)
+    private const val PIXEL_LAUNCHER_PACKAGE = "com.google.android.apps.nexuslauncher"
 
     /**
      * Calculate widget dimensions based on AppWidgetOptions.
@@ -74,18 +86,159 @@ object WidgetSizeCalculator {
         val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, minHeight)
 
         // Android reports both min and max widget dimensions:
-        //   Portrait:  actual size ≈ minWidth × maxHeight
-        //   Landscape: actual size ≈ maxWidth × minHeight
-        val isPortrait = context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        //   Portrait host:  actual size ≈ minWidth × maxHeight
+        //   Landscape host: actual size ≈ maxWidth × minHeight
+        //
+        // Do not blindly use the process configuration. A foreground camera app can rotate the
+        // entire process to landscape while a fixed-orientation launcher (Pixel Launcher uses
+        // SCREEN_ORIENTATION_NOSENSOR) remains portrait. A background widget update rendered with
+        // the process orientation then pushes the short landscape bitmap into the portrait host.
+        val deviceOrientation = context.resources.configuration.orientation
+        val naturalOrientation = naturalOrientation(context, deviceOrientation)
+        val homeActivity = resolveHomeActivity(context)
+        val orientationDecision =
+            resolveHostOrientation(
+                deviceOrientation = deviceOrientation,
+                naturalOrientation = naturalOrientation,
+                homeScreenOrientation = homeActivity.screenOrientation,
+                homePackageName = homeActivity.packageName,
+            )
+        val isPortrait = orientationDecision.orientation != Configuration.ORIENTATION_LANDSCAPE
         val width = if (isPortrait) minWidth else maxWidth
         val height = if (isPortrait) maxHeight else minHeight
+
+        if (deviceOrientation != orientationDecision.orientation) {
+            android.util.Log.v(
+                "WidgetSizeCalculator",
+                "widget=$appWidgetId deviceOrientation=${orientationName(deviceOrientation)} " +
+                    "hostOrientation=${orientationName(orientationDecision.orientation)} " +
+                    "source=${orientationDecision.source} homePackage=${homeActivity.packageName} " +
+                    "homeScreenOrientation=${homeActivity.screenOrientation} " +
+                    "selectedSizeDp=${width}x$height",
+            )
+        }
 
         val cols = columnsForWidthDp(width)
         val rows = rowsForHeightDp(height)
         val isIconWidth = width <= ICON_WIDTH_THRESHOLD_DP
 
-        return WidgetDimensions(cols, rows, width, height, isIconWidth)
+        return WidgetDimensions(
+            cols = cols,
+            rows = rows,
+            widthDp = width,
+            heightDp = height,
+            isIconWidth = isIconWidth,
+            deviceOrientation = deviceOrientation,
+            hostOrientation = orientationDecision.orientation,
+            orientationSource = orientationDecision.source,
+            homePackageName = homeActivity.packageName,
+            homeScreenOrientation = homeActivity.screenOrientation,
+        )
     }
+
+    internal data class HostOrientationDecision(
+        val orientation: Int,
+        val source: String,
+    )
+
+    /** Resolve the widget host orientation independently of whichever app is in the foreground. */
+    internal fun resolveHostOrientation(
+        deviceOrientation: Int,
+        naturalOrientation: Int,
+        homeScreenOrientation: Int,
+        homePackageName: String? = null,
+    ): HostOrientationDecision {
+        val current =
+            normalizeOrientation(deviceOrientation)
+                ?: normalizeOrientation(naturalOrientation)
+                ?: Configuration.ORIENTATION_PORTRAIT
+        val natural = normalizeOrientation(naturalOrientation) ?: current
+        if (homePackageName == PIXEL_LAUNCHER_PACKAGE) {
+            return HostOrientationDecision(natural, "pixel_launcher_natural")
+        }
+        return when (homeScreenOrientation) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+            ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT,
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT,
+            ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT,
+            -> HostOrientationDecision(Configuration.ORIENTATION_PORTRAIT, "home_fixed_portrait")
+
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
+            ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE,
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+            ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE,
+            -> HostOrientationDecision(Configuration.ORIENTATION_LANDSCAPE, "home_fixed_landscape")
+
+            ActivityInfo.SCREEN_ORIENTATION_NOSENSOR ->
+                HostOrientationDecision(natural, "home_nosensor_natural")
+
+            else -> HostOrientationDecision(current, "device_configuration")
+        }
+    }
+
+    /** Recover the display's natural orientation from its current orientation and rotation. */
+    internal fun naturalOrientationForRotation(
+        currentOrientation: Int,
+        rotation: Int,
+    ): Int {
+        val current = normalizeOrientation(currentOrientation) ?: Configuration.ORIENTATION_PORTRAIT
+        return when (rotation) {
+            Surface.ROTATION_90,
+            Surface.ROTATION_270,
+            -> if (current == Configuration.ORIENTATION_LANDSCAPE) {
+                Configuration.ORIENTATION_PORTRAIT
+            } else {
+                Configuration.ORIENTATION_LANDSCAPE
+            }
+
+            else -> current
+        }
+    }
+
+    internal fun orientationName(orientation: Int): String =
+        when (orientation) {
+            Configuration.ORIENTATION_PORTRAIT -> "portrait"
+            Configuration.ORIENTATION_LANDSCAPE -> "landscape"
+            else -> "undefined"
+        }
+
+    private data class HomeActivity(
+        val packageName: String?,
+        val screenOrientation: Int,
+    )
+
+    @Suppress("DEPRECATION")
+    private fun resolveHomeActivity(context: Context): HomeActivity {
+        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val activityInfo =
+            context.packageManager
+                .resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+                ?.activityInfo
+        return HomeActivity(
+            packageName = activityInfo?.packageName,
+            screenOrientation =
+                activityInfo?.screenOrientation
+                    ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
+        )
+    }
+
+    private fun naturalOrientation(
+        context: Context,
+        currentOrientation: Int,
+    ): Int {
+        val rotation =
+            context.getSystemService(DisplayManager::class.java)
+                ?.getDisplay(Display.DEFAULT_DISPLAY)
+                ?.rotation
+                ?: Surface.ROTATION_0
+        return naturalOrientationForRotation(currentOrientation, rotation)
+    }
+
+    private fun normalizeOrientation(orientation: Int): Int? =
+        orientation.takeIf {
+            it == Configuration.ORIENTATION_PORTRAIT ||
+                it == Configuration.ORIENTATION_LANDSCAPE
+        }
 
     /**
      * Maps a widget width (dp) to the number of day columns the daily view shows.
