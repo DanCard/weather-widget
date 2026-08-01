@@ -176,9 +176,7 @@ class WeatherWidgetWorker
                     "doWork: Location = $location active=$activeLocation candidate=${candidateAtLoad != null} " +
                         "(configured=${configuredLocation != null})",
                 )
-                val activeSourceList = appWidgetIds.map { id ->
-                    stateManager.getCurrentDisplaySource(id).id
-                }.distinct()
+                val activeSourceList = currentDisplaySourceIds(stateManager)
                 val fetchContext = if (!forceRefresh && !uiOnlyRefresh) {
                     ForecastFetchContext(
                         isCharging = isPlugged,
@@ -287,11 +285,17 @@ class WeatherWidgetWorker
                         appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
 
                         logStage("actuals_recompute_start recompute=${!uiOnlyRefresh}")
+                        // Re-read the display sources rather than reusing the start-of-run
+                        // snapshot: a full run takes seconds, and toggling the API source enqueues
+                        // a forced refresh, so a second toggle routinely lands mid-run. The paint
+                        // below reads each widget's *current* source, and filtering the actuals map
+                        // by a stale set drops that source's history entirely.
+                        val actualsSourceList = currentDisplaySourceIds(stateManager)
                         val dailyActuals = fetchDailyActuals(
                             lat = location.first,
                             lon = location.second,
                             hourlyForecasts = hourlyForecasts,
-                            activeSourceList = activeSourceList,
+                            activeSourceList = actualsSourceList,
                             recompute = !uiOnlyRefresh
                         )
                         val afterActualsMs = SystemClock.elapsedRealtime()
@@ -310,7 +314,28 @@ class WeatherWidgetWorker
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_start uiOnly=$uiOnlyRefresh thread=${Thread.currentThread().name}")
                         val jobType = if (uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
                         val workerOrigin = if (uiOnlyRefresh) com.weatherwidget.widget.WidgetPushDispatcher.Origin.UI_ONLY else com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_FETCH
-                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, jobType, uiOnly = uiOnlyRefresh, origin = workerOrigin)
+                        updateAllWidgets(
+                            weatherList,
+                            forecastSnapshots,
+                            hourlyForecasts,
+                            currentTemps,
+                            dailyActuals,
+                            jobType,
+                            uiOnly = uiOnlyRefresh,
+                            origin = workerOrigin,
+                            loadedActualsSourceIds = actualsSourceList,
+                            reloadActuals = { sourceIds ->
+                                // recompute=false: this run already recomputed the extremes, only
+                                // the read needs a wider filter.
+                                fetchDailyActuals(
+                                    lat = location.first,
+                                    lon = location.second,
+                                    hourlyForecasts = hourlyForecasts,
+                                    activeSourceList = sourceIds,
+                                    recompute = false,
+                                )
+                            },
+                        )
                         val afterUpdateMs = SystemClock.elapsedRealtime()
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_done uiOnly=$uiOnlyRefresh elapsedMs=${afterUpdateMs - afterActualsMs}")
 
@@ -438,6 +463,19 @@ class WeatherWidgetWorker
             }
         }
 
+        /**
+         * Display source of every installed widget, read fresh. Deliberately not cached for the
+         * duration of a run: the user can toggle the API source at any moment, and anything derived
+         * from a stale copy repaints a source whose data was filtered away.
+         */
+        private fun currentDisplaySourceIds(stateManager: WidgetStateManager): List<String> {
+            val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
+            return AppWidgetManager.getInstance(context)
+                .getAppWidgetIds(componentName)
+                .map { stateManager.getCurrentDisplaySource(it).id }
+                .distinct()
+        }
+
         private suspend fun fetchDailyActuals(
             lat: Double,
             lon: Double,
@@ -543,10 +581,39 @@ class WeatherWidgetWorker
             jobType: WidgetUpdateTracker.JobType = WidgetUpdateTracker.JobType.BACKGROUND_SYNC,
             uiOnly: Boolean = false,
             origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_FETCH,
+            loadedActualsSourceIds: Collection<String> = emptyList(),
+            reloadActuals: (suspend (List<String>) -> DailyActualsBySource)? = null,
         ) = coroutineScope {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+
+            // Last line of defence for the source-toggle race: the actuals map was filtered to the
+            // sources displayed when it was loaded, but the sources are read again here, per widget,
+            // at paint time. If a toggle landed in between, reload once for the union instead of
+            // painting a source whose actuals were filtered out. Costs an extra query only in the
+            // rare race; the common path just compares two tiny lists.
+            val paintSourceIds =
+                appWidgetIds.map { widgetStateManager.getCurrentDisplaySource(it).id }.distinct()
+            val uncoveredSources =
+                DailyActualsCoverage.uncoveredSources(paintSourceIds, loadedActualsSourceIds)
+            val effectiveActuals =
+                if (uncoveredSources.isEmpty() || reloadActuals == null) {
+                    dailyActuals
+                } else {
+                    appLogDao.log(
+                        "ACTUALS_SOURCE_RACE",
+                        "uncovered=${uncoveredSources.joinToString(",")} " +
+                            "loaded=${loadedActualsSourceIds.joinToString(",")} " +
+                            "paint=${paintSourceIds.joinToString(",")} reloading",
+                        "INFO",
+                    )
+                    // On reload failure fetchDailyActuals returns an empty map; keep the original
+                    // rather than repainting every widget with no actuals at all.
+                    reloadActuals(
+                        DailyActualsCoverage.unionSourceIds(paintSourceIds, loadedActualsSourceIds),
+                    ).takeIf { it.isNotEmpty() } ?: dailyActuals
+                }
 
             val effectiveOrigin = if (uiOnly) com.weatherwidget.widget.WidgetPushDispatcher.Origin.UI_ONLY else origin
             for (appWidgetId in appWidgetIds) {
@@ -559,7 +626,7 @@ class WeatherWidgetWorker
                         forecastSnapshots = forecastSnapshots,
                         hourlyForecasts = hourlyForecasts,
                         currentTemps = currentTemps,
-                        dailyActualsBySource = dailyActuals,
+                        dailyActualsBySource = effectiveActuals,
                         repository = weatherRepository,
                         uiOnly = uiOnly,
                         // Worker repaints patch the existing widget views in place. A full
@@ -828,13 +895,7 @@ class WeatherWidgetWorker
             val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
             val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
 
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
-            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-            val stateManager = WidgetStateManager(context)
-            val activeSourceList = appWidgetIds.map { id ->
-                stateManager.getCurrentDisplaySource(id).id
-            }.distinct()
+            val activeSourceList = currentDisplaySourceIds(WidgetStateManager(context))
 
             val dailyActuals = fetchDailyActuals(
                 lat = location.first,
@@ -849,7 +910,25 @@ class WeatherWidgetWorker
                 location.second,
                 todayStartMs2,
             )
-            updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, WidgetUpdateTracker.JobType.BACKGROUND_SYNC, origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_CACHE)
+            updateAllWidgets(
+                weatherList,
+                forecastSnapshots,
+                hourlyForecasts,
+                currentTemps,
+                dailyActuals,
+                WidgetUpdateTracker.JobType.BACKGROUND_SYNC,
+                origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_CACHE,
+                loadedActualsSourceIds = activeSourceList,
+                reloadActuals = { sourceIds ->
+                    fetchDailyActuals(
+                        lat = location.first,
+                        lon = location.second,
+                        hourlyForecasts = hourlyForecasts,
+                        activeSourceList = sourceIds,
+                        recompute = false,
+                    )
+                },
+            )
         }
 
         private suspend fun manageCurrentTempLoopAfterRun(
