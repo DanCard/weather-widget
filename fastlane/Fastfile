@@ -22,7 +22,7 @@ platform :android do
       validate_only: true,
       skip_upload_apk: true,
       skip_upload_aab: true,
-      skip_upload_changelogs: false,
+      skip_upload_changelogs: true,
     )
   end
 
@@ -69,7 +69,6 @@ platform :android do
       skip_upload_apk: true,
       skip_upload_aab: true,
       skip_upload_changelogs: true,
-      version_code: 1,
     )
   end
 end
