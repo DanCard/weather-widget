@@ -23,6 +23,8 @@ BATTERY-CONSCIOUS SYNCING
 • Network fetches automatically scale back as battery drains
 • Interpolates current temperatures smoothly from hourly forecasts
 
-No ads. No accounts. Location data is only used to fetch weather forecasts for your coordinates.
+OPEN SOURCE
+• Source code available on GitHub: https://github.com/DanCard/weather-widget/
 
-Source viewable at: https://github.com/DanCard/weather-widget/
+PRIVACY & PERMISSIONS
+• No ads. No accounts. Location data is only used to fetch weather forecasts for your coordinates.

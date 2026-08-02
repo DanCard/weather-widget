@@ -24,7 +24,7 @@ class ForecastFetchPolicyTest {
     }
 
     @Test
-    fun `charging + screen on + non-active source is 120 minutes`() {
+    fun `charging + screen on + non-active source is 360 minutes`() {
         val interval = ForecastFetchPolicy.intervalMinutes(
             isCharging = true,
             isScreenInteractive = true,
@@ -32,7 +32,7 @@ class ForecastFetchPolicyTest {
             batteryLevel = 100,
         )
         assertEquals(ForecastFetchPolicy.CHARGING_SCREEN_ON_NONACTIVE_MINUTES, interval)
-        assertEquals(120L, interval)
+        assertEquals(360L, interval)
     }
 
     @Test
@@ -48,7 +48,7 @@ class ForecastFetchPolicyTest {
     }
 
     @Test
-    fun `charging + screen off + non-active source is 240 minutes`() {
+    fun `charging + screen off + non-active source is 480 minutes`() {
         val interval = ForecastFetchPolicy.intervalMinutes(
             isCharging = true,
             isScreenInteractive = false,
@@ -56,7 +56,7 @@ class ForecastFetchPolicyTest {
             batteryLevel = 100,
         )
         assertEquals(ForecastFetchPolicy.CHARGING_SCREEN_OFF_NONACTIVE_MINUTES, interval)
-        assertEquals(240L, interval)
+        assertEquals(480L, interval)
     }
 
     @Test
@@ -70,6 +70,28 @@ class ForecastFetchPolicyTest {
         // Should use charging matrix (60 min) rather than BatteryFetchStrategy tiers (240 min)
         assertEquals(ForecastFetchPolicy.CHARGING_SCREEN_ON_ACTIVE_MINUTES, interval)
         assertEquals(60L, interval)
+    }
+
+    @Test
+    fun `off-charger at 80 percent uses charging-equivalent non-active cadence`() {
+        assertEquals(
+            360L,
+            ForecastFetchPolicy.intervalMinutes(
+                isCharging = false,
+                isScreenInteractive = true,
+                isActiveSource = false,
+                batteryLevel = 80,
+            ),
+        )
+        assertEquals(
+            480L,
+            ForecastFetchPolicy.intervalMinutes(
+                isCharging = false,
+                isScreenInteractive = false,
+                isActiveSource = false,
+                batteryLevel = 80,
+            ),
+        )
     }
 
     @Test

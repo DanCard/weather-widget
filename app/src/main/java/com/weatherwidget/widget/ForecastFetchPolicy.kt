@@ -18,13 +18,14 @@ data class ForecastFetchContext(
  *
  * While charging, fetch cadence scales with screen state and whether a source
  * is the one currently displayed (active) vs. one of the others (non-active).
- * Off-charger, fall back to [BatteryFetchStrategy] tiers with no per-source distinction.
+ * Off-charger, fall back to [BatteryFetchStrategy] tiers and double the interval for non-active
+ * sources.
  */
 object ForecastFetchPolicy {
     const val CHARGING_SCREEN_ON_ACTIVE_MINUTES = 60L
-    const val CHARGING_SCREEN_ON_NONACTIVE_MINUTES = 120L
+    const val CHARGING_SCREEN_ON_NONACTIVE_MINUTES = 360L
     const val CHARGING_SCREEN_OFF_ACTIVE_MINUTES = 120L
-    const val CHARGING_SCREEN_OFF_NONACTIVE_MINUTES = 240L
+    const val CHARGING_SCREEN_OFF_NONACTIVE_MINUTES = 480L
 
     // Off-charger, non-active (not currently displayed) sources fetch less often than the active
     // source — battery matters most off the charger, and a background source can tolerate staler
