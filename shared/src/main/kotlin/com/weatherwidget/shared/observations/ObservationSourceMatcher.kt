@@ -20,6 +20,17 @@ import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
  */
 object ObservationSourceMatcher {
 
+    /**
+     * True when [stationId] is the historical-actuals backfill row for [sourceId] — a slice of that
+     * source's hourly *forecast* re-filed as observations at `distanceKm = 0`, not a measurement.
+     *
+     * The blend uses this to rank such a row below every real station
+     * (`ActualTemperatureSeriesBuilder.blendCandidateTemperature`): its zero distance would otherwise
+     * win the near-zero override outright and suppress genuine readings.
+     */
+    fun isSyntheticBackfillStation(stationId: String, sourceId: String): Boolean =
+        stationId == HistoricalActualsBackfill.syntheticStationId(sourceId)
+
     private val sourcePrefixes: Map<WeatherSource, String> =
         listOf(
             WeatherSource.VISUAL_CROSSING,

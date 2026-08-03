@@ -4,6 +4,8 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ObservationOrigin
+import com.weatherwidget.shared.observations.ObservationSourceMatcher
+import com.weatherwidget.shared.util.Log
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -35,11 +37,13 @@ data class BlendObservationStats(
     val emittedPointCount: Int,
     val dedupSkippedCount: Int,
     val loneStationSkippedCount: Int = 0,
+    /** Candidate timestamps where a synthetic `<SOURCE>_MAIN` backfill row was outranked by real stations. */
+    val syntheticDeprioritizedCount: Int = 0,
 ) {
     fun summary(): String =
         "rawObs=$rawObservationCount filteredObs=$filteredObservationCount stations=$stationCount " +
             "candidateTimes=$candidateTimeCount emitted=$emittedPointCount dedupSkipped=$dedupSkippedCount " +
-            "loneSkipped=$loneStationSkippedCount"
+            "loneSkipped=$loneStationSkippedCount syntheticDeprioritized=$syntheticDeprioritizedCount"
 }
 
 data class BlendObservationResult(
@@ -56,6 +60,7 @@ data class ActualTemperatureSeriesResult(
 )
 
 object ActualTemperatureSeriesBuilder {
+    private const val TAG = "ActualTempSeries"
     private const val GENERIC_GAP_SOURCE = "Generic"
     // The stations list badges a station "Stale" at exactly this age, so the two must not drift apart.
     private const val TIME_DECAY_MAX_AGE_MS = ObservationOrigin.BLEND_MAX_AGE_MS
@@ -272,6 +277,11 @@ object ActualTemperatureSeriesBuilder {
         // suppress the same lone-station candidates — keeping the two views' extrema in agreement.
         val dominantByDay = if (byStation.size > 1) dominantStationByDay(filtered, zoneId) else emptyMap()
         var loneStationSkipped = 0
+        // Diagnostics for the synthetic-backfill deprioritisation. Counted here (cheaply, per
+        // candidate timestamp) and reported ONCE below rather than per-timestamp, which would emit
+        // hundreds of lines per resolve.
+        var syntheticDeprioritized = 0
+        val syntheticStationIds = linkedSetOf<String>()
 
         // Blend once per distinct observation timestamp (no time-bucket thinning). Observation data is
         // naturally sparse (NWS ~15 min, other sources hourly), so this is cheap, and — crucially — it
@@ -291,7 +301,9 @@ object ActualTemperatureSeriesBuilder {
                 if (resolved != null) {
                     val ageMs = maxOf(0L, targetTs - resolved.anchorTs)
                     val isPersonal = resolved.stationType == PERSONAL_STATION_TYPE
-                    candidates.add(DecayBlendInput(resolved.distanceKm, resolved.temperature, ageMs, isPersonal))
+                    val isSynthetic = ObservationSourceMatcher.isSyntheticBackfillStation(stationId, displaySourceId)
+                    if (isSynthetic) syntheticStationIds.add(stationId)
+                    candidates.add(DecayBlendInput(resolved.distanceKm, resolved.temperature, ageMs, isPersonal, isSynthetic))
                     soleContributorId = if (candidates.size == 1) stationId else null
                     if (resolved.anchorTs > bestAnchorTs) bestAnchorTs = resolved.anchorTs
                     if (anchorStation == null) anchorStation = stationObs.minByOrNull { it.distanceKm }
@@ -328,6 +340,7 @@ object ActualTemperatureSeriesBuilder {
             }
 
             val anchor = anchorStation ?: continue
+            if (candidates.any { it.isSynthetic } && candidates.any { !it.isSynthetic }) syntheticDeprioritized++
             val blendedTemp = blendCandidateTemperature(candidates, personalStationWeight) ?: continue
             val bestSourceKind = when {
                 hasObserved -> "observed"
@@ -363,6 +376,19 @@ object ActualTemperatureSeriesBuilder {
             }
         }
 
+        // Fires only when a synthetic backfill row actually competed with real stations, so it stays
+        // silent on the normal path. VERBOSE: console/logcat only, never persisted to app_logs — the
+        // blend runs on every minute tick. Without this the deprioritisation is completely invisible,
+        // which is what made the NWS_MAIN hijack take a DB dig to find.
+        if (syntheticDeprioritized > 0) {
+            Log.v(
+                TAG,
+                "blend: deprioritized synthetic backfill ${syntheticStationIds.joinToString(",")} " +
+                    "at $syntheticDeprioritized/${candidateTimes.size} candidate times " +
+                    "(real stations present; source=$displaySourceId stations=${byStation.size})",
+            )
+        }
+
         return BlendObservationResult(
             observations = result,
             stats = BlendObservationStats(
@@ -373,6 +399,7 @@ object ActualTemperatureSeriesBuilder {
                 emittedPointCount = result.size,
                 dedupSkippedCount = 0, // thinning removed; retained as 0 for stat/summary compatibility
                 loneStationSkippedCount = loneStationSkipped,
+                syntheticDeprioritizedCount = syntheticDeprioritized,
             ),
         )
     }
@@ -436,6 +463,7 @@ object ActualTemperatureSeriesBuilder {
         val temperature: Float,
         val ageMs: Long,
         val isPersonal: Boolean = false,
+        val isSynthetic: Boolean = false,
     )
 
     private data class ResolvedStationValue(
@@ -452,7 +480,19 @@ object ActualTemperatureSeriesBuilder {
         val eligible = if (personalStationWeight <= 0.0) candidates.filter { !it.isPersonal } else candidates
         if (eligible.isEmpty()) return null
 
-        val veryClose = eligible.filter { it.distanceKm <= NEAR_ZERO_KM && timeDecayFactor(it.ageMs) > 0f }
+        // A synthetic historical-actuals backfill row (`<SOURCE>_MAIN`) is a slice of the source's
+        // hourly FORECAST re-filed as observations at distanceKm=0 — not a measurement. Its zero
+        // distance used to win the near-zero override below outright, so a single stale backfill
+        // suppressed every real station: a 15:26 NWS->Open-Meteo fallback minted NWS_MAIN rows that
+        // drove the desktop's current temperature for the next 3 hours (~5 F hot) while five nearby
+        // stations reported normally, then vanished at BLEND_MAX_AGE_MS and snapped the display back.
+        // Rank the backfill strictly below real readings, but keep it as a LAST resort so
+        // forecast-only sources (Open-Meteo, Silurian, ...) — and NWS during a total station outage —
+        // still render an actual line.
+        val realCandidates = eligible.filter { !it.isSynthetic && timeDecayFactor(it.ageMs) > 0f }
+        val ranked = if (realCandidates.isNotEmpty()) realCandidates else eligible
+
+        val veryClose = ranked.filter { it.distanceKm <= NEAR_ZERO_KM && timeDecayFactor(it.ageMs) > 0f }
         if (veryClose.isNotEmpty()) {
             // A station essentially at the user's location wins outright (IDW would divide by ~0). Prefer
             // an official station here too, falling back to the nearest personal one if that's all there is.
@@ -463,7 +503,7 @@ object ActualTemperatureSeriesBuilder {
 
         var wSum = 0.0
         var tSum = 0.0
-        for (candidate in eligible) {
+        for (candidate in ranked) {
             val decay = timeDecayFactor(candidate.ageMs)
             if (decay <= 0f) continue
             val typeWeight = if (candidate.isPersonal) personalStationWeight else 1.0
