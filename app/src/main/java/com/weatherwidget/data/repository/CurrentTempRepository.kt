@@ -271,8 +271,8 @@ class CurrentTempRepository
                             result.currentObservedAt ?: System.currentTimeMillis(),
                             currentTemp,
                             condition,
-                            latitude,
-                            longitude,
+                            point.first,
+                            point.second,
                             calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
                             "OFFICIAL",
                             api = source.id,
@@ -333,8 +333,8 @@ class CurrentTempRepository
                             reading.observedAt ?: System.currentTimeMillis(),
                             reading.temperature,
                             condition,
-                            latitude,
-                            longitude,
+                            point.first,
+                            point.second,
                             calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
                             "OFFICIAL",
                             api = WeatherSource.OPEN_METEO.id,
@@ -394,8 +394,8 @@ class CurrentTempRepository
                             result.currentObservedAt ?: System.currentTimeMillis(),
                             currentTemp,
                             condition,
-                            latitude,
-                            longitude,
+                            point.first,
+                            point.second,
                             calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
                             "OFFICIAL",
                             api = WeatherSource.TOMORROW_IO.id,
@@ -420,22 +420,14 @@ class CurrentTempRepository
             }
         }
 
-        private fun getPointsOfInterest(latitude: Double, longitude: Double): List<Triple<Double, Double, String>> {
-            val points = mutableListOf(
-                Triple(latitude, longitude, "Current"), 
-                Triple(latitude + 0.072, longitude, "North"), 
-                Triple(latitude - 0.072, longitude, "South"), 
-                Triple(latitude, longitude + 0.09, "East"), 
-                Triple(latitude, longitude - 0.09, "West")
+        private fun getPointsOfInterest(latitude: Double, longitude: Double): List<Triple<Double, Double, String>> =
+            listOf(
+                Triple(latitude, longitude, "Current"),
+                Triple(latitude + 0.072, longitude, "North"),
+                Triple(latitude - 0.072, longitude, "South"),
+                Triple(latitude, longitude + 0.09, "East"),
+                Triple(latitude, longitude - 0.09, "West"),
             )
-            
-            getHistoricalPois().forEach { (histLat, histLon, histName) -> 
-                if (calculateDistance(latitude, longitude, histLat, histLon) > 1000) {
-                    points.add(Triple(histLat, histLon, "Recent: $histName")) 
-                }
-            }
-            return points.distinctBy { "${it.first},${it.second}" }
-        }
 
         private fun extractCurrentErrorCode(exception: Exception): String = when (exception) {
             is ApiAccessException -> exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
