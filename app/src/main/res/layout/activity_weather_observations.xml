@@ -87,6 +87,32 @@
             android:orientation="vertical">
 
             <TextView
+                android:id="@+id/blend_tab"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="@string/blend_tab"
+                android:textColor="#4FC3F7"
+                android:textSize="16sp" />
+
+            <View
+                android:id="@+id/blend_tab_indicator"
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:background="#4FC3F7" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
                 android:id="@+id/observations_tab"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
@@ -96,14 +122,15 @@
                 android:focusable="true"
                 android:gravity="center"
                 android:text="@string/current_observations_title"
-                android:textColor="#4FC3F7"
+                android:textColor="#AAAAAA"
                 android:textSize="16sp" />
 
             <View
                 android:id="@+id/observations_tab_indicator"
                 android:layout_width="match_parent"
                 android:layout_height="2dp"
-                android:background="#4FC3F7" />
+                android:background="#4FC3F7"
+                android:visibility="invisible" />
         </LinearLayout>
 
         <LinearLayout
@@ -151,7 +178,8 @@
             android:id="@+id/observations_content"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:visibility="gone">
 
             <TextView
                 android:id="@+id/subtitle"
@@ -168,6 +196,52 @@
                 android:layout_height="0dp"
                 android:layout_weight="1" />
         </LinearLayout>
+
+        <!--
+            Vertical scroll for the rows, horizontal for the columns: at this font size the seven
+            columns are wider than a phone screen, and they must not wrap or the table stops aligning.
+        -->
+        <ScrollView
+            android:id="@+id/blend_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="#0A0A0A"
+                    android:orientation="vertical"
+                    android:padding="8dp">
+
+                    <TextView
+                        android:id="@+id/blend_summary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingBottom="10dp"
+                        android:text="@string/loading_logs"
+                        android:textColor="#FFFFFF"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+
+                    <TableLayout
+                        android:id="@+id/blend_rows"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        android:id="@+id/blend_legend"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="14dp"
+                        android:textColor="#AAAAAA"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </HorizontalScrollView>
+        </ScrollView>
 
         <FrameLayout
             android:id="@+id/fetch_logs_content"

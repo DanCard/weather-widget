@@ -285,4 +285,9 @@
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">শেয়ার শুরু করা যায়নি</string>
     <string name="bug_report_email_subject">আবহাওয়া উইজেট বাগ রিপোর্ট</string>
+    <string name="blend_tab">মিশ্রণ</string>
+    <string name="blend_no_points">এখনও কোনো মিশ্রিত পয়েন্ট নেই।</string>
+    <string name="blend_outside_station_range">মিশ্রণ সব স্টেশনের রিডিংয়ের বাইরে</string>
+    <string name="blend_no_location">মিশ্রণের জন্য কোনো অবস্থান নেই।</string>
+    <string name="blend_load_failed">মিশ্রণ টেবিল তৈরি করা যায়নি: %1$s</string>
 </resources>

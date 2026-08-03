@@ -285,4 +285,9 @@
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Gagal memulai berbagi</string>
     <string name="bug_report_email_subject">Laporan bug Widget Cuaca</string>
+    <string name="blend_tab">Campuran</string>
+    <string name="blend_no_points">Belum ada titik campuran yang tersedia.</string>
+    <string name="blend_outside_station_range">Campuran berada di luar semua pembacaan stasiun</string>
+    <string name="blend_no_location">Tidak ada lokasi untuk campuran.</string>
+    <string name="blend_load_failed">Tidak dapat membuat tabel campuran: %1$s</string>
 </resources>

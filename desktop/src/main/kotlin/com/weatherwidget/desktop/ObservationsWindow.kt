@@ -36,9 +36,13 @@ import androidx.compose.ui.platform.testTag
 import com.weatherwidget.data.local.desktop.DesktopLogEntity
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.local.desktop.toReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
+import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.actuals.BlendTable
+import com.weatherwidget.shared.actuals.BlendTableFormatter
 import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.util.StationHistoryUrl
@@ -80,6 +84,65 @@ private enum class LogFilter(val label: String, val tags: List<String>) {
 
 /** How often the open window re-evaluates reading ages (see [nowMs] use in [ObservationList]). */
 private const val AGE_TICK_MS = 60_000L
+
+// Blend leads: it is the tab that explains the graph's observed dot, which is what the window is
+// usually opened to investigate.
+internal const val TAB_BLEND = 0
+internal const val TAB_OBSERVATIONS = 1
+internal const val TAB_FETCH_LOGS = 2
+
+/**
+ * The Blend tab shows only the CURRENT blended point. History was dropped deliberately: the question
+ * the tab answers is "why does the dot read what it reads right now", and a scrolling backlog of past
+ * timestamps buried it. One table also buys the room for a much larger, readable font.
+ */
+private const val BLEND_TABLE_POINTS = 1
+
+/**
+ * Runs the blend for the Blend tab.
+ *
+ * **Must mirror the graph's inputs exactly.** A table computed from different observations, forecasts,
+ * location, source or personal-station weight than [TemperatureGraph] uses would show numbers the dot
+ * never had — worse than no table at all, since the whole point is to explain the dot. The queries and
+ * arguments below are deliberately the same ones [DesktopWeatherRepository] feeds the graph
+ * (`getObservationsInRange` / `getHourlyWithHistory` over `MAX_BACK_HOURS`, and
+ * `config.personalStationWeight()`).
+ *
+ * The emitted values are window-independent by construction (see `BlendWindowIndependenceTest`), so
+ * this reproduces the same per-timestamp results the render path computes.
+ */
+private fun loadBlendTables(
+    weatherDao: DesktopWeatherDao,
+    config: DesktopConfig,
+    source: WeatherSource,
+): List<BlendTable> {
+    val now = System.currentTimeMillis()
+    val backMs = DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L
+    val observations = weatherDao
+        .getObservationsInRange(now - backMs, now + (2 * 3600 * 1000L), config.lat, config.lon)
+        .map { it.toReading() }
+    val hourly = weatherDao.getHourlyWithHistory(
+        config.lat,
+        config.lon,
+        source.id,
+        now - backMs,
+        now + (168 * 3600 * 1000L),
+        24 * 60 * 60 * 1000L,
+    )
+
+    val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
+        observations = observations,
+        hourlyForecasts = hourly,
+        displaySourceId = source.id,
+        userLat = config.lat,
+        userLon = config.lon,
+        startMs = now - backMs,
+        endMs = now + (2 * 3600 * 1000L),
+        personalStationWeight = config.personalStationWeight(),
+        captureBreakdowns = BLEND_TABLE_POINTS,
+    )
+    return BlendTableFormatter.format(result.breakdowns, config.useCelsius)
+}
 
 /**
  * The station rows the list shows for [source], newest reading per station, nearest first.
@@ -175,7 +238,8 @@ internal fun ObservationsWindow(
         var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.weatherSource)) }
         var observations by remember { mutableStateOf<List<DesktopObservationEntity>>(emptyList()) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
-        var selectedTab by remember { mutableStateOf(0) }
+        var blendTables by remember { mutableStateOf<List<BlendTable>>(emptyList()) }
+        var selectedTab by remember { mutableStateOf(TAB_BLEND) }
         var logFilter by remember { mutableStateOf(LogFilter.FETCHES) }
         val scope = rememberCoroutineScope()
 
@@ -188,9 +252,18 @@ internal fun ObservationsWindow(
                 // tags (CurrentTempResolver etc.) that otherwise swamp app_logs.
                 val recentLogs = weatherDao.getRecentLogsByTags(logFilter.tags, 100)
 
+                // Only when the tab is actually showing: this re-runs the blend, which the two other
+                // tabs have no use for.
+                val tables = if (selectedTab == TAB_BLEND) {
+                    loadBlendTables(weatherDao, config, currentSource)
+                } else {
+                    emptyList()
+                }
+
                 withContext(Dispatchers.Main) {
                     observations = obs
                     logs = recentLogs
+                    if (selectedTab == TAB_BLEND) blendTables = tables
                 }
             }
         }
@@ -201,7 +274,9 @@ internal fun ObservationsWindow(
         // showRequestId covers raising an ALREADY-OPEN window from the tray, which previously only
         // called toFront(); without it the user is shown the snapshot from whenever they first
         // opened the window. (A closed window drops out of composition, so reopening always reloads.)
-        LaunchedEffect(currentSource, logFilter, dataUpdateCount, showRequestId) {
+        // selectedTab is a key so switching to Blend loads its table on first open, not on the next
+        // data-changed signal.
+        LaunchedEffect(currentSource, logFilter, dataUpdateCount, showRequestId, selectedTab) {
             loadData()
         }
 
@@ -257,7 +332,7 @@ internal fun ObservationsWindow(
                         }
 
                         // Fetch Logs tag filter — a small icon that opens a menu of LogFilter sets.
-                        if (selectedTab == 1) {
+                        if (selectedTab == TAB_FETCH_LOGS) {
                             var filterMenuOpen by remember { mutableStateOf(false) }
                             Box {
                                 IconButton(onClick = { filterMenuOpen = true }) {
@@ -314,16 +389,24 @@ internal fun ObservationsWindow(
                         }
                     ) {
                         Tab(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
+                            selected = selectedTab == TAB_BLEND,
+                            onClick = { selectedTab = TAB_BLEND },
+                            selectedContentColor = ObsStyle.accent,
+                            unselectedContentColor = ObsStyle.textSecondary
+                        ) {
+                            Text("Blend", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
+                        }
+                        Tab(
+                            selected = selectedTab == TAB_OBSERVATIONS,
+                            onClick = { selectedTab = TAB_OBSERVATIONS },
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {
                             Text("Observations", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
                         }
                         Tab(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
+                            selected = selectedTab == TAB_FETCH_LOGS,
+                            onClick = { selectedTab = TAB_FETCH_LOGS },
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {
@@ -332,10 +415,10 @@ internal fun ObservationsWindow(
                     }
 
                     Box(modifier = Modifier.weight(1f)) {
-                        if (selectedTab == 0) {
-                            ObservationList(observations, config.useCelsius, nowMs)
-                        } else {
-                            LogList(logs)
+                        when (selectedTab) {
+                            TAB_BLEND -> BlendTableView(blendTables, currentSource.id)
+                            TAB_OBSERVATIONS -> ObservationList(observations, config.useCelsius, nowMs)
+                            else -> LogList(logs)
                         }
                     }
                 }

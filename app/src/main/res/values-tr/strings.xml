@@ -285,4 +285,9 @@
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Paylaşım başlatılamadı</string>
     <string name="bug_report_email_subject">Hava Durumu Widget\'ı hata raporu</string>
+    <string name="blend_tab">Karışım</string>
+    <string name="blend_no_points">Henüz karışım noktası yok.</string>
+    <string name="blend_outside_station_range">Karışım tüm istasyon ölçümlerinin dışında</string>
+    <string name="blend_no_location">Karışım için konum yok.</string>
+    <string name="blend_load_failed">Karışım tablosu oluşturulamadı: %1$s</string>
 </resources>

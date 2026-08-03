@@ -8,12 +8,17 @@ import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.method.ScrollingMovementMethod
 import android.text.style.AbsoluteSizeSpan
+import android.text.style.ClickableSpan
 import android.text.style.ForegroundColorSpan
 import android.util.Log
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TableLayout
+import android.widget.TableRow
 import android.widget.TextView
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
@@ -27,12 +32,18 @@ import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.actuals.BlendTable
+import com.weatherwidget.shared.actuals.BlendTableFormatter
 import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.util.StationHistoryUrl
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.handlers.GraphDataLoader
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -74,6 +85,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
     @Inject
     lateinit var forecastDao: com.weatherwidget.data.local.ForecastDao
 
+    @Inject
+    lateinit var hourlyForecastDao: com.weatherwidget.data.local.HourlyForecastDao
+
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ObservationAdapter
     private var currentSource: WeatherSource = WeatherSource.NWS
@@ -81,7 +95,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private var activeLocation: Pair<Double, Double>? = null
     private var loadObservationsJob: Job? = null
     private var loadFetchLogsJob: Job? = null
-    private var selectedTab: Int = TAB_OBSERVATIONS
+    private var loadBlendTableJob: Job? = null
+    private var selectedTab: Int = TAB_BLEND
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -117,7 +132,10 @@ class WeatherObservationsActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.title).setOnClickListener { finish() }
         findViewById<Button>(R.id.close_button).setOnClickListener { finish() }
 
-        selectedTab = savedInstanceState?.getInt(STATE_SELECTED_TAB, TAB_OBSERVATIONS) ?: TAB_OBSERVATIONS
+        selectedTab = savedInstanceState?.getInt(STATE_SELECTED_TAB, TAB_BLEND) ?: TAB_BLEND
+        findViewById<View>(R.id.blend_tab).setOnClickListener {
+            showTab(TAB_BLEND)
+        }
         findViewById<View>(R.id.observations_tab).setOnClickListener {
             showTab(TAB_OBSERVATIONS)
         }
@@ -154,23 +172,99 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     private fun showTab(tab: Int) {
         selectedTab = tab
-        val observationsSelected = tab == TAB_OBSERVATIONS
 
         findViewById<View>(R.id.observations_content).visibility =
-            if (observationsSelected) View.VISIBLE else View.GONE
+            if (tab == TAB_OBSERVATIONS) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.blend_content).visibility =
+            if (tab == TAB_BLEND) View.VISIBLE else View.GONE
         findViewById<View>(R.id.fetch_logs_content).visibility =
-            if (observationsSelected) View.GONE else View.VISIBLE
+            if (tab == TAB_FETCH_LOGS) View.VISIBLE else View.GONE
 
         updateTab(
             tabView = findViewById(R.id.observations_tab),
             indicatorView = findViewById(R.id.observations_tab_indicator),
-            selected = observationsSelected,
+            selected = tab == TAB_OBSERVATIONS,
+        )
+        updateTab(
+            tabView = findViewById(R.id.blend_tab),
+            indicatorView = findViewById(R.id.blend_tab_indicator),
+            selected = tab == TAB_BLEND,
         )
         updateTab(
             tabView = findViewById(R.id.fetch_logs_tab),
             indicatorView = findViewById(R.id.fetch_logs_tab_indicator),
-            selected = !observationsSelected,
+            selected = tab == TAB_FETCH_LOGS,
         )
+
+        // Runs the blend, so only pay for it while the tab is on screen.
+        if (tab == TAB_BLEND) loadBlendTable()
+    }
+
+    /**
+     * Fills the Blend tab: for every recent blended point, which station contributed what.
+     *
+     * **Inputs must mirror the graph's.** The table exists to explain the observed dot, so it is
+     * computed by the same shared function the widget renders from
+     * ([ActualTemperatureSeriesBuilder.blendObservationSeries]) over the same location-scoped
+     * observations, the same source, and the same personal-station weight. A table built from
+     * different inputs would show numbers the dot never had.
+     */
+    @VisibleForTesting
+    internal fun loadBlendTable() {
+        loadBlendTableJob?.cancel()
+        loadBlendTableJob = lifecycleScope.launch(ioDispatcher) {
+            var error: String? = null
+            val tables: List<BlendTable> = try {
+                val location = activeLocation ?: weatherRepository.getLatestLocation()
+                if (location == null) {
+                    error = getString(R.string.blend_no_location)
+                    emptyList()
+                } else {
+                    val (lat, lon) = location
+                    val now = System.currentTimeMillis()
+                    val sinceMs = now - (24 * 60 * 60 * 1000)
+                    val observations = LocationMatch.selectNearestSite(
+                        observationRepository.getRecentObservationsNear(sinceMs, lat, lon),
+                        lat,
+                        lon,
+                        { it.locationLat },
+                        { it.locationLon },
+                    ).map { it.toReading() }
+                    // unifyToNearestSite, not the raw rows: the proximity box spans ~7 miles, so a
+                    // neighbouring site's fragment would otherwise feed forecasts the graph never used
+                    // and the table would stop matching the dot it exists to explain.
+                    val hourly = GraphDataLoader.unifyToNearestSite(
+                        hourlyForecastDao.getHourlyForecastsBySource(
+                            sinceMs,
+                            now + (48 * 60 * 60 * 1000),
+                            lat,
+                            lon,
+                            currentSource.id,
+                        ),
+                        lat,
+                        lon,
+                    ).map { it.toHourlyForecast() }
+
+                    val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
+                        observations = observations,
+                        hourlyForecasts = hourly,
+                        displaySourceId = currentSource.id,
+                        userLat = lat,
+                        userLon = lon,
+                        startMs = sinceMs,
+                        endMs = now,
+                        personalStationWeight = widgetStateManager.getPersonalStationWeight(),
+                        captureBreakdowns = BLEND_TABLE_POINTS,
+                    )
+                    BlendTableFormatter.format(result.breakdowns, widgetStateManager.useCelsius())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "loadBlendTable failed", e)
+                error = getString(R.string.blend_load_failed, e.message ?: e::class.java.simpleName)
+                emptyList()
+            }
+            withContext(Dispatchers.Main) { renderBlendTable(tables.firstOrNull(), error) }
+        }
     }
 
     private fun updateTab(
@@ -279,6 +373,116 @@ class WeatherObservationsActivity : AppCompatActivity() {
             }
             sendBroadcast(refreshIntent)
         }
+    }
+
+
+    /**
+     * Paints the Blend tab: one table for the CURRENT blended point.
+     *
+     * Built as real per-column views rather than preformatted monospace text — a proportional font at
+     * this size cannot hold fixed-width columns in alignment, and real rows also restore the
+     * per-station tap target that opens the NWS time-series page (same affordance as the Observations
+     * tab).
+     */
+    private fun renderBlendTable(table: BlendTable?, error: String?) {
+        val summary = findViewById<TextView>(R.id.blend_summary)
+        val rows = findViewById<TableLayout>(R.id.blend_rows)
+        val legend = findViewById<TextView>(R.id.blend_legend)
+        rows.removeAllViews()
+        // TableLayout is a LinearLayout, so its own divider machinery draws the rules between rows —
+        // no spacer views to keep in sync with the row list.
+        //
+        // GradientDrawable.setSize, NOT ColorDrawable: LinearLayout reads the divider height from the
+        // drawable's INTRINSIC height, and ColorDrawable reports -1 (setBounds does not change that),
+        // so a ColorDrawable divider draws at zero height and is silently invisible.
+        val rulePx = (BLEND_RULE_DP * resources.displayMetrics.density).toInt().coerceAtLeast(1)
+        rows.dividerDrawable = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+            setColor(BLEND_RULE_COLOR)
+            setSize(0, rulePx)
+        }
+        rows.showDividers = LinearLayout.SHOW_DIVIDER_MIDDLE or LinearLayout.SHOW_DIVIDER_BEGINNING
+
+        if (table == null) {
+            summary.text = error ?: getString(R.string.blend_no_points)
+            legend.text = ""
+            return
+        }
+
+        summary.text = buildString {
+            append("${table.timeLabel}  \u2192  ${table.blendedLabel}   ${table.stationCount} stations")
+            if (table.outsideStationRange) append("\n${getString(R.string.blend_outside_station_range)}")
+        }
+        summary.setTextColor(if (table.outsideStationRange) BLEND_COLOR_ALERT else BLEND_COLOR_PRIMARY)
+
+        rows.addView(
+            blendRowView(
+                cells = BlendTableFormatter.COLUMN_HEADERS,
+                colors = List(BlendTableFormatter.COLUMN_HEADERS.size) { BLEND_COLOR_SECONDARY },
+                textSizeSp = BLEND_HEADER_SP,
+                bold = true,
+            ),
+        )
+
+        table.rows.forEach { row ->
+            val historyUrl = StationHistoryUrl.forStation(currentSource.id, row.station)
+            val valueColor = if (row.isExtrapolated) BLEND_COLOR_DERIVED else BLEND_COLOR_PRIMARY
+            val view = blendRowView(
+                cells = listOf(
+                    row.station,
+                    row.type,
+                    row.km,
+                    row.lastRead,
+                    row.age,
+                    row.raw,
+                    row.valueFedToBlend,
+                    row.weightShare,
+                ),
+                colors = listOf(
+                    if (historyUrl != null) BLEND_COLOR_LINK else BLEND_COLOR_PRIMARY,
+                    if (row.type == "O") BLEND_COLOR_OFFICIAL else BLEND_COLOR_PERSONAL,
+                    BLEND_COLOR_SECONDARY,
+                    BLEND_COLOR_DERIVED,
+                    BLEND_COLOR_SECONDARY,
+                    BLEND_COLOR_PRIMARY,
+                    valueColor,
+                    BLEND_COLOR_SECONDARY,
+                ),
+                textSizeSp = BLEND_DATA_SP,
+                bold = false,
+            )
+            if (historyUrl != null) {
+                view.isClickable = true
+                view.setOnClickListener { openStationHistory(historyUrl) }
+            }
+            rows.addView(view)
+        }
+
+        legend.text = BlendTableFormatter.LEGEND.joinToString("\n")
+    }
+
+    /** One [TableRow] of right-sized, right-coloured cells. Column 2/4/6 are numeric, so right-align. */
+    private fun blendRowView(
+        cells: List<String>,
+        colors: List<Int>,
+        textSizeSp: Float,
+        bold: Boolean,
+    ): TableRow {
+        val row = TableRow(this)
+        cells.forEachIndexed { index, text ->
+            val cell = TextView(this)
+            cell.text = text
+            cell.setTextColor(colors[index])
+            cell.textSize = textSizeSp
+            cell.maxLines = 1
+            if (bold) cell.setTypeface(cell.typeface, android.graphics.Typeface.BOLD)
+            cell.gravity = if (index in BLEND_NUMERIC_COLUMNS) Gravity.END else Gravity.START
+            // Generous vertical padding: the rows are the thing being compared line-for-line against
+            // the Observations tab, and tightly packed large text is hard to track across seven columns.
+            cell.setPadding(0, BLEND_ROW_PAD_PX, BLEND_CELL_GAP_PX, BLEND_ROW_PAD_PX)
+            row.addView(cell)
+        }
+        return row
     }
 
     private fun openStationHistory(url: String) {
@@ -656,9 +860,44 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     internal companion object {
-        private const val TAB_OBSERVATIONS = 0
-        private const val TAB_FETCH_LOGS = 1
+        // Blend leads: it is the tab that explains the graph's observed dot, which is what this
+        // screen is usually opened to investigate.
+        private const val TAB_BLEND = 0
+        private const val TAB_OBSERVATIONS = 1
+        private const val TAB_FETCH_LOGS = 2
         private const val STATE_SELECTED_TAB = "selected_tab"
+
+        /**
+         * The Blend tab shows only the CURRENT blended point — the tab answers "why does the dot read
+         * what it reads right now", and a scrolling backlog of past timestamps buried that.
+         */
+        private const val BLEND_TABLE_POINTS = 1
+
+        private const val BLEND_DATA_SP = 20f
+        private const val BLEND_HEADER_SP = 16f
+        private const val BLEND_ROW_PAD_PX = 14
+        private const val BLEND_CELL_GAP_PX = 34
+        private const val BLEND_RULE_DP = 1f
+
+        /** km, age, raw and weight share read as numbers, so they right-align. */
+        private val BLEND_NUMERIC_COLUMNS = BlendTableFormatter.NUMERIC_COLUMNS
+
+        /**
+         * Hairline rules between rows. Barely-there on purpose: the table is scanned column-wise (raw
+         * vs fed-to-blend), so the rules only need to stop the eye drifting a row — anything stronger
+         * competes with the amber/white value colouring that carries the meaning.
+         */
+        private val BLEND_RULE_COLOR = Color.parseColor("#2A2A2E")
+
+        private val BLEND_COLOR_PRIMARY = Color.parseColor("#FFFFFF")
+        private val BLEND_COLOR_SECONDARY = Color.parseColor("#AAAAAA")
+        private val BLEND_COLOR_LINK = Color.parseColor("#4FC3F7")
+        private val BLEND_COLOR_OFFICIAL = Color.parseColor("#2BFF88")
+        private val BLEND_COLOR_PERSONAL = Color.parseColor("#B0B0B8")
+
+        /** Amber: this number was derived from the forecast, not measured. */
+        private val BLEND_COLOR_DERIVED = Color.parseColor("#E8A24E")
+        private val BLEND_COLOR_ALERT = Color.parseColor("#FF3366")
 
         @VisibleForTesting
         internal var autoRefreshDebounceMs: Long = 500L

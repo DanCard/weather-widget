@@ -46,9 +46,60 @@ data class BlendObservationStats(
             "loneSkipped=$loneStationSkippedCount syntheticDeprioritized=$syntheticDeprioritizedCount"
 }
 
+/**
+ * One station's contribution to a single blended point, as it was actually weighted — the row behind
+ * the "Blend" tab's table.
+ *
+ * [rawTemp] is what the station measured at [lastReadingMs]; [resolvedTemp] is what was fed to the
+ * blend. They differ whenever [sourceKind] is not `observed`, and the gap is pure forecast: a stale
+ * station is carried forward by the forecast's change over the gap (see [extrapolateForward]). On a
+ * fast-warming morning that gap reaches several degrees, which is how a blended "observed" value ends
+ * up above every reading in the stations list.
+ */
+data class BlendContribution(
+    val stationId: String,
+    val stationName: String,
+    val stationType: String,
+    val distanceKm: Float,
+    val lastReadingMs: Long,
+    val rawTemp: Float,
+    val resolvedTemp: Float,
+    val sourceKind: String,
+    val ageMs: Long,
+    val weight: Double,
+    val weightShare: Double,
+)
+
+/** Every contribution behind one emitted point, for diagnostics only. */
+data class BlendBreakdown(
+    val targetMs: Long,
+    val blendedTemp: Float,
+    val sourceKind: String,
+    val contributions: List<BlendContribution>,
+) {
+    /** The warmest value any contributing station actually measured. */
+    val maxRawTemp: Float? get() = contributions.maxOfOrNull { it.rawTemp }
+
+    /** The warmest value any station actually measured, or null when there are no contributions. */
+    val minRawTemp: Float? get() = contributions.minOfOrNull { it.rawTemp }
+
+    /**
+     * True when the blended value sits outside the range of every real reading — impossible for a
+     * pure interpolation, and the signature of forecast extrapolation dominating the weights.
+     */
+    val outsideStationRange: Boolean
+        get() {
+            val hi = maxRawTemp ?: return false
+            val lo = minRawTemp ?: return false
+            return blendedTemp > hi || blendedTemp < lo
+        }
+}
+
 data class BlendObservationResult(
     val observations: List<ObservationReading>,
     val stats: BlendObservationStats,
+    /** Most-recent-first, capped by `captureBreakdowns`. Empty unless capture was requested. */
+    val breakdowns: List<BlendBreakdown> = emptyList(),
 )
 
 data class ActualTemperatureSeriesResult(
@@ -224,6 +275,12 @@ object ActualTemperatureSeriesBuilder {
         personalStationWeight: Double = 1.0,
         zoneId: ZoneId = ZoneId.systemDefault(),
         onBlendDebug: ((() -> String) -> Unit)? = null,
+        /**
+         * Retain the per-station contribution table for up to this many of the most recent emitted
+         * points (0 = off). Off on every render path — this runs on each minute tick — and set only by
+         * the diagnostics UI. Capture is observationally inert: it never changes the emitted series.
+         */
+        captureBreakdowns: Int = 0,
     ): BlendObservationResult {
         // TOTAL order, not `sortedBy { it.timestamp }`. That is a STABLE sort, so rows sharing a
         // timestamp kept the CALLER's order — and the blend is order-sensitive: `groupBy { stationId }`
@@ -271,6 +328,10 @@ object ActualTemperatureSeriesBuilder {
         val candidateTimes = filtered.map { it.timestamp }.distinct().sorted()
         val result = mutableListOf<ObservationReading>()
         val candidates = mutableListOf<DecayBlendInput>()
+        // Parallel to [candidates] by index, populated only while capturing, so the hot render path
+        // allocates nothing extra.
+        val captureMeta = if (captureBreakdowns > 0) mutableListOf<ContributionMeta>() else null
+        val breakdowns = if (captureBreakdowns > 0) ArrayDeque<BlendBreakdown>() else null
         val timePattern = if (onBlendDebug != null) DateTimeFormatter.ofPattern("HH:mm") else null
         // Dominance is per LOCAL day of the raw readings, so the daily aggregate (day-only obs)
         // and the hourly graph (multi-day context window) compute the same dominant station and
@@ -290,6 +351,7 @@ object ActualTemperatureSeriesBuilder {
         // of two window-dependent 5-min-thinned approximations. See daily_vs_hourly_actual_extrema_mismatch.
         for (targetTs in candidateTimes) {
             candidates.clear()
+            captureMeta?.clear()
             var hasObserved = false
             var hasInterpolated = false
             var bestAnchorTs = -1L
@@ -304,6 +366,19 @@ object ActualTemperatureSeriesBuilder {
                     val isSynthetic = ObservationSourceMatcher.isSyntheticBackfillStation(stationId, displaySourceId)
                     if (isSynthetic) syntheticStationIds.add(stationId)
                     candidates.add(DecayBlendInput(resolved.distanceKm, resolved.temperature, ageMs, isPersonal, isSynthetic))
+                    captureMeta?.add(
+                        ContributionMeta(
+                            stationId = stationId,
+                            stationName = stationObs.first().stationName,
+                            stationType = resolved.stationType,
+                            distanceKm = resolved.distanceKm,
+                            lastReadingMs = resolved.anchorTs,
+                            rawTemp = resolved.rawTemperature,
+                            resolvedTemp = resolved.temperature,
+                            sourceKind = resolved.sourceKind,
+                            ageMs = ageMs,
+                        ),
+                    )
                     soleContributorId = if (candidates.size == 1) stationId else null
                     if (resolved.anchorTs > bestAnchorTs) bestAnchorTs = resolved.anchorTs
                     if (anchorStation == null) anchorStation = stationObs.minByOrNull { it.distanceKm }
@@ -341,7 +416,8 @@ object ActualTemperatureSeriesBuilder {
 
             val anchor = anchorStation ?: continue
             if (candidates.any { it.isSynthetic } && candidates.any { !it.isSynthetic }) syntheticDeprioritized++
-            val blendedTemp = blendCandidateTemperature(candidates, personalStationWeight) ?: continue
+            val weighted = computeWeightedBlend(candidates, personalStationWeight) ?: continue
+            val blendedTemp = weighted.temperature
             val bestSourceKind = when {
                 hasObserved -> "observed"
                 hasInterpolated -> "interpolated"
@@ -373,6 +449,34 @@ object ActualTemperatureSeriesBuilder {
                         api = displaySourceId,
                     ),
                 )
+                if (breakdowns != null && captureMeta != null) {
+                    val weightSum = weighted.weights.sum()
+                    breakdowns.addLast(
+                        BlendBreakdown(
+                            targetMs = targetTs,
+                            blendedTemp = blendedTemp,
+                            sourceKind = bestSourceKind,
+                            contributions = captureMeta.mapIndexed { index, meta ->
+                                val weight = weighted.weights[index]
+                                BlendContribution(
+                                    stationId = meta.stationId,
+                                    stationName = meta.stationName,
+                                    stationType = meta.stationType,
+                                    distanceKm = meta.distanceKm,
+                                    lastReadingMs = meta.lastReadingMs,
+                                    rawTemp = meta.rawTemp,
+                                    resolvedTemp = meta.resolvedTemp,
+                                    sourceKind = meta.sourceKind,
+                                    ageMs = meta.ageMs,
+                                    weight = weight,
+                                    weightShare = if (weightSum > 0.0) weight / weightSum else 0.0,
+                                )
+                            },
+                        ),
+                    )
+                    // Keep only the most recent N; candidateTimes ascends, so the front is the oldest.
+                    while (breakdowns.size > captureBreakdowns) breakdowns.removeFirst()
+                }
             }
         }
 
@@ -401,8 +505,23 @@ object ActualTemperatureSeriesBuilder {
                 loneStationSkippedCount = loneStationSkipped,
                 syntheticDeprioritizedCount = syntheticDeprioritized,
             ),
+            // Newest first — the tab leads with the point the user is looking at on the graph.
+            breakdowns = breakdowns?.reversed().orEmpty(),
         )
     }
+
+    /** Per-station reporting fields captured alongside [DecayBlendInput]; diagnostics only. */
+    private class ContributionMeta(
+        val stationId: String,
+        val stationName: String,
+        val stationType: String,
+        val distanceKm: Float,
+        val lastReadingMs: Long,
+        val rawTemp: Float,
+        val resolvedTemp: Float,
+        val sourceKind: String,
+        val ageMs: Long,
+    )
 
     /**
      * The station allowed to stand alone at a candidate timestamp, per local calendar day: most
@@ -472,12 +591,29 @@ object ActualTemperatureSeriesBuilder {
         val sourceKind: String,
         val anchorTs: Long,
         val stationType: String,
+        /**
+         * The station's measured value at [anchorTs], before any interpolation or forecast carry-forward.
+         * Equals [temperature] only when [sourceKind] is `observed`; the difference is the fabricated
+         * part of the contribution, which is what the Blend tab exists to expose.
+         */
+        val rawTemperature: Float,
     )
 
-    private fun blendCandidateTemperature(candidates: List<DecayBlendInput>, personalStationWeight: Double): Float? {
+    /**
+     * The blended value together with the per-candidate weights that produced it, aligned by index
+     * with the input list (0.0 for candidates that were excluded or decayed out).
+     *
+     * The weights are returned rather than recomputed by callers so the Blend tab's "weight share"
+     * column cannot drift from the arithmetic that actually moves the graph — a second, independent
+     * implementation of this blend is precisely the defect class this diagnostic exists to surface.
+     */
+    private class WeightedBlend(val temperature: Float, val weights: DoubleArray)
+
+    private fun computeWeightedBlend(candidates: List<DecayBlendInput>, personalStationWeight: Double): WeightedBlend? {
+        val weights = DoubleArray(candidates.size)
         // A fully-discounted PWS (weight 0) contributes nothing, so drop it entirely. This also keeps it
         // from winning the near-zero-distance tiebreak below when an official station exists elsewhere.
-        val eligible = if (personalStationWeight <= 0.0) candidates.filter { !it.isPersonal } else candidates
+        val eligible = candidates.indices.filter { personalStationWeight > 0.0 || !candidates[it].isPersonal }
         if (eligible.isEmpty()) return null
 
         // A synthetic historical-actuals backfill row (`<SOURCE>_MAIN`) is a slice of the source's
@@ -489,29 +625,35 @@ object ActualTemperatureSeriesBuilder {
         // Rank the backfill strictly below real readings, but keep it as a LAST resort so
         // forecast-only sources (Open-Meteo, Silurian, ...) — and NWS during a total station outage —
         // still render an actual line.
-        val realCandidates = eligible.filter { !it.isSynthetic && timeDecayFactor(it.ageMs) > 0f }
+        val realCandidates = eligible.filter { !candidates[it].isSynthetic && timeDecayFactor(candidates[it].ageMs) > 0f }
         val ranked = if (realCandidates.isNotEmpty()) realCandidates else eligible
 
-        val veryClose = ranked.filter { it.distanceKm <= NEAR_ZERO_KM && timeDecayFactor(it.ageMs) > 0f }
+        val veryClose = ranked.filter {
+            candidates[it].distanceKm <= NEAR_ZERO_KM && timeDecayFactor(candidates[it].ageMs) > 0f
+        }
         if (veryClose.isNotEmpty()) {
             // A station essentially at the user's location wins outright (IDW would divide by ~0). Prefer
             // an official station here too, falling back to the nearest personal one if that's all there is.
-            val pick = veryClose.filter { !it.isPersonal }.minByOrNull { it.distanceKm }
-                ?: veryClose.minBy { it.distanceKm }
-            return pick.temperature
+            val pick = veryClose.filter { !candidates[it].isPersonal }.minByOrNull { candidates[it].distanceKm }
+                ?: veryClose.minBy { candidates[it].distanceKm }
+            // Sole contributor: the tab should read 100%, not an IDW share this branch never computed.
+            weights[pick] = 1.0
+            return WeightedBlend(candidates[pick].temperature, weights)
         }
 
         var wSum = 0.0
         var tSum = 0.0
-        for (candidate in ranked) {
+        for (index in ranked) {
+            val candidate = candidates[index]
             val decay = timeDecayFactor(candidate.ageMs)
             if (decay <= 0f) continue
             val typeWeight = if (candidate.isPersonal) personalStationWeight else 1.0
             val w = typeWeight * decay.toDouble() / (candidate.distanceKm.toDouble() * candidate.distanceKm.toDouble())
+            weights[index] = w
             tSum += w * candidate.temperature
             wSum += w
         }
-        return if (wSum > 0.0) (tSum / wSum).toFloat() else null
+        return if (wSum > 0.0) WeightedBlend((tSum / wSum).toFloat(), weights) else null
     }
 
     private fun resolveStationValueAt(
@@ -531,7 +673,14 @@ object ActualTemperatureSeriesBuilder {
         val insertIdx = stationObs.binarySearch { it.timestamp.compareTo(targetTs) }.let {
             if (it >= 0) {
                 val hit = stationObs[it]
-                return ResolvedStationValue(hit.temperature, hit.distanceKm, "observed", hit.timestamp, stationType)
+                return ResolvedStationValue(
+                    hit.temperature,
+                    hit.distanceKm,
+                    "observed",
+                    hit.timestamp,
+                    stationType,
+                    hit.temperature,
+                )
             }
             -(it + 1)
         }
@@ -558,7 +707,14 @@ object ActualTemperatureSeriesBuilder {
                 val fraction = (targetTs - before.timestamp).toFloat() / gapMs.toFloat()
                 val interpolated = before.temperature + (after.temperature - before.temperature) * fraction
                 val interpolatedDistanceKm = before.distanceKm + (after.distanceKm - before.distanceKm) * fraction
-                ResolvedStationValue(interpolated, interpolatedDistanceKm, "interpolated", after.timestamp, stationType)
+                ResolvedStationValue(
+                    interpolated,
+                    interpolatedDistanceKm,
+                    "interpolated",
+                    after.timestamp,
+                    stationType,
+                    after.temperature,
+                )
             }
             before != null -> extrapolateForward(before, targetTs, forecastSeries, stationType)
             else -> null
@@ -582,7 +738,14 @@ object ActualTemperatureSeriesBuilder {
         val baseForecast = forecastTemperatureAt(forecastSeries, before.timestamp) ?: return null
         val targetForecast = forecastTemperatureAt(forecastSeries, targetTs) ?: return null
         val extrapolated = before.temperature + (targetForecast - baseForecast)
-        return ResolvedStationValue(extrapolated, before.distanceKm, "forecast_extrapolated", before.timestamp, stationType)
+        return ResolvedStationValue(
+            extrapolated,
+            before.distanceKm,
+            "forecast_extrapolated",
+            before.timestamp,
+            stationType,
+            before.temperature,
+        )
     }
 
     private fun interpolateForecastTemp(topHourPoints: List<ActualTemperaturePoint>, timeMs: Long): Float {

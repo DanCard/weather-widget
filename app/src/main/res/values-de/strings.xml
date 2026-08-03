@@ -285,4 +285,9 @@
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Teilen konnte nicht gestartet werden</string>
     <string name="bug_report_email_subject">Wetter-Widget-Fehlerbericht</string>
+    <string name="blend_tab">Mischung</string>
+    <string name="blend_no_points">Noch kein gemischter Punkt verfügbar.</string>
+    <string name="blend_outside_station_range">Mischwert liegt außerhalb aller Stationsmesswerte</string>
+    <string name="blend_no_location">Kein Standort für die Mischung verfügbar.</string>
+    <string name="blend_load_failed">Mischungstabelle konnte nicht erstellt werden: %1$s</string>
 </resources>

@@ -285,4 +285,9 @@
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Impossibile avviare la condivisione</string>
     <string name="bug_report_email_subject">Segnalazione bug del Widget Meteo</string>
+    <string name="blend_tab">Miscela</string>
+    <string name="blend_no_points">Nessun punto miscelato ancora disponibile.</string>
+    <string name="blend_outside_station_range">La miscela è fuori da tutte le letture delle stazioni</string>
+    <string name="blend_no_location">Nessuna posizione disponibile per la miscela.</string>
+    <string name="blend_load_failed">Impossibile creare la tabella della miscela: %1$s</string>
 </resources>

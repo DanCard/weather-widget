@@ -48,6 +48,8 @@ class HourlyProximityQueryAllowlistTest {
         "DataFreshness.kt" to "staleness check; freshest row wins regardless of site",
         "WeatherWidgetWorker.kt" to "pre-existing; audit before touching",
         "NoHourlyDayClickCoordinator.kt" to "pre-existing presence gate; audit before touching",
+        "WeatherObservationsActivity.kt" to
+            "Blend tab diagnostic; sole call site wrapped in GraphDataLoader.unifyToNearestSite",
     )
 
     @Test

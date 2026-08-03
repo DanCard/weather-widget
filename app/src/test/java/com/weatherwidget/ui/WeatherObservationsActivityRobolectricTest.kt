@@ -171,31 +171,35 @@ class WeatherObservationsActivityRobolectricTest {
     }
 
     @Test
-    fun `observations and fetch logs use separate tabs`() {
+    fun `blend, observations and fetch logs use separate tabs`() {
         launchActivity().onActivity { activity ->
+            val blendTab = activity.findViewById<TextView>(R.id.blend_tab)
             val observationsTab = activity.findViewById<TextView>(R.id.observations_tab)
             val fetchLogsTab = activity.findViewById<TextView>(R.id.fetch_logs_tab)
+            val blendContent = activity.findViewById<View>(R.id.blend_content)
             val observationsContent = activity.findViewById<View>(R.id.observations_content)
             val fetchLogsContent = activity.findViewById<View>(R.id.fetch_logs_content)
 
-            assertTrue(observationsTab.isSelected)
-            assertFalse(fetchLogsTab.isSelected)
-            assertEquals(View.VISIBLE, observationsContent.visibility)
-            assertEquals(View.GONE, fetchLogsContent.visibility)
+            fun assertOnly(selected: TextView, content: View) {
+                listOf(blendTab, observationsTab, fetchLogsTab).forEach { tab ->
+                    assertEquals("${tab.text} selected", tab === selected, tab.isSelected)
+                }
+                listOf(blendContent, observationsContent, fetchLogsContent).forEach { view ->
+                    assertEquals(if (view === content) View.VISIBLE else View.GONE, view.visibility)
+                }
+            }
+
+            // Blend leads: it explains the graph's observed dot, so it is the default tab.
+            assertOnly(blendTab, blendContent)
 
             fetchLogsTab.performClick()
-
-            assertFalse(observationsTab.isSelected)
-            assertTrue(fetchLogsTab.isSelected)
-            assertEquals(View.GONE, observationsContent.visibility)
-            assertEquals(View.VISIBLE, fetchLogsContent.visibility)
+            assertOnly(fetchLogsTab, fetchLogsContent)
 
             observationsTab.performClick()
+            assertOnly(observationsTab, observationsContent)
 
-            assertTrue(observationsTab.isSelected)
-            assertFalse(fetchLogsTab.isSelected)
-            assertEquals(View.VISIBLE, observationsContent.visibility)
-            assertEquals(View.GONE, fetchLogsContent.visibility)
+            blendTab.performClick()
+            assertOnly(blendTab, blendContent)
         }
     }
 

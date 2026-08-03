@@ -285,4 +285,9 @@
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">ไม่สามารถเริ่มการแชร์ได้</string>
     <string name="bug_report_email_subject">รายงานข้อบกพร่องวิดเจ็ตสภาพอากาศ</string>
+    <string name="blend_tab">การผสม</string>
+    <string name="blend_no_points">ยังไม่มีจุดผสม</string>
+    <string name="blend_outside_station_range">ค่าผสมอยู่นอกช่วงค่าที่สถานีวัดได้ทั้งหมด</string>
+    <string name="blend_no_location">ไม่มีตำแหน่งสำหรับการผสม</string>
+    <string name="blend_load_failed">ไม่สามารถสร้างตารางการผสมได้: %1$s</string>
 </resources>

@@ -270,4 +270,9 @@
 
     <string name="bug_report_share_failed">No se pudo iniciar el envío</string>
     <string name="bug_report_email_subject">Informe de error de Weather Widget</string>
+    <string name="blend_tab">Mezcla</string>
+    <string name="blend_no_points">Aún no hay ningún punto mezclado disponible.</string>
+    <string name="blend_outside_station_range">La mezcla está fuera de todas las lecturas de estación</string>
+    <string name="blend_no_location">No hay ubicación disponible para la mezcla.</string>
+    <string name="blend_load_failed">No se pudo crear la tabla de mezcla: %1$s</string>
 </resources>
