@@ -13,7 +13,6 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
@@ -246,6 +245,11 @@ object WidgetWorkScheduler {
     internal fun delayedUiWorkName(appWidgetId: Int): String =
         "$WORK_NAME_UI_DELAYED_PREFIX$appWidgetId"
 
+    /**
+     * Zero-delay requests built here and in [buildUiRequest] intentionally remain ordinary work.
+     * Interactive refreshes already paint from cache directly, and expedited CoroutineWorker work
+     * requires a foreground-notification contract on Android versions before 12.
+     */
     private fun enqueueFullSync(
         context: Context,
         uniqueName: String,
@@ -273,8 +277,6 @@ object WidgetWorkScheduler {
                 .apply {
                     if (initialDelayMs > 0L) {
                         setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
-                    } else {
-                        setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                     }
                 }
                 .build()
@@ -301,8 +303,6 @@ object WidgetWorkScheduler {
             .apply {
                 if (initialDelayMs > 0L) {
                     setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
-                } else {
-                    setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 }
             }
             .build()

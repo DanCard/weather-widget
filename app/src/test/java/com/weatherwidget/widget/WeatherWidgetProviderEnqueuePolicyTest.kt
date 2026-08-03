@@ -17,6 +17,7 @@ import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -57,19 +58,25 @@ class WeatherWidgetProviderEnqueuePolicyTest {
 
     @Test
     fun `immediate UI-only update never cancels a running repaint`() {
+        val requestSlot = slot<OneTimeWorkRequest>()
+
         WidgetWorkScheduler.enqueueUiRepaint(context, reason = "test")
 
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
                 eq(WidgetWorkScheduler.WORK_NAME_UI),
                 eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
-                any<OneTimeWorkRequest>(),
+                capture(requestSlot),
             )
         }
+        assertFalse(requestSlot.captured.workSpec.expedited)
+        assertEquals(0L, requestSlot.captured.workSpec.initialDelay)
     }
 
     @Test
     fun `delayed UI-only clear uses a per-widget non-cancelling lane`() {
+        val requestSlot = slot<OneTimeWorkRequest>()
+
         WidgetWorkScheduler.enqueueDelayedUiRepaint(
             context = context,
             appWidgetId = 42,
@@ -81,26 +88,51 @@ class WeatherWidgetProviderEnqueuePolicyTest {
             mockWorkManager.enqueueUniqueWork(
                 eq(WidgetWorkScheduler.delayedUiWorkName(42)),
                 eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
-                any<OneTimeWorkRequest>(),
+                capture(requestSlot),
             )
         }
+        assertFalse(requestSlot.captured.workSpec.expedited)
+        assertEquals(5_000L, requestSlot.captured.workSpec.initialDelay)
     }
 
     @Test
     fun `immediate full-fetch update keeps a running sync instead of cancelling it`() {
+        val requestSlot = slot<OneTimeWorkRequest>()
+
         WidgetWorkScheduler.enqueueRedundantImmediateSync(context, forceRefresh = true, reason = "test")
 
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
                 eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
                 eq(ExistingWorkPolicy.KEEP),
-                any<OneTimeWorkRequest>(),
+                capture(requestSlot),
             )
         }
+        assertFalse(requestSlot.captured.workSpec.expedited)
+        assertEquals(0L, requestSlot.captured.workSpec.initialDelay)
+    }
+
+    @Test
+    fun `required immediate full-fetch update remains ordinary and appended`() {
+        val requestSlot = slot<OneTimeWorkRequest>()
+
+        WidgetWorkScheduler.enqueueRequiredImmediateSync(context, forceRefresh = true, reason = "test")
+
+        verify(exactly = 1) {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                capture(requestSlot),
+            )
+        }
+        assertFalse(requestSlot.captured.workSpec.expedited)
+        assertEquals(0L, requestSlot.captured.workSpec.initialDelay)
     }
 
     @Test
     fun `required no-hourly follow-up is appended instead of discarded`() {
+        val requestSlot = slot<OneTimeWorkRequest>()
+
         WidgetWorkScheduler.enqueueRequiredNoHourlyFollowUp(
             context = context,
             appWidgetId = 17,
@@ -114,14 +146,18 @@ class WeatherWidgetProviderEnqueuePolicyTest {
             mockWorkManager.enqueueUniqueWork(
                 eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
                 eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
-                match<OneTimeWorkRequest> {
-                    it.workSpec.input.getInt(
-                        WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID,
-                        -1,
-                    ) == 17
-                },
+                capture(requestSlot),
             )
         }
+        assertEquals(
+            17,
+            requestSlot.captured.workSpec.input.getInt(
+                WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID,
+                -1,
+            ),
+        )
+        assertFalse(requestSlot.captured.workSpec.expedited)
+        assertEquals(0L, requestSlot.captured.workSpec.initialDelay)
     }
 
     @Test
