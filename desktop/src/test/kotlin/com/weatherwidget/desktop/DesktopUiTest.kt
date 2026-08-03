@@ -643,6 +643,40 @@ class DesktopUiTest {
     }
 
     @Test
+    fun testObservationsRefreshButtonDispatchesCallerOwnedCallback() {
+        var refreshClicks = 0
+        composeTestRule.setContent {
+            ObservationRefreshButton(
+                isRefreshing = false,
+                onRefreshData = { refreshClicks++ },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("observations_refresh_btn").performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(1, refreshClicks)
+    }
+
+    /**
+     * Regression for the Stations window cancellation bug: progress is owned by Main alongside the
+     * application scope, not by ObservationsWindow's disposable composition scope.
+     */
+    @Test
+    fun testObservationsRefreshingStateIsDrivenByCaller() {
+        var refreshClicks = 0
+        composeTestRule.setContent {
+            ObservationRefreshButton(
+                isRefreshing = true,
+                onRefreshData = { refreshClicks++ },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("observations_refresh_btn").assertIsNotEnabled().performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(0, refreshClicks)
+    }
+
+    @Test
     fun testAppLogsWindowShowsLogsAndFilters() {
         val tempDbPath = java.nio.file.Files.createTempFile("weather-ui-test", ".db")
         val database = com.weatherwidget.data.local.desktop.DesktopWeatherDatabase(tempDbPath).apply { initialize() }

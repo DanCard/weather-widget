@@ -32,6 +32,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.testTag
 import com.weatherwidget.data.local.desktop.DesktopLogEntity
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
@@ -110,10 +111,11 @@ internal fun visibleStationRows(
 @Composable
 internal fun ObservationsWindow(
     weatherDao: DesktopWeatherDao,
-    repository: DesktopWeatherRepository,
     config: DesktopConfig,
     showRequestId: Int = 0,
     dataUpdateCount: Int = 0,
+    isRefreshing: Boolean = false,
+    onRefreshData: () -> Unit = {},
     onClose: () -> Unit,
     onConfigUpdate: (DesktopConfig) -> Unit,
 ) {
@@ -173,7 +175,6 @@ internal fun ObservationsWindow(
         var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.weatherSource)) }
         var observations by remember { mutableStateOf<List<DesktopObservationEntity>>(emptyList()) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
-        var isRefreshing by remember { mutableStateOf(false) }
         var selectedTab by remember { mutableStateOf(0) }
         var logFilter by remember { mutableStateOf(LogFilter.FETCHES) }
         val scope = rememberCoroutineScope()
@@ -290,22 +291,10 @@ internal fun ObservationsWindow(
                             }
                         }
 
-                        IconButton(
-                            onClick = {
-                                scope.launch {
-                                    isRefreshing = true
-                                    try {
-                                        repository.refresh()
-                                        loadData()
-                                    } finally {
-                                        isRefreshing = false
-                                    }
-                                }
-                            },
-                            enabled = !isRefreshing
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                        }
+                        ObservationRefreshButton(
+                            isRefreshing = isRefreshing,
+                            onRefreshData = onRefreshData,
+                        )
 
                         IconButton(onClick = onClose) {
                             Icon(Icons.Default.Close, contentDescription = "Close")
@@ -351,6 +340,34 @@ internal fun ObservationsWindow(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Caller-owned Stations refresh control.
+ *
+ * The network operation must not be launched from [ObservationsWindow]'s composition scope: closing
+ * that window disposes the scope and cancels the fetch. Keeping this control callback-only makes the
+ * ownership boundary explicit and lets [Main] run the work in its application-level UI scope.
+ */
+@Composable
+internal fun ObservationRefreshButton(
+    isRefreshing: Boolean,
+    onRefreshData: () -> Unit,
+) {
+    IconButton(
+        onClick = onRefreshData,
+        enabled = !isRefreshing,
+        modifier = Modifier.testTag("observations_refresh_btn"),
+    ) {
+        if (isRefreshing) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
         }
     }
 }
@@ -466,4 +483,3 @@ private fun ObservationList(
         }
     }
 }
-

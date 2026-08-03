@@ -207,8 +207,8 @@ private fun runApp() = application {
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
-        // Owned here rather than in SettingsWindow: the refresh it drives runs on uiScope and
-        // outlives that window, so the flag has to outlive it too.
+        // Owned here rather than in either child window: full refresh work runs on uiScope and
+        // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
         // Registered by WidgetPopup for whichever view is active (daily/hourly); the popup Window forwards
         // ←/→ here. Returns true when the key was consumed (so Escape/default handling stays intact).
@@ -655,6 +655,59 @@ private fun runApp() = application {
             }
         }
 
+        fun requestFullRefresh(origin: String) {
+            val repo = repository
+            weatherDao.log(
+                "REFRESH_CLICK",
+                "origin=$origin repository=" +
+                    (if (repo == null) "NULL (no-op)" else "present") +
+                    " config=" +
+                    (currentConfig?.let { "lat=${it.lat} lon=${it.lon} src=${it.weatherSource}" }
+                        ?: "null"),
+                "INFO",
+            )
+            if (repo == null || refreshInFlight) {
+                if (refreshInFlight) {
+                    weatherDao.log("REFRESH_CLICK", "origin=$origin suppressed=in_flight", "INFO")
+                }
+                return
+            }
+
+            refreshInFlight = true
+            // Application-owned scope: removing either child window from composition cannot cancel
+            // the fetch or discard its result.
+            uiScope.launch {
+                try {
+                    forecast = repo.refresh()
+                    dataUpdateCount++
+                    weatherDao.log(
+                        "REFRESH_CLICK",
+                        "origin=$origin repository.refresh() completed",
+                        "INFO",
+                    )
+                    // UI -> daemon direction: only notify after the refreshed rows are durable.
+                    notifyRefreshRequested()
+                    weatherDao.log(
+                        "REFRESH_CLICK",
+                        "origin=$origin notifyRefreshRequested() sent",
+                        "INFO",
+                    )
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    weatherDao.log("REFRESH_CLICK", "origin=$origin refresh cancelled", "WARN")
+                    throw e
+                } catch (e: Exception) {
+                    // A launched child must not take down uiScope and the unrelated UI features it owns.
+                    weatherDao.log(
+                        "REFRESH_CLICK",
+                        "origin=$origin refresh failed ${e::class.simpleName}: ${e.message}",
+                        "WARN",
+                    )
+                } finally {
+                    refreshInFlight = false
+                }
+            }
+        }
+
         if (statsVisible && currentConfig != null) {
             StatisticsWindow(
                 weatherDao = weatherDao,
@@ -675,12 +728,13 @@ private fun runApp() = application {
         if (observationsVisible && currentConfig != null && repository != null) {
             ObservationsWindow(
                 weatherDao = weatherDao,
-                repository = repository,
                 config = currentConfig,
                 showRequestId = obsShowRequestId,
                 // Same "DB changed" signal the popup reloads on, so the stations list tracks the
                 // live DB instead of freezing at the snapshot taken when the window was opened.
                 dataUpdateCount = dataUpdateCount,
+                isRefreshing = refreshInFlight,
+                onRefreshData = { requestFullRefresh("observations") },
                 onClose = { observationsVisible = false },
                 onConfigUpdate = { newConfig ->
                     saveConfigAndNotify(newConfig)
@@ -764,50 +818,7 @@ private fun runApp() = application {
                     },
                     isRefreshing = refreshInFlight,
                     onRefreshBreadcrumb = { msg -> weatherDao.log("REFRESH_CLICK", msg, "INFO") },
-                    onRefreshData = {
-                        val repo = repository
-                        // A null repository makes the whole handler a silent no-op, which is
-                        // indistinguishable from success at the UI. Record which branch we took.
-                        weatherDao.log(
-                            "REFRESH_CLICK",
-                            "onRefreshData repository=" +
-                                (if (repo == null) "NULL (no-op)" else "present") +
-                                " config=" +
-                                (currentConfig?.let { "lat=${it.lat} lon=${it.lon} src=${it.weatherSource}" }
-                                    ?: "null"),
-                            "INFO",
-                        )
-                        if (repo != null && !refreshInFlight) {
-                            refreshInFlight = true
-                            // uiScope, not the Settings window's rememberCoroutineScope: this scope
-                            // owns the database and repository and outlives every child window, so
-                            // closing Settings mid-fetch can no longer cancel the work or discard a
-                            // completed result. Mirrors onNeedHistory above.
-                            uiScope.launch {
-                                try {
-                                    forecast = repo.refresh()
-                                    weatherDao.log("REFRESH_CLICK", "repository.refresh() completed", "INFO")
-                                    // UI → daemon direction: tell the daemon to pick up the rows this
-                                    // refresh just wrote. (.data-updated is daemon → UI only.)
-                                    notifyRefreshRequested()
-                                    weatherDao.log("REFRESH_CLICK", "notifyRefreshRequested() sent", "INFO")
-                                } catch (e: kotlinx.coroutines.CancellationException) {
-                                    weatherDao.log("REFRESH_CLICK", "refresh cancelled", "WARN")
-                                    throw e
-                                } catch (e: Exception) {
-                                    // Swallowed deliberately: rethrowing from a launched coroutine
-                                    // would take down uiScope and every other feature hanging off it.
-                                    weatherDao.log(
-                                        "REFRESH_CLICK",
-                                        "refresh failed ${e::class.simpleName}: ${e.message}",
-                                        "WARN",
-                                    )
-                                } finally {
-                                    refreshInFlight = false
-                                }
-                            }
-                        }
-                    },
+                    onRefreshData = { requestFullRefresh("settings") },
                     onViewAppLogs = {
                         appLogsVisible = true
                     },
