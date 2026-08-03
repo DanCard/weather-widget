@@ -108,20 +108,31 @@ class DesktopWeatherService(
     }.getOrElse { e ->
         if (e is CancellationException) throw e
         when (weatherSource) {
-            // NWS has no coverage outside the US, so Open-Meteo is the intended substitute there.
-            // This is the one legitimate cross-source fallback — but log it so it is never silent.
-            "NWS" -> {
-                weatherDao?.log("SOURCE_FALLBACK", "NWS unavailable, substituting Open-Meteo: ${e.message}", "WARN")
-                fetchOpenMeteoForecastWithActuals()
-            }
             // Open-Meteo itself has nowhere to fall back to.
             WeatherSource.OPEN_METEO.id -> throw e
-            // Any other explicitly-selected source: do NOT silently relabel Open-Meteo data as that
-            // source (that masks a missing key / outage and shows the wrong provider's numbers).
-            // Surface the failure instead — the refresh loop logs REFRESH_FAIL and updates DataStatus.
+            // EVERY explicitly-selected source, NWS included: do NOT silently relabel Open-Meteo data
+            // as that source (that masks a missing key / outage and shows the wrong provider's
+            // numbers). Surface the failure — the refresh loop logs REFRESH_FAIL and updates
+            // DataStatus, so the UI shows cached data with a staleness indicator.
+            //
+            // NWS used to be exempt here, on the rationale that it has no coverage outside the US and
+            // Open-Meteo is the intended substitute there. But this `getOrElse` catches EVERY failure,
+            // so transient ones ("Channel was closed", request timeouts, truncated chunks) substituted
+            // too: 222 SOURCE_FALLBACK events fired at a US location that NWS covers fine. Each one
+            // wrote Open-Meteo forecast temperatures into `observations` as NWS_MAIN rows, which then
+            // hijacked the actual-temperature blend — see
+            // plans/260802-desktop-nws-main-backfill-hijacks-blend.md.
+            //
+            // Genuine out-of-coverage is a DIFFERENT, already-detected condition:
+            // NwsApi throws NwsPointUnavailableException only on a 404 /points response that
+            // isUnsupportedPointProblem. Android acts on precisely that distinction at source-selection
+            // time (SetupSourceAvailabilityChecker separates UNSUPPORTED from INCONCLUSIVE) rather
+            // than substituting at fetch time, and desktop now matches.
             else -> {
                 val hasKey = effectiveKeys[weatherSource]?.isNotBlank() == true
-                val hint = if (!hasKey && WeatherSource.fromId(weatherSource) != WeatherSource.OPEN_METEO) {
+                // Keyless sources (NWS, Open-Meteo) must not be blamed on a missing key — NWS reaches
+                // this branch now that it is no longer exempt from the no-masquerading rule.
+                val hint = if (!hasKey && WeatherSource.fromId(weatherSource).requiresApiKey) {
                     " (no API key configured for $weatherSource — set it in local.properties or Settings)"
                 } else ""
                 weatherDao?.log("SOURCE_ERROR", "$weatherSource fetch failed; not masquerading as Open-Meteo$hint: ${e.message}", "WARN")

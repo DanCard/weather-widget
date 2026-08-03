@@ -79,6 +79,16 @@ enum class WeatherSource(
     ),
     ;
 
+    /**
+     * True when the source needs a user-supplied API key. NWS and Open-Meteo are free and keyless,
+     * so a failure from either must never be reported as a missing-key problem.
+     */
+    val requiresApiKey: Boolean
+        get() = when (this) {
+            VISUAL_CROSSING, OPEN_WEATHER_MAP, WEATHER_API, SILURIAN, TOMORROW_IO -> true
+            NWS, OPEN_METEO, GENERIC_GAP -> false
+        }
+
     companion object {
         /**
          * Maps a display source string (from UI/SharedPreferences) to WeatherSource.

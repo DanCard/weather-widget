@@ -29,7 +29,7 @@ object ApiSourceWarningHelper {
         displaySource: WeatherSource,
         hasSelectedSourceData: Boolean,
     ): SourceWarning? {
-        if (hasSelectedSourceData || !displaySource.requiresApiKey()) return null
+        if (hasSelectedSourceData || !displaySource.requiresApiKey) return null
 
         val relevantTags = buildSet {
             add("CURR_FETCH_ERROR")
@@ -54,7 +54,7 @@ object ApiSourceWarningHelper {
         hasSelectedSourceData: Boolean,
         latestFailureMessages: List<String>,
     ): SourceWarning? {
-        if (hasSelectedSourceData || !displaySource.requiresApiKey()) return null
+        if (hasSelectedSourceData || !displaySource.requiresApiKey) return null
 
         for (rawMessage in latestFailureMessages) {
             val message = rawMessage.trim()
@@ -211,12 +211,6 @@ object ApiSourceWarningHelper {
             else -> null
         }
 
-    private fun WeatherSource.requiresApiKey(): Boolean =
-        this == WeatherSource.VISUAL_CROSSING ||
-            this == WeatherSource.OPEN_WEATHER_MAP ||
-            this == WeatherSource.WEATHER_API ||
-            this == WeatherSource.SILURIAN ||
-            this == WeatherSource.TOMORROW_IO
 
     private fun extractDetail(message: String): String {
         val prefixes = listOf("detail=", "error=")
