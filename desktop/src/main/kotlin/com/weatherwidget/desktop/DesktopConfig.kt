@@ -34,6 +34,7 @@ data class DesktopConfig(
     val obsWindowY: Float? = null,
     val obsWindowWidth: Float? = null,
     val obsWindowHeight: Float? = null,
+    val obsSelectedTab: Int = TAB_OBSERVATIONS,
     val historyWindowX: Float? = null,
     val historyWindowY: Float? = null,
     val historyWindowWidth: Float? = null,

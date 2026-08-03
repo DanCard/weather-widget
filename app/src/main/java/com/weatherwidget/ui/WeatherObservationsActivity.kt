@@ -96,7 +96,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private var loadObservationsJob: Job? = null
     private var loadFetchLogsJob: Job? = null
     private var loadBlendTableJob: Job? = null
-    private var selectedTab: Int = TAB_BLEND
+    private var selectedTab: Int = TAB_OBSERVATIONS
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -132,7 +132,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.title).setOnClickListener { finish() }
         findViewById<Button>(R.id.close_button).setOnClickListener { finish() }
 
-        selectedTab = savedInstanceState?.getInt(STATE_SELECTED_TAB, TAB_BLEND) ?: TAB_BLEND
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(this, PREFS_NAME)
+        val defaultTab = prefs.getInt(PREF_KEY_LAST_TAB, TAB_OBSERVATIONS)
+        selectedTab = savedInstanceState?.getInt(STATE_SELECTED_TAB, defaultTab) ?: defaultTab
         findViewById<View>(R.id.blend_tab).setOnClickListener {
             showTab(TAB_BLEND)
         }
@@ -172,6 +174,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     private fun showTab(tab: Int) {
         selectedTab = tab
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(this, PREFS_NAME)
+        prefs.edit().putInt(PREF_KEY_LAST_TAB, tab).apply()
 
         findViewById<View>(R.id.observations_content).visibility =
             if (tab == TAB_OBSERVATIONS) View.VISIBLE else View.GONE
@@ -860,12 +864,12 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     internal companion object {
-        // Blend leads: it is the tab that explains the graph's observed dot, which is what this
-        // screen is usually opened to investigate.
         private const val TAB_BLEND = 0
         private const val TAB_OBSERVATIONS = 1
         private const val TAB_FETCH_LOGS = 2
         private const val STATE_SELECTED_TAB = "selected_tab"
+        private const val PREF_KEY_LAST_TAB = "last_selected_obs_tab"
+        private const val PREFS_NAME = "weather_widget_prefs"
 
         /**
          * The Blend tab shows only the CURRENT blended point — the tab answers "why does the dot read

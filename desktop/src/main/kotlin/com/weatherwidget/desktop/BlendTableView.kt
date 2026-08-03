@@ -72,7 +72,7 @@ internal fun BlendTableView(tables: List<BlendTable>, sourceId: String) {
             Text(
                 "No blended points in range.",
                 color = ObsStyle.textSecondary,
-                fontSize = 16.sp,
+                fontSize = 11.2.sp,
                 modifier = Modifier.padding(24.dp),
             )
         }
@@ -96,17 +96,17 @@ private fun BlendTableCard(table: BlendTable, sourceId: String) {
             .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(table.timeLabel, color = ObsStyle.accent, fontSize = 48.sp, fontWeight = FontWeight.Bold)
+            Text(table.timeLabel, color = ObsStyle.accent, fontSize = 33.6.sp, fontWeight = FontWeight.Bold)
             Text(
                 "  →  ${table.blendedLabel}",
                 color = Color.White,
-                fontSize = 48.sp,
+                fontSize = 33.6.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 "  ${table.stationCount} stations",
                 color = ObsStyle.textSecondary,
-                fontSize = 30.sp,
+                fontSize = 21.sp,
                 modifier = Modifier.weight(1f),
             )
             // The reported symptom, called out where it happens rather than left for the reader to
@@ -115,7 +115,7 @@ private fun BlendTableCard(table: BlendTable, sourceId: String) {
                 Text(
                     "outside station range",
                     color = ObsStyle.error,
-                    fontSize = 30.sp,
+                    fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -154,7 +154,7 @@ private fun BlendTableCard(table: BlendTable, sourceId: String) {
             Text(
                 legendLine,
                 color = ObsStyle.textSecondary,
-                fontSize = 22.sp,
+                fontSize = 15.4.sp,
             )
         }
     }
@@ -202,7 +202,7 @@ private fun RowScope.HeaderCell(
     Text(
         text,
         color = ObsStyle.textSecondary,
-        fontSize = 27.sp,
+        fontSize = 18.9.sp,
         fontWeight = FontWeight.Bold,
         textAlign = align,
         maxLines = 2,
@@ -222,7 +222,7 @@ private fun RowScope.DataCell(
     Text(
         text,
         color = color,
-        fontSize = 39.sp,
+        fontSize = 27.3.sp,
         fontWeight = fontWeight,
         textAlign = align,
         maxLines = 1,

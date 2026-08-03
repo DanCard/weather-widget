@@ -76,6 +76,7 @@ When investigating bugs or data mismatches, follow this strict sequence:
 ---
 
 ## Development Conventions
+- **Dual-Platform Parity**: Always apply feature modifications, default tab/UI preferences, and behavior updates to BOTH Android (`:app`) and Linux Desktop (`:desktop`). Never ignore desktop when making application changes.
 - **Shared Logic**: Business logic, models, and API clients are centralized in the `:shared` module to ensure consistency between Android and Desktop clients.
 - **Widget Lifecycle**: Always use `goAsync()` within `BroadcastReceiver` to handle async operations without blocking.
 - **Update Logic**:

@@ -239,7 +239,13 @@ internal fun ObservationsWindow(
         var observations by remember { mutableStateOf<List<DesktopObservationEntity>>(emptyList()) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var blendTables by remember { mutableStateOf<List<BlendTable>>(emptyList()) }
-        var selectedTab by remember { mutableStateOf(TAB_BLEND) }
+        var selectedTab by remember { mutableStateOf(config.obsSelectedTab) }
+        val selectTab: (Int) -> Unit = { tab ->
+            selectedTab = tab
+            if (config.obsSelectedTab != tab) {
+                onConfigUpdate(config.copy(obsSelectedTab = tab))
+            }
+        }
         var logFilter by remember { mutableStateOf(LogFilter.FETCHES) }
         val scope = rememberCoroutineScope()
 
@@ -390,7 +396,7 @@ internal fun ObservationsWindow(
                     ) {
                         Tab(
                             selected = selectedTab == TAB_BLEND,
-                            onClick = { selectedTab = TAB_BLEND },
+                            onClick = { selectTab(TAB_BLEND) },
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {
@@ -398,7 +404,7 @@ internal fun ObservationsWindow(
                         }
                         Tab(
                             selected = selectedTab == TAB_OBSERVATIONS,
-                            onClick = { selectedTab = TAB_OBSERVATIONS },
+                            onClick = { selectTab(TAB_OBSERVATIONS) },
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {
@@ -406,7 +412,7 @@ internal fun ObservationsWindow(
                         }
                         Tab(
                             selected = selectedTab == TAB_FETCH_LOGS,
-                            onClick = { selectedTab = TAB_FETCH_LOGS },
+                            onClick = { selectTab(TAB_FETCH_LOGS) },
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {

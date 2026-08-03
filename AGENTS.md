@@ -323,6 +323,7 @@ override fun onAppWidgetOptionsChanged(...) {
 ## Desktop App Development
 
 ### Desktop Architecture
+- **Dual-Platform Parity**: Whenever feature changes, UI preferences, default tabs, or behavior modifications are requested, ALWAYS evaluate and apply corresponding changes to both Android (`:app`) and Linux Desktop (`:desktop`) unless the user explicitly restricts the request to a single platform.
 - `:desktop` is a JetBrains Compose for Desktop tray/window app that reuses `:shared` weather models and API clients.
 - `:shared` owns clean JVM weather/API code; do not pull Android `Context`, Room repositories, RemoteViews, or widget preferences into `:desktop`.
 - The desktop app uses its own thin orchestration (`DesktopWeatherService`) and desktop-only config/location classes.

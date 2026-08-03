@@ -189,17 +189,17 @@ class WeatherObservationsActivityRobolectricTest {
                 }
             }
 
-            // Blend leads: it explains the graph's observed dot, so it is the default tab.
-            assertOnly(blendTab, blendContent)
+            // Observations tab is the default tab.
+            assertOnly(observationsTab, observationsContent)
 
             fetchLogsTab.performClick()
             assertOnly(fetchLogsTab, fetchLogsContent)
 
-            observationsTab.performClick()
-            assertOnly(observationsTab, observationsContent)
-
             blendTab.performClick()
             assertOnly(blendTab, blendContent)
+
+            observationsTab.performClick()
+            assertOnly(observationsTab, observationsContent)
         }
     }
 
@@ -218,6 +218,35 @@ class WeatherObservationsActivityRobolectricTest {
             assertEquals(View.GONE, activity.findViewById<View>(R.id.observations_content).visibility)
             assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.fetch_logs_content).visibility)
         }
+    }
+
+    @Test
+    fun `last chosen tab is remembered across fresh activity launches`() {
+        val scenario1 = launchActivity()
+        scenario1.onActivity { activity ->
+            assertTrue(activity.findViewById<TextView>(R.id.observations_tab).isSelected)
+            activity.findViewById<TextView>(R.id.fetch_logs_tab).performClick()
+            assertTrue(activity.findViewById<TextView>(R.id.fetch_logs_tab).isSelected)
+        }
+        scenario1.close()
+
+        val scenario2 = launchActivity()
+        scenario2.onActivity { activity ->
+            assertTrue(activity.findViewById<TextView>(R.id.fetch_logs_tab).isSelected)
+            assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.fetch_logs_content).visibility)
+            assertEquals(View.GONE, activity.findViewById<View>(R.id.observations_content).visibility)
+
+            activity.findViewById<TextView>(R.id.blend_tab).performClick()
+            assertTrue(activity.findViewById<TextView>(R.id.blend_tab).isSelected)
+        }
+        scenario2.close()
+
+        val scenario3 = launchActivity()
+        scenario3.onActivity { activity ->
+            assertTrue(activity.findViewById<TextView>(R.id.blend_tab).isSelected)
+            assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.blend_content).visibility)
+        }
+        scenario3.close()
     }
 
     @Test
