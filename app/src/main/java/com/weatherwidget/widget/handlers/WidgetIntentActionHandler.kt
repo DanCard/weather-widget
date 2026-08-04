@@ -30,6 +30,20 @@ internal object WidgetIntentActionHandler {
                 .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
                 .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                 .toIntArray()
+        renderWidgetsFromCache(context, ids, repository)
+    }
+
+    suspend fun renderWidgetFromCache(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository?,
+    ) = renderWidgetsFromCache(context, intArrayOf(appWidgetId), repository)
+
+    private suspend fun renderWidgetsFromCache(
+        context: Context,
+        ids: IntArray,
+        repository: WeatherRepository?,
+    ) {
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
         WidgetInteractionCoordinator.forEachWidgetIsolated(
             ids,
@@ -208,6 +222,7 @@ internal object WidgetIntentActionHandler {
         targetMode: ViewMode,
         targetOffset: Int,
         repository: WeatherRepository?,
+        interactionToken: String? = null,
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -227,7 +242,10 @@ internal object WidgetIntentActionHandler {
             startMs,
             "set_view",
             "SET_VIEW",
-            "mode=${targetMode.name}",
+            buildString {
+                append("mode=${targetMode.name}")
+                interactionToken?.let { append(" token=$it") }
+            },
         )
     }
 

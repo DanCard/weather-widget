@@ -16,8 +16,9 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.DailyActualsLoader
 import com.weatherwidget.widget.ObservationResolver
-import com.weatherwidget.widget.WidgetQueryWindows
+import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetPushDispatcher
+import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -168,6 +169,8 @@ internal object DailyInteractionRenderer {
         request: DailyRenderRequest,
         preloaded: DailyRenderData? = null,
     ) {
+        val pipelineStartMs = SystemClock.elapsedRealtime()
+        var stageStartMs = pipelineStartMs
         val context = request.context
         val database = request.refreshContext.database
         val location = request.refreshContext.location
@@ -180,6 +183,8 @@ internal object DailyInteractionRenderer {
         val hourlyDao = database.hourlyForecastDao()
         val gapFiller = ClimateGapFiller(database.climateNormalDao())
         val loaded = preloaded ?: loadData(context, database, lat, lon, today, range)
+        val dailyDataMs = SystemClock.elapsedRealtime() - stageStartMs
+        stageStartMs = SystemClock.elapsedRealtime()
         val finalWeatherList =
             gapFiller.appendGaps(
                 loaded.weatherListRaw,
@@ -188,6 +193,8 @@ internal object DailyInteractionRenderer {
                 today,
                 horizonDays = NAV_FORECAST_HORIZON_DAYS,
             )
+        val gapFillMs = SystemClock.elapsedRealtime() - stageStartMs
+        stageStartMs = SystemClock.elapsedRealtime()
         val pastSnapshots =
             forecastDao.getLatestForecastsInRange(
                 range.historyStart,
@@ -215,7 +222,9 @@ internal object DailyInteractionRenderer {
                 today,
                 horizonDays = NAV_FORECAST_HORIZON_DAYS,
             )
+        val snapshotsMs = SystemClock.elapsedRealtime() - stageStartMs
 
+        stageStartMs = SystemClock.elapsedRealtime()
         val hourlyForecasts =
             GraphDataLoader.unifyToNearestSite(
                 hourlyDao.getHourlyForecastsForSources(
@@ -228,6 +237,8 @@ internal object DailyInteractionRenderer {
                 lat,
                 lon,
             )
+        val hourlyMs = SystemClock.elapsedRealtime() - stageStartMs
+        stageStartMs = SystemClock.elapsedRealtime()
         val currentTemps =
             request.repository?.getMainObservationsWithComputedNwsBlend(
                 lat,
@@ -238,6 +249,8 @@ internal object DailyInteractionRenderer {
                 lon,
                 timeBounds.todayStartMs,
             )
+        val observationsMs = SystemClock.elapsedRealtime() - stageStartMs
+        stageStartMs = SystemClock.elapsedRealtime()
         val currentTempHourlyForecasts =
             GraphDataLoader.loadCurrentTempResolutionHourlyForecasts(
                 hourlyDao,
@@ -245,6 +258,8 @@ internal object DailyInteractionRenderer {
                 lon,
                 request.now,
             )
+        val currentHourlyMs = SystemClock.elapsedRealtime() - stageStartMs
+        stageStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         val displaySource = stateManager.getCurrentDisplaySource(request.appWidgetId)
         val graphStyleObservation =
@@ -265,7 +280,9 @@ internal object DailyInteractionRenderer {
                 currentTempHourlyForecasts.map { it.toHourlyForecast() },
                 displaySource.id,
             )
+        val currentResolveMs = SystemClock.elapsedRealtime() - stageStartMs
 
+        stageStartMs = SystemClock.elapsedRealtime()
         DailyViewHandler.updateWidget(
             context = context,
             appWidgetManager = AppWidgetManager.getInstance(context),
@@ -291,6 +308,34 @@ internal object DailyInteractionRenderer {
             repository = request.repository,
             partialPush = request.partialPush,
             origin = request.origin,
+        )
+        val renderMs = SystemClock.elapsedRealtime() - stageStartMs
+        val pipelineTotalMs = SystemClock.elapsedRealtime() - pipelineStartMs
+        WidgetPerfLogger.logIfSlow(
+            appLogDao = database.appLogDao(),
+            thresholdMs = WidgetPerfLogger.DAILY_INTERACTION_SLOW_MS,
+            totalMs = pipelineTotalMs,
+            appLogTag = WidgetPerfLogger.TAG_DAILY_INTERACTION_PERF,
+            message = WidgetPerfLogger.kv(
+                "widget" to request.appWidgetId,
+                "action" to request.actionTag,
+                "metadata" to request.extraMetadata.ifEmpty { "none" }.replace(' ', ','),
+                "preloaded" to (preloaded != null),
+                "dailyDataMs" to dailyDataMs,
+                "gapFillMs" to gapFillMs,
+                "snapshotsMs" to snapshotsMs,
+                "hourlyMs" to hourlyMs,
+                "observationsMs" to observationsMs,
+                "currentHourlyMs" to currentHourlyMs,
+                "currentResolveMs" to currentResolveMs,
+                "renderMs" to renderMs,
+                "weatherRows" to loaded.weatherListRaw.size,
+                "snapshotRows" to (pastSnapshots.size + recentSnapshots.size),
+                "hourlyRows" to hourlyForecasts.size,
+                "observationRows" to currentTemps.size,
+                "totalMs" to pipelineTotalMs,
+            ),
+            debugTag = "DailyInteractionRenderer",
         )
         InteractionTimingLogger.log(
             database,

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.PowerManager
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
@@ -16,6 +17,7 @@ internal object WidgetRefreshCoordinator {
         context: Context,
         uiOnly: Boolean,
         repository: WeatherRepository,
+        requestedWidgetId: Int? = null,
     ) {
         restartHeartbeats(context)
         val batteryStatus: Intent? =
@@ -27,11 +29,14 @@ internal object WidgetRefreshCoordinator {
         WeatherDatabase.getDatabase(context).appLogDao().log(
             "REFRESH_DECISION",
             "uiOnlyRequested=$uiOnly charging=$isCharging interactive=${powerManager.isInteractive} " +
-                "isDataStale=$isDataStale $freshnessSummary",
+                "isDataStale=$isDataStale targetWidget=${requestedWidgetId ?: "all"} $freshnessSummary",
             "INFO",
         )
-        WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
-        Log.d(TAG, "Direct cache repaint uiOnly=$uiOnly stale=$isDataStale")
+        repaintFromCache(context, repository, requestedWidgetId)
+        Log.d(
+            TAG,
+            "Direct cache repaint target=${requestedWidgetId ?: "all"} uiOnly=$uiOnly stale=$isDataStale",
+        )
         if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
             WidgetWorkScheduler.enqueueRedundantImmediateSync(
                 context = context,
@@ -57,6 +62,19 @@ internal object WidgetRefreshCoordinator {
                 context,
                 isScreenInteractive = powerManager.isInteractive,
             )
+        }
+    }
+
+    @VisibleForTesting
+    internal suspend fun repaintFromCache(
+        context: Context,
+        repository: WeatherRepository,
+        requestedWidgetId: Int?,
+    ) {
+        if (requestedWidgetId == null) {
+            WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
+        } else {
+            WidgetIntentRouter.renderWidgetFromCache(context, requestedWidgetId, repository)
         }
     }
 

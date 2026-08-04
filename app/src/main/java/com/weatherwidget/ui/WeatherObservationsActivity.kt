@@ -97,6 +97,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private var loadFetchLogsJob: Job? = null
     private var loadBlendTableJob: Job? = null
     private var selectedTab: Int = TAB_OBSERVATIONS
+    private var widgetContentChanged = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -135,6 +136,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(this, PREFS_NAME)
         val defaultTab = prefs.getInt(PREF_KEY_LAST_TAB, TAB_OBSERVATIONS)
         selectedTab = savedInstanceState?.getInt(STATE_SELECTED_TAB, defaultTab) ?: defaultTab
+        widgetContentChanged = savedInstanceState?.getBoolean(STATE_WIDGET_CONTENT_CHANGED, false) ?: false
         findViewById<View>(R.id.blend_tab).setOnClickListener {
             showTab(TAB_BLEND)
         }
@@ -169,6 +171,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt(STATE_SELECTED_TAB, selectedTab)
+        outState.putBoolean(STATE_WIDGET_CONTENT_CHANGED, widgetContentChanged)
         super.onSaveInstanceState(outState)
     }
 
@@ -325,6 +328,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     forceRefresh = true
                 )
             }
+            widgetContentChanged = true
             
             loadObservations()
             loadFetchLogs()
@@ -350,6 +354,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             widgetStateManager.setCurrentDisplaySource(appWidgetId, currentSource)
+            widgetContentChanged = true
         }
         
         updateApiButton()
@@ -368,8 +373,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // If we were launched from a widget and changed the source, trigger a UI update
-        if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+        // A simple inspection does not invalidate the widget. Repaint only the originating widget
+        // after this activity actually changed its source or fetched fresh observations.
+        if (WeatherObservationsSupport.shouldRefreshWidgetOnExit(appWidgetId, widgetContentChanged)) {
             val refreshIntent = Intent(this, com.weatherwidget.widget.WidgetActionReceiver::class.java).apply {
                 action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -637,6 +643,12 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     internal object WeatherObservationsSupport {
+        fun shouldRefreshWidgetOnExit(
+            appWidgetId: Int,
+            widgetContentChanged: Boolean,
+        ): Boolean =
+            appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && widgetContentChanged
+
         // Delegates to the shared matcher so Android and the desktop stations list filter synthetic
         // rows (NWS_BLEND, the NWS history backfill) identically. See ObservationSourceMatcher.
         fun matchesObservationSource(stationId: String, source: WeatherSource): Boolean =
@@ -868,6 +880,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         private const val TAB_OBSERVATIONS = 1
         private const val TAB_FETCH_LOGS = 2
         private const val STATE_SELECTED_TAB = "selected_tab"
+        private const val STATE_WIDGET_CONTENT_CHANGED = "widget_content_changed"
         private const val PREF_KEY_LAST_TAB = "last_selected_obs_tab"
         private const val PREFS_NAME = "weather_widget_prefs"
 

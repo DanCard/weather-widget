@@ -170,3 +170,87 @@ The other thing still outstanding is a like-for-like check of the ORIGINAL repor
 observations activity -> back -> home) and compare against the 234-310ms pre-regression floor. That
 timing only fires on real interaction, so it cannot be reproduced from adb — it needs a manual run on
 the Fold.
+
+## Phase D — measure the interval the user actually sees
+
+The like-for-like Fold run is now captured. The retained outlier was real:
+
+- `21:07:28 SET_VIEW_TIMING widget=345 total=2580ms mode=DAILY`.
+- That timer starts inside `WidgetIntentActionHandler.setView`, after broadcast delivery, coroutine
+  dispatch, and the per-widget mutex. It therefore undercounts the user's tap-to-paint interval.
+- The outlier overlapped an activity-exit cache repaint, a fresh process after
+  `PROC_EXIT reason=CRASH_NATIVE`, and an NWS fetch. The daily interaction materialized 201 forecast
+  and 1324 hourly rows; its `DailyViewHandler` portion was 1047ms, leaving about 1533ms in unmeasured
+  interaction queries/preparation.
+- A post-Phase-C repeat at 21:48 used 76 forecast and 227 hourly rows. Broadcast receipt was
+  `21:48:33.776`, One UI received the full `RemoteViews` at `21:48:34.688`, and One UI laid out widget
+  345 at `21:48:34.710`: 934ms from the earliest app-observable boundary to host layout. This repeat
+  is faster; it does not negate the earlier 2.58s event.
+
+Added two correlated timing breadcrumbs:
+
+1. `SET_VIEW_E2E_TIMING` starts at `WidgetActionReceiver.onReceive` and carries a per-event token.
+   The existing `SET_VIEW_TIMING` carries the same token, so their difference exposes coroutine and
+   widget-lock wait time. This is broadcast-receipt-to-completion, not inaccessible physical
+   touch-down time.
+2. Slow-only `DAILY_INTERACTION_PERF` splits the daily interaction into cached daily data,
+   climate-gap fill, snapshots, hourly rows, observations, current-temperature hourly rows,
+   current-temperature resolution, and final render/push, with row counts and the same token in its
+   metadata. It persists only at 500ms or slower so normal taps do not flood `app_logs`.
+
+The logging build was installed on the Fold and the new markers were validated against two manual
+repeats of the reported sequence:
+
+| repeat | app receiver to completion | handler | One UI result delivery |
+|--------|----------------------------|---------|------------------------|
+| uncontended | 327ms | 316ms | immediate |
+| refresh-contended | 832ms | 822ms | immediate |
+
+The second repeat overlapped the serial activity-exit refresh. Its interaction breakdown was 27ms
+daily data, 20ms gap fill, 64ms snapshots, 37ms hourly, 158ms observations, 12ms current-hourly,
+48ms current-temperature resolution, and 432ms render/push. The adjacent refresh of widget 349 took
+1317ms, showing that activity-exit work can still create contention, but the home event itself no
+longer exhibits the original 2580ms app-side delay. These measurements begin at broadcast receipt;
+physical touch-down remains outside the app's observable boundary.
+
+System and One UI logs expose the portion the app marker cannot see. On two refresh-contended runs,
+One UI handled touch-up and ActivityManager accepted the `ACTION_SET_VIEW` broadcast in 11ms and
+8ms respectively, but `WidgetActionReceiver.onReceive` did not run until the preceding asynchronous
+`ACTION_REFRESH` completed its serial repaint of widgets 345, 349, and 352:
+
+| repeat | touch-up | system accepted broadcast | app receiver | host received daily view |
+|--------|----------|---------------------------|--------------|--------------------------|
+| 1 | 22:02:50.895 | 22:02:50.906 | 22:02:53.075 | 22:02:53.895 |
+| 2 | 22:03:08.161 | 22:03:08.169 | 22:03:10.121 | 22:03:10.886 |
+
+That is 3.000s and 2.725s from touch-up to the launcher receiving the daily result. The dominant
+missing interval is therefore neither touch handling nor One UI applying the result: the home
+broadcast is queued for roughly two seconds behind the still-open `goAsync()` refresh broadcast.
+An uncontended 327-404ms app render demonstrates that a normal touch-to-result target of about
+500ms is reasonable, but not while activity exit refreshes every installed widget ahead of the tap.
+
+## Phase E — remove the unrelated global refresh from this interaction
+
+The global repaint was an overloaded action, not a requirement of the observations screen:
+
+- Global `ACTION_REFRESH` callers such as screen unlock and settings/locale changes need to repaint
+  all widgets and retain that behavior.
+- Widget-launched activities already attach `EXTRA_APPWIDGET_ID`, but `WidgetActionReceiver` and
+  `WidgetRefreshCoordinator` discarded it before routing to `renderAllWidgetsFromCache`.
+- `WeatherObservationsActivity.onDestroy` sent the action on every exit even though its comment said
+  to refresh only after changing source.
+
+The corrected routing preserves global refresh when no ID is supplied and calls
+`renderWidgetFromCache` when an ID is present. The observations activity now marks widget content
+dirty only after a source change or successful manual observation fetch; simply inspecting and
+closing the activity sends no refresh. If dirty, only the originating widget is repainted.
+
+Verification:
+
+- `WidgetRefreshCoordinatorTest`: targeted refresh calls only `renderWidgetFromCache`; global
+  refresh still calls only `renderAllWidgetsFromCache`.
+- `WeatherObservationsSupportTest`: a valid widget plus changed content is required for exit repaint.
+- Focused Short/Medium tests, Kotlin compilation, `ktlintCheck`, and `assembleDebug` passed.
+- The corrected APK is installed on the Samsung Fold. A final manual repeat of the exact activity
+  sequence remains required because the device left the launcher while the automated probe was in
+  progress.

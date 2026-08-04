@@ -62,6 +62,12 @@ object WidgetIntentRouter {
         repository: WeatherRepository? = null,
     ) = WidgetIntentActionHandler.renderAllWidgetsFromCache(context, repository)
 
+    suspend fun renderWidgetFromCache(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository? = null,
+    ) = WidgetIntentActionHandler.renderWidgetFromCache(context, appWidgetId, repository)
+
     suspend fun handleNavigation(
         context: Context,
         appWidgetId: Int,
@@ -152,6 +158,7 @@ object WidgetIntentRouter {
         targetMode: ViewMode,
         targetOffset: Int = Int.MIN_VALUE,
         repository: WeatherRepository? = null,
+        interactionToken: String? = null,
     ) = runInteraction(
         context,
         appWidgetId,
@@ -164,6 +171,7 @@ object WidgetIntentRouter {
             targetMode,
             targetOffset,
             repository,
+            interactionToken,
         )
     }
 

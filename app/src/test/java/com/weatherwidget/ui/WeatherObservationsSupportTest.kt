@@ -14,6 +14,28 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class WeatherObservationsSupportTest {
     @Test
+    fun `widget exit refresh requires a valid widget and changed content`() {
+        assertTrue(
+            WeatherObservationsActivity.WeatherObservationsSupport.shouldRefreshWidgetOnExit(
+                appWidgetId = 345,
+                widgetContentChanged = true,
+            ),
+        )
+        assertFalse(
+            WeatherObservationsActivity.WeatherObservationsSupport.shouldRefreshWidgetOnExit(
+                appWidgetId = 345,
+                widgetContentChanged = false,
+            ),
+        )
+        assertFalse(
+            WeatherObservationsActivity.WeatherObservationsSupport.shouldRefreshWidgetOnExit(
+                appWidgetId = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID,
+                widgetContentChanged = true,
+            ),
+        )
+    }
+
+    @Test
     fun `matchesObservationSource excludes silurian rows from NWS`() {
         assertFalse(
             WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(

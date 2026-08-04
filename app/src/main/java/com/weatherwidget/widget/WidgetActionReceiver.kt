@@ -32,6 +32,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
+        val receivedAtElapsedMs = SystemClock.elapsedRealtime()
         Log.d(TAG, "onReceive action=${intent.action}")
         com.weatherwidget.WeatherWidgetApp.logFirstTriggerOnce(
             "WidgetActionReceiver:${intent.action}",
@@ -39,10 +40,16 @@ class WidgetActionReceiver : BroadcastReceiver() {
         when (intent.action) {
             WidgetActions.ACTION_REFRESH ->
                 launchGlobal(context) {
+                    val requestedWidgetId =
+                        intent.getIntExtra(
+                            AppWidgetManager.EXTRA_APPWIDGET_ID,
+                            AppWidgetManager.INVALID_APPWIDGET_ID,
+                        ).takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                     WidgetRefreshCoordinator.refresh(
                         context,
                         intent.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false),
                         repository,
+                        requestedWidgetId,
                     )
                 }
             WidgetActions.ACTION_SHOW_TOAST -> {
@@ -113,6 +120,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
                     return
                 }
                 launchForValidWidget(context, intent) { appWidgetId ->
+                    val interactionToken = "set-view-$receivedAtElapsedMs"
                     WidgetIntentRouter.handleSetView(
                         context,
                         appWidgetId,
@@ -122,6 +130,13 @@ class WidgetActionReceiver : BroadcastReceiver() {
                             Int.MIN_VALUE,
                         ),
                         repository,
+                        interactionToken,
+                    )
+                    val receiveToCompleteMs = SystemClock.elapsedRealtime() - receivedAtElapsedMs
+                    WeatherDatabase.getDatabase(context).appLogDao().log(
+                        "SET_VIEW_E2E_TIMING",
+                        "widget=$appWidgetId token=$interactionToken mode=${targetView.name} " +
+                            "receiveToComplete=${receiveToCompleteMs}ms",
                     )
                 }
             }
