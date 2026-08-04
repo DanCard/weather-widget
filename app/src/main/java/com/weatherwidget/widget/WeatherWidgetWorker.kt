@@ -449,14 +449,22 @@ class WeatherWidgetWorker
                 val pastStart = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
                 val pastEnd = today.minusDays(2).toEpochDay() * WidgetConstants.MS_IN_A_DAY
                 val recentStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                val recentEnd = today.plusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val recentEnd =
+                    today.plusDays(WidgetQueryWindows.DAILY_FORECAST_DAYS).toEpochDay() *
+                        WidgetConstants.MS_IN_A_DAY
 
                 val pastSnapshots = weatherRepository.getLatestForecastsInRange(pastStart, pastEnd, lat, lon)
                 val recentSnapshots = weatherRepository.getAllForecastsInRange(recentStart, recentEnd, lat, lon)
                 val grouped = (pastSnapshots + recentSnapshots).groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
 
                 val gapFiller = ClimateGapFiller(WeatherDatabase.getDatabase(context).climateNormalDao())
-                gapFiller.appendGapsToSnapshots(grouped, lat, lon, today, horizonDays = 7L)
+                gapFiller.appendGapsToSnapshots(
+                    grouped,
+                    lat,
+                    lon,
+                    today,
+                    horizonDays = WidgetQueryWindows.DAILY_FORECAST_DAYS,
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch forecast snapshots", e)
                 emptyMap()

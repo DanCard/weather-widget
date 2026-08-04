@@ -204,7 +204,9 @@ internal class WidgetStartupCoordinator(
         val nowLocal = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
         val historyStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val horizonEnd = today.plusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val horizonEnd =
+            today.plusDays(WidgetQueryWindows.DAILY_FORECAST_DAYS).toEpochDay() *
+                WidgetConstants.MS_IN_A_DAY
         val pastSnapshotStart = today.minusDays(3).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val pastSnapshotEnd = today.minusDays(2).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val hourlyStart =
@@ -285,7 +287,7 @@ internal class WidgetStartupCoordinator(
                 latestWeather.locationLat,
                 latestWeather.locationLon,
                 today,
-                horizonDays = 7L,
+                horizonDays = WidgetQueryWindows.DAILY_FORECAST_DAYS,
             )
         val gapFillMs = elapsedRealtime() - gapFillStartMs
         val snapshotRows = snapshotsDeferred.await()
@@ -301,7 +303,7 @@ internal class WidgetStartupCoordinator(
                     latestWeather.locationLat,
                     latestWeather.locationLon,
                     today,
-                    horizonDays = 7L,
+                    horizonDays = WidgetQueryWindows.DAILY_FORECAST_DAYS,
                 )
             }
         val snapshotGapFillMs = elapsedRealtime() - snapshotGapFillStartMs

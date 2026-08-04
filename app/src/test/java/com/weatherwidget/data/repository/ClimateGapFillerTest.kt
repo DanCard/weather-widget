@@ -8,6 +8,7 @@ import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetConstants
+import com.weatherwidget.widget.WidgetQueryWindows
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -107,6 +108,39 @@ class ClimateGapFillerTest {
         // Fallback is still added for day+3..+5 even though Open-Meteo already has real rows there,
         // because NWS (the shorter-coverage source) needs its own fallback for those days.
         assertEquals(setOf(today.plusDays(3), today.plusDays(4), today.plusDays(5)), gapDates)
+    }
+
+    @Test
+    fun `appendGaps at the shared daily horizon covers the eighth day past NWS coverage`() = runTest {
+        seedNormals()
+        // The reported case: NWS is the display source and covers today..today+7, while a
+        // 10-column widget renders out to today+8.
+        val rows = (0..7).map {
+            TestData.forecast(
+                targetDate = today.plusDays(it.toLong()).toString(),
+                source = "NWS",
+                lat = lat,
+                lon = lon,
+            )
+        }
+        val eighthDay = today.plusDays(8)
+
+        val atRenderHorizon =
+            gapFiller.appendGaps(rows, lat, lon, today, WidgetQueryWindows.DAILY_FORECAST_DAYS)
+        val atOldStartupHorizon = gapFiller.appendGaps(rows, lat, lon, today, horizonDays = 7L)
+
+        assertTrue(
+            "today+8 needs a GENERIC_GAP row; without one the icon falls back to " +
+                "ic_weather_unknown (a grey cloud) and the bar to slate-grey FORECAST_CLOUDY",
+            atRenderHorizon.any {
+                it.source == WeatherSource.GENERIC_GAP.id && targetDateOf(it) == eighthDay
+            },
+        )
+        // Pins the actual defect: the old startup/worker horizon left that column with no row at all.
+        assertTrue(
+            "horizonDays=7 must not cover today+8 (this is what the fix changed)",
+            atOldStartupHorizon.none { targetDateOf(it) == eighthDay },
+        )
     }
 
     @Test

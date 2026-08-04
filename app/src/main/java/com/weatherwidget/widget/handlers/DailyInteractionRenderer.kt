@@ -26,7 +26,9 @@ import java.time.ZoneId
 /** Owns daily-view bounds, loading, current-temperature assembly, and RemoteViews dispatch. */
 internal object DailyInteractionRenderer {
     private const val DAILY_LOOKBACK_DAYS = 30L
-    private const val DAILY_FORECAST_DAYS = 30L
+
+    /** Single source of truth, shared with the startup and worker paths. */
+    private const val DAILY_FORECAST_DAYS = WidgetQueryWindows.DAILY_FORECAST_DAYS
 
     data class DailyRenderRequest(
         val context: Context,

@@ -4,7 +4,9 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.view.Surface
 import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.widget.WidgetQueryWindows
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
@@ -42,6 +44,23 @@ class WidgetSizeCalculatorColumnsTest {
         // (window -1..+8; +8 and NWS's +7 use the climate-normal / extension fallback).
         // Verified against live device options on RFCT71FR9NT.
         assertEquals(10, WidgetSizeCalculator.columnsForWidthDp(574))
+    }
+
+    @Test
+    fun `daily forecast horizon covers the render horizon of the widest widgets`() {
+        // The daily view renders today + numColumns - 2 at offset 0, so the forecast/gap-fill
+        // horizon must be at least that far out on EVERY path. When startup and the worker used 7
+        // while the Fold's 10-column widget rendered today+8, that column got neither a real row
+        // nor a GENERIC_GAP row and painted a grey "cloudy" day over correct climate normals.
+        val widestRealisticWidgetDp = 1280 // ~10" tablet, full width
+        for (widthDp in intArrayOf(373, 574, 800, widestRealisticWidgetDp)) {
+            val renderHorizonDays = WidgetSizeCalculator.columnsForWidthDp(widthDp) - 2
+            assertTrue(
+                "DAILY_FORECAST_DAYS=${WidgetQueryWindows.DAILY_FORECAST_DAYS} must cover the " +
+                    "today+$renderHorizonDays render horizon of a ${widthDp}dp widget",
+                WidgetQueryWindows.DAILY_FORECAST_DAYS >= renderHorizonDays,
+            )
+        }
     }
 
     @Test
