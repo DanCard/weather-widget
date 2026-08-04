@@ -109,18 +109,64 @@ Measured after:
 - The 8th-day fix still holds: emulator renders all 10 columns to 2026-08-11 with
   `ic_weather_clear` and bar `#34C759`.
 
+## Phase C — hourly pulled every source, not the displayed one (done)
+
+User: "Hourly should not pull 10 days of hourly rows across every source. Should only pull for
+current source." Correct — the daily query had used `activeSourceList` for a while; hourly never got
+the same treatment, and every consumer filtered to the display source in memory afterwards.
+
+Row counts over the 72h-back/168h-forward window on the Samsung:
+
+| table | all sources | display source (NWS) |
+|-------|-------------|----------------------|
+| `hourly_forecasts` | 4,928 | 841 |
+| `hourly_forecast_history` | **33,473** | 7,597 |
+
+`hourly_forecast_history` was the elephant — 115,716 rows total, and `fetchHourlyForecasts` called
+`getHistoryInRangeForBucketWindowAllSources` with unbounded buckets.
+
+Added multi-source (`IN (:sources)`) variants — `HourlyForecastDao.getHourlyForecastsForSources` and
+`HourlyForecastHistoryDao.getHistoryInRangeForBucketWindowForSources` — and used them from the three
+render paths (`WeatherWidgetWorker.fetchHourlyForecasts`, `WidgetStartupCoordinator`,
+`DailyInteractionRenderer`). "Sources" is each installed widget's display source **plus
+`GENERIC_GAP`**, not literally one source, because widgets can display different sources at once —
+same semantics the daily query already used.
+
+`DailyActualsLoader` deliberately left alone: it builds actuals *per source* and its hourly feeds
+per-source interpolation, so filtering there could degrade a source's actuals. It is the separate
+`actuals=` stage anyway.
+
+### Measured (Samsung Fold, `SYNC_PERF uiOnly=true`)
+
+| | hourly stage | total |
+|---|---|---|
+| before | 1146–2036ms (median ~1590) | 1756–2994ms (median ~2284) |
+| after | **503–541ms (median 533)** | **1152–1285ms** |
+
+A ~3x cut on the stage, and the variance collapsed. Worth noting the guard that caught a real
+mistake: `HourlyProximityQueryAllowlistTest` failed because the new `...ForSources` method fell
+outside its regex — it has the same cross-**site** over-fetch hazard (proximity box spans every
+cached coordinate site), so the pattern was extended to `(BySource|ForSources)?` rather than the
+allowlist being loosened. Restricting sources changes which sources return, never which sites.
+
 ## Next (the "why is it slow" phase, deliberately separate)
 
-The remaining cost is NOT the daily forecast query:
+With the query window right-sized (A), the log hot spot gone (B) and hourly source-filtered (C), the
+Samsung's remaining stages are:
 
-| stage | Samsung | emulator |
-|-------|---------|----------|
-| hourly | **1888ms** | 911ms |
-| actuals | 734ms | 283ms |
-| weather (daily) | 85ms | 148ms |
-| widgets (paint) | 113ms | 43ms |
+| stage | before all three | after |
+|-------|------------------|-------|
+| hourly | 1888ms | 533ms |
+| **actuals** | 734ms (uiOnly) / **3079ms** (full sync) | unchanged — now the largest |
+| weather (daily) | 85ms | 85ms |
+| widgets (paint) | 113ms | ~77ms |
 
-`HOURLY_LOOKBACK_HOURS = 72` + `HOURLY_GRAPH_LOOKAHEAD_HOURS = 168` loads ~10 days of hourly rows
-across every source (4928 rows on the Samsung) on every pass. That is the next thing to size against
-what is actually rendered. Still outstanding: re-measure `SET_VIEW_TIMING mode=DAILY` across the
-reported 5-step interaction sequence and compare with the 234-310ms pre-regression floor.
+**`actuals` is now the biggest remaining stage**, and unlike hourly it is untouched: `DailyActualsLoader`
+still reads its own unbounded observation range and its own unfiltered hourly. That is the next
+candidate, but it needs care — the per-source actuals map is what the display source reads from.
+
+The other thing still outstanding is a like-for-like check of the ORIGINAL report: re-measure
+`SET_VIEW_TIMING mode=DAILY` across the reported 5-step interaction sequence (day column -> zoom ->
+observations activity -> back -> home) and compare against the 234-310ms pre-regression floor. That
+timing only fires on real interaction, so it cannot be reproduced from adb — it needs a manual run on
+the Fold.

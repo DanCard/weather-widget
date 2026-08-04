@@ -267,11 +267,15 @@ internal class WidgetStartupCoordinator(
             }
         val hourlyDeferred =
             operationTimer.async(this) {
-                hourlyDao.getHourlyForecasts(
+                // Same source restriction the daily query above already uses: activeSourceList is
+                // every widget's display source plus GENERIC_GAP. Unfiltered this returned every
+                // source ever fetched, for consumers that filter to the display source anyway.
+                hourlyDao.getHourlyForecastsForSources(
                     hourlyStart,
                     hourlyEnd,
                     latestWeather.locationLat,
                     latestWeather.locationLon,
+                    activeSourceList,
                 )
             }
         val currentTempsDeferred =

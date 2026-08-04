@@ -218,11 +218,12 @@ internal object DailyInteractionRenderer {
 
         val hourlyForecasts =
             GraphDataLoader.unifyToNearestSite(
-                hourlyDao.getHourlyForecasts(
+                hourlyDao.getHourlyForecastsForSources(
                     timeBounds.hourlyStartMs,
                     timeBounds.hourlyEndMs,
                     lat,
                     lon,
+                    hourlySourceIds(context),
                 ),
                 lat,
                 lon,
@@ -345,6 +346,24 @@ internal object DailyInteractionRenderer {
         /** The window that produced these bounds; part of the interaction-cache key. */
         val window: NavigationUtils.DailyLoadWindow,
     )
+
+    /**
+     * Display source of every installed widget plus `GENERIC_GAP` — the only sources any hourly
+     * consumer on this path accepts. Restricting in SQL rather than in memory: unfiltered, the
+     * hourly queries returned every source the app has ever fetched.
+     */
+    private fun hourlySourceIds(context: Context): List<String> {
+        val stateManager = WidgetStateManager(context)
+        val ids = runCatching {
+            AppWidgetManager.getInstance(context).getAppWidgetIds(
+                android.content.ComponentName(context, com.weatherwidget.widget.WeatherWidgetProvider::class.java),
+            )
+        }.getOrNull() ?: IntArray(0)
+        return (
+            ids.map { stateManager.getCurrentDisplaySource(it).id } +
+                com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id
+            ).distinct()
+    }
 
     private fun rangeFor(today: LocalDate, window: NavigationUtils.DailyLoadWindow) =
         DailyRange(

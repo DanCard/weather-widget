@@ -12,8 +12,9 @@ import java.io.File
  * (plans/260710-daily-cloud-cover-flap-stale-fragment.md and its predecessors: hourly
  * quantize+Selector, forecasts Selector, in-memory pin sameSite).
  *
- * The raw hourly proximity-box DAO queries (`getHourlyForecasts` / `getHourlyForecastsBySource`)
- * intentionally over-fetch: they return rows from EVERY cached coordinate site inside the
+ * The raw hourly proximity-box DAO queries (`getHourlyForecasts`, `getHourlyForecastsBySource`,
+ * `getHourlyForecastsForSources`) over-fetch by SITE: they return rows from EVERY cached
+ * coordinate site inside the
  * LocationMatch box, including frozen fragments left by earlier GPS fixes. Consumers that feed
  * rendering or firstOrNull-style selection MUST collapse to one site first
  * (`GraphDataLoader.unifyToNearestSite`, or the graph path's sameSite filter + stitcher).
@@ -27,7 +28,14 @@ import java.io.File
 @Category(ShortDuration::class)
 class HourlyProximityQueryAllowlistTest {
 
-    private val rawCallPattern = Regex("""\.getHourlyForecasts(BySource)?\(""")
+    /**
+     * `ForSources` is included deliberately: restricting the query to the active display sources
+     * (added 2026-08-03 to stop pulling every source's hourly rows) changes WHICH sources come back,
+     * not which coordinate sites — it is still a proximity-box read that spans every cached site, so
+     * it carries the exact fragmentation hazard this guard exists for. Leaving it out of the pattern
+     * would have silently opened a hole the moment the render paths migrated onto it.
+     */
+    private val rawCallPattern = Regex("""\.getHourlyForecasts(BySource|ForSources)?\(""")
 
     /**
      * Files allowed to call the raw queries directly, with the reason they are exempt.

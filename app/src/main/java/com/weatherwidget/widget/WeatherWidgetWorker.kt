@@ -209,7 +209,12 @@ class WeatherWidgetWorker
 
                         // Fetch forecast snapshots for comparison
                         val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
-                        val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
+                        val hourlyForecasts =
+                            fetchHourlyForecasts(
+                                location.first,
+                                location.second,
+                                hourlySourceIds(widgetStateManager),
+                            )
                         val afterHourlyMs = SystemClock.elapsedRealtime()
                         logStage("hourly_fetched count=${hourlyForecasts.size}")
 
@@ -480,6 +485,13 @@ class WeatherWidgetWorker
          * duration of a run: the user can toggle the API source at any moment, and anything derived
          * from a stale copy repaints a source whose data was filtered away.
          */
+        /**
+         * Sources the hourly render data must cover: every installed widget's display source, plus
+         * `GENERIC_GAP` (the climate-normal filler consumers accept alongside the display source).
+         */
+        private fun hourlySourceIds(stateManager: WidgetStateManager): List<String> =
+            (currentDisplaySourceIds(stateManager) + WeatherSource.GENERIC_GAP.id).distinct()
+
         private fun currentDisplaySourceIds(stateManager: WidgetStateManager): List<String> {
             val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
             return AppWidgetManager.getInstance(context)
@@ -508,9 +520,17 @@ class WeatherWidgetWorker
             }
         }
 
+        /**
+         * @param sources display source of each installed widget plus `GENERIC_GAP`. Filtering in SQL
+         *   rather than in memory: unfiltered, these two queries returned ~38k rows on a Samsung Fold
+         *   (4928 hourly + 33473 history) where the display source accounted for ~8.4k, and every
+         *   consumer downstream filters to the display source anyway. This was the `hourly=1888ms`
+         *   stage in SYNC_PERF.
+         */
         private suspend fun fetchHourlyForecasts(
             lat: Double,
             lon: Double,
+            sources: List<String>,
         ): List<HourlyForecastEntity> {
             return try {
                 val database = WeatherDatabase.getDatabase(context)
@@ -523,7 +543,7 @@ class WeatherWidgetWorker
                 val startTimeMs = now.minusHours(72).atZone(zoneId).toInstant().toEpochMilli()
                 val endTimeMs = now.plusHours(168).atZone(zoneId).toInstant().toEpochMilli()
                 Log.d(TAG, "fetchHourlyForecasts: range=${now.minusHours(72)} to ${now.plusHours(168)} (ms=$startTimeMs to $endTimeMs)")
-                val current = hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
+                val current = hourlyDao.getHourlyForecastsForSources(startTimeMs, endTimeMs, lat, lon, sources)
                 // The proximity query may return rows from multiple nearby locations (e.g. 37.422 and
                 // 37.4168). Pin to the single closest location so the stitched list is single-location,
                 // matching the strict filter WidgetRenderer applies downstream.
@@ -548,13 +568,14 @@ class WeatherWidgetWorker
                 val filteredCurrent = if (bestPair != null) {
                     current.filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestLat, bestLon) }
                 } else current
-                val history = historyDao.getHistoryInRangeForBucketWindowAllSources(
+                val history = historyDao.getHistoryInRangeForBucketWindowForSources(
                     startDateTime = startTimeMs,
                     endDateTime = endTimeMs,
                     bucketStart = Long.MIN_VALUE,
                     bucketEnd = Long.MAX_VALUE,
                     lat = bestLat,
                     lon = bestLon,
+                    sources = sources,
                 ).filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestLat, bestLon) }
                     .map {
                         HourlyForecastEntity(
@@ -905,9 +926,15 @@ class WeatherWidgetWorker
                     networkAllowed = false,
                 ).getOrDefault(emptyList())
             val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
-            val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
+            val stateManagerForSources = WidgetStateManager(context)
+            val hourlyForecasts =
+                fetchHourlyForecasts(
+                    location.first,
+                    location.second,
+                    hourlySourceIds(stateManagerForSources),
+                )
 
-            val activeSourceList = currentDisplaySourceIds(WidgetStateManager(context))
+            val activeSourceList = currentDisplaySourceIds(stateManagerForSources)
 
             val dailyActuals = fetchDailyActuals(
                 lat = location.first,
