@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.log
 import java.time.Instant
 import java.time.ZoneId
 
@@ -96,6 +97,69 @@ internal fun evaluateCandidateUsability(
     } else {
         CandidateUsability(useful = false, reason = "waiting_for_history_or_stability")
     }
+}
+
+internal sealed class LocationCandidateOutcome {
+    data class Superseded(val message: String) : LocationCandidateOutcome()
+    data class WaitingForData(val reason: String) : LocationCandidateOutcome()
+    data class PromotionFailed(val reason: String) : LocationCandidateOutcome()
+    data class Promoted(val reason: String) : LocationCandidateOutcome()
+}
+
+internal suspend fun tryPromoteLocationCandidate(
+    context: android.content.Context,
+    appLogDao: com.weatherwidget.data.local.AppLogDao,
+    widgetStateManager: WidgetStateManager,
+    candidateAtLoad: CandidateLocation,
+    weatherList: List<ForecastEntity>,
+    hourlyForecasts: List<HourlyForecastEntity>,
+    activeSourceIds: Collection<String>,
+    appWidgetIds: IntArray,
+): LocationCandidateOutcome {
+    val currentCandidate = LocationHandoffStore.getCandidate(context)
+    if (currentCandidate == null || !LocationHandoffStore.matches(candidateAtLoad, currentCandidate)) {
+        val message = "state=candidate_superseded loaded=${candidateAtLoad.location.lat},${candidateAtLoad.location.lon}"
+        appLogDao.log("LOCATION_HANDOFF", message, "INFO")
+        return LocationCandidateOutcome.Superseded(message)
+    }
+
+    val requiresHourlyData = appWidgetIds.any { id ->
+        widgetStateManager.getViewMode(id) != ViewMode.DAILY
+    }
+    val usability = evaluateCandidateUsability(
+        forecasts = weatherList,
+        hourlyForecasts = hourlyForecasts,
+        requiredSourceIds = activeSourceIds.toSet(),
+        requiresHourlyData = requiresHourlyData,
+        nowMs = System.currentTimeMillis(),
+        candidateFirstSeenMs = candidateAtLoad.firstSeenMs,
+    )
+    if (!usability.useful) {
+        val message = "state=candidate_waiting_data reason=${usability.reason} " +
+            "candidate=${candidateAtLoad.location.lat},${candidateAtLoad.location.lon} " +
+            "dailyRows=${weatherList.size} hourlyRows=${hourlyForecasts.size}"
+        appLogDao.log("LOCATION_HANDOFF", message, "INFO")
+        return LocationCandidateOutcome.WaitingForData(usability.reason)
+    }
+
+    if (!com.weatherwidget.ui.LocationUpdater.promoteCandidateIfMatches(
+            context,
+            candidateAtLoad,
+            appWidgetIds,
+        )
+    ) {
+        appLogDao.log(
+            "LOCATION_HANDOFF",
+            "state=candidate_superseded phase=promotion",
+            "INFO",
+        )
+        return LocationCandidateOutcome.PromotionFailed("promotion_rejected")
+    }
+
+    val message = "state=candidate_promoted reason=${usability.reason} " +
+        "location=${candidateAtLoad.location.lat},${candidateAtLoad.location.lon}"
+    appLogDao.log("LOCATION_HANDOFF", message, "INFO")
+    return LocationCandidateOutcome.Promoted(usability.reason)
 }
 
 private const val MILLIS_PER_HOUR = 60 * 60 * 1000L

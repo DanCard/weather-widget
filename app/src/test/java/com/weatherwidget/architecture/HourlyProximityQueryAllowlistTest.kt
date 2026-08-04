@@ -54,7 +54,7 @@ class HourlyProximityQueryAllowlistTest {
         "DailyActualsStore.kt" to "actuals context read is immediately wrapped in unifyToNearestSite",
         "UIUpdateScheduler.kt" to "pre-existing; audit before touching (update cadence heuristics)",
         "DataFreshness.kt" to "staleness check; freshest row wins regardless of site",
-        "WeatherWidgetWorker.kt" to "pre-existing; audit before touching",
+        "HourlyForecastLoader.kt" to "extracted from WeatherWidgetWorker on 2026-08-04; same sameSite filter + stitcher logic",
         "NoHourlyDayClickCoordinator.kt" to "pre-existing presence gate; audit before touching",
         "WeatherObservationsActivity.kt" to
             "Blend tab diagnostic; sole call site wrapped in GraphDataLoader.unifyToNearestSite",

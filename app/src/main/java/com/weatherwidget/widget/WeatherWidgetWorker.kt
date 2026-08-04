@@ -6,27 +6,23 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
-import android.util.Log
 import android.os.SystemClock
+import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.data.local.LocationMatch
-import com.weatherwidget.data.local.log
-import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.widget.DailyActualsBySource
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
@@ -41,105 +37,272 @@ class WeatherWidgetWorker
         private val appLogDao: AppLogDao,
         private val gpsResampler: GpsResampler,
     ) : CoroutineWorker(context, workerParams) {
+
+        private val hourlyForecastLoader by lazy { HourlyForecastLoader(context, widgetStateManager) }
+        private val dataBundleLoader by lazy { WidgetDataBundleLoader(weatherRepository, hourlyForecastLoader, context) }
+        private val lastRenderMs = mutableMapOf<Int, Long>()
+
+        // ---- orchestration ----
+
         override suspend fun doWork(): Result {
             if (WeatherDatabase.isTestingMode()) {
                 Log.d(TAG, "Skipping worker execution in test mode")
                 return Result.success()
             }
 
-            // Durably record why any prior process died (LOW_MEMORY reap vs crash vs force-stop vs
-            // signal, with importance + plugged context alongside SYNC_START below). Once per process;
-            // this is our only durable trail for diagnosing a "dead" (frozen, unresponsive) widget.
             ProcessExitLogger.logRecentExitsOnce(context, appLogDao)
 
-            val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
-            val forceRefresh = inputData.getBoolean(KEY_FORCE_REFRESH, false)
-            val candidateLocationRefresh = inputData.getBoolean(KEY_LOCATION_CANDIDATE_REFRESH, false)
-            val currentTempOnly = inputData.getBoolean(KEY_CURRENT_TEMP_ONLY, false)
-            val nonPrimaryCurrentTempOnly = inputData.getBoolean(KEY_NONPRIMARY_CURRENT_TEMP_ONLY, false)
-            val opportunisticCurrentTemp = inputData.getBoolean(KEY_CURRENT_TEMP_OPPORTUNISTIC, false)
-            val currentTempReason = inputData.getString(KEY_CURRENT_TEMP_REASON) ?: "unspecified"
-            val targetSourceId = inputData.getString(KEY_TARGET_SOURCE)
-            val observationBackfillMode = inputData.getBoolean(KEY_OBSERVATION_BACKFILL_ONLY, false)
-            val backfillLat = inputData.getDouble(KEY_BACKFILL_LAT, DEFAULT_LAT)
-            val backfillLon = inputData.getDouble(KEY_BACKFILL_LON, DEFAULT_LON)
-            val backfillHours = inputData.getLong(KEY_OBSERVATION_BACKFILL_HOURS, DEFAULT_OBSERVATION_BACKFILL_HOURS)
-            val backfillReason = inputData.getString(KEY_OBSERVATION_BACKFILL_REASON) ?: "unspecified"
-            val noHourlyWidgetId = inputData.getInt(KEY_NO_HOURLY_WIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-            val noHourlyDate = inputData.getString(KEY_NO_HOURLY_DATE)
-            val noHourlyLat = inputData.getDouble(KEY_NO_HOURLY_LAT, 0.0)
-            val noHourlyLon = inputData.getDouble(KEY_NO_HOURLY_LON, 0.0)
-            val shouldBroadcastNoHourlyComplete =
-                !uiOnlyRefresh &&
-                    noHourlyWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID &&
-                    !noHourlyDate.isNullOrBlank()
-
-            val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-            val physicalPlugged = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1) > 0
-            val isPlugged = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
-            val isScreenInteractive = isScreenInteractive()
-
-            val lastFullFetchMs = weatherRepository.lastNetworkFetchTimeMs
-            val lastFullFetchAge = if (lastFullFetchMs > 0) (System.currentTimeMillis() - lastFullFetchMs) / 1000 else -1
+            val input = WorkInput.from(inputData)
+            val device = measureDeviceContext()
             appLogDao.log(
                 "SYNC_START",
-                "uiOnly=$uiOnlyRefresh, force=$forceRefresh, currentOnly=$currentTempOnly, " +
-                    "opportunistic=$opportunisticCurrentTemp, battery=$batteryLevel%, plugged=$isPlugged, physicalPlugged=$physicalPlugged, " +
-                    "interactive=$isScreenInteractive, reason=$currentTempReason, " +
-                    "obsBackfillOnly=$observationBackfillMode, lastFullFetch=${lastFullFetchAge}s ago",
+                "uiOnly=${input.uiOnlyRefresh}, force=${input.forceRefresh}, currentOnly=${input.currentTempOnly}, " +
+                    "opportunistic=${input.opportunisticCurrentTemp}, battery=${device.batteryLevel}%, " +
+                    "plugged=${device.isCharging}, interactive=${device.isScreenInteractive}, " +
+                    "reason=${input.currentTempReason}, obsBackfillOnly=${input.observationBackfillMode}, " +
+                    "lastFullFetch=${device.lastFullFetchAgeSeconds}s ago",
             )
 
-            // Cooldown: skip full background syncs if one finished very recently (last 5 mins)
-            // Does not apply to forced (user-triggered) or UI-only updates.
-            if (!forceRefresh && !uiOnlyRefresh && !currentTempOnly && !observationBackfillMode && lastFullFetchAge in 0..300) {
-                appLogDao.log("SYNC_SKIP", "reason=cooldown age=${lastFullFetchAge}s", "INFO")
+            if (!input.forceRefresh && !input.uiOnlyRefresh && !input.currentTempOnly &&
+                !input.observationBackfillMode && device.lastFullFetchAgeSeconds in 0..300
+            ) {
+                appLogDao.log("SYNC_SKIP", "reason=cooldown age=${device.lastFullFetchAgeSeconds}s", "INFO")
                 return Result.success()
             }
 
-            if (observationBackfillMode) {
-                return handleObservationBackfillWork(
-                    latitude = backfillLat,
-                    longitude = backfillLon,
-                    lookbackHours = backfillHours,
-                    reason = backfillReason,
-                )
+            if (input.observationBackfillMode) {
+                return handleObservationBackfillWork(input)
+            }
+            if (input.currentTempOnly) {
+                return handleCurrentTempOnlyWork(input, device)
+            }
+            if (input.nonPrimaryCurrentTempOnly) {
+                return handleNonPrimaryCurrentTempOnlyWork(input, device)
             }
 
-            if (currentTempOnly) {
-                return handleCurrentTempOnlyWork(
-                    isPlugged = isPlugged,
-                    batteryLevel = batteryLevel,
-                    isScreenInteractive = isScreenInteractive,
-                    isOpportunisticContext = opportunisticCurrentTemp,
-                    reason = currentTempReason,
-                    force = forceRefresh,
-                    targetSource = targetSourceId?.let(WeatherSource::fromId),
+            return handleFullSyncWork(input, device)
+        }
+
+        // ---- work-mode handlers ----
+
+        private suspend fun handleObservationBackfillWork(input: WorkInput): Result =
+            handleWorkerExceptions(
+                appLogDao = appLogDao,
+                cancellationTag = "OBS_BACKFILL_CANCELLED",
+                cancellationMessage = "Observation backfill cancelled. reason=${input.backfillReason} stopReason=$stopReason",
+                errorTag = "OBS_HOURLY_BACKFILL_EXCEPTION",
+                errorMessage = "Observation backfill failed (reason=${input.backfillReason})",
+                onException = { Result.failure() },
+            ) {
+                appLogDao.log(
+                    "OBS_HOURLY_BACKFILL_RUN",
+                    "reason=${input.backfillReason} lat=${input.backfillLat} lon=${input.backfillLon} lookbackHours=${input.backfillHours}",
+                    "INFO",
                 )
+                val result = weatherRepository.backfillRecentNwsObservations(input.backfillLat, input.backfillLon, input.backfillHours)
+                appLogDao.log(
+                    "OBS_HOURLY_BACKFILL_RESULT",
+                    "reason=${input.backfillReason} stations=${result.stationsTried} rows=${result.rowsFetched} affectedDates=${result.affectedDates.sorted()}",
+                    "INFO",
+                )
+                refreshWidgetsFromCache()
+                Result.success()
             }
 
-            if (nonPrimaryCurrentTempOnly) {
-                return handleNonPrimaryCurrentTempOnlyWork(
-                    isPlugged = isPlugged,
-                    isScreenInteractive = isScreenInteractive,
-                    reason = currentTempReason,
-                    force = forceRefresh,
+        private suspend fun handleCurrentTempOnlyWork(
+            input: WorkInput,
+            device: DeviceContext,
+        ): Result {
+            val startMs = SystemClock.elapsedRealtime()
+            appLogDao.log(
+                "CURR_FETCH_WORK_START",
+                "id=$id reason=${input.currentTempReason} isPlugged=${device.isCharging} isInteractive=${device.isScreenInteractive} opportunistic=${input.opportunisticCurrentTemp}",
+            )
+
+            val targetSource = input.targetSourceId?.let(WeatherSource::fromId)
+            return try {
+                val isManual = input.currentTempReason.contains("manual") || input.currentTempReason.contains("force") || input.forceRefresh
+                var resultMessage = "success"
+                var fetchDurationMs = 0L
+                var attemptedSourceCount = 0
+
+                if (!CurrentTempFetchPolicy.shouldFetchNow(
+                        isCharging = device.isCharging,
+                        isScreenInteractive = device.isScreenInteractive,
+                        isOpportunisticContext = input.opportunisticCurrentTemp,
+                        batteryLevel = device.batteryLevel,
+                        isManual = isManual,
+                    )
+                ) {
+                    appLogDao.log(
+                        "CURR_FETCH_SKIP",
+                        "reason=${input.currentTempReason} policy_blocked charging=${device.isCharging} battery=${device.batteryLevel} " +
+                            "cutoff=${CurrentTempFetchPolicy.OPPORTUNISTIC_MIN_BATTERY_PERCENT} " +
+                            "interactive=${device.isScreenInteractive} opportunistic=${input.opportunisticCurrentTemp}",
+                        "INFO",
+                    )
+                    resultMessage = "skipped_policy_blocked"
+                } else {
+                    val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
+                    val fetchStartMs = SystemClock.elapsedRealtime()
+                    val refreshResult = weatherRepository.refreshCurrentTemperature(
+                        latitude = location.first,
+                        longitude = location.second,
+                        locationName = getLocationName(location.first, location.second),
+                        source = targetSource,
+                        reason = input.currentTempReason,
+                        forceRefresh = input.forceRefresh,
+                    )
+                    fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
+                    refreshResult.fold(
+                        onSuccess = { attempted ->
+                            attemptedSourceCount = attempted
+                            resultMessage = "success"
+                        },
+                        onFailure = { e ->
+                            appLogDao.log("CURR_FETCH_FAIL", "reason=${input.currentTempReason} ${e.message}", "ERROR")
+                            resultMessage = "fetch_failure:${e.message}"
+                        },
+                    )
+                }
+
+                val skipRepaint = CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
+                    policyBlocked = resultMessage == "skipped_policy_blocked",
+                    fetchFailed = resultMessage.startsWith("fetch_failure"),
+                    attemptedSourceCount = attemptedSourceCount,
                 )
+                var cacheRefreshDurationMs = 0L
+                if (skipRepaint) {
+                    appLogDao.log(
+                        "CURR_PAINT_SKIP",
+                        "reason=${input.currentTempReason} result=$resultMessage attemptedSources=$attemptedSourceCount",
+                        "INFO",
+                    )
+                } else {
+                    val cacheRefreshStartMs = SystemClock.elapsedRealtime()
+                    refreshWidgetsFromCache()
+                    cacheRefreshDurationMs = SystemClock.elapsedRealtime() - cacheRefreshStartMs
+                }
+
+                manageCurrentTempLoopAfterRun(device, ignoreRunningWorkId = id)
+
+                val totalDurationMs = SystemClock.elapsedRealtime() - startMs
+                if (totalDurationMs > 500) {
+                    appLogDao.log(
+                        "SYNC_PERF_CURRENT",
+                        "reason=${input.currentTempReason} total=${totalDurationMs}ms fetch=${fetchDurationMs}ms widgets=${cacheRefreshDurationMs}ms",
+                        "INFO",
+                    )
+                }
+
+                appLogDao.log(
+                    "CURR_FETCH_WORK_RESULT",
+                    "id=$id reason=${input.currentTempReason} result=$resultMessage",
+                    "INFO",
+                )
+                Result.success()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                appLogDao.log(
+                    "CURR_FETCH_CANCELLED",
+                    "CurrentTemp fetch cancelled. reason=${input.currentTempReason} stopReason=$stopReason durationMs=$durationMs msg=${e.message}",
+                    "INFO",
+                )
+                throw e
+            } catch (e: Exception) {
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                appLogDao.logException("CURR_FETCH_EXCEPTION", "CurrentTemp fetch failed (reason=${input.currentTempReason}, duration=${durationMs}ms)", e)
+                manageCurrentTempLoopAfterRun(device, ignoreRunningWorkId = id)
+                Result.retry()
             }
+        }
 
+        private suspend fun handleNonPrimaryCurrentTempOnlyWork(
+            input: WorkInput,
+            device: DeviceContext,
+        ): Result {
+            val startMs = SystemClock.elapsedRealtime()
+            appLogDao.log(
+                "NONPRIMARY_FETCH_START",
+                "id=$id reason=${input.currentTempReason} isPlugged=${device.isCharging} isInteractive=${device.isScreenInteractive}",
+                "INFO",
+            )
 
+            return try {
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                val activeSourceIds = appWidgetIds.map { widgetStateManager.getCurrentDisplaySource(it).id }.distinct().toSet()
+                val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+                val nonActiveSources = visibleSources.filter { it.id !in activeSourceIds }
 
+                var resultMessage = "success"
+                var fetchDurationMs = 0L
+
+                if (nonActiveSources.isEmpty()) {
+                    resultMessage = "no_non_active_visible_sources"
+                } else {
+                    val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
+                    val fetchStartMs = SystemClock.elapsedRealtime()
+                    var successCount = 0
+                    var failCount = 0
+                    for (source in nonActiveSources) {
+                        val refreshResult = weatherRepository.refreshCurrentTemperature(
+                            latitude = location.first,
+                            longitude = location.second,
+                            locationName = getLocationName(location.first, location.second),
+                            source = source,
+                            reason = "non_primary_${input.currentTempReason}",
+                            forceRefresh = input.forceRefresh,
+                        )
+                        refreshResult.fold(
+                            onSuccess = { successCount++ },
+                            onFailure = { failCount++ },
+                        )
+                    }
+                    fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
+                    resultMessage = "success=$successCount fail=$failCount"
+                }
+
+                val cacheRefreshStartMs = SystemClock.elapsedRealtime()
+                refreshWidgetsFromCache()
+                val cacheRefreshDurationMs = SystemClock.elapsedRealtime() - cacheRefreshStartMs
+
+                manageNonPrimaryLoopAfterRun(device)
+
+                val totalDurationMs = SystemClock.elapsedRealtime() - startMs
+                appLogDao.log(
+                    "NONPRIMARY_FETCH_RESULT",
+                    "id=$id reason=${input.currentTempReason} result=$resultMessage total=${totalDurationMs}ms fetch=${fetchDurationMs}ms widgets=${cacheRefreshDurationMs}ms",
+                    "INFO",
+                )
+                Result.success()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                appLogDao.log(
+                    "NONPRIMARY_FETCH_CANCELLED",
+                    "reason=${input.currentTempReason} durationMs=$durationMs msg=${e.message}",
+                    "INFO",
+                )
+                throw e
+            } catch (e: Exception) {
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                appLogDao.logException("NONPRIMARY_FETCH_EXCEPTION", "NonPrimary fetch failed (reason=${input.currentTempReason}, duration=${durationMs}ms)", e)
+                manageNonPrimaryLoopAfterRun(device)
+                Result.retry()
+            }
+        }
+
+        private suspend fun handleFullSyncWork(input: WorkInput, device: DeviceContext): Result {
             try {
                 val startMs = SystemClock.elapsedRealtime()
 
-                // Pre-schedule the next debug fast-refresh BEFORE the risky work, so the crash-repro
-                // loop survives a mid-run native SIGSEGV (a crashing run never reaches its own tail).
                 maybeScheduleDebugFastRefresh()
 
-                // Piggyback GPS resample when charging or battery > 70%
+                // GPS resample piggybacks on full syncs
                 var candidateChangedThisRun = false
-                if (!uiOnlyRefresh && !currentTempOnly && !nonPrimaryCurrentTempOnly &&
-                    !observationBackfillMode && !candidateLocationRefresh
+                if (!input.uiOnlyRefresh && !input.currentTempOnly && !input.nonPrimaryCurrentTempOnly &&
+                    !input.observationBackfillMode && !input.candidateLocationRefresh
                 ) {
                     try {
                         candidateChangedThisRun = gpsResampler.resample(context)
@@ -148,132 +311,79 @@ class WeatherWidgetWorker
                     }
                 }
 
-                // Build per-source fetch context up front so the repository can decide which
-                // sources are due according to ForecastFetchPolicy (charging/screen/active-aware).
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
                 val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                val stateManager = WidgetStateManager(context)
 
-                // The widget's CONFIGURED location (set via GPS/zip in ConfigActivity or Settings)
-                // must drive the fetch. Previously we used getLatestLocation() = the location of the
-                // most recent weather row, which decoupled the fetch from the configured location:
-                // once the table seeded to the default, every refresh re-fetched the default and the
-                // configured location (used only for rendering) was never honored — pinning the
-                // widget to the wrong place permanently.
                 val activeLocation = ActiveLocationResolver.resolve(
                     context,
-                    stateManager,
+                    widgetStateManager,
                     WeatherDatabase.getDatabase(context).forecastDao(),
                 )
-                // Full weather work may prepare the latest candidate while every display path keeps
-                // using activeLocation. UI/current-temp-only work never follows a candidate.
-                val candidateAtLoad = if (!uiOnlyRefresh) LocationHandoffStore.getCandidate(context) else null
+                val candidateAtLoad = if (!input.uiOnlyRefresh) LocationHandoffStore.getCandidate(context) else null
                 val location = candidateAtLoad?.location?.let { it.lat to it.lon } ?: activeLocation
-                val configuredLocation = appWidgetIds.toList().firstNotNullOfOrNull { id -> stateManager.getWidgetLocation(id) }
                 Log.d(
                     TAG,
                     "doWork: Location = $location active=$activeLocation candidate=${candidateAtLoad != null} " +
-                        "(configured=${configuredLocation != null})",
+                        "(configured=${appWidgetIds.toList().firstNotNullOfOrNull { widgetStateManager.getWidgetLocation(it) } != null})",
                 )
-                val activeSourceList = currentDisplaySourceIds(stateManager)
-                val fetchContext = if (!forceRefresh && !uiOnlyRefresh) {
+
+                val activeSourceList = hourlyForecastLoader.currentDisplaySourceIds()
+                val fetchContext = if (!input.forceRefresh && !input.uiOnlyRefresh) {
                     ForecastFetchContext(
-                        isCharging = isPlugged,
-                        isScreenInteractive = isScreenInteractive,
-                        batteryLevel = batteryLevel,
+                        isCharging = device.isCharging,
+                        isScreenInteractive = device.isScreenInteractive,
+                        batteryLevel = device.batteryLevel,
                         activeSourceIds = activeSourceList.toSet(),
                     )
                 } else null
 
-                val result =
-                    weatherRepository.getWeatherData(
-                        latitude = location.first,
-                        longitude = location.second,
-                        forceRefresh = (forceRefresh || candidateChangedThisRun) && !uiOnlyRefresh,
-                        networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh),
-                        targetSourceId = targetSourceId,
-                        fetchContext = fetchContext,
-                    )
+                val result = weatherRepository.getWeatherData(
+                    latitude = location.first,
+                    longitude = location.second,
+                    forceRefresh = (input.forceRefresh || candidateChangedThisRun) && !input.uiOnlyRefresh,
+                    networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(input.uiOnlyRefresh),
+                    targetSourceId = input.targetSourceId,
+                    fetchContext = fetchContext,
+                )
 
                 return result.fold(
                     onSuccess = { weatherList ->
                         val afterWeatherMs = SystemClock.elapsedRealtime()
                         Log.d(TAG, "doWork: Got ${weatherList.size} weather entries")
-                        // Durable per-stage breadcrumbs: doWork has crashed natively (SIGSEGV) mid-run
-                        // on some devices, killing the process before SYNC_PERF/paint_done can log. Because
-                        // each app_logs insert commits immediately, the LAST SYNC_STAGE row before a gap
-                        // pinpoints the crashing stage (fetch vs hourly vs backfill vs actuals vs render).
-                        // See [[samsung_widget_dead_native_sigsegv]]. Debug-only to avoid production noise.
                         logStage("weather_fetched count=${weatherList.size}")
 
-                        // Fetch forecast snapshots for comparison
-                        val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
-                        val hourlyForecasts =
-                            fetchHourlyForecasts(
-                                location.first,
-                                location.second,
-                                hourlySourceIds(widgetStateManager),
-                            )
+                        val forecastSnapshots = dataBundleLoader.fetchForecastSnapshots(location.first, location.second)
+                        val hourlyForecasts = hourlyForecastLoader.load(
+                            lat = location.first,
+                            lon = location.second,
+                            sources = hourlyForecastLoader.hourlySourceIds(),
+                        )
                         val afterHourlyMs = SystemClock.elapsedRealtime()
                         logStage("hourly_fetched count=${hourlyForecasts.size}")
 
                         if (candidateAtLoad != null) {
-                            val currentCandidate = LocationHandoffStore.getCandidate(context)
-                            if (currentCandidate == null || !LocationHandoffStore.matches(candidateAtLoad, currentCandidate)) {
-                                appLogDao.log(
-                                    "LOCATION_HANDOFF",
-                                    "state=candidate_superseded loaded=${candidateAtLoad.location.lat},${candidateAtLoad.location.lon}",
-                                    "INFO",
-                                )
-                                return@fold Result.success()
-                            }
-
-                            val requiresHourlyData = appWidgetIds.any { id ->
-                                stateManager.getViewMode(id) != ViewMode.DAILY
-                            }
-                            val usability = evaluateCandidateUsability(
-                                forecasts = weatherList,
+                            when (val outcome = tryPromoteLocationCandidate(
+                                context = context,
+                                appLogDao = appLogDao,
+                                widgetStateManager = widgetStateManager,
+                                candidateAtLoad = candidateAtLoad,
+                                weatherList = weatherList,
                                 hourlyForecasts = hourlyForecasts,
-                                requiredSourceIds = activeSourceList.toSet(),
-                                requiresHourlyData = requiresHourlyData,
-                                nowMs = System.currentTimeMillis(),
-                                candidateFirstSeenMs = candidateAtLoad.firstSeenMs,
-                            )
-                            if (!usability.useful) {
-                                appLogDao.log(
-                                    "LOCATION_HANDOFF",
-                                    "state=candidate_waiting_data reason=${usability.reason} " +
-                                        "candidate=${candidateAtLoad.location.lat},${candidateAtLoad.location.lon} " +
-                                        "dailyRows=${weatherList.size} hourlyRows=${hourlyForecasts.size}",
-                                    "INFO",
-                                )
-                                return@fold Result.success()
+                                activeSourceIds = activeSourceList,
+                                appWidgetIds = appWidgetIds,
+                            )) {
+                                is LocationCandidateOutcome.Superseded,
+                                is LocationCandidateOutcome.WaitingForData,
+                                is LocationCandidateOutcome.PromotionFailed,
+                                -> return@fold Result.success()
+                                is LocationCandidateOutcome.Promoted -> { /* continue */ }
                             }
-                            if (!com.weatherwidget.ui.LocationUpdater.promoteCandidateIfMatches(
-                                    context,
-                                    candidateAtLoad,
-                                    appWidgetIds,
-                                )
-                            ) {
-                                appLogDao.log(
-                                    "LOCATION_HANDOFF",
-                                    "state=candidate_superseded phase=promotion",
-                                    "INFO",
-                                )
-                                return@fold Result.success()
-                            }
-                            appLogDao.log(
-                                "LOCATION_HANDOFF",
-                                "state=candidate_promoted reason=${usability.reason} " +
-                                    "location=${candidateAtLoad.location.lat},${candidateAtLoad.location.lon}",
-                                "INFO",
-                            )
                         }
 
-                        // Backfill NWS history if this is a new location or no history exists
-                        // ONLY perform if not a UI-only refresh to avoid blocking during frequent updates
-                        if (!uiOnlyRefresh && (targetSourceId == com.weatherwidget.data.model.WeatherSource.NWS.id || (targetSourceId == null && weatherList.any { it.source == com.weatherwidget.data.model.WeatherSource.NWS.id }))) {
+                        if (!input.uiOnlyRefresh && (input.targetSourceId == WeatherSource.NWS.id ||
+                                (input.targetSourceId == null && weatherList.any { it.source == WeatherSource.NWS.id }))
+                        ) {
                             Log.d(TAG, "doWork: Triggering NWS backfill check")
                             weatherRepository.backfillNwsObservationsIfNeeded(location.first, location.second)
                         }
@@ -282,87 +392,81 @@ class WeatherWidgetWorker
 
                         val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
-                            location.first,
-                            location.second,
-                            todayStartMs,
+                            location.first, location.second, todayStartMs,
                         )
 
-                        appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
+                        appLogDao.log(
+                            "SYNC_SUCCESS",
+                            "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}",
+                            "INFO",
+                        )
 
-                        logStage("actuals_recompute_start recompute=${!uiOnlyRefresh}")
-                        // Re-read the display sources rather than reusing the start-of-run
-                        // snapshot: a full run takes seconds, and toggling the API source enqueues
-                        // a forced refresh, so a second toggle routinely lands mid-run. The paint
-                        // below reads each widget's *current* source, and filtering the actuals map
-                        // by a stale set drops that source's history entirely.
-                        val actualsSourceList = currentDisplaySourceIds(stateManager)
-                        val dailyActuals = fetchDailyActuals(
+                        logStage("actuals_recompute_start recompute=${!input.uiOnlyRefresh}")
+                        val actualsSourceList = hourlyForecastLoader.currentDisplaySourceIds()
+                        val dailyActuals = dataBundleLoader.fetchDailyActuals(
                             lat = location.first,
                             lon = location.second,
                             hourlyForecasts = hourlyForecasts,
                             activeSourceList = actualsSourceList,
-                            recompute = !uiOnlyRefresh
+                            recompute = !input.uiOnlyRefresh,
                         )
                         val afterActualsMs = SystemClock.elapsedRealtime()
 
-                        // Snapshot the resolved (as-displayed) rain chance into daily_history for
-                        // yesterday/today so history can later replay it (see
-                        // ForecastRepository.snapshotDisplayedRainChance). Gated with the actuals
-                        // recompute since that's what keeps daily_history rows current.
-                        if (!uiOnlyRefresh) {
+                        if (!input.uiOnlyRefresh) {
                             weatherRepository.snapshotDisplayedRainChance(location.first, location.second)
                             weatherRepository.backfillForecastChanceSnapshotsIfNeeded(location.first, location.second)
                             weatherRepository.backfillFrozenDisplayColumnsIfNeeded(location.first, location.second)
                             weatherRepository.repairFrozenRainChanceIfNeeded(location.first, location.second)
                         }
 
-                        appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_start uiOnly=$uiOnlyRefresh thread=${Thread.currentThread().name}")
-                        val jobType = if (uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
-                        val workerOrigin = if (uiOnlyRefresh) com.weatherwidget.widget.WidgetPushDispatcher.Origin.UI_ONLY else com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_FETCH
+                        appLogDao.log(
+                            "WIDGET_LIFECYCLE",
+                            "phase=worker_paint_start uiOnly=${input.uiOnlyRefresh} thread=${Thread.currentThread().name}",
+                        )
+                        val jobType = if (input.uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
+                        val workerOrigin = if (input.uiOnlyRefresh) WidgetPushDispatcher.Origin.UI_ONLY else WidgetPushDispatcher.Origin.WORKER_FETCH
                         updateAllWidgets(
-                            weatherList,
-                            forecastSnapshots,
-                            hourlyForecasts,
-                            currentTemps,
-                            dailyActuals,
-                            jobType,
-                            uiOnly = uiOnlyRefresh,
+                            weatherList = weatherList,
+                            forecastSnapshots = forecastSnapshots,
+                            hourlyForecasts = hourlyForecasts,
+                            currentTemps = currentTemps,
+                            dailyActuals = dailyActuals,
+                            jobType = jobType,
+                            uiOnly = input.uiOnlyRefresh,
                             origin = workerOrigin,
                             loadedActualsSourceIds = actualsSourceList,
                             reloadActuals = { sourceIds ->
-                                // recompute=false: this run already recomputed the extremes, only
-                                // the read needs a wider filter.
-                                fetchDailyActuals(
+                                dataBundleLoader.reloadDailyActuals(
                                     lat = location.first,
                                     lon = location.second,
                                     hourlyForecasts = hourlyForecasts,
-                                    activeSourceList = sourceIds,
-                                    recompute = false,
+                                    sourceIds = sourceIds,
                                 )
                             },
                         )
                         val afterUpdateMs = SystemClock.elapsedRealtime()
-                        appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_done uiOnly=$uiOnlyRefresh elapsedMs=${afterUpdateMs - afterActualsMs}")
+                        appLogDao.log(
+                            "WIDGET_LIFECYCLE",
+                            "phase=worker_paint_done uiOnly=${input.uiOnlyRefresh} elapsedMs=${afterUpdateMs - afterActualsMs}",
+                        )
 
                         val totalMs = afterUpdateMs - startMs
                         if (totalMs > 500) {
                             appLogDao.log(
                                 "SYNC_PERF",
-                                "uiOnly=$uiOnlyRefresh total=${totalMs}ms " +
+                                "uiOnly=${input.uiOnlyRefresh} total=${totalMs}ms " +
                                     "weather=${afterWeatherMs - startMs}ms " +
                                     "hourly=${afterHourlyMs - afterWeatherMs}ms " +
                                     "backfill=${afterBackfillMs - afterHourlyMs}ms " +
                                     "actuals=${afterActualsMs - afterBackfillMs}ms " +
-                                    "widgets=${afterUpdateMs - afterActualsMs}ms"
+                                    "widgets=${afterUpdateMs - afterActualsMs}ms",
                             )
                         }
 
-                        if (!uiOnlyRefresh) {
-                            val uiScheduler = UIUpdateScheduler(context)
-                            uiScheduler.scheduleNextUpdate()
+                        if (!input.uiOnlyRefresh) {
+                            UIUpdateScheduler(context).scheduleNextUpdate()
                         } else {
-                            // Even on UI-only, ensure heartbeats are alive
-                            manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
+                            manageCurrentTempLoopAfterRun(device)
                         }
 
                         Result.success()
@@ -373,237 +477,24 @@ class WeatherWidgetWorker
                     },
                 )
             } catch (e: kotlinx.coroutines.CancellationException) {
-                val reasonMsg = "Worker cancelled. stopReason=$stopReason msg=${e.message}"
-                appLogDao.log("SYNC_CANCELLED", reasonMsg, "INFO")
+                appLogDao.log("SYNC_CANCELLED", "Worker cancelled. stopReason=$stopReason msg=${e.message}", "INFO")
                 throw e
             } catch (e: Exception) {
                 appLogDao.logException("SYNC_EXCEPTION", "Synchronization failed", e)
                 return Result.retry()
             } finally {
-                if (shouldBroadcastNoHourlyComplete) {
+                if (input.shouldBroadcastNoHourlyComplete) {
                     broadcastNoHourlyRefreshComplete(
-                        widgetId = noHourlyWidgetId,
-                        dateStr = noHourlyDate,
-                        lat = noHourlyLat,
-                        lon = noHourlyLon,
+                        widgetId = input.noHourlyWidgetId,
+                        dateStr = input.noHourlyDate!!,
+                        lat = input.noHourlyLat,
+                        lon = input.noHourlyLon,
                     )
                 }
             }
         }
 
-        /**
-         * Durable per-stage breadcrumb inside a full [doWork] run. Debug-only (BuildConfig.DEBUG) so it
-         * adds no production log volume; each row commits immediately, so the last one before a gap in
-         * app_logs localizes a mid-run native crash to a stage. Tagged SYNC_STAGE for easy querying.
-         */
-        private suspend fun logStage(stage: String) {
-            if (!com.weatherwidget.BuildConfig.DEBUG) return
-            appLogDao.log("SYNC_STAGE", "stage=$stage thread=${Thread.currentThread().name}", "INFO")
-        }
-
-        /**
-         * Debug crash-repro loop: re-enqueue a delayed forced full refresh so doWork runs every
-         * [DEBUG_FAST_FULL_REFRESH_SECONDS]. No-op unless BuildConfig.DEBUG and the interval is > 0.
-         */
-        private fun maybeScheduleDebugFastRefresh() {
-            if (!com.weatherwidget.BuildConfig.DEBUG || DEBUG_FAST_FULL_REFRESH_SECONDS <= 0L) return
-            val request =
-                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                    .setInitialDelay(DEBUG_FAST_FULL_REFRESH_SECONDS, TimeUnit.SECONDS)
-                    .setInputData(
-                        Data.Builder()
-                            .putBoolean(KEY_FORCE_REFRESH, true)
-                            .putString(KEY_CURRENT_TEMP_REASON, "debug_fast_refresh")
-                            .build(),
-                    )
-                    .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(
-                WORK_NAME_DEBUG_FAST_REFRESH,
-                // KEEP: keep the single pending repro request; never cancel a running one (that is the
-                // very crash this knob reproduces — [[samsung_widget_dead_native_sigsegv]]).
-                ExistingWorkPolicy.KEEP,
-                request,
-            )
-            Log.d(TAG, "Scheduled debug fast refresh in ${DEBUG_FAST_FULL_REFRESH_SECONDS}s")
-        }
-
-        private fun broadcastNoHourlyRefreshComplete(
-            widgetId: Int,
-            dateStr: String,
-            lat: Double,
-            lon: Double,
-        ) {
-            val completeIntent =
-                Intent(context, WidgetActionReceiver::class.java).apply {
-                    action = WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-                    putExtra("date", dateStr)
-                    putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, lat)
-                    putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LON, lon)
-                }
-            context.sendBroadcast(completeIntent)
-            Log.d(TAG, "broadcastNoHourlyRefreshComplete: widget=$widgetId date=$dateStr")
-        }
-
-        private suspend fun fetchForecastSnapshots(
-            lat: Double,
-            lon: Double,
-        ): Map<LocalDate, List<ForecastEntity>> {
-            return try {
-                val today = LocalDate.now()
-                val pastStart = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                val pastEnd = today.minusDays(2).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                val recentStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                // Query only what some installed widget renders; the gap-fill horizon below stays
-                // at the full navigation horizon (in-memory synthesis, no query).
-                val recentEnd =
-                    today.plusDays(
-                        com.weatherwidget.widget.handlers.DailyLoadWindowResolver
-                            .resolve(context).forecastDays,
-                    ).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-
-                val pastSnapshots = weatherRepository.getLatestForecastsInRange(pastStart, pastEnd, lat, lon)
-                val recentSnapshots = weatherRepository.getAllForecastsInRange(recentStart, recentEnd, lat, lon)
-                val grouped = (pastSnapshots + recentSnapshots).groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
-
-                val gapFiller = ClimateGapFiller(WeatherDatabase.getDatabase(context).climateNormalDao())
-                gapFiller.appendGapsToSnapshots(
-                    grouped,
-                    lat,
-                    lon,
-                    today,
-                    horizonDays = WidgetQueryWindows.DAILY_FORECAST_DAYS,
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch forecast snapshots", e)
-                emptyMap()
-            }
-        }
-
-        /**
-         * Display source of every installed widget, read fresh. Deliberately not cached for the
-         * duration of a run: the user can toggle the API source at any moment, and anything derived
-         * from a stale copy repaints a source whose data was filtered away.
-         */
-        /**
-         * Sources the hourly render data must cover: every installed widget's display source, plus
-         * `GENERIC_GAP` (the climate-normal filler consumers accept alongside the display source).
-         */
-        private fun hourlySourceIds(stateManager: WidgetStateManager): List<String> =
-            (currentDisplaySourceIds(stateManager) + WeatherSource.GENERIC_GAP.id).distinct()
-
-        private fun currentDisplaySourceIds(stateManager: WidgetStateManager): List<String> {
-            val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
-            return AppWidgetManager.getInstance(context)
-                .getAppWidgetIds(componentName)
-                .map { stateManager.getCurrentDisplaySource(it).id }
-                .distinct()
-        }
-
-        private suspend fun fetchDailyActuals(
-            lat: Double,
-            lon: Double,
-            hourlyForecasts: List<HourlyForecastEntity>,
-            activeSourceList: List<String>,
-            recompute: Boolean = true,
-        ): DailyActualsBySource {
-            return try {
-                if (recompute) {
-                    val start = LocalDate.now().minusDays(2)
-                    val yesterday = LocalDate.now().minusDays(1)
-                    weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, start, yesterday, hourlyForecasts)
-                }
-                weatherRepository.getDailyActualsWithLiveToday(lat, lon, hourlyForecasts, activeSourceList)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch daily actuals", e)
-                emptyMap()
-            }
-        }
-
-        /**
-         * @param sources display source of each installed widget plus `GENERIC_GAP`. Filtering in SQL
-         *   rather than in memory: unfiltered, these two queries returned ~38k rows on a Samsung Fold
-         *   (4928 hourly + 33473 history) where the display source accounted for ~8.4k, and every
-         *   consumer downstream filters to the display source anyway. This was the `hourly=1888ms`
-         *   stage in SYNC_PERF.
-         */
-        private suspend fun fetchHourlyForecasts(
-            lat: Double,
-            lon: Double,
-            sources: List<String>,
-        ): List<HourlyForecastEntity> {
-            return try {
-                val database = WeatherDatabase.getDatabase(context)
-                val hourlyDao = database.hourlyForecastDao()
-                val historyDao = database.hourlyForecastHistoryDao()
-                val now = LocalDateTime.now()
-                val zoneId = ZoneId.systemDefault()
-                // Extended range for hourly view and rain analysis: 72h past to 168h future (today + 7 days)
-                // Must cover the full daily forecast range so the hourly graph works for any tapped day.
-                val startTimeMs = now.minusHours(72).atZone(zoneId).toInstant().toEpochMilli()
-                val endTimeMs = now.plusHours(168).atZone(zoneId).toInstant().toEpochMilli()
-                Log.d(TAG, "fetchHourlyForecasts: range=${now.minusHours(72)} to ${now.plusHours(168)} (ms=$startTimeMs to $endTimeMs)")
-                val current = hourlyDao.getHourlyForecastsForSources(startTimeMs, endTimeMs, lat, lon, sources)
-                // The proximity query may return rows from multiple nearby locations (e.g. 37.422 and
-                // 37.4168). Pin to the single closest location so the stitched list is single-location,
-                // matching the strict filter WidgetRenderer applies downstream.
-                val bestLat: Double
-                val bestLon: Double
-                val bestPair = current.asSequence()
-                    .map { it.locationLat to it.locationLon }
-                    .distinct()
-                    .minByOrNull { (rowLat, rowLon) ->
-                        Math.abs(rowLat - lat) + Math.abs(rowLon - lon)
-                    }
-                if (bestPair != null) {
-                    bestLat = bestPair.first
-                    bestLon = bestPair.second
-                } else {
-                    bestLat = lat
-                    bestLon = lon
-                }
-                // Keep every row at the SAME physical site as bestPair (not exact float equality):
-                // one site fragments into sub-precision coordinates across fetches, and dropping the
-                // fragments here would blank part of the graph downstream. See LocationMatch.sameSite.
-                val filteredCurrent = if (bestPair != null) {
-                    current.filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestLat, bestLon) }
-                } else current
-                val history = historyDao.getHistoryInRangeForBucketWindowForSources(
-                    startDateTime = startTimeMs,
-                    endDateTime = endTimeMs,
-                    bucketStart = Long.MIN_VALUE,
-                    bucketEnd = Long.MAX_VALUE,
-                    lat = bestLat,
-                    lon = bestLon,
-                    sources = sources,
-                ).filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestLat, bestLon) }
-                    .map {
-                        HourlyForecastEntity(
-                            dateTime = it.dateTime,
-                            locationLat = it.locationLat,
-                            locationLon = it.locationLon,
-                            temperature = it.temperature,
-                            condition = it.condition,
-                            source = it.source,
-                            precipProbability = it.precipProbability,
-                            cloudCover = it.cloudCover,
-                            precipAmountMm = it.precipAmountMm,
-                            fetchedAt = it.fetchedAt,
-                        )
-                    }
-                val stitched = (history + filteredCurrent)
-                    .associateBy { Pair(it.dateTime, it.source) }
-                    .values
-                    .sortedBy { it.dateTime }
-                if (stitched.size != filteredCurrent.size) {
-                    Log.i(TAG, "fetchHourlyForecasts: stitched ${stitched.size - filteredCurrent.size} missing rows from history (bestLoc=$bestLat,$bestLon)")
-                }
-                stitched
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch hourly forecasts", e)
-                emptyList()
-            }
-        }
+        // ---- widget painting ----
 
         private suspend fun updateAllWidgets(
             weatherList: List<ForecastEntity>,
@@ -613,43 +504,32 @@ class WeatherWidgetWorker
             dailyActuals: DailyActualsBySource = emptyMap(),
             jobType: WidgetUpdateTracker.JobType = WidgetUpdateTracker.JobType.BACKGROUND_SYNC,
             uiOnly: Boolean = false,
-            origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_FETCH,
+            origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.WORKER_FETCH,
             loadedActualsSourceIds: Collection<String> = emptyList(),
             reloadActuals: (suspend (List<String>) -> DailyActualsBySource)? = null,
         ) = coroutineScope {
+            if (!isScreenInteractive()) {
+                appLogDao.log("WIDGET_PAINT_SKIP", "reason=screen_off", "INFO")
+                return@coroutineScope
+            }
+
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
-            // Last line of defence for the source-toggle race: the actuals map was filtered to the
-            // sources displayed when it was loaded, but the sources are read again here, per widget,
-            // at paint time. If a toggle landed in between, reload once for the union instead of
-            // painting a source whose actuals were filtered out. Costs an extra query only in the
-            // rare race; the common path just compares two tiny lists.
-            val paintSourceIds =
-                appWidgetIds.map { widgetStateManager.getCurrentDisplaySource(it).id }.distinct()
-            val uncoveredSources =
-                DailyActualsCoverage.uncoveredSources(paintSourceIds, loadedActualsSourceIds)
-            val effectiveActuals =
-                if (uncoveredSources.isEmpty() || reloadActuals == null) {
-                    dailyActuals
-                } else {
-                    appLogDao.log(
-                        "ACTUALS_SOURCE_RACE",
-                        "uncovered=${uncoveredSources.joinToString(",")} " +
-                            "loaded=${loadedActualsSourceIds.joinToString(",")} " +
-                            "paint=${paintSourceIds.joinToString(",")} reloading",
-                        "INFO",
-                    )
-                    // On reload failure fetchDailyActuals returns an empty map; keep the original
-                    // rather than repainting every widget with no actuals at all.
-                    reloadActuals(
-                        DailyActualsCoverage.unionSourceIds(paintSourceIds, loadedActualsSourceIds),
-                    ).takeIf { it.isNotEmpty() } ?: dailyActuals
-                }
+            val effectiveActuals = resolveEffectiveActuals(
+                appWidgetIds = appWidgetIds,
+                loadedActualsSourceIds = loadedActualsSourceIds,
+                reloadActuals = reloadActuals,
+                dailyActuals = dailyActuals,
+            )
 
-            val effectiveOrigin = if (uiOnly) com.weatherwidget.widget.WidgetPushDispatcher.Origin.UI_ONLY else origin
+            val effectiveOrigin = if (uiOnly) WidgetPushDispatcher.Origin.UI_ONLY else origin
             for (appWidgetId in appWidgetIds) {
+                if (shouldSkipWidgetRender(appWidgetId)) {
+                    Log.v(TAG, "Skipping render for widget $appWidgetId (throttled)")
+                    continue
+                }
                 val job = launch {
                     WidgetRenderer.updateWidgetWithData(
                         context = context,
@@ -662,342 +542,173 @@ class WeatherWidgetWorker
                         dailyActualsBySource = effectiveActuals,
                         repository = weatherRepository,
                         uiOnly = uiOnly,
-                        // Worker repaints patch the existing widget views in place. A full
-                        // updateAppWidget makes the launcher re-inflate the whole widget — a
-                        // visible flash on Samsung — on every background refresh cycle.
                         partialPush = true,
                         origin = effectiveOrigin,
                     )
                 }
                 WidgetUpdateTracker.trackJob(appWidgetId, job, jobType)
+                lastRenderMs[appWidgetId] = SystemClock.elapsedRealtime()
             }
         }
 
-        private suspend fun handleCurrentTempOnlyWork(
-            isPlugged: Boolean,
-            batteryLevel: Int,
-            isScreenInteractive: Boolean,
-            isOpportunisticContext: Boolean,
-            reason: String,
-            force: Boolean = false,
-            targetSource: WeatherSource? = null,
-        ): Result {
-            val startMs = SystemClock.elapsedRealtime()
-            appLogDao.log("CURR_FETCH_WORK_START", "id=$id reason=$reason isPlugged=$isPlugged isInteractive=$isScreenInteractive opportunistic=$isOpportunisticContext")
-            
-            return try {
-                val isManual = reason.contains("manual") || reason.contains("force") || force
-                var resultMessage = "success"
-                var fetchDurationMs = 0L
-                // Sources actually contacted this run. refreshCurrentTemperature returns 0 on its
-                // freshness skip (another fetch completed moments ago) and when every source was
-                // throttled — in both cases the cache is byte-identical to what the widgets already
-                // painted, so repainting them would only produce a visible no-op redraw.
-                var attemptedSourceCount = 0
-                if (
-                    !CurrentTempFetchPolicy.shouldFetchNow(
-                        isCharging = isPlugged,
-                        isScreenInteractive = isScreenInteractive,
-                        isOpportunisticContext = isOpportunisticContext,
-                        batteryLevel = batteryLevel,
-                        isManual = isManual,
-                    )
-                ) {
-                    appLogDao.log(
-                        "CURR_FETCH_SKIP",
-                        "reason=$reason policy_blocked charging=$isPlugged battery=$batteryLevel " +
-                            "cutoff=${CurrentTempFetchPolicy.OPPORTUNISTIC_MIN_BATTERY_PERCENT} " +
-                            "interactive=$isScreenInteractive opportunistic=$isOpportunisticContext",
-                        "INFO",
-                    )
-                    resultMessage = "skipped_policy_blocked"
-                } else {
-                    val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
-                    val fetchStartMs = SystemClock.elapsedRealtime()
-                    val refreshResult =
-                        weatherRepository.refreshCurrentTemperature(
-                            latitude = location.first,
-                            longitude = location.second,
-                            locationName = getLocationName(location.first, location.second),
-                            source = targetSource,
-                            reason = reason,
-                            forceRefresh = force,
-                        )
-                    fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
+        private suspend fun resolveEffectiveActuals(
+            appWidgetIds: IntArray,
+            loadedActualsSourceIds: Collection<String>,
+            reloadActuals: (suspend (List<String>) -> DailyActualsBySource)?,
+            dailyActuals: DailyActualsBySource,
+        ): DailyActualsBySource {
+            val paintSourceIds = appWidgetIds.map { widgetStateManager.getCurrentDisplaySource(it).id }.distinct()
+            val uncoveredSources = DailyActualsCoverage.uncoveredSources(paintSourceIds, loadedActualsSourceIds)
+            if (uncoveredSources.isEmpty() || reloadActuals == null) return dailyActuals
 
-                    refreshResult.fold(
-                        onSuccess = { attempted ->
-                            // Done log is handled by repository now
-                            attemptedSourceCount = attempted
-                            resultMessage = "success"
-                        },
-                        onFailure = { e ->
-                            appLogDao.log("CURR_FETCH_FAIL", "reason=$reason ${e.message}", "ERROR")
-                            resultMessage = "fetch_failure:${e.message}"
-                        },
-                    )
-                }
-
-                // Repaint only when this run could have changed what the widgets show. Repainting
-                // all widgets from an unchanged cache is the post-fetch double-blink the user
-                // reported (CURR_FETCH_FRESH_SKIP followed by a 2s repaint of every widget).
-                val skipRepaint = CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
-                    policyBlocked = resultMessage == "skipped_policy_blocked",
-                    fetchFailed = resultMessage.startsWith("fetch_failure"),
-                    attemptedSourceCount = attemptedSourceCount,
-                )
-                var cacheRefreshDurationMs = 0L
-                if (skipRepaint) {
-                    appLogDao.log(
-                        "CURR_PAINT_SKIP",
-                        "reason=$reason result=$resultMessage attemptedSources=$attemptedSourceCount",
-                        "INFO",
-                    )
-                } else {
-                    val cacheRefreshStartMs = SystemClock.elapsedRealtime()
-                    refreshWidgetsFromCache()
-                    cacheRefreshDurationMs = SystemClock.elapsedRealtime() - cacheRefreshStartMs
-                }
-                
-                manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive, ignoreRunningWorkId = id)
-                
-                val totalDurationMs = SystemClock.elapsedRealtime() - startMs
-                if (totalDurationMs > 500) {
-                    appLogDao.log(
-                        "SYNC_PERF_CURRENT",
-                        "reason=$reason total=${totalDurationMs}ms fetch=${fetchDurationMs}ms widgets=${cacheRefreshDurationMs}ms",
-                        "INFO"
-                    )
-                }
-
-                appLogDao.log(
-                    "CURR_FETCH_WORK_RESULT",
-                    "id=$id reason=$reason result=$resultMessage",
-                    "INFO",
-                )
-                Result.success()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                val durationMs = SystemClock.elapsedRealtime() - startMs
-                val reasonMsg = "CurrentTemp fetch cancelled. reason=$reason stopReason=$stopReason durationMs=$durationMs msg=${e.message}"
-                appLogDao.log("CURR_FETCH_CANCELLED", reasonMsg, "INFO")
-                throw e
-            } catch (e: Exception) {
-                val durationMs = SystemClock.elapsedRealtime() - startMs
-                appLogDao.logException("CURR_FETCH_EXCEPTION", "CurrentTemp fetch failed (reason=$reason, duration=${durationMs}ms)", e)
-                manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive, ignoreRunningWorkId = id)
-                Result.retry()
-            }
-        }
-
-        private suspend fun handleNonPrimaryCurrentTempOnlyWork(
-            isPlugged: Boolean,
-            isScreenInteractive: Boolean,
-            reason: String,
-            force: Boolean = false,
-        ): Result {
-            val startMs = SystemClock.elapsedRealtime()
             appLogDao.log(
-                "NONPRIMARY_FETCH_START",
-                "id=$id reason=$reason isPlugged=$isPlugged isInteractive=$isScreenInteractive",
-                "INFO"
+                "ACTUALS_SOURCE_RACE",
+                "uncovered=${uncoveredSources.joinToString(",")} " +
+                    "loaded=${loadedActualsSourceIds.joinToString(",")} " +
+                    "paint=${paintSourceIds.joinToString(",")} reloading",
+                "INFO",
             )
-
-            return try {
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                
-                val activeSourceIds = appWidgetIds.map { id ->
-                    widgetStateManager.getCurrentDisplaySource(id).id
-                }.distinct().toSet()
-
-                val visibleSources = widgetStateManager.getVisibleSourcesOrder()
-                val nonActiveSources = visibleSources.filter { it.id !in activeSourceIds }
-
-                var resultMessage = "success"
-                var fetchDurationMs = 0L
-
-                if (nonActiveSources.isEmpty()) {
-                    resultMessage = "no_non_active_visible_sources"
-                } else {
-                    val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
-                    val fetchStartMs = SystemClock.elapsedRealtime()
-                    
-                    var successCount = 0
-                    var failCount = 0
-                    for (source in nonActiveSources) {
-                        val refreshResult = weatherRepository.refreshCurrentTemperature(
-                            latitude = location.first,
-                            longitude = location.second,
-                            locationName = getLocationName(location.first, location.second),
-                            source = source,
-                            reason = "non_primary_${reason}",
-                            forceRefresh = force,
-                        )
-                        refreshResult.fold(
-                            onSuccess = { successCount++ },
-                            onFailure = { failCount++ }
-                        )
-                    }
-                    fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
-                    resultMessage = "success=$successCount fail=$failCount"
-                }
-
-                val cacheRefreshStartMs = SystemClock.elapsedRealtime()
-                refreshWidgetsFromCache()
-                val cacheRefreshDurationMs = SystemClock.elapsedRealtime() - cacheRefreshStartMs
-
-                manageNonPrimaryLoopAfterRun(isPlugged, isScreenInteractive)
-
-                val totalDurationMs = SystemClock.elapsedRealtime() - startMs
-                appLogDao.log(
-                    "NONPRIMARY_FETCH_RESULT",
-                    "id=$id reason=$reason result=$resultMessage total=${totalDurationMs}ms fetch=${fetchDurationMs}ms widgets=${cacheRefreshDurationMs}ms",
-                    "INFO",
-                )
-                Result.success()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                val durationMs = SystemClock.elapsedRealtime() - startMs
-                appLogDao.log("NONPRIMARY_FETCH_CANCELLED", "reason=$reason durationMs=$durationMs msg=${e.message}", "INFO")
-                throw e
-            } catch (e: Exception) {
-                val durationMs = SystemClock.elapsedRealtime() - startMs
-                appLogDao.logException("NONPRIMARY_FETCH_EXCEPTION", "NonPrimary fetch failed (reason=$reason, duration=${durationMs}ms)", e)
-                manageNonPrimaryLoopAfterRun(isPlugged, isScreenInteractive)
-                Result.retry()
-            }
+            return reloadActuals(
+                DailyActualsCoverage.unionSourceIds(paintSourceIds, loadedActualsSourceIds),
+            ).takeIf { it.isNotEmpty() } ?: dailyActuals
         }
 
-        private suspend fun manageNonPrimaryLoopAfterRun(
-            isPlugged: Boolean,
-            isScreenInteractive: Boolean,
-        ) {
-            val intervalMinutes = ForecastFetchPolicy.nonPrimaryObservationIntervalMinutes(isPlugged, isScreenInteractive)
-            if (intervalMinutes != null) {
-                NonPrimaryObservationScheduler.scheduleNextUpdate(
-                    context = context,
-                    isScreenInteractive = isScreenInteractive,
-                )
-            } else {
-                appLogDao.log(
-                    "NONPRIMARY_LOOP_STOP",
-                    "reason=policy_blocked plugged=$isPlugged interactive=$isScreenInteractive",
-                    "INFO",
-                )
-            }
-        }
-
-        private suspend fun handleObservationBackfillWork(
-            latitude: Double,
-            longitude: Double,
-            lookbackHours: Long,
-            reason: String,
-        ): Result {
-            return try {
-                appLogDao.log(
-                    "OBS_HOURLY_BACKFILL_RUN",
-                    "reason=$reason lat=$latitude lon=$longitude lookbackHours=$lookbackHours",
-                    "INFO",
-                )
-                val result = weatherRepository.backfillRecentNwsObservations(latitude, longitude, lookbackHours)
-                appLogDao.log(
-                    "OBS_HOURLY_BACKFILL_RESULT",
-                    "reason=$reason stations=${result.stationsTried} rows=${result.rowsFetched} affectedDates=${result.affectedDates.sorted()}",
-                    "INFO",
-                )
-                refreshWidgetsFromCache()
-                Result.success()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                val reasonMsg = "Observation backfill cancelled. reason=$reason stopReason=$stopReason msg=${e.message}"
-                appLogDao.log("OBS_BACKFILL_CANCELLED", reasonMsg, "INFO")
-                throw e
-            } catch (e: Exception) {
-                appLogDao.logException("OBS_HOURLY_BACKFILL_EXCEPTION", "Observation backfill failed (reason=$reason)", e)
-                Result.failure()
-            }
+        private fun shouldSkipWidgetRender(appWidgetId: Int): Boolean {
+            val last = lastRenderMs[appWidgetId] ?: return false
+            return SystemClock.elapsedRealtime() - last < MIN_RENDER_INTERVAL_MS
         }
 
         private suspend fun refreshWidgetsFromCache() {
-            val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
-            val weatherList =
-                weatherRepository.getWeatherData(
-                    latitude = location.first,
-                    longitude = location.second,
-                    networkAllowed = false,
-                ).getOrDefault(emptyList())
-            val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
-            val stateManagerForSources = WidgetStateManager(context)
-            val hourlyForecasts =
-                fetchHourlyForecasts(
-                    location.first,
-                    location.second,
-                    hourlySourceIds(stateManagerForSources),
-                )
-
-            val activeSourceList = currentDisplaySourceIds(stateManagerForSources)
-
-            val dailyActuals = fetchDailyActuals(
-                lat = location.first,
-                lon = location.second,
-                hourlyForecasts = hourlyForecasts,
-                activeSourceList = activeSourceList,
-                recompute = false
+            val location = ActiveLocationResolver.resolve(
+                context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao(),
             )
-            val todayStartMs2 = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
-                location.first,
-                location.second,
-                todayStartMs2,
+            val bundle = dataBundleLoader.load(
+                latitude = location.first,
+                longitude = location.second,
+                networkAllowed = false,
+                recomputeActuals = false,
+                forceRefresh = false,
+                targetSourceId = null,
+                fetchContext = null,
             )
             updateAllWidgets(
-                weatherList,
-                forecastSnapshots,
-                hourlyForecasts,
-                currentTemps,
-                dailyActuals,
-                WidgetUpdateTracker.JobType.BACKGROUND_SYNC,
-                origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.WORKER_CACHE,
-                loadedActualsSourceIds = activeSourceList,
+                weatherList = bundle.weatherList,
+                forecastSnapshots = bundle.forecastSnapshots,
+                hourlyForecasts = bundle.hourlyForecasts,
+                currentTemps = bundle.currentTemps,
+                dailyActuals = bundle.dailyActuals,
+                jobType = WidgetUpdateTracker.JobType.BACKGROUND_SYNC,
+                origin = WidgetPushDispatcher.Origin.WORKER_CACHE,
+                loadedActualsSourceIds = bundle.activeSourceIds,
                 reloadActuals = { sourceIds ->
-                    fetchDailyActuals(
+                    dataBundleLoader.reloadDailyActuals(
                         lat = location.first,
                         lon = location.second,
-                        hourlyForecasts = hourlyForecasts,
-                        activeSourceList = sourceIds,
-                        recompute = false,
+                        hourlyForecasts = bundle.hourlyForecasts,
+                        sourceIds = sourceIds,
                     )
                 },
             )
         }
 
+        // ---- lifecycle helpers ----
+
         private suspend fun manageCurrentTempLoopAfterRun(
-            isPlugged: Boolean,
-            isScreenInteractive: Boolean,
+            device: DeviceContext,
             ignoreRunningWorkId: java.util.UUID? = null,
         ) {
-            when (CurrentTempFetchPolicy.postRunLoopAction(isPlugged, isScreenInteractive)) {
+            when (CurrentTempFetchPolicy.postRunLoopAction(device.isCharging, device.isScreenInteractive)) {
                 CurrentTempFetchPolicy.PostRunLoopAction.SCHEDULE_NEXT ->
                     CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
                         context = context,
                         workManager = WorkManager.getInstance(context),
                         nowMs = System.currentTimeMillis(),
                         ignoreRunningWorkId = ignoreRunningWorkId,
-                        isScreenInteractive = isScreenInteractive,
+                        isScreenInteractive = device.isScreenInteractive,
                     )
-                // On battery we must NOT cancel here: cancel() targets the unique work name
-                // WORK_NAME_CURRENT_TEMP, and an opportunistic current-temp fetch can be running
-                // concurrently under that same name (OpportunisticUpdateJobService enqueues a
-                // UI-only worker and a fetch worker together). Cancelling by name truncated that
-                // fetch mid-flight — the root cause of current temp being slow to refresh on
-                // battery. The loop instead dies by not rescheduling; ScreenOnReceiver handles
-                // prompt teardown on unplug. See CurrentTempFetchPolicy.PostRunLoopAction.
                 CurrentTempFetchPolicy.PostRunLoopAction.NO_RESCHEDULE ->
                     appLogDao.log(
                         "CURR_FETCH_LOOP_STOP",
-                        "reason=policy_blocked plugged=$isPlugged interactive=$isScreenInteractive action=no_reschedule",
+                        "reason=policy_blocked plugged=${device.isCharging} interactive=${device.isScreenInteractive} action=no_reschedule",
                         "INFO",
                     )
             }
+        }
+
+        private suspend fun manageNonPrimaryLoopAfterRun(device: DeviceContext) {
+            val intervalMinutes = ForecastFetchPolicy.nonPrimaryObservationIntervalMinutes(
+                device.isCharging, device.isScreenInteractive,
+            )
+            if (intervalMinutes != null) {
+                NonPrimaryObservationScheduler.scheduleNextUpdate(
+                    context = context,
+                    isScreenInteractive = device.isScreenInteractive,
+                )
+            } else {
+                appLogDao.log(
+                    "NONPRIMARY_LOOP_STOP",
+                    "reason=policy_blocked plugged=${device.isCharging} interactive=${device.isScreenInteractive}",
+                    "INFO",
+                )
+            }
+        }
+
+        private fun broadcastNoHourlyRefreshComplete(
+            widgetId: Int,
+            dateStr: String,
+            lat: Double,
+            lon: Double,
+        ) {
+            val completeIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+                action = WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                putExtra("date", dateStr)
+                putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, lat)
+                putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LON, lon)
+            }
+            context.sendBroadcast(completeIntent)
+            Log.d(TAG, "broadcastNoHourlyRefreshComplete: widget=$widgetId date=$dateStr")
+        }
+
+        // ---- diagnostics ----
+
+        private suspend fun logStage(stage: String) {
+            if (!com.weatherwidget.BuildConfig.DEBUG) return
+            appLogDao.log("SYNC_STAGE", "stage=$stage thread=${Thread.currentThread().name}", "INFO")
+        }
+
+        private fun maybeScheduleDebugFastRefresh() {
+            if (!com.weatherwidget.BuildConfig.DEBUG || DEBUG_FAST_FULL_REFRESH_SECONDS <= 0L) return
+            val request = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                .setInitialDelay(DEBUG_FAST_FULL_REFRESH_SECONDS, TimeUnit.SECONDS)
+                .setInputData(
+                    Data.Builder()
+                        .putBoolean(KEY_FORCE_REFRESH, true)
+                        .putString(KEY_CURRENT_TEMP_REASON, "debug_fast_refresh")
+                        .build(),
+                )
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                WORK_NAME_DEBUG_FAST_REFRESH,
+                ExistingWorkPolicy.KEEP,
+                request,
+            )
+            Log.d(TAG, "Scheduled debug fast refresh in ${DEBUG_FAST_FULL_REFRESH_SECONDS}s")
+        }
+
+        private fun measureDeviceContext(): DeviceContext {
+            val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val isPlugged = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
+            val isScreenInteractive = isScreenInteractive()
+            val lastFullFetchMs = weatherRepository.lastNetworkFetchTimeMs
+            val lastFullFetchAge = if (lastFullFetchMs > 0) (System.currentTimeMillis() - lastFullFetchMs) / 1000 else -1
+            return DeviceContext(
+                isCharging = isPlugged,
+                batteryLevel = batteryLevel,
+                isScreenInteractive = isScreenInteractive,
+                lastFullFetchAgeSeconds = lastFullFetchAge,
+            )
         }
 
         private fun isScreenInteractive(): Boolean {
@@ -1005,34 +716,20 @@ class WeatherWidgetWorker
             return powerManager.isInteractive
         }
 
-        private fun getLocationName(
-            lat: Double,
-            lon: Double,
-        ): String {
+        private fun getLocationName(lat: Double, lon: Double): String {
             return if (lat == DEFAULT_LAT && lon == DEFAULT_LON) {
                 "Mountain View, CA"
             } else {
-                // Local-only lookup (aliases, cached reverse geocodes, named POIs): this runs on
-                // every fetch, so no network. Coordinates only when nothing has named this site yet.
                 com.weatherwidget.util.FriendlyLocationName.cached(context, lat, lon)
                     ?: "%.2f, %.2f".format(lat, lon)
             }
         }
 
+        // ---- constants ----
+
         companion object {
             private const val TAG = "WeatherWidgetWorker"
-
-            // DEBUG-ONLY crash-repro knob. When > 0 (and BuildConfig.DEBUG), every successful full
-            // background sync self-reschedules another forced full refresh this many seconds later, so
-            // the intermittent native SIGSEGV in doWork reproduces in minutes instead of hours. Because
-            // WorkManager persists the pending request, the loop survives a crash (the next run cold-
-            // starts the process and tries again). Set to 0 to disable. See
-            // [[samsung_widget_dead_native_sigsegv]].
-            // Set > 0 (debug only) to reproduce the cancellation-triggered native crash fast; 0 = off.
-            // Left at 0 now that the repro is understood (crash = REPLACE cancelling a running worker,
-            // ART-interpreter resumeWith segfault on debuggable builds).
-            private const val DEBUG_FAST_FULL_REFRESH_SECONDS = 0L
-            private const val WORK_NAME_DEBUG_FAST_REFRESH = "weather_widget_debug_fast_refresh"
+            private const val MIN_RENDER_INTERVAL_MS = 30_000L
 
             const val DEFAULT_LAT = 37.4220
             const val DEFAULT_LON = -122.0841
@@ -1055,5 +752,8 @@ class WeatherWidgetWorker
             const val KEY_NO_HOURLY_LON = "no_hourly_lon"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
+            const val WORK_NAME_DEBUG_FAST_REFRESH = "weather_widget_debug_fast_refresh"
+
+            private const val DEBUG_FAST_FULL_REFRESH_SECONDS = 0L
         }
     }
