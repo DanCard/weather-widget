@@ -22,6 +22,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.DailyForecastIconResolver
@@ -173,7 +174,13 @@ object DailyViewHandler : WidgetViewHandler {
 
         val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-        val climateNormals = repository?.getHistoricalNormalsByMonthDay(lat, lon) ?: emptyMap()
+        // Cache-only read. The repository's getHistoricalNormalsByMonthDay does an HTTP fetch on a
+        // cache miss, which has no business on a widget render path; ClimateNormalsRepository
+        // .warmBestEffort already warms this cache on every network fetch. Used solely to complete a
+        // PARTIAL future row (see DailyViewLogic) — whole climate-normal days come from
+        // ClimateGapFiller's GENERIC_GAP rows.
+        val climateNormals = ClimateGapFiller(database.climateNormalDao())
+            .cachedNormalsByMonthDay(lat, lon)
 
         Log.d(
             TAG,

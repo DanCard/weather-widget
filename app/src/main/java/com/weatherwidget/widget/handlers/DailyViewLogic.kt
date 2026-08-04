@@ -242,8 +242,10 @@ object DailyViewLogic {
                         tripleValues.solidLineLow == null &&
                         (visibleHigh != null || visibleLow != null)
             } else {
-                // Future day fallback to climate normals if missing
-                if (!isTerminalLowOnlyNwsFuture && (highLabel == null || lowLabel == null)) {
+                // Future day: fill a PARTIAL row's missing bound from climate normals. Requires
+                // weather != null — see the matching comment in prepareGraphDayInputs for why a
+                // day with no row at all must NOT be fabricated here.
+                if (weather != null && !isTerminalLowOnlyNwsFuture && (highLabel == null || lowLabel == null)) {
                     val normal = climateNormals[java.time.MonthDay.from(date)]
                     if (normal != null) {
                         highLabel = formatTemp(normal.first)
@@ -502,8 +504,20 @@ object DailyViewLogic {
                         tripleValues.solidLineLow == null &&
                         (finalHigh != null || finalLow != null)
             } else {
-                // Future day
-                if (!isTerminalLowOnlyNwsFuture && (finalHigh == null || finalLow == null)) {
+                // Future day: fill a PARTIAL row's missing bound from climate normals (e.g. an NWS
+                // future row carrying a low but no high yet).
+                //
+                // The `weather != null` guard is load-bearing. Without it this also fabricated
+                // temperatures for a day that had NO row at all, leaving the icon at
+                // resolveIcon(null) = ic_weather_unknown (a grey cloud, its "?" flattened by the
+                // daily icon tint) and the bar at FORECAST_CLOUDY slate grey — correct climate
+                // numbers wearing a "cloudy" costume. That is exactly how a gap-fill horizon bug
+                // hid in plain sight; see plans/260803-daily-8th-day-cloudy-gap-horizon.md.
+                //
+                // Whole climate-normal days must instead arrive as GENERIC_GAP rows from
+                // ClimateGapFiller, which carry source, condition and gap styling with them. A
+                // future day with no row now renders as genuinely absent.
+                if (weather != null && !isTerminalLowOnlyNwsFuture && (finalHigh == null || finalLow == null)) {
                     val normal = climateNormals[java.time.MonthDay.from(date)]
                     if (normal != null) {
                         finalHigh = normal.first

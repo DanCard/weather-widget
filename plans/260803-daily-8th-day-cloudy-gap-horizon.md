@@ -78,7 +78,52 @@ forecast rows on those paths and fall back to climate normals — not just NWS.
 - Emulator: force the startup/worker repaint (`cmd jobscheduler run -f com.weatherwidget <id>`) and
   confirm the today+8 column stays green + clear across repaints, no grey cloud.
 
-## Phase 2 — collapse to one climate-normal path (decided 2026-08-03: do it now, separate commit)
+## Phase 2 — REVISED after a first attempt (see "Why the first attempt was wrong" below)
+
+### Why the first attempt was wrong
+
+The first attempt deleted the `climateNormals` MonthDay fallback outright. Compiling the tests
+showed that fallback serves a **second, legitimate purpose** unrelated to this bug: filling a
+*partial* future row. `DailyViewLogicTest` pins it —
+
+- `prepareTextDays still uses climate fallback for non terminal future low only day` — a real NWS
+  future row with a low but no high gets **both** bounds replaced by normals ("78°"/"60°").
+- `prepareTextDays / prepareGraphDays keeps terminal NWS low only future day without climate
+  fallback` — the *terminal* low-only day is deliberately exempted.
+
+Deleting the whole mechanism would silently change how partial future rows render (real low + no
+high instead of normals) — a behavior change nobody asked for, in a change meant to fix an icon.
+
+Crucially, the partial-row case **cannot** cause the masking bug: `weather != null` there, so
+`resolveIcon` reads the real row's condition and never falls to `ic_weather_unknown`. Only the
+**no-row** case masks.
+
+### Revised plan — remove only the masking half
+
+1. Gate both fallback blocks on `weather != null` (`DailyViewLogic` graph `:507`, text `:247`), so
+   the map fills gaps *within an existing row* but never fabricates a whole day. A future date with
+   no row renders as genuinely absent; climate normals reach the view as whole days ONLY via
+   `GENERIC_GAP` rows, which carry gap styling with them.
+2. Source the map **cache-only** via `ClimateGapFiller.cachedNormalsByMonthDay` instead of
+   `repository.getHistoricalNormalsByMonthDay`, which does an HTTP fetch on a cache miss — today
+   that call sits on the widget **render** path (`DailyViewHandler.kt:176`). Safe because
+   `ClimateNormalsRepository.warmBestEffort` already warms the cache on every network fetch
+   (`ForecastRepository.kt:206`).
+3. **Keep both flags.** `isClimateNormal` (partial-row fill → overlay paint variant) and
+   `isSourceGapFallback` (whole gap day → green bar) now mean genuinely different things. The
+   earlier idea of merging them was wrong.
+4. Leave the icon semantics of a gap day alone: `condition = "Historical Avg"` resolving to
+   `IC_CLEAR` is what the user confirmed as the correct render.
+
+### Known edge this does NOT fix (flagging, not fixing)
+
+`ClimateGapFiller.coveredDates` treats every date up to the *min-across-sources* max targetDate as
+covered, so a **hole in the middle** of the display source's own window (between today+3 and that
+cutoff) gets no gap row. With the no-row fallback removed, such a hole renders blank where it
+previously showed normals. Making gap coverage per-display-source would fix it, but that is a
+separate change to gap-fill semantics and is out of scope here.
+
+## Phase 2 — original (superseded) sketch: collapse to one climate-normal path
 
 The duplicate mechanism is what let this fail *quietly* — correct numbers, wrong styling — so
 leaving it in place would make the Phase 1 fix unverifiable by eye and hide the next regression.
@@ -109,4 +154,13 @@ branch is dead code — gap rows carry `nativeDailyIconToken = null`, so the `is
 
 ## Status
 
-Phase 1: in progress. Phase 2: planned, same session.
+- **Phase 1: done** (commit 2643ae18). Verified on emulator: today+8 paints `#34C759` with
+  `ic_weather_clear` and holds across forced worker repaints; both new tests fail at the old `7L`.
+- **Phase 2: done** (revised form). First attempt reverted uncommitted after the test suite revealed
+  the partial-row purpose above; shipped version gates both fallbacks on `weather != null`, reads
+  normals cache-only via `ClimateGapFiller.cachedNormalsByMonthDay`, and keeps both flags distinct.
+  Full unit suite green (1764 tests, 246 classes, 0 failures). Both new no-row guards fail when the
+  `weather != null` gates are removed. Verified on emulator (10-col graph) and Samsung Fold
+  (`widget=345`, 10-col graph): today+8 = green `#34C759` bar + `ic_weather_clear`, 80.5°/58.6°.
+  Removed test `prepareTextDays with missing forecast uses climate normals` (pinned the deleted
+  no-row behavior); partial-row tests untouched and still passing.

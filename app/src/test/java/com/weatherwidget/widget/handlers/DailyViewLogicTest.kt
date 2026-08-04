@@ -158,17 +158,21 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `future day with missing forecast uses climate normals`() {
+    fun `future day with NO row is not fabricated from climate normals`() {
+        // A day with no row at all must render as genuinely absent, even when normals are available.
+        // Filling only its temperatures left the icon at resolveIcon(null) = ic_weather_unknown (a
+        // grey cloud) and the bar at FORECAST_CLOUDY, disguising a missing GENERIC_GAP row as a real
+        // "cloudy" forecast. Whole climate-normal days must arrive as GENERIC_GAP rows instead — see
+        // `graph gap fallback day is marked isSourceGapFallback` and
+        // plans/260803-daily-8th-day-cloudy-gap-horizon.md.
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(7)
-        
-        // No weather data for future
+
+        // No weather row for `future` — only today.
         val weatherByDate = mapOf(
             today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE))
         )
-        
-        // Normals available for future
         val climateNormals = mapOf(
             java.time.MonthDay.from(future) to Pair(75f, 60f)
         )
@@ -188,11 +192,43 @@ class DailyViewLogicTest {
             climateNormals = climateNormals
         )
 
-        val normalDay = result.find { it.date == future }
-        assertTrue("Future day with normals should be present", normalDay != null)
-        assertEquals("Should use climate high", 75f, normalDay!!.solidLineHigh)
-        assertEquals("Should use climate low", 60f, normalDay.solidLineLow)
-        assertTrue("Should be marked as climate overlay", normalDay.isClimateNormal)
+        val bareDay = result.find { it.date == future }
+        assertNotNull("Column is still laid out so navigation can reach it", bareDay)
+        assertNull("Must not fabricate a high from normals", bareDay!!.solidLineHigh)
+        assertNull("Must not fabricate a low from normals", bareDay.solidLineLow)
+        assertFalse("Must not be styled as a climate day", bareDay.isClimateNormal)
+    }
+
+    @Test
+    fun `future day with NO row is not fabricated from climate normals in text mode`() {
+        // Text-mode counterpart of the guard above.
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(3)
+
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE))
+        )
+        val climateNormals = mapOf(
+            java.time.MonthDay.from(future) to Pair(80f, 61f)
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            climateNormals = climateNormals,
+        )
+
+        val bareDay = result.find { it.date == future }
+        assertNotNull("Column is still laid out", bareDay)
+        assertNull("Must not fabricate a high label from normals", bareDay!!.highLabel)
+        assertNull("Must not fabricate a low label from normals", bareDay.lowLabel)
     }
 
     @Test
@@ -463,40 +499,11 @@ class DailyViewLogicTest {
         assertEquals("Label should still be set", "Sat", emptyDay.label)
     }
 
-    @Test
-    fun `prepareTextDays with missing forecast uses climate normals`() {
-        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
-        val today = now.toLocalDate()
-        val future = today.plusDays(4)
-        
-        // No weather data for future
-        val weatherByDate = mapOf(
-            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE))
-        )
-        
-        // Normals available for future
-        val climateNormals = mapOf(
-            java.time.MonthDay.from(future) to Pair(80f, 65f)
-        )
-
-        val result = DailyViewLogic.prepareTextDays(
-            todayLabel = "Today",
-            now = now,
-            centerDate = today,
-            today = today,
-            weatherByDate = weatherByDate,
-            hourlyForecasts = emptyList(),
-            numColumns = 7,
-            displaySource = WeatherSource.NWS,
-            climateNormals = climateNormals
-        )
-
-        // Day index 6 is offset 5, so day index 5 is offset 4 (future)
-        val normalDay = result.find { it.date == future }
-        assertTrue("Future day with normals should be present in text mode", normalDay != null)
-        assertEquals("Should use climate high label", "80°", normalDay!!.highLabel)
-        assertEquals("Should use climate low label", "65°", normalDay.lowLabel)
-    }
+    // `prepareTextDays with missing forecast uses climate normals` was removed here: a future day
+    // with NO row must no longer be fabricated from normals. Replaced by
+    // `future day with NO row is not fabricated from climate normals in text mode`, which pins the
+    // inverted contract. The partial-row fill it was often confused with is still covered by
+    // `prepareTextDays still uses climate fallback for non terminal future low only day`.
 
     @Test
     fun `prepareTextDays with no data still shows column`() {
