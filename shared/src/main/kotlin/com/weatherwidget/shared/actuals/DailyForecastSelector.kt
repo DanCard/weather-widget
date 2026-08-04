@@ -53,12 +53,17 @@ object DailyForecastSelector {
                 }
                 val candidates = sameSite.ifEmpty { group }
                 val picked = candidates.maxWithOrNull(compareBy(batchFetchedAt, fetchedAt))
-                Log.d(
-                    TAG,
+                // Lambda-form VERBOSE, deliberately: this runs once per (date, source) group over the
+                // whole loaded window — measured 3635 lines in one capture on a 3-widget Fold. As a
+                // plain Log.d its arguments were always evaluated, so the droppedBatches
+                // filter{}.map{} list was allocated and rendered on every group even with the tag
+                // off, costing ~150-200ms per widget render. Diagnostic content is unchanged; turn it
+                // back on with `adb shell setprop log.tag.DailyForecastSelector VERBOSE`.
+                Log.v(TAG) {
                     "dedup: date=${key.first} source=${key.second} rows=${group.size} " +
                         "sameSite=${sameSite.size} pickedBatch=${picked?.let(batchFetchedAt)} " +
-                        "droppedBatches=${group.filter { it !== picked }.map(batchFetchedAt)}",
-                )
+                        "droppedBatches=${group.filter { it !== picked }.map(batchFetchedAt)}"
+                }
                 picked
             }
             .sortedBy(targetDate)

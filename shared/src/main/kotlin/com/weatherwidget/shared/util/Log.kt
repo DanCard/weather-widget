@@ -30,6 +30,13 @@ object Log {
     /** Platform output target. Install one via [install]; defaults to [JulSink]. */
     fun interface Sink {
         fun log(priority: Priority, tag: String, msg: String, tr: Throwable?)
+
+        /**
+         * Whether [priority] on [tag] would actually be emitted. Lets the lambda-form helpers skip
+         * building a message that nothing will print. Defaults to true so existing sinks (and
+         * desktop/tests) behave exactly as before.
+         */
+        fun isLoggable(priority: Priority, tag: String): Boolean = true
     }
 
     /**
@@ -63,8 +70,24 @@ object Log {
         this.sink = JulSink
     }
 
+    /** Whether [priority] on [tag] would be emitted by the active sink. */
+    fun isLoggable(tag: String, priority: Priority): Boolean = sink.isLoggable(priority, tag)
+
     /** High-frequency per-frame/tick/poll trace. Visible ephemerally; never persisted to the DB log. */
     fun v(tag: String, msg: String) = sink.log(Priority.VERBOSE, tag, msg, null)
+
+    /**
+     * Lambda form of [v] for hot paths: [msg] is only built when the active sink would emit it.
+     *
+     * Use this wherever a VERBOSE line sits inside a per-row/per-group loop. `android.util.Log.v`
+     * writes unconditionally and its arguments are always evaluated, so a plain
+     * `Log.v(TAG, "...${list.filter{}.map{}}")` still costs the string AND the intermediate
+     * collections on every iteration even when nobody is reading the log — that is exactly what made
+     * `DailyForecastSelector` cost ~150-200ms per widget render.
+     */
+    inline fun v(tag: String, msg: () -> String) {
+        if (isLoggable(tag, Priority.VERBOSE)) v(tag, msg())
+    }
 
     fun d(tag: String, msg: String) = sink.log(Priority.DEBUG, tag, msg, null)
 

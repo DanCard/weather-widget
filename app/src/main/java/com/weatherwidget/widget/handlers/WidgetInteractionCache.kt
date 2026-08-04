@@ -32,13 +32,34 @@ internal object WidgetInteractionCache {
     /** Lat/lon quantization for the key — matches the 3dp coordinate quantization used elsewhere. */
     private const val COORD_QUANTIZE = 1_000.0
 
-    data class Key(val latQ: Long, val lonQ: Long, val epochDay: Long) {
+    /**
+     * [historyDays]/[forecastDays] are part of the key because the load window is no longer a
+     * constant — it is sized to the widest installed widget's rendered range
+     * ([DailyLoadWindowResolver]). Widgets in one tap burst resolve the same window and so still
+     * share a single load, but a nav tap that widens the window can never be served a narrower
+     * entry left over from before it.
+     */
+    data class Key(
+        val latQ: Long,
+        val lonQ: Long,
+        val epochDay: Long,
+        val historyDays: Long,
+        val forecastDays: Long,
+    ) {
         companion object {
-            fun of(lat: Double, lon: Double, epochDay: Long): Key =
+            fun of(
+                lat: Double,
+                lon: Double,
+                epochDay: Long,
+                historyDays: Long,
+                forecastDays: Long,
+            ): Key =
                 Key(
                     latQ = Math.round(lat * COORD_QUANTIZE),
                     lonQ = Math.round(lon * COORD_QUANTIZE),
                     epochDay = epochDay,
+                    historyDays = historyDays,
+                    forecastDays = forecastDays,
                 )
         }
     }

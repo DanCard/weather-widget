@@ -92,4 +92,74 @@ class NavigationUtilsTest {
         assertFalse("Default numColumns at 6pm should not skip yesterday",
             NavigationUtils.shouldSkipYesterday(sixPm))
     }
+
+    // --- dailyLoadWindow: the query window must track the render, never a flat constant ---
+
+    @Test
+    fun `dailyLoadWindow matches the rendered range for a spread of widths and offsets`() {
+        // The contract that matters: whatever getVisibleDateRange draws, dailyLoadWindow covers.
+        // Asserted against getVisibleDateRange itself so the two can never drift apart — a flat
+        // 30-day window both over-fetched ~3x for a 10-column widget AND under-fetched at 7,
+        // leaving the today+8 column with no row at all.
+        val today = LocalDate.of(2026, 8, 3)
+        val headroom = 1L
+        for (cols in intArrayOf(1, 2, 3, 6, 7, 10, 14, 22)) {
+            for (offset in intArrayOf(-5, -1, 0, 1, 5, 12)) {
+                for (skipYesterday in booleanArrayOf(false, true)) {
+                    val window =
+                        NavigationUtils.dailyLoadWindow(today, offset, cols, skipYesterday, headroom)
+                    val (leftmost, rightmost) =
+                        NavigationUtils.getVisibleDateRange(today, offset, cols, skipYesterday)
+                    val label = "cols=$cols offset=$offset skipYesterday=$skipYesterday"
+                    assertTrue(
+                        "$label: history window must reach the leftmost rendered column ($leftmost)",
+                        !today.minusDays(window.historyDays).isAfter(leftmost),
+                    )
+                    assertTrue(
+                        "$label: forecast window must reach the rightmost rendered column ($rightmost)",
+                        !today.plusDays(window.forecastDays).isBefore(rightmost),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `dailyLoadWindow for the Fold 10-column widget at offset 0 needs today plus 9 not 30`() {
+        // Regression anchor for the over-fetch: this widget renders yesterday..today+8, so with one
+        // day of headroom the query needs today+9 — not the flat 30 that was there before.
+        val window =
+            NavigationUtils.dailyLoadWindow(
+                today = LocalDate.of(2026, 8, 3),
+                dateOffset = 0,
+                numColumns = 10,
+                skipYesterday = false,
+            )
+        assertEquals("forecast days", 9L, window.forecastDays)
+        assertEquals("history days", 2L, window.historyDays)
+    }
+
+    @Test
+    fun `dailyLoadWindow never returns a negative span`() {
+        // Narrow widgets skip yesterday, so the leftmost column is today and history need is 0+headroom.
+        val window =
+            NavigationUtils.dailyLoadWindow(
+                today = LocalDate.of(2026, 8, 3),
+                dateOffset = 0,
+                numColumns = 1,
+                skipYesterday = true,
+                headroomDays = 0L,
+            )
+        assertTrue("history must not be negative", window.historyDays >= 0L)
+        assertTrue("forecast must not be negative", window.forecastDays >= 0L)
+    }
+
+    @Test
+    fun `coerceAtLeast takes the widest of two windows per side`() {
+        val narrow = NavigationUtils.DailyLoadWindow(historyDays = 2L, forecastDays = 4L)
+        val wide = NavigationUtils.DailyLoadWindow(historyDays = 7L, forecastDays = 3L)
+        val merged = narrow.coerceAtLeast(wide)
+        assertEquals(7L, merged.historyDays)
+        assertEquals(4L, merged.forecastDays)
+    }
 }

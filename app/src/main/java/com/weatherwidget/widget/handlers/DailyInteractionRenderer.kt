@@ -25,10 +25,14 @@ import java.time.ZoneId
 
 /** Owns daily-view bounds, loading, current-temperature assembly, and RemoteViews dispatch. */
 internal object DailyInteractionRenderer {
-    private const val DAILY_LOOKBACK_DAYS = 30L
-
-    /** Single source of truth, shared with the startup and worker paths. */
-    private const val DAILY_FORECAST_DAYS = WidgetQueryWindows.DAILY_FORECAST_DAYS
+    /**
+     * Gap-fill / navigation horizon — NOT the query window (that comes from
+     * [DailyLoadWindowResolver]). `ClimateGapFiller` synthesizes `GENERIC_GAP` rows in memory from 12
+     * cached monthly means, so extending it costs ~30 allocations and no query. Keeping it at the
+     * full horizon is what preserves forward navigation reach while the DB window shrinks: nav
+     * availability is computed from these rows.
+     */
+    private const val NAV_FORECAST_HORIZON_DAYS = WidgetQueryWindows.DAILY_FORECAST_DAYS
 
     data class DailyRenderRequest(
         val context: Context,
@@ -83,7 +87,7 @@ internal object DailyInteractionRenderer {
         val zoneId = ZoneId.systemDefault()
         val timeBounds = timeBounds(request.now, zoneId)
         val today = timeBounds.today
-        val range = rangeFor(today)
+        val range = rangeFor(today, DailyLoadWindowResolver.resolve(context))
         val cachedData = loadData(context, database, location.lat, location.lon, today, range)
         val weatherList =
             ClimateGapFiller(database.climateNormalDao()).appendGaps(
@@ -91,7 +95,7 @@ internal object DailyInteractionRenderer {
                 location.lat,
                 location.lon,
                 today,
-                horizonDays = DAILY_FORECAST_DAYS,
+                horizonDays = NAV_FORECAST_HORIZON_DAYS,
             )
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -171,7 +175,7 @@ internal object DailyInteractionRenderer {
         val lon = location.lon
         val timeBounds = timeBounds(request.now, ZoneId.systemDefault())
         val today = timeBounds.today
-        val range = rangeFor(today)
+        val range = rangeFor(today, DailyLoadWindowResolver.resolve(context))
         val forecastDao = database.forecastDao()
         val hourlyDao = database.hourlyForecastDao()
         val gapFiller = ClimateGapFiller(database.climateNormalDao())
@@ -182,7 +186,7 @@ internal object DailyInteractionRenderer {
                 lat,
                 lon,
                 today,
-                horizonDays = DAILY_FORECAST_DAYS,
+                horizonDays = NAV_FORECAST_HORIZON_DAYS,
             )
         val pastSnapshots =
             forecastDao.getLatestForecastsInRange(
@@ -209,7 +213,7 @@ internal object DailyInteractionRenderer {
                 lat,
                 lon,
                 today,
-                horizonDays = DAILY_FORECAST_DAYS,
+                horizonDays = NAV_FORECAST_HORIZON_DAYS,
             )
 
         val hourlyForecasts =
@@ -304,7 +308,14 @@ internal object DailyInteractionRenderer {
         today: LocalDate,
         range: DailyRange,
     ): DailyRenderData {
-        val key = WidgetInteractionCache.Key.of(lat, lon, today.toEpochDay())
+        val key =
+            WidgetInteractionCache.Key.of(
+                lat,
+                lon,
+                today.toEpochDay(),
+                range.window.historyDays,
+                range.window.forecastDays,
+            )
         val loaded =
             WidgetInteractionCache.getOrLoad(key) {
                 val weatherListRaw =
@@ -331,19 +342,22 @@ internal object DailyInteractionRenderer {
         val forecastEnd: Long,
         val pastSnapshotEnd: Long,
         val recentSnapshotStart: Long,
+        /** The window that produced these bounds; part of the interaction-cache key. */
+        val window: NavigationUtils.DailyLoadWindow,
     )
 
-    private fun rangeFor(today: LocalDate) =
+    private fun rangeFor(today: LocalDate, window: NavigationUtils.DailyLoadWindow) =
         DailyRange(
             historyStart =
-                today.minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() *
+                today.minusDays(window.historyDays).toEpochDay() *
                     WeatherTimeUtils.MILLIS_PER_DAY,
             forecastEnd =
-                today.plusDays(DAILY_FORECAST_DAYS).toEpochDay() *
+                today.plusDays(window.forecastDays).toEpochDay() *
                     WeatherTimeUtils.MILLIS_PER_DAY,
             pastSnapshotEnd =
                 today.minusDays(2).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY,
             recentSnapshotStart =
                 today.minusDays(1).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY,
+            window = window,
         )
 }

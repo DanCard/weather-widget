@@ -17,6 +17,8 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.util.NavigationUtils
+import com.weatherwidget.widget.handlers.DailyLoadWindowResolver
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -121,6 +123,7 @@ internal class WidgetStartupCoordinator(
                         activeSourceList = activeSources.toList(),
                         needsDailyData = needsDailyData,
                         gapFiller = gapFiller,
+                        loadWindow = DailyLoadWindowResolver.resolve(context),
                     )
                 renderStartupWidgets(
                     context = context,
@@ -199,13 +202,17 @@ internal class WidgetStartupCoordinator(
         activeSourceList: List<String>,
         needsDailyData: Boolean,
         gapFiller: ClimateGapFiller,
+        // Query only what some installed widget actually renders (see DailyLoadWindowResolver). The
+        // gap-fill horizon stays at the full navigation horizon: those rows are synthesized in
+        // memory from 12 cached monthly means, not queried.
+        loadWindow: NavigationUtils.DailyLoadWindow,
     ): StartupQueryResult = coroutineScope {
         val today = LocalDate.now()
         val nowLocal = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
         val historyStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val horizonEnd =
-            today.plusDays(WidgetQueryWindows.DAILY_FORECAST_DAYS).toEpochDay() *
+            today.plusDays(loadWindow.forecastDays).toEpochDay() *
                 WidgetConstants.MS_IN_A_DAY
         val pastSnapshotStart = today.minusDays(3).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val pastSnapshotEnd = today.minusDays(2).toEpochDay() * WidgetConstants.MS_IN_A_DAY

@@ -115,4 +115,48 @@ object NavigationUtils {
     fun getMaxOffset(numColumns: Int, skipHistory: Boolean = false): Int {
         return getDayOffsets(numColumns, skipHistory).last().toInt()
     }
+
+    /**
+     * Days of history / forecast the daily view must actually LOAD to render a widget, relative to
+     * today. Derived from [getVisibleDateRange] so the load window can never drift away from what
+     * the render draws.
+     *
+     * Deliberately NOT a constant: the render horizon is width-derived
+     * (`numColumns` reaching `today + dateOffset + numColumns - 2`), so a flat "30 days" over-fetches
+     * by ~3x for a 10-column widget at offset 0 and under-fetches for a very wide one. Both have
+     * happened; see plans/260803-daily-load-window-right-sizing.md.
+     *
+     * This sizes the DATABASE QUERY only. It intentionally does **not** bound how far the user can
+     * navigate: forward reach comes from `ClimateGapFiller`'s in-memory `GENERIC_GAP` rows (~30
+     * cheap synthesized entities, no query) and backward reach from the observation dates, both of
+     * which stay at their own horizons.
+     */
+    data class DailyLoadWindow(val historyDays: Long, val forecastDays: Long) {
+        /** Widest of two windows, for paths that serve several widgets from one shared load. */
+        fun coerceAtLeast(other: DailyLoadWindow) =
+            DailyLoadWindow(
+                historyDays = maxOf(historyDays, other.historyDays),
+                forecastDays = maxOf(forecastDays, other.forecastDays),
+            )
+    }
+
+    /**
+     * @param headroomDays extra days on each side so a boundary/rollover rounding error, or a nav tap
+     *   racing the repaint, cannot land on an unloaded column.
+     */
+    fun dailyLoadWindow(
+        today: LocalDate,
+        dateOffset: Int,
+        numColumns: Int,
+        skipYesterday: Boolean,
+        headroomDays: Long = 1L,
+    ): DailyLoadWindow {
+        val (leftmost, rightmost) = getVisibleDateRange(today, dateOffset, numColumns, skipYesterday)
+        return DailyLoadWindow(
+            historyDays = java.time.temporal.ChronoUnit.DAYS.between(leftmost, today)
+                .coerceAtLeast(0L) + headroomDays,
+            forecastDays = java.time.temporal.ChronoUnit.DAYS.between(today, rightmost)
+                .coerceAtLeast(0L) + headroomDays,
+        )
+    }
 }

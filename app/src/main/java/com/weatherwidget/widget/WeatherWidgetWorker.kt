@@ -449,9 +449,13 @@ class WeatherWidgetWorker
                 val pastStart = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
                 val pastEnd = today.minusDays(2).toEpochDay() * WidgetConstants.MS_IN_A_DAY
                 val recentStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                // Query only what some installed widget renders; the gap-fill horizon below stays
+                // at the full navigation horizon (in-memory synthesis, no query).
                 val recentEnd =
-                    today.plusDays(WidgetQueryWindows.DAILY_FORECAST_DAYS).toEpochDay() *
-                        WidgetConstants.MS_IN_A_DAY
+                    today.plusDays(
+                        com.weatherwidget.widget.handlers.DailyLoadWindowResolver
+                            .resolve(context).forecastDays,
+                    ).toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
                 val pastSnapshots = weatherRepository.getLatestForecastsInRange(pastStart, pastEnd, lat, lon)
                 val recentSnapshots = weatherRepository.getAllForecastsInRange(recentStart, recentEnd, lat, lon)

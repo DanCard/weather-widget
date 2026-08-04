@@ -19,12 +19,24 @@ import org.junit.experimental.categories.Category
 @OptIn(ExperimentalCoroutinesApi::class)
 class WidgetInteractionCacheTest {
 
+    private companion object {
+        // The load window is part of the key; a widened window must not reuse a narrower load.
+        const val WINDOW_HISTORY = 2L
+        const val WINDOW_FORECAST = 9L
+    }
+
     @After
     fun tearDown() = WidgetInteractionCache.clear()
 
     private fun data() = WidgetInteractionCache.Data(weatherListRaw = emptyList(), dailyActuals = emptyMap())
 
-    private fun key() = WidgetInteractionCache.Key.of(lat = 37.4219, lon = -122.0840, epochDay = 20_289L)
+    private fun key() = WidgetInteractionCache.Key.of(
+        lat = 37.4219,
+        lon = -122.0840,
+        epochDay = 20_289L,
+        historyDays = WINDOW_HISTORY,
+        forecastDays = WINDOW_FORECAST,
+    )
 
     @Test
     fun `hit within TTL returns the same cached instance`() {
@@ -44,26 +56,58 @@ class WidgetInteractionCacheTest {
     @Test
     fun `different location is a miss even within TTL`() {
         WidgetInteractionCache.put(key(), data(), nowElapsedMs = 1_000L)
-        val elsewhere = WidgetInteractionCache.Key.of(lat = 40.7128, lon = -74.0060, epochDay = 20_289L)
+        val elsewhere = WidgetInteractionCache.Key.of(lat = 40.7128, lon = -74.0060, epochDay = 20_289L, historyDays = WINDOW_HISTORY, forecastDays = WINDOW_FORECAST)
         assertNull(WidgetInteractionCache.get(elsewhere, nowElapsedMs = 1_100L))
     }
 
     @Test
     fun `different day is a miss even at same coordinates`() {
         WidgetInteractionCache.put(key(), data(), nowElapsedMs = 1_000L)
-        val tomorrow = WidgetInteractionCache.Key.of(lat = 37.4219, lon = -122.0840, epochDay = 20_290L)
+        val tomorrow = WidgetInteractionCache.Key.of(lat = 37.4219, lon = -122.0840, epochDay = 20_290L, historyDays = WINDOW_HISTORY, forecastDays = WINDOW_FORECAST)
         assertNull(WidgetInteractionCache.get(tomorrow, nowElapsedMs = 1_100L))
+    }
+
+    @Test
+    fun `a widened load window is a miss, so a narrower load is never reused`() {
+        // Nav forward grows the resolved window mid-TTL. Serving the old, narrower entry would leave
+        // the newly-visible columns with no rows — the same "no row" failure that renders a grey
+        // cloud. See plans/260803-daily-load-window-right-sizing.md.
+        WidgetInteractionCache.put(key(), data(), nowElapsedMs = 1_000L)
+        val widened = WidgetInteractionCache.Key.of(
+            lat = 37.4219,
+            lon = -122.0840,
+            epochDay = 20_289L,
+            historyDays = WINDOW_HISTORY,
+            forecastDays = WINDOW_FORECAST + 1,
+        )
+        assertNull("a wider window must reload, not reuse the narrow entry", WidgetInteractionCache.get(widened, 1_100L))
+    }
+
+    @Test
+    fun `widgets resolving the same window still share one load`() {
+        // The coalescing this cache exists for: several widgets in a tap burst resolve the same
+        // (widest) window, so they must land on the same key.
+        val d = data()
+        WidgetInteractionCache.put(key(), d, nowElapsedMs = 1_000L)
+        val secondWidgetSameWindow = WidgetInteractionCache.Key.of(
+            lat = 37.4219,
+            lon = -122.0840,
+            epochDay = 20_289L,
+            historyDays = WINDOW_HISTORY,
+            forecastDays = WINDOW_FORECAST,
+        )
+        assertSame(d, WidgetInteractionCache.get(secondWidgetSameWindow, 1_100L))
     }
 
     @Test
     fun `coordinates within the same 3dp quantum share a key`() {
         // Sub-milli-degree GPS jitter must not fragment the cache.
         WidgetInteractionCache.put(
-            WidgetInteractionCache.Key.of(lat = 37.42190, lon = -122.08400, epochDay = 20_289L),
+            WidgetInteractionCache.Key.of(lat = 37.42190, lon = -122.08400, epochDay = 20_289L, historyDays = WINDOW_HISTORY, forecastDays = WINDOW_FORECAST),
             data(),
             nowElapsedMs = 1_000L,
         )
-        val jittered = WidgetInteractionCache.Key.of(lat = 37.421904, lon = -122.084012, epochDay = 20_289L)
+        val jittered = WidgetInteractionCache.Key.of(lat = 37.421904, lon = -122.084012, epochDay = 20_289L, historyDays = WINDOW_HISTORY, forecastDays = WINDOW_FORECAST)
         assertNotNull("jitter under 3dp must hit the same entry", WidgetInteractionCache.get(jittered, 1_100L))
     }
 
@@ -104,7 +148,8 @@ class WidgetInteractionCacheTest {
         val firstEntered = CompletableDeferred<Unit>()
         val secondEntered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
-        val elsewhere = WidgetInteractionCache.Key.of(40.7128, -74.0060, 20_289L)
+        val elsewhere =
+            WidgetInteractionCache.Key.of(40.7128, -74.0060, 20_289L, WINDOW_HISTORY, WINDOW_FORECAST)
 
         val first = async {
             WidgetInteractionCache.getOrLoad(key(), { 1_000L }) {
