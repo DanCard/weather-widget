@@ -1,0 +1,1 @@
+Open beta release: Fixed Android 11 background worker stability, resolved cross-location observation caching, fixed 8th-day daily forecast rendering past coverage, and optimized query load windows.
