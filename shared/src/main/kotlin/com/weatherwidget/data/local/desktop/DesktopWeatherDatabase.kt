@@ -126,8 +126,8 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         source TEXT NOT NULL,
                         locationLat REAL NOT NULL,
                         locationLon REAL NOT NULL,
-                        highTemp REAL NOT NULL,
-                        lowTemp REAL NOT NULL,
+                        computedHighTemp REAL NOT NULL,
+                        computedLowTemp REAL NOT NULL,
                         condition TEXT NOT NULL,
                         updatedAt INTEGER NOT NULL,
                         precipAmountMm REAL,
@@ -139,6 +139,8 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         forecastLowTemp REAL,
                         forecastPrecipAmountMm REAL,
                         noonCloudPercent INTEGER,
+                        apiHighTemp REAL,
+                        apiLowTemp REAL,
                         PRIMARY KEY (date, source, locationLat, locationLon)
                     )
                 """.trimIndent())
@@ -224,8 +226,13 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     if (!hasTable(stmt, "daily_history")) {
                         stmt.execute("ALTER TABLE daily_extremes RENAME TO daily_history")
                     } else {
+                        // daily_history already exists (fresh CREATE TABLE with latest schema
+                        // ran first). Merge data, adapting to whatever columns are present.
+                        val dailyHistoryCols = tableColumns(stmt, "daily_history")
+                        val targetHigh = if (dailyHistoryCols.contains("computedHighTemp")) "computedHighTemp" else "highTemp"
+                        val targetLow = if (dailyHistoryCols.contains("computedLowTemp")) "computedLowTemp" else "lowTemp"
                         stmt.execute("""
-                            INSERT OR IGNORE INTO daily_history (date, source, locationLat, locationLon, highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm)
+                            INSERT OR IGNORE INTO daily_history (date, source, locationLat, locationLon, $targetHigh, $targetLow, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm)
                             SELECT date, source, locationLat, locationLon, highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm FROM daily_extremes
                         """.trimIndent())
                         stmt.execute("DROP TABLE daily_extremes")
@@ -292,6 +299,68 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 11) {
                 addColumnIfMissing(stmt, "observations", "qcFailed", "INTEGER NOT NULL DEFAULT 0")
             }
+            // v12: rename highTemp/lowTemp → computedHighTemp/computedLowTemp to clarify these
+            // are the IDW-blended extremes ("Location actual"), and add apiHighTemp/apiLowTemp
+            // for provider-reported observed values ("API actual").
+            if (from < 12) {
+                val cols = tableColumns(stmt, "daily_history")
+                val hasHighTemp = cols.contains("highTemp")
+                val hasLowTemp = cols.contains("lowTemp")
+                if (hasHighTemp || hasLowTemp) {
+                    stmt.execute("""
+                        CREATE TABLE daily_history_new (
+                            date INTEGER NOT NULL,
+                            source TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            computedHighTemp REAL NOT NULL,
+                            computedLowTemp REAL NOT NULL,
+                            condition TEXT NOT NULL,
+                            updatedAt INTEGER NOT NULL,
+                            precipAmountMm REAL,
+                            precipDayMm REAL,
+                            precipNightMm REAL,
+                            forecastDayPrecipChance INTEGER,
+                            forecastNightPrecipChance INTEGER,
+                            forecastHighTemp REAL,
+                            forecastLowTemp REAL,
+                            forecastPrecipAmountMm REAL,
+                            noonCloudPercent INTEGER,
+                            apiHighTemp REAL,
+                            apiLowTemp REAL,
+                            PRIMARY KEY (date, source, locationLat, locationLon)
+                        )
+                    """.trimIndent())
+                    val highSrc = if (hasHighTemp) "highTemp" else "computedHighTemp"
+                    val lowSrc = if (hasLowTemp) "lowTemp" else "computedLowTemp"
+                    stmt.execute("""
+                        INSERT INTO daily_history_new (
+                            date, source, locationLat, locationLon,
+                            computedHighTemp, computedLowTemp, condition, updatedAt,
+                            precipAmountMm, precipDayMm, precipNightMm,
+                            forecastDayPrecipChance, forecastNightPrecipChance,
+                            forecastHighTemp, forecastLowTemp,
+                            forecastPrecipAmountMm, noonCloudPercent
+                        )
+                        SELECT
+                            date, source, locationLat, locationLon,
+                            COALESCE($highSrc, 0), COALESCE($lowSrc, 0), condition, updatedAt,
+                            precipAmountMm, precipDayMm, precipNightMm,
+                            forecastDayPrecipChance, forecastNightPrecipChance,
+                            forecastHighTemp, forecastLowTemp,
+                            forecastPrecipAmountMm, noonCloudPercent
+                        FROM daily_history
+                        WHERE $highSrc IS NOT NULL AND $lowSrc IS NOT NULL
+                    """.trimIndent())
+                    stmt.execute("DROP TABLE daily_history")
+                    stmt.execute("ALTER TABLE daily_history_new RENAME TO daily_history")
+                    stmt.execute("CREATE INDEX IF NOT EXISTS idx_daily_history_lookup ON daily_history(date, locationLat, locationLon)")
+                } else {
+                    // Fresh v11 install already has computedHighTemp/computedLowTemp — just add api
+                    addColumnIfMissing(stmt, "daily_history", "apiHighTemp", "REAL")
+                    addColumnIfMissing(stmt, "daily_history", "apiLowTemp", "REAL")
+                }
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -304,15 +373,20 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     private fun addColumnIfMissing(stmt: java.sql.Statement, table: String, column: String, type: String) {
-        val rs = stmt.executeQuery("PRAGMA table_info($table)")
-        val columns = mutableListOf<String>()
-        while (rs.next()) {
-            columns.add(rs.getString("name"))
-        }
-        rs.close()
+        val columns = tableColumns(stmt, table)
         if (!columns.contains(column)) {
             stmt.execute("ALTER TABLE $table ADD COLUMN $column $type")
         }
+    }
+
+    private fun tableColumns(stmt: java.sql.Statement, table: String): List<String> {
+        val columns = mutableListOf<String>()
+        stmt.executeQuery("PRAGMA table_info($table)").use { rs ->
+            while (rs.next()) {
+                columns.add(rs.getString("name"))
+            }
+        }
+        return columns
     }
 
     /** Keep the freshest row per (dateTime, source[, snapshotBucket], rounded lat/lon), then round
@@ -332,6 +406,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 11
+        private const val SCHEMA_VERSION = 12
     }
 }

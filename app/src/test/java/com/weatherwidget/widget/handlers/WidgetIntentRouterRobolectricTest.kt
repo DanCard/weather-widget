@@ -312,8 +312,8 @@ class WidgetIntentRouterRobolectricTest {
                         source = WeatherSource.NWS.id,
                         locationLat = lat,
                         locationLon = lon,
-                        highTemp = 83.40072f,
-                        lowTemp = 62.6f,
+                        computedHighTemp = 83.40072f,
+                        computedLowTemp = 62.6f,
                         condition = "Clear",
                         updatedAt = obsTimeMs,
                     ),
@@ -327,7 +327,7 @@ class WidgetIntentRouterRobolectricTest {
             assertEquals(
                 "SET_VIEW daily actuals must ignore persisted daily_history for today",
                 82.56303f,
-                actual!!.highTemp,
+                actual!!.computedHighTemp,
                 0.001f,
             )
         } finally {

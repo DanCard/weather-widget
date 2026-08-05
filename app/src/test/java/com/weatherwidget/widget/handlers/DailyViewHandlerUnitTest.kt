@@ -25,8 +25,8 @@ class DailyViewHandlerUnitTest {
         source = WeatherSource.NWS.id,
         locationLat = 37.422,
         locationLon = -122.0841,
-        highTemp = high,
-        lowTemp = low,
+        computedHighTemp = high,
+        computedLowTemp = low,
         condition = "Clear",
         updatedAt = System.currentTimeMillis()
     )

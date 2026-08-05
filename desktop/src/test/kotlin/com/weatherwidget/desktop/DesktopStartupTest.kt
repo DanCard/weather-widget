@@ -304,7 +304,7 @@ class DesktopStartupTest {
         val db = com.weatherwidget.data.local.desktop.DesktopWeatherDatabase(dbPath)
         db.initialize()
 
-        // 3. Verify table daily_history exists and contains the new chance columns
+        // 3. Verify table daily_history exists and contains the new columns (now at v12)
         db.getConnection().use { conn ->
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery("PRAGMA table_info(daily_history)")
@@ -314,6 +314,10 @@ class DesktopStartupTest {
                 }
                 assertTrue(columns.contains("forecastDayPrecipChance"))
                 assertTrue(columns.contains("forecastNightPrecipChance"))
+                assertTrue(columns.contains("computedHighTemp"))
+                assertTrue(columns.contains("computedLowTemp"))
+                assertTrue(columns.contains("apiHighTemp"))
+                assertTrue(columns.contains("apiLowTemp"))
             }
         }
     }

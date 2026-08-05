@@ -59,6 +59,7 @@ class ForecastRepositoryBackfillChanceSnapshotTest {
             dailyHistoryDao = db.dailyHistoryDao(),
             observationRepository = mockk(relaxed = true),
             nwsForecastMapper = mockk(relaxed = true),
+            dailyActualsStore = DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true)),
         )
     }
 
@@ -75,7 +76,7 @@ class ForecastRepositoryBackfillChanceSnapshotTest {
                 DailyHistoryEntity(
                     date = yesterdayStart, source = WeatherSource.NWS.id,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -108,7 +109,7 @@ class ForecastRepositoryBackfillChanceSnapshotTest {
                 DailyHistoryEntity(
                     date = yesterdayStart, source = WeatherSource.NWS.id,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -135,7 +136,7 @@ class ForecastRepositoryBackfillChanceSnapshotTest {
                 DailyHistoryEntity(
                     date = yesterdayStart, source = WeatherSource.NWS.id,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),

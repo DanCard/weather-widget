@@ -26,7 +26,7 @@ class AccuracyCalculator
         ): AccuracyStatistics? {
             val dailyAccuracies = getDailyAccuracyBreakdown(source, lat, lon, days)
             val pureDailies = dailyAccuracies.map {
-                AccuracyPure.DailyAccuracy(it.date, it.actualHigh, it.actualLow, it.forecastHigh, it.forecastLow, it.source, it.highError, it.lowError)
+                AccuracyPure.DailyAccuracy(it.date, it.computedHighTemp, it.computedLowTemp, it.forecastHigh, it.forecastLow, it.source, it.highError, it.lowError)
             }
             val stats = AccuracyPure.computeStatistics(pureDailies, source.displayName, days) ?: return null
             return AccuracyStatistics(
@@ -109,8 +109,8 @@ class AccuracyCalculator
                 if (forecast != null) {
                     val entry = AccuracyPure.buildDailyAccuracy(
                         date = targetDate.toString(),
-                        actualHigh = actual.highTemp,
-                        actualLow = actual.lowTemp,
+                        computedHighTemp = actual.computedHighTemp,
+                        computedLowTemp = actual.computedLowTemp,
                         forecastHigh = forecast.highTemp,
                         forecastLow = forecast.lowTemp,
                         source = source.displayName,
@@ -119,8 +119,8 @@ class AccuracyCalculator
                         dailyAccuracies.add(
                             DailyAccuracy(
                                 date = entry.date,
-                                actualHigh = entry.actualHigh,
-                                actualLow = entry.actualLow,
+                                computedHighTemp = entry.computedHighTemp,
+                                computedLowTemp = entry.computedLowTemp,
                                 forecastHigh = entry.forecastHigh,
                                 forecastLow = entry.forecastLow,
                                 source = entry.source,

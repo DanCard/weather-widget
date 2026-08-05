@@ -90,7 +90,8 @@ class OpenMeteoDayNightPrecipIntegrationTest {
             observationRepository = mockk(relaxed = true),
             tomorrowIoApi = mockk(relaxed = true),
             openWeatherMapApi = mockk(relaxed = true),
-            nwsForecastMapper = mockk(relaxed = true)
+            nwsForecastMapper = mockk(relaxed = true),
+            dailyActualsStore = DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true))
         )
     }
 

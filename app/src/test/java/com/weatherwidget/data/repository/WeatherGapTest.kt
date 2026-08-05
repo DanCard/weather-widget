@@ -83,7 +83,8 @@ class WeatherGapTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            mockk(relaxed = true)
+            mockk(relaxed = true),
+            DailyActualsStore(observationDao, mockk(relaxed = true), appLogDao, hourlyForecastDao, mockk(relaxed = true))
         )
         val currentRepo = CurrentTempRepository(
             context,

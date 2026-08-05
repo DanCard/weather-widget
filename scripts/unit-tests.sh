@@ -75,6 +75,9 @@ SINGLE_INVOCATION_REPORT_POLLER_PID=""
 cleanup() {
   if [ -n "${SINGLE_INVOCATION_MONITOR_PID:-}" ] && kill -0 "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null; then
     kill "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null || true
+    # tail -F orphan: the subshell kill above may leave the tail process running,
+    # especially when the script exits early. Kill all children of the subshell.
+    pgrep -P "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null | xargs -r kill 2>/dev/null || true
   fi
   if [ -n "${SINGLE_INVOCATION_REPORT_POLLER_PID:-}" ] && kill -0 "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null; then
     kill "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null || true
@@ -323,6 +326,7 @@ fi
 
 if [ -n "$SINGLE_INVOCATION_MONITOR_PID" ] && kill -0 "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null; then
   kill "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null || true
+  pgrep -P "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null | xargs -r kill 2>/dev/null || true
   SINGLE_INVOCATION_MONITOR_PID=""
 fi
 if [ -n "$SINGLE_INVOCATION_REPORT_POLLER_PID" ] && kill -0 "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null; then

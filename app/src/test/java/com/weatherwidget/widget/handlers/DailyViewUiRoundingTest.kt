@@ -26,8 +26,8 @@ class DailyViewUiRoundingTest {
         source = WeatherSource.OPEN_METEO.id,
         locationLat = 0.0,
         locationLon = 0.0,
-        highTemp = high,
-        lowTemp = low,
+        computedHighTemp = high,
+        computedLowTemp = low,
         condition = "Clear",
         updatedAt = System.currentTimeMillis()
     )

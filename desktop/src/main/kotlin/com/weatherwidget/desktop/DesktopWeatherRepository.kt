@@ -4,6 +4,8 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.shared.actuals.NwsApiActualsBackfill
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.actuals.ActualsAggregator
@@ -215,6 +217,7 @@ class DesktopWeatherRepository(
         now: Long = currentTimeMillis(),
     ): ForecastResult = withContext(Dispatchers.IO) {
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
+        Log.i(TAG, "refresh() started source=$weatherSource")
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
         // aborted fetch is invisible unless it also throws (the catch logs a WARN); a hang or a
         // cancellation leaves no trace at all.
@@ -232,6 +235,12 @@ class DesktopWeatherRepository(
             // Persist
             weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, result.hourly)
             weatherDao.upsertForecasts(latitude, longitude, weatherSource, result.daily)
+
+            // Persist API-reported observed daily extremes
+            persistNwsApiActuals(result.nwsDailyExtremes)
+            persistOpenMeteoApiActuals(result.daily)
+            // Backfill NWS api actuals from stored observations (idempotent)
+            backfillNwsApiActualsFromObservations(now)
 
             if (result.rawObservations.isNotEmpty()) {
                 weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
@@ -506,6 +515,8 @@ class DesktopWeatherRepository(
                     forecastLowTemp = existing.forecastLowTemp,
                     forecastPrecipAmountMm = existing.forecastPrecipAmountMm,
                     noonCloudPercent = existing.noonCloudPercent,
+                    apiHighTemp = existing.apiHighTemp,
+                    apiLowTemp = existing.apiLowTemp,
                 )
             }
         }
@@ -840,5 +851,102 @@ class DesktopWeatherRepository(
         private const val DB_RETENTION_DAYS = 547L // 18 months (~547 days)
         private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
         private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = "FROZEN_DISPLAY_BACKFILL_DONE"
+    }
+
+    private fun persistNwsApiActuals(extremes: NwsApi.DailyTemperatureExtremes?) {
+        if (extremes == null) {
+            Log.i(TAG, "persistNwsApiActuals: skipped (no extremes in result)")
+            return
+        }
+        val today = LocalDate.now()
+        val todayStr = today.toString()
+        val dateStrs = (extremes.maxByDate.keys + extremes.minByDate.keys)
+            .filter { it < todayStr }
+        Log.i(TAG, "persistNwsApiActuals: maxByDate=${extremes.maxByDate.size} minByDate=${extremes.minByDate.size} pastDates=${dateStrs.size}")
+        if (dateStrs.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val toUpsert = dateStrs.mapNotNull { dateStr ->
+            val maxTemp = extremes.maxByDate[dateStr]
+            val minTemp = extremes.minByDate[dateStr]
+            if (maxTemp == null && minTemp == null) return@mapNotNull null
+            val dateEpoch = LocalDate.parse(dateStr).toEpochDay() * 86400000L
+            DailyHistory(
+                date = dateEpoch,
+                source = WeatherSource.NWS.id,
+                locationLat = latitude,
+                locationLon = longitude,
+                computedHighTemp = maxTemp ?: minTemp ?: 0f,
+                computedLowTemp = minTemp ?: maxTemp ?: 0f,
+                condition = "",
+                updatedAt = now,
+                apiHighTemp = maxTemp,
+                apiLowTemp = minTemp,
+            )
+        }
+        if (toUpsert.isNotEmpty()) {
+            weatherDao.upsertDailyHistory(toUpsert)
+            Log.i(TAG, "persistNwsApiActuals: upserted ${toUpsert.size} rows, dates=[${dateStrs.first()}..${dateStrs.last()}]")
+        } else {
+            Log.i(TAG, "persistNwsApiActuals: no rows to upsert")
+        }
+    }
+
+    private fun persistOpenMeteoApiActuals(daily: List<DailyForecast>) {
+        val today = LocalDate.now()
+        val pastDays = daily.filter { day ->
+            runCatching { LocalDate.parse(day.date) }.getOrNull()?.isBefore(today) == true
+        }
+        Log.i(TAG, "persistOpenMeteoApiActuals: daily=${daily.size} pastDays=${pastDays.size}")
+        if (pastDays.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val toUpsert = pastDays.map { day ->
+            val dateEpoch = LocalDate.parse(day.date).toEpochDay() * 86400000L
+            DailyHistory(
+                date = dateEpoch,
+                source = WeatherSource.OPEN_METEO.id,
+                locationLat = latitude,
+                locationLon = longitude,
+                computedHighTemp = day.highTemp,
+                computedLowTemp = day.lowTemp,
+                condition = day.condition,
+                updatedAt = now,
+                apiHighTemp = day.highTemp,
+                apiLowTemp = day.lowTemp,
+            )
+        }
+        if (toUpsert.isNotEmpty()) {
+            weatherDao.upsertDailyHistory(toUpsert)
+            Log.i(TAG, "persistOpenMeteoApiActuals: upserted ${toUpsert.size} rows")
+        }
+    }
+
+    /**
+     * One-time backfill: populates apiHighTemp/apiLowTemp for NWS past dates using Open-Meteo's
+     * ERA5 archive endpoint. Only fills dates where apiHighTemp is still null. Best-effort —
+     * failures leave rows with null api actuals until the next cycle.
+     */
+    internal suspend fun backfillNwsApiActualsFromObservations(now: Long) {
+        val nwsMissing = weatherDao.getExtremesInRange(
+            now - (90L * 86_400_000L), now, latitude, longitude,
+        ).filter { it.source == "NWS" && it.apiHighTemp == null }
+        if (nwsMissing.isEmpty()) return
+
+        Log.i(TAG, "backfillNwsApiActualsFromObservations: ${nwsMissing.size} missing dates")
+        val archiveActuals = NwsApiActualsBackfill.backfill(
+            fetchArchive = { start, end -> weatherService.fetchHistoricalDailyTemps(start, end) },
+            latitude = latitude,
+            longitude = longitude,
+            epochDayMillis = nwsMissing.map { it.date },
+        )
+        if (archiveActuals.isEmpty()) return
+
+        val toUpsert = nwsMissing.mapNotNull { existing ->
+            val temps = archiveActuals[existing.date] ?: return@mapNotNull null
+            existing.copy(apiHighTemp = temps.first, apiLowTemp = temps.second, updatedAt = now)
+        }
+        if (toUpsert.isNotEmpty()) {
+            weatherDao.upsertDailyHistory(toUpsert)
+            Log.i(TAG, "backfillNwsApiActualsFromObservations: upserted ${toUpsert.size} rows via ERA5")
+        }
     }
 }

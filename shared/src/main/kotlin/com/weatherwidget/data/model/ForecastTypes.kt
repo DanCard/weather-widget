@@ -1,5 +1,7 @@
 package com.weatherwidget.data.model
 
+import com.weatherwidget.data.remote.NwsApi
+
 data class HourlyForecast(
     val dateTime: Long,
     val temperature: Float,
@@ -52,9 +54,11 @@ data class DailyForecastSnapshot(
 
 data class DailyActual(
     val date: String,
-    val highTemp: Float,
-    val lowTemp: Float,
+    val computedHighTemp: Float,
+    val computedLowTemp: Float,
     val condition: String,
+    val apiHighTemp: Float? = null,
+    val apiLowTemp: Float? = null,
 )
 
 /**
@@ -92,6 +96,7 @@ data class ForecastResult(
     val dailyActuals: Map<String, DailyHistory> = emptyMap(),
     val dailySnapshots: Map<String, List<DailyForecastSnapshot>> = emptyMap(),
     val rawObservations: List<ObservationReading> = emptyList(),
+    val nwsDailyExtremes: NwsApi.DailyTemperatureExtremes? = null,
 )
 
 sealed class DataStatus {

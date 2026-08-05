@@ -249,9 +249,10 @@ object AppModule {
         tomorrowIoApi: TomorrowIoApi,
         openWeatherMapApi: OpenWeatherMapApi,
         nwsForecastMapper: NwsForecastMapper,
+        dailyActualsStore: DailyActualsStore,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, hourlyForecastHistoryDao, appLogDao,
-        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper
+        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, dailyActualsStore
     )
 
     @Provides

@@ -60,7 +60,7 @@ class DesktopBackfillChanceSnapshotTest {
             listOf(
                 DailyHistory(
                     date = yesterdayStart, source = source, locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -91,7 +91,7 @@ class DesktopBackfillChanceSnapshotTest {
             listOf(
                 DailyHistory(
                     date = yesterdayStart, source = source, locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -114,7 +114,7 @@ class DesktopBackfillChanceSnapshotTest {
             listOf(
                 DailyHistory(
                     date = yesterdayStart, source = source, locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),

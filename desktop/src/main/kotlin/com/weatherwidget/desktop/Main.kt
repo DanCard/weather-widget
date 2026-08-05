@@ -204,6 +204,7 @@ private fun runApp() = application {
         var settingsDraft by remember { mutableStateOf<DesktopConfig?>(null) }
         var statsVisible by remember { mutableStateOf(false) }
         var historyVisible by remember { mutableStateOf(false) }
+        var historyShowRequestId by remember { mutableStateOf(0) }
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
@@ -720,6 +721,7 @@ private fun runApp() = application {
             ForecastHistoryWindow(
                 weatherDao = weatherDao,
                 config = currentConfig,
+                showRequestId = historyShowRequestId,
                 onClose = { historyVisible = false },
                 onConfigUpdate = { newConfig -> saveConfigAndNotify(newConfig) },
             )
@@ -917,6 +919,7 @@ private fun runApp() = application {
                     },
                     onOpenHistory = {
                         historyVisible = true
+                        historyShowRequestId++
                     },
                     onRegisterArrowKeyHandler = { arrowKeyHandler = it },
                     onNeedHistory = onNeedHistory,

@@ -66,8 +66,8 @@ class DesktopAccuracyTest {
         val e = extremes.first()
         assertEquals(day.toEpochDay() * MS_IN_A_DAY, e.date)
         assertEquals("NWS", e.source)
-        assertEquals(70f, e.highTemp)
-        assertEquals(50f, e.lowTemp)
+        assertEquals(70f, e.computedHighTemp)
+        assertEquals(50f, e.computedLowTemp)
         assertEquals("Sunny", e.condition) // condition of the warmest reading
         assertEquals(3.5f, e.precipAmountMm!!, 0.001f)
         assertEquals(3.0f, e.precipDayMm!!, 0.001f)
@@ -92,8 +92,8 @@ class DesktopAccuracyTest {
         ).sortedBy { it.date }
         
         assertEquals(2, extremes.size)
-        assertEquals(65f, extremes[0].highTemp)
-        assertEquals(80f, extremes[1].highTemp)
+        assertEquals(65f, extremes[0].computedHighTemp)
+        assertEquals(80f, extremes[1].computedHighTemp)
     }
 
     // --- Range queries + accuracy calculator -----------------------------------
@@ -172,8 +172,8 @@ class DesktopAccuracyTest {
                 source = "NWS",
                 locationLat = lat,
                 locationLon = lon,
-                highTemp = high,
-                lowTemp = low,
+                computedHighTemp = high,
+                computedLowTemp = low,
                 condition = "Sunny",
                 updatedAt = System.currentTimeMillis(),
             )

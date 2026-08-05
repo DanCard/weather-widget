@@ -56,6 +56,7 @@ class ForecastSnapshotDeduplicationTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
+            mockk(relaxed = true),
             mockk(relaxed = true)
         )
         val currentRepo = CurrentTempRepository(

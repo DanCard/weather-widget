@@ -67,8 +67,8 @@ class CurrentTempTouchRoutingRoboTest {
         source = WeatherSource.NWS.id,
         locationLat = 0.0,
         locationLon = 0.0,
-        highTemp = high,
-        lowTemp = low,
+        computedHighTemp = high,
+        computedLowTemp = low,
         condition = "Clear",
         updatedAt = System.currentTimeMillis()
     )

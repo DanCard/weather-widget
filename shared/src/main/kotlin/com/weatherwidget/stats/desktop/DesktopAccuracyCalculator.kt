@@ -39,8 +39,8 @@ class DesktopAccuracyCalculator(private val dao: DesktopWeatherDao) {
 
             val entry = AccuracyPure.buildDailyAccuracy(
                 date = targetDate.toString(),
-                actualHigh = actual.highTemp,
-                actualLow = actual.lowTemp,
+                computedHighTemp = actual.computedHighTemp,
+                computedLowTemp = actual.computedLowTemp,
                 forecastHigh = forecast.highTemp,
                 forecastLow = forecast.lowTemp,
                 source = source,

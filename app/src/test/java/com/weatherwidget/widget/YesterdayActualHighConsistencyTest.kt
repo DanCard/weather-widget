@@ -81,7 +81,8 @@ class YesterdayActualHighConsistencyTest {
             openWeatherMapApi
         )
         
-        val nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao())
+        val dailyActualsStore = DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true))
+        val nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao(), dailyActualsStore)
         
         val forecastRepository = ForecastRepository(
             context,
@@ -101,7 +102,8 @@ class YesterdayActualHighConsistencyTest {
             observationRepository,
             tomorrowIoApi,
             openWeatherMapApi,
-            nwsForecastMapper
+            nwsForecastMapper,
+            dailyActualsStore,
         )
         
         repository = WeatherRepository(

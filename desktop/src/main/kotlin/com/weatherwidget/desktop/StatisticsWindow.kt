@@ -151,8 +151,8 @@ private fun BreakdownTable(rows: List<AccuracyPure.DailyAccuracy>, useCelsius: B
                 BodyCell(r.date, 2f)
                 val dispForecastHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.forecastHigh.toFloat()).roundToInt() else r.forecastHigh
                 val dispForecastLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.forecastLow.toFloat()).roundToInt() else r.forecastLow
-                val dispActualHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.actualHigh.toFloat()).roundToInt() else r.actualHigh
-                val dispActualLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.actualLow.toFloat()).roundToInt() else r.actualLow
+                val dispActualHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.computedHighTemp.toFloat()).roundToInt() else r.computedHighTemp
+                val dispActualLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.computedLowTemp.toFloat()).roundToInt() else r.computedLowTemp
                 val dispHighError = if (useCelsius) (r.highError.toFloat() / 1.8f).roundToInt() else r.highError
                 val dispLowError = if (useCelsius) (r.lowError.toFloat() / 1.8f).roundToInt() else r.lowError
 

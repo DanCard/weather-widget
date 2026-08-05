@@ -234,8 +234,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO daily_history
-                    (date, source, locationLat, locationLon, highTemp, lowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     for (ex in extremes) {
@@ -243,8 +243,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setString(2, ex.source)
                         stmt.setDouble(3, ex.locationLat)
                         stmt.setDouble(4, ex.locationLon)
-                        stmt.setFloat(5, ex.highTemp)
-                        stmt.setFloat(6, ex.lowTemp)
+                    stmt.setFloat(5, ex.computedHighTemp)
+                    stmt.setFloat(6, ex.computedLowTemp)
                         stmt.setString(7, ex.condition)
                         stmt.setLong(8, ex.updatedAt)
                         stmt.setNullableFloat(9, ex.precipAmountMm)
@@ -256,6 +256,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableFloat(15, ex.forecastLowTemp)
                         stmt.setNullableFloat(16, ex.forecastPrecipAmountMm)
                         stmt.setNullableInt(17, ex.noonCloudPercent)
+                        stmt.setNullableFloat(18, ex.apiHighTemp)
+                        stmt.setNullableFloat(19, ex.apiLowTemp)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -809,7 +811,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             // already closed before issuing these lookups on the same connection.)
             for (i in result.indices) {
                 val day = result[i]
-                if (day.highTemp != day.lowTemp) continue
+                    if (day.highTemp != day.lowTemp) continue
                 val targetEpoch = LocalDate.parse(day.date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
                 val genuineSql = """
                     SELECT highTemp, lowTemp, condition, nativeDailyIconToken,
@@ -828,8 +830,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     val rs = stmt.executeQuery()
                     if (rs.next()) {
                         day.copy(
-                            highTemp = rs.getFloat("highTemp"),
-                            lowTemp = rs.getFloat("lowTemp"),
+                        highTemp = rs.getFloat("highTemp"),
+                        lowTemp = rs.getFloat("lowTemp"),
                             condition = rs.getString("condition"),
                             iconToken = rs.getString("nativeDailyIconToken"),
                             precipProbability = rs.getNullableInt("precipProbability"),
@@ -1006,8 +1008,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         source = rs.getString("source"),
                         locationLat = rs.getDouble("locationLat"),
                         locationLon = rs.getDouble("locationLon"),
-                        highTemp = rs.getFloat("highTemp"),
-                        lowTemp = rs.getFloat("lowTemp"),
+                        computedHighTemp = rs.getFloat("computedHighTemp"),
+                        computedLowTemp = rs.getFloat("computedLowTemp"),
                         condition = rs.getString("condition"),
                         updatedAt = rs.getLong("updatedAt"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
@@ -1019,6 +1021,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         forecastLowTemp = rs.getNullableFloat("forecastLowTemp"),
                         forecastPrecipAmountMm = rs.getNullableFloat("forecastPrecipAmountMm"),
                         noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
+                        apiHighTemp = rs.getNullableFloat("apiHighTemp"),
+                        apiLowTemp = rs.getNullableFloat("apiLowTemp"),
                     ))
                 }
             }

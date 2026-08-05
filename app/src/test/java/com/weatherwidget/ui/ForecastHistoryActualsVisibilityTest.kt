@@ -77,8 +77,8 @@ class ForecastHistoryActualsVisibilityTest {
             date = targetDateEpoch,
             locationLat = 37.0,
             locationLon = -122.0,
-            highTemp = 81f,
-            lowTemp = 61f,
+            computedHighTemp = 81f,
+            computedLowTemp = 61f,
             source = WeatherSource.NWS.id,
             condition = "Clear",
             updatedAt = System.currentTimeMillis()

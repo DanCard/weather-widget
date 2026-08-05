@@ -21,8 +21,8 @@ data class DailyHistoryEntity(
     val source: String,         // WeatherSource.id (NWS, OPEN_METEO, etc.)
     val locationLat: Double,
     val locationLon: Double,
-    val highTemp: Float,        // Fahrenheit
-    val lowTemp: Float,         // Fahrenheit
+    val computedHighTemp: Float, // °F — blended extreme from IDW observation pipeline ("Location actual")
+    val computedLowTemp: Float,  // °F — blended extreme
     val condition: String,
     val updatedAt: Long,        // epoch ms, used for cleanup
     val precipAmountMm: Float? = null, // Daily observed precipitation amount in mm (total)
@@ -40,6 +40,8 @@ data class DailyHistoryEntity(
     val forecastLowTemp: Float? = null,
     val forecastPrecipAmountMm: Float? = null,
     val noonCloudPercent: Int? = null,
+    val apiHighTemp: Float? = null,  // °F — API-reported observed high; null when source provides no native actuals
+    val apiLowTemp: Float? = null,   // °F — API-reported observed low; null when source provides no native actuals
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -47,8 +49,8 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     source = source,
     locationLat = locationLat,
     locationLon = locationLon,
-    highTemp = highTemp,
-    lowTemp = lowTemp,
+    computedHighTemp = computedHighTemp,
+    computedLowTemp = computedLowTemp,
     condition = condition,
     updatedAt = updatedAt,
     precipAmountMm = precipAmountMm,
@@ -60,6 +62,8 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     forecastLowTemp = forecastLowTemp,
     forecastPrecipAmountMm = forecastPrecipAmountMm,
     noonCloudPercent = noonCloudPercent,
+    apiHighTemp = apiHighTemp,
+    apiLowTemp = apiLowTemp,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -67,8 +71,8 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     source = source,
     locationLat = locationLat,
     locationLon = locationLon,
-    highTemp = highTemp,
-    lowTemp = lowTemp,
+    computedHighTemp = computedHighTemp,
+    computedLowTemp = computedLowTemp,
     condition = condition,
     updatedAt = updatedAt,
     precipAmountMm = precipAmountMm,
@@ -80,4 +84,6 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     forecastLowTemp = forecastLowTemp,
     forecastPrecipAmountMm = forecastPrecipAmountMm,
     noonCloudPercent = noonCloudPercent,
+    apiHighTemp = apiHighTemp,
+    apiLowTemp = apiLowTemp,
 )

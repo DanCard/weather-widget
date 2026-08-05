@@ -23,6 +23,7 @@ import javax.inject.Singleton
 class NwsForecastMapper @Inject constructor(
     private val nwsApi: NwsApi,
     private val appLogDao: AppLogDao,
+    private val dailyActualsStore: DailyActualsStore,
 ) {
     private val TAG = "NwsForecastMapper"
     private val NWS_PERIOD_SUMMARY_COUNT = 8
@@ -87,6 +88,9 @@ class NwsForecastMapper @Inject constructor(
                     "minDays=${gridDailyTemps.minByDate.size}",
             )
         }
+
+        // Persist NWS gridpoint daily extremes as API-reported actuals for past dates
+        dailyActualsStore.persistNwsGridpointActuals(latitude, longitude, gridDailyTemps)
 
         // Sky cover + grid QPF live in the gridpoints response, not the hourly endpoint. Merge
         // them onto the hourly rows via the shared helper so Android and desktop populate

@@ -219,8 +219,8 @@ object DailyViewLogic {
             var isTodayForecastFallback = false
 
             if (isPast) {
-                val obsHigh = dailyActuals[date]?.highTemp
-                val obsLow = dailyActuals[date]?.lowTemp
+                val obsHigh = dailyActuals[date]?.computedHighTemp
+                val obsLow = dailyActuals[date]?.computedLowTemp
                 highLabel = formatTemp(obsHigh)
                 lowLabel = formatTemp(obsLow)
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
@@ -448,8 +448,8 @@ object DailyViewLogic {
             var bottomStackLow: Float? = null
 
             if (isPastDate) {
-                finalHigh = actual?.highTemp
-                finalLow = actual?.lowTemp
+                finalHigh = actual?.computedHighTemp
+                finalLow = actual?.computedLowTemp
 
                 if (showComparison) {
                     val (overlayHigh, overlayLow) = resolvePastDayOverlay(actual, forecasts, displaySource, date)

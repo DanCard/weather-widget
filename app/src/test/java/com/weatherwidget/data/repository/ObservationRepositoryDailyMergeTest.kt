@@ -32,7 +32,7 @@ import java.time.ZoneId
  * The live IDW blender already produces 73.1° (matching the Hourly Graph). The bug was
  * that getDailyActualsWithLiveToday then called mergeDailyActualsBySource with the
  * blended result as `primary` and the persisted daily_extreme as `secondary`, but
- * mergeDailyActual uses maxOf(primary.highTemp, secondary.highTemp) (widest-bounds
+ * mergeDailyActual uses maxOf(primary.computedHighTemp, secondary.computedHighTemp) (widest-bounds
  * semantics), so the stale persisted 73.5° won.
  *
  * This test seeds the scenario directly into Room and asserts that the live blender
@@ -105,8 +105,8 @@ class ObservationRepositoryDailyMergeTest {
                     source = WeatherSource.NWS.id,
                     locationLat = lat,
                     locationLon = lon,
-                    highTemp = 73.5f,
-                    lowTemp = 58.7f,
+                    computedHighTemp = 73.5f,
+                    computedLowTemp = 58.7f,
                     condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
@@ -136,7 +136,7 @@ class ObservationRepositoryDailyMergeTest {
         assertEquals(
             "Today's high must come from the live IDW blender, not the stale daily_history row",
             73.1f,
-            todayActual!!.highTemp,
+            todayActual!!.computedHighTemp,
             0.1f,
         )
     }
@@ -177,7 +177,7 @@ class ObservationRepositoryDailyMergeTest {
         val afterRun2 = db.dailyHistoryDao().getExtremesInRange(yStart, yStart, lat, lon)
             .first { it.source == WeatherSource.NWS.id }
         assertEquals(5.0f, afterRun2.precipAmountMm!!, 0.01f) // 2.0 + 3.0 measured
-        assertEquals(60f, afterRun2.highTemp, 0.1f)           // temps unchanged
+        assertEquals(60f, afterRun2.computedHighTemp, 0.1f)           // temps unchanged
     }
 
     /**
@@ -202,8 +202,8 @@ class ObservationRepositoryDailyMergeTest {
                     source = WeatherSource.NWS.id,
                     locationLat = lat,
                     locationLon = lon,
-                    highTemp = 999f,
-                    lowTemp = 999f,
+                    computedHighTemp = 999f,
+                    computedLowTemp = 999f,
                     condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     forecastDayPrecipChance = 2,
@@ -229,7 +229,7 @@ class ObservationRepositoryDailyMergeTest {
 
         val afterRecompute = db.dailyHistoryDao().getExtremesInRange(todayStart, todayStart, lat, lon)
             .first { it.source == WeatherSource.NWS.id }
-        assertEquals("Recompute should have changed the high temp", 70f, afterRecompute.highTemp, 0.1f)
+        assertEquals("Recompute should have changed the high temp", 70f, afterRecompute.computedHighTemp, 0.1f)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 2, afterRecompute.forecastDayPrecipChance)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 14, afterRecompute.forecastNightPrecipChance)
         assertEquals("Frozen overlay must survive the actuals REPLACE", 75f, afterRecompute.forecastHighTemp)

@@ -244,8 +244,8 @@ class DesktopWeatherDaoTest {
                     source = "NWS",
                     locationLat = lat,
                     locationLon = lon,
-                    highTemp = 81f,
-                    lowTemp = 59f,
+                    computedHighTemp = 81f,
+                    computedLowTemp = 59f,
                     condition = "Fair",
                     updatedAt = System.currentTimeMillis(),
                 )
@@ -253,8 +253,8 @@ class DesktopWeatherDaoTest {
         )
 
         val actuals = dao.getDailyActuals(date, date, lat, lon, "NWS")
-        assertEquals(81f, actuals["2026-06-02"]?.highTemp)
-        assertEquals(59f, actuals["2026-06-02"]?.lowTemp)
+        assertEquals(81f, actuals["2026-06-02"]?.computedHighTemp)
+        assertEquals(59f, actuals["2026-06-02"]?.computedLowTemp)
     }
 
     @Test

@@ -79,8 +79,8 @@ class TemperatureUnificationRegressionTest {
                 source = WeatherSource.NWS.id,
                 locationLat = TestData.LAT,
                 locationLon = TestData.LON,
-                highTemp = unifiedHigh,
-                lowTemp = 50f,
+                computedHighTemp = unifiedHigh,
+                computedLowTemp = 50f,
                 condition = "Clear",
                 updatedAt = System.currentTimeMillis()
             )

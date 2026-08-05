@@ -60,6 +60,7 @@ class ForecastRepositoryRepairRainChanceTest {
             dailyHistoryDao = db.dailyHistoryDao(),
             observationRepository = mockk(relaxed = true),
             nwsForecastMapper = mockk(relaxed = true),
+            dailyActualsStore = DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true)),
         )
     }
 
@@ -95,7 +96,7 @@ class ForecastRepositoryRepairRainChanceTest {
                 DailyHistoryEntity(
                     date = dayStartKey, source = WeatherSource.NWS.id,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 84f, lowTemp = 64f, condition = "Clear",
+                    computedHighTemp = 84f, computedLowTemp = 64f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     // What the box-wide max froze: a neighbouring fragment's value.
                     forecastDayPrecipChance = 9,

@@ -59,8 +59,8 @@ class AccuracyCalculatorIntegrationTest {
     private suspend fun insertExtreme(
         date: String,
         source: WeatherSource,
-        highTemp: Float,
-        lowTemp: Float,
+        computedHighTemp: Float,
+        computedLowTemp: Float,
         condition: String = "Clear",
     ) {
         db.dailyHistoryDao().insertAll(
@@ -70,8 +70,8 @@ class AccuracyCalculatorIntegrationTest {
                     source = source.id,
                     locationLat = lat,
                     locationLon = lon,
-                    highTemp = highTemp,
-                    lowTemp = lowTemp,
+                    computedHighTemp = computedHighTemp,
+                    computedLowTemp = computedLowTemp,
                     condition = condition,
                     updatedAt = System.currentTimeMillis(),
                 ),
@@ -119,7 +119,7 @@ class AccuracyCalculatorIntegrationTest {
 
     @Test
     fun `getDailyAccuracyBreakdown returns empty when extremes exist but no forecast snapshot`() = runTest {
-        insertExtreme(dateStr(1), WeatherSource.NWS, highTemp = 70f, lowTemp = 50f)
+        insertExtreme(dateStr(1), WeatherSource.NWS, computedHighTemp = 70f, computedLowTemp = 50f)
 
         val result = calculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
         assertTrue("No snapshot means no accuracy data", result.isEmpty())
@@ -140,7 +140,7 @@ class AccuracyCalculatorIntegrationTest {
         val target = dateStr(1) // yesterday
         val forecastMade = dateStr(2) // day before yesterday
 
-        insertExtreme(target, WeatherSource.NWS, highTemp = 72f, lowTemp = 50f)
+        insertExtreme(target, WeatherSource.NWS, computedHighTemp = 72f, computedLowTemp = 50f)
         insertForecastSnapshot(target, forecastMade, WeatherSource.NWS, highTemp = 68f, lowTemp = 53f)
 
         val result = calculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
@@ -148,8 +148,8 @@ class AccuracyCalculatorIntegrationTest {
         assertEquals(1, result.size)
         val day = result[0]
         assertEquals(target, day.date)
-        assertEquals(72, day.actualHigh)
-        assertEquals(50, day.actualLow)
+        assertEquals(72, day.computedHighTemp)
+        assertEquals(50, day.computedLowTemp)
         assertEquals(68, day.forecastHigh)
         assertEquals(53, day.forecastLow)
         assertEquals(+4, day.highError)  // actual - forecast = 72 - 68
@@ -165,7 +165,7 @@ class AccuracyCalculatorIntegrationTest {
 
         insertForecastSnapshot(target, forecastMade, WeatherSource.NWS, highTemp = 60f, lowTemp = 40f, fetchedAt = olderTs)
         insertForecastSnapshot(target, forecastMade, WeatherSource.NWS, highTemp = 65f, lowTemp = 45f, fetchedAt = newerTs)
-        insertExtreme(target, WeatherSource.NWS, highTemp = 70f, lowTemp = 50f)
+        insertExtreme(target, WeatherSource.NWS, computedHighTemp = 70f, computedLowTemp = 50f)
 
         val result = calculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
 
@@ -182,7 +182,7 @@ class AccuracyCalculatorIntegrationTest {
         for (daysAgo in 1..3) {
             val target = dateStr(daysAgo)
             val forecastMade = dateStr(daysAgo + 1)
-            insertExtreme(target, WeatherSource.NWS, highTemp = 70f, lowTemp = 50f)
+            insertExtreme(target, WeatherSource.NWS, computedHighTemp = 70f, computedLowTemp = 50f)
             insertForecastSnapshot(target, forecastMade, WeatherSource.NWS, highTemp = 68f, lowTemp = 52f)
         }
 
@@ -204,7 +204,7 @@ class AccuracyCalculatorIntegrationTest {
         val forecastMade = dateStr(2)
 
         // NWS actual but Open-Meteo snapshot — should NOT match
-        insertExtreme(target, WeatherSource.NWS, highTemp = 72f, lowTemp = 50f)
+        insertExtreme(target, WeatherSource.NWS, computedHighTemp = 72f, computedLowTemp = 50f)
         insertForecastSnapshot(target, forecastMade, WeatherSource.OPEN_METEO, highTemp = 68f, lowTemp = 48f)
 
         val nwsResult = calculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
@@ -221,7 +221,7 @@ class AccuracyCalculatorIntegrationTest {
         val target = dateStr(35) // outside 30-day window
         val forecastMade = dateStr(36)
 
-        insertExtreme(target, WeatherSource.NWS, highTemp = 70f, lowTemp = 50f)
+        insertExtreme(target, WeatherSource.NWS, computedHighTemp = 70f, computedLowTemp = 50f)
         insertForecastSnapshot(target, forecastMade, WeatherSource.NWS, highTemp = 68f, lowTemp = 52f)
 
         val result = calculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
@@ -239,7 +239,7 @@ class AccuracyCalculatorIntegrationTest {
         for (daysAgo in 1..5) {
             val target = dateStr(daysAgo)
             val forecastMade = dateStr(daysAgo + 1)
-            insertExtreme(target, WeatherSource.NWS, highTemp = 72f, lowTemp = 50f)
+            insertExtreme(target, WeatherSource.NWS, computedHighTemp = 72f, computedLowTemp = 50f)
             insertForecastSnapshot(target, forecastMade, WeatherSource.NWS, highTemp = 72f, lowTemp = 50f)
         }
 
@@ -261,7 +261,7 @@ class AccuracyCalculatorIntegrationTest {
         for (daysAgo in 1..3) {
             val target = dateStr(daysAgo)
             val forecastMade = dateStr(daysAgo + 1)
-            insertExtreme(target, WeatherSource.NWS, highTemp = 65f, lowTemp = 45f)
+            insertExtreme(target, WeatherSource.NWS, computedHighTemp = 65f, computedLowTemp = 45f)
             insertForecastSnapshot(target, forecastMade, WeatherSource.NWS, highTemp = 68f, lowTemp = 48f)
         }
 
@@ -284,7 +284,7 @@ class AccuracyCalculatorIntegrationTest {
         )
         daysData.forEachIndexed { i, (actual, forecast, low) ->
             val daysAgo = i + 1
-            insertExtreme(dateStr(daysAgo), WeatherSource.NWS, highTemp = actual, lowTemp = low)
+            insertExtreme(dateStr(daysAgo), WeatherSource.NWS, computedHighTemp = actual, computedLowTemp = low)
             insertForecastSnapshot(dateStr(daysAgo), dateStr(daysAgo + 1), WeatherSource.NWS, highTemp = forecast, lowTemp = low)
         }
 

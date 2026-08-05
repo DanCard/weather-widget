@@ -77,7 +77,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
                 DailyHistory(
                     date = today.toEpochDay() * 86_400_000L, source = source,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -131,7 +131,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
                 DailyHistory(
                     date = yesterday.toEpochDay() * 86_400_000L, source = source,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     forecastDayPrecipChance = 5, // archived while yesterday was still live
                     forecastNightPrecipChance = 0,
@@ -168,7 +168,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
                 DailyHistory(
                     date = today.toEpochDay() * 86_400_000L, source = source,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -203,7 +203,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
                 DailyHistory(
                     date = today.toEpochDay() * 86_400_000L, source = source,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     forecastHighTemp = 75f, forecastLowTemp = 50f,
                     forecastPrecipAmountMm = 2f, noonCloudPercent = 30,
@@ -238,7 +238,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
                 DailyHistory(
                     date = yesterday.toEpochDay() * 86_400_000L, source = source,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     forecastHighTemp = 75f, forecastLowTemp = 50f, // archived while yesterday was live
                 ),
@@ -290,7 +290,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
                 DailyHistory(
                     date = pastStart, source = source,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -339,7 +339,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
                 DailyHistory(
                     date = pastStart, source = source,
                     locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     noonCloudPercent = 19, // frozen live; overlay window had already closed
                 ),
@@ -363,7 +363,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             listOf(
                 DailyHistory(
                     date = todayStart, source = source, locationLat = lat, locationLon = lon,
-                    highTemp = 999f, lowTemp = 999f, condition = "Clear",
+                    computedHighTemp = 999f, computedLowTemp = 999f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     forecastDayPrecipChance = 2, forecastNightPrecipChance = 14,
                     forecastHighTemp = 75f, forecastLowTemp = 50f,
@@ -385,7 +385,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
         repository.recomputeDailyExtremes(System.currentTimeMillis())
 
         val stored = dao.getExtremesInRange(todayStart, todayStart, lat, lon).first { it.source == source }
-        assertEquals("Recompute should have changed the high temp", 70f, stored.highTemp, 0.1f)
+        assertEquals("Recompute should have changed the high temp", 70f, stored.computedHighTemp, 0.1f)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 2, stored.forecastDayPrecipChance)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 14, stored.forecastNightPrecipChance)
         assertEquals("Frozen overlay must survive the actuals REPLACE", 75f, stored.forecastHighTemp!!, 0.01f)

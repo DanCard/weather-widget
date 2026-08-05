@@ -88,7 +88,7 @@ class ActualsWindowIndependenceTest {
             locationLat = LAT,
             locationLon = LON,
             zoneId = zone,
-        ).single { it.source == WeatherSource.NWS.id && it.date == dayEpochKey() }.lowTemp
+        ).single { it.source == WeatherSource.NWS.id && it.date == dayEpochKey() }.computedLowTemp
 
         // The scenario must actually be window-dependent, or the equality below proves nothing. The
         // gap is modest because a distant personal outlier carries little IDW weight, but it is well
@@ -136,8 +136,8 @@ class ActualsWindowIndependenceTest {
             .filter { it.isActual && it.actualTemp != null && onDayD(it) }
             .map { it.actualTemp!! }
         assertTrue("graph must render day-D actuals", graphActuals.isNotEmpty())
-        assertEquals("daily low must equal hourly graph min", daily.lowTemp, graphActuals.min(), 0.1f)
-        assertEquals("daily high must equal hourly graph max", daily.highTemp, graphActuals.max(), 0.1f)
+        assertEquals("daily low must equal hourly graph min", daily.computedLowTemp, graphActuals.min(), 0.1f)
+        assertEquals("daily high must equal hourly graph max", daily.computedHighTemp, graphActuals.max(), 0.1f)
     }
 
     private fun blendedDayLow(

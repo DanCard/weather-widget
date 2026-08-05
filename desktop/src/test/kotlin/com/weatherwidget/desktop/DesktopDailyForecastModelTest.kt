@@ -24,8 +24,8 @@ class DesktopDailyForecastModelTest {
         source = "NWS",
         locationLat = 37.4220,
         locationLon = -122.0841,
-        highTemp = high,
-        lowTemp = low,
+        computedHighTemp = high,
+        computedLowTemp = low,
         condition = condition,
         updatedAt = System.currentTimeMillis()
     )

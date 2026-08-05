@@ -14,6 +14,7 @@ import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
+import com.weatherwidget.shared.actuals.NwsApiActualsBackfill
 import com.weatherwidget.widget.ForecastFetchContext
 import com.weatherwidget.widget.ForecastFetchPolicy
 import com.weatherwidget.widget.ForecastStalenessPolicy
@@ -23,6 +24,7 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import java.time.LocalDate
 
 /**
  * Selects, fetches, classifies, and persists provider results.
@@ -41,6 +43,7 @@ internal class ForecastFetchCoordinator(
     private val snapshotStore: ForecastSnapshotStore,
     private val hourlyStore: HourlyForecastStore,
     private val weatherApiHistoryBackfiller: WeatherApiHistoryBackfiller,
+    private val dailyActualsStore: DailyActualsStore,
 ) {
     fun requiresNetworkFetch(
         forecasts: List<ForecastEntity>,
@@ -262,6 +265,24 @@ internal class ForecastFetchCoordinator(
                 )
             }
         }
+
+        // Backfill NWS api actuals from Open-Meteo ERA5 archive
+        backfillNwsApiActualsIfNeeded(latitude, longitude)
+    }
+
+    private suspend fun backfillNwsApiActualsIfNeeded(latitude: Double, longitude: Double) {
+        val today = LocalDate.now()
+        val startMs = today.minusDays(90).toEpochDay() * 86_400_000L
+        val endMs = today.toEpochDay() * 86_400_000L
+        val missingDates = dailyActualsStore.findNwsDatesMissingApiActuals(latitude, longitude, startMs, endMs)
+        if (missingDates.isEmpty()) return
+        val archiveActuals = NwsApiActualsBackfill.backfill(
+            fetchArchive = { start, end -> openMeteoApi.getHistoricalDailyTemps(latitude, longitude, start, end) },
+            latitude = latitude,
+            longitude = longitude,
+            epochDayMillis = missingDates,
+        )
+        dailyActualsStore.backfillNwsApiActualsFromArchive(latitude, longitude, archiveActuals)
     }
 
     suspend fun fetchFromNws(
@@ -317,6 +338,9 @@ internal class ForecastFetchCoordinator(
                 longitude,
                 source.id,
             )
+        }
+        if (source == WeatherSource.OPEN_METEO) {
+            dailyActualsStore.persistOpenMeteoPastDayActuals(latitude, longitude, result.daily)
         }
         return result.daily.map { day ->
             snapshotStore.mapDailyForecast(

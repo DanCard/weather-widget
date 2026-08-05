@@ -61,6 +61,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
             dailyHistoryDao = db.dailyHistoryDao(),
             observationRepository = mockk(relaxed = true),
             nwsForecastMapper = mockk(relaxed = true),
+            dailyActualsStore = DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true)),
         )
     }
 
@@ -102,8 +103,8 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
                     source = WeatherSource.NWS.id,
                     locationLat = lat,
                     locationLon = lon,
-                    highTemp = 70f,
-                    lowTemp = 55f,
+                    computedHighTemp = 70f,
+                    computedLowTemp = 55f,
                     condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
@@ -178,8 +179,8 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
                     source = WeatherSource.NWS.id,
                     locationLat = lat,
                     locationLon = lon,
-                    highTemp = 70f,
-                    lowTemp = 55f,
+                    computedHighTemp = 70f,
+                    computedLowTemp = 55f,
                     condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     forecastDayPrecipChance = 5, // archived while yesterday was still live
@@ -223,7 +224,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
                 DailyHistoryEntity(
                     date = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                     source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -289,8 +290,8 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
                     source = WeatherSource.NWS.id,
                     locationLat = lat,
                     locationLon = lon,
-                    highTemp = 70f,
-                    lowTemp = 55f,
+                    computedHighTemp = 70f,
+                    computedLowTemp = 55f,
                     condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
@@ -339,7 +340,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
                 DailyHistoryEntity(
                     date = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                     source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     forecastHighTemp = 75f, forecastLowTemp = 50f,
                     forecastPrecipAmountMm = 2f, noonCloudPercent = 30,
@@ -378,7 +379,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
                 DailyHistoryEntity(
                     date = yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                     source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     forecastHighTemp = 75f, forecastLowTemp = 50f, // archived while yesterday was live
                 ),
@@ -422,7 +423,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
                 DailyHistoryEntity(
                     date = pastStart,
                     source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                 ),
             ),
@@ -460,7 +461,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
                 DailyHistoryEntity(
                     date = pastStart,
                     source = WeatherSource.NWS.id, locationLat = lat, locationLon = lon,
-                    highTemp = 70f, lowTemp = 55f, condition = "Clear",
+                    computedHighTemp = 70f, computedLowTemp = 55f, condition = "Clear",
                     updatedAt = System.currentTimeMillis(),
                     noonCloudPercent = 19, // frozen live; overlay window had already closed
                 ),

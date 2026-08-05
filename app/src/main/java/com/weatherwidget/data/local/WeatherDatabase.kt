@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 57,
+    version = 58,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -294,6 +294,83 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Renames highTemp/lowTemp → computedHighTemp/computedLowTemp to clarify these are the
+         * IDW-blended extremes ("Location actual"), and adds apiHighTemp/apiLowTemp for
+         * provider-reported observed highs/lows ("API actual"). Uses table recreation since
+         * minSdk < 30 does not support ALTER TABLE RENAME COLUMN in SQLite.
+         */
+        val MIGRATION_57_58 = object : Migration(57, 58) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `daily_history_new` (
+                        `date` INTEGER NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `locationLat` REAL NOT NULL,
+                        `locationLon` REAL NOT NULL,
+                        `computedHighTemp` REAL NOT NULL,
+                        `computedLowTemp` REAL NOT NULL,
+                        `condition` TEXT NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        `precipAmountMm` REAL,
+                        `precipDayMm` REAL,
+                        `precipNightMm` REAL,
+                        `forecastDayPrecipChance` INTEGER,
+                        `forecastNightPrecipChance` INTEGER,
+                        `forecastHighTemp` REAL,
+                        `forecastLowTemp` REAL,
+                        `forecastPrecipAmountMm` REAL,
+                        `noonCloudPercent` INTEGER,
+                        `apiHighTemp` REAL,
+                        `apiLowTemp` REAL,
+                        PRIMARY KEY(`date`, `source`, `locationLat`, `locationLon`)
+                    )
+                    """.trimIndent(),
+                )
+                val existingColumns = mutableListOf<String>()
+                db.query("PRAGMA table_info(daily_history)").use { cursor ->
+                    while (cursor.moveToNext()) {
+                        existingColumns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+                    }
+                }
+                val hasHighTemp = existingColumns.contains("highTemp")
+                val hasLowTemp = existingColumns.contains("lowTemp")
+                // Columns already renamed (future proofing — Room re-runs migration on same version
+                // after a destructive fallback); columns absent (fresh install at v57).
+                val highCol = if (hasHighTemp) "highTemp" else if (existingColumns.contains("computedHighTemp")) "computedHighTemp" else null
+                val lowCol = if (hasLowTemp) "lowTemp" else if (existingColumns.contains("computedLowTemp")) "computedLowTemp" else null
+                if (highCol != null && lowCol != null) {
+                    db.execSQL(
+                        """
+                        INSERT INTO `daily_history_new` (
+                            `date`, `source`, `locationLat`, `locationLon`,
+                            `computedHighTemp`, `computedLowTemp`, `condition`, `updatedAt`,
+                            `precipAmountMm`, `precipDayMm`, `precipNightMm`,
+                            `forecastDayPrecipChance`, `forecastNightPrecipChance`,
+                            `forecastHighTemp`, `forecastLowTemp`,
+                            `forecastPrecipAmountMm`, `noonCloudPercent`
+                        )
+                        SELECT
+                            `date`, `source`, `locationLat`, `locationLon`,
+                            `$highCol`, `$lowCol`, `condition`, `updatedAt`,
+                            `precipAmountMm`, `precipDayMm`, `precipNightMm`,
+                            `forecastDayPrecipChance`, `forecastNightPrecipChance`,
+                            `forecastHighTemp`, `forecastLowTemp`,
+                            `forecastPrecipAmountMm`, `noonCloudPercent`
+                        FROM `daily_history`
+                        """.trimIndent(),
+                    )
+                }
+                db.execSQL("DROP TABLE `daily_history`")
+                db.execSQL("ALTER TABLE `daily_history_new` RENAME TO `daily_history`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_daily_history_date_locationLat_locationLon` " +
+                        "ON `daily_history` (`date`, `locationLat`, `locationLon`)",
+                )
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -356,7 +433,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

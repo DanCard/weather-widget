@@ -37,8 +37,8 @@ data class ComparisonStatistics(
  */
 data class DailyAccuracy(
     val date: String,
-    val actualHigh: Int,
-    val actualLow: Int,
+    val computedHighTemp: Int,
+    val computedLowTemp: Int,
     val forecastHigh: Int,
     val forecastLow: Int,
     val source: String,

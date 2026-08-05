@@ -30,8 +30,8 @@ class NwsHistoryIntegrationTest {
         source = WeatherSource.NWS.id,
         locationLat = 37.42,
         locationLon = -122.08,
-        highTemp = high,
-        lowTemp = low,
+        computedHighTemp = high,
+        computedLowTemp = low,
         condition = "Sunny",
         updatedAt = System.currentTimeMillis()
     )

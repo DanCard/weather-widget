@@ -77,6 +77,7 @@ private data class HistoryData(
 internal fun ForecastHistoryWindow(
     weatherDao: DesktopWeatherDao,
     config: DesktopConfig,
+    showRequestId: Int = 0,
     onClose: () -> Unit,
     onConfigUpdate: (DesktopConfig) -> Unit = {},
 ) {
@@ -109,7 +110,7 @@ internal fun ForecastHistoryWindow(
     Window(
         onCloseRequest = onClose,
         state = state,
-        title = "Forecast History",
+        title = "History of Forecasts",
         onKeyEvent = { keyEvent ->
             if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
                 onClose()
@@ -119,6 +120,9 @@ internal fun ForecastHistoryWindow(
             }
         }
     ) {
+        LaunchedEffect(showRequestId) {
+            if (showRequestId > 0) window.toFront()
+        }
         val visibleSources = remember(config.visibleSources) {
             config.visibleSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
         }
@@ -512,14 +516,13 @@ private fun loadHistory(
     var appHigh: Float? = null
     var appLow: Float? = null
     if (isPast) {
-        val apiActual = dao.getForecastsInRangeBySource(targetEpoch, targetEpoch, lat, lon, source.id)
-            .filter { it.highTemp != null && it.lowTemp != null }
-            .maxByOrNull { it.fetchedAt }
-        apiHigh = apiActual?.highTemp
-        apiLow = apiActual?.lowTemp
-        val appActual = dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon).firstOrNull { it.source == source.id }
-        appHigh = appActual?.highTemp
-        appLow = appActual?.lowTemp
+        val allRows = dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon)
+        val apiRow = allRows.find { it.source == source.id && it.apiHighTemp != null && it.apiLowTemp != null }
+        apiHigh = apiRow?.apiHighTemp
+        apiLow = apiRow?.apiLowTemp
+        val appActual = allRows.firstOrNull { it.source == source.id }
+        appHigh = appActual?.computedHighTemp
+        appLow = appActual?.computedLowTemp
     }
 
     val newestFetch = rows.maxByOrNull { it.fetchedAt }?.fetchedAt

@@ -49,8 +49,8 @@ class DailyAccuracyAdapter(private val useCelsius: Boolean) : RecyclerView.Adapt
             dateText.text = item.date
             sourceText.text = item.source
 
-            val dispActualHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.actualHigh.toFloat()).roundToInt() else item.actualHigh
-            val dispActualLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.actualLow.toFloat()).roundToInt() else item.actualLow
+            val dispActualHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.computedHighTemp.toFloat()).roundToInt() else item.computedHighTemp
+            val dispActualLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.computedLowTemp.toFloat()).roundToInt() else item.computedLowTemp
             val dispForecastHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.forecastHigh.toFloat()).roundToInt() else item.forecastHigh
             val dispForecastLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.forecastLow.toFloat()).roundToInt() else item.forecastLow
 

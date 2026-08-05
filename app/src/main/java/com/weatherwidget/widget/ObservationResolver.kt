@@ -140,8 +140,8 @@ object ObservationResolver {
                     source = source,
                     locationLat = locationLat,
                     locationLon = locationLon,
-                    highTemp = latestOfficialObservation.maxTempLast24h ?: return@mapNotNull null,
-                    lowTemp = latestOfficialObservation.minTempLast24h ?: return@mapNotNull null,
+                    computedHighTemp = latestOfficialObservation.maxTempLast24h ?: return@mapNotNull null,
+                    computedLowTemp = latestOfficialObservation.minTempLast24h ?: return@mapNotNull null,
                     condition = latestOfficialObservation.condition,
                     updatedAt = latestOfficialObservation.fetchedAt,
                 )

@@ -73,8 +73,8 @@ class DesktopWeatherDaoSourceIsolationTest {
         val nws = dao.getDailyActuals(epoch, epoch, lat, lon, "NWS")
         val om = dao.getDailyActuals(epoch, epoch, lat, lon, "OPEN_METEO")
 
-        assertEquals(79f, nws.values.single().highTemp)
-        assertEquals(52f, om.values.single().highTemp)
+        assertEquals(79f, nws.values.single().computedHighTemp)
+        assertEquals(52f, om.values.single().computedHighTemp)
     }
 
     @Test

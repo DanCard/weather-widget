@@ -11,8 +11,11 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
+import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.widget.DailyActualsBySource
@@ -111,7 +114,7 @@ class DailyActualsStore @Inject constructor(
             .joinToString("; ") { (source, actualsByDate) ->
                 val actual = actualsByDate[today]
                 val stationCount = todayObs.count { it.api == source }
-                "$source[blendedHigh=${actual?.highTemp},blendedLow=${actual?.lowTemp},rows=$stationCount]"
+                "$source[blendedHigh=${actual?.computedHighTemp},blendedLow=${actual?.computedLowTemp},rows=$stationCount]"
             }
             .ifEmpty { "none" }
         Log.d(
@@ -226,7 +229,7 @@ class DailyActualsStore @Inject constructor(
         newExtremes.forEach { new ->
             appLogDao.log(
                 "DAILY_HISTORY_BLEND",
-                "date=$date src=${new.source} computed_hi=${new.highTemp} computed_lo=${new.lowTemp} " +
+                "date=$date src=${new.source} computed_hi=${new.computedHighTemp} computed_lo=${new.computedLowTemp} " +
                     "stations=[${perSourceBreakdown[new.source] ?: "n/a"}] " +
                     "userLat=$latitude userLon=$longitude",
                 "VERBOSE",
@@ -249,8 +252,8 @@ class DailyActualsStore @Inject constructor(
             var changedAny = false
             fragments.forEach { existing ->
                 if (
-                    new.highTemp != existing.highTemp ||
-                    new.lowTemp != existing.lowTemp ||
+                    new.computedHighTemp != existing.computedHighTemp ||
+                    new.computedLowTemp != existing.computedLowTemp ||
                     new.condition != existing.condition ||
                     precipChanged(new, existing)
                 ) {
@@ -258,7 +261,7 @@ class DailyActualsStore @Inject constructor(
                     appLogDao.log(
                         "DAILY_HISTORY_OVERWRITE",
                         "date=$date src=${new.source} at=${existing.locationLat},${existing.locationLon} " +
-                            "high=${existing.highTemp}->${new.highTemp} low=${existing.lowTemp}->${new.lowTemp} " +
+                            "high=${existing.computedHighTemp}->${new.computedHighTemp} low=${existing.computedLowTemp}->${new.computedLowTemp} " +
                             "precip=${existing.precipAmountMm}->${new.precipAmountMm}",
                         "DEBUG",
                     )
@@ -272,6 +275,8 @@ class DailyActualsStore @Inject constructor(
                             forecastLowTemp = existing.forecastLowTemp,
                             forecastPrecipAmountMm = existing.forecastPrecipAmountMm,
                             noonCloudPercent = existing.noonCloudPercent,
+                            apiHighTemp = existing.apiHighTemp,
+                            apiLowTemp = existing.apiLowTemp,
                         ),
                     )
                 }
@@ -279,7 +284,7 @@ class DailyActualsStore @Inject constructor(
             if (!changedAny) {
                 appLogDao.log(
                     "DAILY_HISTORY_STABLE",
-                    "date=$date src=${new.source} high=${new.highTemp} low=${new.lowTemp} fragments=${fragments.size}",
+                    "date=$date src=${new.source} high=${new.computedHighTemp} low=${new.computedLowTemp} fragments=${fragments.size}",
                     "DEBUG",
                 )
             }
@@ -373,4 +378,214 @@ class DailyActualsStore @Inject constructor(
         new.precipAmountMm != existing.precipAmountMm ||
             new.precipDayMm != existing.precipDayMm ||
             new.precipNightMm != existing.precipNightMm
+
+    /**
+     * Persists NWS gridpoint daily temperature extremes as apiHighTemp/apiLowTemp in daily_history
+     * for past dates. The gridpoint endpoint's maxTemperature/minTemperature are already parsed and
+     * plausibility-checked by [NwsApi.parseDailyExtremes] — this just stores them.
+     */
+    suspend fun persistNwsGridpointActuals(
+        latitude: Double,
+        longitude: Double,
+        extremes: NwsApi.DailyTemperatureExtremes,
+    ) {
+        val keyLat = LocationMatch.quantize(latitude)
+        val keyLon = LocationMatch.quantize(longitude)
+        val today = LocalDate.now()
+        val todayDateStr = today.toString()
+        val now = System.currentTimeMillis()
+
+        val dateStrs = (extremes.maxByDate.keys + extremes.minByDate.keys)
+            .filter { it < todayDateStr }
+
+        if (dateStrs.isEmpty()) {
+            appLogDao.log("NWS_GRIDPOINT_ACTUALS", "skipped (no past dates; maxByDate=${extremes.maxByDate.size} minByDate=${extremes.minByDate.size})", "DEBUG")
+            return
+        }
+
+        val existing = dailyHistoryDao
+            .getExtremesInRange(
+                LocalDate.parse(dateStrs.min()).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                LocalDate.parse(dateStrs.max()).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                keyLat,
+                keyLon,
+            )
+            .filter { it.source == WeatherSource.NWS.id }
+        val existingByDate = existing.groupBy { it.date }
+            .mapValues { (_, rows) -> rows.maxBy { it.updatedAt } }
+
+        val toUpsert = mutableListOf<DailyHistoryEntity>()
+        for (dateStr in dateStrs) {
+            val date = LocalDate.parse(dateStr)
+            val dateEpoch = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+            val maxTemp = extremes.maxByDate[dateStr]
+            val minTemp = extremes.minByDate[dateStr]
+            if (maxTemp == null && minTemp == null) continue
+
+            val existingRow = existingByDate[dateEpoch]
+            toUpsert.add(
+                DailyHistoryEntity(
+                    date = dateEpoch,
+                    source = WeatherSource.NWS.id,
+                    locationLat = keyLat,
+                    locationLon = keyLon,
+                    computedHighTemp = existingRow?.computedHighTemp ?: maxTemp ?: minTemp ?: 0f,
+                    computedLowTemp = existingRow?.computedLowTemp ?: minTemp ?: maxTemp ?: 0f,
+                    condition = existingRow?.condition ?: "",
+                    updatedAt = now,
+                    precipAmountMm = existingRow?.precipAmountMm,
+                    precipDayMm = existingRow?.precipDayMm,
+                    precipNightMm = existingRow?.precipNightMm,
+                    forecastDayPrecipChance = existingRow?.forecastDayPrecipChance,
+                    forecastNightPrecipChance = existingRow?.forecastNightPrecipChance,
+                    forecastHighTemp = existingRow?.forecastHighTemp,
+                    forecastLowTemp = existingRow?.forecastLowTemp,
+                    forecastPrecipAmountMm = existingRow?.forecastPrecipAmountMm,
+                    noonCloudPercent = existingRow?.noonCloudPercent,
+                    apiHighTemp = maxTemp,
+                    apiLowTemp = minTemp,
+                ),
+            )
+        }
+
+        if (toUpsert.isNotEmpty()) {
+            dailyHistoryDao.insertAll(toUpsert)
+            appLogDao.log(
+                "NWS_GRIDPOINT_ACTUALS",
+                "dates=${toUpsert.size} min=${dateStrs.minOrNull()} max=${dateStrs.maxOrNull()}",
+                "DEBUG",
+            )
+        }
+    }
+
+    /**
+     * Persists Open-Meteo past_days daily values as apiHighTemp/apiLowTemp in daily_history.
+     * When [pastDays] > 0, the /forecast response includes ERA5-based observed values for past
+     * dates in the same daily array — these are NOT forecasts.
+     */
+    suspend fun persistOpenMeteoPastDayActuals(
+        latitude: Double,
+        longitude: Double,
+        dailyForecasts: List<DailyForecast>,
+    ) {
+        val keyLat = LocationMatch.quantize(latitude)
+        val keyLon = LocationMatch.quantize(longitude)
+        val today = LocalDate.now()
+        val now = System.currentTimeMillis()
+
+        val pastForecasts = dailyForecasts.filter { day ->
+            val date = runCatching { LocalDate.parse(day.date) }.getOrNull()
+            date != null && date.isBefore(today)
+        }
+        if (pastForecasts.isEmpty()) return
+
+        val minDate = pastForecasts.minOf { LocalDate.parse(it.date) }
+        val maxDate = pastForecasts.maxOf { LocalDate.parse(it.date) }
+        val existing = dailyHistoryDao
+            .getExtremesInRange(
+                minDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                maxDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                keyLat,
+                keyLon,
+            )
+            .filter { it.source == WeatherSource.OPEN_METEO.id }
+        val existingByDate = existing.groupBy { it.date }
+            .mapValues { (_, rows) -> rows.maxBy { it.updatedAt } }
+
+        val toUpsert = mutableListOf<DailyHistoryEntity>()
+        for (day in pastForecasts) {
+            val dateEpoch = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+            val existingRow = existingByDate[dateEpoch]
+            toUpsert.add(
+                DailyHistoryEntity(
+                    date = dateEpoch,
+                    source = WeatherSource.OPEN_METEO.id,
+                    locationLat = keyLat,
+                    locationLon = keyLon,
+                    computedHighTemp = existingRow?.computedHighTemp ?: day.highTemp,
+                    computedLowTemp = existingRow?.computedLowTemp ?: day.lowTemp,
+                    condition = existingRow?.condition ?: day.condition,
+                    updatedAt = now,
+                    precipAmountMm = existingRow?.precipAmountMm,
+                    precipDayMm = existingRow?.precipDayMm,
+                    precipNightMm = existingRow?.precipNightMm,
+                    forecastDayPrecipChance = existingRow?.forecastDayPrecipChance,
+                    forecastNightPrecipChance = existingRow?.forecastNightPrecipChance,
+                    forecastHighTemp = existingRow?.forecastHighTemp,
+                    forecastLowTemp = existingRow?.forecastLowTemp,
+                    forecastPrecipAmountMm = existingRow?.forecastPrecipAmountMm,
+                    noonCloudPercent = existingRow?.noonCloudPercent,
+                    apiHighTemp = day.highTemp,
+                    apiLowTemp = day.lowTemp,
+                ),
+            )
+        }
+
+        if (toUpsert.isNotEmpty()) {
+            dailyHistoryDao.insertAll(toUpsert)
+            appLogDao.log(
+                "METEO_PAST_ACTUALS",
+                "dates=${toUpsert.size} min=$minDate max=$maxDate",
+                "DEBUG",
+            )
+        }
+    }
+
+    /**
+     * Returns epoch-day-millis for NWS daily_history rows that have null apiHighTemp in the
+     * given range. Used to feed [backfillNwsApiActualsFromArchive].
+     */
+    suspend fun findNwsDatesMissingApiActuals(
+        latitude: Double,
+        longitude: Double,
+        startMs: Long,
+        endMs: Long,
+    ): List<Long> {
+        val keyLat = LocationMatch.quantize(latitude)
+        val keyLon = LocationMatch.quantize(longitude)
+        return dailyHistoryDao
+            .getExtremesInRange(startMs, endMs, keyLat, keyLon)
+            .filter { it.source == WeatherSource.NWS.id && it.apiHighTemp == null }
+            .map { it.date }
+    }
+    /**
+     * Backfills apiHighTemp/apiLowTemp for NWS past dates using ERA5 archive data. Idempotent —
+     * only fills dates where apiHighTemp is null.
+     */
+    suspend fun backfillNwsApiActualsFromArchive(
+        latitude: Double,
+        longitude: Double,
+        archiveActuals: Map<Long, Pair<Float, Float>>, // epochDayMillis → (highF, lowF)
+    ) {
+        if (archiveActuals.isEmpty()) return
+        val keyLat = LocationMatch.quantize(latitude)
+        val keyLon = LocationMatch.quantize(longitude)
+        val now = System.currentTimeMillis()
+
+        val dateStrs = archiveActuals.keys.sorted()
+        val minDate = dateStrs.first()
+        val maxDate = dateStrs.last()
+
+        val existing = dailyHistoryDao
+            .getExtremesInRange(minDate, maxDate, keyLat, keyLon)
+            .filter { it.source == WeatherSource.NWS.id && it.apiHighTemp == null }
+
+        val toUpsert = existing.mapNotNull { row ->
+            val temps = archiveActuals[row.date] ?: return@mapNotNull null
+            row.copy(
+                apiHighTemp = temps.first,
+                apiLowTemp = temps.second,
+                updatedAt = now,
+            )
+        }
+
+        if (toUpsert.isNotEmpty()) {
+            dailyHistoryDao.insertAll(toUpsert)
+            appLogDao.log(
+                "NWS_API_ACTUALS_BACKFILL",
+                "filled=${toUpsert.size} dates=${dateStrs.size}",
+                "DEBUG",
+            )
+        }
+    }
 }

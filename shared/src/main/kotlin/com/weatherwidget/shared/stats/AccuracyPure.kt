@@ -17,8 +17,8 @@ object AccuracyPure {
     /** One day's forecast-vs-actual comparison (all temps rounded to whole degrees). */
     data class DailyAccuracy(
         val date: String,
-        val actualHigh: Int,
-        val actualLow: Int,
+        val computedHighTemp: Int,
+        val computedLowTemp: Int,
         val forecastHigh: Int,
         val forecastLow: Int,
         val source: String,
@@ -96,22 +96,22 @@ object AccuracyPure {
      */
     fun buildDailyAccuracy(
         date: String,
-        actualHigh: Float,
-        actualLow: Float,
+        computedHighTemp: Float,
+        computedLowTemp: Float,
         forecastHigh: Float?,
         forecastLow: Float?,
         source: String,
     ): DailyAccuracy? {
         val fHigh = forecastHigh ?: return null
         val fLow = forecastLow ?: return null
-        val aHighR = actualHigh.roundToInt()
-        val aLowR = actualLow.roundToInt()
+        val aHighR = computedHighTemp.roundToInt()
+        val aLowR = computedLowTemp.roundToInt()
         val fHighR = fHigh.roundToInt()
         val fLowR = fLow.roundToInt()
         return DailyAccuracy(
             date = date,
-            actualHigh = aHighR,
-            actualLow = aLowR,
+            computedHighTemp = aHighR,
+            computedLowTemp = aLowR,
             forecastHigh = fHighR,
             forecastLow = fLowR,
             source = source,

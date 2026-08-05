@@ -84,7 +84,7 @@ internal object DailyGraphRenderer {
         Log.d(
             TAG,
             "dailyTodayInputs: widget=${ctx.appWidgetId} source=${ctx.displaySource.id} date=${ctx.today} " +
-                "dailyActual.high=${todayActual?.highTemp} dailyActual.low=${todayActual?.lowTemp} " +
+                "dailyActual.high=${todayActual?.computedHighTemp} dailyActual.low=${todayActual?.computedLowTemp} " +
                 "currentTempResolution=${ctx.currentTemp} observedAt=${ctx.observedAt} " +
                 "sourceCurrentRows=${sourceCurrentTemps.size} sourceCurrentSpan=$currentTempSpan " +
                 "hourlyRows=${ctx.hourlyForecasts.count { it.source == ctx.displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }}",
@@ -444,7 +444,7 @@ internal object DailyGraphRenderer {
         val obsSpan = formatObservationSpan(observations)
         return "widget=$appWidgetId date=$today source=${displaySource.id} " +
             "forecastHigh=${formatTempValue(forecastWeather?.highTemp)} forecastLow=${formatTempValue(forecastWeather?.lowTemp)} " +
-            "dailyActualHigh=${formatTempValue(dailyActual?.highTemp)} dailyActualLow=${formatTempValue(dailyActual?.lowTemp)} " +
+            "dailyActualHigh=${formatTempValue(dailyActual?.computedHighTemp)} dailyActualLow=${formatTempValue(dailyActual?.computedLowTemp)} " +
             "currentTemp=${formatTempValue(currentTemp)} observedAt=${formatLocalTime(observedAt)} " +
             "graphObservedHigh=${formatTempValue(todayDay.solidLineHigh)} graphObservedLow=${formatTempValue(todayDay.solidLineLow)} " +
             "graphForecastHigh=${formatTempValue(todayDay.dashedLineHigh)} graphForecastLow=${formatTempValue(todayDay.dashedLineLow)} " +

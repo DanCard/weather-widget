@@ -178,8 +178,8 @@ class ObservationResolverTest {
 
         assertEquals(1, result.size)
         val entity = result[0]
-        assertEquals(58f, entity.highTemp, 0.01f)
-        assertEquals(55f, entity.lowTemp, 0.01f)
+        assertEquals(58f, entity.computedHighTemp, 0.01f)
+        assertEquals(55f, entity.computedLowTemp, 0.01f)
         assertEquals(WeatherSource.NWS.id, entity.source)
         assertEquals(37.42, entity.locationLat, 0.001)
     }
@@ -195,8 +195,8 @@ class ObservationResolverTest {
         val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
-        assertEquals(63f, result[0].highTemp, 0.01f)
-        assertEquals(55f, result[0].lowTemp, 0.01f)
+        assertEquals(63f, result[0].computedHighTemp, 0.01f)
+        assertEquals(55f, result[0].computedLowTemp, 0.01f)
     }
 
     @Test
@@ -213,8 +213,8 @@ class ObservationResolverTest {
         val nwsEntity = result.first { it.source == WeatherSource.NWS.id }
         val meteoEntity = result.first { it.source == WeatherSource.OPEN_METEO.id }
         // Time-aligned: each source's high = max over its own per-timestamp series, using spot temps
-        assertEquals(55f, nwsEntity.highTemp, 0.01f)
-        assertEquals(60f, meteoEntity.highTemp, 0.01f)
+        assertEquals(55f, nwsEntity.computedHighTemp, 0.01f)
+        assertEquals(60f, meteoEntity.computedHighTemp, 0.01f)
     }
 
     private fun extreme(date: java.time.LocalDate, high: Float, low: Float) = com.weatherwidget.data.model.DailyHistory(
@@ -222,8 +222,8 @@ class ObservationResolverTest {
         source = WeatherSource.NWS.id,
         locationLat = 37.42,
         locationLon = -122.08,
-        highTemp = high,
-        lowTemp = low,
+        computedHighTemp = high,
+        computedLowTemp = low,
         condition = "Clear",
         updatedAt = System.currentTimeMillis()
     )
@@ -249,8 +249,8 @@ class ObservationResolverTest {
 
         val actual = merged[WeatherSource.NWS.id]?.get(today)
         assertNotNull(actual)
-        assertEquals(63.82f, actual!!.highTemp, 0.01f)
-        assertEquals(46.30f, actual.lowTemp, 0.01f)
+        assertEquals(63.82f, actual!!.computedHighTemp, 0.01f)
+        assertEquals(46.30f, actual.computedLowTemp, 0.01f)
     }
 
     private fun observation(
@@ -290,8 +290,8 @@ class ObservationResolverTest {
         val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
-        assertTrue("Near station should dominate; expected ~78° got ${result[0].highTemp}", result[0].highTemp < 79f)
-        assertTrue("Result should be above 78°", result[0].highTemp >= 78f)
+        assertTrue("Near station should dominate; expected ~78° got ${result[0].computedHighTemp}", result[0].computedHighTemp < 79f)
+        assertTrue("Result should be above 78°", result[0].computedHighTemp >= 78f)
     }
 
     @Test
@@ -306,8 +306,8 @@ class ObservationResolverTest {
 
         assertEquals(1, result.size)
         // Equidistant IDW at the single shared timestamp = average of spot temps
-        assertEquals(73f, result[0].highTemp, 0.1f) // (70+76)/2
-        assertEquals(73f, result[0].lowTemp,  0.1f) // same — only one timestamp in the series
+        assertEquals(73f, result[0].computedHighTemp, 0.1f) // (70+76)/2
+        assertEquals(73f, result[0].computedLowTemp,  0.1f) // same — only one timestamp in the series
     }
 
     @Test
@@ -322,8 +322,8 @@ class ObservationResolverTest {
 
         val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
-        assertEquals(58f, result[0].highTemp, 0.01f)
-        assertEquals(55f, result[0].lowTemp,  0.01f)
+        assertEquals(58f, result[0].computedHighTemp, 0.01f)
+        assertEquals(55f, result[0].computedLowTemp,  0.01f)
     }
 
     @Test
@@ -347,8 +347,8 @@ class ObservationResolverTest {
         // Per-station-spot-max (old) would give IDW(75, 75) ≈ 75° — non-existent in reality.
         // Time-aligned (new): each timestamp blends to (75+70)/2 ≈ 72.5°. Max over series ≈ 72.5°.
         assertEquals(1, result.size)
-        assertTrue("Blended high should be ~72.5 (the actual instant), not 75 (sync-peak artifact). Got ${result[0].highTemp}", result[0].highTemp < 73f)
-        assertTrue("Blended high should be above 72°", result[0].highTemp >= 72f)
+        assertTrue("Blended high should be ~72.5 (the actual instant), not 75 (sync-peak artifact). Got ${result[0].computedHighTemp}", result[0].computedHighTemp < 73f)
+        assertTrue("Blended high should be above 72°", result[0].computedHighTemp >= 72f)
     }
 
     @Test
@@ -362,7 +362,7 @@ class ObservationResolverTest {
         val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
-        assertEquals(72f, result[0].highTemp, 0.01f) // NWS_BLEND excluded
+        assertEquals(72f, result[0].computedHighTemp, 0.01f) // NWS_BLEND excluded
     }
 
     @Test
@@ -377,7 +377,7 @@ class ObservationResolverTest {
         val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
-        assertTrue("Near station should dominate; expected <71° got ${result[0].highTemp}", result[0].highTemp < 71f)
+        assertTrue("Near station should dominate; expected <71° got ${result[0].computedHighTemp}", result[0].computedHighTemp < 71f)
     }
 
     private fun currentTempObservation(
@@ -530,8 +530,8 @@ class ObservationResolverTest {
                 source = WeatherSource.NWS.id,
                 locationLat = 37.42,
                 locationLon = -122.08,
-                highTemp = 75f,
-                lowTemp = 55f,
+                computedHighTemp = 75f,
+                computedLowTemp = 55f,
                 condition = "Rain",
                 updatedAt = 1_700_000_000_000L,
                 precipAmountMm = 10.5f,
@@ -556,8 +556,8 @@ class ObservationResolverTest {
                 source = WeatherSource.NWS.id,
                 locationLat = 37.42,
                 locationLon = -122.08,
-                highTemp = 75f,
-                lowTemp = 55f,
+                computedHighTemp = 75f,
+                computedLowTemp = 55f,
                 condition = "Rain",
                 updatedAt = 1_700_000_000_000L,
                 precipAmountMm = 8.1f,

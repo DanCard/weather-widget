@@ -186,7 +186,7 @@ object ActualsAggregator {
                         val windowEndMs = dayEndMs + DAILY_BLEND_CONTEXT_MS
                         val windowObs = obsList.filter { it.timestamp in windowStartMs until windowEndMs }
 
-                        val (highTemp, lowTemp) = blendDailyExtremesViaSeries(
+                        val (computedHighTemp, computedLowTemp) = blendDailyExtremesViaSeries(
                             contextObs = windowObs,
                             hourlyForecasts = sourceHourly,
                             sourceId = sourceId,
@@ -217,8 +217,8 @@ object ActualsAggregator {
                             source = sourceId,
                             locationLat = locationLat,
                             locationLon = locationLon,
-                            highTemp = highTemp,
-                            lowTemp = lowTemp,
+                            computedHighTemp = computedHighTemp,
+                            computedLowTemp = computedLowTemp,
                             condition = mostCommonCondition,
                             updatedAt = updatedAtMs,
                             precipAmountMm = precip.total,

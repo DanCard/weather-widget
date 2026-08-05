@@ -307,7 +307,8 @@ class DesktopWeatherService(
             currentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
             hourly = hourly.map { it.toHourlyForecast() },
             daily = NwsDailyMapper.buildDailyForecasts(dailyRaw, gridpoints.dailyTemperatures, LocalDate.now(), hourly),
-            rawObservations = observations
+            rawObservations = observations,
+            nwsDailyExtremes = gridpoints.dailyTemperatures,
         )
     }
 

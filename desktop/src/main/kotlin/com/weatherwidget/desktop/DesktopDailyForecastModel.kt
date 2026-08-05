@@ -266,8 +266,8 @@ object DesktopDailyForecastModel {
 
         when {
             isPast -> {
-                solidHigh = actual?.highTemp
-                solidLow = actual?.lowTemp
+                solidHigh = actual?.computedHighTemp
+                solidLow = actual?.computedLowTemp
                 // Prefer the overlay frozen into daily_history while the day was live (see
                 // DailyHistoryFreeze) — it survives the forecasts table's retention and can't
                 // hindcast-drift. High/low are written as a unit, so checking both guards against
@@ -283,8 +283,8 @@ object DesktopDailyForecastModel {
             }
             isToday -> {
                 val todayValues = com.weatherwidget.shared.util.DailyDayValueResolver.resolveTodayLineValues(
-                    actualHigh = actual?.highTemp,
-                    actualLow = actual?.lowTemp,
+                    actualHigh = actual?.computedHighTemp,
+                    actualLow = actual?.computedLowTemp,
                     forecastHigh = forecast?.highTemp,
                     forecastLow = forecast?.lowTemp,
                     currentTemp = currentTemp,

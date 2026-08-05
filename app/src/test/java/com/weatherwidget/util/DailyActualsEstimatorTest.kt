@@ -36,8 +36,8 @@ class DailyActualsEstimatorTest {
         source = "OPEN_METEO",
         locationLat = 0.0,
         locationLon = 0.0,
-        highTemp = high,
-        lowTemp = low,
+        computedHighTemp = high,
+        computedLowTemp = low,
         condition = "Cloudy",
         updatedAt = System.currentTimeMillis()
     )

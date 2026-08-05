@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 
 import com.weatherwidget.R
 import com.weatherwidget.data.local.DailyHistoryDao
+import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -140,7 +141,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     private var graphMode = GraphMode.EVOLUTION
     private var cachedSnapshots: List<ForecastEntity> = emptyList()
-    private var cachedActualWeather: ForecastEntity? = null
+    private var cachedApiActualRow: DailyHistoryEntity? = null
     private var cachedAppActual: com.weatherwidget.data.local.DailyHistoryEntity? = null
     private var cachedDate: LocalDate? = null
     private var cachedRequestedSource: WeatherSource? = null
@@ -197,7 +198,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val graphModeButton = findViewById<Button>(R.id.graph_mode_button)
         graphModeButton.setOnClickListener {
             val date = cachedDate
-            val hasActualValues = cachedActualWeather?.highTemp != null && cachedActualWeather?.lowTemp != null
+            val hasActualValues = cachedApiActualRow?.apiHighTemp != null && cachedApiActualRow?.apiLowTemp != null
             val showTemperatureButton = shouldShowTemperatureButton(date, hasActualValues)
             if (shouldLaunchTemperature(date != null, showTemperatureButton)) {
                 launchWidgetTemperatureMode(date!!)
@@ -207,7 +208,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION
             updateModeUi()
             if (cachedDate != null) {
-                displayData(cachedSnapshots, cachedActualWeather, cachedAppActual, cachedDate!!, cachedRequestedSource)
+                displayData(cachedSnapshots, cachedApiActualRow, cachedAppActual, cachedDate!!, cachedRequestedSource)
             }
         }
         updateModeUi()
@@ -275,29 +276,21 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     }
                 Log.d(TAG, "Found ${snapshots.size} snapshots for $targetDate")
 
-                val actualWeather =
-                    when (resolveActualLookupMode(date, requestedSource)) {
-                        ActualLookupMode.NONE -> null
-                        ActualLookupMode.SOURCE_SPECIFIC ->
-                            resolveSourceSpecificActual(
-                                targetDate = targetDate,
-                                lat = lat,
-                                lon = lon,
-                                requestedSource = checkNotNull(requestedSource),
-                            )
-                        ActualLookupMode.ANY_SOURCE ->
-                            forecastDao.getForecastForDate(targetDateEpoch, lat, lon)
-                    }
+                val isPastDate = date.isBefore(LocalDate.now())
+                val apiActualRow: DailyHistoryEntity? = if (isPastDate && requestedSource != null) {
+                    resolveApiActual(targetDateEpoch, lat, lon, requestedSource)
+                } else {
+                    null
+                }
 
                 val appActuals = dailyHistoryDao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon)
                 val sortedAppActuals = appActuals.sortedBy {
                     com.weatherwidget.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
                 }
-                // Strictly match the requested source, no fallback.
                 val appActual = sortedAppActuals.find { it.source == requestedSource?.id }
 
                 withContext(Dispatchers.Main) {
-                    displayData(snapshots, actualWeather, appActual, date, requestedSource)
+                    displayData(snapshots, apiActualRow, appActual, date, requestedSource)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading forecast history", e)
@@ -305,42 +298,40 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun resolveSourceSpecificActual(
-        targetDate: String,
+    /**
+     * Finds the API-reported actual for [requestedSource] by looking in daily_history rows
+     * that have non-null [DailyHistoryEntity.apiHighTemp]/[DailyHistoryEntity.apiLowTemp].
+     */
+    private suspend fun resolveApiActual(
+        targetDateEpoch: Long,
         lat: Double,
         lon: Double,
         requestedSource: WeatherSource,
-    ): ForecastEntity? {
-        val parsedLocalDate = LocalDate.parse(targetDate)
-        val targetDateEpoch = parsedLocalDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        if (requestedSource != WeatherSource.NWS) {
-            return forecastDao
-                .getForecastsInRangeBySource(targetDateEpoch, targetDateEpoch, lat, lon, requestedSource.id)
-                .maxByOrNull { it.fetchedAt }
+    ): DailyHistoryEntity? {
+        val allRows = dailyHistoryDao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon)
+        val sortedRows = allRows.sortedBy {
+            com.weatherwidget.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
         }
 
-        val nwsForecasts = forecastDao.getForecastsInRangeBySource(targetDateEpoch, targetDateEpoch, lat, lon, WeatherSource.NWS.id)
-        val nwsFromForecastEndpoint = selectLatestCompleteActualFromForecasts(nwsForecasts)
-        if (nwsFromForecastEndpoint != null) {
-            Log.d(
-                TAG,
-                "Resolved NWS actual from forecast endpoint for $targetDate: high=${nwsFromForecastEndpoint.highTemp}, low=${nwsFromForecastEndpoint.lowTemp}",
-            )
-        } else {
-            Log.d(TAG, "No NWS actual available for $targetDate from forecast endpoint")
+        val row = sortedRows.find { it.source == requestedSource.id }
+        if (row != null && row.apiHighTemp != null && row.apiLowTemp != null) {
+            Log.d(TAG, "API actual for ${requestedSource.id}: apiHigh=${row.apiHighTemp} apiLow=${row.apiLowTemp}")
+            return row
         }
-        return nwsFromForecastEndpoint
+
+        Log.d(TAG, "No API actual available for ${requestedSource.id}")
+        return null
     }
 
     private fun displayData(
         snapshots: List<ForecastEntity>,
-        actualWeather: ForecastEntity?,
+        apiActualRow: DailyHistoryEntity?,
         appActual: com.weatherwidget.data.local.DailyHistoryEntity?,
         date: LocalDate,
         requestedSource: WeatherSource?,
     ) {
         cachedSnapshots = snapshots
-        cachedActualWeather = actualWeather
+        cachedApiActualRow = apiActualRow
         cachedAppActual = appActual
         cachedDate = date
         cachedRequestedSource = requestedSource
@@ -397,13 +388,13 @@ class ForecastHistoryActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.legend_forecast_text).text =
             requestedSource?.shortDisplayName ?: getString(R.string.forecast_history_api_fallback_label)
 
-        val apiHigh = if (isPastDate) actualWeather?.highTemp else null
-        val apiLow = if (isPastDate) actualWeather?.lowTemp else null
-        val appHigh = if (isPastDate) appActual?.highTemp else null
-        val appLow = if (isPastDate) appActual?.lowTemp else null
+        val apiHigh = if (isPastDate) apiActualRow?.apiHighTemp else null
+        val apiLow = if (isPastDate) apiActualRow?.apiLowTemp else null
+        val computedHighTemp = if (isPastDate) appActual?.computedHighTemp else null
+        val computedLowTemp = if (isPastDate) appActual?.computedLowTemp else null
 
         val actualsLegendCard = findViewById<View>(R.id.actuals_legend_card)
-        if ((apiHigh != null && apiLow != null) || (appHigh != null && appLow != null)) {
+        if ((apiHigh != null && apiLow != null) || (computedHighTemp != null && computedLowTemp != null)) {
             actualsLegendCard.visibility = View.VISIBLE
 
             val apiActualGroup = findViewById<View>(R.id.footer_api_actual_group)
@@ -423,12 +414,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
             val locationActualGroup = findViewById<View>(R.id.footer_location_actual_group)
             val locationActualText = findViewById<TextView>(R.id.footer_location_actual_text)
-            if (appHigh != null && appLow != null) {
+            if (computedHighTemp != null && computedLowTemp != null) {
                 locationActualGroup.visibility = View.VISIBLE
                 locationActualText.text = getString(
                     R.string.forecast_history_location_actual,
-                    formatTemp(appHigh),
-                    formatTemp(appLow),
+                    formatTemp(computedHighTemp),
+                    formatTemp(computedLowTemp),
                 )
             } else {
                 locationActualGroup.visibility = View.GONE
@@ -482,8 +473,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     )
                 }
 
-            highGraphView.setImageBitmap(render(apiHigh, appHigh, isHigh = true))
-            lowGraphView.setImageBitmap(render(apiLow, appLow, isHigh = false))
+            highGraphView.setImageBitmap(render(apiHigh, computedHighTemp, isHigh = true))
+            lowGraphView.setImageBitmap(render(apiLow, computedLowTemp, isHigh = false))
         } else {
             val sourceLabel = requestedSource?.displayName ?: getString(R.string.forecast_history_no_data_fallback_source)
             noDataTextView.text = getString(R.string.forecast_history_no_data_for_source, sourceLabel)
@@ -621,7 +612,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private fun updateModeUi() {
         val modeButton = findViewById<Button>(R.id.graph_mode_button)
         val actualLegendText = findViewById<TextView>(R.id.legend_actual_text)
-        val hasActualValues = cachedActualWeather?.highTemp != null && cachedActualWeather?.lowTemp != null
+        val hasActualValues = cachedApiActualRow?.apiHighTemp != null && cachedApiActualRow?.apiLowTemp != null
         val showTemperatureButton = shouldShowTemperatureButton(cachedDate, hasActualValues)
         when (resolveButtonMode(showTemperatureButton, graphMode)) {
             ButtonMode.EVOLUTION -> {
@@ -740,10 +731,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
 
         // Displayed data fetch age (from the actual weather entity being shown)
-        val displayedFetchedAt = cachedActualWeather?.fetchedAt
+        val displayedFetchedAt = cachedApiActualRow?.updatedAt
         if (displayedFetchedAt != null && displayedFetchedAt > 0L) {
             val sourceName = cachedRequestedSource?.shortDisplayName
-                ?: cachedActualWeather?.source
+                ?: cachedApiActualRow?.source
                 ?: getString(R.string.freshness_unknown_source)
             displayedDataView.text = getString(
                 R.string.freshness_displayed_data,

@@ -210,7 +210,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         val yesterday = today.minusDays(1)
         val yesterdayActual = dailyActuals[yesterday]
-        Log.v(TAG, "$LOG_TAG_WIDGET_ACTUAL date=$yesterday src=${displaySource.id} low=${yesterdayActual?.lowTemp} " +
+        Log.v(TAG, "$LOG_TAG_WIDGET_ACTUAL date=$yesterday src=${displaySource.id} low=${yesterdayActual?.computedLowTemp} " +
             "allDates=${dailyActuals.keys} allSources=${dailyActualsBySource.keys}")
 
         // Past-day actuals are read from the daily_history cache, which can be wrong when a

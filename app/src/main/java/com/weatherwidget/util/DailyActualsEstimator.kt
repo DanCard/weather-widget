@@ -65,24 +65,24 @@ object DailyActualsEstimator {
         val actual = dailyActuals[today]
         // solidLineHigh represents the current 'mercury level'. 
         // It shows the real-time temp if available, otherwise falls back to the peak reached so far.
-        val solidLineHigh = currentTemp ?: actual?.highTemp
+        val solidLineHigh = currentTemp ?: actual?.computedHighTemp
         
         // ghostLineHigh represents the faint high-water mark peak reached so far today.
-        val ghostLineHigh = actual?.highTemp
+        val ghostLineHigh = actual?.computedHighTemp
 
         // solidLineLow should be the minimum of the stored daily low and the current reading.
-        val solidLineLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
+        val solidLineLow = listOfNotNull(actual?.computedLowTemp, currentTemp).minOrNull()
         val solidLineHighSource =
             when {
                 currentTemp != null -> "current_temp"
-                actual?.highTemp != null -> "daily_actual_high"
+                actual?.computedHighTemp != null -> "daily_actual_high"
                 else -> "none"
             }
         val solidLineLowSource =
             when {
-                actual?.lowTemp != null && currentTemp != null ->
-                    if (actual.lowTemp <= currentTemp) "daily_actual_low" else "current_temp"
-                actual?.lowTemp != null -> "daily_actual_low"
+                actual?.computedLowTemp != null && currentTemp != null ->
+                    if (actual.computedLowTemp <= currentTemp) "daily_actual_low" else "current_temp"
+                actual?.computedLowTemp != null -> "daily_actual_low"
                 currentTemp != null -> "current_temp"
                 else -> "none"
             }
@@ -95,7 +95,7 @@ object DailyActualsEstimator {
         val dashedLineHigh = fallbackWeather?.highTemp ?: hourlyMax
         val dashedLineLow = fallbackWeather?.lowTemp ?: hourlyMin
 
-        Log.d("DailyEstimator", "today: actual.high=${actual?.highTemp} actual.low=${actual?.lowTemp} currentTemp=$currentTemp " +
+        Log.d("DailyEstimator", "today: actual.high=${actual?.computedHighTemp} actual.low=${actual?.computedLowTemp} currentTemp=$currentTemp " +
             "solidLineHigh=$solidLineHigh solidLineHighSource=$solidLineHighSource " +
             "solidLineLow=$solidLineLow solidLineLowSource=$solidLineLowSource " +
             "fallbackWeather.high=${fallbackWeather?.highTemp} fallbackWeather.low=${fallbackWeather?.lowTemp} " +

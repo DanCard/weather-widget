@@ -74,12 +74,13 @@ class DailyLiveTodayWindowConsistencyTest {
             visualCrossingApi, weatherApi, silurianApi, widgetStateManager, db.dailyHistoryDao(),
             observationRepository, tomorrowIoApi, openWeatherMapApi,
         )
-        val nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao())
+        val dailyActualsStore = DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true))
+        val nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao(), dailyActualsStore)
         val forecastRepository = ForecastRepository(
             context, db.forecastDao(), db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), db.appLogDao(),
             nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager,
             db.climateNormalDao(), db.observationDao(), db.dailyHistoryDao(), observationRepository,
-            tomorrowIoApi, openWeatherMapApi, nwsForecastMapper,
+            tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, dailyActualsStore,
         )
         repository = WeatherRepository(
             context, forecastRepository, currentTempRepository, db.forecastDao(), db.appLogDao(), observationRepository,
@@ -115,14 +116,14 @@ class DailyLiveTodayWindowConsistencyTest {
 
         // The value the widget actually displays for today.
         val displayLow = repository
-            .getDailyActualsWithLiveToday(lat, lon, forecasts, listOf(source.id))[source.id]!![today]!!.lowTemp
+            .getDailyActualsWithLiveToday(lat, lon, forecasts, listOf(source.id))[source.id]!![today]!!.computedLowTemp
 
         // Reference blends over the same observations, computed directly through the shared engine.
         val readings = obs.map { it.toReadingForTest() }
         val fc = forecasts.map { it.toForecastForTest() }
-        val wideLow = ActualsAggregator.aggregate(readings, fc, lat, lon, zone).single { it.source == source.id && it.toLocalDate() == today }.lowTemp
+        val wideLow = ActualsAggregator.aggregate(readings, fc, lat, lon, zone).single { it.source == source.id && it.toLocalDate() == today }.computedLowTemp
         val todayOnly = readings.filter { it.timestamp >= today.atStartOfDay(zone).toInstant().toEpochMilli() }
-        val todayOnlyLow = ActualsAggregator.aggregate(todayOnly, fc, lat, lon, zone).single { it.source == source.id && it.toLocalDate() == today }.lowTemp
+        val todayOnlyLow = ActualsAggregator.aggregate(todayOnly, fc, lat, lon, zone).single { it.source == source.id && it.toLocalDate() == today }.computedLowTemp
 
         assertTrue(
             "scenario must be window-dependent (todayOnly=$todayOnlyLow wide=$wideLow) or the guard proves nothing",

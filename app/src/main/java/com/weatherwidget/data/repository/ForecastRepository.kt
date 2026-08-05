@@ -66,6 +66,7 @@ class ForecastRepository
         tomorrowIoApi: TomorrowIoApi? = null,
         openWeatherMapApi: OpenWeatherMapApi? = null,
         nwsForecastMapper: NwsForecastMapper,
+        dailyActualsStore: DailyActualsStore,
     ) {
         private val syncMutex = Mutex()
         private val snapshotStore = ForecastSnapshotStore(
@@ -109,6 +110,7 @@ class ForecastRepository
             snapshotStore = snapshotStore,
             hourlyStore = hourlyStore,
             weatherApiHistoryBackfiller = weatherApiHistoryBackfiller,
+            dailyActualsStore = dailyActualsStore,
         )
         private val retentionManager = WeatherRetentionManager(
             forecastDao = forecastDao,

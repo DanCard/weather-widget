@@ -90,7 +90,8 @@ class OpenMeteoIntegrationTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            mockk(relaxed = true)
+            mockk(relaxed = true),
+            DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true))
         )
     }
 
@@ -117,10 +118,11 @@ class OpenMeteoIntegrationTest {
         every { widgetStateManager.getActiveDisplaySourceIds() } returns setOf(WeatherSource.OPEN_METEO.id)
         return ForecastRepository(
             context, db.forecastDao(), db.hourlyForecastDao(), db.hourlyForecastHistoryDao(),
-            db.appLogDao(), nwsApi, openMeteoApi, mockk(relaxed = true), mockk(relaxed = true),
+            db.appLogDao(), nwsApi, openMeteoApi,             mockk(relaxed = true), mockk(relaxed = true),
             mockk(relaxed = true), widgetStateManager, db.climateNormalDao(), db.observationDao(),
             mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
             mockk(relaxed = true),
+            DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true)),
         )
     }
 
