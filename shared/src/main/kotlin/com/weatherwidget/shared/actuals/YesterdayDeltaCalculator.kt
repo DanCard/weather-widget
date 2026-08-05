@@ -2,8 +2,12 @@ package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.shared.util.Log
 import java.time.ZoneId
+import java.time.Instant
 import kotlin.math.abs
+
+private const val TAG = "YesterdayDeltaCalc"
 
 /**
  * Pure, platform-free computation of the "how much warmer/cooler than this time yesterday" delta shown
@@ -37,7 +41,10 @@ object YesterdayDeltaCalculator {
         zoneId: ZoneId = ZoneId.systemDefault(),
         toleranceMs: Long = DEFAULT_TOLERANCE_MS,
     ): Float? {
-        if (observedAtMs == null || currentObservedTemp == null) return null
+        if (observedAtMs == null || currentObservedTemp == null) {
+            Log.d(TAG, "computeDelta null: observedAtMs=${observedAtMs != null} currentTemp=${currentObservedTemp != null}")
+            return null
+        }
         val targetMs = observedAtMs - YESTERDAY_OFFSET_MS
 
         val blended = ActualTemperatureSeriesBuilder.blendObservationSeries(
@@ -51,9 +58,25 @@ object YesterdayDeltaCalculator {
             personalStationWeight = personalStationWeight,
             zoneId = zoneId,
         ).observations
-        if (blended.isEmpty()) return null
+        if (blended.isEmpty()) {
+            Log.d(
+                TAG,
+                "computeDelta null: no blended obs in window " +
+                    "targetMs=$targetMs(${Instant.ofEpochMilli(targetMs)}) obsCount=${observations.size} " +
+                    "displaySource=$displaySourceId",
+            )
+            return null
+        }
 
-        val yesterdayTemp = valueAt(blended, targetMs, toleranceMs) ?: return null
+        val yesterdayTemp = valueAt(blended, targetMs, toleranceMs)
+        if (yesterdayTemp == null) {
+            Log.d(
+                TAG,
+                "computeDelta null: no observation within ${toleranceMs / 60_000}min of target " +
+                    "blendedCount=${blended.size} blendedRange=[${blended.minOf { it.timestamp }}..${blended.maxOf { it.timestamp }}]",
+            )
+            return null
+        }
         return currentObservedTemp - yesterdayTemp
     }
 

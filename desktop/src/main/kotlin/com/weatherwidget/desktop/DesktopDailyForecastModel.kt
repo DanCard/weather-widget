@@ -9,6 +9,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContent
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContentResolver
 import com.weatherwidget.shared.graph.LargeTodayOverlayPolicy
+import com.weatherwidget.shared.util.Log
 import com.weatherwidget.util.NavigationUtils
 import java.time.Instant
 import java.time.LocalDate
@@ -18,6 +19,8 @@ import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.roundToInt
+
+private const val TAG = "DesktopDailyModel"
 
 data class DesktopWidgetDimensions(
     val cols: Int,
@@ -172,7 +175,8 @@ object DesktopDailyForecastModel {
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val todayOverlay =
             if (overlayDecision.enabled) {
-                TodayColumnOverlayContentResolver.resolveLatest(
+                val obsCount = forecast.rawObservations.size
+                val result = TodayColumnOverlayContentResolver.resolveLatest(
                     observations = forecast.rawObservations,
                     hourlyForecasts = forecast.hourly,
                     displaySourceId = WeatherSource.fromDisplaySource(config.weatherSource).id,
@@ -182,7 +186,15 @@ object DesktopDailyForecastModel {
                     personalStationWeight = config.personalStationWeight(),
                     useCelsius = config.useCelsius,
                 )
+                Log.d(
+                    TAG,
+                    "todayOverlay resolve obsCount=$obsCount enabled=${overlayDecision.enabled} " +
+                        "deltaText=${result?.deltaValueText} dominantTemp=${result?.dominantTempText} " +
+                        "dominantAge=${result?.dominantAgeText} observedAt=${result?.observedAt}",
+                )
+                result
             } else {
+                Log.d(TAG, "todayOverlay disabled: extraHistory=${config.dailyExtraHistory}")
                 null
             }
 

@@ -2,7 +2,6 @@ package com.weatherwidget.shared.graph
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -25,17 +24,17 @@ class LargeTodayOverlayPolicyTest {
     }
 
     @Test
-    fun `manual desktop history zoom disables detailed Today mode`() {
+    fun `desktop Today overlay stays enabled with extra history columns`() {
         val decision = LargeTodayOverlayPolicy.resolve(
             LargeTodayOverlayPolicy.Profile.DESKTOP,
             availableColumns = 9,
             rows = 5,
             useGraph = true,
             todayVisible = true,
-            extraHistoryColumns = 1,
+            extraHistoryColumns = 2,
         )
 
-        assertFalse(decision.enabled)
-        assertEquals(9, decision.displayColumns)
+        assertTrue(decision.enabled)
+        assertEquals(8, decision.displayColumns)
     }
 }

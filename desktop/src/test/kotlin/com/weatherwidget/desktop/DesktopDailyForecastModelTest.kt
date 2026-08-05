@@ -201,13 +201,13 @@ class DesktopDailyForecastModelTest {
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 3)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
-        // 9 base columns + 3 prepended history days.
+        // Overlay-enabled → 8 base columns + 3 prepended history days.
         assertEquals(3, state.clampedExtraHistory)
-        assertEquals(12, state.days.size)
+        assertEquals(11, state.days.size)
         // Base left edge is yesterday (06-09); three more history days push it to 06-06.
         assertEquals(LocalDate.parse("2026-06-06"), state.days.first().date)
-        // Right edge stays anchored at the base rightmost (06-17).
-        assertEquals(LocalDate.parse("2026-06-17"), state.days.last().date)
+        // Right edge stays anchored at the base rightmost (one fewer column now, so 06-16).
+        assertEquals(LocalDate.parse("2026-06-16"), state.days.last().date)
         assertTrue(state.canZoomOut) // 3 < available history (8)
         assertTrue(state.canZoomIn)  // 3 > 0
     }
@@ -241,7 +241,7 @@ class DesktopDailyForecastModelTest {
 
         // Capped at DAILY_MAX_EXTRA_HISTORY (14) despite 20 days of available history.
         assertEquals(14, state.clampedExtraHistory)
-        assertEquals(9 + 14, state.days.size)
+        assertEquals(8 + 14, state.days.size)
         assertEquals(LocalDate.parse("2026-05-26"), state.days.first().date) // 06-09 minus 14
         assertFalse(state.canZoomOut)
     }

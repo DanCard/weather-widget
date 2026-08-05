@@ -3,7 +3,10 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.graph.YesterdayDeltaLabel
+import com.weatherwidget.shared.util.Log
 import java.time.ZoneId
+
+private const val TAG = "TodayColOverlayResolver"
 
 data class TodayColumnOverlayContent(
     val deltaValueText: String?,
@@ -124,6 +127,13 @@ object TodayColumnOverlayContentResolver {
             )
         val deltaText = delta?.let { YesterdayDeltaLabel.formatValue(it, useCelsius) }
         val dominantRows = dominant?.let { BlendTableFormatter.formatDominantTempAgeRows(it, useCelsius) }
+        if (deltaText == null) {
+            Log.d(
+                TAG,
+                "delta null: observedAtMs=$observedAt currentObsTemp=$currentObservedTemp " +
+                    "obsCount=${observations.size} displaySource=$displaySourceId",
+            )
+        }
         if (deltaText == null && dominantRows == null) return null
         return TodayColumnOverlayContent(
             deltaValueText = deltaText,

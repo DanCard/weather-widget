@@ -21,12 +21,12 @@ object LargeTodayOverlayPolicy {
         rows: Int,
         useGraph: Boolean,
         todayVisible: Boolean,
+        @Suppress("unused")
         extraHistoryColumns: Int = 0,
     ): Decision {
         val enabled =
             useGraph &&
                 todayVisible &&
-                extraHistoryColumns == 0 &&
                 availableColumns >= profile.minColumns &&
                 rows >= MIN_ROWS
         return Decision(
