@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.test.category.LongDuration
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -23,7 +24,7 @@ class WidgetManifestContractTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun `provider and command receiver are non-exported with system metadata intact`() {
+    fun `receiver visibility partitions protected lifecycle from internal commands`() {
         val packageManager = context.packageManager
         val provider =
             packageManager.getReceiverInfo(
@@ -35,9 +36,15 @@ class WidgetManifestContractTest {
                 ComponentName(context, WidgetActionReceiver::class.java),
                 PackageManager.GET_META_DATA,
             )
+        val packageReplaced =
+            packageManager.getReceiverInfo(
+                ComponentName(context, PackageReplacedReceiver::class.java),
+                PackageManager.GET_META_DATA,
+            )
 
         assertFalse(provider.exported)
         assertFalse(actions.exported)
+        assertTrue(packageReplaced.exported)
         assertNotNull(provider.metaData)
         assertTrue(provider.metaData.containsKey(AppWidgetManager.META_DATA_APPWIDGET_PROVIDER))
 
@@ -50,6 +57,15 @@ class WidgetManifestContractTest {
             updateReceivers.any {
                 it.activityInfo.name == WeatherWidgetProvider::class.java.name
             },
+        )
+        val packageReplacedReceivers =
+            packageManager.queryBroadcastReceivers(
+                Intent(Intent.ACTION_MY_PACKAGE_REPLACED).setPackage(context.packageName),
+                0,
+            )
+        assertEquals(
+            listOf(PackageReplacedReceiver::class.java.name),
+            packageReplacedReceivers.map { it.activityInfo.name },
         )
         val customReceivers =
             packageManager.queryBroadcastReceivers(

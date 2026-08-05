@@ -126,17 +126,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "onReceive: action=${intent.action}")
         com.weatherwidget.WeatherWidgetApp.logFirstTriggerOnce("onReceive:${intent.action}")
 
-        when (intent.action) {
-            Intent.ACTION_MY_PACKAGE_REPLACED -> {
-                launchAsync(context) {
-                    WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
-                }
-            }
-            Intent.ACTION_LOCALE_CHANGED -> {
-                Log.d(TAG, "onReceive: Locale change broadcast received")
-                launchAsync(context) {
-                    WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
-                }
+        if (intent.action == Intent.ACTION_LOCALE_CHANGED) {
+            Log.d(TAG, "onReceive: Locale change broadcast received")
+            launchAsync(context) {
+                WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
             }
         }
     }
