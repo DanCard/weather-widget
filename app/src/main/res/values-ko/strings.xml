@@ -287,7 +287,6 @@
     <string name="bug_report_email_subject">날씨 위젯 버그 신고</string>
     <string name="blend_tab">혼합</string>
     <string name="blend_no_points">아직 혼합 지점이 없습니다.</string>
-    <string name="blend_outside_station_range">혼합값이 모든 관측값 범위를 벗어났습니다</string>
     <string name="blend_no_location">혼합에 사용할 위치가 없습니다.</string>
     <string name="blend_load_failed">혼합 표를 만들 수 없습니다: %1$s</string>
 </resources>

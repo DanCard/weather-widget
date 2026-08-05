@@ -109,16 +109,6 @@ private fun BlendTableCard(table: BlendTable, sourceId: String) {
                 fontSize = 21.sp,
                 modifier = Modifier.weight(1f),
             )
-            // The reported symptom, called out where it happens rather than left for the reader to
-            // spot by scanning the raw column.
-            if (table.outsideStationRange) {
-                Text(
-                    "outside station range",
-                    color = ObsStyle.error,
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
         }
 
         HorizontalDivider(

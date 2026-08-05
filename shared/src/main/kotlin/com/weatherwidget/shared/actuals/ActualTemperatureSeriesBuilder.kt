@@ -76,24 +76,7 @@ data class BlendBreakdown(
     val blendedTemp: Float,
     val sourceKind: String,
     val contributions: List<BlendContribution>,
-) {
-    /** The warmest value any contributing station actually measured. */
-    val maxRawTemp: Float? get() = contributions.maxOfOrNull { it.rawTemp }
-
-    /** The warmest value any station actually measured, or null when there are no contributions. */
-    val minRawTemp: Float? get() = contributions.minOfOrNull { it.rawTemp }
-
-    /**
-     * True when the blended value sits outside the range of every real reading — impossible for a
-     * pure interpolation, and the signature of forecast extrapolation dominating the weights.
-     */
-    val outsideStationRange: Boolean
-        get() {
-            val hi = maxRawTemp ?: return false
-            val lo = minRawTemp ?: return false
-            return blendedTemp > hi || blendedTemp < lo
-        }
-}
+)
 
 data class BlendObservationResult(
     val observations: List<ObservationReading>,

@@ -272,7 +272,6 @@
     <string name="bug_report_email_subject">Rapport de bug Weather Widget</string>
     <string name="blend_tab">Mélange</string>
     <string name="blend_no_points">Aucun point mélangé disponible pour le moment.</string>
-    <string name="blend_outside_station_range">Le mélange est en dehors de toutes les mesures des stations</string>
     <string name="blend_no_location">Aucune position disponible pour le mélange.</string>
     <string name="blend_load_failed">Impossible de créer le tableau de mélange : %1$s</string>
 </resources>

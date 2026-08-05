@@ -33,8 +33,6 @@ data class BlendTable(
     val timeLabel: String,
     val blendedLabel: String,
     val stationCount: Int,
-    /** The blend fell outside every real reading — the symptom this tab was built to expose. */
-    val outsideStationRange: Boolean,
     val rows: List<BlendTableRow>,
 )
 
@@ -125,7 +123,6 @@ object BlendTableFormatter {
             timeLabel = time(breakdown.targetMs),
             blendedLabel = String.format(Locale.US, "%.2f°", temp(breakdown.blendedTemp)),
             stationCount = breakdown.contributions.size,
-            outsideStationRange = breakdown.outsideStationRange,
             rows = rows,
         )
     }
@@ -170,7 +167,6 @@ object BlendTableFormatter {
         return tables.joinToString("\n\n") { table ->
             buildString {
                 append("${table.timeLabel}  ->  ${table.blendedLabel}   ${table.stationCount} stations")
-                if (table.outsideStationRange) append("   *** outside station range ***")
                 append("\n")
                 append(header).append("\n")
                 append(rule).append("\n")

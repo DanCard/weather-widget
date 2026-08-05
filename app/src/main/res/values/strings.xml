@@ -249,7 +249,6 @@
     <string name="fetch_logs">Fetch Logs</string>
     <string name="blend_tab">Blend</string>
     <string name="blend_no_points">No blended point available yet.</string>
-    <string name="blend_outside_station_range">Blend is outside every station reading</string>
     <string name="blend_no_location">No location available for the blend.</string>
     <string name="blend_load_failed">Could not build the blend table: %1$s</string>
     <string name="loading_logs">Loading logs...</string>

@@ -287,7 +287,6 @@
     <string name="bug_report_email_subject">Отчёт об ошибке Виджета погоды</string>
     <string name="blend_tab">Смешение</string>
     <string name="blend_no_points">Точка смешения пока недоступна.</string>
-    <string name="blend_outside_station_range">Смешанное значение выходит за пределы всех измерений станций</string>
     <string name="blend_no_location">Нет местоположения для смешения.</string>
     <string name="blend_load_failed">Не удалось построить таблицу смешения: %1$s</string>
 </resources>

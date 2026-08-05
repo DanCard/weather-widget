@@ -287,7 +287,6 @@
     <string name="bug_report_email_subject">天気ウィジェットのバグ報告</string>
     <string name="blend_tab">ブレンド</string>
     <string name="blend_no_points">ブレンド地点はまだありません。</string>
-    <string name="blend_outside_station_range">ブレンド値がすべての観測値の範囲外です</string>
     <string name="blend_no_location">ブレンドに使用できる位置情報がありません。</string>
     <string name="blend_load_failed">ブレンド表を作成できませんでした: %1$s</string>
 </resources>

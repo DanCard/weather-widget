@@ -287,7 +287,6 @@
     <string name="bug_report_email_subject">موسمی ویجٹ بگ رپورٹ</string>
     <string name="blend_tab">امتزاج</string>
     <string name="blend_no_points">ابھی کوئی مخلوط پوائنٹ دستیاب نہیں۔</string>
-    <string name="blend_outside_station_range">امتزاج تمام اسٹیشن ریڈنگز سے باہر ہے</string>
     <string name="blend_no_location">امتزاج کے لیے کوئی مقام دستیاب نہیں۔</string>
     <string name="blend_load_failed">امتزاج ٹیبل نہیں بنایا جا سکا: %1$s</string>
 </resources>

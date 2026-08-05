@@ -287,7 +287,6 @@
     <string name="bug_report_email_subject">تقرير خطأ أداة الطقس</string>
     <string name="blend_tab">المزج</string>
     <string name="blend_no_points">لا توجد نقطة مزج متاحة بعد.</string>
-    <string name="blend_outside_station_range">المزج خارج نطاق قراءات جميع المحطات</string>
     <string name="blend_no_location">لا يوجد موقع متاح للمزج.</string>
     <string name="blend_load_failed">تعذر إنشاء جدول المزج: %1$s</string>
 </resources>

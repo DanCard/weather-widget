@@ -287,7 +287,6 @@
     <string name="bug_report_email_subject">Relatório de bug do Widget do Tempo</string>
     <string name="blend_tab">Mistura</string>
     <string name="blend_no_points">Ainda não há ponto de mistura disponível.</string>
-    <string name="blend_outside_station_range">A mistura está fora de todas as leituras das estações</string>
     <string name="blend_no_location">Nenhuma localização disponível para a mistura.</string>
     <string name="blend_load_failed">Não foi possível criar a tabela de mistura: %1$s</string>
 </resources>

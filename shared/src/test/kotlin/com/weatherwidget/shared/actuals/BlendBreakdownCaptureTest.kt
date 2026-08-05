@@ -102,20 +102,6 @@ class BlendBreakdownCaptureTest {
         blend(captureBreakdowns = 100).breakdowns.single { it.targetMs == ms("2026-08-03T08:20:00") }
 
     @Test
-    fun `blended dot lands above every real station reading`() {
-        val breakdown = breakdownAt0820()
-
-        assertEquals(65.39f, breakdown.blendedTemp, 0.01f)
-        assertEquals(65.0f, breakdown.maxRawTemp!!, 0.001f)
-        assertTrue(
-            "blend ${breakdown.blendedTemp} should exceed max raw ${breakdown.maxRawTemp}",
-            breakdown.outsideStationRange,
-        )
-        // Reported as observed even though only one contributor actually observed anything.
-        assertEquals("observed", breakdown.sourceKind)
-    }
-
-    @Test
     fun `contribution table matches the values fed to the blend`() {
         val byStation = breakdownAt0820().contributions.associateBy { it.stationId }
         assertEquals(setOf("AW020", "KNUQ", "KPAO", "KSJC", "LOAC1"), byStation.keys)
@@ -190,7 +176,6 @@ class BlendBreakdownCaptureTest {
         assertEquals("08:20", table.timeLabel)
         assertEquals("65.39°", table.blendedLabel)
         assertEquals(5, table.stationCount)
-        assertTrue(table.outsideStationRange)
 
         // Nearest first, matching the Observations tab's ordering.
         assertEquals(
@@ -221,14 +206,13 @@ class BlendBreakdownCaptureTest {
     }
 
     @Test
-    fun `text renderer aligns columns and flags the out-of-range blend`() {
+    fun `text renderer aligns columns`() {
         val text = BlendTableFormatter.renderText(
             BlendTableFormatter.format(listOf(breakdownAt0820()), useCelsius = false, zoneId = zone),
         )
         val lines = text.lines()
 
         assertTrue(lines[0], lines[0].startsWith("08:20  ->  65.39\u00B0   5 stations"))
-        assertTrue("header should flag it", lines[0].contains("outside station range"))
         assertEquals(BlendTableFormatter.COLUMN_HEADERS[0], lines[1].substringBefore("  "))
 
         // Station ids start their line — the Android tab relies on this to place its link spans.

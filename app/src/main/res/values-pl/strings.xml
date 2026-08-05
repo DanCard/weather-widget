@@ -287,7 +287,6 @@
     <string name="bug_report_email_subject">Zgłoszenie błędu Widżetu Pogody</string>
     <string name="blend_tab">Mieszanie</string>
     <string name="blend_no_points">Brak dostępnego punktu mieszania.</string>
-    <string name="blend_outside_station_range">Wynik mieszania jest poza wszystkimi odczytami stacji</string>
     <string name="blend_no_location">Brak lokalizacji do mieszania.</string>
     <string name="blend_load_failed">Nie udało się utworzyć tabeli mieszania: %1$s</string>
 </resources>

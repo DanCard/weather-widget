@@ -419,11 +419,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
             return
         }
 
-        summary.text = buildString {
-            append("${table.timeLabel}  \u2192  ${table.blendedLabel}   ${table.stationCount} stations")
-            if (table.outsideStationRange) append("\n${getString(R.string.blend_outside_station_range)}")
-        }
-        summary.setTextColor(if (table.outsideStationRange) BLEND_COLOR_ALERT else BLEND_COLOR_PRIMARY)
+        summary.text = "${table.timeLabel}  \u2192  ${table.blendedLabel}   ${table.stationCount} stations"
+        summary.setTextColor(BLEND_COLOR_PRIMARY)
 
         rows.addView(
             blendRowView(
@@ -914,8 +911,6 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
         /** Amber: this number was derived from the forecast, not measured. */
         private val BLEND_COLOR_DERIVED = Color.parseColor("#E8A24E")
-        private val BLEND_COLOR_ALERT = Color.parseColor("#FF3366")
-
         @VisibleForTesting
         internal var autoRefreshDebounceMs: Long = 500L
     }
