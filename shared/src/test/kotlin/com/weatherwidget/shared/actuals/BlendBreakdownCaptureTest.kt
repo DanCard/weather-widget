@@ -27,6 +27,31 @@ import java.time.ZoneId
  */
 @Category(ShortDuration::class)
 class BlendBreakdownCaptureTest {
+    @Test
+    fun `compact dominant station shows raw reading and blend age but no station`() {
+        val contribution =
+            DominantBlendContribution(
+                targetMs = 20 * 60_000L,
+                stationId = "KNUQ",
+                stationName = "Moffett Federal Airfield",
+                stationType = "OFFICIAL",
+                lastReadingMs = 5 * 60_000L,
+                rawTemp = 63.4f,
+                resolvedTemp = 62.3f,
+                sourceKind = "forecast_extrapolated",
+                ageMs = 15 * 60_000L,
+                weightShare = 0.8,
+            )
+        assertEquals(
+            DominantTempAgeRows("63.4°", "15m"),
+            BlendTableFormatter.formatDominantTempAgeRows(contribution, false),
+        )
+        assertEquals(
+            DominantTempAgeRows("17.4°", "15m"),
+            BlendTableFormatter.formatDominantTempAgeRows(contribution, true),
+        )
+    }
+
 
     private val zone = ZoneId.of("America/Los_Angeles")
     private val lat = 37.417
@@ -85,7 +110,10 @@ class BlendBreakdownCaptureTest {
         observation("LOAC1", "2026-08-03T07:10:00", 55.0f, 8.33f, "PERSONAL"),
     )
 
-    private fun blend(captureBreakdowns: Int) = ActualTemperatureSeriesBuilder.blendObservationSeries(
+    private fun blend(
+        captureBreakdowns: Int,
+        captureLatestDominantAtOrBeforeMs: Long? = null,
+    ) = ActualTemperatureSeriesBuilder.blendObservationSeries(
         observations = observations(),
         hourlyForecasts = forecasts(),
         displaySourceId = WeatherSource.NWS.id,
@@ -96,6 +124,7 @@ class BlendBreakdownCaptureTest {
         personalStationWeight = 0.05, // DEFAULT_PERSONAL_STATION_DISCOUNT = 95
         zoneId = zone,
         captureBreakdowns = captureBreakdowns,
+        captureLatestDominantAtOrBeforeMs = captureLatestDominantAtOrBeforeMs,
     )
 
     private fun breakdownAt0820() =
@@ -167,6 +196,57 @@ class BlendBreakdownCaptureTest {
         assertEquals(all.take(2).map { it.targetMs }, capped.map { it.targetMs })
         // Newest first, so the graph's live dot is the first row in the tab.
         assertEquals(all.map { it.targetMs }.sortedDescending(), all.map { it.targetMs })
+    }
+
+    @Test
+    fun `dominant capture selects final blend weight rather than nearest or freshest station`() {
+        val cutoff = ms("2026-08-03T08:20:00")
+        val dominant =
+            blend(
+                captureBreakdowns = 0,
+                captureLatestDominantAtOrBeforeMs = cutoff,
+            ).latestDominantContribution!!
+
+        assertEquals(cutoff, dominant.targetMs)
+        assertEquals("KNUQ", dominant.stationId)
+        assertEquals(5L, dominant.ageMs / 60_000L)
+        assertEquals(0.6464, dominant.weightShare, 0.001)
+        assertEquals(64.4f, dominant.rawTemp, 0.01f)
+        assertEquals(64.9f, dominant.resolvedTemp, 0.01f)
+        assertEquals("forecast_extrapolated", dominant.sourceKind)
+    }
+
+    @Test
+    fun `detailed current observation pairs metadata with the exact returned point`() {
+        val cutoff = ms("2026-08-03T08:20:00")
+        val detailed =
+            ActualsAggregator.resolveCurrentObservationDetails(
+                observations = observations(),
+                hourlyForecasts = forecasts(),
+                displaySourceId = WeatherSource.NWS.id,
+                userLat = lat,
+                userLon = lon,
+                nowMs = cutoff,
+                personalStationWeight = 0.05,
+                zoneId = zone,
+            )!!
+        val compatibility =
+            ActualsAggregator.resolveCurrentObservation(
+                observations = observations(),
+                hourlyForecasts = forecasts(),
+                displaySourceId = WeatherSource.NWS.id,
+                userLat = lat,
+                userLon = lon,
+                nowMs = cutoff,
+                personalStationWeight = 0.05,
+                zoneId = zone,
+            )!!
+
+        assertEquals(compatibility.first, detailed.temperature, 0.0001f)
+        assertEquals(compatibility.second, detailed.observedAt)
+        assertEquals(compatibility.third, detailed.rowFetchedAt)
+        assertEquals(detailed.observedAt, detailed.dominantContribution?.targetMs)
+        assertEquals("KNUQ", detailed.dominantContribution?.stationId)
     }
 
     @Test

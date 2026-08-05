@@ -23,6 +23,11 @@ internal data class DailyGraphLayoutInfo(
     val graphBottom: Float,
     val graphHeight: Float,
     val dayWidth: Float,
+    val columnLefts: List<Float>,
+    val columnWidths: List<Float>,
+    val columnCenters: List<Float>,
+    val todayColumnIndex: Int?,
+    val useCompactTodayBars: Boolean,
     val tempLabelMaxWidthPx: Float,
     val horizontalPadding: Float,
     val tripleBarOffset: Float,
@@ -40,6 +45,10 @@ internal data class DailyGraphLayoutInfo(
     fun tempToY(temp: Float): Float =
         (graphTop + graphHeight * (1 - (temp - minTemp) / tempRange))
             .coerceIn(graphTop, graphBottom)
+
+    fun columnCenter(index: Int): Float = columnCenters[index.coerceIn(columnCenters.indices)]
+
+    fun columnWidth(index: Int): Float = columnWidths[index.coerceIn(columnWidths.indices)]
 }
 
 @VisibleForTesting
@@ -76,6 +85,7 @@ internal object DailyGraphLayoutResolver {
     private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
     private const val COLUMN_EDGE_MARGIN_DP = 2f
+    internal const val LARGE_TODAY_WIDTH_MULTIPLIER = 1.25f
 
     internal fun resolve(
         days: List<DayData>,
@@ -85,6 +95,8 @@ internal object DailyGraphLayoutResolver {
         bitmapScale: Float,
         density: Float,
         useCelsius: Boolean,
+        todayColumnIndex: Int? = null,
+        useLargeTodayOverlay: Boolean = false,
     ): DailyGraphLayoutInfo {
         var minTemp = Float.POSITIVE_INFINITY
         var maxTemp = Float.NEGATIVE_INFINITY
@@ -124,7 +136,11 @@ internal object DailyGraphLayoutResolver {
 
         val widthDp = widthPx / density
         val heightDp = heightPx / density
-        val dayWidthDp = widthDp / columns
+        val todayIsWeighted = useLargeTodayOverlay && todayColumnIndex in 0 until columns
+        val visualSlotCount =
+            columns.toFloat() +
+                if (todayIsWeighted) LARGE_TODAY_WIDTH_MULTIPLIER - 1f else 0f
+        val dayWidthDp = widthDp / visualSlotCount
         val widthScaleFactor = (dayWidthDp / BASE_DAY_WIDTH_DP).coerceIn(1f, 1.2f)
         val dayLabelWidthScale = computeDayLabelWidthScale(dayWidthDp)
         val heightScaleFactor = if (heightDp < 150f) 0.92f else 1f
@@ -135,7 +151,24 @@ internal object DailyGraphLayoutResolver {
         val dayLabelScale = labelScale * dayLabelWidthScale
         val baseDayLabelTextSizePx =
             (DAY_LABEL_BASE_SIZE_DP * dayLabelScale * DAY_LABEL_TEXT_SCALE).dp(density)
-        val dayWidth = (widthPx - 2 * horizontalPadding) / columns
+        val dayWidth = (widthPx - 2 * horizontalPadding) / visualSlotCount
+        val columnWidths =
+            (0 until columns).map { index ->
+                dayWidth *
+                    if (todayIsWeighted && index == todayColumnIndex) {
+                        LARGE_TODAY_WIDTH_MULTIPLIER
+                    } else {
+                        1f
+                    }
+            }
+        val columnLefts = buildList {
+            var left = horizontalPadding
+            columnWidths.forEach { width ->
+                add(left)
+                left += width
+            }
+        }
+        val columnCenters = columnLefts.indices.map { index -> columnLefts[index] + columnWidths[index] / 2f }
         val dayLabelLayout =
             resolveDayLabelLayout(
                 labels = days.map { DailyDayLabelInput(it.date, it.label, it.isToday) },
@@ -168,7 +201,12 @@ internal object DailyGraphLayoutResolver {
         val barWidth =
             DailyBarRenderer.dailyBarStrokeWidthPx(density, scaleFactor, bitmapScale)
         val tripleBarWidth =
-            DailyBarRenderer.todayTripleBarStrokeWidthPx(density, scaleFactor, bitmapScale)
+            DailyBarRenderer.todayTripleBarStrokeWidthPx(
+                density,
+                scaleFactor,
+                bitmapScale,
+                compact = todayIsWeighted,
+            )
         val tripleBarOffset =
             TodayColumnHighlight.tripleBarSpacing(
                 centerBarWidthPx = tripleBarWidth,
@@ -201,6 +239,11 @@ internal object DailyGraphLayoutResolver {
             graphBottom = graphBottom,
             graphHeight = graphHeight,
             dayWidth = dayWidth,
+            columnLefts = columnLefts,
+            columnWidths = columnWidths,
+            columnCenters = columnCenters,
+            todayColumnIndex = todayColumnIndex,
+            useCompactTodayBars = todayIsWeighted,
             tempLabelMaxWidthPx =
                 dayWidth + (TEMP_LABEL_OVERLAP_ALLOWANCE_DP * labelScale).dp(density),
             horizontalPadding = horizontalPadding,

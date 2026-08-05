@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.util.TempUtils
 import kotlin.math.roundToInt
@@ -21,7 +22,7 @@ internal object DailyTemperatureLabelRenderer {
         colorOverride: Int? = null,
         drawOutline: Boolean = false,
         maxWidthPx: Float = Float.MAX_VALUE,
-    ) {
+    ): RectF {
         val scale = drawScale(base, text, extraScale, maxWidthPx)
         val paint =
             if (colorOverride == null && scale == 1f) {
@@ -43,6 +44,13 @@ internal object DailyTemperatureLabelRenderer {
             canvas.drawText(text, centerX, baselineY, outlinePaint)
         }
         canvas.drawText(text, centerX, baselineY, paint)
+        val halfWidth = measureTextWidth(paint, text) / 2f
+        return RectF(
+            centerX - halfWidth,
+            baselineY + TemperatureGraphStyle.fontAscent(paint),
+            centerX + halfWidth,
+            baselineY + TemperatureGraphStyle.fontDescent(paint),
+        )
     }
 
     internal fun fitScaleForWidth(

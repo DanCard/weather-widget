@@ -36,6 +36,11 @@ data class BlendTable(
     val rows: List<BlendTableRow>,
 )
 
+data class DominantTempAgeRows(
+    val temperature: String,
+    val age: String,
+)
+
 object BlendTableFormatter {
 
     // Kept short on purpose: at the tab's ~2x font these headers, not the cells, set the column
@@ -70,6 +75,31 @@ object BlendTableFormatter {
         "PERSONAL" -> "P"
         else -> stationType
     }
+
+    /** Integer-minute convention shared by the Blend tab and compact graph annotations. */
+    fun formatAgeMs(ageMs: Long): String = "${ageMs.coerceAtLeast(0L) / 60_000L}m"
+
+    /** Compact dominant-station rows; temperature and age match that station's raw Blend-table cells. */
+    fun formatDominantTempAgeRows(
+        stationReadingTempF: Float,
+        ageMs: Long,
+        useCelsius: Boolean,
+    ): DominantTempAgeRows =
+        DominantTempAgeRows(
+            temperature = requireNotNull(TempUtils.formatTemp(stationReadingTempF, useCelsius)),
+            age = formatAgeMs(ageMs),
+        )
+
+    /** Uses the raw-reading and age columns belonging to the selected dominant contribution. */
+    fun formatDominantTempAgeRows(
+        contribution: DominantBlendContribution,
+        useCelsius: Boolean,
+    ): DominantTempAgeRows =
+        formatDominantTempAgeRows(
+            stationReadingTempF = contribution.rawTemp,
+            ageMs = contribution.ageMs,
+            useCelsius = useCelsius,
+        )
 
     /**
      * Key for the single-letter [typeLabel] / [kindLabel] codes. Rendered under the table.
@@ -106,7 +136,7 @@ object BlendTableFormatter {
                     lastRead = time(c.lastReadingMs),
                     // Minutes throughout: weight reaches zero at 180 min, so the number stays small
                     // and comparable, and mixed h/m units would hide how close a row is to that cliff.
-                    age = "${c.ageMs / 60_000L}m",
+                    age = formatAgeMs(c.ageMs),
                     raw = String.format(Locale.US, "%.1f", temp(c.rawTemp)),
                     valueFedToBlend = String.format(
                         Locale.US,

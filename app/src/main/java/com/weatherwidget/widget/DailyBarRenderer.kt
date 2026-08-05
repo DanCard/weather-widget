@@ -28,6 +28,7 @@ internal object DailyBarRenderer {
 
     internal const val FORECAST_BAR_WIDTH_DP = 9f
     internal const val TODAY_TRIPLE_BAR_WIDTH_DP = 8f
+    internal const val TODAY_TRIPLE_BAR_WIDTH_DP_COMPACT = 6f
     internal const val GHOST_BAR_ALPHA = 75
     internal const val CLIMATE_OVERLAY_ALPHA = 80
     internal const val BULB_RADIUS_SCALE = 1.2f
@@ -68,12 +69,14 @@ internal object DailyBarRenderer {
             density = density,
             scaleFactor = layout.scaleFactor,
             bitmapScale = layout.bitmapScale,
+            compact = layout.useCompactTodayBars,
         )
         val bounds = TodayColumnHighlight.panelBounds(
             centerXPx = centerX,
             tripleBarOffsetPx = layout.tripleBarOffset,
             flankBarWidthPx = tripleBarWidth,
-            dayWidthPx = layout.dayWidth,
+            dayWidthPx =
+                layout.todayColumnIndex?.let(layout::columnWidth) ?: layout.dayWidth,
             graphTopPx = layout.graphTop,
             canvasHeightPx = layout.heightPx.toFloat(),
             dayLabelBandPx = layout.dayLabelHeight,
@@ -92,7 +95,7 @@ internal object DailyBarRenderer {
         layout: DailyGraphLayoutInfo,
         paints: DailyGraphPaintSet,
         onBarDrawn: ((BarDrawnDebug) -> Unit)?,
-    ) {
+    ): List<RectF> {
         val highY = day.solidLineHigh?.let { layout.tempToY(it) }
         val lowY = day.solidLineLow?.let { layout.tempToY(it) }
 
@@ -200,7 +203,7 @@ internal object DailyBarRenderer {
             )
         }
 
-        drawHighLabels(canvas, day, centerX, highY, layout, paints)
+        return drawHighLabels(canvas, day, centerX, highY, layout, paints)
     }
 
     private fun drawHighLabels(
@@ -210,8 +213,8 @@ internal object DailyBarRenderer {
         highY: Float?,
         layout: DailyGraphLayoutInfo,
         paints: DailyGraphPaintSet,
-    ) {
-        if (day.solidLineHigh == null) return
+    ): List<RectF> {
+        if (day.solidLineHigh == null) return emptyList()
 
         val basePaint = when {
             day.isToday -> paints.todayTempTextPaint
@@ -236,7 +239,7 @@ internal object DailyBarRenderer {
             // Today centers both labels on the column; past forecast labels follow their overlay.
             val forecastLabelX =
                 if (day.isToday) centerX else centerX + layout.forecastBarOffset
-            DailyTemperatureLabelRenderer.draw(
+            val actualBounds = DailyTemperatureLabelRenderer.draw(
                 canvas = canvas,
                 text = DailyTemperatureLabelRenderer.format(
                     plan.actualHigh,
@@ -251,7 +254,7 @@ internal object DailyBarRenderer {
                 maxWidthPx = layout.tempLabelMaxWidthPx,
             )
             // The forecast shrinks only when the planner found the two labels colliding at full size.
-            DailyTemperatureLabelRenderer.draw(
+            val forecastBounds = DailyTemperatureLabelRenderer.draw(
                 canvas = canvas,
                 text = DailyTemperatureLabelRenderer.format(
                     plan.forecastHigh,
@@ -265,7 +268,7 @@ internal object DailyBarRenderer {
                 drawOutline = true,
                 maxWidthPx = layout.tempLabelMaxWidthPx,
             )
-            return
+            return listOf(actualBounds, forecastBounds)
         }
 
         // Reuse the plan's anchorHigh so today's cutoff resolution runs once per day per render.
@@ -287,7 +290,7 @@ internal object DailyBarRenderer {
         }
         val highColorOverride =
             if (plan?.todayHighSettled == true) COLOR_OBSERVED_RED else null
-        DailyTemperatureLabelRenderer.draw(
+        return listOf(DailyTemperatureLabelRenderer.draw(
             canvas = canvas,
             text = highLabel,
             centerX = centerX,
@@ -296,7 +299,7 @@ internal object DailyBarRenderer {
             colorOverride = highColorOverride,
             drawOutline = day.isPast || day.isToday,
             maxWidthPx = layout.tempLabelMaxWidthPx,
-        )
+        ))
     }
 
     private fun drawTodayTripleBar(
@@ -521,9 +524,12 @@ internal object DailyBarRenderer {
         density: Float,
         scaleFactor: Float = 1f,
         bitmapScale: Float = 1f,
+        compact: Boolean = false,
     ): Float {
         val labelScale = bitmapScale.coerceIn(0.5f, 1f)
-        return TODAY_TRIPLE_BAR_WIDTH_DP * scaleFactor * labelScale * density
+        val widthDp =
+            if (compact) TODAY_TRIPLE_BAR_WIDTH_DP_COMPACT else TODAY_TRIPLE_BAR_WIDTH_DP
+        return widthDp * scaleFactor * labelScale * density
     }
 
     private fun clampMinBarHeight(

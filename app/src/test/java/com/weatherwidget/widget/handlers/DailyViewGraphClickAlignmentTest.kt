@@ -188,21 +188,21 @@ class DailyViewGraphClickAlignmentTest {
         val applied = viewsSlot.captured.apply(context, root)
         val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
 
-        // Sequential columnIndex: today=zone0, today+6=zone1, zone2+ GONE
-        // Zone 7 (graph_day8_zone) = today+6 (offset 6) — click must fire a broadcast
-        val zone7 = applied.findViewById<View>(R.id.graph_day8_zone)
-        assertEquals("Zone 7 should be VISIBLE", View.VISIBLE, zone7.visibility)
+        // This 10x4 launcher size activates the wide Today overlay: Today consumes slots 1-2, so
+        // logical column 7 (today+6) is visual slot 8.
+        val zone8 = applied.findViewById<View>(R.id.graph_day9_zone)
+        assertEquals("Zone 8 should be VISIBLE", View.VISIBLE, zone8.visibility)
         val countBefore = broadcasts.size
-        zone7.performClick()
+        zone8.performClick()
         assertEquals("Zone 7 click should fire a broadcast", countBefore + 1, broadcasts.size)
         assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(col7Str, broadcasts.last().getStringExtra("date"))
 
-        // Zone 8 (graph_day9_zone) is empty — must still be VISIBLE for grid stability
-        val zone8 = applied.findViewById<View>(R.id.graph_day9_zone)
-        assertEquals("Zone 8 should be VISIBLE", View.VISIBLE, zone8.visibility)
-        val bottomZone8 = applied.findViewById<View>(R.id.graph_bottom_day9_zone)
-        assertEquals("Bottom zone 8 should be VISIBLE", View.VISIBLE, bottomZone8.visibility)
+        // The final empty logical column shifts to visual slot 9 and remains visible for stability.
+        val zone9 = applied.findViewById<View>(R.id.graph_day10_zone)
+        assertEquals("Zone 9 should be VISIBLE", View.VISIBLE, zone9.visibility)
+        val bottomZone9 = applied.findViewById<View>(R.id.graph_bottom_day10_zone)
+        assertEquals("Bottom zone 9 should be VISIBLE", View.VISIBLE, bottomZone9.visibility)
     }
 
     @Test
@@ -254,19 +254,19 @@ class DailyViewGraphClickAlignmentTest {
         val applied = viewsSlot.captured.apply(context, root)
         val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
 
-        // yesterday=zone0, skipped=zone3, other zones still visible but empty
+        // Today occupies visual slots 1-2, so logical column 3 (today+2) shifts to visual slot 4.
         assertEquals("Zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day1_zone).visibility)
-        assertEquals("Zone 3 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day4_zone).visibility)
+        assertEquals("Zone 4 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day5_zone).visibility)
         assertEquals("Bottom zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day1_zone).visibility)
-        assertEquals("Bottom zone 3 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day4_zone).visibility)
+        assertEquals("Bottom zone 4 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day5_zone).visibility)
 
         // Zone 0 = yesterday — click fires broadcast
         applied.findViewById<View>(R.id.graph_day1_zone).performClick()
         assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(yesterdayStr, broadcasts.last().getStringExtra("date"))
 
-        // Zone 3 = today+2 (skippedStr) — click fires broadcast
-        applied.findViewById<View>(R.id.graph_day4_zone).performClick()
+        // Visual slot 4 = today+2 (skippedStr) — click fires broadcast
+        applied.findViewById<View>(R.id.graph_day5_zone).performClick()
         assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(skippedStr, broadcasts.last().getStringExtra("date"))
     }

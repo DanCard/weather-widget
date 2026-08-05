@@ -31,6 +31,13 @@ object ActualsAggregator {
 
     data class DailyPrecip(val total: Float?, val day: Float?, val night: Float?)
 
+    data class CurrentObservationResolution(
+        val temperature: Float,
+        val observedAt: Long,
+        val rowFetchedAt: Long,
+        val dominantContribution: DominantBlendContribution?,
+    )
+
     /**
      * Resolves the current observed temperature by blending the latest station observations.
      */
@@ -45,7 +52,64 @@ object ActualsAggregator {
         lookaheadHours: Long = 3L,
         zoneId: ZoneId = ZoneId.systemDefault(),
         personalStationWeight: Double = 1.0
-    ): Triple<Float, Long, Long>? {
+    ): Triple<Float, Long, Long>? =
+        resolveCurrentObservationInternal(
+            observations = observations,
+            hourlyForecasts = hourlyForecasts,
+            displaySourceId = displaySourceId,
+            userLat = userLat,
+            userLon = userLon,
+            nowMs = nowMs,
+            lookbackHours = lookbackHours,
+            lookaheadHours = lookaheadHours,
+            zoneId = zoneId,
+            personalStationWeight = personalStationWeight,
+            includeDominantContribution = false,
+        )?.let { Triple(it.temperature, it.observedAt, it.rowFetchedAt) }
+
+    /**
+     * Resolves the same current blend as [resolveCurrentObservation] and includes the station whose
+     * final blend weight is greatest at that exact point.
+     */
+    fun resolveCurrentObservationDetails(
+        observations: List<ObservationReading>,
+        hourlyForecasts: List<HourlyForecast>,
+        displaySourceId: String,
+        userLat: Double,
+        userLon: Double,
+        nowMs: Long = System.currentTimeMillis(),
+        lookbackHours: Long = 12L,
+        lookaheadHours: Long = 3L,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        personalStationWeight: Double = 1.0,
+    ): CurrentObservationResolution? =
+        resolveCurrentObservationInternal(
+            observations = observations,
+            hourlyForecasts = hourlyForecasts,
+            displaySourceId = displaySourceId,
+            userLat = userLat,
+            userLon = userLon,
+            nowMs = nowMs,
+            lookbackHours = lookbackHours,
+            lookaheadHours = lookaheadHours,
+            zoneId = zoneId,
+            personalStationWeight = personalStationWeight,
+            includeDominantContribution = true,
+        )
+
+    private fun resolveCurrentObservationInternal(
+        observations: List<ObservationReading>,
+        hourlyForecasts: List<HourlyForecast>,
+        displaySourceId: String,
+        userLat: Double,
+        userLon: Double,
+        nowMs: Long,
+        lookbackHours: Long,
+        lookaheadHours: Long,
+        zoneId: ZoneId,
+        personalStationWeight: Double,
+        includeDominantContribution: Boolean,
+    ): CurrentObservationResolution? {
         val truncatedMs = (nowMs / 3600_000L) * 3600_000L
         val minute = (nowMs % 3600_000L) / 60_000L
         val alignedCenterMs = if (minute >= 30) truncatedMs + 3600_000L else truncatedMs
@@ -64,6 +128,7 @@ object ActualsAggregator {
             personalStationWeight = personalStationWeight,
             zoneId = zoneId,
             onBlendDebug = null,
+            captureLatestDominantAtOrBeforeMs = nowMs.takeIf { includeDominantContribution },
         )
 
         val pastBlended = result.observations.filter { it.timestamp <= nowMs }
@@ -76,7 +141,17 @@ object ActualsAggregator {
                 .maxByOrNull { it.timestamp }
 
 
-        return latestObs?.let { Triple(it.temperature, it.timestamp, it.fetchedAt) }
+        return latestObs?.let {
+            CurrentObservationResolution(
+                temperature = it.temperature,
+                observedAt = it.timestamp,
+                rowFetchedAt = it.fetchedAt,
+                dominantContribution =
+                    result.latestDominantContribution?.takeIf { dominant ->
+                        dominant.targetMs == it.timestamp
+                    },
+            )
+        }
     }
 
     /**

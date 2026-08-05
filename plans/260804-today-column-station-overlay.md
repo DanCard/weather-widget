@@ -1,170 +1,223 @@
-# Today Column Station Overlay
+# Large Daily Today-Column Overlay
 
-## Gating
+## Outcome
 
-Only active when ALL of:
-1. Widget is **4+ rows** tall (ample vertical space)
-2. Widget is **wide enough** to normally show 10+ columns → reduced to 9 columns
-   with a widened today column
-3. User setting `detailedHeader` = true
-4. View mode = DAILY (graph mode only — no bars in text mode)
+For an Android daily graph that the launcher sizes at 10 or more forecast columns and four or more
+launcher rows, replace the normal 10-day layout with nine displayed days, give Today 1.25 normal day
+widths, thin Today's three bars, and add a one-row delta annotation plus a two-row observation
+annotation:
 
-Same gates apply on desktop (composables have direct access to `DesktopWidgetDimensions`).
+1. The signed temperature difference from the same time yesterday.
+2. The raw reading from the dominant current-blend station and that reading's blend age,
+   in minutes. Do not draw the station ID or long name.
 
-## Today Column Widening
+Smaller widgets, text-mode daily views, and navigated windows that do not contain Today retain their
+current layout and day count.
 
-```
-Normal:  [TODAY] [ D2 ] [ D3 ] [ D4 ] [ D5 ] [ D6 ] [ D7 ] [ D8 ] [ D9 ] [D10]  ← 10 cols
-Wide:    [  TODAY  ] [ D2 ] [ D3 ] [ D4 ] [ D5 ] [ D6 ] [ D7 ] [ D8 ] [ D9 ]      ← 9 cols
-```
+## Observed Baseline
 
-- Today column width multiplier tuned so it doesn't feel off-balance (~1.3–1.5×)
-- Neighbour columns compress proportionally to absorb the difference
-- The today panel's frosted-glass bounds widen with the column
-- **Today triple bars thinned** from 8dp → 6dp (`TODAY_TRIPLE_BAR_WIDTH_DP_COMPACT = 6f`)
-  so the widened column doesn't look bottom-heavy — proportion restored
+Evidence captured on `emulator-5554` before implementation:
 
-Implemented via a `todayColumnWidthMultiplier` and `useCompactBars` field on
-`DailyGraphLayoutInfo`, computed during `DailyGraphLayoutResolver.resolve()`.
+1. AppWidget ID 59 is 594 x 392 dp and resolves to 10 columns x 5 rows.
+2. It is in `DAILY` graph mode, source `NWS`, date offset `-1`, zoom `WIDE`.
+3. `DAILY_RENDER` showed 10 dates and `CURR_TEMP_RESULT` resolved the current blend from an observed
+   value at 22:10.
+4. The source rows at that time include multiple candidate stations (`AW020`, `KNUQ`, `KSJC`, and
+   others). The displayed station temperature and age therefore must come from the actual
+   dominant blend weight; nearest station, newest row, and the synthetic `NWS_BLEND` row are not
+   valid substitutes.
+5. The initial screenshot is `/tmp/weather-widget-overlay-baseline.png`. Runtime widget state was
+   recorded before edits so date offset, source, view, and zoom can be restored after validation.
 
-## Empty-Space Finding Algorithm
+## Eligibility and Column Topology
 
-### Column anatomy (top → bottom)
+Use one pure policy as the gate:
 
-```
- ┌ panel top ═══════════════════════════════╗
- │                                          ║  frosted-glass panel
- │  (ghost line extension, if present)      ║
- │  "88°"  ← high temp label               ║
- │     │                                     ║
- │  ┌──│──┐  ← snapshot bar (left flank)    ║
- │  │  │  │  ← thermostat bar (center)      ║  bar body
- │  └──│──┘  ← forecast bar (right flank)   ║
- │     ●     ← bulb                          ║
- │    ☀️     ← icon                          ║
- │   "62°"  ← low label                      ║
- │  "Today" ← day label                      ║
- └──────────────────────────────────────────╝
-```
+- launcher-derived columns >= 10;
+- launcher-derived rows >= 4;
+- daily graph mode;
+- Today occurs in the visible window.
 
-### Candidate zones (ranked by preference)
+There is no preference gate. This is the requested default behavior for every sufficiently large
+daily widget.
 
-| Zone | Range | Pros | Cons |
-|------|-------|------|------|
-| **A** — Above bars | panelTop → top of ghost/high-label | Most breathing room, no data obscured | Needs panel extended upward; can collide with high label on hot days (narrow range = label near panel top) |
-| **B** — Below bulb, above icon | bulbBottom → iconTop | Good vertical space, clear from bars | Disconnected from "current temp" context visually |
-| **C** — Mid-bar overlay | ~30%→70% of bar height | Always available, close to "current temp" meaning | Text on top of a colored line — readability at risk |
-| **D** — Between high-label and bar-top | highLabelBottom → barTop (highY) | Tiny but close to context | Usually only a few dp; rarely usable |
+When eligible:
 
-### Scoring function
-
-For each zone, compute:
-
-```
-score(zone) = availableHeightPx * w_height
-            + (distanceToNearestElementPx) * w_margin
-            - (isOverlay ? 1.0 : 0.0) * w_overlay_penalty
+```text
+normal 10 slots: [D1][Today][D3][D4][D5][D6][D7][D8][D9][D10]
+detailed layout: [D1][ Today  ][D3][D4][D5][D6][D7][D8][D9]
 ```
 
-Where `w_height >> w_margin >> w_overlay_penalty`. In practice this means:
-1. First attempt Zone A — if ≥ 28dp (two 11sp lines + gap), use it
-2. Fall back to Zone B
-3. Zone C only as last resort
+- Prepare and display nine dates instead of ten.
+- Give Today a weight of 1.25 and every other date a weight of 1. The nine dates occupy 9.25 weighted
+  units, leaving enough room for the narrow three-row text while returning horizontal space to every
+  other date.
+- Resolve all centers and widths from this one weighted topology. Do not independently clamp the
+  renderer and labels.
+- RemoteViews exposes only ten equal predeclared touch zones. Bind both zones crossed by the widened
+  Today column to the same action so the entire widened visual column remains tappable.
+- Thin only Today's triple bars from 8 dp to 6 dp. Other daily bars are unchanged.
+- Expand the frosted Today panel to the weighted Today width.
 
-If no zone has ≥ 20dp (one line only), show nothing.
+## Data Provenance
 
-### Zone sizing
+### Dominant station and age
 
-**Zone A** (above bars):
-```
-zoneTop = panelTop + 4dp padding
-zoneBottom = min(
-    ghostLineTop,        // ghost line upper extent, or
-    highLabelTopY - 4dp  // below the high temp label
-)
-spaceAvailable = zoneBottom - zoneTop
-```
+Extend the shared blend result with lightweight metadata for the contribution having the greatest
+final weight at an emitted blend point:
 
-**Zone B** (between bulb and icon):
-```
-zoneTop = bulbCenterY + bulbRadius + 2dp
-zoneBottom = iconTopY - 2dp
-spaceAvailable = zoneBottom - zoneTop
-```
+- station ID and name (retain both for diagnostics only; never draw either in this compact overlay);
+- target timestamp;
+- last reading timestamp;
+- blend age (`target timestamp - last reading timestamp`);
+- raw/resolved temperatures and weight share for diagnostics/tests.
 
-**Zone C** (mid-bar overlay):
-```
-zoneTop = highY + (lowY - highY) * 0.15   // 15% down from bar top
-zoneBottom = lowY - (lowY - highY) * 0.15  // 85% down, avoid bulb
-spaceAvailable = zoneBottom - zoneTop
-```
+`ActualsAggregator.resolveCurrentObservationDetails()` selects the same current blended point as the
+existing `resolveCurrentObservation()` compatibility wrapper and returns its matching dominant
+contribution. Do not infer dominance from distance, timestamp, station type, or row ordering.
 
-### Text layout within chosen zone
+The large daily path requests enough raw observations to cover yesterday, runs this same resolver,
+and passes the metadata through `DailyGraphRenderer` to the bitmap renderer. The persistent DB log
+gets at most one sparse overlay summary per render; placement traces remain `VERBOSE`.
 
-Two lines, centered horizontally in the today column:
-- **Line 1**: `"74.1° · 12m"` — station's raw temperature + age in minutes (~11sp)
-- **Line 2**: `"vs yest +3.2°"` — day-over-day delta (~9sp)
+### Delta from yesterday
 
-When only one line fits: show just Line 2 (delta). When nothing fits: omit entirely.
+Reuse `YesterdayDeltaCalculator.computeDelta()` and the signed numeric formatting from
+`YesterdayDeltaLabel` in the hourly temperature graph:
 
-Font color: matching header text color (`0xAAFFFFFF` — translucent white).
-
-Station name is intentionally omitted — it's mostly stagnant and clutters the overlay.
-
-### Day-over-day delta
-
-```
-delta = todayCurrentTemp - yesterdayObservedTemp
+```text
+delta = current blended observation - blended observation at the same instant 24 hours earlier
 ```
 
-Where `yesterdayObservedTemp` is yesterday's current-temperature observation
-at approximately the same hour, from the same display source. Falls back to
-yesterday's daily high if no same-hour reading exists.
+The existing +/-90-minute qualification and interpolation rules remain authoritative. If the
+yesterday value is unavailable, omit the delta. Do not fall back to yesterday's daily high: that is
+not the same metric and would make the daily and hourly labels disagree.
 
-## Implementation Steps
+### Text
 
-### 1. Data plumbing — track dominant station during blend
+Render a one-row delta block and a two-row contribution block from a 30 dp base, then apply a final
+0.85 scale after width fitting. Applying the reduction after fitting is necessary: lowering only the
+nominal base to 25.5 dp produced the same Samsung glyph height because the prior 30 dp request had
+already been width-fitted to roughly that size. Draw `yest` smaller on the same baseline as the
+signed delta:
 
-In `ActualTemperatureSeriesBuilder.blendObservationSeries()`:
-- Track `topWeightStationRawTemp: Float?` and `topWeightStationAgeMs: Long?` —
-  the raw temperature and age of the station with highest individual weight
-  at the most recent emitted point
-- Return via new fields on `BlendObservationStats`
-- Cheap — just a couple comparisons per timestamp, no full breakdown capture
-
-### 2. Bubble through resolution chain
-
-- `ActualsAggregator.resolveCurrentObservation()` → adds dominant station fields to return
-- `CurrentTempResolver` (app module) → passes through `ObservationData`
-- `DailyViewHandler` → `DailyGraphRenderer` → `DailyForecastGraphRenderer`
-
-### 3. Day-over-day delta
-
-Already available: `dailyActuals[yesterday]` in `DailyViewHandler`. The delta:
+```text
++3.2 yest
+63.4°
+15m
 ```
-delta = todayCurrentTemp - yesterdayObservedTemp
+
+The first block uses the shared signed/Celsius delta formatter with the single-word `yest` caption
+at 62% of the value size. On narrow columns, horizontally condense the rows before reducing their
+height before the final 15% reduction; reserve only 1 dp at each text edge because a
+5 dp inset consumes 30 bitmap pixels across Samsung's high-density panel. The second uses the
+dominant station's raw temperature and the same integer-minute age shown in that station's
+Blend-table row; keep its
+forecast-adjusted value-fed-to-blend diagnostic-only. The station ID and long name also remain
+diagnostic-only.
+Pass horizontal and vertical padding to the placement planner separately so vertical clearance does
+not incorrectly narrow the text-fit band.
+Draw the delta value, smaller inline `yest` caption, dominant temperature, and age in opaque pure
+white (`#FFFFFFFF`).
+
+Missing metadata suppresses only its own line. It does not suppress the other line or alter the
+column topology.
+
+## Least-Cluttered Placement
+
+Add a pure `TodayColumnOverlayPlanner` that receives the Today column bounds, graph bounds, measured
+text boxes, and occupied geometry. First plan the one-row and two-row blocks separately, adding the
+first chosen block as an obstacle before placing the second. If the doubled text prevents both blocks
+from fitting, retry the same scoring with one grouped three-row stack so all requested information
+remains visible.
+
+Candidate locations cover all requested vertical relationships:
+
+1. `ABOVE`: clear space above the topmost Today bar/high-label/rain-label geometry.
+2. `BELOW`: clear space below the Today bars/bulb and above the icon/low/day-label stack.
+3. `ON_COLUMN`: sampled positions through the bar band. These may cross the thin bars but must not
+   collide with temperature labels, weather/rain labels, icon, day label, or the other overlay line.
+
+For each candidate:
+
+```text
+score = minimum_clearance_to_hard_obstacle
+      + free_band_height_bonus
+      - bar_overlap_penalty
+      - edge_penalty
 ```
-Uses yesterday's observed temperature at approximately the same hour.
 
-### 4. Settings
+- Reject candidates outside the Today panel or intersecting a hard obstacle.
+- Prefer the highest-scoring free `ABOVE`/`BELOW` candidate; use `ON_COLUMN` only when it offers the
+  best remaining readable location.
+- Draw a dark outline/shadow behind the text so an allowed bar overlap stays legible.
+- If neither independent placement nor the grouped fallback fits, omit only the block that has no
+  valid placement.
+- Emit `VERBOSE` placement diagnostics naming the chosen zone and bounds.
 
-No setting — always active when gating conditions met. Removes the preference
-toggle complexity and lets the gating (4+ rows, 10+ cols) control visibility.
-Simple: wide tall widget gets it, small widgets don't.
+## Ownership
 
-### 5. Rendering changes
+1. `ActualTemperatureSeriesBuilder`: weight-derived dominant contribution metadata.
+2. `ActualsAggregator`: detailed current-observation result plus compatibility wrapper.
+3. `DailyLargeTodayOverlayPolicy`: pure eligibility, effective day count, and visual slot mapping.
+4. `DailyGraphLayoutResolver`: weighted centers/widths and compact Today-bar geometry.
+5. `TodayColumnOverlayPlanner`: pure independent annotation placement and grouped-stack fallback.
+6. `TodayColumnOverlayRenderer`: Canvas measurement, obstacle collection, outlined drawing, and
+   placement debug result.
+7. `DailyGraphRenderer`: gated observation query, shared delta computation, text construction, and
+   data handoff.
+8. `DailyClickHandlerFactory`: duplicate Today action across its two visual slots.
 
-- `DailyGraphLayoutResolver`: compute `todayColumnWidthMultiplier`, adjust column count
-- `TodayColumnHighlight.panelBounds()`: accept wider column geometry
-- `DailyBarRenderer`: when compact mode active, use thinner stroke width (6dp vs 8dp) for
-  today triple bars via `layout.useCompactBars`
-- New `TodayColumnStationOverlay` object: implements the zone-finding algorithm and draws text
-- `DailyForecastGraphRenderer.renderGraph()`: after drawing today bars + panel, call overlay
-- `DailyGraphRenderResult`: add overlay debug info
-- Desktop: same logic in `DailyForecastGraph` composable
+Keep `DailyForecastGraphRenderer` as the ordered facade: normalize, resolve layout, draw panel/bars/
+column content, draw Today annotations, draw header/watermark, and return typed debug geometry.
 
-### 6. Desktop
+## Desktop Evaluation
 
-- Same gating (4+ rows, 10→9 cols, setting enabled, DAILY mode)
-- Same zone-finding algorithm, ported to Compose Canvas drawing
-- Same config key in `DesktopConfig`
+The desktop daily model currently caps its base view at nine columns and does not expose Android
+launcher icon rows. The >=10-column eligibility condition is therefore unreachable on desktop.
+No desktop behavior change is appropriate for this Android launcher-specific feature; the shared
+blend metadata and delta formatter remain available to both platforms without creating a divergent
+desktop-only gate.
+
+## Verification
+
+1. Shared unit tests prove dominant selection uses final blend weight and that metadata matches the
+   exact current point returned by `ActualsAggregator`.
+2. Pure app tests cover the 10x4 threshold, 10x3/9x5 non-eligibility, nine-date result, weighted slot
+   centers, and two-slot Today click mapping.
+3. Planner tests cover independent `ABOVE`, `BELOW`, and `ON_COLUMN` choices, collision avoidance,
+   one-block-only fallback, and the grouped three-row retry.
+4. Robolectric/real-Canvas tests assert the 1.25-unit Today width, 6 dp bars, three overlay rows, returned
+   placement bounds, and unchanged smaller-widget output.
+5. Run focused app/shared tests, duration validation, relevant broader unit lanes, `assembleDebug`,
+   and `git diff --check`.
+6. Install on `emulator-5554`, refresh AppWidget 59, and capture screenshot plus `VERBOSE` placement
+   and sparse overlay-provenance logs. Verify the rendered dominant temperature/age against the
+   Blend tab inputs and the delta against the hourly shared calculator.
+7. Restore widget 59's source `NWS`, view `DAILY`, date offset `-1`, hourly offset `0`, and zoom `WIDE`
+   after validation. Leave the emulator running.
+
+## Implementation Status
+
+- [x] Live renderer/callers/tests/prior plan and commits inspected.
+- [x] Runtime size/state/database/log baseline captured.
+- [x] Shared dominant-contribution contract implemented and tested.
+- [x] Large-widget topology and aligned touch slots implemented and tested.
+- [x] Least-cluttered annotation planner/renderer implemented and tested.
+- [x] Focused and broad verification complete (`:shared:test`, all app duration buckets, focused
+      renderer/click/planner tests, `assembleDebug`, and diff checks).
+- [x] Emulator visual/provenance validation complete with state restored. Final evidence:
+      `/tmp/weather-widget-today-overlay-four-row.png`; widget 59 remains `NWS`, `DAILY`, date offset
+      `-1`, hourly offset `0`, zoom `WIDE`, and the emulator remains running.
+- [x] Samsung SM-F936U1 validation complete. Its 574 x 401 dp widget exposed a width-fit regression:
+      the old minimum scale left the caption wider than the Today text area, then an unsuccessful
+      grouped retry discarded the otherwise valid temperature/age placement. The fitter now honors
+      the available width, a failed grouped retry retains any valid independent placement, and the
+      smaller `yest` caption shares the delta row. Evidence before the latest color, width, size, and
+      raw-temperature adjustments:
+      `/tmp/weather-widget-samsung-overlay-inline-yest.png`.
+- [x] Revalidated Samsung after making all text pure white, changing Today to 1.25 widths, using
+      horizontally condensed 30 dp text, and displaying the dominant station's raw
+      Blend-table temperature. AppWidget 345 visibly shows `-3.6 yest`, `62.6°`, and `10m`; final
+      evidence: `/tmp/weather-widget-samsung-overlay-final-white-large-narrow.png`.
+- [ ] Revalidate Samsung after applying the 15% reduction to the final fitted size.

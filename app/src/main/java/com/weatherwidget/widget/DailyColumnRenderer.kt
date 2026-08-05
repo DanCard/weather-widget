@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.RectF
 import androidx.core.content.ContextCompat
 import com.weatherwidget.shared.util.DailyDayValueResolver
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DailyRainLabelPlacement
@@ -10,6 +11,12 @@ import com.weatherwidget.widget.DailyForecastGraphRenderer.DayLabelDrawnDebug
 
 /** Draws the non-bar content of one resolved daily column. */
 internal object DailyColumnRenderer {
+    internal data class DrawnBounds(
+        val dayLabel: RectF,
+        val icon: RectF?,
+        val lowLabel: RectF?,
+    )
+
     private val COLOR_LABEL_GRAY = 0xFFAAAAAA.toInt()
     private val COLOR_SUNNY = 0xFFFFD60A.toInt()
     private const val ICON_BELOW_BAR_SPACING_DP = 3f
@@ -26,13 +33,20 @@ internal object DailyColumnRenderer {
         paints: DailyGraphPaintSet,
         onRainLabelDrawn: ((DailyRainLabelPlacement) -> Unit)?,
         onDayLabelDrawn: ((DayLabelDrawnDebug) -> Unit)?,
-    ) {
+    ): DrawnBounds {
         val labelPaint = if (day.isToday) paints.todayTextPaint else paints.textPaint
         val dayLabel = layout.dayLabelTextByDate[day.date] ?: day.label
         val dayLabelBaseline =
             layout.heightPx - DAY_LABEL_BOTTOM_MARGIN_DP.dp(layout.density)
         canvas.drawText(dayLabel, centerX, dayLabelBaseline, labelPaint)
         val labelWidth = DailyTemperatureLabelRenderer.measureTextWidth(labelPaint, dayLabel)
+        val dayLabelBounds =
+            RectF(
+                centerX - labelWidth / 2f,
+                dayLabelBaseline + TemperatureGraphStyle.fontAscent(labelPaint),
+                centerX + labelWidth / 2f,
+                dayLabelBaseline + TemperatureGraphStyle.fontDescent(labelPaint),
+            )
         onDayLabelDrawn?.invoke(
             DayLabelDrawnDebug(
                 date = day.date,
@@ -49,10 +63,20 @@ internal object DailyColumnRenderer {
         val displayLow = resolveBottomStackLow(day)
         val lowY = anchorLow?.let(layout::tempToY)
         var ownLowLabelBox: DailyForecastRainLabelRenderer.LowLabelBox? = null
+        var iconBounds: RectF? = null
 
         if (lowY != null) {
             val iconY = lowY + ICON_BELOW_BAR_SPACING_DP.dp(layout.density)
             drawWeatherIcon(canvas, context, day, centerX, iconY, layout.iconSize)
+            if (day.iconRes != null) {
+                iconBounds =
+                    RectF(
+                        centerX - layout.iconSize / 2f,
+                        iconY,
+                        centerX + layout.iconSize / 2f,
+                        iconY + layout.iconSize,
+                    )
+            }
 
             if (displayLow != null) {
                 val lowTempY =
@@ -124,6 +148,14 @@ internal object DailyColumnRenderer {
             ownLowLabelBox,
             onRainLabelDrawn,
             canvas,
+        )
+        return DrawnBounds(
+            dayLabel = dayLabelBounds,
+            icon = iconBounds,
+            lowLabel =
+                ownLowLabelBox?.let { box ->
+                    RectF(box.left, box.top, box.right, box.bottom)
+                },
         )
     }
 

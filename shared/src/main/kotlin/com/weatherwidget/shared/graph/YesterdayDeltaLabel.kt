@@ -24,6 +24,7 @@ import kotlin.math.round
  */
 object YesterdayDeltaLabel {
     const val SUFFIX = " from yesterday"
+    const val COMPACT_CAPTION = "yest"
 
     /**
      * Show the label for windows up to this span: admits the narrow view and the 24 h view (span 24 h),
@@ -41,12 +42,17 @@ object YesterdayDeltaLabel {
     private const val CURVE_SAMPLES = 5
 
     fun format(delta: Float, useCelsius: Boolean): String {
+        return formatValue(delta, useCelsius) + SUFFIX
+    }
+
+    /** Signed numeric portion, shared by the one-line hourly label and multi-line daily overlay. */
+    fun formatValue(delta: Float, useCelsius: Boolean): String {
         // The delta is a temperature *difference* in °F: convert by scaling only (no −32 offset).
         val displayDelta = if (useCelsius) delta / 1.8f else delta
         val tenths = round(displayDelta * 10f).toInt() // round-half-up at the tenths place
         val sign = if (tenths >= 0) "+" else "-"
         val mag = abs(tenths)
-        return "$sign${mag / 10}.${mag % 10}$SUFFIX"
+        return "$sign${mag / 10}.${mag % 10}"
     }
 
     fun colorArgb(currentTemp: Float): Int = TemperatureColorModel.tempToColorArgb(currentTemp)

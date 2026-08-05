@@ -63,6 +63,25 @@ object DailyForecastGraphRenderer {
     data class DailyGraphRenderResult(
         val bitmap: Bitmap,
         val rainLabelPlacements: List<DailyRainLabelPlacement>,
+        val todayOverlayPlacements: List<TodayOverlayPlacementDebug> = emptyList(),
+    )
+
+    data class TodayOverlayRenderData(
+        val deltaValueText: String? = null,
+        val deltaCaptionText: String? = null,
+        val deltaColorArgb: Int = 0xE6FFFFFF.toInt(),
+        val dominantTempText: String? = null,
+        val dominantAgeText: String? = null,
+    )
+
+    data class TodayOverlayPlacementDebug(
+        val key: String,
+        val text: String,
+        val zone: String,
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
     )
 
     data class HeaderDrawnDebug(
@@ -155,6 +174,8 @@ object DailyForecastGraphRenderer {
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
         onHeaderDrawn: ((HeaderDrawnDebug) -> Unit)? = null,
+        useLargeTodayOverlay: Boolean = false,
+        todayOverlayData: TodayOverlayRenderData? = null,
         useCelsius: Boolean,
     ): DailyGraphRenderResult {
         job?.ensureActive()
@@ -205,6 +226,9 @@ object DailyForecastGraphRenderer {
                 bitmapScale = bitmapScale,
                 density = context.resources.displayMetrics.density,
                 useCelsius = useCelsius,
+                todayColumnIndex =
+                    normalized.days.firstOrNull { it.day.isToday }?.resolvedColumn,
+                useLargeTodayOverlay = useLargeTodayOverlay,
             )
         job?.ensureActive()
         val paints = DailyGraphPaintCache.get(layout)
@@ -225,12 +249,15 @@ object DailyForecastGraphRenderer {
             }
             onRainLabelDrawn?.invoke(placement)
         }
+        val todayBars = mutableListOf<BarDrawnDebug>()
+        val todayHighLabelBounds = mutableListOf<RectF>()
+        var todayColumnBounds: DailyColumnRenderer.DrawnBounds? = null
 
         normalized.days.forEach { normalizedDay ->
             job?.ensureActive()
             val day = normalizedDay.day
             val columnIndex = normalizedDay.resolvedColumn
-            val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
+            val centerX = layout.columnCenter(columnIndex)
             val rightNeighbor = daysByColumn[columnIndex + 1]
 
             // Frosted-glass focal panel BEHIND today's triple-bar column (drawn before the bars so it
@@ -241,8 +268,19 @@ object DailyForecastGraphRenderer {
 
             // Bars first, then column content (weather icon, low/day labels) so the icon
             // and labels render on top of any bar geometry that might overlap them.
-            DailyBarRenderer.drawDayBars(canvas, day, centerX, layout, paints, onBarDrawn)
-            DailyColumnRenderer.draw(
+            val highLabelBounds =
+                DailyBarRenderer.drawDayBars(
+                    canvas,
+                    day,
+                    centerX,
+                    layout,
+                    paints,
+                ) { drawn ->
+                    if (day.isToday) todayBars += drawn
+                    onBarDrawn?.invoke(drawn)
+                }
+            if (day.isToday) todayHighLabelBounds += highLabelBounds
+            val drawnColumnBounds = DailyColumnRenderer.draw(
                 canvas,
                 context,
                 day,
@@ -253,7 +291,31 @@ object DailyForecastGraphRenderer {
                 collectAndEmitRainLabel,
                 onDayLabelDrawn,
             )
+            if (day.isToday) todayColumnBounds = drawnColumnBounds
         }
+
+        val todayOverlayPlacements =
+            if (useLargeTodayOverlay && todayOverlayData != null) {
+                val todayDay = normalizedDays.firstOrNull { it.isToday }
+                val todayIndex = layout.todayColumnIndex
+                val columnBounds = todayColumnBounds
+                if (todayDay != null && todayIndex != null && columnBounds != null) {
+                    TodayColumnOverlayRenderer.draw(
+                        canvas = canvas,
+                        data = todayOverlayData,
+                        layout = layout,
+                        todayColumnIndex = todayIndex,
+                        todayBars = todayBars,
+                        highLabelBounds = todayHighLabelBounds,
+                        columnBounds = columnBounds,
+                        rainPlacements = rainLabelPlacements.filter { it.date == todayDay.date },
+                    )
+                } else {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
 
         val finalHeaderData = headerData?.let {
             suppressHeaderDateForRainOverlap(
@@ -280,7 +342,11 @@ object DailyForecastGraphRenderer {
             GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
         }
 
-        return DailyGraphRenderResult(bitmap, rainLabelPlacements.toList())
+        return DailyGraphRenderResult(
+            bitmap,
+            rainLabelPlacements.toList(),
+            todayOverlayPlacements,
+        )
     }
 
     private fun suppressHeaderDateForRainOverlap(
@@ -304,10 +370,7 @@ object DailyForecastGraphRenderer {
 
         days.forEach { normalizedDay ->
             val day = normalizedDay.day
-            val centerX =
-                layout.horizontalPadding +
-                    layout.dayWidth * normalizedDay.resolvedColumn +
-                    layout.dayWidth / 2f
+            val centerX = layout.columnCenter(normalizedDay.resolvedColumn)
             // Prefer the geometry that was actually drawn. Only re-resolve when an isolated caller
             // invokes this decision without a preceding draw pass.
             val rainLabel = drawnDailyRainLabelByDate[day.date]

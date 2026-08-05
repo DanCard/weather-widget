@@ -62,7 +62,8 @@ internal object DailyClickHandlerFactory {
     internal fun setupGraphDayClickHandlers(
         context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
         days: List<DailyForecastGraphRenderer.DayData>, lat: Double, lon: Double, displaySource: WeatherSource,
-        numColumns: Int
+        numColumns: Int,
+        useLargeTodayOverlay: Boolean = false,
     ) {
         val zoneIds = listOf(
             R.id.graph_day1_zone, R.id.graph_day2_zone, R.id.graph_day3_zone, R.id.graph_day4_zone,
@@ -81,6 +82,7 @@ internal object DailyClickHandlerFactory {
             numColumns = numColumns,
             zoneIds = zoneIds,
             requestCodeOffset = 0,
+            useLargeTodayOverlay = useLargeTodayOverlay,
         )
     }
 
@@ -95,6 +97,7 @@ internal object DailyClickHandlerFactory {
         lon: Double,
         displaySource: WeatherSource,
         numColumns: Int,
+        useLargeTodayOverlay: Boolean = false,
     ) {
         val zoneIds = listOf(
             R.id.graph_bottom_day1_zone, R.id.graph_bottom_day2_zone, R.id.graph_bottom_day3_zone, R.id.graph_bottom_day4_zone,
@@ -113,6 +116,7 @@ internal object DailyClickHandlerFactory {
             numColumns = numColumns,
             zoneIds = zoneIds,
             requestCodeOffset = 100,
+            useLargeTodayOverlay = useLargeTodayOverlay,
             resolveTargetMode = { iconRes -> DayClickHelper.resolveBottomRowTargetViewMode(iconRes) },
         )
     }
@@ -130,10 +134,24 @@ internal object DailyClickHandlerFactory {
         zoneIds: List<Int>,
         requestCodeOffset: Int = 0,
         resolveTargetMode: ((Int?) -> ViewMode)? = null,
+        useLargeTodayOverlay: Boolean = false,
     ) {
+        val slots =
+            DailyLargeTodayOverlayPolicy.slots(
+                columnIndices = days.mapIndexed { index, day -> day.columnIndex ?: index },
+                todayFlags = days.map { it.isToday },
+                enabled = useLargeTodayOverlay,
+            )
+        val visibleSlotCount =
+            numColumns +
+                if (useLargeTodayOverlay && days.any { it.isToday }) {
+                    DailyLargeTodayOverlayPolicy.TODAY_SLOT_SPAN - 1
+                } else {
+                    0
+                }
         for (i in zoneIds.indices) {
             val zoneId = zoneIds[i]
-            if (i < numColumns) {
+            if (i < visibleSlotCount) {
                 views.setViewVisibility(zoneId, View.VISIBLE)
                 views.setOnClickPendingIntent(zoneId, null)
             } else {
@@ -143,7 +161,7 @@ internal object DailyClickHandlerFactory {
 
         days.forEachIndexed { index, dayData ->
             val colIndex = dayData.columnIndex ?: index
-            val zoneId = zoneIds.getOrNull(colIndex) ?: return@forEachIndexed
+            val slot = slots.getOrNull(index) ?: return@forEachIndexed
             val targetModeOverride = resolveTargetMode?.invoke(dayData.iconRes)
             val intent = buildDayClickIntent(
                 context = context,
@@ -169,7 +187,11 @@ internal object DailyClickHandlerFactory {
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            views.setOnClickPendingIntent(zoneId, pendingIntent)
+            repeat(slot.span) { slotOffset ->
+                zoneIds.getOrNull(slot.start + slotOffset)?.let { zoneId ->
+                    views.setOnClickPendingIntent(zoneId, pendingIntent)
+                }
+            }
         }
     }
 }

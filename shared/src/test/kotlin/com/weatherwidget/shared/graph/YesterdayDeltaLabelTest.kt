@@ -26,6 +26,12 @@ class YesterdayDeltaLabelTest {
     }
 
     @Test
+    fun `compact daily rows reuse signed value and abbreviate yesterday`() {
+        assertEquals("-1.2", YesterdayDeltaLabel.formatValue(-1.2f, useCelsius = false))
+        assertEquals("yest", YesterdayDeltaLabel.COMPACT_CAPTION)
+    }
+
+    @Test
     fun `color comes from the thermostat model at current temp`() {
         assertEquals(TemperatureColorModel.tempToColorArgb(72f), YesterdayDeltaLabel.colorArgb(72f))
     }

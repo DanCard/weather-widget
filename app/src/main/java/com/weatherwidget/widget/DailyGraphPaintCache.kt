@@ -72,6 +72,7 @@ internal object DailyGraphPaintCache {
         val tempLabelHeight: Float,
         val density: Float,
         val bitmapScale: Float,
+        val compactTodayBars: Boolean,
     )
 
     internal data class Entry(
@@ -90,6 +91,7 @@ internal object DailyGraphPaintCache {
                 tempLabelHeight = layout.tempLabelHeight,
                 density = layout.density,
                 bitmapScale = layout.bitmapScale,
+                compactTodayBars = layout.useCompactTodayBars,
             )
         entries.firstOrNull { it.key == key }?.let { return it.set }
 
@@ -105,6 +107,7 @@ internal object DailyGraphPaintCache {
                 layout.density,
                 layout.scaleFactor,
                 layout.bitmapScale,
+                compact = layout.useCompactTodayBars,
             )
         val shadowRadius = (LABEL_SHADOW_RADIUS_DP * labelScale).dp(layout.density)
         val shadowDy = (LABEL_SHADOW_DY_DP * labelScale).dp(layout.density)

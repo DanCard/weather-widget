@@ -11,8 +11,14 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.shared.actuals.BlendTableFormatter
+import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
+import com.weatherwidget.shared.graph.YesterdayDeltaLabel
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
@@ -29,6 +35,7 @@ import java.util.Locale
 
 internal object DailyGraphRenderer {
     private const val TAG = "DailyGraphRenderer"
+    private const val OVERLAY_OBSERVATION_LOOKBACK_MS = 36L * 60L * 60L * 1_000L
 
     internal data class RenderMetrics(
         val prepareMs: Long,
@@ -240,6 +247,17 @@ internal object DailyGraphRenderer {
             )
         } else null
 
+        val todayOverlayData =
+            if (ctx.largeTodayOverlayEnabled) {
+                buildTodayOverlayData(
+                    ctx = ctx,
+                    headerState = headerState,
+                    lat = lat,
+                    lon = lon,
+                )
+            } else {
+                null
+            }
         val renderStartMs = SystemClock.elapsedRealtime()
         val renderResult = DailyForecastGraphRenderer.renderGraph(
             ctx.context,
@@ -254,6 +272,8 @@ internal object DailyGraphRenderer {
             errorSourceLabel = ctx.displaySource.displayName,
             errorCode = ctx.stateManager.getSourceLastErrorCode(ctx.displaySource),
             errorFailureTimeMs = ctx.stateManager.getSourceLastFailureTime(ctx.displaySource),
+            useLargeTodayOverlay = ctx.largeTodayOverlayEnabled,
+            todayOverlayData = todayOverlayData,
             useCelsius = ctx.stateManager.useCelsius(),
         )
         val bitmap = renderResult.bitmap
@@ -273,8 +293,30 @@ internal object DailyGraphRenderer {
         ctx.views.setViewVisibility(R.id.header_date_center, View.GONE)
         ctx.views.setViewVisibility(R.id.header_date_right, View.GONE)
 
-        DailyClickHandlerFactory.setupGraphDayClickHandlers(ctx.context, ctx.views, ctx.appWidgetId, ctx.now, displayDays, lat, lon, ctx.displaySource, displayDays.size)
-        DailyClickHandlerFactory.setupGraphBottomDayClickHandlers(ctx.context, ctx.views, ctx.appWidgetId, ctx.now, displayDays, lat, lon, ctx.displaySource, displayDays.size)
+        DailyClickHandlerFactory.setupGraphDayClickHandlers(
+            ctx.context,
+            ctx.views,
+            ctx.appWidgetId,
+            ctx.now,
+            displayDays,
+            lat,
+            lon,
+            ctx.displaySource,
+            displayDays.size,
+            useLargeTodayOverlay = ctx.largeTodayOverlayEnabled,
+        )
+        DailyClickHandlerFactory.setupGraphBottomDayClickHandlers(
+            ctx.context,
+            ctx.views,
+            ctx.appWidgetId,
+            ctx.now,
+            displayDays,
+            lat,
+            lon,
+            ctx.displaySource,
+            displayDays.size,
+            useLargeTodayOverlay = ctx.largeTodayOverlayEnabled,
+        )
         NightRainGridMapper.setupNightRainClickHandlers(
             context = ctx.context,
             views = ctx.views,
@@ -293,6 +335,90 @@ internal object DailyGraphRenderer {
         )
 
         return RenderMetrics(prepareMs, renderMs)
+    }
+
+    private suspend fun buildTodayOverlayData(
+        ctx: DailyViewHandler.DailyRenderContext,
+        headerState: DailyViewHandler.HeaderState,
+        lat: Double,
+        lon: Double,
+    ): DailyForecastGraphRenderer.TodayOverlayRenderData? {
+        val observedAt = ctx.observedAt ?: return null
+        val nowMs = ctx.now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val observations =
+            ctx.repository?.getObservationsInRange(
+                nowMs - OVERLAY_OBSERVATION_LOOKBACK_MS,
+                nowMs,
+                lat,
+                lon,
+            ) ?: ctx.currentTemps
+        val sharedObservations = observations.map { it.toReading() }
+        val sharedHourlyForecasts = ctx.hourlyForecasts.map { it.toHourlyForecast() }
+        val personalStationWeight = ctx.stateManager.getPersonalStationWeight()
+
+        val currentDetails =
+            ActualsAggregator.resolveCurrentObservationDetails(
+                observations = sharedObservations,
+                hourlyForecasts = sharedHourlyForecasts,
+                displaySourceId = ctx.displaySource.id,
+                userLat = lat,
+                userLon = lon,
+                nowMs = nowMs,
+                lookaheadHours = 2L,
+                personalStationWeight = personalStationWeight,
+            )
+        // The header resolver is authoritative for the displayed observation. Do not annotate it
+        // with metadata from a different blend point if data changed between the two reads.
+        val dominant =
+            currentDetails
+                ?.takeIf { it.observedAt == observedAt }
+                ?.dominantContribution
+
+        val delta =
+            YesterdayDeltaCalculator.computeDelta(
+                observations = sharedObservations,
+                hourlyForecasts = sharedHourlyForecasts,
+                displaySourceId = ctx.displaySource.id,
+                userLat = lat,
+                userLon = lon,
+                observedAtMs = observedAt,
+                currentObservedTemp = headerState.observedTemp,
+                personalStationWeight = personalStationWeight,
+            )
+        val deltaValueText =
+            delta?.let {
+                YesterdayDeltaLabel.formatValue(it, ctx.stateManager.useCelsius())
+            }
+        val dominantRows =
+            dominant?.let {
+                // Deliberately omit both stationId and stationName to keep this line compact.
+                // Temperature and age are the dominant station's raw Blend-table cells. The
+                // resolved contribution can differ after forecast extrapolation and is diagnostic.
+                BlendTableFormatter.formatDominantTempAgeRows(
+                    contribution = it,
+                    useCelsius = ctx.stateManager.useCelsius(),
+                )
+            }
+
+        if (deltaValueText == null && dominantRows == null) return null
+        ctx.appLogDao.log(
+            "TODAY_OVERLAY",
+            "widget=${ctx.appWidgetId} observedAt=$observedAt " +
+                "delta=$deltaValueText dominantTemp=${dominantRows?.temperature} " +
+                "dominantAge=${dominantRows?.age} " +
+                "stationId=${dominant?.stationId} dominantWeight=${dominant?.weightShare} " +
+                "rawTemp=${dominant?.rawTemp} resolvedTemp=${dominant?.resolvedTemp}",
+            "DEBUG",
+        )
+        return DailyForecastGraphRenderer.TodayOverlayRenderData(
+            deltaValueText = deltaValueText,
+            deltaCaptionText = deltaValueText?.let { YesterdayDeltaLabel.COMPACT_CAPTION },
+            deltaColorArgb =
+                headerState.observedTemp?.let(YesterdayDeltaLabel::colorArgb)
+                    ?: 0xE6FFFFFF.toInt(),
+            dominantTempText = dominantRows?.temperature,
+            dominantAgeText = dominantRows?.age,
+        )
     }
 
     private fun logGraphDayIconDetails(

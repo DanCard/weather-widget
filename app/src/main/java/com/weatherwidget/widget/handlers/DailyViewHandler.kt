@@ -91,7 +91,9 @@ object DailyViewHandler : WidgetViewHandler {
         val dailyActuals: DailyActualMap,
         val climateNormals: Map<java.time.MonthDay, Pair<Float, Float>>,
         val numColumns: Int,
+        val launcherColumns: Int,
         val numRows: Int,
+        val largeTodayOverlayEnabled: Boolean,
         val dateOffset: Int,
         val skipYesterday: Boolean,
         val skipHistory: Boolean,
@@ -104,6 +106,7 @@ object DailyViewHandler : WidgetViewHandler {
         val isIconWidth: Boolean,
         val sunInfo: SunInfo,
         val database: WeatherDatabase,
+        val repository: WeatherRepository?,
     )
 
     override fun canHandle(
@@ -157,6 +160,22 @@ object DailyViewHandler : WidgetViewHandler {
         val today = now.toLocalDate()
         val skipHistory = NavigationUtils.shouldSkipHistory(skipYesterday, dateOffset)
         val centerDate = NavigationUtils.getDisplayCenterDate(today, dateOffset, skipYesterday)
+        // Eligibility is based on the post-widening date count. At a far navigation fringe Today
+        // can be the tenth/rightmost date but disappear when the count drops to nine; retain the
+        // ordinary ten-column layout there rather than enabling an overlay with no Today column.
+        val overlayCandidateColumns = (numColumns - 1).coerceAtLeast(1)
+        val overlayVisibleRange =
+            NavigationUtils.getVisibleDateRange(today, dateOffset, overlayCandidateColumns, skipYesterday)
+        val todayVisible =
+            !today.isBefore(overlayVisibleRange.first) && !today.isAfter(overlayVisibleRange.second)
+        val largeTodayDecision =
+            DailyLargeTodayOverlayPolicy.resolve(
+                launcherColumns = numColumns,
+                launcherRows = numRows,
+                useGraph = useGraph,
+                todayVisible = todayVisible,
+            )
+        val displayNumColumns = largeTodayDecision.displayColumns
 
         // Setup common click actions.
         // At 1 icon wide, skip wiring API toggle and settings shortcut since the
@@ -184,7 +203,8 @@ object DailyViewHandler : WidgetViewHandler {
 
         Log.d(
             TAG,
-            "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, " +
+            "updateWidget: widgetId=$appWidgetId, launcherCols=$numColumns displayCols=$displayNumColumns " +
+                "rows=$numRows largeTodayOverlay=${largeTodayDecision.enabled} offset=$dateOffset, " +
                 "skipYesterday=$skipYesterday, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}, source=${displaySource.id}",
         )
 
@@ -356,7 +376,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         val availableDates = buildAvailableNavigationDates(weatherList, dailyActuals, displaySource)
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${availableDates.minOrNull()}, maxDate=${availableDates.maxOrNull()}")
-        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, skipYesterday, today, useGraph, dateOffset)
+        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, displayNumColumns, skipYesterday, today, useGraph, dateOffset)
 
         var prepareMs = 0L
         var renderMs = 0L
@@ -374,8 +394,10 @@ object DailyViewHandler : WidgetViewHandler {
             currentTemps = currentTemps,
             dailyActuals = dailyActuals,
             climateNormals = climateNormals,
-            numColumns = numColumns,
+            numColumns = displayNumColumns,
+            launcherColumns = numColumns,
             numRows = numRows,
+            largeTodayOverlayEnabled = largeTodayDecision.enabled,
             dateOffset = dateOffset,
             skipYesterday = skipYesterday,
             skipHistory = skipHistory,
@@ -388,6 +410,7 @@ object DailyViewHandler : WidgetViewHandler {
             isIconWidth = isIconWidth,
             sunInfo = sunInfo,
             database = database,
+            repository = repository,
         )
 
         if (useGraph) {
