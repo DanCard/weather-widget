@@ -5,6 +5,8 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
+import com.weatherwidget.shared.graph.TodayColumnOverlayStyle
 import com.weatherwidget.widget.DailyForecastGraphRenderer.BarDrawnDebug
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DailyRainLabelPlacement
 import com.weatherwidget.widget.DailyForecastGraphRenderer.TodayOverlayPlacementDebug
@@ -14,20 +16,20 @@ import com.weatherwidget.widget.DailyForecastGraphRenderer.TodayOverlayRenderDat
 internal object TodayColumnOverlayRenderer {
     private const val TAG = "TodayColumnOverlay"
     @VisibleForTesting
-    internal const val TEXT_SIZE_DP = 30f
+    internal const val TEXT_SIZE_DP = TodayColumnOverlayStyle.TEXT_SIZE_DP
     @VisibleForTesting
-    internal const val FINAL_TEXT_SCALE = 0.85f
-    private const val HORIZONTAL_PADDING_DP = 1f
-    private const val VERTICAL_PADDING_DP = 3f
-    private const val ROW_SPACING_DP = 1f
+    internal const val FINAL_TEXT_SCALE = TodayColumnOverlayStyle.FINAL_TEXT_SCALE
+    private const val HORIZONTAL_PADDING_DP = TodayColumnOverlayStyle.HORIZONTAL_PADDING_DP
+    private const val VERTICAL_PADDING_DP = TodayColumnOverlayStyle.VERTICAL_PADDING_DP
+    private const val ROW_SPACING_DP = TodayColumnOverlayStyle.ROW_SPACING_DP
     @VisibleForTesting
-    internal const val INLINE_CAPTION_TEXT_SCALE = 0.62f
-    private const val INLINE_CAPTION_GAP_EM = 0.14f
+    internal const val INLINE_CAPTION_TEXT_SCALE = TodayColumnOverlayStyle.INLINE_CAPTION_TEXT_SCALE
+    private const val INLINE_CAPTION_GAP_EM = TodayColumnOverlayStyle.INLINE_CAPTION_GAP_EM
     @VisibleForTesting
-    internal const val MAIN_TEXT_COLOR = 0xFFFFFFFF.toInt()
+    internal const val MAIN_TEXT_COLOR = TodayColumnOverlayStyle.MAIN_TEXT_ARGB
     @VisibleForTesting
     internal const val INLINE_CAPTION_TEXT_COLOR = MAIN_TEXT_COLOR
-    private const val MIN_TEXT_SCALE_X = 0.72f
+    private const val MIN_TEXT_SCALE_X = TodayColumnOverlayStyle.MIN_HORIZONTAL_TEXT_SCALE
     // A heavier outline overwhelms the thin glyphs after the bitmap is scaled into RemoteViews,
     // making the white fill look muddy on the dark Today panel.
     private const val OUTLINE_FRACTION = 0.08f
@@ -74,17 +76,19 @@ internal object TodayColumnOverlayRenderer {
         if (specs.isEmpty()) return emptyList()
 
         val rowSpacing = ROW_SPACING_DP.dp(layout.density) * labelScale
-        fun paintsFor(blocks: List<TextBlockSpec>) =
-            blocks.associate { spec ->
-                spec.key to
-                    fittedPaintForRows(
-                        color = spec.rows.first().color,
-                        rows = spec.rows,
-                        maxWidth = maxTextWidth,
-                        labelScale = labelScale,
-                        density = layout.density,
-                    )
-            }
+        fun paintsFor(blocks: List<TextBlockSpec>): Map<String, Paint> {
+            // Fit once against every visible row. Separate per-block fitting made the delta row
+            // smaller whenever its inline "yest" caption was wider than the temperature/age rows.
+            val commonPaint =
+                fittedPaintForRows(
+                    color = MAIN_TEXT_COLOR,
+                    rows = blocks.flatMap(TextBlockSpec::rows),
+                    maxWidth = maxTextWidth,
+                    labelScale = labelScale,
+                    density = layout.density,
+                )
+            return blocks.associate { spec -> spec.key to Paint(commonPaint).apply { color = spec.rows.first().color } }
+        }
         fun linesFor(blocks: List<TextBlockSpec>, blockPaints: Map<String, Paint>) =
             blocks.map { spec ->
                 val paint = blockPaints.getValue(spec.key)
@@ -196,6 +200,7 @@ internal object TodayColumnOverlayRenderer {
                 top = placement.bounds.top,
                 right = placement.bounds.right,
                 bottom = placement.bounds.bottom,
+                mainTextSizePx = paints.getValue(placement.key).textSize,
             )
         }
     }

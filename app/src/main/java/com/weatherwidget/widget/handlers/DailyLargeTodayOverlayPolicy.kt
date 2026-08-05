@@ -1,11 +1,12 @@
 package com.weatherwidget.widget.handlers
 
 import androidx.annotation.VisibleForTesting
+import com.weatherwidget.shared.graph.LargeTodayOverlayPolicy
 
 /** Pure eligibility and visual-slot policy for the large daily Today overlay. */
 internal object DailyLargeTodayOverlayPolicy {
     const val MIN_LAUNCHER_COLUMNS = 10
-    const val MIN_LAUNCHER_ROWS = 4
+    const val MIN_LAUNCHER_ROWS = LargeTodayOverlayPolicy.MIN_ROWS
     const val TODAY_SLOT_SPAN = 2
 
     data class Decision(
@@ -24,14 +25,17 @@ internal object DailyLargeTodayOverlayPolicy {
         useGraph: Boolean,
         todayVisible: Boolean,
     ): Decision {
-        val enabled =
-            useGraph &&
-                todayVisible &&
-                launcherColumns >= MIN_LAUNCHER_COLUMNS &&
-                launcherRows >= MIN_LAUNCHER_ROWS
+        val shared =
+            LargeTodayOverlayPolicy.resolve(
+                profile = LargeTodayOverlayPolicy.Profile.ANDROID_WIDGET,
+                availableColumns = launcherColumns,
+                rows = launcherRows,
+                useGraph = useGraph,
+                todayVisible = todayVisible,
+            )
         return Decision(
-            enabled = enabled,
-            displayColumns = if (enabled) launcherColumns - 1 else launcherColumns,
+            enabled = shared.enabled,
+            displayColumns = shared.displayColumns,
         )
     }
 

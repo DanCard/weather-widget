@@ -1,6 +1,7 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

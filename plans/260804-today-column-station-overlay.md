@@ -171,13 +171,27 @@ score = minimum_clearance_to_hard_obstacle
 Keep `DailyForecastGraphRenderer` as the ordered facade: normalize, resolve layout, draw panel/bars/
 column content, draw Today annotations, draw header/watermark, and return typed debug geometry.
 
-## Desktop Evaluation
+## Desktop Implementation
 
-The desktop daily model currently caps its base view at nine columns and does not expose Android
-launcher icon rows. The >=10-column eligibility condition is therefore unreachable on desktop.
-No desktop behavior change is appropriate for this Android launcher-specific feature; the shared
-blend metadata and delta formatter remain available to both platforms without creating a divergent
-desktop-only gate.
+The desktop daily model caps its base view at nine columns. On a nine-column, four-row-or-taller
+desktop daily graph whose default zoom contains Today, enable the same detailed-Today mode using a
+shared platform profile:
+
+1. Reduce the default desktop window from nine dates to eight, matching Android's one-column
+   reduction while increasing the remaining normal-column spacing.
+2. Give Today the same shared 1.25 weight and use the shared weighted column geometry for drawing
+   and tap routing.
+3. Resolve the overlay through the same shared current-blend, dominant-contribution, Blend-age, and
+   yesterday-delta code as Android. Render no station name or ID.
+4. Reuse the shared least-cluttered placement search, 30 dp base, final post-fit 0.85 scale, 62%
+   inline `yest`, compact Today bars, and opaque white text. Compose owns only text measurement and
+   drawing.
+5. Keep manually zoomed-out desktop views unchanged; the extra-history control intentionally asks
+   for denser columns and therefore disables the default large-Today treatment.
+
+Move the platform-neutral overlay policy, weighted-column topology, content resolution, style
+constants, and placement search into `:shared`. Android Canvas and desktop Compose remain thin
+adapters around those contracts.
 
 ## Verification
 
@@ -196,6 +210,11 @@ desktop-only gate.
    Blend tab inputs and the delta against the hourly shared calculator.
 7. Restore widget 59's source `NWS`, view `DAILY`, date offset `-1`, hourly offset `0`, and zoom `WIDE`
    after validation. Leave the emulator running.
+8. Add shared and desktop pure tests for the desktop nine-by-four gate, eight-date result, weighted
+   tap topology, exact dominant raw temperature/age, and placement. Run all shared and desktop
+   duration lanes plus the desktop build.
+9. Launch/reload the desktop distributable at a qualifying window size, capture a screenshot, and
+   verify the visible temperature and age against the live desktop Blend table inputs.
 
 ## Implementation Status
 
@@ -220,4 +239,17 @@ desktop-only gate.
       horizontally condensed 30 dp text, and displaying the dominant station's raw
       Blend-table temperature. AppWidget 345 visibly shows `-3.6 yest`, `62.6°`, and `10m`; final
       evidence: `/tmp/weather-widget-samsung-overlay-final-white-large-narrow.png`.
-- [ ] Revalidate Samsung after applying the 15% reduction to the final fitted size.
+- [x] Revalidated Samsung after applying the 15% reduction to the final fitted size. Final evidence:
+      `/tmp/weather-widget-samsung-overlay-final-minus15pct.png`; measured text bounds changed from
+      69.69 x 120.79 px to 58.96 x 102.52 px.
+- [x] Shared Android/desktop overlay contracts extracted and both platform adapters updated. The
+      shared layer now owns eligibility, weighted geometry, dominant-temperature/Blend-age content,
+      style constants, and least-cluttered placement; Android Canvas and desktop Compose only adapt
+      measurement, drawing, and platform touch delivery.
+- [x] Desktop focused/broad tests and live visual/provenance validation complete. The packaged
+      desktop view visibly rendered `-3.4 yest`, dominant raw `62.6°`, and Blend age `5m` in
+      `/tmp/weather-widget-desktop-uniform-overlay.png`; placement logs selected `ON_COLUMN` without
+      collisions. The delta, temperature, and age primary values now share one fitted font size,
+      while the previously requested inline `yest` caption remains smaller. All shared, desktop,
+      and app duration buckets, `createDistributable`, and `assembleDebug` pass. The saved desktop
+      zoom was restored to two extra history columns after validation.

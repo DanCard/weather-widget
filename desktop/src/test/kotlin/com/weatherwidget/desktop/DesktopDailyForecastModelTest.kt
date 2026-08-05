@@ -61,7 +61,8 @@ class DesktopDailyForecastModelTest {
             now = now
         )
 
-        assertEquals(9, state.days.size) // NavigationUtils default for 9 columns
+        assertEquals(8, state.days.size) // detailed Today mode removes one date from the 9-column base
+        assertTrue(state.largeTodayOverlayEnabled)
 
         val jun1 = state.days.find { it.date == LocalDate.parse("2026-06-01") }!!
         assertEquals(77f, jun1.solidHigh)
@@ -256,9 +257,51 @@ class DesktopDailyForecastModelTest {
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
         assertEquals(0, state.clampedExtraHistory)
-        assertEquals(9, state.days.size)
+        assertEquals(8, state.days.size)
+        assertTrue(state.largeTodayOverlayEnabled)
         assertFalse(state.canZoomIn) // nothing to trim
         assertTrue(state.canZoomOut) // history available to reveal
+    }
+
+    @Test
+    fun `large desktop Today overlay uses dominant raw temperature and Blend age`() {
+        val now = LocalDateTime.parse("2026-08-04T08:20:00")
+        fun reading(station: String, local: String, temp: Float, distanceKm: Float) =
+            ObservationReading(
+                stationId = station,
+                stationName = station,
+                timestamp = LocalDateTime.parse(local).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                temperature = temp,
+                condition = "observed",
+                locationLat = config.lat,
+                locationLon = config.lon,
+                distanceKm = distanceKm,
+                stationType = "OFFICIAL",
+                api = WeatherSource.NWS.id,
+                fetchedAt = LocalDateTime.parse(local).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            )
+        val forecast = ForecastResult(
+            daily = forecastRange("2026-08-04", 8),
+            rawObservations = listOf(
+                reading("DOM", "2026-08-03T08:20:00", 60f, 0.2f),
+                reading("FAR", "2026-08-03T08:20:00", 70f, 20f),
+                reading("DOM", "2026-08-04T08:20:00", 62.6f, 0.2f),
+                reading("FAR", "2026-08-04T08:20:00", 70f, 20f),
+            ),
+        )
+
+        val state = DesktopDailyForecastModel.build(
+            config.copy(dateOffset = 0, useCelsius = false),
+            forecast,
+            DesktopDailyForecastModel.dimensions(600, 400),
+            now,
+        )
+
+        assertTrue(state.largeTodayOverlayEnabled)
+        assertEquals(8, state.days.size)
+        assertEquals("62.6°", state.todayOverlay?.dominantTempText)
+        assertEquals("0m", state.todayOverlay?.dominantAgeText)
+        assertEquals("yest", state.todayOverlay?.deltaCaptionText)
     }
 
     @Test

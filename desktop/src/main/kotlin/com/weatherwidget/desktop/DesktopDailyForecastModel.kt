@@ -6,6 +6,9 @@ import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.TodayColumnOverlayContent
+import com.weatherwidget.shared.actuals.TodayColumnOverlayContentResolver
+import com.weatherwidget.shared.graph.LargeTodayOverlayPolicy
 import com.weatherwidget.util.NavigationUtils
 import java.time.Instant
 import java.time.LocalDate
@@ -76,6 +79,9 @@ data class DesktopDailyViewState(
     val canZoomOut: Boolean,
     /** True when zoomed out past the default (clampedExtraHistory > 0), so zoom-in can trim history. */
     val canZoomIn: Boolean,
+    /** Shared detailed-Today mode; desktop Compose only measures and paints [todayOverlay]. */
+    val largeTodayOverlayEnabled: Boolean,
+    val todayOverlay: TodayColumnOverlayContent?,
 )
 
 object DesktopDailyForecastModel {
@@ -114,8 +120,26 @@ object DesktopDailyForecastModel {
     ): DesktopDailyViewState {
         val today = now.toLocalDate()
         val skipYesterday = NavigationUtils.shouldSkipYesterday(now.toLocalTime(), dimensions.cols)
+        val overlayCandidateColumns = (dimensions.cols - 1).coerceAtLeast(1)
+        val overlayCandidateRange =
+            NavigationUtils.getVisibleDateRange(
+                today,
+                config.dateOffset,
+                overlayCandidateColumns,
+                skipYesterday,
+            )
+        val overlayDecision =
+            LargeTodayOverlayPolicy.resolve(
+                profile = LargeTodayOverlayPolicy.Profile.DESKTOP,
+                availableColumns = dimensions.cols,
+                rows = dimensions.rows,
+                useGraph = dimensions.useGraph,
+                todayVisible = today in overlayCandidateRange.first..overlayCandidateRange.second,
+                extraHistoryColumns = config.dailyExtraHistory,
+            )
+        val displayColumns = overlayDecision.displayColumns
         val availableDates = buildAvailableDates(forecast)
-        val offset = clampOffset(config.dateOffset, today, dimensions.cols, skipYesterday, availableDates)
+        val offset = clampOffset(config.dateOffset, today, displayColumns, skipYesterday, availableDates)
         val skipHistory = NavigationUtils.shouldSkipHistory(skipYesterday, offset)
         val centerDate = NavigationUtils.getDisplayCenterDate(today, offset, skipYesterday)
         val daysByDate = forecast.daily.associateBy { LocalDate.parse(it.date) }
@@ -125,7 +149,7 @@ object DesktopDailyForecastModel {
         // Scroll-wheel zoom (history-biased): prepend extra history days on the LEFT while today + the
         // future stay anchored on the right. The extra is clamped to available history and the cap; when
         // > 0 it shows history even if skipHistory dropped yesterday (zoom-out intent wins).
-        val baseOffsets = NavigationUtils.getDayOffsets(dimensions.cols, skipHistory)
+        val baseOffsets = NavigationUtils.getDayOffsets(displayColumns, skipHistory)
         val maxExtra = maxExtraHistory(centerDate, baseOffsets.first(), availableDates)
         val extraHistory = config.dailyExtraHistory.coerceIn(0, maxExtra)
         val historyOffsets = (1..extraHistory).map { baseOffsets.first() - it }.reversed()
@@ -145,17 +169,35 @@ object DesktopDailyForecastModel {
                 displaySourceId = config.weatherSource,
             )
         }
+        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val todayOverlay =
+            if (overlayDecision.enabled) {
+                TodayColumnOverlayContentResolver.resolveLatest(
+                    observations = forecast.rawObservations,
+                    hourlyForecasts = forecast.hourly,
+                    displaySourceId = WeatherSource.fromDisplaySource(config.weatherSource).id,
+                    userLat = config.lat,
+                    userLon = config.lon,
+                    nowMs = nowMs,
+                    personalStationWeight = config.personalStationWeight(),
+                    useCelsius = config.useCelsius,
+                )
+            } else {
+                null
+            }
 
         return DesktopDailyViewState(
             dimensions = dimensions,
             days = days,
-            canNavigateLeft = canNavigate(today, offset - 1, dimensions.cols, skipYesterday, availableDates, left = true),
-            canNavigateRight = canNavigate(today, offset + 1, dimensions.cols, skipYesterday, availableDates, left = false),
+            canNavigateLeft = canNavigate(today, offset - 1, displayColumns, skipYesterday, availableDates, left = true),
+            canNavigateRight = canNavigate(today, offset + 1, displayColumns, skipYesterday, availableDates, left = false),
             skipYesterday = skipYesterday,
             clampedDateOffset = offset,
             clampedExtraHistory = extraHistory,
             canZoomOut = extraHistory < maxExtra,
             canZoomIn = extraHistory > 0,
+            largeTodayOverlayEnabled = overlayDecision.enabled,
+            todayOverlay = todayOverlay,
         )
     }
 

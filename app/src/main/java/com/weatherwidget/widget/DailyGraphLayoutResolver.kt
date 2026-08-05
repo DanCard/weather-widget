@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.remote.NwsTemperaturePlausibility.isPlausibleF
 import com.weatherwidget.shared.graph.TodayColumnHighlight
+import com.weatherwidget.shared.graph.LargeTodayOverlayPolicy
+import com.weatherwidget.shared.graph.WeightedColumnLayout
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DayData
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -85,7 +87,7 @@ internal object DailyGraphLayoutResolver {
     private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
     private const val COLUMN_EDGE_MARGIN_DP = 2f
-    internal const val LARGE_TODAY_WIDTH_MULTIPLIER = 1.25f
+    internal const val LARGE_TODAY_WIDTH_MULTIPLIER = LargeTodayOverlayPolicy.TODAY_WIDTH_MULTIPLIER
 
     internal fun resolve(
         days: List<DayData>,
@@ -151,24 +153,19 @@ internal object DailyGraphLayoutResolver {
         val dayLabelScale = labelScale * dayLabelWidthScale
         val baseDayLabelTextSizePx =
             (DAY_LABEL_BASE_SIZE_DP * dayLabelScale * DAY_LABEL_TEXT_SCALE).dp(density)
-        val dayWidth = (widthPx - 2 * horizontalPadding) / visualSlotCount
-        val columnWidths =
-            (0 until columns).map { index ->
-                dayWidth *
-                    if (todayIsWeighted && index == todayColumnIndex) {
-                        LARGE_TODAY_WIDTH_MULTIPLIER
-                    } else {
-                        1f
-                    }
-            }
-        val columnLefts = buildList {
-            var left = horizontalPadding
-            columnWidths.forEach { width ->
-                add(left)
-                left += width
-            }
-        }
-        val columnCenters = columnLefts.indices.map { index -> columnLefts[index] + columnWidths[index] / 2f }
+        val weightedColumns =
+            WeightedColumnLayout.resolve(
+                totalWidth = widthPx.toFloat(),
+                columnCount = columns,
+                todayColumnIndex = todayColumnIndex,
+                widenToday = todayIsWeighted,
+                leftInset = horizontalPadding,
+                rightInset = horizontalPadding,
+            )
+        val dayWidth = weightedColumns.normalWidth
+        val columnWidths = weightedColumns.widths
+        val columnLefts = weightedColumns.lefts
+        val columnCenters = weightedColumns.centers
         val dayLabelLayout =
             resolveDayLabelLayout(
                 labels = days.map { DailyDayLabelInput(it.date, it.label, it.isToday) },

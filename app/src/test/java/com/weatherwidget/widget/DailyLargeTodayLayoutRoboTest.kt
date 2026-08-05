@@ -108,6 +108,11 @@ class DailyLargeTodayLayoutRoboTest {
         )
         assertTrue(result.todayOverlayPlacements.none { "KNUQ" in it.text })
         assertEquals(3, result.todayOverlayPlacements.sumOf { it.text.lines().size })
+        assertEquals(
+            "All three primary rows must use one fitted font size",
+            1,
+            result.todayOverlayPlacements.map { it.mainTextSizePx }.distinct().size,
+        )
         assertFalseOverlaps(result.todayOverlayPlacements)
     }
 

@@ -1,11 +1,10 @@
-package com.weatherwidget.widget
+package com.weatherwidget.shared.graph
 
-import androidx.annotation.VisibleForTesting
 import kotlin.math.abs
 import kotlin.math.min
 
 /** Pure vertical-placement search for the large daily Today-column annotations. */
-internal object TodayColumnOverlayPlanner {
+object TodayColumnOverlayPlanner {
     enum class Zone {
         ABOVE,
         BELOW,
@@ -139,8 +138,7 @@ internal object TodayColumnOverlayPlanner {
         return result
     }
 
-    @VisibleForTesting
-    internal fun candidateTops(
+    fun candidateTops(
         bandTop: Float,
         bandBottom: Float,
         height: Float,

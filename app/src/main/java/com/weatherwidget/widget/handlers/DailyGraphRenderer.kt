@@ -15,9 +15,7 @@ import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.actuals.ActualsAggregator
-import com.weatherwidget.shared.actuals.BlendTableFormatter
-import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
+import com.weatherwidget.shared.actuals.TodayColumnOverlayContentResolver
 import com.weatherwidget.shared.graph.YesterdayDeltaLabel
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.WeatherIconMapper
@@ -356,68 +354,37 @@ internal object DailyGraphRenderer {
         val sharedHourlyForecasts = ctx.hourlyForecasts.map { it.toHourlyForecast() }
         val personalStationWeight = ctx.stateManager.getPersonalStationWeight()
 
-        val currentDetails =
-            ActualsAggregator.resolveCurrentObservationDetails(
+        val content =
+            TodayColumnOverlayContentResolver.resolveAt(
                 observations = sharedObservations,
                 hourlyForecasts = sharedHourlyForecasts,
                 displaySourceId = ctx.displaySource.id,
                 userLat = lat,
                 userLon = lon,
                 nowMs = nowMs,
-                lookaheadHours = 2L,
-                personalStationWeight = personalStationWeight,
-            )
-        // The header resolver is authoritative for the displayed observation. Do not annotate it
-        // with metadata from a different blend point if data changed between the two reads.
-        val dominant =
-            currentDetails
-                ?.takeIf { it.observedAt == observedAt }
-                ?.dominantContribution
-
-        val delta =
-            YesterdayDeltaCalculator.computeDelta(
-                observations = sharedObservations,
-                hourlyForecasts = sharedHourlyForecasts,
-                displaySourceId = ctx.displaySource.id,
-                userLat = lat,
-                userLon = lon,
-                observedAtMs = observedAt,
+                observedAt = observedAt,
                 currentObservedTemp = headerState.observedTemp,
                 personalStationWeight = personalStationWeight,
-            )
-        val deltaValueText =
-            delta?.let {
-                YesterdayDeltaLabel.formatValue(it, ctx.stateManager.useCelsius())
-            }
-        val dominantRows =
-            dominant?.let {
-                // Deliberately omit both stationId and stationName to keep this line compact.
-                // Temperature and age are the dominant station's raw Blend-table cells. The
-                // resolved contribution can differ after forecast extrapolation and is diagnostic.
-                BlendTableFormatter.formatDominantTempAgeRows(
-                    contribution = it,
-                    useCelsius = ctx.stateManager.useCelsius(),
-                )
-            }
-
-        if (deltaValueText == null && dominantRows == null) return null
+                useCelsius = ctx.stateManager.useCelsius(),
+            ) ?: return null
+        val dominant = content.dominantContribution
         ctx.appLogDao.log(
             "TODAY_OVERLAY",
             "widget=${ctx.appWidgetId} observedAt=$observedAt " +
-                "delta=$deltaValueText dominantTemp=${dominantRows?.temperature} " +
-                "dominantAge=${dominantRows?.age} " +
+                "delta=${content.deltaValueText} dominantTemp=${content.dominantTempText} " +
+                "dominantAge=${content.dominantAgeText} " +
                 "stationId=${dominant?.stationId} dominantWeight=${dominant?.weightShare} " +
                 "rawTemp=${dominant?.rawTemp} resolvedTemp=${dominant?.resolvedTemp}",
             "DEBUG",
         )
         return DailyForecastGraphRenderer.TodayOverlayRenderData(
-            deltaValueText = deltaValueText,
-            deltaCaptionText = deltaValueText?.let { YesterdayDeltaLabel.COMPACT_CAPTION },
+            deltaValueText = content.deltaValueText,
+            deltaCaptionText = content.deltaCaptionText,
             deltaColorArgb =
                 headerState.observedTemp?.let(YesterdayDeltaLabel::colorArgb)
                     ?: 0xE6FFFFFF.toInt(),
-            dominantTempText = dominantRows?.temperature,
-            dominantAgeText = dominantRows?.age,
+            dominantTempText = content.dominantTempText,
+            dominantAgeText = content.dominantAgeText,
         )
     }
 

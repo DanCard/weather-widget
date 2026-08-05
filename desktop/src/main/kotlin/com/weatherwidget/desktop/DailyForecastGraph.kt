@@ -15,15 +15,23 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.TodayColumnHighlight
+import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
+import com.weatherwidget.shared.graph.TodayColumnOverlayStyle
+import com.weatherwidget.shared.graph.WeightedColumnLayout
+import com.weatherwidget.shared.actuals.TodayColumnOverlayContent
 import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.Log
@@ -75,11 +83,12 @@ fun DailyForecastGraph(
                     scale = scale,
                     density = density,
                     useCelsius = useCelsius,
+                    widenToday = state.largeTodayOverlayEnabled,
                     measureLowLabelHeight = { text, base ->
                         textMeasurer.measure(text, TextStyle(fontSize = tempFontSize(text, base).sp)).size.height.toFloat()
                     },
                 )
-                val index = (offset.x / layout.dayWidth).toInt().coerceIn(0, displayDays.lastIndex)
+                val index = layout.columns.indexAt(offset.x).coerceIn(0, displayDays.lastIndex)
                 val zone = classifyDailyGraphTapZone(offset.x, offset.y, index, layout)
                 val day = displayDays[index]
                 Log.d(
@@ -112,7 +121,15 @@ fun DailyForecastGraph(
         val minTemp = rawMin - rangePad
         val maxTemp = rawMax + rangePad
         val range = (maxTemp - minTemp).coerceAtLeast(1f)
-        val dayWidth = size.width / displayDays.size
+        val todayColumnIndex = displayDays.indexOfFirst { it.isToday }.takeIf { it >= 0 }
+        val columns =
+            WeightedColumnLayout.resolve(
+                totalWidth = size.width,
+                columnCount = displayDays.size,
+                todayColumnIndex = todayColumnIndex,
+                widenToday = state.largeTodayOverlayEnabled,
+            )
+        val dayWidth = columns.normalWidth
         val iconSize = (30.dp.toPx() * scale).coerceAtMost(dayWidth * 0.6f)
         // Top: tiny reserve — the hottest bar runs to the top, and its high/rain labels ride up a
         // little past the canvas top into the header row (by design; the Canvas isn't clipped, so
@@ -130,6 +147,7 @@ fun DailyForecastGraph(
         val graphHeight = (bottom - top).coerceAtLeast(1f)
         val barWidth = (7.dp.toPx() * scale).coerceAtMost(dayWidth * 0.22f)
         val thinWidth = barWidth * 0.65f
+        val compactTodayBarWidth = (6.dp.toPx() * scale).coerceAtMost(dayWidth * 0.22f)
         // Touching triple bars, shared with Android. Desktop's flanking bars are thinner (thinWidth)
         // than the centre thermostat (barWidth), so the touching offset is their average — the shared
         // formula handles the unequal widths.
@@ -139,6 +157,25 @@ fun DailyForecastGraph(
             dayWidthPx = dayWidth,
             columnEdgeMarginPx = 2.dp.toPx(),
         )
+        val compactTodayTripleOffset = TodayColumnHighlight.tripleBarSpacing(
+            centerBarWidthPx = compactTodayBarWidth,
+            flankBarWidthPx = compactTodayBarWidth,
+            dayWidthPx = todayColumnIndex?.let(columns.widths::get) ?: dayWidth,
+            columnEdgeMarginPx = 2.dp.toPx(),
+        )
+
+        val todayHardObstacles = mutableListOf<TodayColumnOverlayPlanner.Bounds>()
+        var todayBarTop = Float.NaN
+        var todayBarBottom = Float.NaN
+        val todayLeft = todayColumnIndex?.let(columns.lefts::get)
+        val todayRight = todayColumnIndex?.let { columns.lefts[it] + columns.widths[it] }
+        fun recordTodayObstacle(left: Float, obstacleTop: Float, right: Float, obstacleBottom: Float) {
+            val panelLeft = todayLeft ?: return
+            val panelRight = todayRight ?: return
+            if (left < panelRight && panelLeft < right && obstacleTop < obstacleBottom) {
+                todayHardObstacles += TodayColumnOverlayPlanner.Bounds(left, obstacleTop, right, obstacleBottom)
+            }
+        }
 
         fun yAt(temp: Float): Float = top + graphHeight * (1f - (temp - minTemp) / range)
 
@@ -170,7 +207,8 @@ fun DailyForecastGraph(
         }
 
         displayDays.forEachIndexed { index, day ->
-            val centerX = dayWidth * index + dayWidth / 2f
+            val columnWidth = columns.widths[index]
+            val centerX = columns.centers[index]
             val baseColor = forecastColor(day)
 
             if (day.isToday) {
@@ -178,9 +216,9 @@ fun DailyForecastGraph(
                 // Android). Drawn first so the bars, bulb, and labels sit on top of it.
                 val panel = TodayColumnHighlight.panelBounds(
                     centerXPx = centerX,
-                    tripleBarOffsetPx = tripleOffset,
-                    flankBarWidthPx = thinWidth,
-                    dayWidthPx = dayWidth,
+                    tripleBarOffsetPx = compactTodayTripleOffset,
+                    flankBarWidthPx = compactTodayBarWidth,
+                    dayWidthPx = columnWidth,
                     graphTopPx = top,
                     canvasHeightPx = size.height,
                     dayLabelBandPx = dayLabelBand,
@@ -201,25 +239,31 @@ fun DailyForecastGraph(
 
                 // Both today bars carry today's cloud-cover ratio (same day); the rain-vs-cloud
                 // bottom color follows each bar's own condition (live forecast vs 24h-prior snapshot).
-                drawAdaptiveBar(centerX + tripleOffset, day.forecastHigh, day.forecastLow, ::yAt, thinWidth, baseColor, day.cloudCoverRatio, day.iconCondition)
-                drawAdaptiveBar(centerX - tripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, thinWidth, snapshotColor, day.cloudCoverRatio, day.snapshot?.condition)
+                drawAdaptiveBar(centerX + compactTodayTripleOffset, day.forecastHigh, day.forecastLow, ::yAt, compactTodayBarWidth, baseColor, day.cloudCoverRatio, day.iconCondition)
+                drawAdaptiveBar(centerX - compactTodayTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, compactTodayBarWidth, snapshotColor, day.cloudCoverRatio, day.snapshot?.condition)
                 // The thermostat: solid red "mercury" (current temp), a faint ghost reaching up to
                 // the day's high-water mark, and a round bulb at the low end. Drawn last so the
                 // mercury and bulb sit on top of the forecast/snapshot bars.
                 val solidHigh = day.solidHigh
                 val ghostHigh = day.ghostHigh
                 if (ghostHigh != null && solidHigh != null && ghostHigh > solidHigh) {
-                    drawRangeLine(centerX, ghostHigh, solidHigh, ::yAt, COLOR_OBSERVED.copy(alpha = GHOST_BAR_ALPHA), barWidth)
+                    drawRangeLine(centerX, ghostHigh, solidHigh, ::yAt, COLOR_OBSERVED.copy(alpha = GHOST_BAR_ALPHA), compactTodayBarWidth)
                 }
-                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, barWidth)
+                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, compactTodayBarWidth)
                 day.solidLow?.let { low ->
-                    val bulbRadius = barWidth * BULB_RADIUS_SCALE
+                    val bulbRadius = compactTodayBarWidth * BULB_RADIUS_SCALE
                     drawCircle(
                         color = COLOR_OBSERVED,
                         radius = bulbRadius,
                         center = Offset(centerX, yAt(low) + bulbRadius * BULB_VERTICAL_CENTER_FRACTION),
                     )
                 }
+                val todayHighs = listOfNotNull(day.solidHigh, day.forecastHigh, day.snapshotHigh, day.ghostHigh)
+                val todayLows = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow)
+                todayBarTop = todayHighs.maxOrNull()?.let(::yAt) ?: (top + graphHeight * 0.35f)
+                todayBarBottom =
+                    (todayLows.minOrNull()?.let(::yAt)?.plus(compactTodayBarWidth * BULB_RADIUS_SCALE * 1.5f)
+                        ?: (bottom - graphHeight * 0.25f)).coerceAtMost(bottom)
             } else if (day.isPast) {
                 // Forecast overlay carries the cloud/rain split (matches Android's past-day overlay);
                 // the observed actual bar stays solid.
@@ -343,7 +387,9 @@ fun DailyForecastGraph(
                     dualOffsets.actualDp,
                     if (dualActualIsUpper) dualExtraPush else 0f,
                 )
-                drawOutlinedText(textMeasurer, aLayout, Offset(centerX - aLayout.size.width / 2f, aY))
+                val aX = centerX - aLayout.size.width / 2f
+                drawOutlinedText(textMeasurer, aLayout, Offset(aX, aY))
+                recordTodayObstacle(aX, aY, aX + aLayout.size.width, aY + aLayout.size.height)
 
                 val fText = formatTemp(dualForecastHigh)
                 val fSize = tempFontSize(fText, dualBase * dualForecastScale)
@@ -355,7 +401,9 @@ fun DailyForecastGraph(
                     if (dualActualIsUpper) 0f else dualExtraPush,
                 )
                 val fLabelX = if (day.isToday) centerX else centerX + tripleOffset
-                drawOutlinedText(textMeasurer, fLayout, Offset(fLabelX - fLayout.size.width / 2f, fY))
+                val fX = fLabelX - fLayout.size.width / 2f
+                drawOutlinedText(textMeasurer, fLayout, Offset(fX, fY))
+                recordTodayObstacle(fX, fY, fX + fLayout.size.width, fY + fLayout.size.height)
                 // Rain % anchors above the TOPMOST of the two high labels (warmer temp = higher on
                 // screen) so it clears BOTH instead of wedging between them (matches Android).
                 highLabelTopAtCenter = minOf(aY, fY)
@@ -398,6 +446,12 @@ fun DailyForecastGraph(
                     // bars, like history's dual labels); future days stay plain.
                     if (day.isPast || day.isToday) drawOutlinedText(textMeasurer, highText, highTopLeft)
                     else drawText(highText, topLeft = highTopLeft)
+                    recordTodayObstacle(
+                        highTopLeft.x,
+                        highTopLeft.y,
+                        highTopLeft.x + highText.size.width,
+                        highTopLeft.y + highText.size.height,
+                    )
                 }
             }
             if (lowForLabel != null) {
@@ -431,18 +485,32 @@ fun DailyForecastGraph(
                 translate(centerX - iconSize / 2f, iconTop) {
                     with(painters[index]) { draw(Size(iconSize, iconSize)) }
                 }
+                recordTodayObstacle(centerX - iconSize / 2f, iconTop, centerX + iconSize / 2f, iconTop + iconSize)
 
                 val lowLabelY = iconTop + iconSize + 2f * scale
                 val lowTopLeft = Offset(centerX - lowText.size.width / 2f, lowLabelY)
                 if (day.isPast) drawOutlinedText(textMeasurer, lowText, lowTopLeft)
                 else drawText(lowText, topLeft = lowTopLeft)
+                recordTodayObstacle(
+                    lowTopLeft.x,
+                    lowTopLeft.y,
+                    lowTopLeft.x + lowText.size.width,
+                    lowTopLeft.y + lowText.size.height,
+                )
             }
 
             val dayText = textMeasurer.measure(
                 day.label,
-                TextStyle(fontSize = (labelSizeFor(dayWidth) * scale).sp, color = if (day.isToday) Color.Yellow else COLOR_LABEL_GRAY)
+                TextStyle(fontSize = (labelSizeFor(columnWidth) * scale).sp, color = if (day.isToday) Color.Yellow else COLOR_LABEL_GRAY)
             )
-            drawText(dayText, topLeft = Offset(centerX - dayText.size.width / 2f, size.height - dayText.size.height - 6f * scale))
+            val dayTextTopLeft = Offset(centerX - dayText.size.width / 2f, size.height - dayText.size.height - 6f * scale)
+            drawText(dayText, topLeft = dayTextTopLeft)
+            recordTodayObstacle(
+                dayTextTopLeft.x,
+                dayTextTopLeft.y,
+                dayTextTopLeft.x + dayText.size.width,
+                dayTextTopLeft.y + dayText.size.height,
+            )
 
             // Daytime rain label: sits on top of the bar, above the high-temp label.
             val rainText = day.dailyRainLabelText
@@ -458,7 +526,14 @@ fun DailyForecastGraph(
                 val anchorY = highLabelTopAtCenter?.let { it - gapPx - rainLayout.size.height } ?: (top + 10f)
                 // Stays above the high-temp label; may ride a little further into the header than it.
                 val rainFloor = -headerBleed - rainLayout.size.height - 2f * scale
-                drawText(rainLayout, topLeft = Offset(centerX - rainLayout.size.width / 2f, anchorY.coerceAtLeast(rainFloor)))
+                val rainTopLeft = Offset(centerX - rainLayout.size.width / 2f, anchorY.coerceAtLeast(rainFloor))
+                drawText(rainLayout, topLeft = rainTopLeft)
+                recordTodayObstacle(
+                    rainTopLeft.x,
+                    rainTopLeft.y,
+                    rainTopLeft.x + rainLayout.size.width,
+                    rainTopLeft.y + rainLayout.size.height,
+                )
             }
 
             // Nighttime rain label: tucked between this column and the next (Android shifts it
@@ -506,7 +581,7 @@ fun DailyForecastGraph(
                     val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.0f else dynamicNudgeDp
 
                     val hNudgePx = effectiveNudgeDp * scale
-                    val shiftedCenterX = centerX + dayWidth / 2f - hNudgePx + 1f * scale + roomyRightPx
+                    val shiftedCenterX = centerX + columnWidth / 2f - hNudgePx + 1f * scale + roomyRightPx
 
                     // Base rain layout. Same probability/distance font scaling as the day label,
                     // times NIGHT_SCALE (history = probability only, no distance term).
@@ -559,10 +634,181 @@ fun DailyForecastGraph(
                     val drawnTopY = finalNightTopY + roomyDownPx
                     if (drawnTopY + finalLayout.size.height <= hardBottomLimit) {
                         drawText(finalLayout, topLeft = Offset(finalX, drawnTopY))
+                        recordTodayObstacle(
+                            finalX,
+                            drawnTopY,
+                            finalX + finalLayout.size.width,
+                            drawnTopY + finalLayout.size.height,
+                        )
                     }
                 }
             }
         }
+
+        val overlayContent = state.todayOverlay
+        if (
+            state.largeTodayOverlayEnabled && overlayContent != null &&
+            todayLeft != null && todayRight != null
+        ) {
+            drawDesktopTodayOverlay(
+                textMeasurer = textMeasurer,
+                content = overlayContent,
+                columnLeft = todayLeft,
+                columnRight = todayRight,
+                graphTop = top,
+                graphBottom = size.height - dayLabelBand,
+                barTop = todayBarTop.takeIf(Float::isFinite) ?: (top + graphHeight * 0.35f),
+                barBottom = todayBarBottom.takeIf(Float::isFinite) ?: (bottom - graphHeight * 0.25f),
+                hardObstacles = todayHardObstacles,
+                scale = scale,
+            )
+        }
+    }
+}
+
+private data class DesktopOverlayRow(
+    val value: String,
+    val caption: String? = null,
+) {
+    fun displayText(): String = listOfNotNull(value, caption).joinToString(" ")
+}
+
+private data class DesktopOverlayBlock(
+    val key: String,
+    val rows: List<DesktopOverlayRow>,
+)
+
+private data class MeasuredDesktopOverlayBlock(
+    val spec: DesktopOverlayBlock,
+    val layout: TextLayoutResult,
+)
+
+internal fun uniformDesktopOverlayFontSize(
+    baseSize: Float,
+    maxWidth: Float,
+    naturalBlockWidths: List<Int>,
+): Float {
+    val widestWidth = naturalBlockWidths.maxOrNull()?.coerceAtLeast(1) ?: 1
+    val fitScale = (maxWidth / widestWidth).coerceIn(0.01f, 1f)
+    return baseSize * fitScale * TodayColumnOverlayStyle.FINAL_TEXT_SCALE
+}
+
+private fun DrawScope.drawDesktopTodayOverlay(
+    textMeasurer: TextMeasurer,
+    content: TodayColumnOverlayContent,
+    columnLeft: Float,
+    columnRight: Float,
+    graphTop: Float,
+    graphBottom: Float,
+    barTop: Float,
+    barBottom: Float,
+    hardObstacles: List<TodayColumnOverlayPlanner.Bounds>,
+    scale: Float,
+) {
+    val specs =
+        listOfNotNull(
+            content.deltaValueText?.takeIf(String::isNotBlank)?.let { value ->
+                DesktopOverlayBlock(
+                    key = "delta",
+                    rows = listOf(DesktopOverlayRow(value, content.deltaCaptionText?.takeIf(String::isNotBlank))),
+                )
+            },
+            content.dominantTempText?.takeIf(String::isNotBlank)?.let { temperature ->
+                DesktopOverlayBlock(
+                    key = "dominant_temp_age",
+                    rows =
+                        listOfNotNull(temperature, content.dominantAgeText?.takeIf(String::isNotBlank))
+                            .map(::DesktopOverlayRow),
+                )
+            },
+        )
+    if (specs.isEmpty()) return
+
+    val horizontalPadding = TodayColumnOverlayStyle.HORIZONTAL_PADDING_DP.dp.toPx()
+    val maxWidth = (columnRight - columnLeft - 2f * horizontalPadding).coerceAtLeast(1f)
+
+    fun annotated(spec: DesktopOverlayBlock, fontSizeSp: Float): AnnotatedString =
+        buildAnnotatedString {
+            spec.rows.forEachIndexed { index, row ->
+                if (index > 0) append("\n")
+                append(row.value)
+                row.caption?.let { caption ->
+                    append(" ")
+                    withStyle(SpanStyle(fontSize = (fontSizeSp * TodayColumnOverlayStyle.INLINE_CAPTION_TEXT_SCALE).sp)) {
+                        append(caption)
+                    }
+                }
+            }
+        }
+
+    fun layoutAt(spec: DesktopOverlayBlock, fontSize: Float): TextLayoutResult =
+        textMeasurer.measure(
+            text = annotated(spec, fontSize),
+            style =
+                TextStyle(
+                    fontSize = fontSize.sp,
+                    lineHeight = (fontSize + TodayColumnOverlayStyle.ROW_SPACING_DP * scale).sp,
+                    color = Color.White,
+                ),
+        )
+
+    fun measureAll(blocks: List<DesktopOverlayBlock>): List<MeasuredDesktopOverlayBlock> {
+        val baseSize = TodayColumnOverlayStyle.TEXT_SIZE_DP * scale
+        val baseLayouts = blocks.associateWith { layoutAt(it, baseSize) }
+        // The 15% reduction deliberately follows width fitting, matching the Android/Samsung fix.
+        // Fit every block against the widest row so delta, temperature, and age retain one main
+        // font size even when the inline "yest" caption makes the delta row the width constraint.
+        val finalSize = uniformDesktopOverlayFontSize(baseSize, maxWidth, baseLayouts.values.map { it.size.width })
+        return blocks.map { spec -> MeasuredDesktopOverlayBlock(spec, layoutAt(spec, finalSize)) }
+    }
+
+    fun place(blocks: List<MeasuredDesktopOverlayBlock>): List<TodayColumnOverlayPlanner.Placement> =
+        TodayColumnOverlayPlanner.place(
+            lines =
+                blocks.map { block ->
+                    TodayColumnOverlayPlanner.Line(
+                        key = block.spec.key,
+                        text = block.spec.rows.joinToString("\n", transform = DesktopOverlayRow::displayText),
+                        width = block.layout.size.width.toFloat(),
+                        height = block.layout.size.height.toFloat(),
+                    )
+                },
+            input =
+                TodayColumnOverlayPlanner.Input(
+                    columnLeft = columnLeft,
+                    columnRight = columnRight,
+                    graphTop = graphTop,
+                    graphBottom = graphBottom,
+                    barTop = barTop,
+                    barBottom = barBottom,
+                    hardObstacles = hardObstacles,
+                    horizontalPadding = horizontalPadding,
+                    padding = TodayColumnOverlayStyle.VERTICAL_PADDING_DP.dp.toPx(),
+                    verticalStep = 2.dp.toPx(),
+                ),
+        )
+
+    var measured = measureAll(specs)
+    var placements = place(measured)
+    if (placements.size < measured.size && measured.size > 1) {
+        val combined = DesktopOverlayBlock("combined", specs.flatMap(DesktopOverlayBlock::rows))
+        val measuredCombined = measureAll(listOf(combined))
+        val combinedPlacement = place(measuredCombined)
+        if (combinedPlacement.isNotEmpty()) {
+            measured = measuredCombined
+            placements = combinedPlacement
+        }
+    }
+
+    val byKey = measured.associateBy { it.spec.key }
+    placements.forEach { placement ->
+        val layout = byKey.getValue(placement.key).layout
+        drawOutlinedText(textMeasurer, layout, Offset(placement.bounds.left, placement.bounds.top))
+        Log.v(
+            TAG,
+            "todayOverlay placement key=${placement.key} zone=${placement.zone} text=${placement.text} " +
+                "bounds=${placement.bounds.left},${placement.bounds.top},${placement.bounds.right},${placement.bounds.bottom}",
+        )
     }
 }
 
@@ -661,12 +907,14 @@ private fun forecastColor(day: DesktopDailyDay): Color {
 
 /** Layout inputs for daily-graph tap routing (icon bounds + bottom strip). */
 internal data class DailyGraphTapLayout(
-    val dayWidth: Float,
+    val columns: WeightedColumnLayout,
     val iconSize: Float,
     val iconTops: List<Float?>,
     val bottomStripHeightPx: Float,
     val canvasHeight: Float,
-)
+) {
+    val dayWidth: Float get() = columns.normalWidth
+}
 
 /**
  * Bottom strip height for daily graph tap routing (icon + low label + day name), mirroring Android's
@@ -697,10 +945,17 @@ internal fun computeDailyGraphTapLayout(
     scale: Float,
     density: Float,
     useCelsius: Boolean,
+    widenToday: Boolean = false,
     measureLowLabelHeight: (text: String, baseSp: Float) -> Float = { _, base -> base * 1.4f },
 ): DailyGraphTapLayout {
     if (days.isEmpty()) {
-        return DailyGraphTapLayout(1f, 0f, emptyList(), 0f, canvasHeight)
+        return DailyGraphTapLayout(
+            WeightedColumnLayout.resolve(canvasWidth, 1, null, false),
+            0f,
+            emptyList(),
+            0f,
+            canvasHeight,
+        )
     }
     val allTemps = days.flatMap {
         listOfNotNull(
@@ -719,7 +974,9 @@ internal fun computeDailyGraphTapLayout(
     val minTemp = rawMin - rangePad
     val maxTemp = rawMax + rangePad
     val range = (maxTemp - minTemp).coerceAtLeast(1f)
-    val dayWidth = canvasWidth / days.size
+    val todayIndex = days.indexOfFirst { it.isToday }.takeIf { it >= 0 }
+    val columns = WeightedColumnLayout.resolve(canvasWidth, days.size, todayIndex, widenToday)
+    val dayWidth = columns.normalWidth
     val iconSize = (30f * density * scale).coerceAtMost(dayWidth * 0.6f)
     val lowLabelBand = 11f * scale * 1.4f + 4f * scale
     val dayLabelBand = labelSizeFor(dayWidth).toFloat() * scale * 1.5f + 6f * scale
@@ -748,7 +1005,7 @@ internal fun computeDailyGraphTapLayout(
         (yAt(anchorLow) + 4f * scale).coerceAtMost(iconTopMax)
     }
     val bottomStripHeightPx = dailyGraphBottomStripHeightPx(canvasWidth, days.size, scale, density)
-    return DailyGraphTapLayout(dayWidth, iconSize, iconTops, bottomStripHeightPx, canvasHeight)
+    return DailyGraphTapLayout(columns, iconSize, iconTops, bottomStripHeightPx, canvasHeight)
 }
 
 internal fun classifyDailyGraphTapZone(
@@ -759,7 +1016,7 @@ internal fun classifyDailyGraphTapZone(
 ): DayClickResolver.DayTapZone {
     val iconTop = layout.iconTops.getOrNull(columnIndex)
     if (iconTop != null) {
-        val centerX = layout.dayWidth * columnIndex + layout.dayWidth / 2f
+        val centerX = layout.columns.centers[columnIndex]
         val half = layout.iconSize / 2f
         if (tapX in (centerX - half)..(centerX + half) && tapY in iconTop..(iconTop + layout.iconSize)) {
             return DayClickResolver.DayTapZone.BOTTOM_ICON

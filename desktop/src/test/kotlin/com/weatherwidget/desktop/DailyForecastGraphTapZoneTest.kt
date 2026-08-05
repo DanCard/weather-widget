@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.WeatherConditionResolver
+import com.weatherwidget.shared.graph.WeightedColumnLayout
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -13,6 +14,21 @@ import org.junit.experimental.categories.Category
 
 @Category(ShortDuration::class)
 class DailyForecastGraphTapZoneTest {
+
+    @Test
+    fun `today overlay uses one final font size selected by the widest row`() {
+        val expected = 30f * (100f / 150f) * 0.85f
+
+        assertEquals(
+            expected,
+            uniformDesktopOverlayFontSize(
+                baseSize = 30f,
+                maxWidth = 100f,
+                naturalBlockWidths = listOf(150, 90),
+            ),
+            0.001f,
+        )
+    }
 
     /**
      * Future-day column with real high/low temps — mirrors Jul 7-style taps where the icon is drawn
@@ -55,7 +71,13 @@ class DailyForecastGraphTapZoneTest {
         canvasHeight: Float = 600f,
         dayWidth: Float = 100f,
         iconSize: Float = 30f,
-    ) = DailyGraphTapLayout(dayWidth, iconSize, iconTops, bottomStrip, canvasHeight)
+    ) = DailyGraphTapLayout(
+        columns = WeightedColumnLayout.resolve(dayWidth * iconTops.size.coerceAtLeast(1), iconTops.size.coerceAtLeast(1), null, false),
+        iconSize = iconSize,
+        iconTops = iconTops,
+        bottomStripHeightPx = bottomStrip,
+        canvasHeight = canvasHeight,
+    )
 
     @Test
     fun tapAboveBottomStrip_isMainColumn() {
@@ -148,7 +170,7 @@ class DailyForecastGraphTapZoneTest {
             iconTop!! < stripStart,
         )
 
-        val centerX = tapLayout.dayWidth * targetCol + tapLayout.dayWidth / 2f
+        val centerX = tapLayout.columns.centers[targetCol]
         val iconCenterY = iconTop + tapLayout.iconSize / 2f
         val zone = classifyDailyGraphTapZone(centerX, iconCenterY, targetCol, tapLayout)
         assertEquals(DayClickResolver.DayTapZone.BOTTOM_ICON, zone)
@@ -173,5 +195,26 @@ class DailyForecastGraphTapZoneTest {
                 mainZone,
             ).viewMode,
         )
+    }
+
+    @Test
+    fun weightedTodayColumnControlsDesktopTapLookup() {
+        val start = LocalDate.of(2026, 8, 4)
+        val days = (0 until 8).map { index ->
+            futureGraphDay(start.plusDays(index.toLong()), 80f, 60f).copy(isToday = index == 1)
+        }
+        val layout = computeDailyGraphTapLayout(
+            days = days,
+            canvasWidth = 825f,
+            canvasHeight = 400f,
+            scale = 1f,
+            density = 1f,
+            useCelsius = false,
+            widenToday = true,
+        )
+
+        assertEquals(125f, layout.columns.widths[1], 0.001f)
+        assertEquals(1, layout.columns.indexAt(224.9f))
+        assertEquals(2, layout.columns.indexAt(225f))
     }
 }
