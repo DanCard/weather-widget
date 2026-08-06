@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">Kết quả làm mới:\nDữ liệu theo giờ cho %1$s đã sẵn sàng</string>
     <string name="units_title">Đơn vị</string>
     <string name="use_celsius_label">Dùng độ C</string>
+    <string name="today_overlay_title">Chế độ xem hằng ngày — Cột hôm nay</string>
+    <string name="today_overlay_delta_label">Hiển thị chênh lệch so với dự báo</string>
+    <string name="today_overlay_dominant_temp_label">Hiển thị nhiệt độ trạm chính</string>
+    <string name="today_overlay_dominant_age_label">Hiển thị tuổi số liệu đọc</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Ngôn ngữ</string>

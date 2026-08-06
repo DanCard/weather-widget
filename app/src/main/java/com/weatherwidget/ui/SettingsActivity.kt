@@ -133,20 +133,46 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // Use Celsius Switch
-        val useCelsiusSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.use_celsius_switch)
-        useCelsiusSwitch.isChecked = widgetStateManager.useCelsius()
-        useCelsiusSwitch.setOnCheckedChangeListener { _, isChecked ->
-            widgetStateManager.setUseCelsius(isChecked)
-            // ACTION_REFRESH repaints every widget directly from cache in the broadcast handler.
-            // The old triggerUiOnlyUpdate() went through WorkManager, whose "expedited" request
-            // silently degrades to deferred work under quota/Doze — the repaint then took minutes.
+        // ACTION_REFRESH repaints every widget directly from cache in the broadcast handler.
+        // The old triggerUiOnlyUpdate() went through WorkManager, whose "expedited" request
+        // silently degrades to deferred work under quota/Doze — the repaint then took minutes.
+        fun repaintWidgets() {
             sendBroadcast(
                 Intent(this, WidgetActionReceiver::class.java).apply {
                     action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
                     putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
                 },
             )
+        }
+
+        // Use Celsius Switch
+        val useCelsiusSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.use_celsius_switch)
+        useCelsiusSwitch.isChecked = widgetStateManager.useCelsius()
+        useCelsiusSwitch.setOnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setUseCelsius(isChecked)
+            repaintWidgets()
+        }
+
+        // Daily View — Today Column overlay switches
+        val overlayDeltaSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.today_overlay_delta_switch)
+        overlayDeltaSwitch.isChecked = widgetStateManager.showTodayOverlayDelta()
+        overlayDeltaSwitch.setOnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setShowTodayOverlayDelta(isChecked)
+            repaintWidgets()
+        }
+
+        val overlayDominantTempSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.today_overlay_dominant_temp_switch)
+        overlayDominantTempSwitch.isChecked = widgetStateManager.showTodayOverlayDominantTemp()
+        overlayDominantTempSwitch.setOnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setShowTodayOverlayDominantTemp(isChecked)
+            repaintWidgets()
+        }
+
+        val overlayDominantAgeSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.today_overlay_dominant_age_switch)
+        overlayDominantAgeSwitch.isChecked = widgetStateManager.showTodayOverlayDominantAge()
+        overlayDominantAgeSwitch.setOnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setShowTodayOverlayDominantAge(isChecked)
+            repaintWidgets()
         }
 
         // App language: ACTION_APP_LOCALE_SETTINGS exists only on API 33+; older versions

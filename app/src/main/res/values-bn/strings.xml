@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">রিফ্রেশের ফলাফল:\n%1$s-এর ঘণ্টাভিত্তিক ডেটা এখন উপলব্ধ</string>
     <string name="units_title">একক</string>
     <string name="use_celsius_label">সেলসিয়াস ব্যবহার করুন</string>
+    <string name="today_overlay_title">দৈনিক ভিউ — আজকের কলাম</string>
+    <string name="today_overlay_delta_label">পূর্বাভাস থেকে পার্থক্য দেখান</string>
+    <string name="today_overlay_dominant_temp_label">প্রধান স্টেশনের তাপমাত্রা দেখান</string>
+    <string name="today_overlay_dominant_age_label">রিডিংয়ের বয়স দেখান</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">ভাষা</string>

@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">刷新结果：\n%1$s 的逐小时数据现已可用</string>
     <string name="units_title">单位</string>
     <string name="use_celsius_label">使用摄氏度</string>
+    <string name="today_overlay_title">每日视图 — 今日列</string>
+    <string name="today_overlay_delta_label">显示与预报的差值</string>
+    <string name="today_overlay_dominant_temp_label">显示主导站点温度</string>
+    <string name="today_overlay_dominant_age_label">显示读数时长</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">语言</string>

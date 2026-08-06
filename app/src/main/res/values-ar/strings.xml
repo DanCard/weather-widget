@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">نتائج التحديث:\nبيانات الساعة متاحة الآن لـ %1$s</string>
     <string name="units_title">الوحدات</string>
     <string name="use_celsius_label">استخدام درجة مئوية</string>
+    <string name="today_overlay_title">العرض اليومي — عمود اليوم</string>
+    <string name="today_overlay_delta_label">إظهار الفرق عن التوقعات</string>
+    <string name="today_overlay_dominant_temp_label">إظهار درجة حرارة المحطة المسيطرة</string>
+    <string name="today_overlay_dominant_age_label">إظهار عمر القراءة</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">اللغة</string>

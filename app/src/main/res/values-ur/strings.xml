@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">ریفریش کے نتائج:\n%1$s کے لیے گھنٹہ وار ڈیٹا اب دستیاب ہے</string>
     <string name="units_title">اکائیاں</string>
     <string name="use_celsius_label">سیلسیس استعمال کریں</string>
+    <string name="today_overlay_title">روزانہ منظر — آج کا کالم</string>
+    <string name="today_overlay_delta_label">پیشگوئی سے فرق دکھائیں</string>
+    <string name="today_overlay_dominant_temp_label">غالب اسٹیشن کا درجہ حرارت دکھائیں</string>
+    <string name="today_overlay_dominant_age_label">ریڈنگ کی عمر دکھائیں</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">زبان</string>

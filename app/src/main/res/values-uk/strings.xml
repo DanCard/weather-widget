@@ -198,6 +198,10 @@
     <string name="widget_no_hourly_result_available">Результат оновлення:\nПогодинні дані для %1$s тепер доступні</string>
     <string name="units_title">Одиниці</string>
     <string name="use_celsius_label">Використовувати градуси Цельсія</string>
+    <string name="today_overlay_title">Денний вигляд — Колонка «Сьогодні»</string>
+    <string name="today_overlay_delta_label">Показати відхилення від прогнозу</string>
+    <string name="today_overlay_dominant_temp_label">Показати температуру основної станції</string>
+    <string name="today_overlay_dominant_age_label">Показати вік показання</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Мова</string>

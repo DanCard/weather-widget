@@ -5,6 +5,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.weatherwidget.shared.graph.TodayColumnOverlayBlocks
 import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
 import com.weatherwidget.shared.graph.TodayColumnOverlayStyle
 import com.weatherwidget.widget.DailyForecastGraphRenderer.BarDrawnDebug
@@ -46,29 +47,20 @@ internal object TodayColumnOverlayRenderer {
         val horizontalPadding = HORIZONTAL_PADDING_DP.dp(layout.density)
         val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
 
+        // Block selection (including the independent temp/age toggles) is pure and shared with
+        // the desktop renderer via TodayColumnOverlayBlocks.
         val specs =
-            listOfNotNull(
-                data.deltaValueText?.takeIf { it.isNotBlank() }?.let { value ->
-                    TextBlockSpec(
-                        key = "delta",
-                        rows = listOf(
-                            TextRow(
-                                text = value,
-                                color = MAIN_TEXT_COLOR,
-                                inlineCaption = data.deltaCaptionText?.takeIf(String::isNotBlank),
-                            ),
-                        ),
-                    )
-                },
-                data.dominantTempText?.takeIf { it.isNotBlank() }?.let { temperature ->
-                    TextBlockSpec(
-                        key = "dominant_temp_age",
-                        rows =
-                            listOfNotNull(temperature, data.dominantAgeText?.takeIf(String::isNotBlank))
-                                .map { TextRow(it, MAIN_TEXT_COLOR) },
-                    )
-                },
-            )
+            TodayColumnOverlayBlocks.build(
+                deltaValueText = data.deltaValueText,
+                deltaCaptionText = data.deltaCaptionText,
+                dominantTempText = data.dominantTempText,
+                dominantAgeText = data.dominantAgeText,
+            ).map { block ->
+                TextBlockSpec(
+                    key = block.key,
+                    rows = block.rows.map { TextRow(it.text, MAIN_TEXT_COLOR, it.caption) },
+                )
+            }
         if (specs.isEmpty()) return emptyList()
 
         val rowSpacing = ROW_SPACING_DP.dp(layout.density) * labelScale

@@ -29,6 +29,9 @@ object TodayColumnOverlayContentResolver {
         personalStationWeight: Double,
         useCelsius: Boolean,
         forecastDelta: Float? = null,
+        showForecastDelta: Boolean = true,
+        showDominantStationTemp: Boolean = true,
+        showDominantReadingAge: Boolean = true,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): TodayColumnOverlayContent? {
         val details =
@@ -55,6 +58,9 @@ object TodayColumnOverlayContentResolver {
             personalStationWeight = personalStationWeight,
             useCelsius = useCelsius,
             forecastDelta = forecastDelta,
+            showForecastDelta = showForecastDelta,
+            showDominantStationTemp = showDominantStationTemp,
+            showDominantReadingAge = showDominantReadingAge,
             zoneId = zoneId,
             resolvedDetails = details,
         )
@@ -72,6 +78,9 @@ object TodayColumnOverlayContentResolver {
         personalStationWeight: Double,
         useCelsius: Boolean,
         forecastDelta: Float? = null,
+        showForecastDelta: Boolean = true,
+        showDominantStationTemp: Boolean = true,
+        showDominantReadingAge: Boolean = true,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): TodayColumnOverlayContent? =
         resolveAt(
@@ -86,6 +95,9 @@ object TodayColumnOverlayContentResolver {
             personalStationWeight = personalStationWeight,
             useCelsius = useCelsius,
             forecastDelta = forecastDelta,
+            showForecastDelta = showForecastDelta,
+            showDominantStationTemp = showDominantStationTemp,
+            showDominantReadingAge = showDominantReadingAge,
             zoneId = zoneId,
             resolvedDetails = null,
         )
@@ -102,6 +114,9 @@ object TodayColumnOverlayContentResolver {
         personalStationWeight: Double,
         useCelsius: Boolean,
         forecastDelta: Float?,
+        showForecastDelta: Boolean,
+        showDominantStationTemp: Boolean,
+        showDominantReadingAge: Boolean,
         zoneId: ZoneId,
         resolvedDetails: ActualsAggregator.CurrentObservationResolution?,
     ): TodayColumnOverlayContent? {
@@ -120,21 +135,28 @@ object TodayColumnOverlayContentResolver {
         val dominant = details?.takeIf { it.observedAt == observedAt }?.dominantContribution
         // The overlay delta row is the FORECAST delta (observed minus forecast at the current
         // hour), supplied by the caller — the yesterday delta moved to the widget header.
-        val deltaText = forecastDelta?.let { ForecastDeltaLabel.formatValue(it, useCelsius) }
-        val dominantRows = dominant?.let { BlendTableFormatter.formatDominantTempAgeRows(it.contribution, useCelsius) }
+        val deltaText =
+            forecastDelta
+                ?.let { ForecastDeltaLabel.formatValue(it, useCelsius) }
+                ?.takeIf { showForecastDelta }
+        val dominantRows =
+            dominant?.let { BlendTableFormatter.formatDominantTempAgeRows(it.contribution, useCelsius) }
+        val dominantTempText = dominantRows?.temperature?.takeIf { showDominantStationTemp }
+        val dominantAgeText = dominantRows?.age?.takeIf { showDominantReadingAge }
         if (deltaText == null) {
             Log.d(
                 TAG,
                 "delta null: observedAtMs=$observedAt currentObsTemp=$currentObservedTemp " +
-                    "forecastDelta=$forecastDelta obsCount=${observations.size} displaySource=$displaySourceId",
+                    "forecastDelta=$forecastDelta showDelta=$showForecastDelta " +
+                    "obsCount=${observations.size} displaySource=$displaySourceId",
             )
         }
-        if (deltaText == null && dominantRows == null) return null
+        if (deltaText == null && dominantTempText == null && dominantAgeText == null) return null
         return TodayColumnOverlayContent(
             deltaValueText = deltaText,
             deltaCaptionText = deltaText?.let { ForecastDeltaLabel.COMPACT_CAPTION },
-            dominantTempText = dominantRows?.temperature,
-            dominantAgeText = dominantRows?.age,
+            dominantTempText = dominantTempText,
+            dominantAgeText = dominantAgeText,
             observedAt = observedAt,
             dominantContribution = dominant,
         )

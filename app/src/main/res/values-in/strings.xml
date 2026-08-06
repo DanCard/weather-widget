@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">Hasil penyegaran:\nData per jam kini tersedia untuk %1$s</string>
     <string name="units_title">Satuan</string>
     <string name="use_celsius_label">Gunakan Celsius</string>
+    <string name="today_overlay_title">Tampilan Harian — Kolom Hari Ini</string>
+    <string name="today_overlay_delta_label">Tampilkan selisih dari prakiraan</string>
+    <string name="today_overlay_dominant_temp_label">Tampilkan suhu stasiun dominan</string>
+    <string name="today_overlay_dominant_age_label">Tampilkan usia pembacaan</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Bahasa</string>

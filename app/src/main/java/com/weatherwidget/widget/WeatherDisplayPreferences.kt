@@ -39,9 +39,32 @@ internal class WeatherDisplayPreferences(
         prefs.edit().putInt(KEY_PERSONAL_STATION_DISCOUNT, percent.coerceIn(0, 100)).apply()
     }
 
+    fun showTodayOverlayDelta(): Boolean = prefs.getBoolean(KEY_SHOW_TODAY_OVERLAY_DELTA, false)
+
+    fun setShowTodayOverlayDelta(value: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_TODAY_OVERLAY_DELTA, value).apply()
+    }
+
+    fun showTodayOverlayDominantTemp(): Boolean =
+        prefs.getBoolean(KEY_SHOW_TODAY_OVERLAY_DOMINANT_TEMP, false)
+
+    fun setShowTodayOverlayDominantTemp(value: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_TODAY_OVERLAY_DOMINANT_TEMP, value).apply()
+    }
+
+    fun showTodayOverlayDominantAge(): Boolean =
+        prefs.getBoolean(KEY_SHOW_TODAY_OVERLAY_DOMINANT_AGE, false)
+
+    fun setShowTodayOverlayDominantAge(value: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_TODAY_OVERLAY_DOMINANT_AGE, value).apply()
+    }
+
     private companion object {
         const val TAG = "UNIT_DEFAULT"
         const val KEY_USE_CELSIUS = "use_celsius"
         const val KEY_PERSONAL_STATION_DISCOUNT = "personal_station_discount"
+        const val KEY_SHOW_TODAY_OVERLAY_DELTA = "show_today_overlay_delta"
+        const val KEY_SHOW_TODAY_OVERLAY_DOMINANT_TEMP = "show_today_overlay_dominant_temp"
+        const val KEY_SHOW_TODAY_OVERLAY_DOMINANT_AGE = "show_today_overlay_dominant_age"
     }
 }

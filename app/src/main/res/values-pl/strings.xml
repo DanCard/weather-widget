@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">Wynik odświeżania:\nDane godzinowe dla %1$s są już dostępne</string>
     <string name="units_title">Jednostki</string>
     <string name="use_celsius_label">Używaj stopni Celsjusza</string>
+    <string name="today_overlay_title">Widok dzienny — Kolumna „Dziś”</string>
+    <string name="today_overlay_delta_label">Pokaż odchylenie od prognozy</string>
+    <string name="today_overlay_dominant_temp_label">Pokaż temperaturę stacji dominującej</string>
+    <string name="today_overlay_dominant_age_label">Pokaż wiek odczytu</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Język</string>

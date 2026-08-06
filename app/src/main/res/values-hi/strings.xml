@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">रीफ़्रेश के परिणाम:\n%1$s के लिए प्रति घंटा डेटा अब उपलब्ध है</string>
     <string name="units_title">इकाइयाँ</string>
     <string name="use_celsius_label">सेल्सियस उपयोग करें</string>
+    <string name="today_overlay_title">दैनिक दृश्य — आज का कॉलम</string>
+    <string name="today_overlay_delta_label">पूर्वानुमान से अंतर दिखाएं</string>
+    <string name="today_overlay_dominant_temp_label">प्रमुख स्टेशन का तापमान दिखाएं</string>
+    <string name="today_overlay_dominant_age_label">रीडिंग की अवधि दिखाएं</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">भाषा</string>

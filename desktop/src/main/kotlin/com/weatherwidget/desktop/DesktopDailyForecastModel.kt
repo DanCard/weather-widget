@@ -173,8 +173,10 @@ object DesktopDailyForecastModel {
             )
         }
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val overlayFlags =
+            Triple(config.todayOverlayDelta, config.todayOverlayDominantTemp, config.todayOverlayDominantAge)
         val todayOverlay =
-            if (overlayDecision.enabled) {
+            if (overlayDecision.enabled && (overlayFlags.first || overlayFlags.second || overlayFlags.third)) {
                 val obsCount = forecast.rawObservations.size
                 val result = TodayColumnOverlayContentResolver.resolveLatest(
                     observations = forecast.rawObservations,
@@ -188,16 +190,24 @@ object DesktopDailyForecastModel {
                     // Overlay delta row = FORECAST delta (swapped with the header, which now shows
                     // the yesterday delta).
                     forecastDelta = forecast.appliedDelta,
+                    showForecastDelta = overlayFlags.first,
+                    showDominantStationTemp = overlayFlags.second,
+                    showDominantReadingAge = overlayFlags.third,
                 )
                 Log.d(
                     TAG,
                     "todayOverlay resolve obsCount=$obsCount enabled=${overlayDecision.enabled} " +
+                        "flags=delta:${overlayFlags.first},temp:${overlayFlags.second},age:${overlayFlags.third} " +
                         "deltaText=${result?.deltaValueText} dominantTemp=${result?.dominantTempText} " +
                         "dominantAge=${result?.dominantAgeText} observedAt=${result?.observedAt}",
                 )
                 result
             } else {
-                Log.d(TAG, "todayOverlay disabled: extraHistory=${config.dailyExtraHistory}")
+                Log.d(
+                    TAG,
+                    "todayOverlay disabled: enabled=${overlayDecision.enabled} " +
+                        "extraHistory=${config.dailyExtraHistory} flags=$overlayFlags",
+                )
                 null
             }
 

@@ -47,6 +47,10 @@ data class DesktopConfig(
     // locale; an explicit differing choice is persisted and wins.
     val useCelsius: Boolean =
         com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault()),
+    // Daily-view large-Today-column overlay texts. All opt-in (default off).
+    val todayOverlayDelta: Boolean = false,
+    val todayOverlayDominantTemp: Boolean = false,
+    val todayOverlayDominantAge: Boolean = false,
 ) {
     // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
     fun personalStationWeight(): Double = 1.0 - personalStationDiscount.coerceIn(0, 100) / 100.0

@@ -206,6 +206,10 @@
     <string name="widget_no_hourly_result_available">Results of refresh:\nHourly data now available for %1$s</string>
     <string name="units_title">Units</string>
     <string name="use_celsius_label">Use Celsius</string>
+    <string name="today_overlay_title">Daily View — Today Column</string>
+    <string name="today_overlay_delta_label">Show delta from forecast</string>
+    <string name="today_overlay_dominant_temp_label">Show dominant station temperature</string>
+    <string name="today_overlay_dominant_age_label">Show reading age</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Language</string>

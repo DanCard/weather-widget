@@ -198,6 +198,10 @@
     <string name="widget_no_hourly_result_available">Résultat de l\'actualisation :\nDonnées horaires désormais disponibles pour %1$s</string>
     <string name="units_title">Unités</string>
     <string name="use_celsius_label">Utiliser les degrés Celsius</string>
+    <string name="today_overlay_title">Vue quotidienne — Colonne du jour</string>
+    <string name="today_overlay_delta_label">Afficher l’écart par rapport aux prévisions</string>
+    <string name="today_overlay_dominant_temp_label">Afficher la température de la station dominante</string>
+    <string name="today_overlay_dominant_age_label">Afficher l’âge du relevé</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Langue</string>

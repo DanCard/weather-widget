@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">ผลการรีเฟรช:\nข้อมูลรายชั่วโมงของ %1$s พร้อมใช้งานแล้ว</string>
     <string name="units_title">หน่วย</string>
     <string name="use_celsius_label">ใช้เซลเซียส</string>
+    <string name="today_overlay_title">มุมมองรายวัน — คอลัมน์วันนี้</string>
+    <string name="today_overlay_delta_label">แสดงผลต่างจากพยากรณ์</string>
+    <string name="today_overlay_dominant_temp_label">แสดงอุณหภูมิสถานีหลัก</string>
+    <string name="today_overlay_dominant_age_label">แสดงอายุของค่าที่อ่าน</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">ภาษา</string>

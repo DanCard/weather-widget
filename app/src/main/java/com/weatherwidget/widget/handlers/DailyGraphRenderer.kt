@@ -35,6 +35,8 @@ internal object DailyGraphRenderer {
     private const val TAG = "DailyGraphRenderer"
     internal const val OVERLAY_OBSERVATION_LOOKBACK_MS = 36L * 60L * 60L * 1_000L
 
+    private fun onOff(value: Boolean): String = if (value) "on" else "off"
+
     internal data class RenderMetrics(
         val prepareMs: Long,
         val renderMs: Long,
@@ -348,6 +350,10 @@ internal object DailyGraphRenderer {
         lon: Double,
     ): DailyForecastGraphRenderer.TodayOverlayRenderData? {
         val observedAt = ctx.observedAt ?: return null
+        val showDelta = ctx.stateManager.showTodayOverlayDelta()
+        val showDominantTemp = ctx.stateManager.showTodayOverlayDominantTemp()
+        val showDominantAge = ctx.stateManager.showTodayOverlayDominantAge()
+        if (!showDelta && !showDominantTemp && !showDominantAge) return null
         val nowMs = ctx.now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         // Prefer the per-render observation load shared with the header yesterday-delta; fall back
         // to a direct query (or the current-temps cache) when it is unavailable.
@@ -379,6 +385,9 @@ internal object DailyGraphRenderer {
                 // The overlay delta row is the FORECAST delta (it swapped places with the header,
                 // which now shows the yesterday delta).
                 forecastDelta = headerState.appliedDelta,
+                showForecastDelta = showDelta,
+                showDominantStationTemp = showDominantTemp,
+                showDominantReadingAge = showDominantAge,
             ) ?: return null
         val dominant = content.dominantContribution?.contribution
         ctx.appLogDao.log(
@@ -386,6 +395,7 @@ internal object DailyGraphRenderer {
             "widget=${ctx.appWidgetId} observedAt=$observedAt " +
                 "delta=${content.deltaValueText} dominantTemp=${content.dominantTempText} " +
                 "dominantAge=${content.dominantAgeText} " +
+                "flags=delta:${onOff(showDelta)},temp:${onOff(showDominantTemp)},age:${onOff(showDominantAge)} " +
                 "stationId=${dominant?.stationId} dominantWeight=${dominant?.weightShare} " +
                 "rawTemp=${dominant?.rawTemp} resolvedTemp=${dominant?.resolvedTemp}",
             "DEBUG",

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -66,7 +67,7 @@ class SettingsWindowPhase5Test {
         // diverges from the snapshot config and the Save button must show the dirty marker.
         // Use the testTag on the Checkbox (the click target) -- Compose Desktop's text nodes
         // don't expose a click action on their own.
-        composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO").performClick()
+        composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO").performScrollTo().performClick()
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText("Save •").assertIsDisplayed()
@@ -92,6 +93,11 @@ class SettingsWindowPhase5Test {
             )
         }
         composeTestRule.waitForIdle()
+        // Scroll the checkbox into view BEFORE freezing the clock: performScrollTo drives a
+        // scroll animation on the test clock, which never progresses with autoAdvance=false
+        // and spins the EDT forever (the overlay-toggle card pushed this row below the fold).
+        val tomorrowCheckbox = composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO")
+        tomorrowCheckbox.performScrollTo()
         composeTestRule.mainClock.autoAdvance = false
 
         // Advancing while clean must not save.
@@ -100,7 +106,7 @@ class SettingsWindowPhase5Test {
         assertEquals(0, savedConfigs.size)
 
         // Toggle a source to make currentConfig diverge.
-        composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO").performClick()
+        tomorrowCheckbox.performClick()
         composeTestRule.mainClock.advanceTimeByFrame()
         composeTestRule.waitForIdle()
         assertEquals(0, savedConfigs.size)
@@ -139,10 +145,13 @@ class SettingsWindowPhase5Test {
             )
         }
         composeTestRule.waitForIdle()
+        // Scroll into view before freezing the clock (see autoSave_firesAfterIdlePeriod).
+        val tomorrowCheckbox = composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO")
+        tomorrowCheckbox.performScrollTo()
         composeTestRule.mainClock.autoAdvance = false
 
         // First edit: disable TOMORROW_IO.
-        composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO").performClick()
+        tomorrowCheckbox.performClick()
         composeTestRule.mainClock.advanceTimeByFrame()
         composeTestRule.waitForIdle()
 
@@ -190,9 +199,12 @@ class SettingsWindowPhase5Test {
             )
         }
         composeTestRule.waitForIdle()
+        // Scroll into view before freezing the clock (see autoSave_firesAfterIdlePeriod).
+        val tomorrowCheckbox = composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO")
+        tomorrowCheckbox.performScrollTo()
         composeTestRule.mainClock.autoAdvance = false
 
-        composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO").performClick()
+        tomorrowCheckbox.performClick()
         composeTestRule.mainClock.advanceTimeByFrame()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("Save •").assertIsDisplayed()

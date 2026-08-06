@@ -172,6 +172,26 @@ internal fun SettingsWindow(
                             }
                         }
 
+                        // Daily View — Today Column overlay toggles (matches Android's
+                        // "Daily View — Today Column" settings section). All opt-in.
+                        SettingsCard(title = "Daily View — Today Column") {
+                            TodayOverlayToggleRow(
+                                label = "Show delta from forecast",
+                                checked = currentConfig.todayOverlayDelta,
+                                testTag = "today_overlay_delta_switch",
+                            ) { updateConfig(currentConfig.copy(todayOverlayDelta = it)) }
+                            TodayOverlayToggleRow(
+                                label = "Show dominant station temperature",
+                                checked = currentConfig.todayOverlayDominantTemp,
+                                testTag = "today_overlay_dominant_temp_switch",
+                            ) { updateConfig(currentConfig.copy(todayOverlayDominantTemp = it)) }
+                            TodayOverlayToggleRow(
+                                label = "Show reading age",
+                                checked = currentConfig.todayOverlayDominantAge,
+                                testTag = "today_overlay_dominant_age_switch",
+                            ) { updateConfig(currentConfig.copy(todayOverlayDominantAge = it)) }
+                        }
+
                         // Weather Data Sources -- title matches Android's
                         // R.string.api_sources_title = "Weather Data Sources".
                         SettingsCard(title = "Weather Data Sources") {
@@ -309,6 +329,27 @@ internal fun SettingsWindow(
 }
 
 private fun formatCoord(value: Double): String = "%.4f".format(value)
+
+@Composable
+private fun TodayOverlayToggleRow(
+    label: String,
+    checked: Boolean,
+    testTag: String,
+    onChecked: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyLarge)
+        Switch(
+            checked = checked,
+            onCheckedChange = onChecked,
+            modifier = Modifier.testTag(testTag),
+        )
+    }
+}
 
 @Composable
 private fun PersonalStationDiscount(

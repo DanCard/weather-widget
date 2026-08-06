@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.TodayColumnHighlight
+import com.weatherwidget.shared.graph.TodayColumnOverlayBlocks
 import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
 import com.weatherwidget.shared.graph.TodayColumnOverlayStyle
 import com.weatherwidget.shared.graph.WeightedColumnLayout
@@ -695,23 +696,20 @@ private fun DrawScope.drawDesktopTodayOverlay(
     hardObstacles: List<TodayColumnOverlayPlanner.Bounds>,
     scale: Float,
 ) {
+    // Block selection (including the independent temp/age toggles) is pure and shared with
+    // the Android renderer via TodayColumnOverlayBlocks.
     val specs =
-        listOfNotNull(
-            content.deltaValueText?.takeIf(String::isNotBlank)?.let { value ->
-                DesktopOverlayBlock(
-                    key = "delta",
-                    rows = listOf(DesktopOverlayRow(value, content.deltaCaptionText?.takeIf(String::isNotBlank))),
-                )
-            },
-            content.dominantTempText?.takeIf(String::isNotBlank)?.let { temperature ->
-                DesktopOverlayBlock(
-                    key = "dominant_temp_age",
-                    rows =
-                        listOfNotNull(temperature, content.dominantAgeText?.takeIf(String::isNotBlank))
-                            .map(::DesktopOverlayRow),
-                )
-            },
-        )
+        TodayColumnOverlayBlocks.build(
+            deltaValueText = content.deltaValueText,
+            deltaCaptionText = content.deltaCaptionText,
+            dominantTempText = content.dominantTempText,
+            dominantAgeText = content.dominantAgeText,
+        ).map { block ->
+            DesktopOverlayBlock(
+                key = block.key,
+                rows = block.rows.map { DesktopOverlayRow(it.text, it.caption) },
+            )
+        }
     if (specs.isEmpty()) return
 
     val horizontalPadding = TodayColumnOverlayStyle.HORIZONTAL_PADDING_DP.dp.toPx()

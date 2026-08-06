@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">更新結果：\n%1$s の 1 時間ごとのデータが利用可能になりました</string>
     <string name="units_title">単位</string>
     <string name="use_celsius_label">摂氏を使用</string>
+    <string name="today_overlay_title">日表示 — 今日の列</string>
+    <string name="today_overlay_delta_label">予報との差を表示</string>
+    <string name="today_overlay_dominant_temp_label">優勢な観測所の気温を表示</string>
+    <string name="today_overlay_dominant_age_label">観測値の経過時間を表示</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">言語</string>

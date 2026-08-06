@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">Risultato dell\'aggiornamento:\nDati orari ora disponibili per %1$s</string>
     <string name="units_title">Unità</string>
     <string name="use_celsius_label">Usa Celsius</string>
+    <string name="today_overlay_title">Vista giornaliera — Colonna di oggi</string>
+    <string name="today_overlay_delta_label">Mostra scostamento dalle previsioni</string>
+    <string name="today_overlay_dominant_temp_label">Mostra temperatura della stazione dominante</string>
+    <string name="today_overlay_dominant_age_label">Mostra età della lettura</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Lingua</string>

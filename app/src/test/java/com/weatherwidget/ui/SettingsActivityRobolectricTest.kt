@@ -12,6 +12,7 @@ import com.weatherwidget.util.LocationMode
 import com.weatherwidget.widget.WidgetStateManager
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -120,6 +121,57 @@ class SettingsActivityRobolectricTest {
         ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->
             val text = activity.findViewById<TextView>(R.id.current_location_label).text.toString()
             assertTrue("expected pinned suffix in: $text", text.contains("Pinned"))
+        }
+    }
+
+    @Test
+    fun `today overlay switches default to unchecked`() {
+        val intent = Intent(context, SettingsActivity::class.java)
+        ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->
+            listOf(
+                R.id.today_overlay_delta_switch,
+                R.id.today_overlay_dominant_temp_switch,
+                R.id.today_overlay_dominant_age_switch,
+            ).forEach { id ->
+                val switch = activity.findViewById<androidx.appcompat.widget.SwitchCompat>(id)
+                assertNotNull(switch)
+                assertFalse("switch $id must default to off", switch.isChecked)
+            }
+        }
+    }
+
+    @Test
+    fun `today overlay switches persist their pref and repaint widgets`() {
+        val cases =
+            listOf(
+                Triple(R.id.today_overlay_delta_switch,
+                    { m: WidgetStateManager -> m.showTodayOverlayDelta() }, "delta"),
+                Triple(R.id.today_overlay_dominant_temp_switch,
+                    { m: WidgetStateManager -> m.showTodayOverlayDominantTemp() }, "dominant temp"),
+                Triple(R.id.today_overlay_dominant_age_switch,
+                    { m: WidgetStateManager -> m.showTodayOverlayDominantAge() }, "dominant age"),
+            )
+        val intent = Intent(context, SettingsActivity::class.java)
+        ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->
+            cases.forEach { (id, getter, label) ->
+                val app = shadowOf(activity.application)
+                val broadcastsBefore =
+                    app.broadcastIntents.count {
+                        it.action == com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
+                    }
+
+                activity.findViewById<androidx.appcompat.widget.SwitchCompat>(id).performClick()
+
+                assertTrue("toggling $label must persist its pref", getter(WidgetStateManager(activity)))
+                val broadcastsAfter =
+                    app.broadcastIntents.count {
+                        it.action == com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
+                    }
+                assertTrue(
+                    "toggling $label must fire the direct ACTION_REFRESH repaint",
+                    broadcastsAfter > broadcastsBefore,
+                )
+            }
         }
     }
 }

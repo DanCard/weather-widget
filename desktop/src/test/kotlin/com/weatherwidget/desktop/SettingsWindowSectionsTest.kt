@@ -45,10 +45,12 @@ class SettingsWindowSectionsTest {
         }
         composeTestRule.waitForIdle()
 
-        // The 8 sections that became SettingsCard titles. Each must render exactly once.
+        // The 9 sections that became SettingsCard titles. Each must render exactly once.
         // Phase 5: "API Sources" was renamed to "Weather Data Sources" to match Android's
         // strings.xml R.string.api_sources_title = "Weather Data Sources".
-        listOf("Units", "Weather Data Sources", "Personal Weather Stations", "API Keys", "Icon Gallery", "Location", "Diagnostics", "Feedback").forEach { title ->
+        // "Daily View — Today Column" (overlay toggles) matches Android's
+        // R.string.today_overlay_title and sits between Units and Weather Data Sources.
+        listOf("Units", "Daily View — Today Column", "Weather Data Sources", "Personal Weather Stations", "API Keys", "Icon Gallery", "Location", "Diagnostics", "Feedback").forEach { title ->
             composeTestRule.onAllNodesWithText(title).assertCountEquals(1)
         }
     }

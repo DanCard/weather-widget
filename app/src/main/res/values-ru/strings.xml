@@ -202,6 +202,10 @@
     <string name="widget_no_hourly_result_available">Результат обновления:\nПочасовые данные для %1$s теперь доступны</string>
     <string name="units_title">Единицы измерения</string>
     <string name="use_celsius_label">Использовать Цельсий</string>
+    <string name="today_overlay_title">Дневной вид — Колонка «Сегодня»</string>
+    <string name="today_overlay_delta_label">Показать отклонение от прогноза</string>
+    <string name="today_overlay_dominant_temp_label">Показать температуру основной станции</string>
+    <string name="today_overlay_dominant_age_label">Показать возраст показания</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Язык</string>

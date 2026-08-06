@@ -266,6 +266,59 @@ class DesktopDailyForecastModelTest {
     @Test
     fun `large desktop Today overlay uses dominant raw temperature and Blend age`() {
         val now = LocalDateTime.parse("2026-08-04T08:20:00")
+        val forecast = overlayForecast()
+
+        val state = DesktopDailyForecastModel.build(
+            config.copy(
+                dateOffset = 0,
+                useCelsius = false,
+                todayOverlayDelta = true,
+                todayOverlayDominantTemp = true,
+                todayOverlayDominantAge = true,
+            ),
+            forecast,
+            DesktopDailyForecastModel.dimensions(600, 400),
+            now,
+        )
+
+        assertTrue(state.largeTodayOverlayEnabled)
+        assertEquals(8, state.days.size)
+        assertEquals("62.6°", state.todayOverlay?.dominantTempText)
+        assertEquals("0m", state.todayOverlay?.dominantAgeText)
+        assertEquals("fcst", state.todayOverlay?.deltaCaptionText)
+        assertEquals("+0.4", state.todayOverlay?.deltaValueText)
+    }
+
+    @Test
+    fun `large desktop Today overlay is null when all overlay toggles default off`() {
+        val now = LocalDateTime.parse("2026-08-04T08:20:00")
+        val state = DesktopDailyForecastModel.build(
+            config.copy(dateOffset = 0, useCelsius = false),
+            overlayForecast(),
+            DesktopDailyForecastModel.dimensions(600, 400),
+            now,
+        )
+
+        assertTrue(state.largeTodayOverlayEnabled)
+        assertNull(state.todayOverlay)
+    }
+
+    @Test
+    fun `large desktop Today overlay shows reading age alone when only age toggle on`() {
+        val now = LocalDateTime.parse("2026-08-04T08:20:00")
+        val state = DesktopDailyForecastModel.build(
+            config.copy(dateOffset = 0, useCelsius = false, todayOverlayDominantAge = true),
+            overlayForecast(),
+            DesktopDailyForecastModel.dimensions(600, 400),
+            now,
+        )
+
+        assertNull(state.todayOverlay?.deltaValueText)
+        assertNull(state.todayOverlay?.dominantTempText)
+        assertEquals("0m", state.todayOverlay?.dominantAgeText)
+    }
+
+    private fun overlayForecast(): ForecastResult {
         fun reading(station: String, local: String, temp: Float, distanceKm: Float) =
             ObservationReading(
                 stationId = station,
@@ -280,7 +333,7 @@ class DesktopDailyForecastModelTest {
                 api = WeatherSource.NWS.id,
                 fetchedAt = LocalDateTime.parse(local).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
             )
-        val forecast = ForecastResult(
+        return ForecastResult(
             daily = forecastRange("2026-08-04", 8),
             // The overlay delta row shows the FORECAST delta (swapped with the header).
             appliedDelta = 0.4f,
@@ -291,20 +344,6 @@ class DesktopDailyForecastModelTest {
                 reading("FAR", "2026-08-04T08:20:00", 70f, 20f),
             ),
         )
-
-        val state = DesktopDailyForecastModel.build(
-            config.copy(dateOffset = 0, useCelsius = false),
-            forecast,
-            DesktopDailyForecastModel.dimensions(600, 400),
-            now,
-        )
-
-        assertTrue(state.largeTodayOverlayEnabled)
-        assertEquals(8, state.days.size)
-        assertEquals("62.6°", state.todayOverlay?.dominantTempText)
-        assertEquals("0m", state.todayOverlay?.dominantAgeText)
-        assertEquals("fcst", state.todayOverlay?.deltaCaptionText)
-        assertEquals("+0.4", state.todayOverlay?.deltaValueText)
     }
 
     @Test

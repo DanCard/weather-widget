@@ -104,6 +104,24 @@ class WidgetStateManager internal constructor(
         displayPreferences.setPersonalStationDiscountPercent(percent)
     }
 
+    fun showTodayOverlayDelta(): Boolean = displayPreferences.showTodayOverlayDelta()
+
+    fun setShowTodayOverlayDelta(value: Boolean) {
+        displayPreferences.setShowTodayOverlayDelta(value)
+    }
+
+    fun showTodayOverlayDominantTemp(): Boolean = displayPreferences.showTodayOverlayDominantTemp()
+
+    fun setShowTodayOverlayDominantTemp(value: Boolean) {
+        displayPreferences.setShowTodayOverlayDominantTemp(value)
+    }
+
+    fun showTodayOverlayDominantAge(): Boolean = displayPreferences.showTodayOverlayDominantAge()
+
+    fun setShowTodayOverlayDominantAge(value: Boolean) {
+        displayPreferences.setShowTodayOverlayDominantAge(value)
+    }
+
     fun getPersonalStationWeight(): Double =
         1.0 - getPersonalStationDiscountPercent() / 100.0
 
