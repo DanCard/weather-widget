@@ -301,6 +301,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
     /**
      * Finds the API-reported actual for [requestedSource] by looking in daily_history rows
      * that have non-null [DailyHistoryEntity.apiHighTemp]/[DailyHistoryEntity.apiLowTemp].
+     *
+     * Multiple same-site fragments can exist for one source/date (legacy un-quantized location
+     * keys alongside the quantized grid). [ApiActualPicker.pickNearestComplete] picks the
+     * NEAREST fragment with complete api values — not just the nearest fragment — so a partial
+     * row (e.g. apiLowTemp null after a truncated NWS gridpoint response) never shadows a
+     * complete one sitting a few metres away. Mirrors the desktop pick in ForecastHistoryWindow.
      */
     private suspend fun resolveApiActual(
         targetDateEpoch: Long,
@@ -309,17 +315,30 @@ class ForecastHistoryActivity : AppCompatActivity() {
         requestedSource: WeatherSource,
     ): DailyHistoryEntity? {
         val allRows = dailyHistoryDao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon)
-        val sortedRows = allRows.sortedBy {
-            com.weatherwidget.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
-        }
 
-        val row = sortedRows.find { it.source == requestedSource.id }
-        if (row != null && row.apiHighTemp != null && row.apiLowTemp != null) {
+        val row = com.weatherwidget.shared.actuals.ApiActualPicker.pickNearestComplete(
+            rows = allRows,
+            lat = lat,
+            lon = lon,
+            sourceId = requestedSource.id,
+            source = { it.source },
+            locationLat = { it.locationLat },
+            locationLon = { it.locationLon },
+            apiHigh = { it.apiHighTemp },
+            apiLow = { it.apiLowTemp },
+        )
+        if (row != null) {
             Log.d(TAG, "API actual for ${requestedSource.id}: apiHigh=${row.apiHighTemp} apiLow=${row.apiLowTemp}")
             return row
         }
 
-        Log.d(TAG, "No API actual available for ${requestedSource.id}")
+        val sourceRows = allRows.filter { it.source == requestedSource.id }
+        Log.d(
+            TAG,
+            "No API actual available for ${requestedSource.id} " +
+                "(fragments=${sourceRows.size}, " +
+                "partial=${sourceRows.count { it.apiHighTemp != null || it.apiLowTemp != null }})",
+        )
         return null
     }
 

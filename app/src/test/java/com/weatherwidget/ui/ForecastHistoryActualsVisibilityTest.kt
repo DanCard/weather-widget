@@ -94,4 +94,71 @@ class ForecastHistoryActualsVisibilityTest {
         val actualsLegendCard = activity.findViewById<View>(R.id.actuals_legend_card)
         assertEquals("Actuals legend card should be GONE for today", View.GONE, actualsLegendCard.visibility)
     }
+
+    @Test
+    fun `API actual shows complete legacy fragment when nearest fragment is partial`() {
+        // Regression for the on-device bug (Pixel/Samsung, 2026-08-05): the widget opens history
+        // with the quantized data location, so the partial gridpoint row (apiLow null, written
+        // after the minTemperature window rolled off) is the NEAREST fragment; the complete
+        // legacy fragment sits a few metres away. The API actual footer must still appear.
+        val yesterdayDate = LocalDate.now().minusDays(1)
+        val quantizedLat = 37.417
+        val quantizedLon = -122.089
+
+        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
+            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, yesterdayDate.toString())
+            putExtra(ForecastHistoryActivity.EXTRA_LAT, quantizedLat)
+            putExtra(ForecastHistoryActivity.EXTRA_LON, quantizedLon)
+            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+        }
+
+        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val activity = controller.get()
+
+        // @AndroidEntryPoint injects real DAOs during onCreate (controller.setup()), overwriting
+        // anything assigned earlier — so inject the mocks only AFTER setup, then re-trigger the
+        // load with a day-navigation click, which re-runs loadData against the mocks.
+        controller.setup()
+
+        activity.forecastDao = mockk(relaxed = true)
+        activity.dailyHistoryDao = mockk(relaxed = true)
+        activity.accuracyCalculator = mockk(relaxed = true)
+
+        fun fragment(lat: Double, lon: Double, apiHigh: Float?, apiLow: Float?) = DailyHistoryEntity(
+            date = yesterdayDate.toEpochDay() * 86400000L,
+            locationLat = lat,
+            locationLon = lon,
+            computedHighTemp = 75f,
+            computedLowTemp = 60f,
+            source = WeatherSource.NWS.id,
+            condition = "Clear",
+            updatedAt = System.currentTimeMillis(),
+            apiHighTemp = apiHigh,
+            apiLowTemp = apiLow,
+        )
+        val partialNearest = fragment(quantizedLat, quantizedLon, apiHigh = 82.0f, apiLow = null)
+        val completeLegacy = fragment(37.416832, -122.089035, apiHigh = 77.2f, apiLow = 56.1f)
+
+        coEvery { activity.forecastDao.getForecastEvolution(any(), any(), any()) } returns emptyList()
+        coEvery { activity.dailyHistoryDao.getExtremesInRange(any(), any(), any(), any()) } returns
+            listOf(partialNearest, completeLegacy)
+
+        activity.findViewById<View>(R.id.prev_day_button).performClick()
+
+        // loadData runs on Dispatchers.IO and posts back to the main looper; pump until it lands.
+        val apiActualText = activity.findViewById<android.widget.TextView>(R.id.footer_api_actual_text)
+        val deadline = System.currentTimeMillis() + 10_000
+        while (apiActualText.text.isNullOrEmpty() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50)
+            ShadowLooper.idleMainLooper()
+        }
+
+        val apiActualGroup = activity.findViewById<View>(R.id.footer_api_actual_group)
+        assertEquals(
+            "API actual group should be VISIBLE via the complete legacy fragment",
+            View.VISIBLE,
+            apiActualGroup.visibility,
+        )
+        assertEquals("NWS API actual: 77.2° / 56.1°", apiActualText.text.toString())
+    }
 }

@@ -78,6 +78,7 @@ internal fun ForecastHistoryWindow(
     weatherDao: DesktopWeatherDao,
     config: DesktopConfig,
     showRequestId: Int = 0,
+    initialDate: LocalDate = LocalDate.now(),
     onClose: () -> Unit,
     onConfigUpdate: (DesktopConfig) -> Unit = {},
 ) {
@@ -126,7 +127,9 @@ internal fun ForecastHistoryWindow(
         val visibleSources = remember(config.visibleSources) {
             config.visibleSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
         }
-        var targetDate by remember { mutableStateOf(LocalDate.now()) }
+        // Keyed on showRequestId: each fresh open re-seeds the viewed date (e.g. the hourly
+        // graph's center day), while prev/next navigation within one showing is untouched.
+        var targetDate by remember(showRequestId) { mutableStateOf(initialDate) }
         var source by remember {
             mutableStateOf(
                 WeatherSource.fromId(config.weatherSource).takeIf { it in visibleSources }

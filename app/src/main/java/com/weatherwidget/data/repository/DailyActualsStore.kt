@@ -413,6 +413,14 @@ class DailyActualsStore @Inject constructor(
             .filter { it.source == WeatherSource.NWS.id }
         val existingByDate = existing.groupBy { it.date }
             .mapValues { (_, rows) -> rows.maxBy { it.updatedAt } }
+        // Coalesce api actuals across same-date fragments: the gridpoint response can carry a
+        // date's maxTemperature while its minTemperature window has already rolled off (shortly
+        // after midnight), and a blind REPLACE would erase a previously stored low. Same-site
+        // fragments (legacy un-quantized location keys) may hold the complete pair.
+        val apiHighByDate = existing.groupBy { it.date }
+            .mapValues { (_, rows) -> rows.firstNotNullOfOrNull { it.apiHighTemp } }
+        val apiLowByDate = existing.groupBy { it.date }
+            .mapValues { (_, rows) -> rows.firstNotNullOfOrNull { it.apiLowTemp } }
 
         val toUpsert = mutableListOf<DailyHistoryEntity>()
         for (dateStr in dateStrs) {
@@ -442,8 +450,8 @@ class DailyActualsStore @Inject constructor(
                     forecastLowTemp = existingRow?.forecastLowTemp,
                     forecastPrecipAmountMm = existingRow?.forecastPrecipAmountMm,
                     noonCloudPercent = existingRow?.noonCloudPercent,
-                    apiHighTemp = maxTemp,
-                    apiLowTemp = minTemp,
+                    apiHighTemp = maxTemp ?: apiHighByDate[dateEpoch],
+                    apiLowTemp = minTemp ?: apiLowByDate[dateEpoch],
                 ),
             )
         }
@@ -452,7 +460,8 @@ class DailyActualsStore @Inject constructor(
             dailyHistoryDao.insertAll(toUpsert)
             appLogDao.log(
                 "NWS_GRIDPOINT_ACTUALS",
-                "dates=${toUpsert.size} min=${dateStrs.minOrNull()} max=${dateStrs.maxOrNull()}",
+                "dates=${toUpsert.size} min=${dateStrs.minOrNull()} max=${dateStrs.maxOrNull()} " +
+                    "incomplete=${toUpsert.count { it.apiHighTemp == null || it.apiLowTemp == null }}",
                 "DEBUG",
             )
         }
@@ -532,8 +541,9 @@ class DailyActualsStore @Inject constructor(
     }
 
     /**
-     * Returns epoch-day-millis for NWS daily_history rows that have null apiHighTemp in the
-     * given range. Used to feed [backfillNwsApiActualsFromArchive].
+     * Returns epoch-day-millis for NWS daily_history rows missing either api actual in the
+     * given range (null apiHighTemp OR apiLowTemp — a partial row is still missing data).
+     * Used to feed [backfillNwsApiActualsFromArchive].
      */
     suspend fun findNwsDatesMissingApiActuals(
         latitude: Double,
@@ -545,12 +555,14 @@ class DailyActualsStore @Inject constructor(
         val keyLon = LocationMatch.quantize(longitude)
         return dailyHistoryDao
             .getExtremesInRange(startMs, endMs, keyLat, keyLon)
-            .filter { it.source == WeatherSource.NWS.id && it.apiHighTemp == null }
+            .filter { it.source == WeatherSource.NWS.id && (it.apiHighTemp == null || it.apiLowTemp == null) }
             .map { it.date }
     }
     /**
      * Backfills apiHighTemp/apiLowTemp for NWS past dates using ERA5 archive data. Idempotent —
-     * only fills dates where apiHighTemp is null.
+     * only fills fields that are still null, so a row with a real gridpoint high but a missing
+     * low (e.g. the minTemperature window rolled off the gridpoint response) keeps its high and
+     * gains the archive low.
      */
     suspend fun backfillNwsApiActualsFromArchive(
         latitude: Double,
@@ -568,13 +580,14 @@ class DailyActualsStore @Inject constructor(
 
         val existing = dailyHistoryDao
             .getExtremesInRange(minDate, maxDate, keyLat, keyLon)
-            .filter { it.source == WeatherSource.NWS.id && it.apiHighTemp == null }
+            .filter { it.source == WeatherSource.NWS.id && (it.apiHighTemp == null || it.apiLowTemp == null) }
 
         val toUpsert = existing.mapNotNull { row ->
             val temps = archiveActuals[row.date] ?: return@mapNotNull null
+            if (row.apiHighTemp != null && row.apiLowTemp != null) return@mapNotNull null
             row.copy(
-                apiHighTemp = temps.first,
-                apiLowTemp = temps.second,
+                apiHighTemp = row.apiHighTemp ?: temps.first,
+                apiLowTemp = row.apiLowTemp ?: temps.second,
                 updatedAt = now,
             )
         }

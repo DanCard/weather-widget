@@ -204,6 +204,10 @@ private fun runApp() = application {
         var statsVisible by remember { mutableStateOf(false) }
         var historyVisible by remember { mutableStateOf(false) }
         var historyShowRequestId by remember { mutableStateOf(0) }
+        // Day the forecast-history window opens on. Seeded from the hourly graph's viewed center
+        // date (Android parity: TemperatureTouchTargets passes centerTime.toLocalDate()), so
+        // opening history while viewing a past day lands on THAT day, not today.
+        var historyInitialDate by remember { mutableStateOf(LocalDate.now()) }
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
@@ -723,6 +727,7 @@ private fun runApp() = application {
                 weatherDao = weatherDao,
                 config = currentConfig,
                 showRequestId = historyShowRequestId,
+                initialDate = historyInitialDate,
                 onClose = { historyVisible = false },
                 onConfigUpdate = { newConfig -> saveConfigAndNotify(newConfig) },
             )
@@ -918,7 +923,9 @@ private fun runApp() = application {
                         observationsVisible = true
                         obsShowRequestId++
                     },
-                    onOpenHistory = {
+                    onOpenHistory = { viewedDate ->
+                        Log.d(TAG, "OpenHistory: viewedDate=$viewedDate (hourlyOffset=${currentConfig.hourlyOffset})")
+                        historyInitialDate = viewedDate
                         historyVisible = true
                         historyShowRequestId++
                     },
@@ -962,7 +969,7 @@ internal fun WidgetPopup(
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenObservations: () -> Unit,
-    onOpenHistory: () -> Unit = {},
+    onOpenHistory: (viewedDate: LocalDate) -> Unit = {},
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
     onNeedHistory: (Int) -> Unit = {},
     onNeedHourlyRefresh: (onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _ -> },
@@ -1407,7 +1414,7 @@ private fun WidgetHeader(
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenObservations: () -> Unit,
-    onOpenHistory: () -> Unit = {},
+    onOpenHistory: (viewedDate: LocalDate) -> Unit = {},
     onUpdateLocation: () -> Unit,
     headerTime: LocalDateTime = LocalDateTime.now(),
     scale: Float = 1f,
@@ -1561,13 +1568,15 @@ private fun WidgetHeader(
                         )
                         // Forecast history (how each day's forecast evolved) — ports Android's
                         // rising line-chart icon (drawable/ic_forecast_history_line.xml),
-                        // shown right of the home icon on the hourly graph.
+                        // shown right of the home icon on the hourly graph. Opens on the viewed
+                        // window's center date (Android: centerTime.toLocalDate()), so panning
+                        // back to Wednesday and tapping opens Wednesday, not today.
                         Icon(
                             painter = androidx.compose.ui.res.painterResource("drawable/ic_forecast_history_line.xml"),
                             contentDescription = "Forecast history",
                             tint = Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.size((15 * scale).dp).clickable {
-                                onOpenHistory()
+                                onOpenHistory(targetHour.toLocalDate())
                             }.testTag("open_forecast_history")
                         )
                     }
