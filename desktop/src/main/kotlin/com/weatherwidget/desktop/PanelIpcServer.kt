@@ -26,6 +26,17 @@ class PanelIpcServer(
     private var cachedPluginId: String? = null
     private var lastLookupAttemptMs = 0L
 
+    /**
+     * Last markup rendered, served verbatim to the next panel connect.
+     *
+     * [markupProvider] is expensive — it runs a full multi-day IDW observation blend
+     * (`YesterdayDeltaCalculator` → `ActualTemperatureSeriesBuilder`) that measured ~350ms, purely
+     * to produce the small delta text. Running it on the accept path outlasted the panel client's
+     * read timeout, so the client gave up before the first byte and the panel went blank. Serving a
+     * cached string keeps the accept path effectively instant.
+     */
+    private val cachedMarkup = AtomicReference<String?>(null)
+
     fun start() {
         if (serverThread != null) return
         
@@ -42,9 +53,15 @@ class PanelIpcServer(
                 while (!Thread.interrupted()) {
                     try {
                         val clientChannel = serverChannel.accept()
-                        val markup = markupProvider()
+                        // Serve the cached render immediately. Only the first connect after startup
+                        // pays the render cost inline, and only because nothing is cached yet.
+                        val markup = cachedMarkup.get() ?: renderMarkup()
                         clientChannel.write(ByteBuffer.wrap(markup.toByteArray()))
                         clientChannel.close()
+                        // Re-render for the next poll now that this client is served. The panel polls
+                        // on a fixed period, so this costs no more CPU than before — it just moves the
+                        // work off the path the client is timing.
+                        renderMarkup()
                     } catch (e: Exception) {
                         if (Thread.interrupted()) break
                         Log.e(TAG, "Error accepting IPC connection: $e")
@@ -74,7 +91,24 @@ class PanelIpcServer(
         }
     }
 
+    /**
+     * Re-renders the panel markup into [cachedMarkup]. Returns the fresh markup, or — when the
+     * provider throws — the previously cached value, falling back to the placeholder only when
+     * nothing has ever rendered. A render failure must never leave the panel with no markup at
+     * all: the client prints whatever it receives, and empty output renders as "(genmon)".
+     */
+    private fun renderMarkup(): String = try {
+        markupProvider().also { cachedMarkup.set(it) }
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to render panel markup: $e")
+        cachedMarkup.get() ?: unavailableMarkup()
+    }
+
     fun triggerRefresh() {
+        // Re-render before poking the panel, not after: the plugin event makes genmon reconnect
+        // almost immediately, and it is served whatever is cached at that instant. Refreshing
+        // afterwards would show the previous value and only catch up on the following poll.
+        renderMarkup()
         triggerPanelRefresh()
     }
 
@@ -161,6 +195,18 @@ class PanelIpcServer(
          * to a desktop notification. Pure, so it's unit-testable. No `&` in the Pango-bound text
          * (the panel/tooltip parse markup); the notify-send command is plain shell.
          */
+        /**
+         * Placeholder for when the markup has never rendered successfully. Mirrors the panel
+         * client's own fallback so the two agree on what "no data" looks like.
+         */
+        internal fun unavailableMarkup(): String = buildPanelMarkup(
+            body = "--",
+            color = STALE_COLOR,
+            deltaText = null,
+            tooltip = "Weather Widget: no data",
+            clickCmd = "#",
+        )
+
         internal fun missingLauncherMarkup(body: String): String = buildPanelMarkup(
             body = "$body ⚠",
             color = WARN_COLOR,

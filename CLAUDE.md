@@ -195,9 +195,15 @@ The `:desktop` module is a Compose-for-Desktop tray app sharing `:shared` with A
   at `/usr/lib/jvm/java-21-openjdk-amd64` if present, overridable via `JPACKAGE_HOME` /
   `-Djpackage.home`. The jlink'd runtime must include `java.sql` (sqlite-jdbc), the crypto modules
   (NWS TLS), and `jdk.unsupported` (JNA) — declared in `nativeDistributions { modules(...) }`.
-- **genmon panel temperature**: `scripts/genmon-weather.py` reads `weather.db` for clock-sized panel
-  text; clicking it opens the popup. For repo-based daily use, point genmon at the repo script.
-  Packaged builds still extract a copy to `~/.local/share/weather-widget/genmon-weather.py`.
+- **genmon panel temperature**: the panel runs the C client `genmon/genmon-weather-bin` (built with
+  `make -C genmon`; gitignored, so a fresh clone must build it). It connects to the running daemon's
+  Unix socket `~/.local/share/weather-widget/weather.sock`, prints the Pango markup that
+  `PanelIpcServer` serves, and clicking it opens the popup. The xfconf key
+  `/plugins/plugin-<id>/command` must point at that binary.
+  The legacy `genmon/genmon-weather.py` (which polled `weather.db` directly) is no longer wired up.
+  `PanelIpcServer` serves a **cached** markup string: rendering it runs a full multi-day observation
+  blend (~350ms), so it must never happen on the accept path — the client bounds its read and a slow
+  serve blanks the panel. Empty client output renders as the literal text `(genmon)`.
 
 ## Testing the Widget
 

@@ -14,8 +14,9 @@
 int main() {
     struct sockaddr_un addr;
     int fd;
-    char buf[1024];
-    int n;
+    char buf[8192];
+    size_t total = 0;
+    ssize_t n;
 
     if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         goto fallback;
@@ -35,10 +36,13 @@ int main() {
         goto fallback;
     }
 
-    // Set a short timeout (100ms) so genmon doesn't hang if the app is frozen
+    // Bound the wait so genmon can't hang on a frozen app, but keep it well clear of a
+    // cold serve: the daemon answers from a cached string in well under a millisecond, and
+    // only the very first connect after startup computes the markup inline. A 100ms budget
+    // used to expire before that first byte arrived, which blanked the panel entirely.
     struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 100000;
+    tv.tv_sec = 2;
+    tv.tv_usec = 0;
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv);
 
@@ -47,12 +51,24 @@ int main() {
         goto fallback;
     }
 
-    while ((n = read(fd, buf, sizeof(buf) - 1)) > 0) {
-        buf[n] = '\0';
-        printf("%s", buf);
+    // Accumulate the whole response before printing. Printing each chunk as it arrived meant a
+    // mid-stream timeout emitted truncated markup, which the panel renders as garbage; buffering
+    // keeps the output all-or-nothing so a short read falls through to the placeholder instead.
+    while (total < sizeof(buf) - 1 &&
+           (n = read(fd, buf + total, sizeof(buf) - 1 - total)) > 0) {
+        total += (size_t)n;
     }
-    
     close(fd);
+
+    // A read timeout leaves total == 0. That must NOT be reported as success: genmon renders
+    // empty output as the literal string "(genmon)", so returning here without printing is what
+    // made the panel look broken rather than merely stale.
+    if (total == 0) {
+        goto fallback;
+    }
+
+    buf[total] = '\0';
+    printf("%s", buf);
     return 0;
 
 fallback:
