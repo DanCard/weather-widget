@@ -32,6 +32,35 @@ object HeaderWidthChecker {
     private const val WIDE_HEADER_OCCUPANCY_THRESHOLD = 0.50f
     private const val WIDE_HEADER_MIN_WIDTH_DP = 450
 
+    /** Below this width the hourly header appends the inline nav icon row (graph selector |
+     * stations | home | history) to the left cluster. Mirrors positionCenterIcons. */
+    const val INLINE_NAV_MAX_WIDTH_DP = 420
+    private const val INLINE_NAV_ZONE_XML_WIDTH_DP = 36
+    private const val INLINE_NAV_FIRST_ZONE_MARGIN_DP = 1
+
+    /**
+     * Width in dp of the inline nav icon row appended to the header's left cluster on narrow
+     * widgets. Mirrors the visibility and touch-zone widths applied by positionCenterIcons
+     * (TemperatureTouchTargets.kt): 0 at [INLINE_NAV_MAX_WIDTH_DP] and above; per-zone width is
+     * the 36dp XML default below API 31, resized to 32/40/48dp on API 31+. The stations zone is
+     * hidden when [showStations] is false (non-today graphs); the graph-selector zone adds a
+     * 1dp marginStart.
+     */
+    fun inlineNavRowWidthDp(widthDp: Int, showStations: Boolean = true): Float {
+        if (widthDp >= INLINE_NAV_MAX_WIDTH_DP) return 0f
+        val zoneWidthDp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            when {
+                widthDp < 350 -> 32
+                widthDp < 400 -> 40
+                else -> 48
+            }
+        } else {
+            INLINE_NAV_ZONE_XML_WIDTH_DP
+        }
+        val zoneCount = if (showStations) 4 else 3
+        return (zoneWidthDp * zoneCount + INLINE_NAV_FIRST_ZONE_MARGIN_DP).toFloat()
+    }
+
     fun computeHeaderScale(
         context: Context,
         widthDp: Int,
@@ -173,8 +202,19 @@ object HeaderWidthChecker {
     /**
      * Whether the small "from yest" caption fits after the delta in the RemoteViews header.
      * The label is purely opportunistic: it never affects disclosure/scale decisions and is
-     * shown only when the full left cluster (icon/temp/delta/label/precip) still clears the
-     * API source label on the right with the standard gap.
+     * shown only when the full left cluster (icon/temp/delta/label/precip, plus the inline
+     * nav icon row on narrow widgets) still clears the API source label on the right with
+     * the standard gap.
+     *
+     * [inlineNavWidthDp] must be [inlineNavRowWidthDp] for hourly views: the inline nav
+     * icons live in the same left LinearLayout after precip, and ignoring them lets the
+     * caption stay visible while the history icon is pushed over the API label (observed
+     * on Pixel 7 Pro at widthDp=373). Daily view passes the default 0 (its inline zones
+     * are always GONE).
+     *
+     * A visible rain chance always suppresses the caption (product rule): the precip %
+     * has display priority over "from yest". Callers pass [precipText] only when the
+     * precip % would actually be shown, so a non-blank value here means "rain in header".
      */
     fun deltaLabelFitsInHeader(
         context: Context,
@@ -188,8 +228,10 @@ object HeaderWidthChecker {
         precipTextSizeDp: Float?,
         includeIcon: Boolean,
         currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
+        inlineNavWidthDp: Float = 0f,
     ): Boolean {
         if (deltaText.isNullOrBlank() || deltaLabelText.isNullOrBlank()) return false
+        if (!precipText.isNullOrBlank()) return false
         val widthPx = dpToPx(context, widthDp.toFloat())
         if (widthPx <= 0f) return false
         val leftClusterRight = resolveLeftClusterRightPx(
@@ -201,7 +243,7 @@ object HeaderWidthChecker {
             includeIcon = includeIcon,
             currentTempSizeDp = currentTempSizeDp,
             deltaLabelText = deltaLabelText,
-        )
+        ) + dpToPx(context, inlineNavWidthDp)
         val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
         val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
         return leftClusterRight + gapPx <= apiLeft

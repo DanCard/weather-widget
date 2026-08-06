@@ -114,6 +114,18 @@ internal object TemperatureViewBinder {
         )
 
         // "from yest" caption after the delta: opportunistic, only when it fits.
+        // isToday is hoisted here (reused by positionCenterIcons below) because the inline
+        // nav icon row — part of the same header LinearLayout on narrow widgets — must be
+        // counted in the caption's fit check, and its stations zone shows only for today.
+        val today = LocalDateTime.now().toLocalDate()
+        val firstHour = state.graph.hourData.firstOrNull()?.dateTime
+        val lastHour = state.graph.hourData.lastOrNull()?.dateTime
+        val isToday = firstHour?.toLocalDate() == today ||
+                lastHour?.minusHours(1)?.toLocalDate() == today ||
+                (state.graph.hourData.isEmpty() && centerTime.toLocalDate() == today)
+
+        Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour lastHour=$lastHour centerTime=$centerTime -> isToday=$isToday")
+
         val deltaLabelText = context.getString(R.string.header_delta_from_yesterday)
         val isDeltaLabelVisible = header.isDeltaVisible && disclosure.showsDelta() &&
             HeaderWidthChecker.deltaLabelFitsInHeader(
@@ -127,6 +139,7 @@ internal object TemperatureViewBinder {
                 precipText = if (header.isPrecipVisible && disclosure.showsPrecip()) header.precipProbability else null,
                 precipTextSizeDp = header.precipTextSizeDp,
                 includeIcon = disclosure.showsIcon(),
+                inlineNavWidthDp = HeaderWidthChecker.inlineNavRowWidthDp(state.widthDp, showStations = isToday),
             )
         HeaderRemoteViewsBinder.bindDeltaLabel(
             context = context,
@@ -161,15 +174,7 @@ HeaderRemoteViewsBinder.applyDisclosure(
     isDeltaLabelVisible = isDeltaLabelVisible,
 )
 
-// 3. Center Icons & Navigation
-val today = LocalDateTime.now().toLocalDate()
-val firstHour = state.graph.hourData.firstOrNull()?.dateTime
-val lastHour = state.graph.hourData.lastOrNull()?.dateTime
-val isToday = firstHour?.toLocalDate() == today ||
-        lastHour?.minusHours(1)?.toLocalDate() == today ||
-        (state.graph.hourData.isEmpty() && centerTime.toLocalDate() == today)
-
-Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour lastHour=$lastHour centerTime=$centerTime -> isToday=$isToday")
+// 3. Center Icons & Navigation (isToday computed above, before the header binds)
 
         // 4. Setup Intent Listeners
         setupZoomTapZones(

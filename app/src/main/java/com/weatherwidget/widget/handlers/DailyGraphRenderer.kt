@@ -233,7 +233,11 @@ internal object DailyGraphRenderer {
                     displayDelta?.let { String.format("%+.1f", it) }
                 } else null,
                 // "from yest" caption candidate; the header renderer decides whether it fits.
-                deltaLabelText = if (deltaVisible && disclosure.showsDelta()) {
+                // Suppressed entirely when a rain chance shows in the header (product rule:
+                // precip % has display priority), matching the RemoteViews-header guard in
+                // HeaderWidthChecker.deltaLabelFitsInHeader.
+                deltaLabelText = if (deltaVisible && disclosure.showsDelta() &&
+                    !(isPrecipVisible && headerPrecipPlacement.showHeaderPrecip)) {
                     ctx.context.getString(R.string.header_delta_from_yesterday)
                 } else null,
                 precipText = if (isPrecipVisible) "${ctx.precipProb}%" else null,

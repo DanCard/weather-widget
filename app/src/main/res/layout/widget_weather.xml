@@ -1548,7 +1548,7 @@
                 android:layout_marginTop="-10dp"
                 android:layout_marginStart="2dp"
                 android:text="@string/header_delta_from_yesterday"
-                android:textSize="10sp"
+                android:textSize="8sp"
                 android:textColor="#B3FF6B35"
                 android:includeFontPadding="false"
                 android:visibility="gone" />

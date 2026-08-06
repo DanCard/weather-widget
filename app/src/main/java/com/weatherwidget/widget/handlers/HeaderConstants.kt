@@ -12,7 +12,9 @@ object HeaderConstants {
     const val WEATHER_ICON_SIZE_DP = 24f
     const val DELTA_TEXT_SIZE_DP = 14f
     // "from yest" caption after the delta: deliberately smaller than the delta itself.
-    const val DELTA_LABEL_TEXT_SIZE_DP = 10f
+    // Reduced ~20% (10 -> 8) so the opportunistic caption stays out of the way on
+    // crowded narrow headers.
+    const val DELTA_LABEL_TEXT_SIZE_DP = 8f
     const val WEATHER_ICON_END_MARGIN_DP = 2f
     const val DELTA_MARGIN_START_DP = 4f
     const val DELTA_LABEL_MARGIN_START_DP = 2f
