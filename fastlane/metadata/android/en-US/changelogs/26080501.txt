@@ -1,0 +1,1 @@
+Open beta release: Added Today-column station overlay and header delta display with configurable toggles, improved Forecast History actuals determination, and optimized background worker data loading and render throttling.
