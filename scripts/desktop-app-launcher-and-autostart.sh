@@ -20,6 +20,8 @@ fi
 
 REPO_DIR="/home/dcar/projects/weather-widget"
 APP_BIN="$REPO_DIR/desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop"
+GENMON_DIR="$REPO_DIR/genmon"
+GENMON_BIN="$GENMON_DIR/genmon-weather-bin"
 LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/weather-widget"
 LOG_FILE="$LOG_DIR/autostart-$(date +%Y%m%d-%H%M%S).log"
 
@@ -39,6 +41,22 @@ cd "$REPO_DIR"
     echo "[$(date -Is)] distributable missing; building :desktop:createDistributable"
     ./gradlew :desktop:createDistributable
   fi
+
+  # The XFCE panel client is a gitignored build artifact, so a fresh clone has no panel until it is
+  # compiled. Run make unconditionally rather than testing for the file: make is a no-op when the
+  # binary is current, and this also catches a *stale* binary after a pull that touched the .c.
+  #
+  # Never fatal. The panel is secondary to the app, and `set -e` is in effect — a machine without
+  # gcc/make must still get the weather app, just without the panel readout.
+  if [ -f "$GENMON_DIR/Makefile" ]; then
+    if make -C "$GENMON_DIR"; then
+      echo "[$(date -Is)] panel client up to date: $GENMON_BIN"
+    else
+      echo "[$(date -Is)] WARNING: failed to build panel client; the XFCE panel will show '--'." \
+           "Build it manually with: make -C $GENMON_DIR"
+    fi
+  fi
+
   echo "[$(date -Is)] exec $APP_BIN"
 } >>"$LOG_FILE" 2>&1
 

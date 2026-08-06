@@ -196,7 +196,10 @@ The `:desktop` module is a Compose-for-Desktop tray app sharing `:shared` with A
   `-Djpackage.home`. The jlink'd runtime must include `java.sql` (sqlite-jdbc), the crypto modules
   (NWS TLS), and `jdk.unsupported` (JNA) — declared in `nativeDistributions { modules(...) }`.
 - **genmon panel temperature**: the panel runs the C client `genmon/genmon-weather-bin` (built with
-  `make -C genmon`; gitignored, so a fresh clone must build it). It connects to the running daemon's
+  `make -C genmon`). The binary is gitignored, so the autostart launcher runs `make -C genmon` on
+  every launch — a no-op when current, and it also picks up a stale binary after a pull that touched
+  the `.c`. The build is deliberately non-fatal: a machine without gcc still gets the app, and the
+  panel falls back to a grey `--`. It connects to the running daemon's
   Unix socket `~/.local/share/weather-widget/weather.sock`, prints the Pango markup that
   `PanelIpcServer` serves, and clicking it opens the popup. The xfconf key
   `/plugins/plugin-<id>/command` must point at that binary.

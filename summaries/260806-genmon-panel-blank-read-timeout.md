@@ -94,8 +94,23 @@ build, and the "never render on the accept path" constraint.
   `#FF6B35` delta at 2067–2117 of the vertical left panel.
 - User confirmed: "it is working and looks good".
 
-## Follow-up worth considering (not done)
+## Follow-up (done, prompt 4: "address follow-up")
 
-`genmon/genmon-weather-bin` is **gitignored** (`.gitignore:88`), so a fresh clone has no working
-panel until `make -C genmon` is run by hand. `scripts/desktop-app-launcher-and-autostart.sh`
-already rebuilds the distributable when missing; it could do the same for the panel binary.
+`genmon/genmon-weather-bin` is **gitignored** (`.gitignore:88`), so a fresh clone had no working
+panel until `make -C genmon` was run by hand — the same class of silent breakage as the original
+bug. `scripts/desktop-app-launcher-and-autostart.sh` already rebuilt the distributable when missing;
+it now does the same for the panel binary.
+
+Two deliberate choices:
+
+- **Run `make` unconditionally, not `[ ! -x "$GENMON_BIN" ]`.** An existence check only fixes a
+  *missing* binary; make's timestamp comparison also rebuilds a **stale** one after a pull that
+  touched the `.c`. It is a no-op (~10ms, "Nothing to be done") when current.
+- **Non-fatal.** The script runs under `set -euo pipefail`, so a bare `make` would abort the
+  launcher and the *app itself* would never start on a machine without gcc — trading a degraded
+  panel for no weather app at all. Wrapped in `if make ...; then ... else <warn> fi`.
+
+Verified: `bash -n` clean; make no-op / stale-source / deleted-binary paths all correct; a simulated
+`exit 127` make failure logs the warning and still reaches `exec` with script exit 0; and a real
+end-to-end run from a deleted-binary state logged `panel client up to date: …` at 06:28:08, started
+the app, and served the panel in 2ms.
