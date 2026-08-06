@@ -35,7 +35,7 @@ object ActualsAggregator {
         val temperature: Float,
         val observedAt: Long,
         val rowFetchedAt: Long,
-        val dominantContribution: DominantBlendContribution?,
+        val         dominantContribution: DominantBlend?,
     )
 
     /**

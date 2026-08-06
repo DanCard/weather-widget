@@ -71,8 +71,8 @@ object TodayColumnOverlayPlanner {
         obstacles: List<Bounds>,
     ): Placement? {
         if (line.width <= 0f || line.height <= 0f) return null
-        val availableWidth = input.columnRight - input.columnLeft - 2f * input.horizontalPadding
-        if (line.width > availableWidth) return null
+        // No horizontal fit gate: with font width-fitting disabled, lines wider than the column
+        // are still placed and overflow both column edges symmetrically.
         val left = (input.columnLeft + input.columnRight - line.width) / 2f
         val right = left + line.width
         val bands =

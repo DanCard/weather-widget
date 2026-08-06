@@ -496,3 +496,7 @@ For detailed architecture documentation, see:
 - `build.gradle.kts` - Project-level build configuration
 - `settings.gradle.kts` - Project structure settings
 - `gradle.properties` - Gradle build properties
+
+## Commands
+- `./gradlew :desktop:createDistributable` — build the project
+- `./gradlew :desktop:run` — start the project

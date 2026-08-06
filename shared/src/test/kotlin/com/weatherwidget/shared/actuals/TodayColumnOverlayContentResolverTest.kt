@@ -44,7 +44,7 @@ class TodayColumnOverlayContentResolverTest {
         content!!
         assertEquals("62.6°", content.dominantTempText)
         assertEquals("0m", content.dominantAgeText)
-        assertEquals("DOM", content.dominantContribution?.stationId)
+        assertEquals("DOM", content.dominantContribution?.contribution?.stationId)
         assertEquals("yest", content.deltaCaptionText)
         assertTrue(content.deltaValueText?.startsWith("+") == true)
         assertTrue(listOfNotNull(content.deltaValueText, content.dominantTempText, content.dominantAgeText).none { "DOM" in it })

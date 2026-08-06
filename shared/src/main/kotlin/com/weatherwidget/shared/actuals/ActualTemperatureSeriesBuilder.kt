@@ -75,20 +75,11 @@ data class BlendContribution(
  *
  * This is the compact render-path counterpart to [BlendBreakdown]: callers that need only the
  * station explaining the displayed current temperature do not retain every contribution for every
- * point. The fields deliberately mirror [BlendContribution] so the daily overlay and Blend tab use
- * identical age/weight semantics.
+ * point. Reuses [BlendContribution] so the daily overlay and Blend tab share one field set.
  */
-data class DominantBlendContribution(
+data class DominantBlend(
     val targetMs: Long,
-    val stationId: String,
-    val stationName: String,
-    val stationType: String,
-    val lastReadingMs: Long,
-    val rawTemp: Float,
-    val resolvedTemp: Float,
-    val sourceKind: String,
-    val ageMs: Long,
-    val weightShare: Double,
+    val contribution: BlendContribution,
 )
 
 /** Every contribution behind one emitted point, for diagnostics only. */
@@ -105,7 +96,7 @@ data class BlendObservationResult(
     /** Most-recent-first, capped by `captureBreakdowns`. Empty unless capture was requested. */
     val breakdowns: List<BlendBreakdown> = emptyList(),
     /** Latest dominant contribution at/before the requested cutoff; null unless requested. */
-    val latestDominantContribution: DominantBlendContribution? = null,
+    val latestDominantContribution: DominantBlend? = null,
 )
 
 data class ActualTemperatureSeriesResult(
@@ -349,7 +340,7 @@ object ActualTemperatureSeriesBuilder {
                 null
             }
         val breakdowns = if (captureBreakdowns > 0) ArrayDeque<BlendBreakdown>() else null
-        var latestDominantContribution: DominantBlendContribution? = null
+        var latestDominantContribution: DominantBlend? = null
         val timePattern = if (onBlendDebug != null) DateTimeFormatter.ofPattern("HH:mm") else null
         // Dominance is per LOCAL day of the raw readings, so the daily aggregate (day-only obs)
         // and the hourly graph (multi-day context window) compute the same dominant station and
@@ -478,17 +469,22 @@ object ActualTemperatureSeriesBuilder {
                     if (dominantIndex != null && dominantWeight > 0.0) {
                         val meta = captureMeta[dominantIndex]
                         latestDominantContribution =
-                            DominantBlendContribution(
+                            DominantBlend(
                                 targetMs = targetTs,
-                                stationId = meta.stationId,
-                                stationName = meta.stationName,
-                                stationType = meta.stationType,
-                                lastReadingMs = meta.lastReadingMs,
-                                rawTemp = meta.rawTemp,
-                                resolvedTemp = meta.resolvedTemp,
-                                sourceKind = meta.sourceKind,
-                                ageMs = meta.ageMs,
-                                weightShare = if (weightSum > 0.0) dominantWeight / weightSum else 0.0,
+                                contribution =
+                                    BlendContribution(
+                                        stationId = meta.stationId,
+                                        stationName = meta.stationName,
+                                        stationType = meta.stationType,
+                                        distanceKm = meta.distanceKm,
+                                        lastReadingMs = meta.lastReadingMs,
+                                        rawTemp = meta.rawTemp,
+                                        resolvedTemp = meta.resolvedTemp,
+                                        sourceKind = meta.sourceKind,
+                                        ageMs = meta.ageMs,
+                                        weight = dominantWeight,
+                                        weightShare = if (weightSum > 0.0) dominantWeight / weightSum else 0.0,
+                                    ),
                             )
                     }
                 }

@@ -72,17 +72,6 @@ class TodayColumnOverlayPlannerTest {
         assertFalse(placements[0].bounds.intersects(placements[1].bounds))
     }
 
-    @Test
-    fun `retains available line when another is too wide`() {
-        val placements =
-            TodayColumnOverlayPlanner.place(
-                listOf(line.copy(key = "delta", width = 120f), line),
-                input(),
-            )
-
-        assertEquals(listOf("dominant_temp_age"), placements.map { it.key })
-    }
-
     private fun input(
         hardObstacles: List<TodayColumnOverlayPlanner.Bounds> = emptyList(),
     ) =

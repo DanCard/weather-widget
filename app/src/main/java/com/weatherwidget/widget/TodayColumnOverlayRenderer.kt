@@ -17,8 +17,6 @@ internal object TodayColumnOverlayRenderer {
     private const val TAG = "TodayColumnOverlay"
     @VisibleForTesting
     internal const val TEXT_SIZE_DP = TodayColumnOverlayStyle.TEXT_SIZE_DP
-    @VisibleForTesting
-    internal const val FINAL_TEXT_SCALE = TodayColumnOverlayStyle.FINAL_TEXT_SCALE
     private const val HORIZONTAL_PADDING_DP = TodayColumnOverlayStyle.HORIZONTAL_PADDING_DP
     private const val VERTICAL_PADDING_DP = TodayColumnOverlayStyle.VERTICAL_PADDING_DP
     private const val ROW_SPACING_DP = TodayColumnOverlayStyle.ROW_SPACING_DP
@@ -29,7 +27,6 @@ internal object TodayColumnOverlayRenderer {
     internal const val MAIN_TEXT_COLOR = TodayColumnOverlayStyle.MAIN_TEXT_ARGB
     @VisibleForTesting
     internal const val INLINE_CAPTION_TEXT_COLOR = MAIN_TEXT_COLOR
-    private const val MIN_TEXT_SCALE_X = TodayColumnOverlayStyle.MIN_HORIZONTAL_TEXT_SCALE
     // A heavier outline overwhelms the thin glyphs after the bitmap is scaled into RemoteViews,
     // making the white fill look muddy on the dark Today panel.
     private const val OUTLINE_FRACTION = 0.08f
@@ -47,7 +44,6 @@ internal object TodayColumnOverlayRenderer {
         val columnLeft = layout.columnLefts[todayColumnIndex]
         val columnRight = columnLeft + layout.columnWidth(todayColumnIndex)
         val horizontalPadding = HORIZONTAL_PADDING_DP.dp(layout.density)
-        val maxTextWidth = (columnRight - columnLeft - 2f * horizontalPadding).coerceAtLeast(1f)
         val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
 
         val specs =
@@ -77,16 +73,8 @@ internal object TodayColumnOverlayRenderer {
 
         val rowSpacing = ROW_SPACING_DP.dp(layout.density) * labelScale
         fun paintsFor(blocks: List<TextBlockSpec>): Map<String, Paint> {
-            // Fit once against every visible row. Separate per-block fitting made the delta row
-            // smaller whenever its inline "yest" caption was wider than the temperature/age rows.
-            val commonPaint =
-                fittedPaintForRows(
-                    color = MAIN_TEXT_COLOR,
-                    rows = blocks.flatMap(TextBlockSpec::rows),
-                    maxWidth = maxTextWidth,
-                    labelScale = labelScale,
-                    density = layout.density,
-                )
+            // One shared paint keeps every row at the same main font size.
+            val commonPaint = fittedPaint(MAIN_TEXT_COLOR, labelScale, layout.density)
             return blocks.associate { spec -> spec.key to Paint(commonPaint).apply { color = spec.rows.first().color } }
         }
         fun linesFor(blocks: List<TextBlockSpec>, blockPaints: Map<String, Paint>) =
@@ -218,52 +206,23 @@ internal object TodayColumnOverlayRenderer {
         fun displayText(): String = listOfNotNull(text, inlineCaption).joinToString(" ")
     }
 
+    /**
+     * Fixed-size overlay paint. No width fitting: rows render at the base size and may overflow
+     * narrow Today columns. The placement planner still measures these paints and avoids
+     * vertical collisions; only horizontal fit is unenforced.
+     */
     @VisibleForTesting
     internal fun fittedPaint(
         color: Int,
-        rows: List<String>,
-        maxWidth: Float,
         labelScale: Float,
         density: Float,
     ): Paint =
-        fittedPaintForRows(
-            color = color,
-            rows = rows.map { TextRow(it, color) },
-            maxWidth = maxWidth,
-            labelScale = labelScale,
-            density = density,
-        )
-
-    private fun fittedPaintForRows(
-        color: Int,
-        rows: List<TextRow>,
-        maxWidth: Float,
-        labelScale: Float,
-        density: Float,
-    ): Paint {
-        val paint =
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                this.color = color
-                textAlign = Paint.Align.CENTER
-                textSize = TEXT_SIZE_DP * labelScale * density
-                setShadowLayer(1.5f * labelScale * density, 0f, labelScale * density, 0xCC000000.toInt())
-            }
-        val width = rows.maxOf { measureRow(paint, it) }
-        if (width > maxWidth) {
-            // Preserve height on narrow widgets by condensing first. Only reduce
-            // textSize if even the condensed row cannot fit the available Today-column width.
-            paint.textScaleX = (maxWidth / width).coerceIn(MIN_TEXT_SCALE_X, 1f)
-            val condensedWidth = rows.maxOf { measureRow(paint, it) }
-            if (condensedWidth > maxWidth) {
-                paint.textSize *= (maxWidth / condensedWidth).coerceIn(0.01f, 1f)
-            }
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            textAlign = Paint.Align.CENTER
+            textSize = TEXT_SIZE_DP * labelScale * density
+            setShadowLayer(1.5f * labelScale * density, 0f, labelScale * density, 0xCC000000.toInt())
         }
-        // Apply the requested 15% visual reduction after fitting. Reducing only the nominal base
-        // size had no effect on Samsung because the preceding 30 dp version had already been fit
-        // down to roughly the same size by the narrow-column constraint.
-        paint.textSize *= FINAL_TEXT_SCALE
-        return paint
-    }
 
     private fun drawRow(
         canvas: Canvas,

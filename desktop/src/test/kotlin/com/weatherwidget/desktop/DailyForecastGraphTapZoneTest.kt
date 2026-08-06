@@ -15,21 +15,6 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class DailyForecastGraphTapZoneTest {
 
-    @Test
-    fun `today overlay uses one final font size selected by the widest row`() {
-        val expected = 30f * (100f / 150f) * 0.85f
-
-        assertEquals(
-            expected,
-            uniformDesktopOverlayFontSize(
-                baseSize = 30f,
-                maxWidth = 100f,
-                naturalBlockWidths = listOf(150, 90),
-            ),
-            0.001f,
-        )
-    }
-
     /**
      * Future-day column with real high/low temps — mirrors Jul 7-style taps where the icon is drawn
      * on the bar geometry above the fixed bottom strip.

@@ -1,0 +1,12 @@
+Want more info on daily forecast view for large widgets.
+On today column: If wide widget: 10 or more columns and tall widget: 4 or more launcher icon rows:
+Add following info overlay on today column:
+1) Delta temperature from yesterday.  Already implemented on hourly temperature graph.
+2) Dominate station from blend current temperature
+3) Age of above temperature reading.  Same as what is displayed on current observations blend tab.
+Adjust the view to fit this info:
+1. Thin the today vertical bars to make it look less cluttered.
+2. Increase the width of the today column so there is more space for the text
+3. Decrease the column count to compensate for the wider today column.
+4. Implement an algorithm that decides the least cluttered vertical location for each piece of text.
+   Can go above column, on top of column, or below column.

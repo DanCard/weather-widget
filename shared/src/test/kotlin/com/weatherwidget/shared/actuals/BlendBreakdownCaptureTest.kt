@@ -30,16 +30,17 @@ class BlendBreakdownCaptureTest {
     @Test
     fun `compact dominant station shows raw reading and blend age but no station`() {
         val contribution =
-            DominantBlendContribution(
-                targetMs = 20 * 60_000L,
+            BlendContribution(
                 stationId = "KNUQ",
                 stationName = "Moffett Federal Airfield",
                 stationType = "OFFICIAL",
+                distanceKm = 3.2f,
                 lastReadingMs = 5 * 60_000L,
                 rawTemp = 63.4f,
                 resolvedTemp = 62.3f,
                 sourceKind = "forecast_extrapolated",
                 ageMs = 15 * 60_000L,
+                weight = 0.8,
                 weightShare = 0.8,
             )
         assertEquals(
@@ -208,12 +209,12 @@ class BlendBreakdownCaptureTest {
             ).latestDominantContribution!!
 
         assertEquals(cutoff, dominant.targetMs)
-        assertEquals("KNUQ", dominant.stationId)
-        assertEquals(5L, dominant.ageMs / 60_000L)
-        assertEquals(0.6464, dominant.weightShare, 0.001)
-        assertEquals(64.4f, dominant.rawTemp, 0.01f)
-        assertEquals(64.9f, dominant.resolvedTemp, 0.01f)
-        assertEquals("forecast_extrapolated", dominant.sourceKind)
+        assertEquals("KNUQ", dominant.contribution.stationId)
+        assertEquals(5L, dominant.contribution.ageMs / 60_000L)
+        assertEquals(0.6464, dominant.contribution.weightShare, 0.001)
+        assertEquals(64.4f, dominant.contribution.rawTemp, 0.01f)
+        assertEquals(64.9f, dominant.contribution.resolvedTemp, 0.01f)
+        assertEquals("forecast_extrapolated", dominant.contribution.sourceKind)
     }
 
     @Test
@@ -246,7 +247,7 @@ class BlendBreakdownCaptureTest {
         assertEquals(compatibility.second, detailed.observedAt)
         assertEquals(compatibility.third, detailed.rowFetchedAt)
         assertEquals(detailed.observedAt, detailed.dominantContribution?.targetMs)
-        assertEquals("KNUQ", detailed.dominantContribution?.stationId)
+        assertEquals("KNUQ", detailed.dominantContribution?.contribution?.stationId)
     }
 
     @Test

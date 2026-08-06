@@ -81,24 +81,12 @@ object BlendTableFormatter {
 
     /** Compact dominant-station rows; temperature and age match that station's raw Blend-table cells. */
     fun formatDominantTempAgeRows(
-        stationReadingTempF: Float,
-        ageMs: Long,
+        contribution: BlendContribution,
         useCelsius: Boolean,
     ): DominantTempAgeRows =
         DominantTempAgeRows(
-            temperature = requireNotNull(TempUtils.formatTemp(stationReadingTempF, useCelsius)),
-            age = formatAgeMs(ageMs),
-        )
-
-    /** Uses the raw-reading and age columns belonging to the selected dominant contribution. */
-    fun formatDominantTempAgeRows(
-        contribution: DominantBlendContribution,
-        useCelsius: Boolean,
-    ): DominantTempAgeRows =
-        formatDominantTempAgeRows(
-            stationReadingTempF = contribution.rawTemp,
-            ageMs = contribution.ageMs,
-            useCelsius = useCelsius,
+            temperature = requireNotNull(TempUtils.formatTemp(contribution.rawTemp, useCelsius)),
+            age = formatAgeMs(contribution.ageMs),
         )
 
     /**

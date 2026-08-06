@@ -367,7 +367,7 @@ internal object DailyGraphRenderer {
                 personalStationWeight = personalStationWeight,
                 useCelsius = ctx.stateManager.useCelsius(),
             ) ?: return null
-        val dominant = content.dominantContribution
+        val dominant = content.dominantContribution?.contribution
         ctx.appLogDao.log(
             "TODAY_OVERLAY",
             "widget=${ctx.appWidgetId} observedAt=$observedAt " +

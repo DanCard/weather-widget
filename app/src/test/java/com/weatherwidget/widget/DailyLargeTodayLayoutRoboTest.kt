@@ -170,61 +170,16 @@ class DailyLargeTodayLayoutRoboTest {
     }
 
     @Test
-    fun `overlay applies fifteen percent visual reduction after fitting`() {
+    fun `overlay font size uses no horizontal condensing`() {
         val paint =
             TodayColumnOverlayRenderer.fittedPaint(
                 color = android.graphics.Color.WHITE,
-                rows = listOf("62.6°"),
-                maxWidth = Float.MAX_VALUE,
                 labelScale = 1f,
                 density = 1f,
             )
 
-        assertEquals(30f, TodayColumnOverlayRenderer.TEXT_SIZE_DP, 0f)
-        assertEquals(0.85f, TodayColumnOverlayRenderer.FINAL_TEXT_SCALE, 0f)
-        assertEquals(25.5f, paint.textSize, 0.01f)
-    }
-
-    @Test
-    fun `overlay font fitter condenses before reducing text height`() {
-        val naturalPaint =
-            TodayColumnOverlayRenderer.fittedPaint(
-                color = android.graphics.Color.WHITE,
-                rows = listOf("62.6°"),
-                maxWidth = Float.MAX_VALUE,
-                labelScale = 1f,
-                density = 1f,
-            )
-        val maxWidth =
-            naturalPaint.measureText("62.6°") *
-                (0.8f / TodayColumnOverlayRenderer.FINAL_TEXT_SCALE)
-        val paint =
-            TodayColumnOverlayRenderer.fittedPaint(
-                color = android.graphics.Color.WHITE,
-                rows = listOf("62.6°"),
-                maxWidth = maxWidth,
-                labelScale = 1f,
-                density = 1f,
-            )
-
-        assertEquals(25.5f, paint.textSize, 0.01f)
-        assertTrue(paint.textScaleX < 1f)
-        assertTrue(paint.measureText("62.6°") <= maxWidth + 0.01f)
-    }
-
-    @Test
-    fun `overlay font fitter always honors the available column width`() {
-        val maxWidth = 10f
-        val paint =
-            TodayColumnOverlayRenderer.fittedPaint(
-                color = android.graphics.Color.WHITE,
-                rows = listOf("from yest"),
-                maxWidth = maxWidth,
-                labelScale = 1f,
-                density = 1f,
-            )
-
-        assertTrue(paint.measureText("from yest") <= maxWidth + 0.01f)
+        // Width fitting is disabled: the fixed size stands and text may overflow narrow columns.
+        assertEquals(1f, paint.textScaleX, 0f)
     }
 
     @Test

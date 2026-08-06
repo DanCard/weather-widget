@@ -683,16 +683,6 @@ private data class MeasuredDesktopOverlayBlock(
     val layout: TextLayoutResult,
 )
 
-internal fun uniformDesktopOverlayFontSize(
-    baseSize: Float,
-    maxWidth: Float,
-    naturalBlockWidths: List<Int>,
-): Float {
-    val widestWidth = naturalBlockWidths.maxOrNull()?.coerceAtLeast(1) ?: 1
-    val fitScale = (maxWidth / widestWidth).coerceIn(0.01f, 1f)
-    return baseSize * fitScale * TodayColumnOverlayStyle.FINAL_TEXT_SCALE
-}
-
 private fun DrawScope.drawDesktopTodayOverlay(
     textMeasurer: TextMeasurer,
     content: TodayColumnOverlayContent,
@@ -725,7 +715,6 @@ private fun DrawScope.drawDesktopTodayOverlay(
     if (specs.isEmpty()) return
 
     val horizontalPadding = TodayColumnOverlayStyle.HORIZONTAL_PADDING_DP.dp.toPx()
-    val maxWidth = (columnRight - columnLeft - 2f * horizontalPadding).coerceAtLeast(1f)
 
     fun annotated(spec: DesktopOverlayBlock, fontSizeSp: Float): AnnotatedString =
         buildAnnotatedString {
@@ -753,13 +742,10 @@ private fun DrawScope.drawDesktopTodayOverlay(
         )
 
     fun measureAll(blocks: List<DesktopOverlayBlock>): List<MeasuredDesktopOverlayBlock> {
-        val baseSize = TodayColumnOverlayStyle.TEXT_SIZE_DP * scale
-        val baseLayouts = blocks.associateWith { layoutAt(it, baseSize) }
-        // The 15% reduction deliberately follows width fitting, matching the Android/Samsung fix.
-        // Fit every block against the widest row so delta, temperature, and age retain one main
-        // font size even when the inline "yest" caption makes the delta row the width constraint.
-        val finalSize = uniformDesktopOverlayFontSize(baseSize, maxWidth, baseLayouts.values.map { it.size.width })
-        return blocks.map { spec -> MeasuredDesktopOverlayBlock(spec, layoutAt(spec, finalSize)) }
+        // Fixed font size, matching Android. No width fitting: rows render at the base size and
+        // may overflow narrow Today columns. Vertical placement still measures the real text size.
+        val fontSize = TodayColumnOverlayStyle.TEXT_SIZE_DP * scale
+        return blocks.map { spec -> MeasuredDesktopOverlayBlock(spec, layoutAt(spec, fontSize)) }
     }
 
     fun place(blocks: List<MeasuredDesktopOverlayBlock>): List<TodayColumnOverlayPlanner.Placement> =

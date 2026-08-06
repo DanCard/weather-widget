@@ -14,7 +14,7 @@ data class TodayColumnOverlayContent(
     val dominantTempText: String?,
     val dominantAgeText: String?,
     val observedAt: Long,
-    val dominantContribution: DominantBlendContribution?,
+    val dominantContribution: DominantBlend?,
 )
 
 /** Resolves the exact compact Today annotation shared by Android and desktop. */
@@ -126,7 +126,7 @@ object TodayColumnOverlayContentResolver {
                 zoneId = zoneId,
             )
         val deltaText = delta?.let { YesterdayDeltaLabel.formatValue(it, useCelsius) }
-        val dominantRows = dominant?.let { BlendTableFormatter.formatDominantTempAgeRows(it, useCelsius) }
+        val dominantRows = dominant?.let { BlendTableFormatter.formatDominantTempAgeRows(it.contribution, useCelsius) }
         if (deltaText == null) {
             Log.d(
                 TAG,
