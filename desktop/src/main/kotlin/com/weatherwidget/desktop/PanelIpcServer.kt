@@ -81,7 +81,7 @@ class PanelIpcServer(
     fun generateMarkup(
         forecast: ForecastResult?,
         currentTemp: Float?,
-        appliedDelta: Float?,
+        deltaFromYesterday: Float?,
         dataStatus: DataStatus,
         config: DesktopConfig?
     ): String {
@@ -102,9 +102,9 @@ class PanelIpcServer(
         val isStale = dataStatus is DataStatus.Stale
         val color = if (isStale || temp == null) STALE_COLOR else LIVE_COLOR
 
-        // Mirror the popup header (Main.kt): show the measured-vs-forecast offset, formatted "%+.1f"
+        // Mirror the popup header (Main.kt): show the delta from yesterday, formatted "%+.1f"
         // (no degree symbol), only when it is non-trivial. Always orange, like the header.
-        val deltaText = appliedDelta
+        val deltaText = deltaFromYesterday
             ?.takeIf { kotlin.math.abs(it) >= 0.1f }
             ?.let {
                 val displayDelta = if (useCelsius) it / 1.8f else it

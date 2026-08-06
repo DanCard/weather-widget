@@ -91,6 +91,8 @@ data class ForecastResult(
     val currentCondition: String? = null,
     val currentObservedAt: Long? = null,
     val appliedDelta: Float? = null,
+    /** Observed temp minus blended actual at the same clock time 24h earlier; shown in the header. */
+    val deltaFromYesterday: Float? = null,
     val daily: List<DailyForecast> = emptyList(),
     val hourly: List<HourlyForecast> = emptyList(),
     val dailyActuals: Map<String, DailyHistory> = emptyMap(),

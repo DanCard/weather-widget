@@ -4,27 +4,28 @@ import kotlin.math.abs
 import kotlin.math.round
 
 /**
- * Pure, platform-free formatting + placement for the "+0.4 from yesterday" delta label drawn on the
- * zoomed-in hourly temperature graph. The number itself comes from
- * [com.weatherwidget.shared.actuals.YesterdayDeltaCalculator]; this object owns how it reads, what color
- * it is, when it shows, and where it sits — so Android and desktop stay pixel-consistent.
+ * Pure, platform-free formatting + placement for the "+0.4 from forecast" delta label drawn on the
+ * zoomed-in hourly temperature graph. The number itself is the forecast delta (observed minus
+ * forecast at the current hour, the same value that shifts the ghost line); this object owns how it
+ * reads, what color it is, when it shows, and where it sits — so Android and desktop stay
+ * pixel-consistent.
  *
- * - **Text**: signed, one decimal, e.g. `+0.4 from yesterday`, `-1.2 from yesterday`, `+0.0 from yesterday`.
+ * - **Text**: signed, one decimal, e.g. `+0.4 from forecast`, `-1.2 from forecast`, `+0.0 from forecast`.
  * - **Color**: the thermostat gradient ([TemperatureColorModel]) evaluated at the *current* temperature,
  *   so the label harmonizes with the curve color at "now".
  * - **Visibility**: the narrow AND the 24 h view, gated by [DELTA_LABEL_MAX_HOURS_SPAN] (25 h — admits a
  *   full-day window, excludes the 3-day view), and only when a delta exists. This is intentionally wider
  *   than the fetch-dot age gate ([FetchDotLabel.AGE_LABEL_MAX_HOURS_SPAN], 12 h): "is this fresh enough to
- *   show an age?" and "is this zoomed in enough for a yesterday comparison?" are different questions.
+ *   show an age?" and "is this zoomed in enough for a forecast comparison?" are different questions.
  * - **Position**: dropped into empty space — a vertical band in the plot, preferring the visual center,
  *   that clears both the temperature curve and every already-placed label/icon/fetch-dot.
  *
  * Each platform supplies its own measured [Metrics] (from its staleness paint) and a [curveYAt] sampler
  * of the *visible* curve, so this stays free of android.graphics / Compose types.
  */
-object YesterdayDeltaLabel {
-    const val SUFFIX = " from yesterday"
-    const val COMPACT_CAPTION = "yest"
+object ForecastDeltaLabel {
+    const val SUFFIX = " from forecast"
+    const val COMPACT_CAPTION = "fcst"
 
     /**
      * Show the label for windows up to this span: admits the narrow view and the 24 h view (span 24 h),

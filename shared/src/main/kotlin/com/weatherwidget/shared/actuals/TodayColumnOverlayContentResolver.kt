@@ -2,7 +2,7 @@ package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
-import com.weatherwidget.shared.graph.YesterdayDeltaLabel
+import com.weatherwidget.shared.graph.ForecastDeltaLabel
 import com.weatherwidget.shared.util.Log
 import java.time.ZoneId
 
@@ -28,6 +28,7 @@ object TodayColumnOverlayContentResolver {
         nowMs: Long,
         personalStationWeight: Double,
         useCelsius: Boolean,
+        forecastDelta: Float? = null,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): TodayColumnOverlayContent? {
         val details =
@@ -53,6 +54,7 @@ object TodayColumnOverlayContentResolver {
             currentObservedTemp = details.temperature,
             personalStationWeight = personalStationWeight,
             useCelsius = useCelsius,
+            forecastDelta = forecastDelta,
             zoneId = zoneId,
             resolvedDetails = details,
         )
@@ -69,6 +71,7 @@ object TodayColumnOverlayContentResolver {
         currentObservedTemp: Float?,
         personalStationWeight: Double,
         useCelsius: Boolean,
+        forecastDelta: Float? = null,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): TodayColumnOverlayContent? =
         resolveAt(
@@ -82,6 +85,7 @@ object TodayColumnOverlayContentResolver {
             currentObservedTemp = currentObservedTemp,
             personalStationWeight = personalStationWeight,
             useCelsius = useCelsius,
+            forecastDelta = forecastDelta,
             zoneId = zoneId,
             resolvedDetails = null,
         )
@@ -97,6 +101,7 @@ object TodayColumnOverlayContentResolver {
         currentObservedTemp: Float?,
         personalStationWeight: Double,
         useCelsius: Boolean,
+        forecastDelta: Float?,
         zoneId: ZoneId,
         resolvedDetails: ActualsAggregator.CurrentObservationResolution?,
     ): TodayColumnOverlayContent? {
@@ -113,31 +118,21 @@ object TodayColumnOverlayContentResolver {
                 personalStationWeight = personalStationWeight,
             )
         val dominant = details?.takeIf { it.observedAt == observedAt }?.dominantContribution
-        val delta =
-            YesterdayDeltaCalculator.computeDelta(
-                observations = observations,
-                hourlyForecasts = hourlyForecasts,
-                displaySourceId = displaySourceId,
-                userLat = userLat,
-                userLon = userLon,
-                observedAtMs = observedAt,
-                currentObservedTemp = currentObservedTemp,
-                personalStationWeight = personalStationWeight,
-                zoneId = zoneId,
-            )
-        val deltaText = delta?.let { YesterdayDeltaLabel.formatValue(it, useCelsius) }
+        // The overlay delta row is the FORECAST delta (observed minus forecast at the current
+        // hour), supplied by the caller — the yesterday delta moved to the widget header.
+        val deltaText = forecastDelta?.let { ForecastDeltaLabel.formatValue(it, useCelsius) }
         val dominantRows = dominant?.let { BlendTableFormatter.formatDominantTempAgeRows(it.contribution, useCelsius) }
         if (deltaText == null) {
             Log.d(
                 TAG,
                 "delta null: observedAtMs=$observedAt currentObsTemp=$currentObservedTemp " +
-                    "obsCount=${observations.size} displaySource=$displaySourceId",
+                    "forecastDelta=$forecastDelta obsCount=${observations.size} displaySource=$displaySourceId",
             )
         }
         if (deltaText == null && dominantRows == null) return null
         return TodayColumnOverlayContent(
             deltaValueText = deltaText,
-            deltaCaptionText = deltaText?.let { YesterdayDeltaLabel.COMPACT_CAPTION },
+            deltaCaptionText = deltaText?.let { ForecastDeltaLabel.COMPACT_CAPTION },
             dominantTempText = dominantRows?.temperature,
             dominantAgeText = dominantRows?.age,
             observedAt = observedAt,

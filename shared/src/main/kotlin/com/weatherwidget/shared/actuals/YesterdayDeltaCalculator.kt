@@ -11,7 +11,7 @@ private const val TAG = "YesterdayDeltaCalc"
 
 /**
  * Pure, platform-free computation of the "how much warmer/cooler than this time yesterday" delta shown
- * as a small label on the zoomed-in hourly temperature graph (see [com.weatherwidget.shared.graph.YesterdayDeltaLabel]).
+ * in the widget header (Android hourly + daily, desktop window header + genmon panel).
  *
  * The "current" side is the fetch-dot observation ([currentObservedTemp] at [observedAtMs]) — the same
  * most-recent real observation the staleness/age label describes — so the delta is independent of where

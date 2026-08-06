@@ -282,6 +282,8 @@ class DesktopDailyForecastModelTest {
             )
         val forecast = ForecastResult(
             daily = forecastRange("2026-08-04", 8),
+            // The overlay delta row shows the FORECAST delta (swapped with the header).
+            appliedDelta = 0.4f,
             rawObservations = listOf(
                 reading("DOM", "2026-08-03T08:20:00", 60f, 0.2f),
                 reading("FAR", "2026-08-03T08:20:00", 70f, 20f),
@@ -301,7 +303,8 @@ class DesktopDailyForecastModelTest {
         assertEquals(8, state.days.size)
         assertEquals("62.6°", state.todayOverlay?.dominantTempText)
         assertEquals("0m", state.todayOverlay?.dominantAgeText)
-        assertEquals("yest", state.todayOverlay?.deltaCaptionText)
+        assertEquals("fcst", state.todayOverlay?.deltaCaptionText)
+        assertEquals("+0.4", state.todayOverlay?.deltaValueText)
     }
 
     @Test

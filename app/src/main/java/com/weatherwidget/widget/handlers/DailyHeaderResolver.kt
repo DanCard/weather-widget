@@ -63,6 +63,7 @@ internal object DailyHeaderResolver {
         smoothedForecasts: Map<Long, Float>?,
         sunInfo: SunInfo,
         headerDateFormatter: DateTimeFormatter,
+        deltaFromYesterday: Float?,
     ): HeaderResolution {
         val resolution = resolveState(
             context = context,
@@ -84,6 +85,7 @@ internal object DailyHeaderResolver {
             smoothedForecasts = smoothedForecasts,
             sunInfo = sunInfo,
             headerDateFormatter = headerDateFormatter,
+            deltaFromYesterday = deltaFromYesterday,
         )
         bind(
             context = context,
@@ -117,6 +119,7 @@ internal object DailyHeaderResolver {
         smoothedForecasts: Map<Long, Float>?,
         sunInfo: SunInfo,
         headerDateFormatter: DateTimeFormatter,
+        deltaFromYesterday: Float?,
     ): HeaderResolution {
         val today = now.toLocalDate()
 
@@ -189,24 +192,27 @@ internal object DailyHeaderResolver {
                 if (isNightPrecip) HeaderPrecipCalculator.NIGHT_SCALE else 1f
         } else null
 
+        // Forecast delta (observed − forecast): kept on the state for the ghost line and the
+        // today-column overlay. The HEADER shows the yesterday delta instead (always visible when
+        // it exists and clears the noise threshold — no graph-window gate).
         val delta = currentTempResolution.appliedDelta
         val deltaVisible =
             currentTemp != null &&
-            delta != null &&
-            abs(delta) >= DailyHeaderBinder.DELTA_VISIBILITY_THRESHOLD
+            deltaFromYesterday != null &&
+            abs(deltaFromYesterday) >= DailyHeaderBinder.DELTA_VISIBILITY_THRESHOLD
         // Compute the unit-corrected, display-formatted delta string here alongside
         // formattedTemp (which also uses stateManager.useCelsius() at the same point in
         // time) so resolve and bind share one unit snapshot. Avoids re-instantiating
         // WidgetStateManager (SharedPreferences hit) inside the per-render bind path.
-        val deltaText = if (deltaVisible && delta != null) {
-            val displayDelta = if (stateManager.useCelsius()) delta / 1.8f else delta
+        val deltaText = if (deltaVisible && deltaFromYesterday != null) {
+            val displayDelta = if (stateManager.useCelsius()) deltaFromYesterday / 1.8f else deltaFromYesterday
             String.format("%+.1f", displayDelta)
         } else null
 
         // Pick API label
         val apiSourceText = displaySource.shortDisplayName
         val apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows)
-        val deltaTextForFit = if (deltaVisible) String.format("%+.1f", delta) else null
+        val deltaTextForFit = if (deltaVisible) String.format("%+.1f", deltaFromYesterday) else null
         val precipTextForFit = if (isPrecipVisible) "${precipProb}%" else null
 
         val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
@@ -240,7 +246,7 @@ internal object DailyHeaderResolver {
             widthDp = widthDpForPrecip,
             numColumns = numColumns,
             currentTempText = formattedTemp,
-            deltaText = if (deltaVisible && disclosure.showsDelta()) String.format("%+.1f", delta) else null,
+            deltaText = if (deltaVisible && disclosure.showsDelta()) String.format("%+.1f", deltaFromYesterday) else null,
             precipText = if (isPrecipVisible) "$precipProb%" else null,
             precipTextSizeDp = precipTextSizeDp,
             apiSourceText = apiSourceText,
@@ -257,6 +263,7 @@ internal object DailyHeaderResolver {
             estimatedTemp = currentTempResolution.estimatedTemp,
             observedTemp = currentTempResolution.observedTemp,
             appliedDelta = delta,
+            yesterdayDelta = deltaFromYesterday,
             deltaVisible = deltaVisible,
             deltaText = deltaText,
             precipProb = precipProb,

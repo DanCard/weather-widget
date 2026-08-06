@@ -96,7 +96,6 @@ object TemperatureGraphRenderer {
         appliedDelta: Float? = null,
         observedAt: Long? = null,
         lastObservedTemp: Float? = null,
-        deltaFromYesterday: Float? = null,
         numColumns: Int = 0,
         job: Job? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
@@ -290,10 +289,10 @@ object TemperatureGraphRenderer {
             )
         }
 
-        TemperatureGraphAnnotationRenderer.placeYesterdayDeltaLabel(
+        TemperatureGraphAnnotationRenderer.placeForecastDeltaLabel(
             annotationInput,
             hours,
-            deltaFromYesterday,
+            appliedDelta,
         )
         TemperatureGraphAnnotationRenderer.placeGhostLineLabel(annotationInput, hours)
 

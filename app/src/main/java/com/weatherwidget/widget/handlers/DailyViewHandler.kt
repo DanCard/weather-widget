@@ -20,10 +20,13 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.NavigationUtils
@@ -107,6 +110,12 @@ object DailyViewHandler : WidgetViewHandler {
         val sunInfo: SunInfo,
         val database: WeatherDatabase,
         val repository: WeatherRepository?,
+        /**
+         * Observations for the last [DailyGraphRenderer.OVERLAY_OBSERVATION_LOOKBACK_MS], loaded once
+         * per render for the header yesterday-delta and reused by the today-column overlay so the
+         * two never issue duplicate range queries.
+         */
+        val headerObservations: List<ObservationEntity>?,
     )
 
     override fun canHandle(
@@ -308,6 +317,29 @@ object DailyViewHandler : WidgetViewHandler {
 
         val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
 
+        // Header yesterday-delta: one observation range query per render, shared with the
+        // today-column overlay (same window) via ctx.headerObservations.
+        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val headerObservations = repository?.getObservationsInRange(
+            nowMs - DailyGraphRenderer.OVERLAY_OBSERVATION_LOOKBACK_MS,
+            nowMs,
+            lat,
+            lon,
+        )
+        val deltaFromYesterday = headerObservations?.let { observations ->
+            YesterdayDeltaCalculator.computeDelta(
+                observations = observations.map { it.toReading() },
+                hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+                displaySourceId = displaySource.id,
+                userLat = lat,
+                userLon = lon,
+                observedAtMs = observedAt,
+                currentObservedTemp = lastObservedTemp,
+                personalStationWeight = stateManager.getPersonalStationWeight(),
+                zoneId = ZoneId.systemDefault(),
+            )
+        }
+
         val headerResolution = DailyHeaderResolver.resolveAndBind(
             context = context,
             views = views,
@@ -329,6 +361,7 @@ object DailyViewHandler : WidgetViewHandler {
             smoothedForecasts = smoothedForecasts,
             sunInfo = sunInfo,
             headerDateFormatter = headerDateFormatter(),
+            deltaFromYesterday = deltaFromYesterday,
         )
 
         val currentTemp = headerResolution.state.currentTemp
@@ -338,6 +371,7 @@ object DailyViewHandler : WidgetViewHandler {
         val isPrecipVisible = headerResolution.state.isPrecipVisible
         val precipTextSizeDp = headerResolution.state.precipTextSizeDp
         val delta = headerResolution.state.appliedDelta
+        val yesterdayDelta = headerResolution.state.yesterdayDelta
         val deltaVisible = headerResolution.state.deltaVisible
         val apiSourceText = headerResolution.state.apiSourceText
         val disclosure = headerResolution.state.disclosure
@@ -363,8 +397,9 @@ object DailyViewHandler : WidgetViewHandler {
                 estimatedTemp = headerResolution.state.estimatedTemp,
                 observedTemp = headerResolution.state.observedTemp,
                 appliedDelta = delta,
+                headerDelta = yesterdayDelta,
                 deltaVisible = deltaVisible,
-                deltaHiddenReason = DailyHeaderBinder.dailyDeltaHiddenReason(currentTemp, delta),
+                deltaHiddenReason = DailyHeaderBinder.dailyDeltaHiddenReason(currentTemp, yesterdayDelta),
                 precipVisible = isPrecipVisible,
                 precipProbability = precipProb,
                 isNowLineVisible = null,
@@ -411,6 +446,7 @@ object DailyViewHandler : WidgetViewHandler {
             sunInfo = sunInfo,
             database = database,
             repository = repository,
+            headerObservations = headerObservations,
         )
 
         if (useGraph) {
@@ -783,7 +819,10 @@ object DailyViewHandler : WidgetViewHandler {
         val formattedTemp: String?,
         val estimatedTemp: Float?,
         val observedTemp: Float?,
+        /** Forecast delta (observed − forecast at the current hour): ghost line + overlay, not the header. */
         val appliedDelta: Float?,
+        /** Yesterday delta (observed − blended actual 24h earlier): the value shown in the header. */
+        val yesterdayDelta: Float?,
         val deltaVisible: Boolean,
         val deltaText: String?,
         val precipProb: Int?,

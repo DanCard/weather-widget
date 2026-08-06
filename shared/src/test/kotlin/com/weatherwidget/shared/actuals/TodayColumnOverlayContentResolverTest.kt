@@ -37,6 +37,7 @@ class TodayColumnOverlayContentResolverTest {
             nowMs = now,
             personalStationWeight = 1.0,
             useCelsius = false,
+            forecastDelta = 0.4f,
             zoneId = zone,
         )
 
@@ -45,8 +46,8 @@ class TodayColumnOverlayContentResolverTest {
         assertEquals("62.6°", content.dominantTempText)
         assertEquals("0m", content.dominantAgeText)
         assertEquals("DOM", content.dominantContribution?.contribution?.stationId)
-        assertEquals("yest", content.deltaCaptionText)
-        assertTrue(content.deltaValueText?.startsWith("+") == true)
+        assertEquals("fcst", content.deltaCaptionText)
+        assertEquals("+0.4", content.deltaValueText)
         assertTrue(listOfNotNull(content.deltaValueText, content.dominantTempText, content.dominantAgeText).none { "DOM" in it })
     }
 

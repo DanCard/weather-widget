@@ -16,7 +16,7 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContentResolver
-import com.weatherwidget.shared.graph.YesterdayDeltaLabel
+import com.weatherwidget.shared.graph.ForecastDeltaLabel
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
@@ -33,7 +33,7 @@ import java.util.Locale
 
 internal object DailyGraphRenderer {
     private const val TAG = "DailyGraphRenderer"
-    private const val OVERLAY_OBSERVATION_LOOKBACK_MS = 36L * 60L * 60L * 1_000L
+    internal const val OVERLAY_OBSERVATION_LOOKBACK_MS = 36L * 60L * 60L * 1_000L
 
     internal data class RenderMetrics(
         val prepareMs: Long,
@@ -55,7 +55,8 @@ internal object DailyGraphRenderer {
         val formattedTemp = headerState.formattedTemp
         val iconRes = headerState.iconRes
         val deltaVisible = headerState.deltaVisible
-        val delta = headerState.appliedDelta
+        // Header-in-bitmap delta shows the YESTERDAY delta, same as the RemoteViews header.
+        val delta = headerState.yesterdayDelta
         val isPrecipVisible = headerState.isPrecipVisible
         val apiSourceText = headerState.apiSourceText
         val apiTextSizeDp = HeaderConstants.apiTextSizeDp(ctx.numRows)
@@ -343,13 +344,17 @@ internal object DailyGraphRenderer {
     ): DailyForecastGraphRenderer.TodayOverlayRenderData? {
         val observedAt = ctx.observedAt ?: return null
         val nowMs = ctx.now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // Prefer the per-render observation load shared with the header yesterday-delta; fall back
+        // to a direct query (or the current-temps cache) when it is unavailable.
         val observations =
-            ctx.repository?.getObservationsInRange(
-                nowMs - OVERLAY_OBSERVATION_LOOKBACK_MS,
-                nowMs,
-                lat,
-                lon,
-            ) ?: ctx.currentTemps
+            ctx.headerObservations
+                ?: ctx.repository?.getObservationsInRange(
+                    nowMs - OVERLAY_OBSERVATION_LOOKBACK_MS,
+                    nowMs,
+                    lat,
+                    lon,
+                )
+                ?: ctx.currentTemps
         val sharedObservations = observations.map { it.toReading() }
         val sharedHourlyForecasts = ctx.hourlyForecasts.map { it.toHourlyForecast() }
         val personalStationWeight = ctx.stateManager.getPersonalStationWeight()
@@ -366,6 +371,9 @@ internal object DailyGraphRenderer {
                 currentObservedTemp = headerState.observedTemp,
                 personalStationWeight = personalStationWeight,
                 useCelsius = ctx.stateManager.useCelsius(),
+                // The overlay delta row is the FORECAST delta (it swapped places with the header,
+                // which now shows the yesterday delta).
+                forecastDelta = headerState.appliedDelta,
             ) ?: return null
         val dominant = content.dominantContribution?.contribution
         ctx.appLogDao.log(
@@ -381,7 +389,7 @@ internal object DailyGraphRenderer {
             deltaValueText = content.deltaValueText,
             deltaCaptionText = content.deltaCaptionText,
             deltaColorArgb =
-                headerState.observedTemp?.let(YesterdayDeltaLabel::colorArgb)
+                headerState.observedTemp?.let(ForecastDeltaLabel::colorArgb)
                     ?: 0xE6FFFFFF.toInt(),
             dominantTempText = content.dominantTempText,
             dominantAgeText = content.dominantAgeText,

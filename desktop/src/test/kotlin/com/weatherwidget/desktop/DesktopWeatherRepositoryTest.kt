@@ -256,8 +256,9 @@ class DesktopWeatherRepositoryTest {
 
         val inMemoryResult = repository.resolveCurrentTempInMemory(cachedResult!!, now)
         assertNotNull(inMemoryResult)
-        assertEquals(cachedResult.currentTemp, inMemoryResult.first)
-        assertEquals(cachedResult.appliedDelta, inMemoryResult.second)
+        assertEquals(cachedResult.currentTemp, inMemoryResult.displayTemp)
+        assertEquals(cachedResult.appliedDelta, inMemoryResult.appliedDelta)
+        assertEquals(cachedResult.deltaFromYesterday, inMemoryResult.deltaFromYesterday)
     }
 }
 

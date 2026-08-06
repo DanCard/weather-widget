@@ -12,7 +12,7 @@ import com.weatherwidget.shared.graph.LabelPlacementDebug
 import com.weatherwidget.shared.graph.LabelTextMetrics
 import com.weatherwidget.shared.graph.TemperatureLabelEngine
 import com.weatherwidget.shared.graph.TemperatureRole
-import com.weatherwidget.shared.graph.YesterdayDeltaLabel
+import com.weatherwidget.shared.graph.ForecastDeltaLabel
 import com.weatherwidget.shared.util.TempUtils
 import com.weatherwidget.util.WeatherConditionColors
 import java.time.Duration
@@ -25,7 +25,7 @@ import kotlin.math.roundToInt
 internal object TemperatureGraphAnnotationRenderer {
     private const val TAG = "TempGraphRenderer"
     private const val X_COORDINATE_MATCH_TOLERANCE = 0.5f
-    private const val YESTERDAY_DELTA_LABEL_PAD_DP = 6f
+    private const val FORECAST_DELTA_LABEL_PAD_DP = 6f
     private const val GHOST_LINE_LABEL_PAD_DP = 4f
     private const val GHOST_LINE_LABEL_GAP_DP = 2.5f
 
@@ -292,21 +292,21 @@ internal object TemperatureGraphAnnotationRenderer {
         }
     }
 
-    fun placeYesterdayDeltaLabel(
+    fun placeForecastDeltaLabel(
         input: Input,
         hours: List<HourData>,
-        deltaFromYesterday: Float?,
+        forecastDelta: Float?,
     ) {
-        val delta = deltaFromYesterday ?: return
+        val delta = forecastDelta ?: return
         val fetchDotX = input.series.fetchDotX
         if (fetchDotX == null || fetchDotX < 0f || fetchDotX > input.widthPx.toFloat()) return
         val currentTemp = input.lastObservedTemp ?: return
         if (hours.size < 2) return
         val spanHours = Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
         val paint = input.paints.stalenessTextPaint
-        val text = YesterdayDeltaLabel.format(delta, input.useCelsius)
+        val text = ForecastDeltaLabel.format(delta, input.useCelsius)
         val placement =
-            YesterdayDeltaLabel.place(
+            ForecastDeltaLabel.place(
                 delta = delta,
                 currentTemp = currentTemp,
                 spanHours = spanHours,
@@ -314,12 +314,12 @@ internal object TemperatureGraphAnnotationRenderer {
                 drawnBounds = input.graphObstacles(),
                 curveYAt = { sampleVisibleCurveY(input, it) },
                 metrics =
-                    YesterdayDeltaLabel.Metrics(
+                    ForecastDeltaLabel.Metrics(
                         width = paint.measureText(text),
                         ascent = TemperatureGraphStyle.fontAscent(paint),
                         descent = TemperatureGraphStyle.fontDescent(paint),
                     ),
-                padPx = TemperatureGraphStyle.dpToPx(input.context, YESTERDAY_DELTA_LABEL_PAD_DP),
+                padPx = TemperatureGraphStyle.dpToPx(input.context, FORECAST_DELTA_LABEL_PAD_DP),
                 useCelsius = input.useCelsius,
             ) ?: return
         val labelPaint =
@@ -334,7 +334,7 @@ internal object TemperatureGraphAnnotationRenderer {
             labelPaint,
         )
         input.obstacles.add(
-            TemperatureGraphObstacleType.YESTERDAY_DELTA,
+            TemperatureGraphObstacleType.FORECAST_DELTA,
             placement.box.toRectF(),
         )
     }

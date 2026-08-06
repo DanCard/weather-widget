@@ -15,6 +15,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.testutil.mockAppWidgetManager
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.widget.DailyForecastGraphRenderer
@@ -23,6 +24,8 @@ import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetRenderer
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.CapturingSlot
+import io.mockk.coEvery
+import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -1193,6 +1196,28 @@ class DailyViewHandlerTest {
         assertTrue("Evening highTexts $highTexts should contain 62.9° for Today's 62.9° forecast", highTexts.contains("62.9°"))
     }
 
+    /**
+     * Repository whose only observation is 70°F exactly 24h before [observedAtMs]. The daily header
+     * delta is the delta from yesterday (post-swap), so the header badge reads "+1.0" against a
+     * 71°F current observation.
+     */
+    private fun repositoryWithYesterdayObservation(observedAtMs: Long): WeatherRepository {
+        val repository = mockk<WeatherRepository>(relaxed = true)
+        val observation = ObservationEntity(
+            stationId = "TST",
+            stationName = "Test Station",
+            timestamp = observedAtMs - 24L * 60 * 60 * 1000,
+            temperature = 70f,
+            condition = "Clear",
+            locationLat = 37.7749,
+            locationLon = -122.4194,
+            fetchedAt = 1L,
+            api = "NWS",
+        )
+        coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns listOf(observation)
+        return repository
+    }
+
     @Test
     fun `updateWidget daily header shows delta when precip is absent`() = runBlocking {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
@@ -1202,6 +1227,8 @@ class DailyViewHandlerTest {
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
         val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 47, widthDp = 200, heightDp = 150)
+        val observedAtMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val repository = repositoryWithYesterdayObservation(observedAtMs)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -1230,12 +1257,12 @@ class DailyViewHandlerTest {
             ),
             observationData = ObservationData(
                 lastObservedTemp = 71f,
-                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                observedAt = observedAtMs,
             ),
             now = now,
             startupToken = null,
             stateManagerNullable = null,
-            repository = null,
+            repository = repository,
         )
 
         val root = FrameLayout(context)
@@ -1256,6 +1283,8 @@ class DailyViewHandlerTest {
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
         val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 48, widthDp = 200, heightDp = 150)
+        val observedAtMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val repository = repositoryWithYesterdayObservation(observedAtMs)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -1284,12 +1313,12 @@ class DailyViewHandlerTest {
             ),
             observationData = ObservationData(
                 lastObservedTemp = 71f,
-                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                observedAt = observedAtMs,
             ),
             now = now,
             startupToken = null,
             stateManagerNullable = null,
-            repository = null,
+            repository = repository,
         )
 
         val root = FrameLayout(context)

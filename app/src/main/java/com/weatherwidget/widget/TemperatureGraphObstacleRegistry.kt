@@ -10,7 +10,7 @@ enum class TemperatureGraphObstacleType {
     FETCH_DOT_VALUE,
     FETCH_DOT_AGE,
     FETCH_DOT_AGE_RESERVATION,
-    YESTERDAY_DELTA,
+    FORECAST_DELTA,
     GHOST_LABEL,
 }
 

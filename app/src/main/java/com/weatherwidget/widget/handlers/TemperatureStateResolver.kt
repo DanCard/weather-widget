@@ -23,7 +23,6 @@ import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
-import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -63,6 +62,9 @@ internal object TemperatureStateResolver {
     private const val DELTA_COLOR_HEX = "#FF6B35"
     private const val MAX_PERSISTED_BLEND_DEBUG_LINES = 12
 
+    /** Observation lookback for the text-mode (graph-less) header yesterday-delta query. */
+    private const val TEXT_MODE_DELTA_LOOKBACK_HOURS = 30L
+
     data class ResolutionResult(
         val state: TemperatureWidgetState,
         val resolveMs: Long,
@@ -75,7 +77,7 @@ internal object TemperatureStateResolver {
         val lon: Double,
         val smoothedForecasts: Map<Long, Float>,
         val isNowLineVisible: Boolean,
-        val isDeltaWindowVisible: Boolean,
+        val deltaFromYesterday: Float?,
     )
 
     suspend fun resolve(
@@ -239,14 +241,14 @@ internal object TemperatureStateResolver {
         // 5. Header State Resolution
         val currentTemp = currentTempResolution.displayTemp
         val isNowLineVisible = graphHours.any { it.isCurrentHour }
-        val delta = currentTempResolution.appliedDelta
-        // Delta stays visible on future scroll (no "now" in window yet reached) and hides only once
-        // the window has scrolled entirely into the past, matching the ghost line's own visibility
-        // (see GhostLineGate) rather than the stricter "now must be on screen" isNowLineVisible check.
-        val graphWindowEndTime = graphHours.lastOrNull()?.dateTime
-        val isDeltaWindowVisible = graphWindowEndTime != null &&
-            HeaderDeltaGate.isVisible(graphWindowEndTime, now, delta, DELTA_VISIBILITY_THRESHOLD)
-        val deltaVisible = currentTemp != null && isDeltaWindowVisible
+        // The header delta is the DELTA FROM YESTERDAY (observed now vs blended actual at the same
+        // clock time 24h earlier). It is pan-independent, so it always shows when it exists and
+        // clears the noise threshold — no graph-window gate (decided: header stays simple).
+        // The forecast delta (appliedDelta) still drives the ghost line and the on-graph
+        // "from forecast" label; it just no longer appears in the header.
+        val headerDelta = deltaFromYesterday
+        val deltaVisible = currentTemp != null && headerDelta != null &&
+            abs(headerDelta) >= DELTA_VISIBILITY_THRESHOLD
 
         val sourceIndicator = HeaderFormatter.formatSourceIndicator(
             centerTime = centerTime,
@@ -294,7 +296,7 @@ internal object TemperatureStateResolver {
             } else null,
             currentTempSizeDp = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
             deltaText = if (deltaVisible) {
-                val displayDelta = delta?.let { if (useCelsius) it / 1.8f else it }
+                val displayDelta = headerDelta?.let { if (useCelsius) it / 1.8f else it }
                 if (displayDelta != null) String.format("%+.1f", displayDelta) else null
             } else null,
             deltaColor = Color.parseColor(DELTA_COLOR_HEX),
@@ -325,7 +327,6 @@ internal object TemperatureStateResolver {
                     appliedDelta = currentTempResolution.appliedDelta,
                     observedAt = observedAt,
                     lastObservedTemp = lastObservedTemp,
-                    deltaFromYesterday = deltaFromYesterday,
                     numColumns = dimensions.cols,
                     job = coroutineContext[Job],
                     onFetchDotResolved = onFetchDotResolved,
@@ -381,7 +382,7 @@ internal object TemperatureStateResolver {
             lon = lon,
             smoothedForecasts = smoothedForecasts,
             isNowLineVisible = isNowLineVisible,
-            isDeltaWindowVisible = isDeltaWindowVisible,
+            deltaFromYesterday = deltaFromYesterday,
         )
     }
 
@@ -414,7 +415,33 @@ internal object TemperatureStateResolver {
         observedAt: Long?,
         lastObservedTemp: Float?,
     ): GraphLoadOutcome {
-        if (!useGraph) return GraphLoadOutcome.Loaded(emptyList(), 0L, 0L)
+        if (!useGraph) {
+            // Text mode (1-row widget) has no graph, but the header still shows the yesterday
+            // delta, so resolve it with a small observation query (30h covers the 24h-ago blend
+            // target plus tolerance). No graph-hours work happens here.
+            val obsStartMs = System.currentTimeMillis()
+            val zoneId = ZoneId.systemDefault()
+            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+            val minEpoch = truncated.minusHours(TEXT_MODE_DELTA_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+            val maxEpoch = truncated.plusHours(2).atZone(zoneId).toInstant().toEpochMilli()
+            val observations = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
+            val delta = computeDeltaFromYesterday(
+                observations = observations,
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
+                lat = lat,
+                lon = lon,
+                observedAt = observedAt,
+                lastObservedTemp = lastObservedTemp,
+                personalStationWeight = stateManager.getPersonalStationWeight(),
+            )
+            return GraphLoadOutcome.Loaded(
+                hours = emptyList(),
+                obsQueryMs = System.currentTimeMillis() - obsStartMs,
+                buildHourDataMs = 0L,
+                deltaFromYesterday = delta,
+            )
+        }
 
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
@@ -578,20 +605,19 @@ internal object TemperatureStateResolver {
             }
         }
 
-        // "+0.4 from yesterday" delta: current fetch-dot temp minus the blended actual at the same clock
-        // time 24h earlier. Computed here (not in the renderer) because the raw 72h observation list lives
-        // here — when zoomed in, the renderer's windowed hours may not even reach back a day. Null (label
-        // hidden) when the fetch dot or a yesterday observation is missing, e.g. navigated into the past.
-        val deltaFromYesterday = YesterdayDeltaCalculator.computeDelta(
-            observations = observations.map { it.toReading() },
-            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
-            displaySourceId = displaySource.id,
-            userLat = lat,
-            userLon = lon,
-            observedAtMs = observedAt,
-            currentObservedTemp = lastObservedTemp,
+        // Header "delta from yesterday": current fetch-dot temp minus the blended actual at the same
+        // clock time 24h earlier. Computed here (not in the renderer) because the raw 72h observation
+        // list lives here — when zoomed in, the renderer's windowed hours may not even reach back a
+        // day. Null (header delta hidden) when the fetch dot or a yesterday observation is missing.
+        val deltaFromYesterday = computeDeltaFromYesterday(
+            observations = observations,
+            hourlyForecasts = hourlyForecasts,
+            displaySource = displaySource,
+            lat = lat,
+            lon = lon,
+            observedAt = observedAt,
+            lastObservedTemp = lastObservedTemp,
             personalStationWeight = stateManager.getPersonalStationWeight(),
-            zoneId = ZoneId.systemDefault(),
         )
 
         return GraphLoadOutcome.Loaded(
@@ -601,6 +627,28 @@ internal object TemperatureStateResolver {
             deltaFromYesterday = deltaFromYesterday,
         )
     }
+
+    private fun computeDeltaFromYesterday(
+        observations: List<ObservationEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        lat: Double,
+        lon: Double,
+        observedAt: Long?,
+        lastObservedTemp: Float?,
+        personalStationWeight: Double,
+    ): Float? =
+        YesterdayDeltaCalculator.computeDelta(
+            observations = observations.map { it.toReading() },
+            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+            displaySourceId = displaySource.id,
+            userLat = lat,
+            userLon = lon,
+            observedAtMs = observedAt,
+            currentObservedTemp = lastObservedTemp,
+            personalStationWeight = personalStationWeight,
+            zoneId = ZoneId.systemDefault(),
+        )
 
     private fun buildWarningResult(
         appWidgetId: Int,
@@ -633,7 +681,7 @@ internal object TemperatureStateResolver {
             lon = lon,
             smoothedForecasts = emptyMap(),
             isNowLineVisible = false,
-            isDeltaWindowVisible = false,
+            deltaFromYesterday = null,
         )
     }
 
@@ -668,7 +716,7 @@ internal object TemperatureStateResolver {
             lon = lon,
             smoothedForecasts = smoothedForecasts,
             isNowLineVisible = false,
-            isDeltaWindowVisible = false,
+            deltaFromYesterday = null,
         )
     }
 

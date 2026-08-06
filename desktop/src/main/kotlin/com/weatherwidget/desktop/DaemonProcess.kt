@@ -92,12 +92,12 @@ fun runDaemon() {
         val resolved = if (forecast != null && currentRepo != null) {
             currentRepo.resolveCurrentTempInMemory(forecast, System.currentTimeMillis())
         } else {
-            forecast?.currentTemp to forecast?.appliedDelta
+            DesktopWeatherRepository.ResolvedCurrentTemp(
+                forecast?.currentTemp, forecast?.appliedDelta, forecast?.deltaFromYesterday,
+            )
         }
-        val currentTemp = resolved.first
-        val appliedDelta = resolved.second
-        
-        generateMarkup(forecast, currentTemp, appliedDelta, dataStatus, config)
+
+        generateMarkup(forecast, resolved.displayTemp, resolved.deltaFromYesterday, dataStatus, config)
     }.apply { start() }
 
     // Non-lossy daemon → UI push channel. `notifyDataUpdated()` pushes over this in addition to the

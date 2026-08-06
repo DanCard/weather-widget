@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.*
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.actuals.NwsApiActualsBackfill
+import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.actuals.ActualsAggregator
@@ -35,12 +36,19 @@ class DesktopWeatherRepository(
     private val personalStationWeight: Double = 1.0,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
 ) {
+    /** Result of the current-temperature resolution: display temp, forecast delta, yesterday delta. */
+    data class ResolvedCurrentTemp(
+        val displayTemp: Float?,
+        val appliedDelta: Float?,
+        val deltaFromYesterday: Float?,
+    )
+
     private fun resolveForForecastResult(
         hourly: List<HourlyForecast>,
         observations: List<com.weatherwidget.data.model.ObservationReading>,
         now: Long,
         resultLogLevel: String = "DEBUG",
-    ): Pair<Float?, Float?> {
+    ): ResolvedCurrentTemp {
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
         val nowLocal = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault())
         
@@ -83,10 +91,23 @@ class DesktopWeatherRepository(
             smoothedForecasts = smoothedForecasts,
             resultLogLevel = resultLogLevel,
         )
-        return resolution.displayTemp to resolution.appliedDelta
+        // Header delta (delta from yesterday): uses the FULL observation list, not the narrow
+        // current-temp window — the 24h-ago blend target never fits in the narrow window.
+        val deltaFromYesterday = YesterdayDeltaCalculator.computeDelta(
+            observations = observations,
+            hourlyForecasts = hourly,
+            displaySourceId = displaySource.id,
+            userLat = latitude,
+            userLon = longitude,
+            observedAtMs = observedAt,
+            currentObservedTemp = lastObservedTemp,
+            personalStationWeight = personalStationWeight,
+            zoneId = zoneId,
+        )
+        return ResolvedCurrentTemp(resolution.displayTemp, resolution.appliedDelta, deltaFromYesterday)
     }
 
-    fun resolveCurrentTempInMemory(forecast: ForecastResult, now: Long): Pair<Float?, Float?> {
+    fun resolveCurrentTempInMemory(forecast: ForecastResult, now: Long): ResolvedCurrentTemp {
         // High-frequency path: runs on every genmon panel connect and every UI minute tick.
         // VERBOSE keeps the CURR_TEMP_RESULT row out of app_logs (the sparse fetch-cycle
         // resolves in loadCached/refreshObservations stay DEBUG and remain queryable).
@@ -124,7 +145,7 @@ class DesktopWeatherRepository(
         // Freshness gate only governs whether the *current condition* is shown as observed vs forecast.
         val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
 
-        val (currentTemp, appliedDelta) = resolveForForecastResult(hourly, observations, now)
+        val resolved = resolveForForecastResult(hourly, observations, now)
         val actuals = loadDailyActuals(daily)
         val snapshots = loadDailySnapshots(daily)
 
@@ -133,10 +154,11 @@ class DesktopWeatherRepository(
         }
 
         ForecastResult(
-            currentTemp = currentTemp,
+            currentTemp = resolved.displayTemp,
             currentCondition = latestObs?.condition ?: hourly.firstOrNull()?.condition,
             currentObservedAt = newestObs?.timestamp,
-            appliedDelta = appliedDelta,
+            appliedDelta = resolved.appliedDelta,
+            deltaFromYesterday = resolved.deltaFromYesterday,
             daily = appendClimateNormalGaps(daily, now),
             hourly = hourly,
             dailyActuals = actuals,
@@ -460,11 +482,12 @@ class DesktopWeatherRepository(
 
             val cachedHourly = cached?.hourly ?: emptyList()
             val cachedObs = cached?.rawObservations ?: emptyList()
-            val (currentTemp, appliedDelta) = resolveForForecastResult(cachedHourly, cachedObs, now)
+            val resolvedCached = resolveForForecastResult(cachedHourly, cachedObs, now)
 
             result.copy(
-                currentTemp = currentTemp,
-                appliedDelta = appliedDelta,
+                currentTemp = resolvedCached.displayTemp,
+                appliedDelta = resolvedCached.appliedDelta,
+                deltaFromYesterday = resolvedCached.deltaFromYesterday,
                 currentCondition = result.currentCondition ?: cached?.currentCondition,
                 currentObservedAt = result.currentObservedAt ?: cached?.currentObservedAt,
                 daily = cached?.daily ?: emptyList(),

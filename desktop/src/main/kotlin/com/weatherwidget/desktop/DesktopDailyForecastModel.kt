@@ -185,6 +185,9 @@ object DesktopDailyForecastModel {
                     nowMs = nowMs,
                     personalStationWeight = config.personalStationWeight(),
                     useCelsius = config.useCelsius,
+                    // Overlay delta row = FORECAST delta (swapped with the header, which now shows
+                    // the yesterday delta).
+                    forecastDelta = forecast.appliedDelta,
                 )
                 Log.d(
                     TAG,

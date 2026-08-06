@@ -70,13 +70,13 @@ class CelsiusDisplayTest {
         assertEquals("", ForecastHistoryViewLogic.formatBias(0.4, useCelsius = true))
     }
 
-    // ------------------------------------------------------------------ yesterday delta
+    // ------------------------------------------------------------------ forecast delta
 
     @Test
-    fun `yesterday delta scales without the offset`() {
-        assertEquals("+1.8 from yesterday", YesterdayDeltaLabel.format(1.8f, useCelsius = false))
-        assertEquals("+1.0 from yesterday", YesterdayDeltaLabel.format(1.8f, useCelsius = true))
-        assertEquals("-0.5 from yesterday", YesterdayDeltaLabel.format(-0.9f, useCelsius = true))
+    fun `forecast delta scales without the offset`() {
+        assertEquals("+1.8 from forecast", ForecastDeltaLabel.format(1.8f, useCelsius = false))
+        assertEquals("+1.0 from forecast", ForecastDeltaLabel.format(1.8f, useCelsius = true))
+        assertEquals("-0.5 from forecast", ForecastDeltaLabel.format(-0.9f, useCelsius = true))
     }
 
     // ------------------------------------------------------------------ header current temp

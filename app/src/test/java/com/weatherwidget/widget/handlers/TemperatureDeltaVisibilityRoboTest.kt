@@ -3,8 +3,13 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
+import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.WidgetStateManager
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,9 +20,16 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
+import java.time.ZoneId
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
+/**
+ * Header delta visibility, post-swap: the header shows the DELTA FROM YESTERDAY (latest observed
+ * temp minus the blended actual at the same clock time 24h earlier), sourced from
+ * [WeatherRepository.getObservationsInRange]. It is pan-independent — visible whenever the delta
+ * exists and clears the 0.1° noise threshold, regardless of where the graph window is scrolled.
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)
@@ -34,13 +46,15 @@ class TemperatureDeltaVisibilityRoboTest {
     }
 
     private suspend fun resolveState(
-        hourly: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        hourly: List<HourlyForecastEntity>,
         now: LocalDateTime,
         lastObservedTemp: Float?,
-        centerTime: LocalDateTime = now
+        repository: WeatherRepository?,
+        centerTime: LocalDateTime = now,
+        observedAtMs: Long = epochMs(now),
     ): TemperatureWidgetState {
         val dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 180, isIconWidth = false)
-        
+
         val result = TemperatureStateResolver.resolve(
             context = context,
             appWidgetId = appWidgetId,
@@ -50,35 +64,24 @@ class TemperatureDeltaVisibilityRoboTest {
             displaySource = WeatherSource.NWS,
             precipProbability = 0,
             lastObservedTemp = lastObservedTemp,
-            observedAt = System.currentTimeMillis(),
+            observedAt = observedAtMs,
             dimensions = dimensions,
             stateManager = stateManager,
-            repository = null,
+            repository = repository,
             deferCurrentTempResolution = false
         )
         return result.state
     }
 
-    private fun epochFor(dateTime: LocalDateTime): Long =
-        com.weatherwidget.testutil.TestData.toEpoch(dateTime.toString().substring(0, 13) + ":00")
+    private fun epochMs(dateTime: LocalDateTime): Long =
+        dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-    @Test
-    fun `delta badge is visible and red for positive delta`() = runBlocking {
-        val now = LocalDateTime.now()
-        
-        val hourly = listOf(
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
-                locationLat = 37.0,
-                locationLon = -122.0,
-                temperature = 70.0f,
-                condition = "Clear",
-                source = WeatherSource.NWS.id,
-                precipProbability = 0,
-                fetchedAt = System.currentTimeMillis()
-            ),
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
+    /** Hourly forecast rows covering [now-72h, now+96h] so any panned graph window has data. */
+    private fun hourlyCovering(now: LocalDateTime): List<HourlyForecastEntity> {
+        val base = now.withMinute(0).withSecond(0).withNano(0)
+        return (-72L..96L).map { offset ->
+            HourlyForecastEntity(
+                dateTime = epochMs(base.plusHours(offset)),
                 locationLat = 37.0,
                 locationLon = -122.0,
                 temperature = 70.0f,
@@ -87,10 +90,39 @@ class TemperatureDeltaVisibilityRoboTest {
                 precipProbability = 0,
                 fetchedAt = System.currentTimeMillis()
             )
+        }
+    }
+
+    /** Repository whose only observation is [yesterdayTemp] exactly 24h before [observedAtMs]. */
+    private fun repositoryWithYesterdayObservation(yesterdayTemp: Float, observedAtMs: Long): WeatherRepository {
+        val repository = mockk<WeatherRepository>()
+        val observation = ObservationEntity(
+            stationId = "TST",
+            stationName = "Test Station",
+            timestamp = observedAtMs - 24L * 60 * 60 * 1000,
+            temperature = yesterdayTemp,
+            condition = "observed",
+            locationLat = 37.0,
+            locationLon = -122.0,
+            distanceKm = 1f,
+            stationType = "OFFICIAL",
+            api = WeatherSource.NWS.id,
+        )
+        coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns listOf(observation)
+        return repository
+    }
+
+    @Test
+    fun `delta badge is visible and red for positive delta`() = runBlocking {
+        val now = LocalDateTime.now()
+        val observedAtMs = epochMs(now)
+        // Yesterday at this time: 70.0. Now: 71.2 -> +1.2 from yesterday.
+        val state = resolveState(
+            hourlyCovering(now), now, 71.2f,
+            repositoryWithYesterdayObservation(70.0f, observedAtMs),
+            observedAtMs = observedAtMs,
         )
 
-        val state = resolveState(hourly, now, 71.2f)
-        
         assertTrue("Delta badge should be VISIBLE", state.header.isDeltaVisible)
         assertEquals("+1.2", state.header.deltaText)
         assertEquals("Should be red for positive", Color.parseColor("#FF6B35"), state.header.deltaColor)
@@ -99,32 +131,14 @@ class TemperatureDeltaVisibilityRoboTest {
     @Test
     fun `delta badge is red for negative delta`() = runBlocking {
         val now = LocalDateTime.now()
-        
-        val hourly = listOf(
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
-                locationLat = 37.0,
-                locationLon = -122.0,
-                temperature = 70.0f,
-                condition = "Clear",
-                source = WeatherSource.NWS.id,
-                precipProbability = 0,
-                fetchedAt = System.currentTimeMillis()
-            ),
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
-                locationLat = 37.0,
-                locationLon = -122.0,
-                temperature = 70.0f,
-                condition = "Clear",
-                source = WeatherSource.NWS.id,
-                precipProbability = 0,
-                fetchedAt = System.currentTimeMillis()
-            )
+        val observedAtMs = epochMs(now)
+        // Yesterday at this time: 70.0. Now: 69.1 -> -0.9 from yesterday.
+        val state = resolveState(
+            hourlyCovering(now), now, 69.1f,
+            repositoryWithYesterdayObservation(70.0f, observedAtMs),
+            observedAtMs = observedAtMs,
         )
 
-        val state = resolveState(hourly, now, 69.1f)
-        
         assertTrue("Delta badge should be VISIBLE", state.header.isDeltaVisible)
         assertEquals("-0.9", state.header.deltaText)
         assertEquals("Should be red for negative", Color.parseColor("#FF6B35"), state.header.deltaColor)
@@ -133,100 +147,61 @@ class TemperatureDeltaVisibilityRoboTest {
     @Test
     fun `delta badge is hidden when delta is below threshold`() = runBlocking {
         val now = LocalDateTime.now()
-        
-        val hourly = listOf(
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
-                locationLat = 37.0,
-                locationLon = -122.0,
-                temperature = 70.0f,
-                condition = "Clear",
-                source = WeatherSource.NWS.id,
-                precipProbability = 0,
-                fetchedAt = System.currentTimeMillis()
-            ),
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
-                locationLat = 37.0,
-                locationLon = -122.0,
-                temperature = 70.0f,
-                condition = "Clear",
-                source = WeatherSource.NWS.id,
-                precipProbability = 0,
-                fetchedAt = System.currentTimeMillis()
-            )
+        val observedAtMs = epochMs(now)
+        // Yesterday at this time: 70.0. Now: 70.05 -> +0.05, below the 0.1 noise threshold.
+        val state = resolveState(
+            hourlyCovering(now), now, 70.05f,
+            repositoryWithYesterdayObservation(70.0f, observedAtMs),
+            observedAtMs = observedAtMs,
         )
 
-        val state = resolveState(hourly, now, 70.05f)
-        
         assertFalse("Delta badge should be hidden for negligible delta", state.header.isDeltaVisible)
     }
 
-    // HeaderDeltaGate contract: the delta is a valid number independent of graph navigation, so it
-    // stays visible while the window includes now or extends into the future, and hides only once
-    // the window has scrolled entirely into the past (mirrors GhostLineGate's future-yes/past-no).
+    @Test
+    fun `delta badge is hidden when no yesterday observation exists`() = runBlocking {
+        val now = LocalDateTime.now()
+        val repository = mockk<WeatherRepository>()
+        coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns emptyList()
+
+        val state = resolveState(hourlyCovering(now), now, 71.2f, repository)
+
+        assertFalse("Delta badge should be hidden without a yesterday observation", state.header.isDeltaVisible)
+        assertEquals(null, state.header.deltaText)
+    }
+
+    // Post-swap contract: the yesterday delta is pan-independent, so it stays visible wherever the
+    // graph window is scrolled (the old HeaderDeltaGate hid it once fully in the past).
     @Test
     fun `delta badge stays visible when scrolled into the future`() = runBlocking {
         val now = LocalDateTime.now()
+        val observedAtMs = epochMs(now)
 
-        val hourly = listOf(
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
-                locationLat = 37.0,
-                locationLon = -122.0,
-                temperature = 70.0f,
-                condition = "Clear",
-                source = WeatherSource.NWS.id,
-                precipProbability = 0,
-                fetchedAt = System.currentTimeMillis(),
-            ),
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
-                locationLat = 37.0,
-                locationLon = -122.0,
-                temperature = 70.0f,
-                condition = "Clear",
-                source = WeatherSource.NWS.id,
-                precipProbability = 0,
-                fetchedAt = System.currentTimeMillis(),
-            ),
+        val state = resolveState(
+            hourlyCovering(now), now, 72.0f,
+            repositoryWithYesterdayObservation(70.0f, observedAtMs),
+            centerTime = now.plusHours(24),
+            observedAtMs = observedAtMs,
         )
 
-        val state = resolveState(hourly, now, 72.0f, centerTime = now.plusHours(24))
-
         assertTrue("Delta badge should stay visible when scrolled into the future", state.header.isDeltaVisible)
+        assertEquals("+2.0", state.header.deltaText)
     }
 
     @Test
-    fun `delta badge is hidden when scrolled fully into the past`() = runBlocking {
+    fun `delta badge stays visible when scrolled fully into the past`() = runBlocking {
         val now = LocalDateTime.now()
+        val observedAtMs = epochMs(now)
 
-        val hourly = listOf(
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
-                locationLat = 37.0,
-                locationLon = -122.0,
-                temperature = 70.0f,
-                condition = "Clear",
-                source = WeatherSource.NWS.id,
-                precipProbability = 0,
-                fetchedAt = System.currentTimeMillis(),
-            ),
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
-                locationLat = 37.0,
-                locationLon = -122.0,
-                temperature = 70.0f,
-                condition = "Clear",
-                source = WeatherSource.NWS.id,
-                precipProbability = 0,
-                fetchedAt = System.currentTimeMillis(),
-            ),
+        // 48h back is fully past even at the widest zoom's forward span; the header delta still shows.
+        val state = resolveState(
+            hourlyCovering(now), now, 72.0f,
+            repositoryWithYesterdayObservation(70.0f, observedAtMs),
+            centerTime = now.minusHours(48),
+            observedAtMs = observedAtMs,
         )
 
-        // 48h back is fully past even at the widest zoom's forward span.
-        val state = resolveState(hourly, now, 72.0f, centerTime = now.minusHours(48))
-
-        assertFalse("Delta badge should be hidden once the window is fully in the past", state.header.isDeltaVisible)
+        assertTrue("Delta badge should stay visible once the window is fully in the past", state.header.isDeltaVisible)
+        assertEquals("+2.0", state.header.deltaText)
     }
 }

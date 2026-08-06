@@ -15,7 +15,6 @@ import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
-import com.weatherwidget.shared.graph.HeaderDeltaGate
 import com.weatherwidget.widget.GraphRepaintGate
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetActionReceiver
@@ -36,7 +35,6 @@ object TemperatureViewHandler {
     private const val TAG = "TemperatureViewHandler"
     private const val CURRENT_TEMP_FOLLOW_UP_EPSILON = 0.05f
     private const val STARTUP_FULL_GRAPH_REFRESH_DELAY_MS = 200L
-    private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
     private val asyncScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val refinementJobs = ConcurrentHashMap<Int, Job>()
     private val fullGraphRefreshJobs = ConcurrentHashMap<Int, Job>()
@@ -93,7 +91,6 @@ object TemperatureViewHandler {
                 updateHeaderCurrentTemp(
                     context, appWidgetManager, appWidgetId, stateManager, displaySource, dimensions,
                     currentTempHourlyForecasts, lastObservedTemp, observedAt, nowForWindow,
-                    showDelta = HeaderDeltaGate.isWindowVisible(windowEndTime, nowForWindow),
                 )
                 appLogDao.log(
                     WidgetPerfLogger.TAG_WIDGET_PAINT,
@@ -138,7 +135,6 @@ object TemperatureViewHandler {
                 updateHeaderCurrentTemp(
                     context, appWidgetManager, appWidgetId, stateManager, displaySource, dimensions,
                     currentTempHourlyForecasts, lastObservedTemp, observedAt, nowForWindow,
-                    showDelta = true,
                 )
                 appLogDao.log(
                     WidgetPerfLogger.TAG_WIDGET_PAINT,
@@ -220,16 +216,15 @@ object TemperatureViewHandler {
             estimatedTemp = resolutionResult.currentTempResolution.estimatedTemp,
             observedTemp = resolutionResult.currentTempResolution.observedTemp,
             appliedDelta = resolutionResult.currentTempResolution.appliedDelta,
+            headerDelta = resolutionResult.deltaFromYesterday,
             deltaVisible = resolutionResult.state.header.isDeltaVisible,
             deltaHiddenReason = temperatureDeltaHiddenReason(
                 currentTemp = resolutionResult.currentTempResolution.displayTemp,
-                appliedDelta = resolutionResult.currentTempResolution.appliedDelta,
-                isDeltaWindowVisible = resolutionResult.isDeltaWindowVisible
+                delta = resolutionResult.deltaFromYesterday,
             ),
             precipVisible = resolutionResult.state.header.isPrecipVisible,
             precipProbability = resolutionResult.headerPrecipProbability,
             isNowLineVisible = resolutionResult.isNowLineVisible,
-            isDeltaWindowVisible = resolutionResult.isDeltaWindowVisible,
             offset = resolutionResult.state.hourlyOffset,
             zoom = resolutionResult.state.zoom,
             resolveMs = resolutionResult.resolveMs
@@ -259,7 +254,6 @@ object TemperatureViewHandler {
                     currentLon = resolutionResult.lon,
                     numColumns = dimensions.cols,
                     widthDp = dimensions.widthDp,
-                    isDeltaWindowVisible = resolutionResult.isDeltaWindowVisible,
                     quickResolution = resolutionResult.currentTempResolution,
                     storedDeltaState = storedDeltaState,
                     smoothedForecasts = resolutionResult.smoothedForecasts,
@@ -310,7 +304,6 @@ object TemperatureViewHandler {
         lastObservedTemp: Float?,
         observedAt: Long?,
         now: LocalDateTime,
-        showDelta: Boolean,
     ) {
         val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
         val lat = configuredLocation?.first ?: currentTempHourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
@@ -341,17 +334,11 @@ object TemperatureViewHandler {
             android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, context.resources.displayMetrics,
         )
         partial.setTextViewTextSize(com.weatherwidget.R.id.current_temp, android.util.TypedValue.COMPLEX_UNIT_PX, currentTempPx)
-        val appliedDelta = resolution.appliedDelta
-        if (showDelta && appliedDelta != null && kotlin.math.abs(appliedDelta) >= DELTA_VISIBILITY_THRESHOLD) {
-            partial.setTextViewText(com.weatherwidget.R.id.current_temp_delta, String.format("%+.1f", appliedDelta))
-            val deltaPx = android.util.TypedValue.applyDimension(
-                android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, context.resources.displayMetrics,
-            )
-            partial.setTextViewTextSize(com.weatherwidget.R.id.current_temp_delta, android.util.TypedValue.COMPLEX_UNIT_PX, deltaPx)
-            partial.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.VISIBLE)
-        } else {
-            partial.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.GONE)
-        }
+        // The header delta (delta from yesterday) is intentionally NOT touched here: it is
+        // pan-independent and always shown, so this header-only partial leaves the view exactly as
+        // the last full render painted it. A partial push only applies the views it sets, so the
+        // delta persists untouched instead of flickering on a value this path cannot recompute
+        // (the yesterday delta needs the observation window, which only full renders load).
 
         val db = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
         val errorMsg = FetchFailureIndicatorHelper.resolveFetchError(
@@ -395,7 +382,6 @@ object TemperatureViewHandler {
         val currentLon: Double,
         val numColumns: Int,
         val widthDp: Int,
-        val isDeltaWindowVisible: Boolean,
         val quickResolution: CurrentTemperatureResolution,
         val storedDeltaState: CurrentTemperatureDeltaState?,
         val smoothedForecasts: Map<Long, Float>?,
@@ -425,14 +411,13 @@ object TemperatureViewHandler {
             }
             refined.updatedDeltaState?.let { params.stateManager.setCurrentTempDeltaState(params.appWidgetId, params.displaySource, it) }
 
-            if (!shouldApplyRefinedHeaderUpdate(params.quickResolution, refined, params.isDeltaWindowVisible)) {
+            if (!shouldApplyRefinedHeaderUpdate(params.quickResolution, refined)) {
                 return@launch
             }
 
             val partialViews = RemoteViews(appContext.packageName, com.weatherwidget.R.layout.widget_weather)
             // Re-bind just the header parts for partial update
             val displayTemp = refined.displayTemp
-            val appliedDelta = refined.appliedDelta
             val formatted = displayTemp?.let {
                 CurrentTemperatureResolver.formatDisplayTemperature(
                     it, params.numColumns, refined.isStaleEstimate,
@@ -445,15 +430,9 @@ object TemperatureViewHandler {
             val currentTempPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, appContext.resources.displayMetrics)
             partialViews.setTextViewTextSize(com.weatherwidget.R.id.current_temp, android.util.TypedValue.COMPLEX_UNIT_PX, currentTempPx)
 
-            if (appliedDelta != null && kotlin.math.abs(appliedDelta) >= DELTA_VISIBILITY_THRESHOLD && params.isDeltaWindowVisible) {
-                partialViews.setTextViewText(com.weatherwidget.R.id.current_temp_delta, String.format("%+.1f", appliedDelta))
-                val deltaPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, appContext.resources.displayMetrics)
-                partialViews.setTextViewTextSize(com.weatherwidget.R.id.current_temp_delta, android.util.TypedValue.COMPLEX_UNIT_PX, deltaPx)
-                partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.VISIBLE)
-            } else {
-                partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.GONE)
-            }
-            
+            // Header delta (delta from yesterday) is left untouched, same as updateHeaderCurrentTemp:
+            // it always shows and is only repainted by full renders, which own the observation data.
+
             com.weatherwidget.widget.WidgetPushDispatcher.push(
                 appWidgetManager = params.appWidgetManager,
                 appWidgetId = params.appWidgetId,
@@ -469,7 +448,6 @@ object TemperatureViewHandler {
     private fun shouldApplyRefinedHeaderUpdate(
         quickResolution: CurrentTemperatureResolution,
         refined: CurrentTemperatureResolution,
-        isDeltaWindowVisible: Boolean,
     ): Boolean {
         val qTemp = quickResolution.displayTemp
         val rTemp = refined.displayTemp
@@ -479,22 +457,9 @@ object TemperatureViewHandler {
                 qTemp == null || rTemp == null -> true
                 else -> kotlin.math.abs(qTemp - rTemp) >= CURRENT_TEMP_FOLLOW_UP_EPSILON
             }
-        val qDelta = quickResolution.appliedDelta
-        val rDelta = refined.appliedDelta
-        val quickDeltaVisible =
-            isDeltaWindowVisible &&
-                qDelta != null &&
-                kotlin.math.abs(qDelta) >= DELTA_VISIBILITY_THRESHOLD
-        val refinedDeltaVisible =
-            isDeltaWindowVisible &&
-                rDelta != null &&
-                kotlin.math.abs(rDelta) >= DELTA_VISIBILITY_THRESHOLD
-        val deltaChanged =
-            quickDeltaVisible != refinedDeltaVisible ||
-                (quickDeltaVisible &&
-                    refinedDeltaVisible &&
-                    kotlin.math.abs(qDelta - rDelta) >= CURRENT_TEMP_FOLLOW_UP_EPSILON)
-        return tempChanged || deltaChanged || quickResolution.isStaleEstimate != refined.isStaleEstimate
+        // No delta comparison: the header delta (yesterday delta) is not repainted by this partial
+        // path at all, so a delta change can never be a reason to push it.
+        return tempChanged || quickResolution.isStaleEstimate != refined.isStaleEstimate
     }
 
     private fun scheduleStartupFullGraphRefresh(

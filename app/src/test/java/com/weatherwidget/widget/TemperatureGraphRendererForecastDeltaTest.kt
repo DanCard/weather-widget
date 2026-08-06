@@ -21,13 +21,13 @@ import com.weatherwidget.test.category.MediumDuration
 import org.junit.experimental.categories.Category
 
 /**
- * Renders the hourly graph with a supplied yesterday-delta and asserts the "+X.X from yesterday" label
- * is drawn in the zoomed-in (narrow) view and suppressed in the wide (>12h span) view — the same gate as
- * the staleness/age label. Placement/format/color live in shared [YesterdayDeltaLabel]; this only checks
- * the Android render path delegates and draws.
+ * Renders the hourly graph with a supplied forecast delta (observed minus forecast, the same value
+ * that shifts the ghost line) and asserts the "+X.X from forecast" label is drawn in the zoomed-in
+ * (narrow) view and suppressed past the day-span gate. Placement/format/color live in shared
+ * [ForecastDeltaLabel]; this only checks the Android render path delegates and draws.
  */
 @Category(MediumDuration::class)
-class TemperatureGraphRendererYesterdayDeltaTest {
+class TemperatureGraphRendererForecastDeltaTest {
 
     @After
     fun tearDown() {
@@ -35,7 +35,7 @@ class TemperatureGraphRendererYesterdayDeltaTest {
     }
 
     @Test
-    fun `draws yesterday delta label in narrow view`() {
+    fun `draws forecast delta label in narrow view`() {
         val context = mockContext()
         val start = LocalDateTime.of(2026, 3, 21, 10, 0)
         // A low, gently varying curve leaves clear empty space in the upper band for the label.
@@ -60,14 +60,14 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.97f, // distinct scale → fresh PaintSet under this test's mockk (cache is keyed on scale)
             observedAt = observedAtMs,
             lastObservedTemp = 54f,
-            deltaFromYesterday = 2.3f, useCelsius = false,
+            appliedDelta = 2.3f, useCelsius = false,
         )
 
-        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3 from yesterday", any(), any(), any()) }
+        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3 from forecast", any(), any(), any()) }
     }
 
     @Test
-    fun `draws yesterday delta label in the 24h view`() {
+    fun `draws forecast delta label in the 24h view`() {
         val context = mockContext()
         val start = LocalDateTime.of(2026, 3, 21, 0, 0)
         // 25 points spanning 24h (the WIDE view), with a hill curve leaving empty bands for the label.
@@ -91,14 +91,14 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.96f,
             observedAt = observedAtMs,
             lastObservedTemp = 62f,
-            deltaFromYesterday = 2.3f, useCelsius = false,
+            appliedDelta = 2.3f, useCelsius = false,
         )
 
-        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3 from yesterday", any(), any(), any()) }
+        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3 from forecast", any(), any(), any()) }
     }
 
     @Test
-    fun `does not draw yesterday delta label in the 3-day view`() {
+    fun `does not draw forecast delta label in the 3-day view`() {
         val context = mockContext()
         val start = LocalDateTime.of(2026, 3, 20, 0, 0)
         // 73 points spanning 72h -> the 3-day view, past the day-span gate.
@@ -122,14 +122,14 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.94f,
             observedAt = observedAtMs,
             lastObservedTemp = 55f,
-            deltaFromYesterday = 2.3f, useCelsius = false,
+            appliedDelta = 2.3f, useCelsius = false,
         )
 
-        verify(exactly = 0) { anyConstructed<Canvas>().drawText("+2.3 from yesterday", any(), any(), any()) }
+        verify(exactly = 0) { anyConstructed<Canvas>().drawText("+2.3 from forecast", any(), any(), any()) }
     }
 
     @Test
-    fun `does not draw yesterday delta label when delta is null`() {
+    fun `does not draw forecast delta label when delta is null`() {
         val context = mockContext()
         val start = LocalDateTime.of(2026, 3, 21, 10, 0)
         val hours = (0..4).map { offset ->
@@ -152,14 +152,14 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.95f,
             observedAt = observedAtMs,
             lastObservedTemp = 60f,
-            deltaFromYesterday = null, useCelsius = false,
+            appliedDelta = null, useCelsius = false,
         )
 
-        verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from yesterday") }, any(), any(), any()) }
+        verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from forecast") }, any(), any(), any()) }
     }
 
     @Test
-    fun `does not draw yesterday delta label when fetch dot is outside the visible hours`() {
+    fun `does not draw forecast delta label when fetch dot is outside the visible hours`() {
         val context = mockContext()
         val start = LocalDateTime.of(2026, 3, 21, 10, 0)
         // Tomorrow's hours (starts 24h later)
@@ -186,10 +186,10 @@ class TemperatureGraphRendererYesterdayDeltaTest {
             bitmapScale = 0.93f, // distinct scale
             observedAt = observedAtMs,
             lastObservedTemp = 54f,
-            deltaFromYesterday = 2.3f, useCelsius = false,
+            appliedDelta = 2.3f, useCelsius = false,
         )
 
-        verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from yesterday") }, any(), any(), any()) }
+        verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from forecast") }, any(), any(), any()) }
     }
 
     private fun mockContext(): Context {

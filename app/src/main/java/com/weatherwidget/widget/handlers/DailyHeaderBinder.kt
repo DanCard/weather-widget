@@ -231,13 +231,13 @@ internal object DailyHeaderBinder {
 
     internal fun dailyDeltaHiddenReason(
         currentTemp: Float?,
-        appliedDelta: Float?,
+        delta: Float?,
         threshold: Float = DELTA_VISIBILITY_THRESHOLD,
     ): String? =
         when {
             currentTemp == null -> "current_temp_missing"
-            appliedDelta == null -> "no_delta"
-            kotlin.math.abs(appliedDelta) < threshold -> "below_threshold"
+            delta == null -> "no_delta"
+            kotlin.math.abs(delta) < threshold -> "below_threshold"
             else -> null
         }
 
@@ -253,6 +253,7 @@ internal object DailyHeaderBinder {
         estimatedTemp: Float?,
         observedTemp: Float?,
         appliedDelta: Float?,
+        headerDelta: Float?,
         deltaVisible: Boolean,
         deltaHiddenReason: String?,
         precipVisible: Boolean,
@@ -272,6 +273,7 @@ internal object DailyHeaderBinder {
             "homeScreenOrientation=${dimensions.homeScreenOrientation} " +
             "currentTemp=${formatTemp(currentTemp)} estimatedTemp=${formatTemp(estimatedTemp)} " +
             "observedTemp=${formatTemp(observedTemp)} appliedDelta=${formatTemp(appliedDelta)} " +
+            "headerDelta=${formatTemp(headerDelta)} " +
             "deltaVisible=$deltaVisible deltaHiddenReason=${deltaHiddenReason ?: "none"} " +
             "precipVisible=$precipVisible precipProbability=${precipProbability ?: "none"} " +
             "isNowLineVisible=${isNowLineVisible ?: "n/a"} offset=$offset zoom=${zoom?.name ?: "n/a"} resolveMs=$resolveMs"
