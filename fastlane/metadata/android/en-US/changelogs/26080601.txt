@@ -1,0 +1,1 @@
+Open beta release: Fixed missing API actuals in Forecast History caused by partial NWS gridpoint data, improved actuals merging to preserve NWS high/low temperatures while filling gaps, and updated desktop Forecast History to open on the viewed date.
