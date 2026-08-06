@@ -235,6 +235,7 @@ object CloudCoverViewHandler {
         views.setOnClickPendingIntent(R.id.weather_icon, goTempIconPending)
 
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
+        views.setViewVisibility(R.id.current_temp_delta_label, View.GONE)
 
         val (currentTempResolution, resolveMs) =
             CurrentTempResolutionHelper.resolveAndPersistDelta(

@@ -215,6 +215,8 @@
 
     <!-- Widget loading/error placeholder states -->
     <string name="today">Today</string>
+    <!-- Small caption after the header delta temperature ("+1.2 from yest") -->
+    <string name="header_delta_from_yesterday">from yest</string>
     <string name="widget_loading">Loading...</string>
     <string name="widget_tap_to_refresh">Tap to refresh</string>
     <string name="current_stations_desc">Current Stations</string>

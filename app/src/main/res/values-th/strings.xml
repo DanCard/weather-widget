@@ -211,6 +211,7 @@
 
     <!-- Widget loading/error placeholder states -->
     <string name="today">วันนี้</string>
+    <string name="header_delta_from_yesterday">เทียบเมื่อวาน</string>
     <string name="widget_loading">กำลังโหลด...</string>
     <string name="widget_tap_to_refresh">แตะเพื่อรีเฟรช</string>
     <string name="current_stations_desc">สถานีปัจจุบัน</string>

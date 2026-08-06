@@ -256,6 +256,26 @@ internal object DailyHeaderResolver {
             includeIcon = disclosure.showsIcon(),
         )
 
+        // "from yest" caption after the delta: opportunistic — only when the delta itself is
+        // shown and the whole left cluster (caption included) still clears the API label.
+        val deltaLabelText = if (deltaVisible && disclosure.showsDelta()) {
+            val label = context.getString(R.string.header_delta_from_yesterday)
+            val fits = HeaderWidthChecker.deltaLabelFitsInHeader(
+                context = context,
+                widthDp = dimensions.widthDp,
+                apiSourceText = apiSourceText,
+                apiTextSizeDp = apiTextSizeDp,
+                currentTempText = formattedTemp,
+                deltaText = deltaTextForFit,
+                deltaLabelText = label,
+                precipText = if (isPrecipVisible && disclosure.showsPrecip()) precipTextForFit else null,
+                precipTextSizeDp = precipTextSizeDp,
+                includeIcon = disclosure.showsIcon(),
+                currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
+            )
+            if (fits) label else null
+        } else null
+
         val headerState = DailyViewHandler.HeaderState(
             iconRes = iconRes,
             currentTemp = currentTemp,
@@ -266,6 +286,7 @@ internal object DailyHeaderResolver {
             yesterdayDelta = deltaFromYesterday,
             deltaVisible = deltaVisible,
             deltaText = deltaText,
+            deltaLabelText = deltaLabelText,
             precipProb = precipProb,
             isPrecipVisible = isPrecipVisible,
             precipTextSizeDp = precipTextSizeDp,
@@ -361,6 +382,13 @@ internal object DailyHeaderResolver {
             deltaVisible = state.deltaVisible,
             scale = state.headerScale,
         )
+        HeaderRemoteViewsBinder.bindDeltaLabel(
+            context = context,
+            views = views,
+            labelText = state.deltaLabelText,
+            labelVisible = state.deltaVisible && state.deltaLabelText != null,
+            scale = state.headerScale,
+        )
 
         if (useGraph && state.disclosure != HeaderDisclosureLevel.NONE) {
             HeaderRemoteViewsBinder.applyDisclosure(
@@ -368,6 +396,7 @@ internal object DailyHeaderResolver {
                 state.disclosure,
                 isDeltaVisible = state.deltaVisible,
                 isPrecipVisible = state.isPrecipVisible,
+                isDeltaLabelVisible = state.deltaLabelText != null,
             )
         } else if (useGraph) {
             views.setViewVisibility(R.id.current_weather_container, View.GONE)

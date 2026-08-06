@@ -211,6 +211,7 @@
 
     <!-- Widget loading/error placeholder states -->
     <string name="today">今天</string>
+    <string name="header_delta_from_yesterday">较昨日</string>
     <string name="widget_loading">加载中...</string>
     <string name="widget_tap_to_refresh">点按以刷新</string>
     <string name="current_stations_desc">当前气象站</string>

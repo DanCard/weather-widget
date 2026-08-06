@@ -185,6 +185,7 @@ object PrecipViewHandler {
         views.setOnClickPendingIntent(R.id.weather_icon, goCloudPending)
 
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
+        views.setViewVisibility(R.id.current_temp_delta_label, View.GONE)
 
         val (currentTempResolution, resolveMs) =
             CurrentTempResolutionHelper.resolveAndPersistDelta(

@@ -211,6 +211,7 @@
 
     <!-- Widget loading/error placeholder states -->
     <string name="today">Hôm nay</string>
+    <string name="header_delta_from_yesterday">so hôm qua</string>
     <string name="widget_loading">Đang tải...</string>
     <string name="widget_tap_to_refresh">Nhấn để làm mới</string>
     <string name="current_stations_desc">Trạm hiện tại</string>

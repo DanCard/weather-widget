@@ -211,6 +211,7 @@
 
     <!-- Widget loading/error placeholder states -->
     <string name="today">آج</string>
+    <string name="header_delta_from_yesterday">کل سے</string>
     <string name="widget_loading">لوڈ ہو رہا ہے...</string>
     <string name="widget_tap_to_refresh">ریفریش کے لیے ٹیپ کریں</string>
     <string name="current_stations_desc">موجودہ اسٹیشن</string>

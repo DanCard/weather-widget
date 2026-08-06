@@ -211,6 +211,7 @@
 
     <!-- Widget loading/error placeholder states -->
     <string name="today">Hari ini</string>
+    <string name="header_delta_from_yesterday">dari kemarin</string>
     <string name="widget_loading">Memuat...</string>
     <string name="widget_tap_to_refresh">Ketuk untuk menyegarkan</string>
     <string name="current_stations_desc">Stasiun saat ini</string>

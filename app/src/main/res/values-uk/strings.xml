@@ -206,6 +206,7 @@
     <string name="app_language_settings_unavailable">Налаштування мови для окремих застосунків недоступне на цьому пристрої</string>
 
     <string name="today">Сьогодні</string>
+    <string name="header_delta_from_yesterday">vs учора</string>
     <string name="widget_loading">Завантаження...</string>
     <string name="widget_tap_to_refresh">Торкніться, щоб оновити</string>
     <string name="current_stations_desc">Поточні станції</string>

@@ -211,6 +211,7 @@
 
     <!-- Widget loading/error placeholder states -->
     <string name="today">Bugün</string>
+    <string name="header_delta_from_yesterday">düne göre</string>
     <string name="widget_loading">Yükleniyor...</string>
     <string name="widget_tap_to_refresh">Yenilemek için dokunun</string>
     <string name="current_stations_desc">Mevcut istasyonlar</string>

@@ -211,6 +211,7 @@
 
     <!-- Widget loading/error placeholder states -->
     <string name="today">오늘</string>
+    <string name="header_delta_from_yesterday">어제 대비</string>
     <string name="widget_loading">로드 중...</string>
     <string name="widget_tap_to_refresh">탭하여 새로고침</string>
     <string name="current_stations_desc">현재 관측소</string>

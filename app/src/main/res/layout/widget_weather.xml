@@ -1541,6 +1541,19 @@
                 android:visibility="gone" />
 
             <TextView
+                android:id="@+id/current_temp_delta_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginTop="-10dp"
+                android:layout_marginStart="2dp"
+                android:text="@string/header_delta_from_yesterday"
+                android:textSize="10sp"
+                android:textColor="#B3FF6B35"
+                android:includeFontPadding="false"
+                android:visibility="gone" />
+
+            <TextView
                 android:id="@+id/current_temp_warning"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

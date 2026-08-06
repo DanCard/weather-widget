@@ -146,6 +146,7 @@ object HeaderWidthChecker {
         precipTextSizeDp: Float?,
         includeIcon: Boolean,
         currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
+        deltaLabelText: String? = null,
     ): Float {
         var width = 0f
         if (includeIcon) {
@@ -157,12 +158,53 @@ object HeaderWidthChecker {
         if (!deltaText.isNullOrBlank()) {
             width += dpToPx(context, HeaderConstants.DELTA_MARGIN_START_DP)
             width += textWidthPx(context, deltaText, HeaderConstants.DELTA_TEXT_SIZE_DP)
+            if (!deltaLabelText.isNullOrBlank()) {
+                width += dpToPx(context, HeaderConstants.DELTA_LABEL_MARGIN_START_DP)
+                width += textWidthPx(context, deltaLabelText, HeaderConstants.DELTA_LABEL_TEXT_SIZE_DP)
+            }
         }
         if (!precipText.isNullOrBlank() && precipTextSizeDp != null) {
             width += dpToPx(context, HeaderConstants.PRECIP_MARGIN_START_DP)
             width += textWidthPx(context, precipText, precipTextSizeDp)
         }
         return width
+    }
+
+    /**
+     * Whether the small "from yest" caption fits after the delta in the RemoteViews header.
+     * The label is purely opportunistic: it never affects disclosure/scale decisions and is
+     * shown only when the full left cluster (icon/temp/delta/label/precip) still clears the
+     * API source label on the right with the standard gap.
+     */
+    fun deltaLabelFitsInHeader(
+        context: Context,
+        widthDp: Int,
+        apiSourceText: String,
+        apiTextSizeDp: Float,
+        currentTempText: String?,
+        deltaText: String?,
+        deltaLabelText: String?,
+        precipText: String?,
+        precipTextSizeDp: Float?,
+        includeIcon: Boolean,
+        currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
+    ): Boolean {
+        if (deltaText.isNullOrBlank() || deltaLabelText.isNullOrBlank()) return false
+        val widthPx = dpToPx(context, widthDp.toFloat())
+        if (widthPx <= 0f) return false
+        val leftClusterRight = resolveLeftClusterRightPx(
+            context = context,
+            currentTempText = currentTempText,
+            deltaText = deltaText,
+            precipText = precipText,
+            precipTextSizeDp = precipTextSizeDp,
+            includeIcon = includeIcon,
+            currentTempSizeDp = currentTempSizeDp,
+            deltaLabelText = deltaLabelText,
+        )
+        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
+        val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
+        return leftClusterRight + gapPx <= apiLeft
     }
 
     internal fun resolveApiLeftPx(

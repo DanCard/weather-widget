@@ -11,8 +11,11 @@ object HeaderConstants {
     const val DAILY_CURRENT_TEMP_TEXT_SIZE_DP = CURRENT_TEMP_TEXT_SIZE_DP * 1.2f
     const val WEATHER_ICON_SIZE_DP = 24f
     const val DELTA_TEXT_SIZE_DP = 14f
+    // "from yest" caption after the delta: deliberately smaller than the delta itself.
+    const val DELTA_LABEL_TEXT_SIZE_DP = 10f
     const val WEATHER_ICON_END_MARGIN_DP = 2f
     const val DELTA_MARGIN_START_DP = 4f
+    const val DELTA_LABEL_MARGIN_START_DP = 2f
     const val PRECIP_MARGIN_START_DP = 8f
     const val API_SOURCE_MARGIN_END_DP = 32f
     // Extra right margin applied only when the API label is a single source (no " - ")

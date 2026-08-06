@@ -160,4 +160,68 @@ class HeaderWidthCheckerTest {
         // It meets both the width requirement (>=450) and occupancy requirement.
         assertEquals(1.35f, scale, 0.01f)
         }
+
+        @Test
+        fun `deltaLabelFitsInHeader true at very wide width`() {
+        val result = HeaderWidthChecker.deltaLabelFitsInHeader(
+            context = context,
+            widthDp = 500,
+            apiSourceText = "NWS",
+            apiTextSizeDp = 12.6f,
+            currentTempText = "72°",
+            deltaText = "+1.2",
+            deltaLabelText = "from yest",
+            precipText = null,
+            precipTextSizeDp = null,
+            includeIcon = true,
+        )
+        assertTrue(result)
+        }
+
+        @Test
+        fun `deltaLabelFitsInHeader false at narrow width`() {
+        val result = HeaderWidthChecker.deltaLabelFitsInHeader(
+            context = context,
+            widthDp = 80,
+            apiSourceText = "NWS",
+            apiTextSizeDp = 16f,
+            currentTempText = "72°",
+            deltaText = "+1.2",
+            deltaLabelText = "from yest",
+            precipText = null,
+            precipTextSizeDp = null,
+            includeIcon = true,
+        )
+        assertTrue(!result)
+        }
+
+        @Test
+        fun `deltaLabelFitsInHeader false without delta or label`() {
+        val noDelta = HeaderWidthChecker.deltaLabelFitsInHeader(
+            context = context,
+            widthDp = 500,
+            apiSourceText = "NWS",
+            apiTextSizeDp = 12.6f,
+            currentTempText = "72°",
+            deltaText = null,
+            deltaLabelText = "from yest",
+            precipText = null,
+            precipTextSizeDp = null,
+            includeIcon = true,
+        )
+        val noLabel = HeaderWidthChecker.deltaLabelFitsInHeader(
+            context = context,
+            widthDp = 500,
+            apiSourceText = "NWS",
+            apiTextSizeDp = 12.6f,
+            currentTempText = "72°",
+            deltaText = "+1.2",
+            deltaLabelText = null,
+            precipText = null,
+            precipTextSizeDp = null,
+            includeIcon = true,
+        )
+        assertTrue(!noDelta)
+        assertTrue(!noLabel)
+        }
         }

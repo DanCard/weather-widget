@@ -13,6 +13,7 @@ internal object DailyForecastHeaderRenderer {
     internal data class HeaderPaintSet(
         val tempPaint: Paint,
         val deltaPaint: Paint,
+        val deltaLabelPaint: Paint,
         val precipPaint: Paint,
         val apiPaint: Paint,
         val datePaint: Paint,
@@ -41,6 +42,13 @@ internal object DailyForecastHeaderRenderer {
 
         val upOffset = -(2f * labelScale).dp(layout.density)
         var cursorX = -(3f * labelScale).dp(layout.density)
+
+        val apiLeft = resolveApiLeftPx(header, widthPx, labelScale, layout.density, headerPaints.dateMeasurePaint)
+        // The "from yest" caption is opportunistic: drawn only when the date (higher priority)
+        // still fits with it, or when there is no date and the cluster clears the API label.
+        val deltaLabelText = header.deltaLabelText?.takeIf { it.isNotBlank() }
+        val showDeltaLabel = deltaLabelText != null &&
+            resolveDeltaLabelVisible(header, widthPx, layout, headerPaints, labelScale, upOffset, apiLeft)
 
         if (header.showIcon && header.iconRes != null && header.iconRes != 0) {
             val iconSizePx = (HeaderConstants.WEATHER_ICON_SIZE_DP * labelScale).dp(layout.density).toInt()
@@ -74,6 +82,14 @@ internal object DailyForecastHeaderRenderer {
             val deltaBaseline = tempCenterY - (headerPaints.deltaPaint.ascent() + headerPaints.deltaPaint.descent()) / 2f
             canvas.drawText(header.deltaText, cursorX, deltaBaseline, headerPaints.deltaPaint)
             cursorX += headerPaints.deltaPaint.measureText(header.deltaText)
+
+            if (showDeltaLabel && deltaLabelText != null) {
+                cursorX += (HeaderConstants.DELTA_LABEL_MARGIN_START_DP * labelScale).dp(layout.density)
+                val labelBaseline =
+                    tempCenterY - (headerPaints.deltaLabelPaint.ascent() + headerPaints.deltaLabelPaint.descent()) / 2f
+                canvas.drawText(deltaLabelText, cursorX, labelBaseline, headerPaints.deltaLabelPaint)
+                cursorX += headerPaints.deltaLabelPaint.measureText(deltaLabelText)
+            }
         }
 
         if (header.showPrecip && !header.precipText.isNullOrBlank()) {
@@ -102,19 +118,12 @@ internal object DailyForecastHeaderRenderer {
             }
         }
 
-        val apiMarginEndDp = HeaderConstants.API_SOURCE_MARGIN_END_DP + HeaderConstants.API_SINGLE_SOURCE_EXTRA_MARGIN_DP
-        val apiMarginEndPx = (apiMarginEndDp * labelScale).dp(layout.density)
-        val apiShiftPx = (10f * labelScale).dp(layout.density)
-
         if (!header.apiSourceText.isNullOrBlank()) {
-            val apiX = widthPx - apiMarginEndPx + apiShiftPx
+            val apiMarginEndDp = HeaderConstants.API_SOURCE_MARGIN_END_DP + HeaderConstants.API_SINGLE_SOURCE_EXTRA_MARGIN_DP
+            val apiX = widthPx - (apiMarginEndDp * labelScale).dp(layout.density) + (10f * labelScale).dp(layout.density)
             val apiY = -headerPaints.apiPaint.ascent() + upOffset
             canvas.drawText(header.apiSourceText, apiX, apiY, headerPaints.apiPaint)
         }
-
-        val apiContainerWidth = (HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP * labelScale).dp(layout.density) +
-            headerPaints.dateMeasurePaint.measureText(header.apiSourceText ?: "")
-        val apiLeft = widthPx - apiMarginEndPx - apiContainerWidth + apiShiftPx
 
         resolveHeaderDateLayout(
             header = header,
@@ -139,14 +148,11 @@ internal object DailyForecastHeaderRenderer {
         val labelScale = layout.bitmapScale.coerceAtMost(1f) * header.headerScale
         val headerPaints = getHeaderPaintSet(header, labelScale, layout.density)
         val upOffset = -(2f * labelScale).dp(layout.density)
-        val leftClusterRight = resolveLeftClusterRight(header, headerPaints, labelScale, layout.density)
-
-        val apiMarginEndDp = HeaderConstants.API_SOURCE_MARGIN_END_DP + HeaderConstants.API_SINGLE_SOURCE_EXTRA_MARGIN_DP
-        val apiMarginEndPx = (apiMarginEndDp * labelScale).dp(layout.density)
-        val apiShiftPx = (10f * labelScale).dp(layout.density)
-        val apiContainerWidth = (HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP * labelScale).dp(layout.density) +
-            headerPaints.dateMeasurePaint.measureText(header.apiSourceText ?: "")
-        val apiLeft = widthPx - apiMarginEndPx - apiContainerWidth + apiShiftPx
+        val apiLeft = resolveApiLeftPx(header, widthPx, labelScale, layout.density, headerPaints.dateMeasurePaint)
+        // Match drawHeader: include the "from yest" caption in the cluster when it would be drawn.
+        val includeDeltaLabel = !header.deltaLabelText.isNullOrBlank() &&
+            resolveDeltaLabelVisible(header, widthPx, layout, headerPaints, labelScale, upOffset, apiLeft)
+        val leftClusterRight = resolveLeftClusterRight(header, headerPaints, labelScale, layout.density, includeDeltaLabel)
 
         val bounds = resolveHeaderDateLayout(
             header = header,
@@ -215,6 +221,7 @@ internal object DailyForecastHeaderRenderer {
         paints: HeaderPaintSet,
         labelScale: Float,
         density: Float,
+        includeDeltaLabel: Boolean = false,
     ): Float {
         var cursorX = -(3f * labelScale).dp(density)
         if (header.showIcon && header.iconRes != null && header.iconRes != 0) {
@@ -226,6 +233,10 @@ internal object DailyForecastHeaderRenderer {
         if (header.showDelta && !header.deltaText.isNullOrBlank()) {
             cursorX += (HeaderConstants.DELTA_MARGIN_START_DP * labelScale).dp(density)
             cursorX += paints.deltaPaint.measureText(header.deltaText)
+            if (includeDeltaLabel && !header.deltaLabelText.isNullOrBlank()) {
+                cursorX += (HeaderConstants.DELTA_LABEL_MARGIN_START_DP * labelScale).dp(density)
+                cursorX += paints.deltaLabelPaint.measureText(header.deltaLabelText)
+            }
         }
         if (header.showPrecip && !header.precipText.isNullOrBlank()) {
             cursorX += (HeaderConstants.PRECIP_MARGIN_START_DP * labelScale).dp(density)
@@ -233,6 +244,92 @@ internal object DailyForecastHeaderRenderer {
         }
         return cursorX
     }
+
+    private fun resolveApiLeftPx(
+        header: DailyForecastGraphRenderer.HeaderRenderData,
+        widthPx: Int,
+        labelScale: Float,
+        density: Float,
+        measurePaint: Paint,
+    ): Float {
+        val apiMarginEndDp = HeaderConstants.API_SOURCE_MARGIN_END_DP + HeaderConstants.API_SINGLE_SOURCE_EXTRA_MARGIN_DP
+        val apiMarginEndPx = (apiMarginEndDp * labelScale).dp(density)
+        val apiShiftPx = (10f * labelScale).dp(density)
+        val apiContainerWidth = (HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP * labelScale).dp(density) +
+            measurePaint.measureText(header.apiSourceText ?: "")
+        return widthPx - apiMarginEndPx - apiContainerWidth + apiShiftPx
+    }
+
+    /**
+     * Whether the "from yest" caption is drawn in the bitmap header. The date has priority:
+     * if the caption would crowd the date out, the caption is dropped instead.
+     */
+    private fun resolveDeltaLabelVisible(
+        header: DailyForecastGraphRenderer.HeaderRenderData,
+        widthPx: Int,
+        layout: DailyGraphLayoutInfo,
+        headerPaints: HeaderPaintSet,
+        labelScale: Float,
+        upOffset: Float,
+        apiLeft: Float,
+    ): Boolean {
+        if (!header.showDelta || header.deltaText.isNullOrBlank() || header.deltaLabelText.isNullOrBlank()) {
+            return false
+        }
+        val gapPx = (HeaderConstants.DATE_HORIZONTAL_GAP_DP * labelScale).dp(layout.density)
+        val leftWithLabel = resolveLeftClusterRight(header, headerPaints, labelScale, layout.density, includeDeltaLabel = true)
+        val hasDateText = !header.dateText.isNullOrBlank()
+        val dateFitsWithLabel = hasDateText &&
+            resolveHeaderDateLayout(
+                header = header,
+                widthPx = widthPx,
+                layout = layout,
+                leftClusterRight = leftWithLabel,
+                dateRightBoundary = apiLeft,
+                headerPaints = headerPaints,
+                labelScale = labelScale,
+                upOffset = upOffset,
+            ) != null
+        val dateFitsWithoutLabel = hasDateText && !dateFitsWithLabel &&
+            resolveHeaderDateLayout(
+                header = header,
+                widthPx = widthPx,
+                layout = layout,
+                leftClusterRight = resolveLeftClusterRight(header, headerPaints, labelScale, layout.density, includeDeltaLabel = false),
+                dateRightBoundary = apiLeft,
+                headerPaints = headerPaints,
+                labelScale = labelScale,
+                upOffset = upOffset,
+            ) != null
+        return shouldDrawDeltaLabel(
+            hasDateText = hasDateText,
+            dateFitsWithLabel = dateFitsWithLabel,
+            dateFitsWithoutLabel = dateFitsWithoutLabel,
+            leftWithLabelRight = leftWithLabel,
+            apiLeft = apiLeft,
+            gapPx = gapPx,
+        )
+    }
+
+    /**
+     * Pure decision for the opportunistic delta caption, extracted for framework-free tests.
+     * Priority order: date text > caption. When the date still fits with the caption, both are
+     * shown; when the caption would displace the date, the caption is hidden; otherwise the
+     * caption shows if the cluster clears the API label on the right.
+     */
+    internal fun shouldDrawDeltaLabel(
+        hasDateText: Boolean,
+        dateFitsWithLabel: Boolean,
+        dateFitsWithoutLabel: Boolean,
+        leftWithLabelRight: Float,
+        apiLeft: Float,
+        gapPx: Float,
+    ): Boolean =
+        when {
+            dateFitsWithLabel -> true
+            hasDateText && dateFitsWithoutLabel -> false
+            else -> leftWithLabelRight + gapPx <= apiLeft
+        }
 
     private fun getHeaderPaintSet(
         header: DailyForecastGraphRenderer.HeaderRenderData,
@@ -253,6 +350,12 @@ internal object DailyForecastHeaderRenderer {
             deltaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = header.deltaColor
                 textSize = (HeaderConstants.DELTA_TEXT_SIZE_DP * labelScale).dp(density)
+                textAlign = Paint.Align.LEFT
+            },
+            // Same hue as the delta, dimmed and smaller so the caption reads as secondary text.
+            deltaLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = (header.deltaColor and 0x00FFFFFF) or 0xB3000000.toInt()
+                textSize = (HeaderConstants.DELTA_LABEL_TEXT_SIZE_DP * labelScale).dp(density)
                 textAlign = Paint.Align.LEFT
             },
             precipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

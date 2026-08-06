@@ -54,6 +54,18 @@ internal object TemperatureViewBinder {
             precipText = header.precipProbability,
             precipTextSizeDp = header.precipTextSizeDp,
         )
+        // Progressive disclosure for narrow widgets (pure measurement; hoisted so the
+        // "from yest" caption fit check below can use it).
+        val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
+            context = context,
+            widthDp = state.widthDp,
+            apiSourceText = header.sourceIndicator,
+            apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
+            currentTempText = header.currentTemp,
+            deltaText = header.deltaText,
+            precipText = header.precipProbability,
+            precipTextSizeDp = header.precipTextSizeDp,
+        )
 
         // Explicitly set VISIBLE because DailyViewHandler sets these to INVISIBLE
         // when rendering the source label into the bitmap — RemoteViews updates are
@@ -101,6 +113,29 @@ internal object TemperatureViewBinder {
             scale = headerScale,
         )
 
+        // "from yest" caption after the delta: opportunistic, only when it fits.
+        val deltaLabelText = context.getString(R.string.header_delta_from_yesterday)
+        val isDeltaLabelVisible = header.isDeltaVisible && disclosure.showsDelta() &&
+            HeaderWidthChecker.deltaLabelFitsInHeader(
+                context = context,
+                widthDp = state.widthDp,
+                apiSourceText = header.sourceIndicator,
+                apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
+                currentTempText = header.currentTemp,
+                deltaText = header.deltaText,
+                deltaLabelText = deltaLabelText,
+                precipText = if (header.isPrecipVisible && disclosure.showsPrecip()) header.precipProbability else null,
+                precipTextSizeDp = header.precipTextSizeDp,
+                includeIcon = disclosure.showsIcon(),
+            )
+        HeaderRemoteViewsBinder.bindDeltaLabel(
+            context = context,
+            views = views,
+            labelText = deltaLabelText,
+            labelVisible = isDeltaLabelVisible,
+            scale = headerScale,
+        )
+
         FetchFailureIndicatorHelper.bind(
             context = context,
             views = views,
@@ -117,18 +152,14 @@ internal object TemperatureViewBinder {
         )
 HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVisible)
 
-// Apply progressive disclosure for narrow widgets
-val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
-    context = context,
-    widthDp = state.widthDp,
-    apiSourceText = header.sourceIndicator,
-    apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
-    currentTempText = header.currentTemp,
-    deltaText = header.deltaText,
-    precipText = header.precipProbability,
-    precipTextSizeDp = header.precipTextSizeDp,
+// Apply progressive disclosure for narrow widgets (computed above, before the header binds)
+HeaderRemoteViewsBinder.applyDisclosure(
+    views,
+    disclosure,
+    isDeltaVisible = header.isDeltaVisible,
+    isPrecipVisible = header.isPrecipVisible,
+    isDeltaLabelVisible = isDeltaLabelVisible,
 )
-HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isDeltaVisible = header.isDeltaVisible, isPrecipVisible = header.isPrecipVisible)
 
 // 3. Center Icons & Navigation
 val today = LocalDateTime.now().toLocalDate()

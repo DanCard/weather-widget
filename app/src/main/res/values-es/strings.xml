@@ -206,6 +206,7 @@
     <string name="app_language_settings_unavailable">El ajuste de idioma por aplicación no está disponible en este dispositivo</string>
 
     <string name="today">Hoy</string>
+    <string name="header_delta_from_yesterday">vs ayer</string>
     <string name="widget_loading">Cargando...</string>
     <string name="widget_tap_to_refresh">Toca para actualizar</string>
     <string name="current_stations_desc">Estaciones actuales</string>

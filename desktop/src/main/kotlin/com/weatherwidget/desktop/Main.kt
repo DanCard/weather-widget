@@ -1484,6 +1484,15 @@ private fun WidgetHeader(
                         color = Color(0xFFFF6B35),
                         modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
                     )
+                    Spacer(Modifier.width(3.dp))
+                    // Caption clarifying the delta's meaning; smaller/dimmer than the delta itself.
+                    Text(
+                        text = "from yest",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = (9 * scale).sp,
+                        color = Color(0xFFFF6B35).copy(alpha = 0.7f),
+                        modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
+                    )
                 }
                 if (precipProb != null) {
                     Spacer(Modifier.width(6.dp))

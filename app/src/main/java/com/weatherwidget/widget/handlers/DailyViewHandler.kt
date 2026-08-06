@@ -825,6 +825,8 @@ object DailyViewHandler : WidgetViewHandler {
         val yesterdayDelta: Float?,
         val deltaVisible: Boolean,
         val deltaText: String?,
+        /** "from yest" caption after the header delta; non-null only when it fits. */
+        val deltaLabelText: String? = null,
         val precipProb: Int?,
         val isPrecipVisible: Boolean,
         val precipTextSizeDp: Float?,

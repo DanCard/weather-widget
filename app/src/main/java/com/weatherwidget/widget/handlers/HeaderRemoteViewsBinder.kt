@@ -14,6 +14,8 @@ import com.weatherwidget.R
 internal object HeaderRemoteViewsBinder {
     private const val TAG = "HeaderRemoteViewsBinder"
     private val HEADER_TEXT_COLOR = 0xAAFFFFFF.toInt()
+    // Same orange as the delta, dimmed so the caption reads as secondary text.
+    private val DELTA_LABEL_COLOR = 0xB3FF6B35.toInt()
 
     fun bindCurrentTemp(
         context: Context,
@@ -38,6 +40,7 @@ internal object HeaderRemoteViewsBinder {
             views.setViewVisibility(R.id.current_temp_zone, View.GONE)
             if (hideDeltaOnNull) {
                 views.setViewVisibility(R.id.current_temp_delta, View.GONE)
+                views.setViewVisibility(R.id.current_temp_delta_label, View.GONE)
             }
         }
     }
@@ -85,6 +88,33 @@ internal object HeaderRemoteViewsBinder {
             views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp_delta, View.GONE)
+        }
+    }
+
+    /**
+     * Binds the small "from yest" caption next to the delta. Like [bindDelta], visibility set
+     * here can be overridden later by [applyDisclosure]; the caption only ever appears when
+     * the delta itself is visible.
+     */
+    fun bindDeltaLabel(
+        context: Context,
+        views: RemoteViews,
+        labelText: String?,
+        labelVisible: Boolean,
+        scale: Float = 1.0f,
+    ) {
+        if (labelVisible && labelText != null) {
+            views.setTextViewText(R.id.current_temp_delta_label, labelText)
+            views.setTextColor(R.id.current_temp_delta_label, DELTA_LABEL_COLOR)
+            val labelPx = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                HeaderConstants.DELTA_LABEL_TEXT_SIZE_DP * scale,
+                context.resources.displayMetrics,
+            )
+            views.setTextViewTextSize(R.id.current_temp_delta_label, TypedValue.COMPLEX_UNIT_PX, labelPx)
+            views.setViewVisibility(R.id.current_temp_delta_label, View.VISIBLE)
+        } else {
+            views.setViewVisibility(R.id.current_temp_delta_label, View.GONE)
         }
     }
 
@@ -191,9 +221,14 @@ internal object HeaderRemoteViewsBinder {
         disclosure: HeaderDisclosureLevel,
         isDeltaVisible: Boolean = false,
         isPrecipVisible: Boolean = false,
+        isDeltaLabelVisible: Boolean = false,
     ) {
         views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.current_temp_delta, if (isDeltaVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE)
+        views.setViewVisibility(
+            R.id.current_temp_delta_label,
+            if (isDeltaVisible && isDeltaLabelVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE,
+        )
         val precipVis = if (isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE
         views.setViewVisibility(R.id.precip_probability, precipVis)
         views.setViewVisibility(R.id.precip_touch_zone, precipVis)

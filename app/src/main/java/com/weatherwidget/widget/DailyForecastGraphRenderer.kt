@@ -115,6 +115,8 @@ object DailyForecastGraphRenderer {
         val currentTempText: String? = null,
         val deltaText: String? = null,
         val deltaColor: Int = 0xFFFF6B35.toInt(),
+        /** "from yest" caption candidate after the delta; drawn only when it fits. */
+        val deltaLabelText: String? = null,
         val precipText: String? = null,
         val precipColor: Int = 0xFF5AC8FA.toInt(),
         val precipTextSizeDp: Float = HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,

@@ -230,6 +230,10 @@ internal object DailyGraphRenderer {
                     val displayDelta = delta?.let { if (ctx.stateManager.useCelsius()) it / 1.8f else it }
                     displayDelta?.let { String.format("%+.1f", it) }
                 } else null,
+                // "from yest" caption candidate; the header renderer decides whether it fits.
+                deltaLabelText = if (deltaVisible && disclosure.showsDelta()) {
+                    ctx.context.getString(R.string.header_delta_from_yesterday)
+                } else null,
                 precipText = if (isPrecipVisible) "${ctx.precipProb}%" else null,
                 precipTextSizeDp = if (isPrecipVisible) {
                     HeaderPrecipCalculator.getPrecipTextSize(ctx.precipProb ?: 0) *
@@ -285,6 +289,7 @@ internal object DailyGraphRenderer {
 
         ctx.views.setViewVisibility(R.id.current_temp, View.INVISIBLE)
         ctx.views.setViewVisibility(R.id.current_temp_delta, View.INVISIBLE)
+        ctx.views.setViewVisibility(R.id.current_temp_delta_label, View.INVISIBLE)
         ctx.views.setViewVisibility(R.id.precip_probability, View.INVISIBLE)
         ctx.views.setViewVisibility(R.id.weather_icon, View.INVISIBLE)
         ctx.views.setViewVisibility(R.id.api_source, View.INVISIBLE)

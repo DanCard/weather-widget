@@ -211,6 +211,7 @@
 
     <!-- Widget loading/error placeholder states -->
     <string name="today">Oggi</string>
+    <string name="header_delta_from_yesterday">vs ieri</string>
     <string name="widget_loading">Caricamento...</string>
     <string name="widget_tap_to_refresh">Tocca per aggiornare</string>
     <string name="current_stations_desc">Stazioni attuali</string>

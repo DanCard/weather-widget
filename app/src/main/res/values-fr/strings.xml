@@ -206,6 +206,7 @@
     <string name="app_language_settings_unavailable">Réglage de langue par application indisponible sur cet appareil</string>
 
     <string name="today">Auj.</string>
+    <string name="header_delta_from_yesterday">vs hier</string>
     <string name="widget_loading">Chargement...</string>
     <string name="widget_tap_to_refresh">Touchez pour actualiser</string>
     <string name="current_stations_desc">Stations actuelles</string>
