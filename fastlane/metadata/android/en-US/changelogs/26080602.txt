@@ -1,0 +1,1 @@
+Release 26080602: Fix Hilt ProGuard rules to prevent startup NoClassDefFoundError crashes in release builds.

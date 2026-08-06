@@ -49,3 +49,15 @@
 # rule is present. We intentionally do NOT add one, so Log.d/Log.i survive minification
 # and on-device diagnostics (e.g. DailyGraphRenderer / DailyViewLogic render decisions)
 # remain available in release. Do not add an assumenosideeffects rule for android.util.Log.
+
+# Hilt generated entry points, injectors, and components.
+# Prevents R8 tree shaking from stripping _GeneratedInjector interfaces (e.g.
+# WeatherWidgetProvider_GeneratedInjector) which causes NoClassDefFoundError crashes on startup.
+-keep class * implements dagger.hilt.internal.GeneratedComponent { *; }
+-keep class * implements dagger.hilt.internal.GeneratedComponentManager { *; }
+-keep class * implements dagger.hilt.internal.TestSingletonComponent { *; }
+-keep interface * extends dagger.hilt.internal.GeneratedComponent { *; }
+-keep interface **_GeneratedInjector { *; }
+-keep class **_HiltComponents** { *; }
+-keep class **.Hilt_* { *; }
+
