@@ -61,11 +61,26 @@ object TodayColumnOverlayPlanner {
             left < other.right && other.left < right && top < other.bottom && other.top < bottom
     }
 
+    /**
+     * One block of the stack. [height] is the full font box (ascent..descent) the renderer will
+     * advance by, so blocks keep their normal rhythm when drawn.
+     *
+     * [topLeading] and [bottomLeading] are the parts of that box which contain no ink — the gap
+     * between the box edge and the actual glyphs. They are measured by the renderer (the planner
+     * cannot measure text) and exist because **fit is decided on ink, not on boxes**. Packing boxes
+     * against obstacles that are themselves boxes double-counts the leading where they meet: on the
+     * reported Samsung layout, ~12 px of visibly empty space between `0m` and the `74.4°` label was
+     * counted as solid, which is what made a stack with 10 px of real headroom read as a 1.6 px
+     * overflow. Default 0 keeps callers that do not measure leading on the old box-packing
+     * behaviour.
+     */
     data class Line(
         val key: String,
         val text: String,
         val width: Float,
         val height: Float,
+        val topLeading: Float = 0f,
+        val bottomLeading: Float = 0f,
     )
 
     data class Placement(
@@ -98,6 +113,27 @@ object TodayColumnOverlayPlanner {
          * (zone preference and clearance); it can never retain a materially worse layout.
          */
         val previousZones: Map<String, Zone> = emptyMap(),
+        /**
+         * Inset from the graph's OUTER edge ([graphTop] / [graphBottom]), as distinct from
+         * [padding], which is clearance from the bar cap. Defaults to [padding] for callers that do
+         * not distinguish the two.
+         *
+         * Both renderers pass 0. [graphTop] and [graphBottom] are already computed margins — on
+         * Android `graphTop` IS `TOP_PADDING_DP` (39dp) of reserved header band — so a second inset
+         * there is pure lost headroom. It cost the reported layout its fit: an ABOVE free run of
+         * 79.16 px against an 81.07 px stack, short by 1.91 px, which dropped the temp/age block
+         * onto the forecast bars while 7.875 px of usable space sat unused at the top of the graph.
+         */
+        val edgeInset: Float = padding,
+        /**
+         * Topmost y the ABOVE zone may use. Defaults to the graph edge, but callers may raise the
+         * ceiling into space the graph reserves and does not draw in — on Android [graphTop] is a
+         * 50dp header band whose text occupies well under half of it, and that unused remainder is
+         * the only place a three-row stack can gain real distance from the bar cap's temperature
+         * label. Raising it here rather than lowering [graphTop] leaves the temperature scale, the
+         * bar heights, and every other column untouched.
+         */
+        val aboveCeiling: Float = graphTop + edgeInset,
     )
 
     /** Chosen layout plus the content variant the renderer must paint. */
@@ -272,7 +308,7 @@ object TodayColumnOverlayPlanner {
         val runs = freeRuns(band.first, band.second, input.hardObstacles + extraObstacles, left, right)
         if (runs.isEmpty()) return null
 
-        val height = stackHeight(lines, input.rowSpacing)
+        val height = inkHeight(lines, input.rowSpacing)
         val run = runs.filter { it.fits(height) }
             .maxByOrNull { it.endInclusive - it.start } ?: return null
         return layOut(lines, run, height, zone, input)
@@ -296,8 +332,8 @@ object TodayColumnOverlayPlanner {
         for (seam in 1 until lines.size) {
             val head = lines.subList(0, seam)
             val tail = lines.subList(seam, lines.size)
-            val headHeight = stackHeight(head, input.rowSpacing)
-            val tailHeight = stackHeight(tail, input.rowSpacing)
+            val headHeight = inkHeight(head, input.rowSpacing)
+            val tailHeight = inkHeight(tail, input.rowSpacing)
             for (i in runs.indices) {
                 if (!runs[i].fits(headHeight)) continue
                 for (j in i + 1 until runs.size) {
@@ -346,7 +382,13 @@ object TodayColumnOverlayPlanner {
         return bestPlaced
     }
 
-    /** Centres the stack in [run] and lays the blocks out top-to-bottom in input order. */
+    /**
+     * Centres the stack's INK in [run] and lays the blocks out top-to-bottom in input order.
+     *
+     * [height] is the ink height, so the returned boxes may extend past the run by each end's
+     * leading — deliberately, since that leading is blank. Drawing is unchanged: blocks still
+     * advance by their full box height, so the stack's internal rhythm is identical.
+     */
     private fun layOut(
         lines: List<Line>,
         run: ClosedFloatingPointRange<Float>,
@@ -354,8 +396,19 @@ object TodayColumnOverlayPlanner {
         zone: Zone,
         input: Input,
     ): List<Placement> {
-        val slack = ((run.endInclusive - run.start - height) / 2f).coerceAtLeast(0f)
-        val top = run.start + slack
+        val free = (run.endInclusive - run.start - height).coerceAtLeast(0f)
+        // Each outer zone hugs the edge FURTHEST from the bars, so spare room becomes distance from
+        // the bar cap and its temperature label rather than a gap against the graph edge. Centring
+        // split the difference and left the stack crowding the high label whenever the run was only
+        // a little roomier than the stack. ON_COLUMN has bars on both sides, so it still centres.
+        val offset =
+            when (zone) {
+                Zone.ABOVE -> 0f
+                Zone.BELOW -> free
+                Zone.ON_COLUMN -> free / 2f
+            }
+        val slack = free / 2f
+        val top = run.start + offset - lines.first().topLeading
         var cursor = top
         return lines.map { line ->
             val left = (input.columnLeft + input.columnRight - line.width) / 2f
@@ -368,11 +421,29 @@ object TodayColumnOverlayPlanner {
     private fun stackHeight(lines: List<Line>, rowSpacing: Float): Float =
         lines.sumOf { it.height.toDouble() }.toFloat() + rowSpacing * (lines.size - 1)
 
+    /**
+     * The stack's height measured from the first row's ink to the last row's — what actually has to
+     * clear the obstacles. Only the OUTER leading is trimmed: leading between blocks is real
+     * spacing that keeps the rows legible, and trimming it would let neighbours visually collide.
+     */
+    private fun inkHeight(lines: List<Line>, rowSpacing: Float): Float =
+        (
+            stackHeight(lines, rowSpacing) -
+                lines.first().topLeading -
+                lines.last().bottomLeading
+            ).coerceAtLeast(0f)
+
+    /**
+     * The two outer bands are bounded by different things at each end: the graph edge takes
+     * [Input.edgeInset] (zero for the real renderers — the edge is already a computed margin), the
+     * bar cap takes [Input.padding]. Conflating them into one constant meant tuning bar clearance
+     * silently shrank the usable band by the same amount at the graph edge, where nothing needed it.
+     */
     private fun bandFor(zone: Zone, input: Input): Pair<Float, Float>? {
         val band =
             when (zone) {
-                Zone.ABOVE -> (input.graphTop + input.padding) to (input.barTop - input.padding)
-                Zone.BELOW -> (input.barBottom + input.padding) to (input.graphBottom - input.padding)
+                Zone.ABOVE -> input.aboveCeiling to (input.barTop - input.padding)
+                Zone.BELOW -> (input.barBottom + input.padding) to (input.graphBottom - input.edgeInset)
                 Zone.ON_COLUMN -> (input.barTop + input.padding) to (input.barBottom - input.padding)
             }
         return band.takeIf { it.second > it.first }

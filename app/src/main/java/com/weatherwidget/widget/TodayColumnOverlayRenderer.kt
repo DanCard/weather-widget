@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
 import androidx.annotation.VisibleForTesting
@@ -31,6 +32,20 @@ internal object TodayColumnOverlayRenderer {
     // A heavier outline overwhelms the thin glyphs after the bitmap is scaled into RemoteViews,
     // making the white fill look muddy on the dark Today panel.
     private const val OUTLINE_FRACTION = 0.08f
+
+    /**
+     * How much of the reserved header band above `graphTop` the overlay may rise into.
+     *
+     * `DailyGraphLayoutResolver.TOP_PADDING_DP` reserves 50dp for the header, but the header's ink
+     * ends around 40% of the way down it — measured on the Samsung fold, ink stopped at bitmap y
+     * 22.4 against a `graphTop` of 51.6, so up to ~0.55 is physically free.
+     *
+     * A quarter is a judgement call, not a limit: reclaiming half cleared the high label but read as
+     * too high against the header, so this takes half of that. Raising it moves the stack up and
+     * away from the bar cap; lowering it does the reverse.
+     */
+    @VisibleForTesting
+    internal const val HEADER_BAND_RECLAIM_FRACTION = 0.25f
 
     fun draw(
         canvas: Canvas,
@@ -81,6 +96,10 @@ internal object TodayColumnOverlayRenderer {
                     text = spec.rows.joinToString("\n", transform = TextRow::displayText),
                     width = spec.rows.maxOf { measureRow(paint, it) },
                     height = lineHeight * spec.rows.size + rowSpacing * (spec.rows.size - 1),
+                    // The planner decides fit on ink, so tell it how much of this block's outer box
+                    // is blank. "0m" has no descenders at all, so its whole descent is empty.
+                    topLeading = inkLeading(paint, spec.rows.first().text).first,
+                    bottomLeading = inkLeading(paint, spec.rows.last().text).second,
                 )
             }
 
@@ -124,6 +143,13 @@ internal object TodayColumnOverlayRenderer {
                 verticalStep = 1f.dp(layout.density).coerceAtLeast(1f),
                 rowSpacing = rowSpacing,
                 previousZones = data.previousZones,
+                // No second inset at the graph edge: `layout.graphTop` already IS the reserved
+                // header band (DailyGraphLayoutResolver's TOP_PADDING_DP), so insetting again only
+                // discarded headroom the stack needed. `padding` still applies at the bar cap.
+                edgeInset = 0f,
+                // `layout.graphTop` IS the header band's height, so scaling it by the reclaim
+                // fraction gives the ceiling directly, at whatever density and bitmap scale.
+                aboveCeiling = layout.graphTop * (1f - HEADER_BAND_RECLAIM_FRACTION),
             )
 
         // The planner searches variant x zone x grouping in cost order and reports back which
@@ -274,6 +300,27 @@ internal object TodayColumnOverlayRenderer {
         return measureText(paint, row.text) +
             paint.textSize * INLINE_CAPTION_GAP_EM +
             measureText(captionPaint, caption)
+    }
+
+    /**
+     * How much of [text]'s font box (ascent..descent) holds no ink, as `top to bottom`.
+     *
+     * Font boxes carry leading for the tallest ascender and deepest descender the face can produce;
+     * the overlay's rows are digits and short captions, which use neither. Packing those boxes
+     * against obstacles that are themselves boxes (`DailyTemperatureLabelRenderer` builds the high
+     * label's bounds the same way) counts that blank twice wherever they meet.
+     *
+     * Returns zero when the platform reports no ink bounds — Robolectric has no font engine, and
+     * over-trimming there would silently move text rather than fail a test.
+     */
+    @VisibleForTesting
+    internal fun inkLeading(paint: Paint, text: String): Pair<Float, Float> {
+        val ink = Rect()
+        paint.getTextBounds(text, 0, text.length, ink)
+        if (ink.isEmpty) return 0f to 0f
+        val top = (ink.top - TemperatureGraphStyle.fontAscent(paint)).coerceAtLeast(0f)
+        val bottom = (TemperatureGraphStyle.fontDescent(paint) - ink.bottom).coerceAtLeast(0f)
+        return top to bottom
     }
 
     private fun measureText(paint: Paint, text: String): Float =

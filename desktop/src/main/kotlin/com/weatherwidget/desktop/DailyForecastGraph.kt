@@ -807,6 +807,9 @@ private fun DrawScope.drawDesktopTodayOverlay(
                     verticalStep = 2.dp.toPx(),
                     rowSpacing = TodayColumnOverlayStyle.ROW_SPACING_DP * scale,
                     previousZones = previousZones,
+                    // Matches Android: `graphTop`/`graphBottom` are already the graph area's
+                    // margins, so only the bar cap gets `padding`. See TodayColumnOverlayPlanner.
+                    edgeInset = 0f,
                 ),
         )
     val placements = result.placements

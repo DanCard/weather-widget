@@ -159,6 +159,209 @@ class TodayColumnOverlayPlannerLayoutTest {
         )
     }
 
+    // ---- The redundant graph-edge inset ----------------------------------------------------------
+
+    /**
+     * Captured 2026-08-07 06:07:39 from emulator-5554 (density 2.625, labelScale 0.5), the render
+     * that showed `+0.0 fcst` above the column with `58.7°`/`0m` drawn across the forecast bars.
+     *
+     * Today's own high label caps the ABOVE free run at 138.23, so with the band starting at
+     * `graphTop + padding` = 59.07 the run is 79.16 px against an 81.07 px stack — short by 1.91 px,
+     * i.e. 2.4%. The 7.875 px inset below `graphTop` was buying nothing: `graphTop` is already
+     * `TOP_PADDING_DP` (39dp) of reserved header band. See
+     * plans/260807-today-overlay-graph-edge-inset-opus.md.
+     */
+    private val edgeInsetInput =
+        TodayColumnOverlayPlanner.Input(
+            columnLeft = 126.27027f,
+            columnRight = 205.1892f,
+            graphTop = 51.196808f,
+            graphBottom = 359.5991f,
+            barTop = 161.65521f,
+            barBottom = 290.52335f,
+            // The device's full obstacle list: high label, weather icon, low label, day label.
+            // Omitting the lower three leaves BELOW spuriously free and the fixture stops
+            // reproducing the reported layout.
+            hardObstacles =
+                listOf(
+                    Bounds(134.72974f, 138.23172f, 196.72974f, 170.49461f),
+                    Bounds(147.72974f, 298.39835f, 183.72974f, 334.39835f),
+                    Bounds(133.22974f, 333.8676f, 198.22974f, 367.82855f),
+                    Bounds(136.22974f, 361.88345f, 195.22974f, 387.76752f),
+                ),
+            horizontalPadding = 2.625f,
+            padding = 7.875f,
+            rowSpacing = 1.3125f,
+            edgeInset = 0f,
+        )
+
+    private val edgeInsetLines =
+        listOf(
+            Line("delta", "+0.0 fcst", 68.12375f, 26.14746f),
+            Line("dominant_temp_age", "58.7°\n0m", 50.0f, 53.60742f),
+        )
+
+    @Test
+    fun `zero edge inset lets the whole stack fit above the bars`() {
+        val zones =
+            TodayColumnOverlayPlanner.place(edgeInsetLines, edgeInsetInput)
+                .associate { it.key to it.zone }
+
+        assertEquals("both blocks must be placed; got $zones", 2, zones.size)
+        assertEquals(
+            "temp/age was pushed onto the bars again; zones=$zones",
+            Zone.ABOVE,
+            zones["dominant_temp_age"],
+        )
+        assertEquals(Zone.ABOVE, zones["delta"])
+    }
+
+    @Test
+    fun `the graph-edge inset is what cost the fit`() {
+        // Guards the diagnosis, not just the outcome: re-conflating edgeInset with padding must
+        // reproduce the reported split, so a future "simplification" back to one constant fails
+        // here rather than silently regressing the layout on a device.
+        // `aboveCeiling` defaults to `graphTop + edgeInset` at construction, so restoring the old
+        // behaviour means restoring the ceiling it produced — copying `edgeInset` alone would not.
+        val zones =
+            TodayColumnOverlayPlanner
+                .place(
+                    edgeInsetLines,
+                    edgeInsetInput.copy(
+                        edgeInset = edgeInsetInput.padding,
+                        aboveCeiling = edgeInsetInput.graphTop + edgeInsetInput.padding,
+                    ),
+                )
+                .associate { it.key to it.zone }
+
+        assertEquals(Zone.ABOVE, zones["delta"])
+        assertEquals(
+            "the fixture no longer reproduces the reported bug, so the test above proves nothing",
+            Zone.ON_COLUMN,
+            zones["dominant_temp_age"],
+        )
+    }
+
+    @Test
+    fun `edge inset defaults to padding for callers that do not distinguish them`() {
+        val defaulted =
+            TodayColumnOverlayPlanner.Input(
+                columnLeft = 0f,
+                columnRight = 100f,
+                graphTop = 0f,
+                graphBottom = 120f,
+                barTop = 40f,
+                barBottom = 80f,
+                hardObstacles = emptyList(),
+                horizontalPadding = 2f,
+                padding = 5f,
+            )
+        assertEquals(defaulted.padding, defaulted.edgeInset, 0f)
+    }
+
+    // ---- Fit is decided on ink, not on font boxes ------------------------------------------------
+
+    /**
+     * Captured 2026-08-07 from the Samsung fold (SM-F936U1). Even with `edgeInset = 0` the ABOVE run
+     * is 92.02 px against a 93.61 px box stack — 1.60 px short. But the rendered gap between the
+     * last row's ink (`0m`, no descenders) and the `74.4°` label's ink measured 27 device px ≈ 10.5
+     * bitmap px: the shortfall was entirely font-box leading counted as solid at both ends.
+     *
+     * Leading values are Roboto's for this size (25.77 px text): 5.4 px above digits, 6.29 px of
+     * unused descent below them.
+     */
+    private val samsungInput =
+        TodayColumnOverlayPlanner.Input(
+            columnLeft = 122.5946f,
+            columnRight = 199.21622f,
+            graphTop = 51.55125f,
+            graphBottom = 372.2317f,
+            barTop = 178.67683f,
+            barBottom = 297.64258f,
+            hardObstacles =
+                listOf(
+                    Bounds(128.40541f, 143.56795f, 193.40541f, 177.49724f),
+                    Bounds(142.40541f, 306.73633f, 179.40541f, 343.73633f),
+                    Bounds(121.90541f, 343.12344f, 199.90541f, 382.34024f),
+                    Bounds(131.90541f, 373.98752f, 189.90541f, 399.22696f),
+                ),
+            horizontalPadding = 3.03125f,
+            padding = 9.09375f,
+            rowSpacing = 1.515625f,
+            edgeInset = 0f,
+        )
+
+    private val samsungLines =
+        listOf(
+            Line("delta", "+0.0 fcst", 78.60719f, 30.194092f, topLeading = 5.4f, bottomLeading = 6.29f),
+            Line("dominant_temp_age", "60.8°\n0m", 58.0f, 61.90381f, topLeading = 5.4f, bottomLeading = 6.29f),
+        )
+
+    @Test
+    fun `ink fitting lands the Samsung stack above the bars`() {
+        val zones =
+            TodayColumnOverlayPlanner.place(samsungLines, samsungInput)
+                .associate { it.key to it.zone }
+
+        assertEquals("both blocks must be placed; got $zones", 2, zones.size)
+        assertEquals(Zone.ABOVE, zones["delta"])
+        assertEquals(
+            "temp/age fell to the bars again; zones=$zones",
+            Zone.ABOVE,
+            zones["dominant_temp_age"],
+        )
+    }
+
+    @Test
+    fun `box packing is what rejected the Samsung stack`() {
+        // Same geometry with the leading unreported (the old box-packing behaviour) must still
+        // split, so the test above is proving the ink trim rather than some other slack.
+        val zones =
+            TodayColumnOverlayPlanner
+                .place(samsungLines.map { it.copy(topLeading = 0f, bottomLeading = 0f) }, samsungInput)
+                .associate { it.key to it.zone }
+
+        assertEquals(Zone.ABOVE, zones["delta"])
+        assertEquals(Zone.ON_COLUMN, zones["dominant_temp_age"])
+    }
+
+    @Test
+    fun `only the stack's outer leading is trimmed`() {
+        // Interior leading is real spacing between blocks. If it were trimmed too, the stack would
+        // gain 2x more room and the blocks would visually close up.
+        val placements = TodayColumnOverlayPlanner.place(samsungLines, samsungInput)
+        assertEquals(
+            "blocks stay exactly rowSpacing apart regardless of leading",
+            samsungInput.rowSpacing,
+            placements[1].bounds.top - placements[0].bounds.bottom,
+            0.01f,
+        )
+    }
+
+    @Test
+    fun `trimmed leading hangs outside the run rather than shifting ink into obstacles`() {
+        val placements = TodayColumnOverlayPlanner.place(samsungLines, samsungInput)
+        val obstacleTop = samsungInput.hardObstacles.first().top // the high label caps ABOVE
+        val lastInkBottom = placements.last().bounds.bottom - samsungLines.last().bottomLeading
+
+        assertTrue(
+            "ink must clear the high label: inkBottom=$lastInkBottom obstacleTop=$obstacleTop",
+            lastInkBottom <= obstacleTop + 0.01f,
+        )
+        // ABOVE hugs the top, so it is the blank ASCENT that hangs out of the run — the first row's
+        // ink lands exactly on the run start while its box begins above it.
+        assertEquals(
+            "first row's ink should sit on the run start",
+            samsungInput.graphTop,
+            placements.first().bounds.top + samsungLines.first().topLeading,
+            0.01f,
+        )
+        assertTrue(
+            "the box itself overhangs the run start by the blank ascent",
+            placements.first().bounds.top < samsungInput.graphTop,
+        )
+    }
+
     // ---- Cost ordering ---------------------------------------------------------------------------
 
     @Test
@@ -343,9 +546,9 @@ class TodayColumnOverlayPlannerLayoutTest {
     }
 
     @Test
-    fun `clearance still centres a lone block in a roomy run`() {
-        // The old aesthetic survives as the final tie-break: nothing left to fragment once the
-        // stack moves as a unit.
+    fun `an outer zone hugs the edge away from the bars`() {
+        // Spare room should become distance from the bar cap and its high label, not a gap against
+        // the graph edge. Centring left the stack crowding the high label on the Samsung fold.
         val line = listOf(Line("delta", "+1.8", 40f, 20f))
         val input =
             TodayColumnOverlayPlanner.Input(
@@ -360,7 +563,16 @@ class TodayColumnOverlayPlannerLayoutTest {
                 padding = 0f,
             )
         val bounds = TodayColumnOverlayPlanner.place(line, input).single().bounds
-        assertEquals("block should be centred in the 0..100 band", 40f, bounds.top, 0.01f)
+        assertEquals("ABOVE should sit at the top of the 0..100 band", 0f, bounds.top, 0.01f)
+
+        // ...and the mirror image below the bars, so neither zone drifts toward the bar cap.
+        val below =
+            TodayColumnOverlayPlanner
+                .place(line, input.copy(barTop = 0f, barBottom = 100f, graphBottom = 200f))
+                .single()
+                .bounds
+        assertEquals(Zone.BELOW, TodayColumnOverlayPlanner.place(line, input.copy(barTop = 0f, barBottom = 100f)).single().zone)
+        assertEquals("BELOW should sit at the bottom of the 100..200 band", 200f, below.bottom, 0.01f)
     }
 
     // ---- Ladder laziness --------------------------------------------------------------------------
