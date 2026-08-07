@@ -72,6 +72,9 @@ interface RepositoryEntryPoint {
     fun currentTempRepository(): CurrentTempRepository
     fun observationRepository(): ObservationRepository
     fun setupSourceSelector(): SetupSourceSelector
+
+    /** For plain (non-@AndroidEntryPoint) receivers that resample location on system events. */
+    fun gpsResampler(): GpsResampler
 }
 
 @Module

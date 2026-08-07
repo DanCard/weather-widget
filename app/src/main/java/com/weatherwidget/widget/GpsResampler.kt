@@ -50,26 +50,31 @@ class GpsResampler(
     },
 ) {
     /**
-     * Background entry point (worker): permission check → cached location → [healIfNeeded].
+     * Background entry point: permission check → cached location → [healIfNeeded].
+     *
+     * [trigger] names the caller in the breadcrumb and, via [healIfNeeded], decides whether a newly
+     * detected candidate also enqueues a refresh: the periodic worker is already mid-sync so it
+     * fetches the candidate itself, while event-driven callers (charger plug-in, unlock) must ask
+     * for one. Keep the worker's value as `"worker"` for that reason.
      */
-    suspend fun resample(context: Context): Boolean {
+    suspend fun resample(context: Context, trigger: String = "worker"): Boolean {
         if (!permissionChecker(context, Manifest.permission.ACCESS_FINE_LOCATION)) {
-            appLogDao.log(LOG_TAG, "outcome=skipped_no_permission")
+            appLogDao.log(LOG_TAG, "outcome=skipped_no_permission trigger=$trigger")
             return false
         }
 
         // Checked again in healIfNeeded; checking here too skips the Play services call.
         if (LocationMode.get(context) == LocationMode.FIXED) {
-            appLogDao.log(LOG_TAG, "outcome=skipped_pinned trigger=worker")
+            appLogDao.log(LOG_TAG, "outcome=skipped_pinned trigger=$trigger")
             return false
         }
 
         val location = locationProvider(context)
         if (location == null) {
-            appLogDao.log(LOG_TAG, "outcome=no_fix mode=last_location")
+            appLogDao.log(LOG_TAG, "outcome=no_fix mode=last_location trigger=$trigger")
             return false
         }
-        return healIfNeeded(context, location.latitude, location.longitude, trigger = "worker")
+        return healIfNeeded(context, location.latitude, location.longitude, trigger = trigger)
     }
 
     /**

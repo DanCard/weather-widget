@@ -38,6 +38,9 @@ class ScreenOnReceiverTest {
     private lateinit var context: Context
     private lateinit var receiver: ScreenOnReceiver
 
+    /** Triggers passed to GpsResampler.resample, in order, by the receiver under test. */
+    private val resampleTriggers = mutableListOf<String>()
+
     @org.junit.After
     fun tearDown() {
         unmockkAll()
@@ -53,6 +56,11 @@ class ScreenOnReceiverTest {
         receiver = ScreenOnReceiver()
         // Inject UnconfinedTestDispatcher for synchronous deterministic execution
         receiver.ioDispatcher = UnconfinedTestDispatcher()
+
+        // Stand in for the Hilt-resolved GpsResampler: the production default reaches through
+        // EntryPointAccessors, which has no component under a plain Robolectric application.
+        resampleTriggers.clear()
+        receiver.resampleLocation = { _, trigger -> resampleTriggers.add(trigger) }
 
         // Inject TestDatabase with allowMainThreadQueries to avoid background offloading flakiness
         WeatherDatabase.setDatabaseForTesting(TestDatabase.create())
@@ -265,6 +273,49 @@ class ScreenOnReceiverTest {
         receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
 
         verify { NonPrimaryObservationScheduler.cancel(context) }
+    }
+
+    @Test
+    fun `onReceive with POWER_CONNECTED resamples location`() {
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+
+        assertEquals(listOf("power_connected"), resampleTriggers)
+    }
+
+    @Test
+    fun `onReceive with USER_PRESENT resamples location`() {
+        mockkObject(BatteryStatePolicy)
+        every { BatteryStatePolicy.isEffectivelyCharging(any()) } returns false
+
+        receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
+
+        assertEquals(listOf("user_present"), resampleTriggers)
+    }
+
+    @Test
+    fun `location resample is debounced across repeated events`() {
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+
+        assertEquals(
+            "Second plug-in inside the debounce window must not resample again",
+            listOf("power_connected"),
+            resampleTriggers,
+        )
+    }
+
+    @Test
+    fun `location resample runs even when the current-temp refresh is debounced`() {
+        // The two debounces are deliberately independent: a plug-in that is too soon for another
+        // current-temp fetch is still the moment the device most likely finished moving.
+        com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "screen_on_receiver_prefs")
+            .edit()
+            .putLong("last_power_connected_refresh_ms", System.currentTimeMillis())
+            .commit()
+
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+
+        assertEquals(listOf("power_connected"), resampleTriggers)
     }
 
     private fun unlockPolicyLogCount(): Int {

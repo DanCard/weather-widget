@@ -35,6 +35,8 @@ class GpsResamplerTest : RobolectricTest() {
     private lateinit var resolver: SharedLocationResolver
     private val logged = mutableListOf<AppLogEntity>()
     private val healed = mutableListOf<Triple<Double, Double, String>>()
+    /** enqueueRefresh flag passed to proposeCandidate, per detected candidate. */
+    private val enqueueRefreshFlags = mutableListOf<Boolean>()
     private var providerCalls = 0
 
     @Before
@@ -65,8 +67,9 @@ class GpsResamplerTest : RobolectricTest() {
         permissionChecker = { _, permission ->
             if (permission == Manifest.permission.ACCESS_FINE_LOCATION) fineGranted else true
         },
-        proposeCandidate = { _, lat, lon, label, _ ->
+        proposeCandidate = { _, lat, lon, label, enqueueRefresh ->
             healed.add(Triple(lat, lon, label))
+            enqueueRefreshFlags.add(enqueueRefresh)
             true
         },
     )
@@ -97,7 +100,7 @@ class GpsResamplerTest : RobolectricTest() {
 
         assertEquals(0, providerCalls)
         assertTrue(healed.isEmpty())
-        assertEquals(listOf("outcome=skipped_no_permission"), outcomes())
+        assertEquals(listOf("outcome=skipped_no_permission trigger=worker"), outcomes())
     }
 
     @Test
@@ -108,7 +111,34 @@ class GpsResamplerTest : RobolectricTest() {
 
         assertEquals(1, providerCalls)
         assertTrue(healed.isEmpty())
-        assertEquals(listOf("outcome=no_fix mode=last_location"), outcomes())
+        assertEquals(listOf("outcome=no_fix mode=last_location trigger=worker"), outcomes())
+    }
+
+    @Test
+    fun `event trigger labels the breadcrumb and asks for a candidate refresh`() = runTest {
+        bindWidgetAt(101, 34.0522, -118.2437)
+
+        val changed = resampler(fix = fix(40.7128, -74.0060))
+            .resample(context, trigger = "power_connected")
+
+        assertTrue(changed)
+        val healedLog = logged.single { it.tag == GpsResampler.LOG_TAG }
+        assertTrue(
+            "Breadcrumb must name the caller, not the worker: ${healedLog.message}",
+            healedLog.message.startsWith("outcome=candidate_detected trigger=power_connected"),
+        )
+        // The worker fetches the candidate itself mid-sync; an event-driven caller is not
+        // mid-sync, so it must enqueue one or the candidate never gains the data to be promoted.
+        assertEquals(listOf(true), enqueueRefreshFlags)
+    }
+
+    @Test
+    fun `worker trigger leaves the candidate refresh to the sync in progress`() = runTest {
+        bindWidgetAt(101, 34.0522, -118.2437)
+
+        resampler(fix = fix(40.7128, -74.0060)).resample(context)
+
+        assertEquals(listOf(false), enqueueRefreshFlags)
     }
 
     @Test
