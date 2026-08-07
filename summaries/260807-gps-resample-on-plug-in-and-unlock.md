@@ -1,7 +1,7 @@
 # GPS resample on charger plug-in and unlock
 
 **Date:** 2026-08-07
-**Commit:** `ee0816ad`
+**Commit:** `bbf31ce5`
 **Files:** `GpsResampler.kt`, `ScreenOnReceiver.kt`, `AppModule.kt` (app),
 `GpsResamplerTest.kt`, `ScreenOnReceiverTest.kt`
 
