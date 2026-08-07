@@ -52,6 +52,38 @@ object HourlyForecastStitcher {
     }
 
     /**
+     * Multi-source variant of [stitch], for loaders that read several sources in one query (the
+     * display source of every installed widget plus `GENERIC_GAP`).
+     *
+     * [stitch] collapses to **one row per hour**, so handing it rows from several sources at once
+     * silently drops every source but the freshest one for that hour. This stitches each source
+     * independently and concatenates, so per-hour freshness selection still happens — just scoped
+     * within a source, which is the only comparison that means anything.
+     */
+    fun stitchBySource(
+        current: List<HourlyForecast>,
+        history: List<HourlyForecast>,
+        nowMs: Long,
+        centerLat: Double,
+        centerLon: Double,
+    ): List<HourlyForecast> {
+        if (current.isEmpty() && history.isEmpty()) return emptyList()
+        val currentBySource = current.groupBy { it.source }
+        val historyBySource = history.groupBy { it.source }
+        val sources = currentBySource.keys + historyBySource.keys
+        if (sources.size <= 1) return stitch(current, history, nowMs, centerLat, centerLon)
+        return sources.flatMap { source ->
+            stitch(
+                current = currentBySource[source].orEmpty(),
+                history = historyBySource[source].orEmpty(),
+                nowMs = nowMs,
+                centerLat = centerLat,
+                centerLon = centerLon,
+            )
+        }.sortedBy { it.dateTime }
+    }
+
+    /**
      * Collapse rows to one per hour: keep same-site rows (relative to the centre), choose the
      * temperature/condition source via [pick] (freshest fetch on both the live and history sides), and
      * coalesce nullable fields across the remaining same-site rows so e.g. an NWS snapshot that

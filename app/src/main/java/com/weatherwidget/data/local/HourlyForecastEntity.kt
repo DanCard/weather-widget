@@ -33,3 +33,30 @@ fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.Hourl
     locationLat = locationLat,
     locationLon = locationLon,
 )
+
+/**
+ * Map a stitched [com.weatherwidget.data.model.HourlyForecast] back to an entity for the downstream
+ * graph pipeline. Coordinates are always present (they came from a DB row) but fall back to the
+ * query centre defensively.
+ *
+ * Shared by `GraphDataLoader` and `HourlyForecastLoader` deliberately: those two loaders reading the
+ * same DB must produce identical rows, and a private per-loader copy of this conversion is exactly
+ * the kind of drift that let a 13-day-old coordinate fragment win in one loader and lose in the
+ * other (plans/260806-today-column-stale-fragment-delta-opus.md).
+ */
+fun com.weatherwidget.data.model.HourlyForecast.toEntity(
+    fallbackLat: Double,
+    fallbackLon: Double,
+): HourlyForecastEntity =
+    HourlyForecastEntity(
+        dateTime = dateTime,
+        locationLat = locationLat ?: fallbackLat,
+        locationLon = locationLon ?: fallbackLon,
+        temperature = temperature,
+        condition = condition,
+        source = source ?: com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+        precipProbability = precipProbability,
+        cloudCover = cloudCover,
+        precipAmountMm = precipAmountMm,
+        fetchedAt = fetchedAt,
+    )

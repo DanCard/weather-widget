@@ -54,7 +54,14 @@ class HourlyProximityQueryAllowlistTest {
         "DailyActualsStore.kt" to "actuals context read is immediately wrapped in unifyToNearestSite",
         "UIUpdateScheduler.kt" to "pre-existing; audit before touching (update cadence heuristics)",
         "DataFreshness.kt" to "staleness check; freshest row wins regardless of site",
-        "HourlyForecastLoader.kt" to "extracted from WeatherWidgetWorker on 2026-08-04; same sameSite filter + stitcher logic",
+        // Corrected 2026-08-06. This entry previously read "same sameSite filter + stitcher logic",
+        // which was FALSE and is how the today-column -13.7 delta shipped: the loader re-centred on
+        // the QUANTIZED nearest site (admitting a fragment the raw centre excluded) and collapsed
+        // with a fetchedAt-blind `associateBy`, so a 13-day-old fragment beat the fresh row while
+        // GraphDataLoader kept it. An allowlist entry is a hand-written claim of equivalence that
+        // nothing verifies — see plans/260806-today-column-stale-fragment-delta-opus.md. It now genuinely
+        // calls HourlyForecastStitcher, and HourlyCollapseChokepointTest enforces that mechanically.
+        "HourlyForecastLoader.kt" to "routes the box result through HourlyForecastStitcher.stitchBySource",
         "NoHourlyDayClickCoordinator.kt" to "pre-existing presence gate; audit before touching",
         "WeatherObservationsActivity.kt" to
             "Blend tab diagnostic; sole call site wrapped in GraphDataLoader.unifyToNearestSite",

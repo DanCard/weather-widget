@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.model.WeatherSource
@@ -160,26 +161,6 @@ object GraphDataLoader {
         )
         return stitched.map { it.toEntity(lat, lon) }
     }
-
-    /** Map a stitched [com.weatherwidget.data.model.HourlyForecast] back to an entity for the
-     *  downstream graph pipeline; coordinates are always present (they came from a DB row) but fall
-     *  back to the query centre defensively. */
-    private fun com.weatherwidget.data.model.HourlyForecast.toEntity(
-        fallbackLat: Double,
-        fallbackLon: Double,
-    ): HourlyForecastEntity =
-        HourlyForecastEntity(
-            dateTime = dateTime,
-            locationLat = locationLat ?: fallbackLat,
-            locationLon = locationLon ?: fallbackLon,
-            temperature = temperature,
-            condition = condition,
-            source = source ?: WeatherSource.GENERIC_GAP.id,
-            precipProbability = precipProbability,
-            cloudCover = cloudCover,
-            precipAmountMm = precipAmountMm,
-            fetchedAt = fetchedAt,
-        )
 
     suspend fun loadCurrentTempResolutionHourlyForecasts(
         hourlyDao: HourlyForecastDao,

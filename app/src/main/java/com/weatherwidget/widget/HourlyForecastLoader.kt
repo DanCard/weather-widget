@@ -5,8 +5,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.toEntity
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -48,54 +50,45 @@ internal class HourlyForecastLoader(
             val endTimeMs = now.plusHours(168).atZone(zoneId).toInstant().toEpochMilli()
             Log.d(TAG, "load: range=${now.minusHours(72)} to ${now.plusHours(168)} (ms=$startTimeMs to $endTimeMs)")
             val current = hourlyDao.getHourlyForecastsForSources(startTimeMs, endTimeMs, lat, lon, sources)
-            val bestLat: Double
-            val bestLon: Double
-            val bestPair = current.asSequence()
-                .map { it.locationLat to it.locationLon }
-                .distinct()
-                .minByOrNull { (rowLat, rowLon) ->
-                    Math.abs(rowLat - lat) + Math.abs(rowLon - lon)
-                }
-            if (bestPair != null) {
-                bestLat = bestPair.first
-                bestLon = bestPair.second
-            } else {
-                bestLat = lat
-                bestLon = lon
-            }
-            val filteredCurrent = if (bestPair != null) {
-                current.filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestLat, bestLon) }
-            } else current
             val history = historyDao.getHistoryInRangeForBucketWindowForSources(
                 startDateTime = startTimeMs,
                 endDateTime = endTimeMs,
                 bucketStart = Long.MIN_VALUE,
                 bucketEnd = Long.MAX_VALUE,
-                lat = bestLat,
-                lon = bestLon,
+                lat = lat,
+                lon = lon,
                 sources = sources,
-            ).filter { LocationMatch.sameSite(it.locationLat, it.locationLon, bestLat, bestLon) }
-                .map {
-                    HourlyForecastEntity(
-                        dateTime = it.dateTime,
-                        locationLat = it.locationLat,
-                        locationLon = it.locationLon,
-                        temperature = it.temperature,
-                        condition = it.condition,
-                        source = it.source,
-                        precipProbability = it.precipProbability,
-                        cloudCover = it.cloudCover,
-                        precipAmountMm = it.precipAmountMm,
-                        fetchedAt = it.fetchedAt,
-                    )
-                }
-            val stitched = (history + filteredCurrent)
-                .associateBy { Pair(it.dateTime, it.source) }
-                .values
-                .sortedBy { it.dateTime }
-            if (stitched.size != filteredCurrent.size) {
-                Log.i(TAG, "load: stitched ${stitched.size - filteredCurrent.size} missing rows from history (bestLoc=$bestLat,$bestLon)")
-            }
+            )
+
+            // The SHARED stitcher, identical to GraphDataLoader's merge — not a local reimplementation.
+            // This path used to pick a nearest site, re-filter with sameSite against that site's
+            // QUANTIZED coordinates, then collapse with `associateBy { Pair(dateTime, source) }`. All
+            // three steps were wrong together:
+            //   * re-centering on the quantized site (37.417) instead of the raw query centre
+            //     (37.41681671...) moved a frozen fragment 0.002 deg away from "excluded" (0.0021832886)
+            //     to "admitted" (0.001999999999995339) -- a floating-point hair.
+            //   * `associateBy` is last-wins and IGNORES fetchedAt.
+            //   * the DAO orders `dateTime ASC`, and SQLite breaks ties on
+            //     index_hourly_forecasts_locationLat_locationLon -- ascending latitude.
+            // So the higher-latitude fragment deterministically overwrote the fresh row, and a
+            // 2026-07-24 forecast (81.3 deg) beat that day's 19:23 fetch (66.6 deg), driving the
+            // today-column delta to -13.7. GraphDataLoader, filtering against the RAW centre, kept the
+            // fresh row -- so the widget alternated between -13.7 and +0.5 depending on which loader
+            // rendered last. The stitcher picks `maxByOrNull { fetchedAt }` per hour and same-sites
+            // against the raw centre, so neither row order nor centre form can decide the outcome.
+            // See plans/260806-today-column-stale-fragment-delta-opus.md.
+            val stitched = HourlyForecastStitcher.stitchBySource(
+                current = current.map { it.toHourlyForecast() },
+                history = history.map { it.toHourlyForecast() },
+                nowMs = now.atZone(zoneId).toInstant().toEpochMilli(),
+                centerLat = lat,
+                centerLon = lon,
+            ).map { it.toEntity(lat, lon) }
+            Log.i(
+                TAG,
+                "load: stitched=${stitched.size} from current=${current.size} history=${history.size} " +
+                    "center=$lat,$lon sites=${current.map { it.locationLat to it.locationLon }.distinct().size}",
+            )
             stitched
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch hourly forecasts", e)
