@@ -182,29 +182,14 @@ class TodayColumnOverlayPlannerLayoutTest {
     }
 
     @Test
-    fun `shrinking is preferred over dropping a row`() {
+    fun `dropping a row is preferred over drawing across the bars`() {
+        // No font-shrink ladder (removed at user request): a column too tight for the richest
+        // variant at the fixed text size degrades to a poorer variant, never to smaller text.
         val input = tightInput(aboveHeight = 44f)
         val result =
             TodayColumnOverlayPlanner.layout(
                 variantCount = 2,
-                scales = listOf(1f, 0.8f),
-                measureAt = { variant, scale -> ladderLines(variant, scale) },
-                input = input,
-            )
-        assertEquals("must keep both blocks by shrinking", 2, result.placements.size)
-        assertEquals(0, result.variantIndex)
-        assertEquals(0.8f, result.scale, 0.001f)
-        assertTrue(result.placements.none { it.zone == Zone.ON_COLUMN })
-    }
-
-    @Test
-    fun `dropping a row is preferred over drawing across the bars`() {
-        val input = tightInput(aboveHeight = 26f)
-        val result =
-            TodayColumnOverlayPlanner.layout(
-                variantCount = 2,
-                scales = listOf(1f),
-                measureAt = { variant, scale -> ladderLines(variant, scale) },
+                measureAt = { variant -> ladderLines(variant) },
                 input = input,
             )
         assertEquals("poorer variant should have been chosen", 1, result.variantIndex)
@@ -240,8 +225,7 @@ class TodayColumnOverlayPlannerLayoutTest {
         var calls = 0
         TodayColumnOverlayPlanner.layout(
             variantCount = 3,
-            scales = listOf(1f, 0.9f, 0.8f),
-            measureAt = { _, _ -> calls++; emulatorLines },
+            measureAt = { calls++; emulatorLines },
             input = emulatorInput,
         )
         assertEquals("the ladder must short-circuit; extra measurement is wasted text layout", 1, calls)
@@ -409,13 +393,13 @@ class TodayColumnOverlayPlannerLayoutTest {
             rowSpacing = 0f,
         )
 
-    /** variant 0 = delta + temp/age (25+20 units at full size); variant 1 = delta only. */
-    private fun ladderLines(variant: Int, scale: Float): List<Line> =
+    /** variant 0 = delta + temp/age (25+20 units); variant 1 = delta only. */
+    private fun ladderLines(variant: Int): List<Line> =
         when (variant) {
             0 -> listOf(
-                Line("delta", "+1.8", 40f * scale, 25f * scale),
-                Line("dominant_temp_age", "65.4°", 40f * scale, 20f * scale),
+                Line("delta", "+1.8", 40f, 25f),
+                Line("dominant_temp_age", "65.4°", 40f, 20f),
             )
-            else -> listOf(Line("delta", "+1.8", 40f * scale, 25f * scale))
+            else -> listOf(Line("delta", "+1.8", 40f, 25f))
         }
 }

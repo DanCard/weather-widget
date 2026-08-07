@@ -24,14 +24,17 @@ import kotlin.math.min
  *
  *  1. does not draw over the bars
  *  2. fewest content rows dropped
- *  3. least font shrink
- *  4. fewest groups (one unbroken stack reads best)
- *  5. zone preference (ABOVE before BELOW)
- *  6. greatest clearance
+ *  3. fewest groups (one unbroken stack reads best)
+ *  4. zone preference (ABOVE before BELOW)
+ *  5. greatest clearance
  *
- * Ranks 2-4 are supplied by the caller: the planner never learns what an "age row" is, and it cannot
+ * Ranks 2-3 are supplied by the caller: the planner never learns what an "age row" is, and it cannot
  * measure text (Android uses `Paint`, desktop uses `TextMeasurer`), so content variants and
  * measurement both arrive through [layout]'s callback.
+ *
+ * Text is always measured and drawn at one fixed size — there is deliberately no font-shrink
+ * dimension (removed at user request): a tighter column degrades by dropping content rows, never
+ * by changing the rendered text size.
  */
 object TodayColumnOverlayPlanner {
     enum class Zone {
@@ -84,7 +87,7 @@ object TodayColumnOverlayPlanner {
         val rowSpacing: Float = 0f,
         /**
          * Zone each block occupied on the previous render, keyed by [Line.key]. When a layout that
-         * reproduces these zones is available at the SAME strength (same rows dropped, same shrink,
+         * reproduces these zones is available at the SAME strength (same rows dropped,
          * same group count), it is preferred over a marginally better one — so label jitter cannot
          * migrate text between zones between renders. Hysteresis only ever overrides the weak terms
          * (zone preference and clearance); it can never retain a materially worse layout.
@@ -92,11 +95,10 @@ object TodayColumnOverlayPlanner {
         val previousZones: Map<String, Zone> = emptyMap(),
     )
 
-    /** Chosen layout plus the variant/scale the renderer must paint at. */
+    /** Chosen layout plus the content variant the renderer must paint. */
     data class Layout(
         val placements: List<Placement>,
         val variantIndex: Int,
-        val scale: Float,
     ) {
         val isEmpty: Boolean get() = placements.isEmpty()
     }
@@ -104,58 +106,54 @@ object TodayColumnOverlayPlanner {
     private val ZONE_ORDER = listOf(Zone.ABOVE, Zone.BELOW, Zone.ON_COLUMN)
 
     /**
-     * Convenience entry point: one content variant, no shrinking, no hysteresis. Equivalent to the
-     * old `place(lines, input)` and used where the caller has nothing to degrade.
+     * Convenience entry point: one content variant, no hysteresis. Equivalent to the old
+     * `place(lines, input)` and used where the caller has nothing to degrade.
      */
     fun place(lines: List<Line>, input: Input): List<Placement> =
         layout(
             variantCount = 1,
-            scales = listOf(1f),
-            measureAt = { _, _ -> lines },
+            measureAt = { lines },
             input = input,
         ).placements
 
     /**
-     * Searches `zone x variant x scale x grouping` in cost order and returns the first layout that
+     * Searches `zone x variant x grouping` in cost order and returns the first layout that
      * fits. [measureAt] is called lazily and memoized, so the common roomy case costs exactly one
      * measurement pass — the ladder only pays for extra measurement in genuinely cramped columns.
      */
     fun layout(
         variantCount: Int,
-        scales: List<Float>,
-        measureAt: (variantIndex: Int, scale: Float) -> List<Line>,
+        measureAt: (variantIndex: Int) -> List<Line>,
         input: Input,
     ): Layout {
-        val empty = Layout(emptyList(), 0, scales.firstOrNull() ?: 1f)
+        val empty = Layout(emptyList(), 0)
         if (input.columnRight <= input.columnLeft || input.graphBottom <= input.graphTop) return empty
-        if (variantCount <= 0 || scales.isEmpty()) return empty
+        if (variantCount <= 0) return empty
 
-        val measured = HashMap<Pair<Int, Float>, List<Line>>()
+        val measured = HashMap<Int, List<Line>>()
         // Zero-size lines are KEPT: a line with no measurable height still has text to draw, and a
         // caller whose font metrics are unavailable (Robolectric supplies none, so a one-row block
         // measures 0 high) must not silently lose a row. Only nonsense values are rejected. The old
         // planner dropped zero-height lines and relied on the renderer's `combined` retry to recover
         // them — that retry is gone, so the tolerance has to live here.
-        fun linesFor(variant: Int, scale: Float): List<Line> =
-            measured.getOrPut(variant to scale) { measureAt(variant, scale) }
+        fun linesFor(variant: Int): List<Line> =
+            measured.getOrPut(variant) { measureAt(variant) }
                 .filter { it.width.isFinite() && it.height.isFinite() && it.width >= 0f && it.height >= 0f }
 
-        // Ranks 2-4 first, then zone: dropping content or shrinking to stay out of the bar area is
+        // Ranks 2-3 first, then zone: dropping content to stay out of the bar area is
         // worth it, but dropping content merely to sit ABOVE rather than BELOW is not -- BELOW is a
         // perfectly clean zone. So the bar-avoidance term is split out of zone preference: rank 1 is
-        // "does not overlap the bars", while ABOVE-vs-BELOW is the weak rank 5.
+        // "does not overlap the bars", while ABOVE-vs-BELOW is the weak rank 4.
         val candidates = sequence {
             for (overBars in listOf(false, true)) {
                 for (variant in 0 until variantCount) {
-                    for ((shrinkStep, scale) in scales.withIndex()) {
-                        for (groups in 1..MAX_GROUPS) {
-                            for (zone in ZONE_ORDER) {
-                                if ((zone == Zone.ON_COLUMN) != overBars) continue
-                                val lines = linesFor(variant, scale)
-                                if (lines.isEmpty()) continue
-                                val fitted = fitStack(lines, zone, groups, input) ?: continue
-                                yield(Candidate(fitted, variant, scale, shrinkStep, groups, zone))
-                            }
+                    for (groups in 1..MAX_GROUPS) {
+                        for (zone in ZONE_ORDER) {
+                            if ((zone == Zone.ON_COLUMN) != overBars) continue
+                            val lines = linesFor(variant)
+                            if (lines.isEmpty()) continue
+                            val fitted = fitStack(lines, zone, groups, input) ?: continue
+                            yield(Candidate(fitted, variant, groups, zone))
                         }
                     }
                 }
@@ -164,7 +162,7 @@ object TodayColumnOverlayPlanner {
 
         // Ranks are honoured by iteration order, so the first candidate is the optimum. Hysteresis
         // may substitute a same-strength candidate that reproduces the previous zones.
-        val best = candidates.firstOrNull() ?: return lastResort(variantCount, scales, ::linesFor, input, empty)
+        val best = candidates.firstOrNull() ?: return lastResort(variantCount, ::linesFor, input, empty)
         val chosen =
             if (input.previousZones.isEmpty()) {
                 best
@@ -174,7 +172,7 @@ object TodayColumnOverlayPlanner {
                     .firstOrNull { it.reproduces(input.previousZones) }
                     ?: best
             }
-        return Layout(chosen.placements, chosen.variantIndex, chosen.scale)
+        return Layout(chosen.placements, chosen.variantIndex)
     }
 
     private const val MAX_GROUPS = 2
@@ -194,16 +192,13 @@ object TodayColumnOverlayPlanner {
     private data class Candidate(
         val placements: List<Placement>,
         val variantIndex: Int,
-        val scale: Float,
-        val shrinkStep: Int,
         val groups: Int,
         val zone: Zone,
     ) {
-        /** Same rank 1-4 strength: differs only in zone preference and clearance. */
+        /** Same rank 1-3 strength: differs only in zone preference and clearance. */
         fun sameStrengthAs(other: Candidate): Boolean =
             (zone == Zone.ON_COLUMN) == (other.zone == Zone.ON_COLUMN) &&
                 variantIndex == other.variantIndex &&
-                shrinkStep == other.shrinkStep &&
                 groups == other.groups
 
         fun reproduces(previous: Map<String, Zone>): Boolean =
@@ -216,27 +211,24 @@ object TodayColumnOverlayPlanner {
      */
     private fun lastResort(
         variantCount: Int,
-        scales: List<Float>,
-        linesFor: (Int, Float) -> List<Line>,
+        linesFor: (variant: Int) -> List<Line>,
         input: Input,
         empty: Layout,
     ): Layout {
         for (variant in 0 until variantCount) {
-            for (scale in scales) {
-                val lines = linesFor(variant, scale)
-                if (lines.isEmpty()) continue
-                val placements = mutableListOf<Placement>()
-                val taken = mutableListOf<Bounds>()
-                lines.forEach { line ->
-                    ZONE_ORDER.firstNotNullOfOrNull { zone ->
-                        fitStack(listOf(line), zone, 1, input, extraObstacles = taken)
-                    }?.let {
-                        placements += it
-                        taken += it.map(Placement::bounds)
-                    }
+            val lines = linesFor(variant)
+            if (lines.isEmpty()) continue
+            val placements = mutableListOf<Placement>()
+            val taken = mutableListOf<Bounds>()
+            lines.forEach { line ->
+                ZONE_ORDER.firstNotNullOfOrNull { zone ->
+                    fitStack(listOf(line), zone, 1, input, extraObstacles = taken)
+                }?.let {
+                    placements += it
+                    taken += it.map(Placement::bounds)
                 }
-                if (placements.isNotEmpty()) return Layout(placements, variant, scale)
             }
+            if (placements.isNotEmpty()) return Layout(placements, variant)
         }
         return empty
     }

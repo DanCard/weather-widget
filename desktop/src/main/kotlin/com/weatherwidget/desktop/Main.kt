@@ -1654,7 +1654,7 @@ private fun DailyForecastTextMode(
             ) {
                 Text(
                     text = day.label,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = (MaterialTheme.typography.labelSmall.fontSize.value * 1.3f).sp),
                     color = if (day.isToday) Color.Yellow else Color.White.copy(alpha = 0.62f),
                     maxLines = 1,
                 )
@@ -1662,14 +1662,14 @@ private fun DailyForecastTextMode(
                 val low = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
                 Text(
                     text = com.weatherwidget.shared.util.TempUtils.formatTemp(high, useCelsius) ?: "--",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = (MaterialTheme.typography.titleMedium.fontSize.value * 1.3f).sp),
                     color = Color.White,
                     maxLines = 1,
                 )
                 if (state.dimensions.cols >= 2) {
                     Text(
                         text = com.weatherwidget.shared.util.TempUtils.formatTemp(low, useCelsius) ?: "--",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = (MaterialTheme.typography.labelSmall.fontSize.value * 1.3f).sp),
                         color = Color.White.copy(alpha = 0.62f),
                         maxLines = 1,
                     )

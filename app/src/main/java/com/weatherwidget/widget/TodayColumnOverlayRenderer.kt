@@ -32,15 +32,6 @@ internal object TodayColumnOverlayRenderer {
     // making the white fill look muddy on the dark Today panel.
     private const val OUTLINE_FRACTION = 0.08f
 
-    /**
-     * Vertical-fit shrink rungs for the planner ladder: a slightly smaller stack that clears the
-     * forecast bars beats a full-size one drawn across them. This is NOT a re-introduction of the
-     * horizontal width fitting that was deliberately removed — rows may still overflow a narrow
-     * Today column at every scale.
-     */
-    @VisibleForTesting
-    internal val FONT_SCALES = listOf(1f, 0.9f, 0.8f)
-
     fun draw(
         canvas: Canvas,
         data: TodayOverlayRenderData,
@@ -77,8 +68,8 @@ internal object TodayColumnOverlayRenderer {
 
         val rowSpacing = ROW_SPACING_DP.dp(layout.density) * labelScale
         // One shared paint keeps every row at the same main font size.
-        fun paintsFor(blocks: List<TextBlockSpec>, scale: Float): Map<String, Paint> {
-            val commonPaint = fittedPaint(MAIN_TEXT_COLOR, labelScale * scale, layout.density)
+        fun paintsFor(blocks: List<TextBlockSpec>): Map<String, Paint> {
+            val commonPaint = fittedPaint(MAIN_TEXT_COLOR, labelScale, layout.density)
             return blocks.associate { spec -> spec.key to Paint(commonPaint).apply { color = spec.rows.first().color } }
         }
         fun linesFor(blocks: List<TextBlockSpec>, blockPaints: Map<String, Paint>) =
@@ -135,27 +126,26 @@ internal object TodayColumnOverlayRenderer {
                 previousZones = data.previousZones,
             )
 
-        // The planner searches variant x scale x zone x grouping in cost order and reports back
-        // which variant and font scale it settled on, so the paint used to DRAW must be rebuilt from
-        // that result rather than the one used to measure the first attempt. The old `combined`
-        // retry — which merged every block into one spec when a block failed to place — is gone: the
-        // planner now lays the stack out as a unit, which is what that hack was approximating.
+        // The planner searches variant x zone x grouping in cost order and reports back which
+        // content variant it settled on; text is always measured and drawn at the one fixed size
+        // (no font-shrink ladder — removed at user request). The old `combined` retry — which
+        // merged every block into one spec when a block failed to place — is gone: the planner
+        // lays the stack out as a unit, which is what that hack was approximating.
         val result =
             TodayColumnOverlayPlanner.layout(
                 variantCount = variants.size,
-                scales = FONT_SCALES,
-                measureAt = { variantIndex, scale ->
+                measureAt = { variantIndex ->
                     val blocks = variants[variantIndex]
-                    linesFor(blocks, paintsFor(blocks, scale))
+                    linesFor(blocks, paintsFor(blocks))
                 },
                 input = plannerInput,
             )
         val activeSpecs = variants[result.variantIndex]
-        val paints = paintsFor(activeSpecs, result.scale)
+        val paints = paintsFor(activeSpecs)
         val placements = result.placements
         Log.v(
             TAG,
-            "layout variant=${result.variantIndex}/${variants.size} scale=${result.scale} " +
+            "layout variant=${result.variantIndex}/${variants.size} " +
                 "blocks=${activeSpecs.map(TextBlockSpec::key)} " +
                 "lines=${linesFor(activeSpecs, paints).map { "${it.key}:${it.width}x${it.height}" }} " +
                 "rowSpacing=$rowSpacing " +

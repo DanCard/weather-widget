@@ -53,15 +53,11 @@ private const val GHOST_BAR_ALPHA = 0.3f
 private const val BULB_RADIUS_SCALE = 1.2f
 private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
 
-/**
- * Vertical-fit shrink rungs for the Today-overlay planner ladder, matching Android's FONT_SCALES: a
- * slightly smaller stack that clears the forecast bars beats a full-size one drawn across them. NOT
- * horizontal width fitting — rows may still overflow a narrow Today column at every scale.
- */
-private val DESKTOP_OVERLAY_FONT_SCALES = listOf(1f, 0.9f, 0.8f)
+/** Base size of the desktop daily high temperature labels (+30%); see the `DESKTOP_TEMP_LABEL_BASE_SP * scale` call sites. */
+private const val DESKTOP_TEMP_LABEL_BASE_SP = 14f
 
-/** Base size of the desktop daily high/low temperature labels; see the `12f * scale` call sites. */
-private const val DESKTOP_TEMP_LABEL_BASE_SP = 12f
+/** Base size of the desktop daily low temperature labels (+30%); see the `DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale` call sites. */
+private const val DESKTOP_LOW_TEMP_LABEL_BASE_SP = 14f
 
 @Composable
 fun DailyForecastGraph(
@@ -151,12 +147,12 @@ fun DailyForecastGraph(
         // little past the canvas top into the header row (by design; the Canvas isn't clipped, so
         // the overflow paints over the header). Bottom: reserve enough for the low label + icon +
         // day name so those sit below the bars without overlapping them.
-        val lowLabelBand = 11f * scale * 1.4f + 4f * scale
+        val lowLabelBand = DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale * 1.4f + 4f * scale
         val dayLabelBand = labelSizeFor(dayWidth) * scale * 1.5f + 6f * scale
         val top = 2f * scale
         // How far labels may ride above the canvas top, overlapping the header (~high-label height
         // + gap, so the hottest day's high label fully clears its bar).
-        val headerBleed = 12f * scale * 1.4f + 4f * scale
+        val headerBleed = DESKTOP_TEMP_LABEL_BASE_SP * scale * 1.4f + 4f * scale
         val bottomReserve = lowLabelBand + iconSize + dayLabelBand + 6f * scale
         val bottom = (size.height - bottomReserve).coerceAtLeast(size.height * 0.4f)
         val iconFloorTop = size.height - dayLabelBand - iconSize
@@ -205,7 +201,7 @@ fun DailyForecastGraph(
             ) ?: return null
 
             val lowLabelText = formatTemp(lowVal)
-            val lowSize = tempFontSize(lowLabelText, 11f * scale)
+            val lowSize = tempFontSize(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
             val lowTextLayout = textMeasurer.measure(
                 lowLabelText,
                 TextStyle(fontSize = lowSize.sp)
@@ -345,7 +341,7 @@ fun DailyForecastGraph(
             // Matching Android: both highs take the 2% two-label shrink; the forecast — the
             // secondary number — shrinks further ONLY when the two labels would collide at full
             // size (DualHighLabel.forecastFontScale), decided inside the room-test block below.
-            val dualBase = 12f * scale * DualHighLabel.TWO_LABEL_FONT_SCALE
+            val dualBase = DESKTOP_TEMP_LABEL_BASE_SP * scale * DualHighLabel.TWO_LABEL_FONT_SCALE
             var dualForecastScale = 1f
             // Extra raise for the higher-valued label when the pair falls just short of the room
             // test, decided in the room-test block and reused verbatim by the draw below so both
@@ -439,7 +435,7 @@ fun DailyForecastGraph(
                 else day.solidHigh ?: day.forecastHigh ?: day.snapshotHigh ?: day.ghostHigh
                 if (singleHigh != null) {
                     val highLabelText = formatTemp(singleHigh)
-                    val highSize = tempFontSize(highLabelText, 12f * scale)
+                    val highSize = tempFontSize(highLabelText, DESKTOP_TEMP_LABEL_BASE_SP * scale)
                     // Once today's high is settled (past 5pm) the single number tracks the observed
                     // actual — recolor it the thermostat (observed) color so it reads as a real
                     // reading, not a forecast. Mirrors the dual-label gate above (and Android).
@@ -472,7 +468,7 @@ fun DailyForecastGraph(
             }
             if (lowForLabel != null) {
                 val lowLabelText = formatTemp(lowForLabel)
-                val lowSize = tempFontSize(lowLabelText, 11f * scale)
+                val lowSize = tempFontSize(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
                 // Matches the single-high recolor above: a past day's low is an actual reading, and
                 // so is today's once the overnight low is settled (past the 9am cutoff) — both read
                 // as the thermostat/observed color rather than plain white.
@@ -535,7 +531,7 @@ fun DailyForecastGraph(
                 // shared rule Android uses, applied to the desktop base size. History scales by
                 // probability only (no distance term).
                 val rainScale = DailyRainLabels.rainLabelFontScale(day.isPast, day.dayPrecipProbability, day.daysFromToday)
-                val rainLayout = textMeasurer.measure(rainText, TextStyle(fontSize = (9f * scale * rainScale).sp, color = COLOR_FORECAST_RAINY))
+                val rainLayout = textMeasurer.measure(rainText, TextStyle(fontSize = (11.7f * scale * rainScale).sp, color = COLOR_FORECAST_RAINY))
                 // Anchor to the high label's actual rendered top (shared rule: rain bottom = high top -
                 // gap; negative gap = slight overlap). Falls back to a small inset only if no high label.
                 val gapPx = DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP * scale
@@ -564,7 +560,7 @@ fun DailyForecastGraph(
 
                     // Measure the low text of the left day to know its height/bottom
                     val lowLabelText = formatTemp(lowForLabel)
-                    val lowSize = tempFontSize(lowLabelText, 11f * scale)
+                    val lowSize = tempFontSize(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
                     val lowText = textMeasurer.measure(
                         lowLabelText,
                         TextStyle(fontSize = lowSize.sp)
@@ -602,7 +598,7 @@ fun DailyForecastGraph(
                     // Base rain layout. Same probability/distance font scaling as the day label,
                     // times NIGHT_SCALE (history = probability only, no distance term).
                     val nightFontScale = DailyRainLabels.rainLabelFontScale(day.isPast, day.nightPrecipProbability, day.daysFromToday)
-                    var finalPaintStyle = TextStyle(fontSize = (11f * scale * DailyRainLabels.NIGHT_SCALE * nightFontScale).sp, color = COLOR_FORECAST_RAINY)
+                    var finalPaintStyle = TextStyle(fontSize = (DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale * DailyRainLabels.NIGHT_SCALE * nightFontScale).sp, color = COLOR_FORECAST_RAINY)
                     var finalLayout = textMeasurer.measure(nightText, finalPaintStyle)
                     val edgeMargin = 2f * scale
                     val halfWidth = finalLayout.size.width / 2f
@@ -612,7 +608,7 @@ fun DailyForecastGraph(
                     val canShiftStandard = (shiftedCenterX + halfWidth <= size.width - edgeMargin) && (shiftedCenterX - halfWidth >= edgeMargin)
                     if (!canShiftStandard) {
                         // Try reduced scaling (extraScale = 0.85f)
-                        val reducedStyle = TextStyle(fontSize = (11f * scale * DailyRainLabels.NIGHT_SCALE * nightFontScale * 0.85f).sp, color = COLOR_FORECAST_RAINY)
+                        val reducedStyle = TextStyle(fontSize = (DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale * DailyRainLabels.NIGHT_SCALE * nightFontScale * 0.85f).sp, color = COLOR_FORECAST_RAINY)
                         val reducedLayout = textMeasurer.measure(nightText, reducedStyle)
                         val reducedHalfWidth = reducedLayout.size.width / 2f
                         if (shiftedCenterX + reducedHalfWidth <= size.width - edgeMargin && shiftedCenterX - reducedHalfWidth >= edgeMargin) {
@@ -765,29 +761,30 @@ private fun DrawScope.drawDesktopTodayOverlay(
         )
 
 
-    // The planner searches variant x scale x zone x grouping in cost order and reports back which
-    // variant and font scale it settled on, so the layouts used to DRAW must be the ones measured at
-    // that result. The old `combined` retry — merging every block into one spec when a block failed
-    // to place — is gone: the planner now lays the stack out as a unit, which is what it approximated.
-    val measuredCache = HashMap<Pair<Int, Float>, List<MeasuredDesktopOverlayBlock>>()
-    fun measuredFor(variantIndex: Int, fontScale: Float): List<MeasuredDesktopOverlayBlock> =
-        measuredCache.getOrPut(variantIndex to fontScale) {
+    // The planner searches variant x zone x grouping in cost order and reports back which content
+    // variant it settled on; text is always measured and drawn at the one fixed size (no font-shrink
+    // ladder — removed at user request, matching Android). The old `combined` retry — merging every
+    // block into one spec when a block failed to place — is gone: the planner lays the stack out as
+    // a unit, which is what it approximated.
+    val measuredCache = HashMap<Int, List<MeasuredDesktopOverlayBlock>>()
+    fun measuredFor(variantIndex: Int): List<MeasuredDesktopOverlayBlock> =
+        measuredCache.getOrPut(variantIndex) {
             // Sized against DESKTOP's own temp-label base (12f), not the raw shared dp: TEXT_SIZE_DP
             // is tuned for Android's 24dp temperature labels, so using it directly here made the
             // overlay 1.42x its neighbouring labels instead of 0.71x — visibly oversized.
             val fontSize =
                 DESKTOP_TEMP_LABEL_BASE_SP *
                     TodayColumnOverlayStyle.TEXT_SIZE_FRACTION_OF_TEMP_LABEL *
-                    scale * fontScale
+                    1.2f *
+                    scale
             variants[variantIndex].map { spec -> MeasuredDesktopOverlayBlock(spec, layoutAt(spec, fontSize)) }
         }
 
     val result =
         TodayColumnOverlayPlanner.layout(
             variantCount = variants.size,
-            scales = DESKTOP_OVERLAY_FONT_SCALES,
-            measureAt = { variantIndex, fontScale ->
-                measuredFor(variantIndex, fontScale).map { block ->
+            measureAt = { variantIndex ->
+                measuredFor(variantIndex).map { block ->
                     TodayColumnOverlayPlanner.Line(
                         key = block.spec.key,
                         text = block.spec.rows.joinToString("\n", transform = DesktopOverlayRow::displayText),
@@ -814,8 +811,19 @@ private fun DrawScope.drawDesktopTodayOverlay(
         )
     val placements = result.placements
     onZonesResolved(placements.associate { it.key to it.zone })
+    Log.v(
+        TAG,
+        "todayOverlay layout variant=${result.variantIndex}/${variants.size} " +
+            "content=delta:${content.deltaValueText},temp:${content.dominantTempText},age:${content.dominantAgeText} " +
+            "variants=${variants.map { v -> v.map { it.key } }} " +
+            "lines=${measuredFor(result.variantIndex).map { "${it.spec.key}:${it.layout.size.width}x${it.layout.size.height}" }} " +
+            "column=$columnLeft..$columnRight graph=$graphTop..$graphBottom bars=$barTop..$barBottom " +
+            "obstacles=${hardObstacles.map { "${it.left},${it.top},${it.right},${it.bottom}" }} " +
+            "prevZones=$previousZones " +
+            "placements=${placements.map { "${it.key}:${it.zone}" }}",
+    )
 
-    val byKey = measuredFor(result.variantIndex, result.scale).associateBy { it.spec.key }
+    val byKey = measuredFor(result.variantIndex).associateBy { it.spec.key }
     placements.forEach { placement ->
         val layout = byKey.getValue(placement.key).layout
         drawOutlinedText(textMeasurer, layout, Offset(placement.bounds.left, placement.bounds.top))
@@ -943,8 +951,8 @@ internal fun dailyGraphBottomStripHeightPx(
 ): Float {
     val dayWidth = canvasWidth / dayCount.coerceAtLeast(1)
     val iconSize = (30f * density * scale).coerceAtMost(dayWidth * 0.6f)
-    val lowLabelBand = 11f * scale * 1.4f + 4f * scale
-    val dayLabelBand = labelSizeFor(dayWidth).toFloat() * scale * 1.5f + 6f * scale
+    val lowLabelBand = DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale * 1.4f + 4f * scale
+    val dayLabelBand = labelSizeFor(dayWidth) * scale * 1.5f + 6f * scale
     return lowLabelBand + iconSize + dayLabelBand + 6f * scale
 }
 
@@ -993,8 +1001,8 @@ internal fun computeDailyGraphTapLayout(
     val columns = WeightedColumnLayout.resolve(canvasWidth, days.size, todayIndex, widenToday)
     val dayWidth = columns.normalWidth
     val iconSize = (30f * density * scale).coerceAtMost(dayWidth * 0.6f)
-    val lowLabelBand = 11f * scale * 1.4f + 4f * scale
-    val dayLabelBand = labelSizeFor(dayWidth).toFloat() * scale * 1.5f + 6f * scale
+    val lowLabelBand = DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale * 1.4f + 4f * scale
+    val dayLabelBand = labelSizeFor(dayWidth) * scale * 1.5f + 6f * scale
     val top = 2f * scale
     val bottomReserve = lowLabelBand + iconSize + dayLabelBand + 6f * scale
     val bottom = (canvasHeight - bottomReserve).coerceAtLeast(canvasHeight * 0.4f)
@@ -1010,7 +1018,7 @@ internal fun computeDailyGraphTapLayout(
             nowHour = day.nowHour,
         ) ?: return@map null
         val lowLabelText = formatTemp(lowForLabel, useCelsius)
-        val lowTextHeight = measureLowLabelHeight(lowLabelText, 11f * scale)
+        val lowTextHeight = measureLowLabelHeight(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
         val anchorLow = com.weatherwidget.shared.util.DailyDayValueResolver.iconAnchorLow(
             solidLow = day.solidLow,
             forecastLow = day.forecastLow,
@@ -1044,11 +1052,11 @@ internal fun classifyDailyGraphTapZone(
     }
 }
 
-private fun labelSizeFor(dayWidth: Float): Int =
+private fun labelSizeFor(dayWidth: Float): Float =
     when {
-        dayWidth < 34f -> 8
-        dayWidth < 46f -> 9
-        else -> 10
+        dayWidth < 34f -> 9f
+        dayWidth < 46f -> 10f
+        else -> 11f
     }
 
 // Show the tenth for any non-integer value (".0" suppressed by TempUtils.formatTemp), for
