@@ -295,6 +295,15 @@ class HeaderPrecipCalculatorTest {
         assertEquals(18.0f, HeaderPrecipCalculator.getPrecipTextSize(100), 0.01f)
     }
 
+    @Test
+    fun `NIGHT_SCALE matches the shared DailyRainLabels constant`() {
+        assertEquals(
+            com.weatherwidget.shared.util.DailyRainLabels.NIGHT_SCALE,
+            HeaderPrecipCalculator.NIGHT_SCALE,
+            0.0f,
+        )
+    }
+
     // ── Night detection ──────────────────────────────────────────────────────
 
     @Test

@@ -78,6 +78,51 @@ object PrecipProbabilityCalculator {
         return exactPointFallback ?: fallbackDailyProbability
     }
 
+    /**
+     * Returns true if more than half of the probability-weighted minutes in the next 8-hour window
+     * fall after sunset / before sunrise, i.e. the rain is predominantly nighttime. Android's daily
+     * header uses this to shrink the header rain chance by [DailyRainLabels.NIGHT_SCALE]; desktop
+     * applies the same rule so both platforms size identically.
+     *
+     * @param sunriseHour Sunrise in fractional 24h (from SunPositionUtils.SunTimes)
+     * @param sunsetHour  Sunset  in fractional 24h (from SunPositionUtils.SunTimes)
+     */
+    fun isNext8HourPrecipPredominantlyNight(
+        hourlyForecasts: List<HourlyForecast>,
+        displaySourceId: String,
+        fallbackSourceId: String,
+        referenceTime: LocalDateTime,
+        sunriseHour: Double,
+        sunsetHour: Double,
+    ): Boolean {
+        if (sunsetHour >= 24.0) return false   // midnight sun — no nighttime
+        if (sunriseHour <= 0.0) return true    // polar night — always night
+
+        // Same source-selection convention as getNext8HourPrecipProbability.
+        val sourceForecasts = hourlyForecasts.filter {
+            (it.source == null || it.source == displaySourceId) && it.precipProbability != null
+        }
+        val candidateForecasts = sourceForecasts.ifEmpty {
+            hourlyForecasts.filter { it.source == fallbackSourceId && it.precipProbability != null }
+        }
+        if (candidateForecasts.isEmpty()) return false
+
+        val selectedForecasts = candidateForecasts
+            .groupBy { it.dateTime }
+            .mapValues { (_, items) -> items.maxOf { checkNotNull(it.precipProbability) } }
+
+        var nightSum = 0f
+        var daySum = 0f
+        for (minuteOffset in 0 until LOOKAHEAD_HOURS * MINUTES_PER_HOUR) {
+            val sampleTime = referenceTime.plusMinutes(minuteOffset)
+            val prob = interpolatePrecipProbabilityAt(selectedForecasts, sampleTime) ?: continue
+            val hourOfDay = sampleTime.hour + sampleTime.minute / 60.0
+            if (hourOfDay < sunriseHour || hourOfDay >= sunsetHour) nightSum += prob
+            else daySum += prob
+        }
+        return nightSum > daySum
+    }
+
     private fun interpolatePrecipProbabilityAt(
         forecastsByHour: Map<Long, Int>,
         targetTime: LocalDateTime,

@@ -1451,6 +1451,25 @@ private fun WidgetHeader(
         )?.takeIf { it > 0 }
     }
     val isHourly = config.viewMode.isHourly
+    // Header rain-chance sizing, matching Android: probability-scaled (shared step table), plus
+    // the NIGHT_SCALE shrink only in the daily view when the next-8h rain is predominantly
+    // overnight. Base size is the desktop header temp size (Android's precip base == its temp base).
+    val precipFontScale = remember(precipProb, forecast.hourly, displaySource, nowLocal, isHourly, config.lat, config.lon) {
+        precipProb?.let { prob ->
+            val isNightPrecip = !isHourly && run {
+                val sunTimes = com.weatherwidget.util.SunPositionUtils.getSunTimes(nowLocal, config.lat, config.lon)
+                PrecipProbabilityCalculator.isNext8HourPrecipPredominantlyNight(
+                    hourlyForecasts = forecast.hourly,
+                    displaySourceId = displaySource.id,
+                    fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+                    referenceTime = nowLocal,
+                    sunriseHour = sunTimes.sunriseHour,
+                    sunsetHour = sunTimes.sunsetHour,
+                )
+            }
+            HeaderPrecipSizing.headerPrecipFontScale(prob, isDailyView = !isHourly, isNightPrecip = isNightPrecip)
+        }
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -1501,12 +1520,12 @@ private fun WidgetHeader(
                         modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
                     )
                 }
-                if (precipProb != null) {
+                if (precipProb != null && precipFontScale != null) {
                     Spacer(Modifier.width(6.dp))
                     Text(
                         text = "$precipProb%",
                         style = MaterialTheme.typography.labelMedium,
-                        fontSize = (12 * scale).sp,
+                        fontSize = (HeaderPrecipSizing.HEADER_TEMP_BASE_SP * precipFontScale * scale).sp,
                         color = Color(0xFF4FC3F7),
                         modifier = Modifier
                             .align(Alignment.CenterVertically)
