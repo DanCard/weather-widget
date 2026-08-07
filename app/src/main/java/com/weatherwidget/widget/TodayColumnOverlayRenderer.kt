@@ -185,6 +185,7 @@ internal object TodayColumnOverlayRenderer {
                 right = placement.bounds.right,
                 bottom = placement.bounds.bottom,
                 mainTextSizePx = paints.getValue(placement.key).textSize,
+                fromLastResort = result.fromLastResort,
             )
         }
     }

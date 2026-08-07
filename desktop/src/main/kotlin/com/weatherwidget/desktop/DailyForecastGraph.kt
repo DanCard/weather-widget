@@ -810,7 +810,9 @@ private fun DrawScope.drawDesktopTodayOverlay(
                 ),
         )
     val placements = result.placements
-    onZonesResolved(placements.associate { it.key to it.zone })
+    if (!result.fromLastResort) {
+        onZonesResolved(placements.associate { it.key to it.zone })
+    }
     Log.v(
         TAG,
         "todayOverlay layout variant=${result.variantIndex}/${variants.size} " +

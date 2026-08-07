@@ -182,10 +182,10 @@ class TodayColumnOverlayPlannerLayoutTest {
     }
 
     @Test
-    fun `dropping a row is preferred over drawing across the bars`() {
+    fun `dropping a row is preferred over drawing across the bars when no split fits`() {
         // No font-shrink ladder (removed at user request): a column too tight for the richest
         // variant at the fixed text size degrades to a poorer variant, never to smaller text.
-        val input = tightInput(aboveHeight = 44f)
+        val input = tightInputNoBarsFit(aboveHeight = 44f)
         val result =
             TodayColumnOverlayPlanner.layout(
                 variantCount = 2,
@@ -195,6 +195,151 @@ class TodayColumnOverlayPlannerLayoutTest {
         assertEquals("poorer variant should have been chosen", 1, result.variantIndex)
         assertEquals(listOf("delta"), result.placements.map { it.key })
         assertTrue(result.placements.none { it.zone == Zone.ON_COLUMN })
+    }
+
+    @Test
+    fun `content completeness via cross-zone split is preferred over dropping a row`() {
+        val input = tightInput(aboveHeight = 44f)
+        val result =
+            TodayColumnOverlayPlanner.layout(
+                variantCount = 2,
+                measureAt = { variant -> ladderLines(variant) },
+                input = input,
+            )
+        assertEquals("richest variant should be chosen via split", 0, result.variantIndex)
+        val zones = result.placements.associate { it.key to it.zone }
+        assertEquals(Zone.ABOVE, zones["delta"])
+        assertEquals(Zone.ON_COLUMN, zones["dominant_temp_age"])
+    }
+
+    @Test
+    fun `desktop geometry places all 3 rows split across ABOVE and ON_COLUMN`() {
+        val desktopInput = TodayColumnOverlayPlanner.Input(
+            columnLeft = 255.47f,
+            columnRight = 415.13f,
+            graphTop = 6.0f,
+            graphBottom = 813.5f,
+            barTop = 171.70f,
+            barBottom = 648.06f,
+            hardObstacles = listOf(
+                Bounds(302.8f, 100.7f, 367.8f, 156.7f),
+                Bounds(287.8f, 225.7f, 382.8f, 278.7f),
+                Bounds(297.0f, 629.7f, 373.6f, 706.4f),
+                Bounds(286.8f, 712.4f, 383.8f, 766.4f),
+                Bounds(289.3f, 818.0f, 381.3f, 863.0f),
+                Bounds(408.8f, 762.1f, 420.8f, 773.1f),
+            ),
+            horizontalPadding = 2f,
+            padding = 3f,
+            rowSpacing = 3f,
+        )
+        val desktopLines = listOf(
+            Line("delta", "-1.2 fcst", 108f, 49f),
+            Line("dominant_temp_age", "64.4°\n5m", 100f, 100f),
+        )
+
+        val result = TodayColumnOverlayPlanner.layout(
+            variantCount = 1,
+            measureAt = { desktopLines },
+            input = desktopInput,
+        )
+
+        assertEquals(0, result.variantIndex)
+        val zones = result.placements.associate { it.key to it.zone }
+        assertEquals(Zone.ABOVE, zones["delta"])
+        assertEquals(Zone.ON_COLUMN, zones["dominant_temp_age"])
+        assertFalse(result.fromLastResort)
+    }
+
+    @Test
+    fun `clean cross-zone split ABOVE and BELOW is preferred over split with bars`() {
+        val lines = listOf(
+            Line("delta", "+1.8", 40f, 25f),
+            Line("dominant_temp_age", "65.4°", 40f, 20f),
+        )
+        val input = TodayColumnOverlayPlanner.Input(
+            columnLeft = 0f,
+            columnRight = 100f,
+            graphTop = 0f,
+            graphBottom = 130f,
+            barTop = 30f,
+            barBottom = 100f,
+            hardObstacles = emptyList(),
+            horizontalPadding = 1f,
+            padding = 0f,
+            rowSpacing = 0f,
+        )
+        val placements = TodayColumnOverlayPlanner.place(lines, input)
+        val zones = placements.associate { it.key to it.zone }
+        assertEquals(Zone.ABOVE, zones["delta"])
+        assertEquals(Zone.BELOW, zones["dominant_temp_age"])
+    }
+
+    @Test
+    fun `inverted pairs are never emitted in split candidates`() {
+        val lines = listOf(
+            Line("head", "Head text", 40f, 25f),
+            Line("tail", "Tail text", 40f, 25f),
+        )
+        val input = TodayColumnOverlayPlanner.Input(
+            columnLeft = 0f,
+            columnRight = 100f,
+            graphTop = 0f,
+            graphBottom = 150f,
+            barTop = 50f,
+            barBottom = 100f,
+            hardObstacles = emptyList(),
+            horizontalPadding = 1f,
+            padding = 0f,
+            rowSpacing = 0f,
+        )
+        val placements = TodayColumnOverlayPlanner.place(lines, input)
+        if (placements.size == 2) {
+            assertTrue(
+                "head must sit above or at same top as tail: ${placements.map { it.bounds.top }}",
+                placements[0].bounds.top <= placements[1].bounds.top,
+            )
+            val headZone = placements[0].zone
+            val tailZone = placements[1].zone
+            val order = listOf(Zone.ABOVE, Zone.ON_COLUMN, Zone.BELOW)
+            assertTrue("head zone must be above or equal to tail zone", order.indexOf(headZone) <= order.indexOf(tailZone))
+        }
+    }
+
+    @Test
+    fun `fromLastResort is false for search layouts and true for last-resort layouts`() {
+        val normalLayout = TodayColumnOverlayPlanner.layout(
+            variantCount = 1,
+            measureAt = { emulatorLines },
+            input = emulatorInput,
+        )
+        assertFalse(normalLayout.fromLastResort)
+
+        val tightInput = TodayColumnOverlayPlanner.Input(
+            columnLeft = 0f,
+            columnRight = 100f,
+            graphTop = 0f,
+            graphBottom = 100f,
+            barTop = 40f,
+            barBottom = 60f,
+            hardObstacles = listOf(
+                Bounds(0f, 0f, 100f, 30f),
+                Bounds(0f, 60f, 100f, 100f),
+            ),
+            horizontalPadding = 0f,
+            padding = 0f,
+            rowSpacing = 0f,
+        )
+        val bigLines = listOf(
+            Line("line1", "L1", 40f, 15f),
+            Line("line2", "L2", 40f, 15f),
+        )
+        val lastResortLayout = TodayColumnOverlayPlanner.layout(
+            variantCount = 1,
+            measureAt = { bigLines },
+            input = tightInput,
+        )
+        assertTrue("last-resort layout must have fromLastResort set to true", lastResortLayout.fromLastResort)
     }
 
     @Test
@@ -387,6 +532,20 @@ class TodayColumnOverlayPlannerLayoutTest {
             graphBottom = aboveHeight + 40f,
             barTop = aboveHeight,
             barBottom = aboveHeight + 35f,
+            hardObstacles = emptyList(),
+            horizontalPadding = 1f,
+            padding = 0f,
+            rowSpacing = 0f,
+        )
+
+    private fun tightInputNoBarsFit(aboveHeight: Float) =
+        TodayColumnOverlayPlanner.Input(
+            columnLeft = 0f,
+            columnRight = 100f,
+            graphTop = 0f,
+            graphBottom = aboveHeight + 20f,
+            barTop = aboveHeight,
+            barBottom = aboveHeight + 15f,
             hardObstacles = emptyList(),
             horizontalPadding = 1f,
             padding = 0f,

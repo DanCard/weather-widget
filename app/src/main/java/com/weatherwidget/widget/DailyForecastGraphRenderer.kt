@@ -91,6 +91,7 @@ object DailyForecastGraphRenderer {
         val right: Float,
         val bottom: Float,
         val mainTextSizePx: Float,
+        val fromLastResort: Boolean = false,
     )
 
     data class HeaderDrawnDebug(

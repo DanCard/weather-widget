@@ -439,6 +439,7 @@ internal object DailyGraphRenderer {
         placements: List<DailyForecastGraphRenderer.TodayOverlayPlacementDebug>,
     ) {
         if (placements.isEmpty()) return
+        if (placements.any { it.fromLastResort }) return
         overlayZones[appWidgetId] =
             placements.mapNotNull { placement ->
                 runCatching { TodayColumnOverlayPlanner.Zone.valueOf(placement.zone) }

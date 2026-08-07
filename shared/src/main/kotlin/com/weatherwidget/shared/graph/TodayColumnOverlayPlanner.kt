@@ -22,13 +22,18 @@ import kotlin.math.min
  * Candidates are searched in strict cost order and the first success wins, which makes the ordering
  * lexicographic by construction (no weighted sum, no magic penalty constant):
  *
- *  1. does not draw over the bars
- *  2. fewest content rows dropped
- *  3. fewest groups (one unbroken stack reads best)
- *  4. zone preference (ABOVE before BELOW)
- *  5. greatest clearance
+ *  1. fewest content rows dropped (per-variant ladder)
+ *  2. clean single-zone
+ *  3. clean split
+ *  4. split with bars
+ *  5. whole stack on bars
+ *  6. zone preference (ABOVE before BELOW)
+ *  7. greatest clearance
  *
- * Ranks 2-3 are supplied by the caller: the planner never learns what an "age row" is, and it cannot
+ * Ranks 2-5 are supplied by candidate search order per variant; hysteresis still only overrides
+ * the weak terms (zone preference and clearance).
+ *
+ * Ranks 1-5 are supplied by the caller: the planner never learns what an "age row" is, and it cannot
  * measure text (Android uses `Paint`, desktop uses `TextMeasurer`), so content variants and
  * measurement both arrive through [layout]'s callback.
  *
@@ -99,6 +104,7 @@ object TodayColumnOverlayPlanner {
     data class Layout(
         val placements: List<Placement>,
         val variantIndex: Int,
+        val fromLastResort: Boolean = false,
     ) {
         val isEmpty: Boolean get() = placements.isEmpty()
     }
@@ -117,7 +123,7 @@ object TodayColumnOverlayPlanner {
         ).placements
 
     /**
-     * Searches `zone x variant x grouping` in cost order and returns the first layout that
+     * Searches `variant x grouping x zone` in cost order and returns the first layout that
      * fits. [measureAt] is called lazily and memoized, so the common roomy case costs exactly one
      * measurement pass — the ladder only pays for extra measurement in genuinely cramped columns.
      */
@@ -126,7 +132,7 @@ object TodayColumnOverlayPlanner {
         measureAt: (variantIndex: Int) -> List<Line>,
         input: Input,
     ): Layout {
-        val empty = Layout(emptyList(), 0)
+        val empty = Layout(emptyList(), 0, fromLastResort = false)
         if (input.columnRight <= input.columnLeft || input.graphBottom <= input.graphTop) return empty
         if (variantCount <= 0) return empty
 
@@ -140,21 +146,49 @@ object TodayColumnOverlayPlanner {
             measured.getOrPut(variant) { measureAt(variant) }
                 .filter { it.width.isFinite() && it.height.isFinite() && it.width >= 0f && it.height >= 0f }
 
-        // Ranks 2-3 first, then zone: dropping content to stay out of the bar area is
-        // worth it, but dropping content merely to sit ABOVE rather than BELOW is not -- BELOW is a
-        // perfectly clean zone. So the bar-avoidance term is split out of zone preference: rank 1 is
-        // "does not overlap the bars", while ABOVE-vs-BELOW is the weak rank 4.
         val candidates = sequence {
-            for (overBars in listOf(false, true)) {
-                for (variant in 0 until variantCount) {
-                    for (groups in 1..MAX_GROUPS) {
-                        for (zone in ZONE_ORDER) {
-                            if ((zone == Zone.ON_COLUMN) != overBars) continue
-                            val lines = linesFor(variant)
-                            if (lines.isEmpty()) continue
-                            val fitted = fitStack(lines, zone, groups, input) ?: continue
-                            yield(Candidate(fitted, variant, groups, zone))
-                        }
+            for (variant in 0 until variantCount) {
+                val lines = linesFor(variant)
+                if (lines.isEmpty()) continue
+
+                // 1. Same-zone clean: ABOVE 1-group, BELOW 1-group, ABOVE 2-group, BELOW 2-group
+                fitGroupInZone(lines, Zone.ABOVE, input)?.let {
+                    yield(Candidate(it, variant, groups = 1, onBars = false))
+                }
+                fitGroupInZone(lines, Zone.BELOW, input)?.let {
+                    yield(Candidate(it, variant, groups = 1, onBars = false))
+                }
+                if (lines.size >= 2) {
+                    fitSameZoneTwoGroups(lines, Zone.ABOVE, input)?.let {
+                        yield(Candidate(it, variant, groups = 2, onBars = false))
+                    }
+                    fitSameZoneTwoGroups(lines, Zone.BELOW, input)?.let {
+                        yield(Candidate(it, variant, groups = 2, onBars = false))
+                    }
+
+                    // 2. Cross-zone clean split (ABOVE, BELOW)
+                    fitSplitForZonePair(lines, Zone.ABOVE, Zone.BELOW, input)?.let {
+                        yield(Candidate(it, variant, groups = 2, onBars = false))
+                    }
+
+                    // 3. Cross-zone split (ABOVE, ON_COLUMN)
+                    fitSplitForZonePair(lines, Zone.ABOVE, Zone.ON_COLUMN, input)?.let {
+                        yield(Candidate(it, variant, groups = 2, onBars = true))
+                    }
+
+                    // 4. Cross-zone split (ON_COLUMN, BELOW)
+                    fitSplitForZonePair(lines, Zone.ON_COLUMN, Zone.BELOW, input)?.let {
+                        yield(Candidate(it, variant, groups = 2, onBars = true))
+                    }
+                }
+
+                // 5. Same-zone ON_COLUMN, 1-group then 2-group
+                fitGroupInZone(lines, Zone.ON_COLUMN, input)?.let {
+                    yield(Candidate(it, variant, groups = 1, onBars = true))
+                }
+                if (lines.size >= 2) {
+                    fitSameZoneTwoGroups(lines, Zone.ON_COLUMN, input)?.let {
+                        yield(Candidate(it, variant, groups = 2, onBars = true))
                     }
                 }
             }
@@ -172,18 +206,9 @@ object TodayColumnOverlayPlanner {
                     .firstOrNull { it.reproduces(input.previousZones) }
                     ?: best
             }
-        return Layout(chosen.placements, chosen.variantIndex)
+        return Layout(chosen.placements, chosen.variantIndex, fromLastResort = false)
     }
 
-    private const val MAX_GROUPS = 2
-
-    /**
-     * Fit tolerance, in pixels. Heights are sums of measured float text metrics, so an exact-fit
-     * stack can come up microscopically short of its band: the reported emulator geometry produced
-     * `stack=82.385 band=82.384995`, a shortfall of 7.6e-6 px that was enough to reject the ABOVE
-     * band and draw both blocks across the forecast bars. A hundredth of a pixel is far below
-     * anything visible and far above float noise.
-     */
     private const val FIT_EPSILON = 0.01f
 
     private fun ClosedFloatingPointRange<Float>.fits(height: Float): Boolean =
@@ -193,11 +218,11 @@ object TodayColumnOverlayPlanner {
         val placements: List<Placement>,
         val variantIndex: Int,
         val groups: Int,
-        val zone: Zone,
+        val onBars: Boolean,
     ) {
         /** Same rank 1-3 strength: differs only in zone preference and clearance. */
         fun sameStrengthAs(other: Candidate): Boolean =
-            (zone == Zone.ON_COLUMN) == (other.zone == Zone.ON_COLUMN) &&
+            onBars == other.onBars &&
                 variantIndex == other.variantIndex &&
                 groups == other.groups
 
@@ -222,30 +247,24 @@ object TodayColumnOverlayPlanner {
             val taken = mutableListOf<Bounds>()
             lines.forEach { line ->
                 ZONE_ORDER.firstNotNullOfOrNull { zone ->
-                    fitStack(listOf(line), zone, 1, input, extraObstacles = taken)
+                    fitGroupInZone(listOf(line), zone, input, extraObstacles = taken)
                 }?.let {
                     placements += it
                     taken += it.map(Placement::bounds)
                 }
             }
-            if (placements.isNotEmpty()) return Layout(placements, variant)
+            if (placements.isNotEmpty()) return Layout(placements, variant, fromLastResort = true)
         }
         return empty
     }
 
-    /**
-     * Lays [lines] out as [groups] contiguous stacks inside [zone], or returns null when they do not
-     * fit. Within a run the stack is centred, which is where the old clearance objective survives —
-     * harmless now that the whole stack moves as a unit.
-     */
-    private fun fitStack(
+    private fun fitGroupInZone(
         lines: List<Line>,
         zone: Zone,
-        groups: Int,
         input: Input,
         extraObstacles: List<Bounds> = emptyList(),
     ): List<Placement>? {
-        if (lines.isEmpty() || groups < 1 || groups > lines.size) return null
+        if (lines.isEmpty()) return null
         val band = bandFor(zone, input) ?: return null
         val stackWidth = lines.maxOf { it.width }
         val left = (input.columnLeft + input.columnRight - stackWidth) / 2f
@@ -253,14 +272,25 @@ object TodayColumnOverlayPlanner {
         val runs = freeRuns(band.first, band.second, input.hardObstacles + extraObstacles, left, right)
         if (runs.isEmpty()) return null
 
-        if (groups == 1) {
-            val height = stackHeight(lines, input.rowSpacing)
-            val run = runs.filter { it.fits(height) }
-                .maxByOrNull { it.endInclusive - it.start } ?: return null
-            return layOut(lines, run, height, zone, input)
-        }
+        val height = stackHeight(lines, input.rowSpacing)
+        val run = runs.filter { it.fits(height) }
+            .maxByOrNull { it.endInclusive - it.start } ?: return null
+        return layOut(lines, run, height, zone, input)
+    }
 
-        // groups == 2: split at each seam, keep document order (first group above the second).
+    private fun fitSameZoneTwoGroups(
+        lines: List<Line>,
+        zone: Zone,
+        input: Input,
+    ): List<Placement>? {
+        if (lines.size < 2) return null
+        val band = bandFor(zone, input) ?: return null
+        val stackWidth = lines.maxOf { it.width }
+        val left = (input.columnLeft + input.columnRight - stackWidth) / 2f
+        val right = left + stackWidth
+        val runs = freeRuns(band.first, band.second, input.hardObstacles, left, right)
+        if (runs.isEmpty()) return null
+
         var best: List<Placement>? = null
         var bestClearance = Float.NEGATIVE_INFINITY
         for (seam in 1 until lines.size) {
@@ -284,6 +314,36 @@ object TodayColumnOverlayPlanner {
             }
         }
         return best
+    }
+
+    private fun fitSplitForZonePair(
+        lines: List<Line>,
+        headZone: Zone,
+        tailZone: Zone,
+        input: Input,
+    ): List<Placement>? {
+        if (lines.size < 2) return null
+        var bestPlaced: List<Placement>? = null
+        var minOnBarsCount = Int.MAX_VALUE
+
+        for (seam in 1 until lines.size) {
+            val head = lines.subList(0, seam)
+            val tail = lines.subList(seam, lines.size)
+            val headPlaced = fitGroupInZone(head, headZone, input) ?: continue
+            val tailPlaced = fitGroupInZone(tail, tailZone, input) ?: continue
+
+            val onBarsCount = when {
+                headZone == Zone.ON_COLUMN -> head.size
+                tailZone == Zone.ON_COLUMN -> tail.size
+                else -> 0
+            }
+
+            if (onBarsCount < minOnBarsCount) {
+                minOnBarsCount = onBarsCount
+                bestPlaced = headPlaced + tailPlaced
+            }
+        }
+        return bestPlaced
     }
 
     /** Centres the stack in [run] and lays the blocks out top-to-bottom in input order. */
