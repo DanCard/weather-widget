@@ -24,6 +24,11 @@ import java.time.LocalDateTime
 @Config(sdk = [35])
 @Category(LongDuration::class)
 class DailyLargeTodayLayoutRoboTest {
+    /** `resolveHeaderInkBottom` only tests these ids against zero; it never loads the drawable. */
+    private val ARBITRARY_NON_ZERO_RES = 1
+    private val WIDTH_PX = 1_000
+
+
     @Test
     fun `large overlay gives Today one and a quarter day widths and compact bars`() {
         val today = LocalDate.of(2026, 8, 4)
@@ -221,6 +226,81 @@ class DailyLargeTodayLayoutRoboTest {
         assertEquals(2, broadcasts.size)
         assertTrue(broadcasts.all { it.action == WidgetActions.ACTION_DAY_CLICK })
         assertTrue(broadcasts.all { it.getStringExtra("date") == now.toLocalDate().toString() })
+    }
+
+    @Test
+    fun `header ink bottom counts only the items over the column asked about`() {
+        // Robolectric has no font engine, so text measures zero-width/height here and the icons are
+        // the only items with real extent — which is the arithmetic worth pinning, because the icon
+        // is exactly what made the full-width version of this useless: on the Samsung fold the 24dp
+        // weather icon in the far-left corner reported 30.6 px over a column at x 122..199.
+        val layout = headerProbeLayout()
+        val header =
+            DailyForecastGraphRenderer.HeaderRenderData(
+                iconRes = ARBITRARY_NON_ZERO_RES,
+                currentTempText = "66.7°",
+                dateText = "Fri 7",
+                settingsIconRes = ARBITRARY_NON_ZERO_RES,
+                showIcon = true,
+            )
+
+        // Over the icon itself (drawn from x = -3dp, 24dp wide): upOffset (-2dp) + 24dp.
+        assertEquals(
+            22f,
+            DailyForecastHeaderRenderer.resolveHeaderInkBottom(header, WIDTH_PX, layout, 0f, 10f),
+            0.01f,
+        )
+        // Over the gear (right edge, 18dp): upOffset (-2dp) + 18dp.
+        assertEquals(
+            16f,
+            DailyForecastHeaderRenderer.resolveHeaderInkBottom(
+                header, WIDTH_PX, layout, WIDTH_PX - 10f, WIDTH_PX.toFloat(),
+            ),
+            0.01f,
+        )
+        // Mid-widget, clear of both icons: nothing with measurable extent is overhead.
+        val midColumn =
+            DailyForecastHeaderRenderer.resolveHeaderInkBottom(header, WIDTH_PX, layout, 300f, 380f)
+        assertTrue(
+            "a column with no header item over it must not inherit the corner icons: $midColumn",
+            midColumn < 16f,
+        )
+
+        val empty =
+            DailyForecastHeaderRenderer.resolveHeaderInkBottom(
+                DailyForecastGraphRenderer.HeaderRenderData(showIcon = false),
+                WIDTH_PX,
+                layout,
+                0f,
+                WIDTH_PX.toFloat(),
+            )
+        assertEquals("a header that draws nothing must not reserve anything", 0f, empty, 0.01f)
+    }
+
+    private fun headerProbeLayout(): DailyGraphLayoutInfo {
+        val today = LocalDate.of(2026, 8, 4)
+        val days =
+            (0 until 9).map { index ->
+                DailyForecastGraphRenderer.DayData(
+                    date = today.plusDays(index.toLong() - 1),
+                    label = if (index == 1) "Today" else "D$index",
+                    solidLineHigh = 70f + index,
+                    solidLineLow = 55f + index,
+                    isToday = index == 1,
+                    columnIndex = index,
+                )
+            }
+        return DailyGraphLayoutResolver.resolve(
+            days = days,
+            widthPx = 1_000,
+            heightPx = 500,
+            columns = 9,
+            bitmapScale = 1f,
+            density = 1f,
+            useCelsius = false,
+            todayColumnIndex = 1,
+            useLargeTodayOverlay = true,
+        )
     }
 
     private fun assertFalseOverlaps(

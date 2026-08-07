@@ -348,17 +348,134 @@ class TodayColumnOverlayPlannerLayoutTest {
             "ink must clear the high label: inkBottom=$lastInkBottom obstacleTop=$obstacleTop",
             lastInkBottom <= obstacleTop + 0.01f,
         )
-        // ABOVE hugs the top, so it is the blank ASCENT that hangs out of the run — the first row's
-        // ink lands exactly on the run start while its box begins above it.
+        // ABOVE hugs the bottom of its run less `padding`, so it is the blank DESCENT that hangs out
+        // of the run — the last row's ink stops a clear `padding` short of the high label while its
+        // box extends past that.
         assertEquals(
-            "first row's ink should sit on the run start",
-            samsungInput.graphTop,
-            placements.first().bounds.top + samsungLines.first().topLeading,
+            "last row's ink should sit `padding` above the high label",
+            obstacleTop - samsungInput.padding,
+            lastInkBottom,
             0.01f,
         )
         assertTrue(
-            "the box itself overhangs the run start by the blank ascent",
-            placements.first().bounds.top < samsungInput.graphTop,
+            "the box itself overhangs the ink by the blank descent",
+            placements.last().bounds.bottom > lastInkBottom,
+        )
+    }
+
+    // ---- The ABOVE ceiling is the header's measured ink, not a fraction of the band ---------------
+
+    /**
+     * Captured 2026-08-07 from the Samsung fold (SM-F936U1) after the user reported that *every*
+     * overlay row rendered across the forecast bars while a row's worth of empty band sat above the
+     * column. `graphTop` is 51.55 (50dp of reserved header band) and the old ceiling took a fixed
+     * quarter of it, so the ABOVE run was 41.24..57.89 — 16.65 px against an 18.5 px delta row.
+     *
+     * The run ends at the `1%` rain chip (57.89), not the `82°` high label (63.17): the chip is 9 px
+     * wide and dead centre, so a 71.6 px-wide stack cannot pass it.
+     */
+    private val foldHeaderBandInput =
+        TodayColumnOverlayPlanner.Input(
+            columnLeft = 122.5946f,
+            columnRight = 199.21622f,
+            graphTop = 51.55125f,
+            graphBottom = 372.2317f,
+            barTop = 85.49489f,
+            barBottom = 297.64258f,
+            hardObstacles =
+                listOf(
+                    Bounds(135.90541f, 63.17186f, 185.90541f, 102.38866f), // 82° high label
+                    Bounds(142.40541f, 306.73633f, 179.40541f, 343.73633f), // weather icon
+                    Bounds(121.90541f, 343.12344f, 199.90541f, 382.34024f), // "Today"
+                    Bounds(131.90541f, 373.98752f, 189.90541f, 399.22696f), // low label
+                    Bounds(156.40541f, 57.89468f, 165.40541f, 66.26494f), // 1% rain chip
+                    Bounds(191.08531f, 369.39902f, 198.08531f, 375.4256f),
+                ),
+            horizontalPadding = 3.03125f,
+            padding = 9.09375f,
+            rowSpacing = 1.515625f,
+            edgeInset = 0f,
+            // Header ink bottoms out at the 24dp weather icon (22.7) plus the same clearance the bar
+            // cap gets. The old value was graphTop * 0.75 = 38.66 (0.8 in the build that shipped it).
+            aboveCeiling = 22.7f + 9.09375f,
+        )
+
+    private val foldHeaderBandLines =
+        listOf(
+            Line("delta", "-2.5 fcst", 71.60719f, 30.194092f, topLeading = 5.4f, bottomLeading = 6.29f),
+            Line("dominant_temp_age", "66.2°\n5m", 58.0f, 61.90381f, topLeading = 5.4f, bottomLeading = 6.29f),
+        )
+
+    @Test
+    fun `measured header ceiling lifts the fold's delta off the bars`() {
+        val zones =
+            TodayColumnOverlayPlanner.place(foldHeaderBandLines, foldHeaderBandInput)
+                .associate { it.key to it.zone }
+
+        assertEquals("both blocks must be placed; got $zones", 2, zones.size)
+        assertEquals("delta stayed on the bars; zones=$zones", Zone.ABOVE, zones["delta"])
+        // The full stack is 81.9 px of ink against a 26.1 px run, so temp/age genuinely cannot
+        // follow it up there — one row above is the whole win.
+        assertEquals(Zone.ON_COLUMN, zones["dominant_temp_age"])
+    }
+
+    @Test
+    fun `the guessed band fraction is what kept the fold's delta on the bars`() {
+        // Paired control: same geometry at the old ceiling must still put everything on the bars, so
+        // the test above cannot pass on some other slack.
+        val zones =
+            TodayColumnOverlayPlanner
+                .place(
+                    foldHeaderBandLines,
+                    foldHeaderBandInput.copy(aboveCeiling = foldHeaderBandInput.graphTop * 0.8f),
+                )
+                .associate { it.key to it.zone }
+
+        assertEquals(Zone.ON_COLUMN, zones["delta"])
+        assertEquals(Zone.ON_COLUMN, zones["dominant_temp_age"])
+    }
+
+    @Test
+    fun `a lifted ceiling does not float the stack up under the header`() {
+        // Bottom-hugging is what makes an open ceiling safe: spare room goes to the header side, not
+        // between the stack and the column it annotates. Taken to the limit — no ceiling at all — the
+        // delta must still sit just above the rain chip rather than at y=0 among the header text.
+        val runEnd = 57.89468f // the 1% rain chip caps the ABOVE run
+        val delta =
+            TodayColumnOverlayPlanner
+                .place(foldHeaderBandLines, foldHeaderBandInput.copy(aboveCeiling = 0f))
+                .single { it.key == "delta" }
+        val inkBottom = delta.bounds.bottom - foldHeaderBandLines.first().bottomLeading
+
+        assertEquals(
+            "delta's ink should sit exactly `padding` above the chip",
+            runEnd - foldHeaderBandInput.padding,
+            inkBottom,
+            0.01f,
+        )
+        // Top-hugging would have put the box at `0 - topLeading`; a full row lower than that is the
+        // difference between sitting with the column and sitting in the header.
+        val topHuggingTop = 0f - foldHeaderBandLines.first().topLeading
+        assertTrue(
+            "stack floated up under the header: top=${delta.bounds.top}, top-hugging=$topHuggingTop",
+            delta.bounds.top > topHuggingTop + foldHeaderBandLines.first().height,
+        )
+    }
+
+    @Test
+    fun `a ceiling tighter than the clearance spends every pixel it has`() {
+        // The real fold ceiling leaves 7.6 px of slack against 9.09 px of padding, so ABOVE cannot
+        // have its full clearance. It must use all of the slack rather than none of it.
+        val delta =
+            TodayColumnOverlayPlanner.place(foldHeaderBandLines, foldHeaderBandInput)
+                .single { it.key == "delta" }
+        val inkTop = delta.bounds.top + foldHeaderBandLines.first().topLeading
+
+        assertEquals(
+            "the stack should start at the ceiling when slack < padding",
+            foldHeaderBandInput.aboveCeiling,
+            inkTop,
+            0.01f,
         )
     }
 
@@ -547,8 +664,8 @@ class TodayColumnOverlayPlannerLayoutTest {
 
     @Test
     fun `an outer zone hugs the edge away from the bars`() {
-        // Spare room should become distance from the bar cap and its high label, not a gap against
-        // the graph edge. Centring left the stack crowding the high label on the Samsung fold.
+        // BELOW's spare room becomes distance from the bar cap; ABOVE instead stays with its column
+        // (see layOut) because its far edge is the header, not empty space.
         val line = listOf(Line("delta", "+1.8", 40f, 20f))
         val input =
             TodayColumnOverlayPlanner.Input(
@@ -563,7 +680,16 @@ class TodayColumnOverlayPlannerLayoutTest {
                 padding = 0f,
             )
         val bounds = TodayColumnOverlayPlanner.place(line, input).single().bounds
-        assertEquals("ABOVE should sit at the top of the 0..100 band", 0f, bounds.top, 0.01f)
+        assertEquals("ABOVE should sit at the bottom of the 0..100 band", 100f, bounds.bottom, 0.01f)
+
+        // ...and back off by `padding` when there is one, so it never touches the bar cap.
+        val padded = TodayColumnOverlayPlanner.place(line, input.copy(padding = 12f)).single().bounds
+        assertEquals(
+            "ABOVE should clear the band end (barTop - padding) by another padding",
+            100f - 12f - 12f,
+            padded.bottom,
+            0.01f,
+        )
 
         // ...and the mirror image below the bars, so neither zone drifts toward the bar cap.
         val below =

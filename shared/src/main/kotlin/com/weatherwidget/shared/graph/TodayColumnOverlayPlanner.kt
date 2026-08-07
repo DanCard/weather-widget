@@ -129,9 +129,14 @@ object TodayColumnOverlayPlanner {
          * Topmost y the ABOVE zone may use. Defaults to the graph edge, but callers may raise the
          * ceiling into space the graph reserves and does not draw in — on Android [graphTop] is a
          * 50dp header band whose text occupies well under half of it, and that unused remainder is
-         * the only place a three-row stack can gain real distance from the bar cap's temperature
-         * label. Raising it here rather than lowering [graphTop] leaves the temperature scale, the
-         * bar heights, and every other column untouched.
+         * the only place the stack can gain real distance from the bar cap's temperature label.
+         * Raising it here rather than lowering [graphTop] leaves the temperature scale, the bar
+         * heights, and every other column untouched.
+         *
+         * Android passes the header's MEASURED ink bottom plus [padding]
+         * (`DailyForecastHeaderRenderer.resolveHeaderInkBottom`). It passed a fraction of the band
+         * until 2026-08-07; on the Samsung fold that guess reserved ~17 px of empty band and left
+         * every overlay row drawn across the forecast bars. Desktop still passes the graph edge.
          */
         val aboveCeiling: Float = graphTop + edgeInset,
     )
@@ -397,13 +402,16 @@ object TodayColumnOverlayPlanner {
         input: Input,
     ): List<Placement> {
         val free = (run.endInclusive - run.start - height).coerceAtLeast(0f)
-        // Each outer zone hugs the edge FURTHEST from the bars, so spare room becomes distance from
-        // the bar cap and its temperature label rather than a gap against the graph edge. Centring
-        // split the difference and left the stack crowding the high label whenever the run was only
-        // a little roomier than the stack. ON_COLUMN has bars on both sides, so it still centres.
+        // ABOVE sits at the BOTTOM of its run, backed off by [Input.padding] — as close to the column
+        // it annotates as that clearance allows. It hugged the TOP until 2026-08-07, which was
+        // indistinguishable while the run was a few px roomier than the stack, but the Android
+        // ceiling is now the header's MEASURED ink rather than a fraction of the reserved band, so a
+        // top-hugging stack floats up under the header instead of staying with its column. BELOW
+        // still hugs its far edge — that edge is away from both the bars and the header — and
+        // ON_COLUMN has bars on both sides, so it still centres.
         val offset =
             when (zone) {
-                Zone.ABOVE -> 0f
+                Zone.ABOVE -> (free - input.padding).coerceAtLeast(0f)
                 Zone.BELOW -> free
                 Zone.ON_COLUMN -> free / 2f
             }

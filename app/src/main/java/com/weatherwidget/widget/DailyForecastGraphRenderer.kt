@@ -321,6 +321,18 @@ object DailyForecastGraphRenderer {
                         highLabelBounds = todayHighLabelBounds,
                         columnBounds = columnBounds,
                         rainPlacements = rainLabelPlacements.filter { it.date == todayDay.date },
+                        // How far the header intrudes over THIS column specifically — measured from
+                        // the pre-suppression header on purpose: the date may still be dropped
+                        // below, and an item reported that is not drawn only pushes the overlay down.
+                        headerInkBottom = headerData?.let {
+                            DailyForecastHeaderRenderer.resolveHeaderInkBottom(
+                                header = it,
+                                widthPx = widthPx,
+                                layout = layout,
+                                xLeft = layout.columnLefts[todayIndex],
+                                xRight = layout.columnLefts[todayIndex] + layout.columnWidth(todayIndex),
+                            )
+                        },
                     )
                 } else {
                     emptyList()

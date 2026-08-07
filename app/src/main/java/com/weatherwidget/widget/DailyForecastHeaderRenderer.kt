@@ -331,6 +331,154 @@ internal object DailyForecastHeaderRenderer {
             else -> leftWithLabelRight + gapPx <= apiLeft
         }
 
+    /**
+     * The lowest y the header's ink reaches **within `xLeft..xRight`**, in bitmap pixels — i.e. how
+     * far down the header actually intrudes over one column, not over the widget as a whole.
+     *
+     * `DailyGraphLayoutResolver.TOP_PADDING_DP` reserves 50dp above `graphTop` for this header, but
+     * the header fills well under half of it, and over any given column usually far less than that.
+     * The large-Today overlay needs the remainder: it was fenced out by a guessed constant
+     * (`TodayColumnOverlayRenderer.HEADER_BAND_RECLAIM_FRACTION`) which cost the Samsung fold's
+     * overlay every row it had — all three drew across the forecast bars while ~17 px of empty band
+     * sat above them.
+     *
+     * The x test is not a refinement, it is the point. Measured full-width on that same fold this
+     * returns 30.6 — the 24dp weather icon in the far-left corner, x ≈ -6..27, against a Today
+     * column at x 122..199 — which is 0.3 px worse than useless: still short of a row, having
+     * reserved space for something nowhere near the column.
+     *
+     * Measured, not assumed: every branch mirrors [drawHeader]'s own geometry — same `labelScale`,
+     * same `upOffset`, same paints, same cursor walk, same date placement. Text uses real ink bounds
+     * and falls back to the font box when the platform reports none, so Robolectric — which has no
+     * font engine — reads the header as DEEPER than it draws and pushes the overlay down rather than
+     * silently over the header. Icons have no ink to measure and always use their full drawn box.
+     *
+     * Resolved from the pre-suppression header data on purpose: the date may still be dropped later,
+     * and an item reported that is not drawn only pushes the overlay down.
+     */
+    internal fun resolveHeaderInkBottom(
+        header: DailyForecastGraphRenderer.HeaderRenderData,
+        widthPx: Int,
+        layout: DailyGraphLayoutInfo,
+        xLeft: Float,
+        xRight: Float,
+    ): Float {
+        val labelScale = layout.bitmapScale.coerceAtMost(1f) * header.headerScale
+        val paints = getHeaderPaintSet(header, labelScale, layout.density)
+        val upOffset = -(2f * labelScale).dp(layout.density)
+        val apiLeft = resolveApiLeftPx(header, widthPx, labelScale, layout.density, paints.dateMeasurePaint)
+        var bottom = 0f
+
+        // Strict inequality, matching Bounds.intersects: an item that merely touches the column edge
+        // is not over it.
+        fun consider(left: Float, right: Float, itemBottom: Float) {
+            if (left < xRight && xLeft < right) bottom = maxOf(bottom, itemBottom)
+        }
+        fun considerText(text: String?, paint: Paint, left: Float, baseline: Float): Float {
+            if (text.isNullOrBlank()) return 0f
+            val width = paint.measureText(text)
+            consider(left, left + width, baseline + inkBottomBelowBaseline(paint, text))
+            return width
+        }
+
+        // --- left cluster: the same cursor walk drawHeader performs ---
+        var cursorX = -(3f * labelScale).dp(layout.density)
+        if (header.showIcon && header.iconRes != null && header.iconRes != 0) {
+            val iconSize = (HeaderConstants.WEATHER_ICON_SIZE_DP * labelScale).dp(layout.density)
+            consider(cursorX, cursorX + iconSize, upOffset + iconSize)
+            cursorX += ((HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP) * labelScale)
+                .dp(layout.density)
+        }
+
+        val tempBaseline = -paints.tempPaint.ascent() + upOffset
+        cursorX += considerText(header.currentTempText, paints.tempPaint, cursorX, tempBaseline)
+
+        // Delta and its caption are centred on the temperature's visual centre, so they sit lower
+        // than their own baseline math alone suggests.
+        val tempCenterY = tempBaseline + (paints.tempPaint.ascent() + paints.tempPaint.descent()) / 2f
+        if (header.showDelta && !header.deltaText.isNullOrBlank()) {
+            cursorX += (HeaderConstants.DELTA_MARGIN_START_DP * labelScale).dp(layout.density)
+            cursorX += considerText(
+                header.deltaText,
+                paints.deltaPaint,
+                cursorX,
+                tempCenterY - (paints.deltaPaint.ascent() + paints.deltaPaint.descent()) / 2f,
+            )
+            val deltaLabelText = header.deltaLabelText?.takeIf { it.isNotBlank() }
+            if (deltaLabelText != null &&
+                resolveDeltaLabelVisible(header, widthPx, layout, paints, labelScale, upOffset, apiLeft)
+            ) {
+                cursorX += (HeaderConstants.DELTA_LABEL_MARGIN_START_DP * labelScale).dp(layout.density)
+                cursorX += considerText(
+                    deltaLabelText,
+                    paints.deltaLabelPaint,
+                    cursorX,
+                    tempCenterY - (paints.deltaLabelPaint.ascent() + paints.deltaLabelPaint.descent()) / 2f,
+                )
+            }
+        }
+        if (header.showPrecip && !header.precipText.isNullOrBlank()) {
+            cursorX += (HeaderConstants.PRECIP_MARGIN_START_DP * labelScale).dp(layout.density)
+            cursorX += considerText(
+                header.precipText,
+                paints.precipPaint,
+                cursorX,
+                -paints.precipPaint.ascent() + upOffset,
+            )
+        }
+        val leftClusterRight = cursorX
+
+        // --- right cluster: gear anchored to the right edge, API label right-aligned ---
+        if (header.settingsIconRes != 0) {
+            val gearSize = (HeaderConstants.SETTINGS_ICON_SIZE_DP * labelScale).dp(layout.density)
+            val gearRight = widthPx - (2f * labelScale).dp(layout.density)
+            consider(gearRight - gearSize, gearRight, upOffset + gearSize)
+        }
+        if (!header.apiSourceText.isNullOrBlank()) {
+            val apiMarginEndDp = HeaderConstants.API_SOURCE_MARGIN_END_DP + HeaderConstants.API_SINGLE_SOURCE_EXTRA_MARGIN_DP
+            val apiX = widthPx - (apiMarginEndDp * labelScale).dp(layout.density) +
+                (10f * labelScale).dp(layout.density)
+            // Drawn with Align.RIGHT, so apiX is the text's right edge.
+            val apiWidth = paints.apiPaint.measureText(header.apiSourceText)
+            consider(
+                apiX - apiWidth,
+                apiX,
+                -paints.apiPaint.ascent() + upOffset + inkBottomBelowBaseline(paints.apiPaint, header.apiSourceText),
+            )
+        }
+
+        // --- centre date, placed exactly as drawHeader places it ---
+        resolveHeaderDateLayout(
+            header = header,
+            widthPx = widthPx,
+            layout = layout,
+            leftClusterRight = leftClusterRight,
+            dateRightBoundary = apiLeft,
+            headerPaints = paints,
+            labelScale = labelScale,
+            upOffset = upOffset,
+        )?.let { dateLayout ->
+            consider(
+                dateLayout.bounds.left,
+                dateLayout.bounds.right,
+                dateLayout.baseline + inkBottomBelowBaseline(paints.datePaint, header.dateText.orEmpty()),
+            )
+        }
+
+        return bottom
+    }
+
+    /**
+     * How far [text]'s ink drops below the baseline, falling back to the font's descent when the
+     * platform reports no ink bounds. Digits and degree signs have no descenders at all, so the
+     * fallback is the conservative direction.
+     */
+    private fun inkBottomBelowBaseline(paint: Paint, text: String): Float {
+        val ink = Rect()
+        paint.getTextBounds(text, 0, text.length, ink)
+        return if (ink.isEmpty) paint.descent() else ink.bottom.toFloat()
+    }
+
     private fun getHeaderPaintSet(
         header: DailyForecastGraphRenderer.HeaderRenderData,
         labelScale: Float,

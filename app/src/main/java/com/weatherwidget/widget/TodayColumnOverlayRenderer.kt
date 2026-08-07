@@ -34,15 +34,14 @@ internal object TodayColumnOverlayRenderer {
     private const val OUTLINE_FRACTION = 0.08f
 
     /**
-     * How much of the reserved header band above `graphTop` the overlay may rise into.
+     * Fallback share of the reserved header band the overlay may rise into, used ONLY when the
+     * header's real extent is unavailable (`headerInkBottom == null`, i.e. no header was measured).
      *
-     * `DailyGraphLayoutResolver.TOP_PADDING_DP` reserves 50dp for the header, but the header's ink
-     * ends around 40% of the way down it — measured on the Samsung fold, ink stopped at bitmap y
-     * 22.4 against a `graphTop` of 51.6, so up to ~0.55 is physically free.
-     *
-     * A quarter is a judgement call, not a limit: reclaiming half cleared the high label but read as
-     * too high against the header, so this takes half of that. Raising it moves the stack up and
-     * away from the bar cap; lowering it does the reverse.
+     * When the header IS measured, `DailyForecastHeaderRenderer.resolveHeaderInkBottom` supersedes
+     * this: `DailyGraphLayoutResolver.TOP_PADDING_DP` reserves 50dp for the header, the header fills
+     * under half of it, and a fraction can only ever guess at how much. The guess was expensive —
+     * on the Samsung fold it fenced the overlay out of ~17 px of empty band, which was the whole
+     * difference between one row above the column and all three rendered across the bars.
      */
     @VisibleForTesting
     internal const val HEADER_BAND_RECLAIM_FRACTION = 0.25f
@@ -56,6 +55,8 @@ internal object TodayColumnOverlayRenderer {
         highLabelBounds: List<RectF>,
         columnBounds: DailyColumnRenderer.DrawnBounds,
         rainPlacements: List<DailyRainLabelPlacement>,
+        /** Lowest y the header's ink reaches, or null when no header is drawn/measurable. */
+        headerInkBottom: Float? = null,
     ): List<TodayOverlayPlacementDebug> {
         val columnLeft = layout.columnLefts[todayColumnIndex]
         val columnRight = columnLeft + layout.columnWidth(todayColumnIndex)
@@ -147,9 +148,11 @@ internal object TodayColumnOverlayRenderer {
                 // header band (DailyGraphLayoutResolver's TOP_PADDING_DP), so insetting again only
                 // discarded headroom the stack needed. `padding` still applies at the bar cap.
                 edgeInset = 0f,
-                // `layout.graphTop` IS the header band's height, so scaling it by the reclaim
-                // fraction gives the ceiling directly, at whatever density and bitmap scale.
-                aboveCeiling = layout.graphTop * (1f - HEADER_BAND_RECLAIM_FRACTION),
+                // The header's measured ink plus the same clearance the bar cap gets. Falls back to
+                // the guessed fraction of the band (`layout.graphTop` IS the band's height) only
+                // when nothing measured the header.
+                aboveCeiling = headerInkBottom?.plus(VERTICAL_PADDING_DP.dp(layout.density))
+                    ?: (layout.graphTop * (1f - HEADER_BAND_RECLAIM_FRACTION)),
             )
 
         // The planner searches variant x zone x grouping in cost order and reports back which
@@ -176,6 +179,7 @@ internal object TodayColumnOverlayRenderer {
                 "lines=${linesFor(activeSpecs, paints).map { "${it.key}:${it.width}x${it.height}" }} " +
                 "rowSpacing=$rowSpacing " +
                 "column=$columnLeft..$columnRight graph=${layout.graphTop}..${layout.heightPx - layout.dayLabelHeight} " +
+                "headerInkBottom=$headerInkBottom aboveCeiling=${plannerInput.aboveCeiling} " +
                 "bars=$barTop..$barBottom " +
                 "obstacles=${hardObstacles.map { "${it.left},${it.top},${it.right},${it.bottom}" }} " +
                 "prevZones=${data.previousZones} " +
