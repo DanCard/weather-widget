@@ -17,6 +17,7 @@ import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContentResolver
 import com.weatherwidget.shared.graph.ForecastDeltaLabel
+import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
@@ -286,6 +287,7 @@ internal object DailyGraphRenderer {
             useCelsius = ctx.stateManager.useCelsius(),
         )
         val bitmap = renderResult.bitmap
+        rememberOverlayZones(ctx.appWidgetId, renderResult.todayOverlayPlacements)
         val nightRainLabelDraws =
             renderResult.rainLabelPlacements.filter {
                 it.kind == DailyForecastGraphRenderer.RainLabelKind.NIGHT
@@ -412,7 +414,37 @@ internal object DailyGraphRenderer {
                     ?: 0xE6FFFFFF.toInt(),
             dominantTempText = content.dominantTempText,
             dominantAgeText = content.dominantAgeText,
+            previousZones = overlayZonesFor(ctx.appWidgetId),
         )
+    }
+
+    /**
+     * Last render's overlay zones per widget, feeding the planner's hysteresis.
+     *
+     * Deliberately in-memory rather than persisted: the flapping this prevents is between
+     * consecutive renders in one process, and a stale zone recalled after a restart would be worse
+     * than none. A cold start simply gets the unconstrained optimum.
+     */
+    private val overlayZones =
+        java.util.Collections.synchronizedMap(
+            mutableMapOf<Int, Map<String, TodayColumnOverlayPlanner.Zone>>(),
+        )
+
+    private fun overlayZonesFor(appWidgetId: Int): Map<String, TodayColumnOverlayPlanner.Zone> =
+        overlayZones[appWidgetId].orEmpty()
+
+    /** Records the zones the planner chose so the next render can prefer them. */
+    fun rememberOverlayZones(
+        appWidgetId: Int,
+        placements: List<DailyForecastGraphRenderer.TodayOverlayPlacementDebug>,
+    ) {
+        if (placements.isEmpty()) return
+        overlayZones[appWidgetId] =
+            placements.mapNotNull { placement ->
+                runCatching { TodayColumnOverlayPlanner.Zone.valueOf(placement.zone) }
+                    .getOrNull()
+                    ?.let { placement.key to it }
+            }.toMap()
     }
 
     private fun logGraphDayIconDetails(

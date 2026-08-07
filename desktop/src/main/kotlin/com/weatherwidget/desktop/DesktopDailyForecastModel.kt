@@ -124,13 +124,23 @@ object DesktopDailyForecastModel {
         val today = now.toLocalDate()
         val skipYesterday = NavigationUtils.shouldSkipYesterday(now.toLocalTime(), dimensions.cols)
         val overlayCandidateColumns = (dimensions.cols - 1).coerceAtLeast(1)
-        val overlayCandidateRange =
+        // The eligibility window must be the window the user actually SEES. `getVisibleDateRange`
+        // knows nothing about the zoom-out extra-history columns, which `historyOffsets` below
+        // prepends — so the raw range starts `dailyExtraHistory` days later than the rendered one.
+        // With a forward dateOffset the two disagreed enough to report today as off-screen while it
+        // sat in column 2, and the whole Today overlay switched itself off
+        // (dateOffset=3 + dailyExtraHistory=3 -> candidate range today+2..today+12, today absent).
+        val overlayCandidateRawRange =
             NavigationUtils.getVisibleDateRange(
                 today,
                 config.dateOffset,
                 overlayCandidateColumns,
                 skipYesterday,
             )
+        val overlayCandidateRange =
+            overlayCandidateRawRange.first.minusDays(
+                config.dailyExtraHistory.coerceAtLeast(0).toLong(),
+            ) to overlayCandidateRawRange.second
         val overlayDecision =
             LargeTodayOverlayPolicy.resolve(
                 profile = LargeTodayOverlayPolicy.Profile.DESKTOP,
@@ -138,7 +148,6 @@ object DesktopDailyForecastModel {
                 rows = dimensions.rows,
                 useGraph = dimensions.useGraph,
                 todayVisible = today in overlayCandidateRange.first..overlayCandidateRange.second,
-                extraHistoryColumns = config.dailyExtraHistory,
             )
         val displayColumns = overlayDecision.displayColumns
         val availableDates = buildAvailableDates(forecast)

@@ -20,9 +20,15 @@ object LargeTodayOverlayPolicy {
         availableColumns: Int,
         rows: Int,
         useGraph: Boolean,
+        /**
+         * Whether today falls inside the window the caller actually RENDERS. Callers that widen the
+         * rendered window (desktop's zoom-out `dailyExtraHistory` columns) must account for that
+         * before calling: this policy has no view of the date range. A previously-accepted
+         * `extraHistoryColumns` parameter was `@Suppress("unused")` here, which read as if the
+         * policy handled it and hid a bug where the desktop overlay switched itself off while today
+         * was plainly on screen.
+         */
         todayVisible: Boolean,
-        @Suppress("unused")
-        extraHistoryColumns: Int = 0,
     ): Decision {
         val enabled =
             useGraph &&

@@ -31,7 +31,6 @@ class LargeTodayOverlayPolicyTest {
             rows = 5,
             useGraph = true,
             todayVisible = true,
-            extraHistoryColumns = 2,
         )
 
         assertTrue(decision.enabled)

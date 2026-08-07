@@ -32,6 +32,15 @@ internal object TodayColumnOverlayRenderer {
     // making the white fill look muddy on the dark Today panel.
     private const val OUTLINE_FRACTION = 0.08f
 
+    /**
+     * Vertical-fit shrink rungs for the planner ladder: a slightly smaller stack that clears the
+     * forecast bars beats a full-size one drawn across them. This is NOT a re-introduction of the
+     * horizontal width fitting that was deliberately removed — rows may still overflow a narrow
+     * Today column at every scale.
+     */
+    @VisibleForTesting
+    internal val FONT_SCALES = listOf(1f, 0.9f, 0.8f)
+
     fun draw(
         canvas: Canvas,
         data: TodayOverlayRenderData,
@@ -47,26 +56,29 @@ internal object TodayColumnOverlayRenderer {
         val horizontalPadding = HORIZONTAL_PADDING_DP.dp(layout.density)
         val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
 
-        // Block selection (including the independent temp/age toggles) is pure and shared with
-        // the desktop renderer via TodayColumnOverlayBlocks.
-        val specs =
-            TodayColumnOverlayBlocks.build(
+        // Block selection (including the independent temp/age toggles) and the ordered content
+        // variants for the planner's degradation ladder are pure and shared with the desktop
+        // renderer via TodayColumnOverlayBlocks.
+        val variants =
+            TodayColumnOverlayBlocks.variants(
                 deltaValueText = data.deltaValueText,
                 deltaCaptionText = data.deltaCaptionText,
                 dominantTempText = data.dominantTempText,
                 dominantAgeText = data.dominantAgeText,
-            ).map { block ->
-                TextBlockSpec(
-                    key = block.key,
-                    rows = block.rows.map { TextRow(it.text, MAIN_TEXT_COLOR, it.caption) },
-                )
+            ).map { blocks ->
+                blocks.map { block ->
+                    TextBlockSpec(
+                        key = block.key,
+                        rows = block.rows.map { TextRow(it.text, MAIN_TEXT_COLOR, it.caption) },
+                    )
+                }
             }
-        if (specs.isEmpty()) return emptyList()
+        if (variants.isEmpty()) return emptyList()
 
         val rowSpacing = ROW_SPACING_DP.dp(layout.density) * labelScale
-        fun paintsFor(blocks: List<TextBlockSpec>): Map<String, Paint> {
-            // One shared paint keeps every row at the same main font size.
-            val commonPaint = fittedPaint(MAIN_TEXT_COLOR, labelScale, layout.density)
+        // One shared paint keeps every row at the same main font size.
+        fun paintsFor(blocks: List<TextBlockSpec>, scale: Float): Map<String, Paint> {
+            val commonPaint = fittedPaint(MAIN_TEXT_COLOR, labelScale * scale, layout.density)
             return blocks.associate { spec -> spec.key to Paint(commonPaint).apply { color = spec.rows.first().color } }
         }
         fun linesFor(blocks: List<TextBlockSpec>, blockPaints: Map<String, Paint>) =
@@ -107,50 +119,52 @@ internal object TodayColumnOverlayRenderer {
                 }
             }
         }
-        fun place(blocks: List<TextBlockSpec>, blockPaints: Map<String, Paint>): List<TodayColumnOverlayPlanner.Placement> {
-            val lines = linesFor(blocks, blockPaints)
-            val placements = TodayColumnOverlayPlanner.place(
-                lines = lines,
-                input =
-                    TodayColumnOverlayPlanner.Input(
-                        columnLeft = columnLeft,
-                        columnRight = columnRight,
-                        graphTop = layout.graphTop,
-                        graphBottom = layout.heightPx - layout.dayLabelHeight,
-                        barTop = barTop,
-                        barBottom = barBottom,
-                        hardObstacles = hardObstacles,
-                        horizontalPadding = horizontalPadding,
-                        padding = VERTICAL_PADDING_DP.dp(layout.density),
-                        verticalStep = 1f.dp(layout.density).coerceAtLeast(1f),
-                    ),
+        val plannerInput =
+            TodayColumnOverlayPlanner.Input(
+                columnLeft = columnLeft,
+                columnRight = columnRight,
+                graphTop = layout.graphTop,
+                graphBottom = layout.heightPx - layout.dayLabelHeight,
+                barTop = barTop,
+                barBottom = barBottom,
+                hardObstacles = hardObstacles,
+                horizontalPadding = horizontalPadding,
+                padding = VERTICAL_PADDING_DP.dp(layout.density),
+                verticalStep = 1f.dp(layout.density).coerceAtLeast(1f),
+                rowSpacing = rowSpacing,
+                previousZones = data.previousZones,
             )
-            Log.v(
-                TAG,
-                "attempt blocks=${blocks.map(TextBlockSpec::key)} " +
-                    "lines=${lines.map { line -> "${line.key}:${line.width}x${line.height}" }} " +
-                    "column=$columnLeft..$columnRight graph=${layout.graphTop}..${layout.heightPx - layout.dayLabelHeight} " +
-                    "bars=$barTop..$barBottom obstacles=${hardObstacles.size} " +
-                    "placements=${placements.map { it.key }}",
-            )
-            return placements
-        }
 
-        var activeSpecs = specs
-        var paints = paintsFor(activeSpecs)
-        var placements = place(activeSpecs, paints)
-        if (specs.size > 1 && placements.size < specs.size) {
-            // At the doubled font size, two independently optimal blocks may leave no valid band
-            // for the second. Preserve all requested rows by retrying them as one narrow stack.
-            val combinedSpecs = listOf(TextBlockSpec("combined", specs.flatMap(TextBlockSpec::rows)))
-            val combinedPaints = paintsFor(combinedSpecs)
-            val combinedPlacements = place(combinedSpecs, combinedPaints)
-            if (combinedPlacements.isNotEmpty()) {
-                activeSpecs = combinedSpecs
-                paints = combinedPaints
-                placements = combinedPlacements
-            }
-        }
+        // The planner searches variant x scale x zone x grouping in cost order and reports back
+        // which variant and font scale it settled on, so the paint used to DRAW must be rebuilt from
+        // that result rather than the one used to measure the first attempt. The old `combined`
+        // retry — which merged every block into one spec when a block failed to place — is gone: the
+        // planner now lays the stack out as a unit, which is what that hack was approximating.
+        val result =
+            TodayColumnOverlayPlanner.layout(
+                variantCount = variants.size,
+                scales = FONT_SCALES,
+                measureAt = { variantIndex, scale ->
+                    val blocks = variants[variantIndex]
+                    linesFor(blocks, paintsFor(blocks, scale))
+                },
+                input = plannerInput,
+            )
+        val activeSpecs = variants[result.variantIndex]
+        val paints = paintsFor(activeSpecs, result.scale)
+        val placements = result.placements
+        Log.v(
+            TAG,
+            "layout variant=${result.variantIndex}/${variants.size} scale=${result.scale} " +
+                "blocks=${activeSpecs.map(TextBlockSpec::key)} " +
+                "lines=${linesFor(activeSpecs, paints).map { "${it.key}:${it.width}x${it.height}" }} " +
+                "rowSpacing=$rowSpacing " +
+                "column=$columnLeft..$columnRight graph=${layout.graphTop}..${layout.heightPx - layout.dayLabelHeight} " +
+                "bars=$barTop..$barBottom " +
+                "obstacles=${hardObstacles.map { "${it.left},${it.top},${it.right},${it.bottom}" }} " +
+                "prevZones=${data.previousZones} " +
+                "placements=${placements.map { "${it.key}:${it.zone}" }}",
+        )
 
         placements.forEach { placement ->
             val paint = paints.getValue(placement.key)

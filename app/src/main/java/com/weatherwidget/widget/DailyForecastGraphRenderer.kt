@@ -72,6 +72,14 @@ object DailyForecastGraphRenderer {
         val deltaColorArgb: Int = 0xE6FFFFFF.toInt(),
         val dominantTempText: String? = null,
         val dominantAgeText: String? = null,
+        /**
+         * Zone each overlay block occupied on this widget's previous render, keyed by block key.
+         * Feeds the planner's hysteresis: the obstacles it avoids are labels that shift as
+         * temperatures change, and without this a sub-pixel move can migrate a block between zones
+         * between renders. Empty on the first render of a widget.
+         */
+        val previousZones: Map<String, com.weatherwidget.shared.graph.TodayColumnOverlayPlanner.Zone> =
+            emptyMap(),
     )
 
     data class TodayOverlayPlacementDebug(

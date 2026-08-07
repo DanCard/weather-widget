@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -52,6 +53,16 @@ private const val GHOST_BAR_ALPHA = 0.3f
 private const val BULB_RADIUS_SCALE = 1.2f
 private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
 
+/**
+ * Vertical-fit shrink rungs for the Today-overlay planner ladder, matching Android's FONT_SCALES: a
+ * slightly smaller stack that clears the forecast bars beats a full-size one drawn across them. NOT
+ * horizontal width fitting — rows may still overflow a narrow Today column at every scale.
+ */
+private val DESKTOP_OVERLAY_FONT_SCALES = listOf(1f, 0.9f, 0.8f)
+
+/** Base size of the desktop daily high/low temperature labels; see the `12f * scale` call sites. */
+private const val DESKTOP_TEMP_LABEL_BASE_SP = 12f
+
 @Composable
 fun DailyForecastGraph(
     state: DesktopDailyViewState,
@@ -65,6 +76,10 @@ fun DailyForecastGraph(
         else com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius) ?: ""
     }
     val textMeasurer = rememberTextMeasurer()
+    // Zones the Today overlay used on the previous draw, feeding the planner's hysteresis so label
+    // jitter cannot migrate a block between zones between frames. A plain remembered map (not
+    // mutableStateOf) on purpose: it is written during draw and must not trigger recomposition.
+    val overlayZoneMemo = remember { mutableMapOf<String, TodayColumnOverlayPlanner.Zone>() }
     val displayDays = state.days
     // Use the pre-resolved, cloud-gated icon NAME (matches Android) rather than re-resolving the raw
     // condition here (which would ignore the noon cloud % and the daily partly-cloudy floor).
@@ -662,6 +677,11 @@ fun DailyForecastGraph(
                 barBottom = todayBarBottom.takeIf(Float::isFinite) ?: (bottom - graphHeight * 0.25f),
                 hardObstacles = todayHardObstacles,
                 scale = scale,
+                previousZones = overlayZoneMemo.toMap(),
+                onZonesResolved = { resolved ->
+                    overlayZoneMemo.clear()
+                    overlayZoneMemo.putAll(resolved)
+                },
             )
         }
     }
@@ -695,22 +715,27 @@ private fun DrawScope.drawDesktopTodayOverlay(
     barBottom: Float,
     hardObstacles: List<TodayColumnOverlayPlanner.Bounds>,
     scale: Float,
+    previousZones: Map<String, TodayColumnOverlayPlanner.Zone>,
+    onZonesResolved: (Map<String, TodayColumnOverlayPlanner.Zone>) -> Unit,
 ) {
-    // Block selection (including the independent temp/age toggles) is pure and shared with
-    // the Android renderer via TodayColumnOverlayBlocks.
-    val specs =
-        TodayColumnOverlayBlocks.build(
+    // Block selection (including the independent temp/age toggles) and the ordered content variants
+    // for the planner's degradation ladder are pure and shared with the Android renderer via
+    // TodayColumnOverlayBlocks.
+    val variants =
+        TodayColumnOverlayBlocks.variants(
             deltaValueText = content.deltaValueText,
             deltaCaptionText = content.deltaCaptionText,
             dominantTempText = content.dominantTempText,
             dominantAgeText = content.dominantAgeText,
-        ).map { block ->
-            DesktopOverlayBlock(
-                key = block.key,
-                rows = block.rows.map { DesktopOverlayRow(it.text, it.caption) },
-            )
+        ).map { blocks ->
+            blocks.map { block ->
+                DesktopOverlayBlock(
+                    key = block.key,
+                    rows = block.rows.map { DesktopOverlayRow(it.text, it.caption) },
+                )
+            }
         }
-    if (specs.isEmpty()) return
+    if (variants.isEmpty()) return
 
     val horizontalPadding = TodayColumnOverlayStyle.HORIZONTAL_PADDING_DP.dp.toPx()
 
@@ -739,24 +764,38 @@ private fun DrawScope.drawDesktopTodayOverlay(
                 ),
         )
 
-    fun measureAll(blocks: List<DesktopOverlayBlock>): List<MeasuredDesktopOverlayBlock> {
-        // Fixed font size, matching Android. No width fitting: rows render at the base size and
-        // may overflow narrow Today columns. Vertical placement still measures the real text size.
-        val fontSize = TodayColumnOverlayStyle.TEXT_SIZE_DP * scale
-        return blocks.map { spec -> MeasuredDesktopOverlayBlock(spec, layoutAt(spec, fontSize)) }
-    }
 
-    fun place(blocks: List<MeasuredDesktopOverlayBlock>): List<TodayColumnOverlayPlanner.Placement> =
-        TodayColumnOverlayPlanner.place(
-            lines =
-                blocks.map { block ->
+    // The planner searches variant x scale x zone x grouping in cost order and reports back which
+    // variant and font scale it settled on, so the layouts used to DRAW must be the ones measured at
+    // that result. The old `combined` retry — merging every block into one spec when a block failed
+    // to place — is gone: the planner now lays the stack out as a unit, which is what it approximated.
+    val measuredCache = HashMap<Pair<Int, Float>, List<MeasuredDesktopOverlayBlock>>()
+    fun measuredFor(variantIndex: Int, fontScale: Float): List<MeasuredDesktopOverlayBlock> =
+        measuredCache.getOrPut(variantIndex to fontScale) {
+            // Sized against DESKTOP's own temp-label base (12f), not the raw shared dp: TEXT_SIZE_DP
+            // is tuned for Android's 24dp temperature labels, so using it directly here made the
+            // overlay 1.42x its neighbouring labels instead of 0.71x — visibly oversized.
+            val fontSize =
+                DESKTOP_TEMP_LABEL_BASE_SP *
+                    TodayColumnOverlayStyle.TEXT_SIZE_FRACTION_OF_TEMP_LABEL *
+                    scale * fontScale
+            variants[variantIndex].map { spec -> MeasuredDesktopOverlayBlock(spec, layoutAt(spec, fontSize)) }
+        }
+
+    val result =
+        TodayColumnOverlayPlanner.layout(
+            variantCount = variants.size,
+            scales = DESKTOP_OVERLAY_FONT_SCALES,
+            measureAt = { variantIndex, fontScale ->
+                measuredFor(variantIndex, fontScale).map { block ->
                     TodayColumnOverlayPlanner.Line(
                         key = block.spec.key,
                         text = block.spec.rows.joinToString("\n", transform = DesktopOverlayRow::displayText),
                         width = block.layout.size.width.toFloat(),
                         height = block.layout.size.height.toFloat(),
                     )
-                },
+                }
+            },
             input =
                 TodayColumnOverlayPlanner.Input(
                     columnLeft = columnLeft,
@@ -769,22 +808,14 @@ private fun DrawScope.drawDesktopTodayOverlay(
                     horizontalPadding = horizontalPadding,
                     padding = TodayColumnOverlayStyle.VERTICAL_PADDING_DP.dp.toPx(),
                     verticalStep = 2.dp.toPx(),
+                    rowSpacing = TodayColumnOverlayStyle.ROW_SPACING_DP * scale,
+                    previousZones = previousZones,
                 ),
         )
+    val placements = result.placements
+    onZonesResolved(placements.associate { it.key to it.zone })
 
-    var measured = measureAll(specs)
-    var placements = place(measured)
-    if (placements.size < measured.size && measured.size > 1) {
-        val combined = DesktopOverlayBlock("combined", specs.flatMap(DesktopOverlayBlock::rows))
-        val measuredCombined = measureAll(listOf(combined))
-        val combinedPlacement = place(measuredCombined)
-        if (combinedPlacement.isNotEmpty()) {
-            measured = measuredCombined
-            placements = combinedPlacement
-        }
-    }
-
-    val byKey = measured.associateBy { it.spec.key }
+    val byKey = measuredFor(result.variantIndex, result.scale).associateBy { it.spec.key }
     placements.forEach { placement ->
         val layout = byKey.getValue(placement.key).layout
         drawOutlinedText(textMeasurer, layout, Offset(placement.bounds.left, placement.bounds.top))
