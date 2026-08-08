@@ -431,4 +431,30 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+    /** v61 adds lastWriter; existing rows get NULL and nothing else is disturbed. */
+    @Test
+    fun migrate60To61_addsLastWriterWithoutTouchingOtherColumns() {
+        val date = 20183L * 86_400_000L
+        helper.createDatabase(testDb, 60).apply {
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, " +
+                    "computedHighTemp, computedLowTemp, condition, updatedAt, apiHighTemp, " +
+                    "apiLowTemp, apiStationId, actualsSource) VALUES " +
+                    "($date, 'NWS', 37.4168, -122.0890, 75.0, 60.7, 'Clear', 1000, 75.2, 60.8, " +
+                    "'KNUQ', 'nws_station_pull')",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 61, true, WeatherDatabase.MIGRATION_60_61)
+
+        db.query("SELECT lastWriter, actualsSource, apiHighTemp, computedHighTemp FROM daily_history").use { c ->
+            assertTrue(c.moveToFirst())
+            assertTrue("pre-v61 rows have no recorded writer", c.isNull(0))
+            assertEquals("nws_station_pull", c.getString(1))
+            assertEquals(75.2, c.getDouble(2), 0.001)
+            assertEquals(75.0, c.getDouble(3), 0.001)
+        }
+        db.close()
+    }
 }

@@ -40,6 +40,8 @@ data class DailyHistory(
     val apiStationDistanceKm: Float? = null,
     /** See `DailyActualsSource`; also the marker that a past day's actuals are resolved. */
     val actualsSource: String? = null,
+    /** See `DailyHistoryWriter`; diagnostic only. */
+    val lastWriter: String? = null,
 ) {
     fun toLocalDate(): LocalDate =
         LocalDate.ofEpochDay(date / 86_400_000L)

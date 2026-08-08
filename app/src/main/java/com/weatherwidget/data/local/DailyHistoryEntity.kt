@@ -51,6 +51,8 @@ data class DailyHistoryEntity(
     // that a past day has been resolved, which is what freezes its blend against later recomputes.
     // Null for non-NWS rows and for rows written before v60.
     val actualsSource: String? = null,
+    // Which code path last wrote this row — see DailyHistoryWriter. Diagnostic only.
+    val lastWriter: String? = null,
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -76,6 +78,7 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     apiStationId = apiStationId,
     apiStationDistanceKm = apiStationDistanceKm,
     actualsSource = actualsSource,
+    lastWriter = lastWriter,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -101,4 +104,5 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     apiStationId = apiStationId,
     apiStationDistanceKm = apiStationDistanceKm,
     actualsSource = actualsSource,
+    lastWriter = lastWriter,
 )

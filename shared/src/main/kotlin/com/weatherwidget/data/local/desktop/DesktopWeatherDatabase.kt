@@ -144,6 +144,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         apiStationId TEXT,
                         apiStationDistanceKm REAL,
                         actualsSource TEXT,
+                        lastWriter TEXT,
                         PRIMARY KEY (date, source, locationLat, locationLon)
                     )
                 """.trimIndent())
@@ -382,6 +383,10 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 14) {
                 addColumnIfMissing(stmt, "daily_history", "actualsSource", "TEXT")
             }
+            // v15: record which code path last wrote the row (DailyHistoryWriter). Diagnostic.
+            if (from < 15) {
+                addColumnIfMissing(stmt, "daily_history", "lastWriter", "TEXT")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -427,6 +432,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 14
+        private const val SCHEMA_VERSION = 15
     }
 }

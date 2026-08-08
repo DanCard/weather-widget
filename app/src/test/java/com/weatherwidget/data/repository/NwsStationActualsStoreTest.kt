@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.DailyActualsSource
+import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.test.category.LongDuration
@@ -371,6 +372,76 @@ class NwsStationActualsStoreTest {
         assertTrue("a resolved day must stop costing requests", missing.isEmpty())
     }
 
+    /**
+     * The blend recompute owns exactly four things: the two computed temps, the condition, and the
+     * precip triple. Everything else on the row belongs to another writer and must survive
+     * untouched. Pinning this by *enumerating what may change* is what stops the next added column
+     * from being silently dropped — which is how actualsSource was lost the day it was added.
+     */
+    @Test
+    fun `recompute preserves every field it does not own`() = runTest {
+        val seeded = nwsRow().copy(
+            apiHighTemp = 75.2f,
+            apiLowTemp = 60.8f,
+            apiStationId = "KNUQ",
+            apiStationDistanceKm = 3.83f,
+            actualsSource = DailyActualsSource.CACHED_OBSERVATIONS.storedValue,
+            forecastHighTemp = 82f,
+            forecastLowTemp = 59f,
+            forecastPrecipAmountMm = 1.5f,
+            forecastDayPrecipChance = 40,
+            forecastNightPrecipChance = 10,
+            noonCloudPercent = 25,
+        )
+        db.dailyHistoryDao().insertAll(listOf(seeded))
+        db.observationDao().insertAll(
+            listOf(observation(3, 60.8f, "KNUQ", 3.83f), observation(15, 73.4f, "KNUQ", 3.83f)),
+        )
+
+        store.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+
+        val row = nwsRows().single()
+        // Not owned by the recompute — every one of these must come through unchanged.
+        assertEquals(75.2f, row.apiHighTemp)
+        assertEquals(60.8f, row.apiLowTemp)
+        assertEquals("KNUQ", row.apiStationId)
+        assertEquals(3.83f, row.apiStationDistanceKm)
+        assertEquals(DailyActualsSource.CACHED_OBSERVATIONS.storedValue, row.actualsSource)
+        assertEquals(82f, row.forecastHighTemp)
+        assertEquals(59f, row.forecastLowTemp)
+        assertEquals(1.5f, row.forecastPrecipAmountMm)
+        assertEquals(40, row.forecastDayPrecipChance)
+        assertEquals(10, row.forecastNightPrecipChance)
+        assertEquals(25, row.noonCloudPercent)
+        // Owned by the recompute.
+        assertEquals(DailyHistoryWriter.BLEND_RECOMPUTE.storedValue, row.lastWriter)
+    }
+
+    @Test
+    fun `a row with values but no provenance is re-queued for repair`() = runTest {
+        // The Pixel case: correct api temps, null actualsSource, invisible to a value-only predicate.
+        db.dailyHistoryDao().insertAll(
+            listOf(nwsRow(apiHigh = 75.2f, apiLow = 60.8f).copy(apiStationId = "KNUQ")),
+        )
+
+        val missing = store.findNwsDatesMissingStationActuals(lat, lon, yesterdayEpoch, yesterdayEpoch)
+
+        assertEquals(listOf(yesterdayEpoch), missing)
+    }
+
+    @Test
+    fun `each writer stamps itself`() = runTest {
+        db.dailyHistoryDao().insertAll(listOf(nwsRow()))
+        store.persistNwsDailyActuals(lat, lon, mapOf(yesterdayEpoch to actuals()))
+        assertEquals(DailyHistoryWriter.NWS_STATION_PULL.storedValue, nwsRows().single().lastWriter)
+
+        store.persistCachedStationActuals(lat, lon, mapOf(yesterdayEpoch to extreme()))
+        assertEquals(
+            DailyHistoryWriter.CACHED_STATION_FALLBACK.storedValue,
+            nwsRows().single().lastWriter,
+        )
+    }
+
     @Test
     fun `missing-date query returns only NWS rows lacking a complete pair`() = runTest {
         val other = yesterday.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
@@ -389,7 +460,14 @@ class NwsStationActualsStoreTest {
 
     @Test
     fun `a complete row is not reported as missing`() = runTest {
-        db.dailyHistoryDao().insertAll(listOf(nwsRow(apiHigh = 75.2f, apiLow = 60.8f)))
+        // "Complete" now means values AND provenance — a row with temps but no actualsSource is
+        // still unresolved and must be re-queued (see the sibling test).
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                nwsRow(apiHigh = 75.2f, apiLow = 60.8f)
+                    .copy(actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue),
+            ),
+        )
 
         val missing = store.findNwsDatesMissingStationActuals(lat, lon, yesterdayEpoch, yesterdayEpoch)
 

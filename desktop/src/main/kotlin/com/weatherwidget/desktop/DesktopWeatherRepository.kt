@@ -10,6 +10,7 @@ import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.actuals.DailyActualsSource
+import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.shared.history.ProviderHistoryDecision
@@ -546,25 +547,18 @@ class DesktopWeatherRepository(
                 val freezeBlend = DailyActualsSource.fromStored(existing.actualsSource) ==
                     DailyActualsSource.NWS_STATION_PULL &&
                     LocalDate.ofEpochDay(existing.date / 86_400_000L).isBefore(LocalDate.now())
-                new.copy(
+                // Built from `existing`, enumerating only what this writer owns — see the Android
+                // sibling. Building from `new` (a freshly constructed entity) silently drops any
+                // column added later, which is how actualsSource was lost the day it was added.
+                existing.copy(
                     computedHighTemp = if (freezeBlend) existing.computedHighTemp else new.computedHighTemp,
                     computedLowTemp = if (freezeBlend) existing.computedLowTemp else new.computedLowTemp,
-                    forecastDayPrecipChance = existing.forecastDayPrecipChance,
-                    forecastNightPrecipChance = existing.forecastNightPrecipChance,
-                    forecastHighTemp = existing.forecastHighTemp,
-                    forecastLowTemp = existing.forecastLowTemp,
-                    forecastPrecipAmountMm = existing.forecastPrecipAmountMm,
-                    noonCloudPercent = existing.noonCloudPercent,
-                    // api actuals are owned by their dedicated writers (NWS: the station pull;
-                    // Open-Meteo: persistOpenMeteoApiActuals) and are never derived from the
-                    // stored observation pool — carry them through untouched.
-                    apiHighTemp = existing.apiHighTemp,
-                    apiLowTemp = existing.apiLowTemp,
-                    apiStationId = existing.apiStationId,
-                    apiStationDistanceKm = existing.apiStationDistanceKm,
-                    // Must be carried: dropping it both loses the provenance and silently disables
-                    // the freeze guard, which reads this very field on the NEXT recompute.
-                    actualsSource = existing.actualsSource,
+                    condition = new.condition,
+                    precipAmountMm = new.precipAmountMm,
+                    precipDayMm = new.precipDayMm,
+                    precipNightMm = new.precipNightMm,
+                    updatedAt = new.updatedAt,
+                    lastWriter = DailyHistoryWriter.BLEND_RECOMPUTE.storedValue,
                 )
             }
         }
@@ -937,6 +931,7 @@ class DesktopWeatherRepository(
                 noonCloudPercent = existing?.noonCloudPercent,
                 apiHighTemp = day.highTemp,
                 apiLowTemp = day.lowTemp,
+                lastWriter = DailyHistoryWriter.OPEN_METEO_PAST_DAYS.storedValue,
             )
         }
         if (toUpsert.isNotEmpty()) {
@@ -958,7 +953,12 @@ class DesktopWeatherRepository(
         val endMs = today.toEpochDay() * 86_400_000L
 
         val missing = weatherDao.getExtremesInRange(startMs, endMs, latitude, longitude)
-            .filter { it.source == WeatherSource.NWS.id && (it.apiHighTemp == null || it.apiLowTemp == null) }
+            // Also catches rows with correct values but no provenance — a value-only predicate
+            // can never repair those. See the Android sibling.
+            .filter {
+                it.source == WeatherSource.NWS.id &&
+                    (it.apiHighTemp == null || it.apiLowTemp == null || it.actualsSource == null)
+            }
             .map { it.date }
             .distinct()
         if (missing.isEmpty()) return
@@ -1039,6 +1039,7 @@ class DesktopWeatherRepository(
                         apiStationId = actuals.station?.stationId ?: row.apiStationId,
                         apiStationDistanceKm = actuals.station?.distanceKm ?: row.apiStationDistanceKm,
                         actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue,
+                        lastWriter = DailyHistoryWriter.NWS_STATION_PULL.storedValue,
                         updatedAt = now,
                     )
                 }
@@ -1051,6 +1052,7 @@ class DesktopWeatherRepository(
                         apiStationId = station.stationId,
                         apiStationDistanceKm = station.distanceKm,
                         actualsSource = DailyActualsSource.CACHED_OBSERVATIONS.storedValue,
+                        lastWriter = DailyHistoryWriter.CACHED_STATION_FALLBACK.storedValue,
                         updatedAt = now,
                     )
                 }

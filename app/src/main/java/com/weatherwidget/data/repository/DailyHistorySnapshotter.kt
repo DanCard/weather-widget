@@ -5,6 +5,7 @@ import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.DailyHistoryEntity
+import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
@@ -168,6 +169,7 @@ internal class DailyHistorySnapshotter(
             ),
         )
         val updated = existing.copy(
+            lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
             forecastDayPrecipChance = newDay,
             forecastNightPrecipChance = newNight,
             forecastHighTemp = frozen.forecastHighTemp,
@@ -267,6 +269,7 @@ internal class DailyHistorySnapshotter(
             )
             toInsert.add(
                 row.copy(
+                    lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
                     forecastDayPrecipChance = newDay,
                     forecastNightPrecipChance = newNight,
                 ),
@@ -324,6 +327,7 @@ internal class DailyHistorySnapshotter(
             if (dayNight.dayMax == null && dayNight.nightMax == null) continue
             toInsert.add(
                 row.copy(
+                    lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
                     forecastDayPrecipChance = dayNight.dayMax,
                     forecastNightPrecipChance = dayNight.nightMax,
                 ),
@@ -398,6 +402,7 @@ internal class DailyHistorySnapshotter(
                 )
             }
             val updated = row.copy(
+                lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
                 forecastHighTemp = row.forecastHighTemp ?: overlay?.highTemp,
                 forecastLowTemp = row.forecastLowTemp ?: overlay?.lowTemp,
                 forecastPrecipAmountMm = row.forecastPrecipAmountMm

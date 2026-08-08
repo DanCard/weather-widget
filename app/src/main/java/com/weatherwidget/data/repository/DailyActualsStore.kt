@@ -18,6 +18,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.actuals.DailyActualsSource
+import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.widget.DailyActualsBySource
@@ -192,10 +193,6 @@ class DailyActualsStore @Inject constructor(
                 personalStationWeightProvider.currentWeight(),
             )
             .filter { it.date == dateMillis }
-        val existingHistory = dailyHistoryDao
-            .getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
-            .groupBy { it.source }
-
         // NOTE: apiHighTemp/apiLowTemp are deliberately NOT derived here. The stored observation
         // pool is a mix of NWS API rows and Synoptic rows from the prefer-newest latest path, and
         // its API subset is too thinly sampled to carry a daily peak (measured at KNUQ: 17-24 of
@@ -215,7 +212,7 @@ class DailyActualsStore @Inject constructor(
             longitude = longitude,
         )
 
-        persistExtremes(date, newExtremes, existingHistory)
+        persistExtremes(date, dateMillis, newExtremes, latitude, longitude)
     }
 
     private suspend fun logBlendBreakdown(
@@ -246,16 +243,38 @@ class DailyActualsStore @Inject constructor(
         }
     }
 
+    /**
+     * Reads the current rows **here**, immediately before merging and writing, rather than taking
+     * a snapshot from the caller.
+     *
+     * The caller does a network-free but non-trivial amount of work between its own reads and this
+     * write — observation queries, the IDW blend, two diagnostic log passes. A concurrent
+     * [persistNwsDailyActuals] landing in that window used to be silently clobbered by the stale
+     * snapshot. Observed on the Pixel 2026-08-08: the station pull wrote all six dates with
+     * provenance at 12:59:30.115, then a recompute overwrote 2026-08-06 with a snapshot in which
+     * `actualsSource` was still null, erasing it. 08-07 survived only on interleaving luck. Because
+     * the freeze guard reads that same field, the race also defeats the guard on the very cycle
+     * that establishes it — both dates' blends moved despite being pull-derived.
+     *
+     * This shrinks the window to the merge loop rather than closing it outright; a genuine fix
+     * would wrap read+merge+write in a transaction, which is awkward while the blend math sits
+     * between the caller's own DAO reads.
+     */
     private suspend fun persistExtremes(
         date: LocalDate,
+        dateMillis: Long,
         newExtremes: List<DailyHistoryEntity>,
-        existingHistory: Map<String, List<DailyHistoryEntity>>,
+        latitude: Double,
+        longitude: Double,
     ) {
+        val existingHistory = dailyHistoryDao
+            .getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
+            .groupBy { it.source }
         val toInsert = mutableListOf<DailyHistoryEntity>()
         newExtremes.forEach { new ->
             val fragments = existingHistory[new.source].orEmpty()
             if (fragments.isEmpty()) {
-                toInsert.add(new)
+                toInsert.add(new.copy(lastWriter = DailyHistoryWriter.BLEND_RECOMPUTE.storedValue))
                 return@forEach
             }
             var changedAny = false
@@ -273,31 +292,25 @@ class DailyActualsStore @Inject constructor(
                 // observations backfill.
                 val freezeBlend = DailyActualsSource.fromStored(existing.actualsSource) ==
                     DailyActualsSource.NWS_STATION_PULL && date.isBefore(LocalDate.now())
-                val merged = new.copy(
+                // Built from `existing`, enumerating only the fields THIS writer owns.
+                //
+                // It used to be built from `new` — a freshly constructed entity from
+                // ObservationResolver.computeDailyExtremes — with a list of fields to take back
+                // from `existing`. That inverts the safe default: every column added later
+                // defaults to null in `new` and is silently dropped unless someone remembers to
+                // extend the list. `actualsSource` was dropped exactly that way the day it was
+                // added, which also disabled the freeze guard that reads it. Building from
+                // `existing` means an unknown column is preserved by construction.
+                val merged = existing.copy(
                     computedHighTemp = if (freezeBlend) existing.computedHighTemp else new.computedHighTemp,
                     computedLowTemp = if (freezeBlend) existing.computedLowTemp else new.computedLowTemp,
-                    locationLat = existing.locationLat,
-                    locationLon = existing.locationLon,
-                    forecastDayPrecipChance = existing.forecastDayPrecipChance,
-                    forecastNightPrecipChance = existing.forecastNightPrecipChance,
-                    forecastHighTemp = existing.forecastHighTemp,
-                    forecastLowTemp = existing.forecastLowTemp,
-                    forecastPrecipAmountMm = existing.forecastPrecipAmountMm,
-                    noonCloudPercent = existing.noonCloudPercent,
-                    // Keep the stored api actual only when this recompute produced none — e.g.
-                    // Open-Meteo, whose ERA5 values come from persistOpenMeteoPastDayActuals and
-                    // have no station behind them, or an NWS day where every official station
-                    // failed the coverage guard.
-                    apiHighTemp = new.apiHighTemp ?: existing.apiHighTemp,
-                    apiLowTemp = new.apiLowTemp ?: existing.apiLowTemp,
-                    apiStationId = new.apiStationId ?: existing.apiStationId,
-                    apiStationDistanceKm = new.apiStationDistanceKm ?: existing.apiStationDistanceKm,
-                    // Must be carried: dropping it both loses the provenance and silently disables
-                    // the freeze guard, which reads this very field on the NEXT recompute.
-                    actualsSource = new.actualsSource ?: existing.actualsSource,
-                    updatedAt = existing.updatedAt,
+                    condition = new.condition,
+                    precipAmountMm = new.precipAmountMm,
+                    precipDayMm = new.precipDayMm,
+                    precipNightMm = new.precipNightMm,
+                    lastWriter = DailyHistoryWriter.BLEND_RECOMPUTE.storedValue,
                 )
-                if (merged != existing) {
+                if (merged.copy(lastWriter = existing.lastWriter) != existing) {
                     changedAny = true
                     appLogDao.log(
                         "DAILY_HISTORY_OVERWRITE",
@@ -415,7 +428,14 @@ class DailyActualsStore @Inject constructor(
     ): List<Long> =
         dailyHistoryDao
             .getExtremesInRange(startMs, endMs, latitude, longitude)
-            .filter { it.source == WeatherSource.NWS.id && (it.apiHighTemp == null || it.apiLowTemp == null) }
+            // Also catches rows whose VALUES are fine but whose provenance is missing. A repair
+            // keyed only on values can never fix a row like that — observed on the Pixel, where
+            // 2026-08-06 kept correct api temps with a null actualsSource forever because it was
+            // not "missing" by the old predicate.
+            .filter {
+                it.source == WeatherSource.NWS.id &&
+                    (it.apiHighTemp == null || it.apiLowTemp == null || it.actualsSource == null)
+            }
             .map { it.date }
             .distinct()
 
@@ -476,6 +496,7 @@ class DailyActualsStore @Inject constructor(
                     apiStationId = actuals.station?.stationId ?: row.apiStationId,
                     apiStationDistanceKm = actuals.station?.distanceKm ?: row.apiStationDistanceKm,
                     actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue,
+                    lastWriter = DailyHistoryWriter.NWS_STATION_PULL.storedValue,
                     updatedAt = now,
                 )
                 updated.takeIf { it.copy(updatedAt = row.updatedAt) != row }
@@ -551,6 +572,7 @@ class DailyActualsStore @Inject constructor(
                     apiStationId = station.stationId,
                     apiStationDistanceKm = station.distanceKm,
                     actualsSource = DailyActualsSource.CACHED_OBSERVATIONS.storedValue,
+                    lastWriter = DailyHistoryWriter.CACHED_STATION_FALLBACK.storedValue,
                     updatedAt = now,
                 )
                 updated.takeIf { it.copy(updatedAt = row.updatedAt) != row }
@@ -633,6 +655,7 @@ class DailyActualsStore @Inject constructor(
                     noonCloudPercent = existingRow?.noonCloudPercent,
                     apiHighTemp = day.highTemp,
                     apiLowTemp = day.lowTemp,
+                    lastWriter = DailyHistoryWriter.OPEN_METEO_PAST_DAYS.storedValue,
                 ),
             )
         }
