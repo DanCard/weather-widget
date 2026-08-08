@@ -1,0 +1,1 @@
+Release 26080801: Derive NWS daily actuals directly from official station observations instead of forecast gridpoints, improve observation pool fallbacks when offline or station pull fails, and update accuracy baseline selection.
