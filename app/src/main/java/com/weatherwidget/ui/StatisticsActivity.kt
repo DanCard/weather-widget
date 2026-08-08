@@ -1,6 +1,7 @@
 package com.weatherwidget.ui
 
 import android.os.Bundle
+import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -9,7 +10,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.stats.AccuracyBaselineField
 import com.weatherwidget.stats.AccuracyCalculator
+import com.weatherwidget.stats.AccuracyPreferences
 import com.weatherwidget.stats.DailyAccuracy
 import com.weatherwidget.stats.DailyRainAccuracy
 import com.weatherwidget.stats.RainAccuracyCalculator
@@ -25,6 +28,9 @@ class StatisticsActivity : AppCompatActivity() {
 
     @Inject
     lateinit var rainAccuracyCalculator: RainAccuracyCalculator
+
+    @Inject
+    lateinit var accuracyPreferences: AccuracyPreferences
 
     private lateinit var adapter: DailyAccuracyAdapter
     private lateinit var rainAdapter: DailyRainAccuracyAdapter
@@ -56,6 +62,47 @@ class StatisticsActivity : AppCompatActivity() {
         rainAdapter = DailyRainAccuracyAdapter()
         rainRecyclerView.adapter = rainAdapter
         rainRecyclerView.layoutManager = LinearLayoutManager(this)
+
+        setupBaselineSelector()
+    }
+
+    /**
+     * Baseline selector. Both actuals are always stored in daily_history, so switching only
+     * re-runs the computation over data already on disk — no refetch, and past days are never
+     * rewritten.
+     */
+    private fun setupBaselineSelector() {
+        val group = findViewById<RadioGroup>(R.id.baseline_field_group)
+        val explainer = findViewById<TextView>(R.id.baseline_explainer_text)
+
+        fun render(field: AccuracyBaselineField) {
+            explainer.text = getString(
+                when (field) {
+                    AccuracyBaselineField.NATIVE_ACTUAL -> R.string.stats_baseline_explainer_native
+                    AccuracyBaselineField.BLENDED_LOCATION -> R.string.stats_baseline_explainer_blended
+                },
+            )
+        }
+
+        val current = accuracyPreferences.baselineField()
+        group.check(
+            when (current) {
+                AccuracyBaselineField.NATIVE_ACTUAL -> R.id.baseline_native_actual
+                AccuracyBaselineField.BLENDED_LOCATION -> R.id.baseline_blended_location
+            },
+        )
+        render(current)
+
+        group.setOnCheckedChangeListener { _, checkedId ->
+            val selected = when (checkedId) {
+                R.id.baseline_blended_location -> AccuracyBaselineField.BLENDED_LOCATION
+                else -> AccuracyBaselineField.NATIVE_ACTUAL
+            }
+            if (selected == accuracyPreferences.baselineField()) return@setOnCheckedChangeListener
+            accuracyPreferences.setBaselineField(selected)
+            render(selected)
+            loadStatistics()
+        }
     }
 
     private fun loadStatistics() {

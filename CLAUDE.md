@@ -122,6 +122,10 @@ DIFFERENCE, NONE — were removed; there is no display-mode setting.)
   `app_logs.timestamp` is epoch millis (use `'localtime'`)
 - Coordinate-keyed tables quantize lat/lon on write and select via the shared `LocationMatch`
   proximity box to avoid GPS-jitter fragmentation
+- `daily_history` carries **two independent** actuals per row — `apiHighTemp`/`apiLowTemp` (the
+  provider's own product; for NWS a dedicated `/stations/{id}/observations` pull) and
+  `computedHighTemp`/`computedLowTemp` (the IDW blend). They do **not** share a data source. See
+  [arch/daily-history-extremes.md](arch/daily-history-extremes.md).
 
 ## Update Strategy
 

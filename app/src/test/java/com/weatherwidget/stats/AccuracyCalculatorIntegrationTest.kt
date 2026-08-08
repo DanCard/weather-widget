@@ -43,7 +43,13 @@ class AccuracyCalculatorIntegrationTest {
     @Before
     fun setup() {
         db = TestDatabase.create()
-        calculator = AccuracyCalculator(db.forecastDao(), db.dailyHistoryDao())
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        calculator = AccuracyCalculator(
+            db.forecastDao(),
+            db.dailyHistoryDao(),
+            com.weatherwidget.widget.WidgetStateManager(context),
+            AccuracyPreferences(context),
+        )
     }
 
     @After
@@ -198,22 +204,50 @@ class AccuracyCalculatorIntegrationTest {
         }
     }
 
+    /**
+     * Behaviour changed 2026-08-08. A source with a forecast snapshot but no actuals row of its own
+     * used to be dropped; it now borrows a baseline via [ActualsBaselineResolver], because the
+     * alternative for a forecast-only source was being scored against its own forecast. The
+     * borrowed baseline is recorded on the row so the UI can disclose it.
+     * See plans/260808-nws-actuals-forecast-contamination.md.
+     */
     @Test
-    fun `getDailyAccuracyBreakdown does not mix NWS and Open-Meteo extremes`() = runTest {
+    fun `a source with no actual of its own borrows a baseline and records the provenance`() = runTest {
         val target = dateStr(1)
         val forecastMade = dateStr(2)
 
-        // NWS actual but Open-Meteo snapshot — should NOT match
         insertExtreme(target, WeatherSource.NWS, computedHighTemp = 72f, computedLowTemp = 50f)
         insertForecastSnapshot(target, forecastMade, WeatherSource.OPEN_METEO, highTemp = 68f, lowTemp = 48f)
 
         val nwsResult = calculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
         val meteoResult = calculator.getDailyAccuracyBreakdown(WeatherSource.OPEN_METEO, lat, lon, 30)
 
-        // NWS has an actual but no NWS snapshot → empty
+        // Still empty: there is no NWS snapshot to score, and an actual alone scores nothing.
         assertTrue("NWS should have no result without NWS snapshot", nwsResult.isEmpty())
-        // Open-Meteo has a snapshot but no Open-Meteo actual → empty
-        assertTrue("Open-Meteo should have no result without Open-Meteo actual", meteoResult.isEmpty())
+
+        // Open-Meteo is scored against NWS's actual rather than dropped.
+        assertEquals(1, meteoResult.size)
+        val day = meteoResult.single()
+        assertEquals(72, day.computedHighTemp)
+        assertEquals(+4, day.highError)
+        assertEquals(
+            "the borrowed baseline must be named, or the error misstates what it measured",
+            WeatherSource.NWS.id,
+            day.baselineSourceId,
+        )
+    }
+
+    @Test
+    fun `a source scored against its own actual records no borrowed baseline`() = runTest {
+        val target = dateStr(1)
+        val forecastMade = dateStr(2)
+
+        insertExtreme(target, WeatherSource.NWS, computedHighTemp = 72f, computedLowTemp = 50f)
+        insertForecastSnapshot(target, forecastMade, WeatherSource.NWS, highTemp = 70f, lowTemp = 52f)
+
+        val day = calculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30).single()
+
+        assertNull(day.baselineSourceId)
     }
 
     @Test

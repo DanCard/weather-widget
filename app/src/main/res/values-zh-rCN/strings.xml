@@ -294,4 +294,11 @@
     <string name="blend_no_points">暂无混合数据点。</string>
     <string name="blend_no_location">没有可用于混合的位置。</string>
     <string name="blend_load_failed">无法生成混合表：%1$s</string>
+    <string name="stats_baseline_heading">精度对比基准</string>
+    <string name="stats_baseline_native_actual">官方气象站实测值</string>
+    <string name="stats_baseline_blended_location">地点混合估算值</string>
+    <string name="stats_baseline_explainer_native">最近的官方气象站自身记录的最高和最低气温。这是单个温度计的读数，可能与您确切地址的实况有出入，但其中没有任何部分来自预报。</string>
+    <string name="stats_baseline_explainer_blended">将附近所有气象站合并并插值到您的坐标。更贴近您的地址，但观测之间的空档使用预报补齐，因此预报误差会被略微低估。</string>
+    <string name="stats_baseline_vs_source">对比 %1$s</string>
+    <string name="stats_baseline_blend_fallback">混合值（无气象站）</string>
 </resources>

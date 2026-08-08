@@ -294,4 +294,11 @@
     <string name="blend_no_points">এখনও কোনো মিশ্রিত পয়েন্ট নেই।</string>
     <string name="blend_no_location">মিশ্রণের জন্য কোনো অবস্থান নেই।</string>
     <string name="blend_load_failed">মিশ্রণ টেবিল তৈরি করা যায়নি: %1$s</string>
+    <string name="stats_baseline_heading">নির্ভুলতা কীসের সাপেক্ষে মাপা হবে</string>
+    <string name="stats_baseline_native_actual">সরকারি স্টেশনের পাঠ</string>
+    <string name="stats_baseline_blended_location">অবস্থানের মিশ্র অনুমান</string>
+    <string name="stats_baseline_explainer_native">নিকটতম সরকারি আবহাওয়া স্টেশনের নিজের নথিভুক্ত সর্বোচ্চ ও সর্বনিম্ন তাপমাত্রা। এটি একটিমাত্র থার্মোমিটার, তাই আপনার সঠিক ঠিকানার অবস্থা থেকে আলাদা হতে পারে — তবে এর কোনো অংশই পূর্বাভাস থেকে আসেনি।</string>
+    <string name="stats_baseline_explainer_blended">কাছাকাছি সব স্টেশন একত্র করে আপনার স্থানাঙ্কে ইন্টারপোলেট করা হয়। আপনার ঠিকানার আরও কাছাকাছি, তবে পাঠের মধ্যেকার ফাঁক পূর্বাভাস দিয়ে পূরণ করা হয়, ফলে পূর্বাভাসের ত্রুটি সামান্য কম দেখায়।</string>
+    <string name="stats_baseline_vs_source">বনাম %1$s</string>
+    <string name="stats_baseline_blend_fallback">মিশ্র (স্টেশন নেই)</string>
 </resources>

@@ -294,4 +294,11 @@
     <string name="blend_no_points">Noch kein gemischter Punkt verfügbar.</string>
     <string name="blend_no_location">Kein Standort für die Mischung verfügbar.</string>
     <string name="blend_load_failed">Mischungstabelle konnte nicht erstellt werden: %1$s</string>
+    <string name="stats_baseline_heading">Genauigkeit messen anhand von</string>
+    <string name="stats_baseline_native_actual">Messwert der offiziellen Station</string>
+    <string name="stats_baseline_blended_location">Geschätzter Ortswert (gemischt)</string>
+    <string name="stats_baseline_explainer_native">Der von der nächstgelegenen offiziellen Wetterstation selbst aufgezeichnete Höchst- und Tiefstwert. Nur ein Thermometer, daher kann er von den Bedingungen an Ihrer genauen Adresse abweichen — aber nichts daran stammt aus einer Vorhersage.</string>
+    <string name="stats_baseline_explainer_blended">Alle nahegelegenen Stationen kombiniert und auf Ihre Koordinaten interpoliert. Näher an Ihrer Adresse, aber Lücken zwischen den Messungen werden mit der Vorhersage überbrückt, sodass der Vorhersagefehler leicht unterschätzt wird.</string>
+    <string name="stats_baseline_vs_source">vs. %1$s</string>
+    <string name="stats_baseline_blend_fallback">Mischwert (keine Station)</string>
 </resources>

@@ -47,7 +47,20 @@ class DailyAccuracyAdapter(private val useCelsius: Boolean) : RecyclerView.Adapt
 
         fun bind(item: DailyAccuracy) {
             dateText.text = item.date
-            sourceText.text = item.source
+            // Provenance: an error figure that doesn't say what it was measured against is
+            // misleading, especially when the graded source has no actuals of its own and
+            // borrowed another source's.
+            sourceText.text = buildString {
+                append(item.source)
+                item.baselineSourceId?.let {
+                    append(" ")
+                    append(itemView.context.getString(R.string.stats_baseline_vs_source, it))
+                }
+                item.baselineStationId?.let { append(" · ").append(it) }
+                if (item.baselineFellBackToBlend) {
+                    append(" · ").append(itemView.context.getString(R.string.stats_baseline_blend_fallback))
+                }
+            }
 
             val dispActualHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.computedHighTemp.toFloat()).roundToInt() else item.computedHighTemp
             val dispActualLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.computedLowTemp.toFloat()).roundToInt() else item.computedLowTemp

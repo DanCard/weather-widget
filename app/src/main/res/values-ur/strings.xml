@@ -294,4 +294,11 @@
     <string name="blend_no_points">ابھی کوئی مخلوط پوائنٹ دستیاب نہیں۔</string>
     <string name="blend_no_location">امتزاج کے لیے کوئی مقام دستیاب نہیں۔</string>
     <string name="blend_load_failed">امتزاج ٹیبل نہیں بنایا جا سکا: %1$s</string>
+    <string name="stats_baseline_heading">درستگی کس کے مقابلے میں ناپیں</string>
+    <string name="stats_baseline_native_actual">سرکاری اسٹیشن کی ریڈنگ</string>
+    <string name="stats_baseline_blended_location">مقام کا مخلوط تخمینہ</string>
+    <string name="stats_baseline_explainer_native">قریب ترین سرکاری موسمی اسٹیشن کا خود ریکارڈ کیا ہوا زیادہ سے زیادہ اور کم سے کم درجہ حرارت۔ یہ ایک ہی تھرمامیٹر ہے، اس لیے آپ کے عین پتے کے حالات سے مختلف ہو سکتا ہے — مگر اس کا کوئی حصہ پیش گوئی سے اخذ نہیں کیا گیا۔</string>
+    <string name="stats_baseline_explainer_blended">قریبی تمام اسٹیشنوں کو ملا کر آپ کے کوآرڈینیٹس پر انٹرپولیٹ کیا جاتا ہے۔ آپ کے پتے کے زیادہ قریب، مگر ریڈنگز کے درمیان خلا پیش گوئی سے پُر کیا جاتا ہے، اس لیے پیش گوئی کی خامی کچھ کم دکھائی دیتی ہے۔</string>
+    <string name="stats_baseline_vs_source">بمقابلہ %1$s</string>
+    <string name="stats_baseline_blend_fallback">مخلوط (کوئی اسٹیشن نہیں)</string>
 </resources>

@@ -44,6 +44,15 @@ data class DailyAccuracy(
     val source: String,
     val highError: Int,
     val lowError: Int,
+    /**
+     * Which source's daily_history row supplied the actual, and how. Null [baselineSourceId] means
+     * the graded source was measured against itself (the normal case). When it differs, the graded
+     * source has no past-weather product of its own and was measured against a borrowed baseline —
+     * the UI must say so, or the error figure misrepresents what it compared.
+     */
+    val baselineSourceId: String? = null,
+    val baselineStationId: String? = null,
+    val baselineFellBackToBlend: Boolean = false,
 )
 
 /**

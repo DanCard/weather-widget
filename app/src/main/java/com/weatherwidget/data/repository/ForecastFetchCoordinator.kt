@@ -14,7 +14,6 @@ import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
-import com.weatherwidget.shared.actuals.NwsApiActualsBackfill
 import com.weatherwidget.widget.ForecastFetchContext
 import com.weatherwidget.widget.ForecastFetchPolicy
 import com.weatherwidget.widget.ForecastStalenessPolicy
@@ -44,6 +43,7 @@ internal class ForecastFetchCoordinator(
     private val hourlyStore: HourlyForecastStore,
     private val weatherApiHistoryBackfiller: WeatherApiHistoryBackfiller,
     private val dailyActualsStore: DailyActualsStore,
+    private val nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher?,
 ) {
     fun requiresNetworkFetch(
         forecasts: List<ForecastEntity>,
@@ -266,23 +266,12 @@ internal class ForecastFetchCoordinator(
             }
         }
 
-        // Backfill NWS api actuals from Open-Meteo ERA5 archive
-        backfillNwsApiActualsIfNeeded(latitude, longitude)
-    }
-
-    private suspend fun backfillNwsApiActualsIfNeeded(latitude: Double, longitude: Double) {
-        val today = LocalDate.now()
-        val startMs = today.minusDays(90).toEpochDay() * 86_400_000L
-        val endMs = today.toEpochDay() * 86_400_000L
-        val missingDates = dailyActualsStore.findNwsDatesMissingApiActuals(latitude, longitude, startMs, endMs)
-        if (missingDates.isEmpty()) return
-        val archiveActuals = NwsApiActualsBackfill.backfill(
-            fetchArchive = { start, end -> openMeteoApi.getHistoricalDailyTemps(latitude, longitude, start, end) },
-            latitude = latitude,
-            longitude = longitude,
-            epochDayMillis = missingDates,
-        )
-        dailyActualsStore.backfillNwsApiActualsFromArchive(latitude, longitude, archiveActuals)
+        // NWS daily actuals from a dedicated /stations/{id}/observations pull. Idempotent: only
+        // dates still missing a station-derived actual trigger a request.
+        if (WeatherSource.NWS in sourcesToFetch) {
+            runCatching { nwsApiDailyActualsFetcher?.fillMissingIfNeeded(latitude, longitude) }
+                .onFailure { if (it is CancellationException) throw it }
+        }
     }
 
     suspend fun fetchFromNws(

@@ -30,6 +30,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.shared.actuals.ApiActualPicker
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
@@ -520,7 +521,20 @@ private fun loadHistory(
     var appLow: Float? = null
     if (isPast) {
         val allRows = dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon)
-        val apiRow = allRows.find { it.source == source.id && it.apiHighTemp != null && it.apiLowTemp != null }
+        // Same nearest-fragment-with-a-complete-pair rule Android uses. A bare `find` took whatever
+        // row the DAO happened to return first, so two same-site fragments holding different
+        // actuals resolved arbitrarily — and differently from Android for the same date.
+        val apiRow = ApiActualPicker.pickNearestComplete(
+            rows = allRows,
+            lat = lat,
+            lon = lon,
+            sourceId = source.id,
+            source = { it.source },
+            locationLat = { it.locationLat },
+            locationLon = { it.locationLon },
+            apiHigh = { it.apiHighTemp },
+            apiLow = { it.apiLowTemp },
+        )
         apiHigh = apiRow?.apiHighTemp
         apiLow = apiRow?.apiLowTemp
         val appActual = allRows.firstOrNull { it.source == source.id }
@@ -531,7 +545,7 @@ private fun loadHistory(
     val newestFetch = rows.maxByOrNull { it.fetchedAt }?.fetchedAt
     val newestAge = newestFetch?.let { System.currentTimeMillis() - it }
 
-    val calc = DesktopAccuracyCalculator(dao)
+    val calc = DesktopAccuracyCalculator(dao, orderedVisibleSources = visibleSources)
     val useCelsius = config.useCelsius
     val summary = buildString {
         visibleSources.forEachIndexed { index, s ->

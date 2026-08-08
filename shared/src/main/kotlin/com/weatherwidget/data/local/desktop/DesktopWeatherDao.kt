@@ -234,8 +234,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO daily_history
-                    (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     for (ex in extremes) {
@@ -258,6 +258,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableInt(17, ex.noonCloudPercent)
                         stmt.setNullableFloat(18, ex.apiHighTemp)
                         stmt.setNullableFloat(19, ex.apiLowTemp)
+                        stmt.setString(20, ex.apiStationId)
+                        stmt.setNullableFloat(21, ex.apiStationDistanceKm)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -1023,6 +1025,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
                         apiHighTemp = rs.getNullableFloat("apiHighTemp"),
                         apiLowTemp = rs.getNullableFloat("apiLowTemp"),
+                        apiStationId = rs.getString("apiStationId"),
+                        apiStationDistanceKm = rs.getNullableFloat("apiStationDistanceKm"),
                     ))
                 }
             }

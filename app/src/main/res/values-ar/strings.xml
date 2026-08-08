@@ -294,4 +294,11 @@
     <string name="blend_no_points">لا توجد نقطة مزج متاحة بعد.</string>
     <string name="blend_no_location">لا يوجد موقع متاح للمزج.</string>
     <string name="blend_load_failed">تعذر إنشاء جدول المزج: %1$s</string>
+    <string name="stats_baseline_heading">قياس الدقة مقابل</string>
+    <string name="stats_baseline_native_actual">قراءة المحطة الرسمية</string>
+    <string name="stats_baseline_blended_location">تقدير مُدمج للموقع</string>
+    <string name="stats_baseline_explainer_native">درجتا الحرارة العظمى والصغرى كما سجّلتهما أقرب محطة أرصاد رسمية بنفسها. إنه مقياس حرارة واحد، لذا قد يختلف عن الأحوال في عنوانك بالضبط، لكن لا شيء فيه مشتق من التوقعات.</string>
+    <string name="stats_baseline_explainer_blended">دمج جميع المحطات القريبة واستيفاؤها عند إحداثياتك. أقرب إلى عنوانك، لكن الفجوات بين القراءات تُسدّ باستخدام التوقعات، لذا يظهر خطأ التوقعات أقل قليلاً مما هو عليه.</string>
+    <string name="stats_baseline_vs_source">مقابل %1$s</string>
+    <string name="stats_baseline_blend_fallback">مُدمج (بلا محطة)</string>
 </resources>

@@ -294,4 +294,11 @@
     <string name="blend_no_points">Nessun punto miscelato ancora disponibile.</string>
     <string name="blend_no_location">Nessuna posizione disponibile per la miscela.</string>
     <string name="blend_load_failed">Impossibile creare la tabella della miscela: %1$s</string>
+    <string name="stats_baseline_heading">Misura la precisione rispetto a</string>
+    <string name="stats_baseline_native_actual">Lettura della stazione ufficiale</string>
+    <string name="stats_baseline_blended_location">Stima combinata della posizione</string>
+    <string name="stats_baseline_explainer_native">La massima e la minima registrate dalla stazione meteo ufficiale più vicina. È un solo termometro, quindi può differire dalle condizioni al tuo indirizzo esatto, ma nulla di esso deriva da una previsione.</string>
+    <string name="stats_baseline_explainer_blended">Tutte le stazioni vicine combinate e interpolate alle tue coordinate. Più vicino al tuo indirizzo, ma gli intervalli tra le letture vengono colmati con la previsione, quindi l\'errore di previsione risulta leggermente sottostimato.</string>
+    <string name="stats_baseline_vs_source">vs %1$s</string>
+    <string name="stats_baseline_blend_fallback">combinato (nessuna stazione)</string>
 </resources>

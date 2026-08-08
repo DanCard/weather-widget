@@ -2,30 +2,32 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
+import com.weatherwidget.data.local.desktop.toEntity
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyHistory
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.MediumDuration
-import io.mockk.coEvery
 import io.mockk.mockk
-import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
- * Desktop sibling of the Android NwsGridpointActualsStoreTest — the same "missing API actual"
- * bug: shortly after midnight the NWS gridpoint response still carries yesterday's
- * maxTemperature window while yesterday's minTemperature window has rolled off. The persist
- * path must not erase a previously stored apiLowTemp (upsertDailyHistory is a full-row
- * REPLACE), and the ERA5 backfill must treat a null high OR low as incomplete and fill only
- * the absent field.
+ * NWS api actuals used to come from the gridpoint *forecast* grid (and, when that left a gap, from
+ * Open-Meteo's ERA5 archive). Both writers are gone — see
+ * plans/260808-nws-actuals-forecast-contamination.md. They are now filled by a dedicated
+ * `/stations/{id}/observations` pull (`fillNwsStationActualsIfNeeded`, logic in the shared
+ * `NwsDailyExtremesFetch`), never derived from the stored observation pool.
+ *
+ * Open-Meteo's own ERA5 values are a separate, legitimate writer and still apply.
  */
 @Category(MediumDuration::class)
 class DesktopApiActualsMergeTest {
@@ -38,7 +40,8 @@ class DesktopApiActualsMergeTest {
     private val lat = 37.416824
     private val lon = -122.08898
     private val source = WeatherSource.NWS.id
-    private val yesterday = LocalDate.now().minusDays(1)
+    private val zone: ZoneId = ZoneId.systemDefault()
+    private val yesterday: LocalDate = LocalDate.now().minusDays(1)
     private val yesterdayStr = yesterday.toString()
     private val yesterdayEpoch = yesterday.toEpochDay() * 86_400_000L
 
@@ -57,86 +60,99 @@ class DesktopApiActualsMergeTest {
         Files.deleteIfExists(tempDbPath)
     }
 
-    private fun nwsRow(apiHigh: Float?, apiLow: Float?) = DailyHistory(
-        date = yesterdayEpoch,
-        source = source,
+    private fun reading(
+        hour: Int,
+        temp: Float,
+        stationId: String,
+        distanceKm: Float,
+        stationType: String = "OFFICIAL",
+        api: String = WeatherSource.NWS.id,
+    ) = ObservationReading(
+        stationId = stationId,
+        stationName = "$stationId name",
+        timestamp = yesterday.atStartOfDay(zone).plusHours(hour.toLong()).toInstant().toEpochMilli(),
+        temperature = temp,
+        condition = "Clear",
         locationLat = lat,
         locationLon = lon,
-        computedHighTemp = 75.06f,
-        computedLowTemp = 60.73f,
-        condition = "Clear",
-        updatedAt = System.currentTimeMillis(),
-        forecastHighTemp = 78f,
-        forecastLowTemp = 58f,
-        apiHighTemp = apiHigh,
-        apiLowTemp = apiLow,
+        distanceKm = distanceKm,
+        stationType = stationType,
+        api = api,
     )
+
+    /** Covers both guard windows so the station qualifies. */
+    private fun coveredStation(stationId: String, distanceKm: Float, low: Float, high: Float, stationType: String = "OFFICIAL") =
+        listOf(
+            reading(3, low, stationId, distanceKm, stationType),
+            reading(15, high, stationId, distanceKm, stationType),
+            reading(20, (low + high) / 2f, stationId, distanceKm, stationType),
+        )
 
     private fun storedNwsRow() = dao.getExtremesInRange(yesterdayEpoch, yesterdayEpoch, lat, lon)
         .single { it.source == source }
 
+    /**
+     * Regression guard: the stored observation pool is mostly Synoptic rows from the prefer-newest
+     * latest path, and its NWS API subset is too sparse to carry a daily peak. api actuals must
+     * come from the dedicated /stations/{id}/observations pull, never from this recompute.
+     */
     @Test
-    fun `partial gridpoint response preserves existing low and other columns`() {
-        dao.upsertDailyHistory(listOf(nwsRow(apiHigh = 77.2f, apiLow = 56.1f)))
+    fun `recompute never derives an api actual from stored observations`() {
+        val now = System.currentTimeMillis()
+        dao.upsertObservations(coveredStation("KNUQ", 3.83f, 60.8f, 75.2f).map { it.toEntity(now) })
 
-        repository.persistNwsApiActuals(
-            NwsApi.DailyTemperatureExtremes(
-                maxByDate = mapOf(yesterdayStr to 82.0f),
-                minByDate = emptyMap(),
+        repository.recomputeDailyExtremes(now)
+
+        val stored = storedNwsRow()
+        assertNull("the stored pool must not become an actual", stored.apiHighTemp)
+        assertNull(stored.apiStationId)
+    }
+
+    /**
+     * Mirrors Android's freeze guard: once a past day's actuals come from the station pull
+     * (`apiStationId != null`) the recompute must not rebuild its blend from the stored pool.
+     */
+    @Test
+    fun `a past day resolved from the pull keeps its blend across a recompute`() {
+        val now = System.currentTimeMillis()
+        dao.upsertObservations(coveredStation("KNUQ", 3.83f, 60.8f, 75.2f).map { it.toEntity(now) })
+        repository.recomputeDailyExtremes(now)
+        dao.upsertDailyHistory(
+            listOf(
+                storedNwsRow().copy(
+                    computedHighTemp = 74.6f,
+                    computedLowTemp = 60.5f,
+                    apiStationId = "KNUQ",
+                    apiStationDistanceKm = 3.83f,
+                    apiHighTemp = 75.2f,
+                    apiLowTemp = 60.8f,
+                ),
             ),
         )
 
-        val stored = storedNwsRow()
-        assertEquals(82.0f, stored.apiHighTemp)
-        assertEquals("null minTemperature must not clobber the stored low", 56.1f, stored.apiLowTemp)
-        assertEquals("computed values must survive the full-row REPLACE", 75.06f, stored.computedHighTemp)
-        assertEquals(60.73f, stored.computedLowTemp)
-        assertEquals("Clear", stored.condition)
-        assertEquals(78f, stored.forecastHighTemp)
-        assertEquals(58f, stored.forecastLowTemp)
+        repository.recomputeDailyExtremes(now + 1000)
+
+        assertEquals("frozen once resolved from the endpoint", 74.6f, storedNwsRow().computedHighTemp)
     }
 
     @Test
-    fun `full gridpoint response overwrites both api values`() {
-        dao.upsertDailyHistory(listOf(nwsRow(apiHigh = 77.2f, apiLow = 56.1f)))
-
-        repository.persistNwsApiActuals(
-            NwsApi.DailyTemperatureExtremes(
-                maxByDate = mapOf(yesterdayStr to 80.0f),
-                minByDate = mapOf(yesterdayStr to 55.0f),
-            ),
+    fun `an api actual survives a later blend recompute`() {
+        val now = System.currentTimeMillis()
+        dao.upsertObservations(coveredStation("KNUQ", 3.83f, 60.8f, 75.2f).map { it.toEntity(now) })
+        repository.recomputeDailyExtremes(now)
+        val seeded = storedNwsRow().copy(
+            apiHighTemp = 75.2f,
+            apiLowTemp = 60.8f,
+            apiStationId = "KNUQ",
+            apiStationDistanceKm = 3.83f,
         )
+        dao.upsertDailyHistory(listOf(seeded))
+
+        repository.recomputeDailyExtremes(now + 1000)
 
         val stored = storedNwsRow()
-        assertEquals(80.0f, stored.apiHighTemp)
-        assertEquals(55.0f, stored.apiLowTemp)
-    }
-
-    @Test
-    fun `backfill fills only the missing low and preserves the gridpoint high`() = runTest {
-        dao.upsertDailyHistory(listOf(nwsRow(apiHigh = 82.0f, apiLow = null)))
-        coEvery { weatherService.fetchHistoricalDailyTemps(any(), any()) } returns listOf(
-            DailyForecast(date = yesterdayStr, highTemp = 79.0f, lowTemp = 55.5f, condition = "Clear"),
-        )
-
-        repository.backfillNwsApiActualsFromObservations(System.currentTimeMillis())
-
-        val stored = storedNwsRow()
-        assertEquals("gridpoint high must be preserved", 82.0f, stored.apiHighTemp)
-        assertEquals("archive fills only the missing low", 55.5f, stored.apiLowTemp)
-    }
-
-    @Test
-    fun `backfill treats a null low as incomplete`() = runTest {
-        dao.upsertDailyHistory(listOf(nwsRow(apiHigh = 82.0f, apiLow = null)))
-        coEvery { weatherService.fetchHistoricalDailyTemps(any(), any()) } returns listOf(
-            DailyForecast(date = yesterdayStr, highTemp = 79.0f, lowTemp = 55.5f, condition = "Clear"),
-        )
-
-        repository.backfillNwsApiActualsFromObservations(System.currentTimeMillis())
-
-        // If the row were not considered incomplete, the archive fetch would still have left low null.
-        assertEquals(55.5f, storedNwsRow().apiLowTemp)
+        assertEquals("the pull owns this field", 75.2f, stored.apiHighTemp)
+        assertEquals("KNUQ", stored.apiStationId)
     }
 
     @Test

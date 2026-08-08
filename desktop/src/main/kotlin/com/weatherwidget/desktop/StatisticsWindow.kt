@@ -20,6 +20,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.stats.AccuracyPure
@@ -60,7 +61,11 @@ internal fun StatisticsWindow(
 
         LaunchedEffect(source, config.lat, config.lon) {
             loading = true
-            val calc = DesktopAccuracyCalculator(weatherDao)
+            val calc = DesktopAccuracyCalculator(
+                weatherDao,
+                orderedVisibleSources = config.visibleSources.map { WeatherSource.fromId(it) }
+                    .ifEmpty { listOf(WeatherSource.NWS) },
+            )
             val (s, b) = withContext(Dispatchers.IO) {
                 calc.calculateAccuracy(source, config.lat, config.lon, days = 30) to
                     calc.getDailyAccuracyBreakdown(source, config.lat, config.lon, days = 30)

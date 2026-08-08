@@ -211,6 +211,38 @@ class DesktopWeatherService(
         }
     }
 
+    /**
+     * Raw `api.weather.gov/stations/{id}/observations?start=&end=` series for the nearest stations,
+     * with no Synoptic substitution. Backs the NWS daily-extreme pull, which must read NWS's own
+     * measurements only — [fetchObservationHistory] deliberately mixes in web readings.
+     * Best-effort per station: a failed station is skipped, so the nearest-official rule falls
+     * through to the next one.
+     */
+    /** Nearest stations including personal ones — the history blend interpolates across all. */
+    suspend fun nearestStationsForDailyActuals(): List<NwsApi.StationInfo> {
+        val grid = bestEffort("gridpoint for daily extremes") { nwsApi.getGridPoint(latitude, longitude) }
+            ?: return emptyList()
+        val stations = bestEffort("observation stations for daily extremes") {
+            grid.observationStationsUrl?.let { url -> getCachedOrFetchStations(url) }
+        } ?: emptyList()
+        return stations.take(MAX_OBSERVATION_STATIONS)
+    }
+
+    /** One station, one calendar day. Empty on failure so the caller falls through to the next. */
+    suspend fun fetchApiObservationDay(
+        station: NwsApi.StationInfo,
+        startIso: String,
+        endIso: String,
+    ): List<ObservationReading> =
+        try {
+            nwsApi.getObservations(station.id, startIso, endIso).map { it.toReading(station) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "daily-extreme day ${station.id} failed: $e")
+            emptyList()
+        }
+
     /** Open-Meteo archive (ERA5) daily highs/lows over [startDate, endDate], for climate normals. */
     suspend fun fetchHistoricalDailyTemps(startDate: String, endDate: String): List<DailyForecast> {
         return openMeteo.getHistoricalDailyTemps(latitude, longitude, startDate, endDate)

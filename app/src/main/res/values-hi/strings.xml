@@ -294,4 +294,11 @@
     <string name="blend_no_points">अभी तक कोई मिश्रित बिंदु उपलब्ध नहीं है।</string>
     <string name="blend_no_location">मिश्रण के लिए कोई स्थान उपलब्ध नहीं है।</string>
     <string name="blend_load_failed">मिश्रण तालिका नहीं बनाई जा सकी: %1$s</string>
+    <string name="stats_baseline_heading">सटीकता किसके सापेक्ष मापें</string>
+    <string name="stats_baseline_native_actual">आधिकारिक स्टेशन की रीडिंग</string>
+    <string name="stats_baseline_blended_location">स्थान का मिश्रित अनुमान</string>
+    <string name="stats_baseline_explainer_native">निकटतम आधिकारिक मौसम स्टेशन द्वारा स्वयं दर्ज किया गया उच्चतम और न्यूनतम तापमान। यह एक ही थर्मामीटर है, इसलिए आपके सटीक पते की स्थिति से भिन्न हो सकता है — लेकिन इसका कोई भी हिस्सा पूर्वानुमान से नहीं आता।</string>
+    <string name="stats_baseline_explainer_blended">आस-पास के सभी स्टेशनों को मिलाकर आपके निर्देशांक पर प्रक्षेपित किया गया। आपके पते के अधिक निकट, लेकिन रीडिंग के बीच के अंतराल पूर्वानुमान से भरे जाते हैं, इसलिए पूर्वानुमान की त्रुटि थोड़ी कम आँकी जाती है।</string>
+    <string name="stats_baseline_vs_source">बनाम %1$s</string>
+    <string name="stats_baseline_blend_fallback">मिश्रित (कोई स्टेशन नहीं)</string>
 </resources>

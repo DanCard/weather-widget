@@ -294,4 +294,11 @@
     <string name="blend_no_points">ブレンド地点はまだありません。</string>
     <string name="blend_no_location">ブレンドに使用できる位置情報がありません。</string>
     <string name="blend_load_failed">ブレンド表を作成できませんでした: %1$s</string>
+    <string name="stats_baseline_heading">精度の比較対象</string>
+    <string name="stats_baseline_native_actual">公式観測所の実測値</string>
+    <string name="stats_baseline_blended_location">地点の合成推定値</string>
+    <string name="stats_baseline_explainer_native">最寄りの公式気象観測所が実際に記録した最高気温と最低気温です。単一の温度計なので正確なご住所の状況とは異なる場合がありますが、予報に由来する要素は一切含まれません。</string>
+    <string name="stats_baseline_explainer_blended">近隣のすべての観測所を合成し、お客様の座標へ内挿した値です。ご住所により近くなりますが、観測の空白は予報で補間するため、予報誤差がわずかに小さく見積もられます。</string>
+    <string name="stats_baseline_vs_source">対 %1$s</string>
+    <string name="stats_baseline_blend_fallback">合成値（観測所なし）</string>
 </resources>

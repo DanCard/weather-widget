@@ -294,4 +294,11 @@
     <string name="blend_no_points">Точка смешения пока недоступна.</string>
     <string name="blend_no_location">Нет местоположения для смешения.</string>
     <string name="blend_load_failed">Не удалось построить таблицу смешения: %1$s</string>
+    <string name="stats_baseline_heading">Измерять точность относительно</string>
+    <string name="stats_baseline_native_actual">Показания официальной станции</string>
+    <string name="stats_baseline_blended_location">Смешанная оценка для местоположения</string>
+    <string name="stats_baseline_explainer_native">Максимум и минимум, записанные самой ближайшей официальной метеостанцией. Это один термометр, поэтому значения могут отличаться от условий по вашему точному адресу, но ничто в них не получено из прогноза.</string>
+    <string name="stats_baseline_explainer_blended">Все ближайшие станции объединены и интерполированы к вашим координатам. Ближе к вашему адресу, но промежутки между измерениями заполняются прогнозом, поэтому ошибка прогноза немного занижается.</string>
+    <string name="stats_baseline_vs_source">против %1$s</string>
+    <string name="stats_baseline_blend_fallback">смешанные (нет станции)</string>
 </resources>

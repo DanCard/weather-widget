@@ -41,6 +41,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.GpsResampler
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateEventLogger
+import com.weatherwidget.data.repository.NwsApiDailyActualsFetcher
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.ui.SetupSourceSelector
 import dagger.Module
@@ -253,9 +254,10 @@ object AppModule {
         openWeatherMapApi: OpenWeatherMapApi,
         nwsForecastMapper: NwsForecastMapper,
         dailyActualsStore: DailyActualsStore,
+        nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, hourlyForecastHistoryDao, appLogDao,
-        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, dailyActualsStore
+        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, dailyActualsStore, nwsApiDailyActualsFetcher
     )
 
     @Provides

@@ -294,4 +294,11 @@
     <string name="blend_no_points">Henüz karışım noktası yok.</string>
     <string name="blend_no_location">Karışım için konum yok.</string>
     <string name="blend_load_failed">Karışım tablosu oluşturulamadı: %1$s</string>
+    <string name="stats_baseline_heading">Doğruluğu şuna göre ölç</string>
+    <string name="stats_baseline_native_actual">Resmî istasyon ölçümü</string>
+    <string name="stats_baseline_blended_location">Karma konum tahmini</string>
+    <string name="stats_baseline_explainer_native">En yakın resmî meteoroloji istasyonunun kendi kaydettiği en yüksek ve en düşük değer. Tek bir termometre olduğundan tam adresinizdeki koşullardan farklı olabilir — ancak hiçbir kısmı tahminden türetilmemiştir.</string>
+    <string name="stats_baseline_explainer_blended">Yakındaki tüm istasyonlar birleştirilip koordinatlarınıza göre enterpole edilir. Adresinize daha yakındır, ancak ölçümler arasındaki boşluklar tahmin kullanılarak doldurulur, bu yüzden tahmin hatası biraz olduğundan az görünür.</string>
+    <string name="stats_baseline_vs_source">%1$s ile</string>
+    <string name="stats_baseline_blend_fallback">karma (istasyon yok)</string>
 </resources>

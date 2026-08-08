@@ -294,4 +294,11 @@
     <string name="blend_no_points">Chưa có điểm pha trộn nào.</string>
     <string name="blend_no_location">Không có vị trí cho việc pha trộn.</string>
     <string name="blend_load_failed">Không thể tạo bảng pha trộn: %1$s</string>
+    <string name="stats_baseline_heading">Đo độ chính xác so với</string>
+    <string name="stats_baseline_native_actual">Số đo của trạm chính thức</string>
+    <string name="stats_baseline_blended_location">Ước tính kết hợp cho vị trí</string>
+    <string name="stats_baseline_explainer_native">Nhiệt độ cao nhất và thấp nhất do chính trạm khí tượng chính thức gần nhất ghi lại. Đây là một nhiệt kế duy nhất nên có thể khác với điều kiện tại đúng địa chỉ của bạn — nhưng không phần nào của nó bắt nguồn từ dự báo.</string>
+    <string name="stats_baseline_explainer_blended">Kết hợp mọi trạm lân cận và nội suy về tọa độ của bạn. Gần địa chỉ của bạn hơn, nhưng khoảng trống giữa các lần đo được lấp bằng dự báo, nên sai số dự báo bị đánh giá thấp một chút.</string>
+    <string name="stats_baseline_vs_source">so với %1$s</string>
+    <string name="stats_baseline_blend_fallback">kết hợp (không có trạm)</string>
 </resources>

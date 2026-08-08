@@ -194,6 +194,21 @@ class NwsObservationSource(
         )
     }
 
+    /**
+     * Raw `api.weather.gov/stations/{id}/observations?start=&end=` series, with no Synoptic
+     * fallback and no storage. [fetchHistorical] deliberately substitutes web readings when the
+     * API looks stale; the NWS *daily extreme* must not, or the value stops being NWS's own.
+     */
+    internal suspend fun fetchApiObservationsOnly(
+        stationInfo: NwsApi.StationInfo,
+        latitude: Double,
+        longitude: Double,
+        startTime: String,
+        endTime: String,
+    ): List<ObservationEntity> =
+        nwsApi.getObservations(stationInfo.id, startTime, endTime)
+            .map { toEntity(it, stationInfo, latitude, longitude) }
+
     internal suspend fun fetchHistorical(
         stationInfo: NwsApi.StationInfo,
         stationIndex: Int,

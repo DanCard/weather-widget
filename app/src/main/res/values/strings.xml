@@ -268,6 +268,14 @@
     <string name="stats_loading">Loading...</string>
     <string name="stats_daily_breakdown">Daily Accuracy Breakdown</string>
     <string name="stats_rain_accuracy">Day/Night Rain Accuracy</string>
+    <string name="stats_baseline_heading">Measure accuracy against</string>
+    <string name="stats_baseline_native_actual">Official station reading</string>
+    <string name="stats_baseline_blended_location">Blended location estimate</string>
+    <string name="stats_baseline_explainer_native">The nearest official weather station\'s own recorded high and low. A single thermometer, so it may differ from conditions at your exact address — but nothing about it is derived from a forecast.</string>
+    <string name="stats_baseline_explainer_blended">All nearby stations combined and interpolated to your coordinates. Closer to your address, but gaps between readings are bridged using the forecast, so forecast error is slightly understated.</string>
+    <!-- e.g. "vs NWS · KNUQ 3.8 km" -->
+    <string name="stats_baseline_vs_source">vs %1$s</string>
+    <string name="stats_baseline_blend_fallback">blend (no station)</string>
     <string name="stats_no_weather_data">No weather data available yet.</string>
     <string name="stats_no_history_yet">No historical forecast data available yet.\n\nForecast snapshots are being saved daily. Check back tomorrow for your first accuracy comparison!</string>
     <string name="stats_source_line">%1$s: High ±%2$s, Low ±%3$s</string>

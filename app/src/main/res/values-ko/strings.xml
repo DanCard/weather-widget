@@ -294,4 +294,11 @@
     <string name="blend_no_points">아직 혼합 지점이 없습니다.</string>
     <string name="blend_no_location">혼합에 사용할 위치가 없습니다.</string>
     <string name="blend_load_failed">혼합 표를 만들 수 없습니다: %1$s</string>
+    <string name="stats_baseline_heading">정확도 비교 기준</string>
+    <string name="stats_baseline_native_actual">공식 관측소 실측값</string>
+    <string name="stats_baseline_blended_location">지점 혼합 추정값</string>
+    <string name="stats_baseline_explainer_native">가장 가까운 공식 기상 관측소가 직접 기록한 최고·최저 기온입니다. 온도계 한 대의 값이므로 정확한 주소의 상황과 다를 수 있지만, 예보에서 파생된 부분은 전혀 없습니다.</string>
+    <string name="stats_baseline_explainer_blended">인근 모든 관측소를 합성해 사용자의 좌표로 보간한 값입니다. 주소에는 더 가깝지만 관측 사이의 공백을 예보로 메우므로 예보 오차가 다소 작게 나타납니다.</string>
+    <string name="stats_baseline_vs_source">대 %1$s</string>
+    <string name="stats_baseline_blend_fallback">혼합값(관측소 없음)</string>
 </resources>

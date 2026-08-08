@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 58,
+    version = 59,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -371,6 +371,37 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds `apiStationId`/`apiStationDistanceKm`, and **clears every stored NWS "API actual"**.
+         *
+         * Exactly two writers ever populated `apiHighTemp`/`apiLowTemp` for NWS, and both were
+         * removed on 2026-08-08:
+         *
+         *  1. `persistNwsGridpointActuals` filed the leftover past-date windows of the NWS
+         *     gridpoint *forecast* grid, so a past day's "actual" was that day's forecast
+         *     (measured: 2026-08-05 stored 82.0 against a real 75.0), and
+         *  2. `backfillNwsApiActualsFromArchive` filled the gaps with Open-Meteo's ERA5 archive —
+         *     another provider's data presented as NWS's own.
+         *
+         * So there is no such thing as a legitimate pre-v59 NWS api actual to preserve, and a
+         * value-matching heuristic would only have caught case 1. Clear the lot; the station
+         * writer refills whatever the retained observations cover (~10 days). Older dates stay
+         * null and drop out of the statistics, which is correct — we have no measurement for them.
+         *
+         * Deliberately scoped to `source = 'NWS'`: Open-Meteo's own api actuals genuinely are its
+         * ERA5 product and are untouched.
+         */
+        val MIGRATION_58_59 = object : Migration(58, 59) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "daily_history", "apiStationId", "TEXT")
+                addColumnIfMissing(db, "daily_history", "apiStationDistanceKm", "REAL")
+                db.execSQL(
+                    "UPDATE `daily_history` SET `apiHighTemp` = NULL, `apiLowTemp` = NULL " +
+                        "WHERE `source` = 'NWS'",
+                )
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -433,7 +464,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

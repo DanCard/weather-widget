@@ -344,4 +344,64 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+    /**
+     * v59 adds the station-provenance columns and clears every stored NWS "API actual". Both
+     * writers that ever populated them are gone — gridpoint FORECAST values, and Open-Meteo ERA5
+     * filling their gaps — so no stored value is a genuine NWS measurement. Seeded with the exact
+     * shapes found on the Pixel/Samsung backups of 2026-08-08.
+     */
+    @Test
+    fun migrate58To59_clearsAllNwsApiActualsAndAddsStationColumns() {
+        val date = 20180L * 86_400_000L
+        helper.createDatabase(testDb, 58).apply {
+            // Gridpoint forecast filed as an actual: apiHighTemp == this row's own forecast.
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, " +
+                    "computedHighTemp, computedLowTemp, condition, updatedAt, forecastHighTemp, " +
+                    "forecastLowTemp, apiHighTemp, apiLowTemp) VALUES " +
+                    "($date, 'NWS', 37.417, -122.089, 75.0, 60.7, 'Clear', 2000, 82.0, 59.0, 82.0, 56.1)",
+            )
+            // ERA5 backfill: differs from the forecast, but it is Open-Meteo's data in NWS's row.
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, " +
+                    "computedHighTemp, computedLowTemp, condition, updatedAt, forecastHighTemp, " +
+                    "forecastLowTemp, apiHighTemp, apiLowTemp) VALUES " +
+                    "($date, 'NWS', 37.4168, -122.0890, 75.0, 60.7, 'Clear', 1000, 82.0, 59.0, 77.2, 56.1)",
+            )
+            // Open-Meteo's own ERA5 actual is legitimate and must survive untouched.
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, " +
+                    "computedHighTemp, computedLowTemp, condition, updatedAt, forecastHighTemp, " +
+                    "forecastLowTemp, apiHighTemp, apiLowTemp) VALUES " +
+                    "($date, 'OPEN_METEO', 37.4168, -122.0890, 75.5, 59.1, 'Clear', 1000, 74.0, 58.0, 75.5, 59.1)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 59, true, WeatherDatabase.MIGRATION_58_59)
+
+        db.query(
+            "SELECT apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm FROM daily_history " +
+                "WHERE source = 'NWS'",
+        ).use { c ->
+            assertEquals(2, c.count)
+            while (c.moveToNext()) {
+                assertTrue("gridpoint-forecast and ERA5 api actuals must both be cleared", c.isNull(0))
+                assertTrue(c.isNull(1))
+                assertTrue("new provenance columns start empty", c.isNull(2))
+                assertTrue(c.isNull(3))
+            }
+        }
+
+        db.query("SELECT apiHighTemp FROM daily_history WHERE source = 'OPEN_METEO'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(75.5, c.getDouble(0), 0.001)
+        }
+
+        db.query("SELECT computedHighTemp FROM daily_history WHERE source = 'NWS' LIMIT 1").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("the blend must be untouched by the repair", 75.0, c.getDouble(0), 0.001)
+        }
+        db.close()
+    }
 }

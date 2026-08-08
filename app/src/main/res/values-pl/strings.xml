@@ -294,4 +294,11 @@
     <string name="blend_no_points">Brak dostępnego punktu mieszania.</string>
     <string name="blend_no_location">Brak lokalizacji do mieszania.</string>
     <string name="blend_load_failed">Nie udało się utworzyć tabeli mieszania: %1$s</string>
+    <string name="stats_baseline_heading">Mierz dokładność względem</string>
+    <string name="stats_baseline_native_actual">Odczyt oficjalnej stacji</string>
+    <string name="stats_baseline_blended_location">Szacunek mieszany dla lokalizacji</string>
+    <string name="stats_baseline_explainer_native">Maksimum i minimum zarejestrowane przez najbliższą oficjalną stację meteorologiczną. To pojedynczy termometr, więc może różnić się od warunków pod Twoim dokładnym adresem — ale nic w nim nie pochodzi z prognozy.</string>
+    <string name="stats_baseline_explainer_blended">Wszystkie pobliskie stacje połączone i interpolowane do Twoich współrzędnych. Bliżej Twojego adresu, ale przerwy między odczytami są uzupełniane prognozą, więc błąd prognozy jest nieco zaniżony.</string>
+    <string name="stats_baseline_vs_source">vs %1$s</string>
+    <string name="stats_baseline_blend_fallback">mieszany (brak stacji)</string>
 </resources>

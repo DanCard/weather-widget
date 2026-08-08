@@ -42,6 +42,11 @@ data class DailyHistoryEntity(
     val noonCloudPercent: Int? = null,
     val apiHighTemp: Float? = null,  // °F — API-reported observed high; null when source provides no native actuals
     val apiLowTemp: Float? = null,   // °F — API-reported observed low; null when source provides no native actuals
+    // Which station produced apiHighTemp/apiLowTemp, when they came from station observations
+    // (NWS via StationDailyExtremes). Null for sources whose api actuals are a gridded product
+    // (Open-Meteo ERA5) and for rows written before v59.
+    val apiStationId: String? = null,
+    val apiStationDistanceKm: Float? = null,
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -64,6 +69,8 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     noonCloudPercent = noonCloudPercent,
     apiHighTemp = apiHighTemp,
     apiLowTemp = apiLowTemp,
+    apiStationId = apiStationId,
+    apiStationDistanceKm = apiStationDistanceKm,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -86,4 +93,6 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     noonCloudPercent = noonCloudPercent,
     apiHighTemp = apiHighTemp,
     apiLowTemp = apiLowTemp,
+    apiStationId = apiStationId,
+    apiStationDistanceKm = apiStationDistanceKm,
 )

@@ -294,4 +294,11 @@
     <string name="blend_no_points">ยังไม่มีจุดผสม</string>
     <string name="blend_no_location">ไม่มีตำแหน่งสำหรับการผสม</string>
     <string name="blend_load_failed">ไม่สามารถสร้างตารางการผสมได้: %1$s</string>
+    <string name="stats_baseline_heading">วัดความแม่นยำเทียบกับ</string>
+    <string name="stats_baseline_native_actual">ค่าที่สถานีทางการวัดได้</string>
+    <string name="stats_baseline_blended_location">ค่าประมาณผสมของตำแหน่ง</string>
+    <string name="stats_baseline_explainer_native">อุณหภูมิสูงสุดและต่ำสุดที่สถานีตรวจอากาศทางการที่ใกล้ที่สุดบันทึกไว้เอง เป็นเทอร์โมมิเตอร์เพียงตัวเดียว จึงอาจต่างจากสภาพอากาศที่อยู่ของคุณพอดี แต่ไม่มีส่วนใดมาจากการพยากรณ์</string>
+    <string name="stats_baseline_explainer_blended">รวมสถานีใกล้เคียงทั้งหมดแล้วประมาณค่าไปยังพิกัดของคุณ ใกล้เคียงที่อยู่ของคุณมากกว่า แต่ช่วงว่างระหว่างการตรวจวัดถูกเติมด้วยค่าพยากรณ์ ทำให้ค่าคลาดเคลื่อนของการพยากรณ์ต่ำกว่าความจริงเล็กน้อย</string>
+    <string name="stats_baseline_vs_source">เทียบกับ %1$s</string>
+    <string name="stats_baseline_blend_fallback">ค่าผสม (ไม่มีสถานี)</string>
 </resources>

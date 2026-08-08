@@ -294,4 +294,11 @@
     <string name="blend_no_points">Belum ada titik campuran yang tersedia.</string>
     <string name="blend_no_location">Tidak ada lokasi untuk campuran.</string>
     <string name="blend_load_failed">Tidak dapat membuat tabel campuran: %1$s</string>
+    <string name="stats_baseline_heading">Ukur akurasi terhadap</string>
+    <string name="stats_baseline_native_actual">Pembacaan stasiun resmi</string>
+    <string name="stats_baseline_blended_location">Perkiraan gabungan lokasi</string>
+    <string name="stats_baseline_explainer_native">Suhu tertinggi dan terendah yang dicatat sendiri oleh stasiun cuaca resmi terdekat. Hanya satu termometer, jadi bisa berbeda dari kondisi di alamat persis Anda — tetapi tidak ada bagiannya yang berasal dari prakiraan.</string>
+    <string name="stats_baseline_explainer_blended">Semua stasiun terdekat digabungkan dan diinterpolasikan ke koordinat Anda. Lebih dekat dengan alamat Anda, tetapi celah antar pembacaan dijembatani dengan prakiraan, sehingga galat prakiraan sedikit terlalu kecil.</string>
+    <string name="stats_baseline_vs_source">vs %1$s</string>
+    <string name="stats_baseline_blend_fallback">gabungan (tanpa stasiun)</string>
 </resources>

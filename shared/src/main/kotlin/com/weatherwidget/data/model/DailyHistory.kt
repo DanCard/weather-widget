@@ -34,6 +34,10 @@ data class DailyHistory(
     val noonCloudPercent: Int? = null,
     val apiHighTemp: Float? = null,  // °F — API-reported observed high; null when source provides no native actuals
     val apiLowTemp: Float? = null,   // °F — API-reported observed low; null when source provides no native actuals
+    // Which station produced apiHighTemp/apiLowTemp, when they came from station observations
+    // (NWS via StationDailyExtremes). Null for gridded api actuals and for pre-v59 rows.
+    val apiStationId: String? = null,
+    val apiStationDistanceKm: Float? = null,
 ) {
     fun toLocalDate(): LocalDate =
         LocalDate.ofEpochDay(date / 86_400_000L)

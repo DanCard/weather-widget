@@ -89,8 +89,11 @@ class NwsForecastMapper @Inject constructor(
             )
         }
 
-        // Persist NWS gridpoint daily extremes as API-reported actuals for past dates
-        dailyActualsStore.persistNwsGridpointActuals(latitude, longitude, gridDailyTemps)
+        // Gridpoint maxTemperature/minTemperature are NOT observations — they are the raw NDFD
+        // *forecast* grid, the same values mergeGridpointTemperatures uses for future days. Filing
+        // the leftover past-date windows as "API actuals" made every past day's actual equal that
+        // day's forecast. See plans/260808-nws-actuals-forecast-contamination.md. NWS actuals now
+        // come from station observations via StationDailyExtremes.
 
         // Sky cover + grid QPF live in the gridpoints response, not the hourly endpoint. Merge
         // them onto the hourly rows via the shared helper so Android and desktop populate

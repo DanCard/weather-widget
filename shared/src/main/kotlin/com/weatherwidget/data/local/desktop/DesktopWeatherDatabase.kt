@@ -141,6 +141,8 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         noonCloudPercent INTEGER,
                         apiHighTemp REAL,
                         apiLowTemp REAL,
+                        apiStationId TEXT,
+                        apiStationDistanceKm REAL,
                         PRIMARY KEY (date, source, locationLat, locationLon)
                     )
                 """.trimIndent())
@@ -361,6 +363,19 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     addColumnIfMissing(stmt, "daily_history", "apiLowTemp", "REAL")
                 }
             }
+            // v13: add the station provenance columns, and repair NWS api actuals that were
+            // really gridpoint FORECAST values. persistNwsApiActuals used to file the leftover
+            // past-date windows of the NDFD forecast grid as observations, so a past day's
+            // "actual" was that day's forecast. Mirrors Room MIGRATION_58_59 on Android; see
+            // plans/260808-nws-actuals-forecast-contamination.md.
+            if (from < 13) {
+                addColumnIfMissing(stmt, "daily_history", "apiStationId", "TEXT")
+                addColumnIfMissing(stmt, "daily_history", "apiStationDistanceKm", "REAL")
+                // Both writers that ever populated NWS api actuals are gone (gridpoint FORECAST
+                // values, and Open-Meteo ERA5 filling their gaps), so none of the stored values
+                // are legitimate. Clear them all; the station resolver refills from observations.
+                stmt.execute("UPDATE daily_history SET apiHighTemp = NULL, apiLowTemp = NULL WHERE source = 'NWS'")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -406,6 +421,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 12
+        private const val SCHEMA_VERSION = 13
     }
 }
