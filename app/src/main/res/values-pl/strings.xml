@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">Wszystkie pobliskie stacje połączone i interpolowane do Twoich współrzędnych. Bliżej Twojego adresu, ale przerwy między odczytami są uzupełniane prognozą, więc błąd prognozy jest nieco zaniżony.</string>
     <string name="stats_baseline_vs_source">vs %1$s</string>
     <string name="stats_baseline_blend_fallback">mieszany (brak stacji)</string>
+    <string name="forecast_history_actual_from_cache">z zapisanych odczytów</string>
 </resources>

@@ -75,18 +75,42 @@ class NwsApiDailyActualsFetcher
                 },
             ) { stationId, startIso, endIso ->
                 val station = stationsById[stationId] ?: return@resolveForDates emptyList()
+                // null == request failed (retry later); emptyList == answered with nothing.
                 fetchStationDay(station, latitude, longitude, startIso, endIso)
             }
 
-            if (resolved.isEmpty()) {
-                appLogDao.log(
-                    "NWS_STATION_ACTUALS_FAIL",
-                    "dates=${missing.size} stations=${stations.size} reason=no_qualifying_station",
-                    "INFO",
-                )
-                return
+            val pulled = resolved
+                .mapNotNull { (date, outcome) ->
+                    (outcome as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.let { date to it.actuals }
+                }
+                .toMap()
+            if (pulled.isNotEmpty()) {
+                dailyActualsStore.persistNwsDailyActuals(latitude, longitude, pulled)
             }
-            dailyActualsStore.persistNwsDailyActuals(latitude, longitude, resolved)
+
+            // Only Insufficient falls back. Unavailable means a request failed, so the date stays
+            // in the missing set and retries rather than locking in a cached value over a live one.
+            val insufficient = resolved
+                .filterValues { it is NwsDailyExtremesFetch.DayOutcome.Insufficient }
+                .keys
+            val cached = insufficient.mapNotNull { dateMs ->
+                val date = LocalDate.ofEpochDay(dateMs / WidgetConstants.MS_IN_A_DAY)
+                dailyActualsStore
+                    .stationExtremeFromStoredObservations(latitude, longitude, date, zone)
+                    ?.let { dateMs to it }
+            }.toMap()
+            if (cached.isNotEmpty()) {
+                dailyActualsStore.persistCachedStationActuals(latitude, longitude, cached)
+            }
+
+            val unavailable = resolved.count { it.value is NwsDailyExtremesFetch.DayOutcome.Unavailable }
+            appLogDao.log(
+                "NWS_STATION_ACTUALS_OUTCOME",
+                "requested=${missing.size} stations=${stations.size} " +
+                    "pulled=${pulled.size} cached=${cached.size} " +
+                    "insufficientUnresolved=${insufficient.size - cached.size} unavailable=$unavailable",
+                "DEBUG",
+            )
         }
 
         /**
@@ -95,8 +119,11 @@ class NwsApiDailyActualsFetcher
          * `StationDailyExtremes` needs both. Nothing is written to the observations table: these
          * readings exist only to be reduced to a high and a low, then discarded.
          *
-         * A failed station returns empty rather than throwing, which the caller treats the same as
-         * "no coverage" — it falls through to the next-nearest station.
+         * Returns **null** when the request itself failed and an empty list when it answered with
+         * nothing. The caller must keep these apart: a failed request makes the day Unavailable and
+         * retryable, while an answered-but-thin day is Insufficient and falls back to our stored
+         * observations. Collapsing them would let one network blip permanently substitute a cached
+         * value for a live one.
          */
         private suspend fun fetchStationDay(
             station: NwsApi.StationInfo,
@@ -104,7 +131,7 @@ class NwsApiDailyActualsFetcher
             longitude: Double,
             startIso: String,
             endIso: String,
-        ): List<ObservationReading> =
+        ): List<ObservationReading>? =
             try {
                 observationSource
                     .fetchApiObservationsOnly(station, latitude, longitude, startIso, endIso)
@@ -118,7 +145,7 @@ class NwsApiDailyActualsFetcher
                     "station=${station.id} error=${e::class.simpleName}:${e.message}",
                     "WARN",
                 )
-                emptyList()
+                null
             }
 
         private companion object {

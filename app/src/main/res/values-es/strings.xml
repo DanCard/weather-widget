@@ -286,4 +286,5 @@
     <string name="stats_baseline_explainer_blended">Todas las estaciones cercanas combinadas e interpoladas a sus coordenadas. Más próximo a su dirección, pero los huecos entre lecturas se rellenan con el pronóstico, por lo que el error del pronóstico se subestima ligeramente.</string>
     <string name="stats_baseline_vs_source">frente a %1$s</string>
     <string name="stats_baseline_blend_fallback">combinado (sin estación)</string>
+    <string name="forecast_history_actual_from_cache">de lecturas almacenadas</string>
 </resources>

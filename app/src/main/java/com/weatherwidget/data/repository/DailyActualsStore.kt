@@ -17,6 +17,8 @@ import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.shared.actuals.DailyActualsSource
+import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
@@ -262,12 +264,15 @@ class DailyActualsStore @Inject constructor(
                 // compare is how precip-only deltas were silently dropped before (see
                 // recomputeDailyExtremesForDay's precip gate); comparing the merged candidate
                 // against `existing` cannot go stale when a column is added.
-                // A past day whose actuals were resolved from the NWS station pull is frozen:
-                // `apiStationId != null` is the marker. Without this the ordinary recompute — which
-                // runs on widget loads and history-screen opens — would immediately overwrite the
-                // API-derived blend with one rebuilt from the stored (part-Synoptic, thinner) pool.
-                // Today's row is never frozen; its blend must stay live.
-                val freezeBlend = existing.apiStationId != null && date.isBefore(LocalDate.now())
+                // A past day whose blend came from the NWS station pull is frozen. Without this the
+                // ordinary recompute — which runs on widget loads and history-screen opens — would
+                // immediately overwrite the API-derived blend with one rebuilt from the stored
+                // (part-Synoptic, thinner) pool. Today's row is never frozen; its blend must stay
+                // live. CACHED_OBSERVATIONS rows are NOT frozen: their blend already comes from the
+                // stored pool, so the recompute is its rightful owner and can keep improving it as
+                // observations backfill.
+                val freezeBlend = DailyActualsSource.fromStored(existing.actualsSource) ==
+                    DailyActualsSource.NWS_STATION_PULL && date.isBefore(LocalDate.now())
                 val merged = new.copy(
                     computedHighTemp = if (freezeBlend) existing.computedHighTemp else new.computedHighTemp,
                     computedLowTemp = if (freezeBlend) existing.computedLowTemp else new.computedLowTemp,
@@ -287,6 +292,9 @@ class DailyActualsStore @Inject constructor(
                     apiLowTemp = new.apiLowTemp ?: existing.apiLowTemp,
                     apiStationId = new.apiStationId ?: existing.apiStationId,
                     apiStationDistanceKm = new.apiStationDistanceKm ?: existing.apiStationDistanceKm,
+                    // Must be carried: dropping it both loses the provenance and silently disables
+                    // the freeze guard, which reads this very field on the NEXT recompute.
+                    actualsSource = new.actualsSource ?: existing.actualsSource,
                     updatedAt = existing.updatedAt,
                 )
                 if (merged != existing) {
@@ -467,6 +475,7 @@ class DailyActualsStore @Inject constructor(
                     apiLowTemp = actuals.station?.low ?: row.apiLowTemp,
                     apiStationId = actuals.station?.stationId ?: row.apiStationId,
                     apiStationDistanceKm = actuals.station?.distanceKm ?: row.apiStationDistanceKm,
+                    actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue,
                     updatedAt = now,
                 )
                 updated.takeIf { it.copy(updatedAt = row.updatedAt) != row }
@@ -481,6 +490,80 @@ class DailyActualsStore @Inject constructor(
                     "${LocalDate.ofEpochDay(date / WidgetConstants.MS_IN_A_DAY)}=" +
                         "blend[${a.blendHigh}/${a.blendLow}]" +
                         (a.station?.let { "${it.stationId}[${it.high}/${it.low} n=${it.readingCount}]" } ?: "no-station")
+                },
+            "DEBUG",
+        )
+    }
+
+    /**
+     * Derives the single-station extreme for [date] from our **retained** `observations` rows,
+     * for a day the endpoint can no longer serve completely.
+     *
+     * Same [StationDailyExtremes.resolve] rule as the live pull — nearest official station, same
+     * coverage guard, same exclusions — only the pool differs. The stored pool includes Synoptic
+     * rows; for KNUQ those are the same ASOS METARs redistributed, and the stored union reproduced
+     * the endpoint's extremes exactly on 2026-08-05/06/07, whereas restricting to
+     * `isWebFallback = 0` leaves 17-24 of 72 readings and under-reports peaks by 1.8 °F.
+     * `actualsSource` discloses the difference rather than hiding it.
+     */
+    internal suspend fun stationExtremeFromStoredObservations(
+        latitude: Double,
+        longitude: Double,
+        date: LocalDate,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): StationDailyExtremes.StationDailyExtreme? {
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val dayEndMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val stored = observationDao
+            .getObservationsInRange(dayStartMs, dayEndMs, latitude, longitude)
+            .map { it.toReading() }
+        return StationDailyExtremes.resolve(
+            observations = stored,
+            sourceId = WeatherSource.NWS.id,
+            dayStartMs = dayStartMs,
+            dayEndMs = dayEndMs,
+            zone = zone,
+        )
+    }
+
+    /**
+     * Writes a cache-derived api actual. Deliberately leaves `computedHighTemp`/`computedLowTemp`
+     * alone — the blend already comes from the stored pool via the ordinary recompute, so there is
+     * nothing here to improve on and overwriting it would only add churn.
+     */
+    suspend fun persistCachedStationActuals(
+        latitude: Double,
+        longitude: Double,
+        extremesByDate: Map<Long, StationDailyExtremes.StationDailyExtreme>,
+    ) {
+        if (extremesByDate.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val dates = extremesByDate.keys.sorted()
+
+        val toUpsert = dailyHistoryDao
+            .getExtremesInRange(dates.first(), dates.last(), latitude, longitude)
+            .filter { it.source == WeatherSource.NWS.id }
+            .mapNotNull { row ->
+                val station = extremesByDate[row.date] ?: return@mapNotNull null
+                val updated = row.copy(
+                    apiHighTemp = station.high,
+                    apiLowTemp = station.low,
+                    apiStationId = station.stationId,
+                    apiStationDistanceKm = station.distanceKm,
+                    actualsSource = DailyActualsSource.CACHED_OBSERVATIONS.storedValue,
+                    updatedAt = now,
+                )
+                updated.takeIf { it.copy(updatedAt = row.updatedAt) != row }
+            }
+
+        if (toUpsert.isEmpty()) return
+        dailyHistoryDao.insertAll(toUpsert)
+        appLogDao.log(
+            "NWS_STATION_ACTUALS_CACHED",
+            "rows=${toUpsert.size} dates=${dates.size} " +
+                extremesByDate.entries.sortedBy { it.key }.joinToString(" ") { (date, s) ->
+                    "${LocalDate.ofEpochDay(date / WidgetConstants.MS_IN_A_DAY)}=" +
+                        "${s.stationId}[hi=${s.high} lo=${s.low} n=${s.readingCount}]"
                 },
             "DEBUG",
         )

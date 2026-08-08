@@ -7,10 +7,12 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.test.category.MediumDuration
 import io.mockk.mockk
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -126,13 +128,49 @@ class DesktopApiActualsMergeTest {
                     apiStationDistanceKm = 3.83f,
                     apiHighTemp = 75.2f,
                     apiLowTemp = 60.8f,
+                    // The freeze marker is provenance, not station identity.
+                    actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue,
+                ),
+            ),
+        )
+
+        // TWICE — see the Android sibling: one pass passes even when the merge drops actualsSource.
+        repository.recomputeDailyExtremes(now + 1000)
+        repository.recomputeDailyExtremes(now + 2000)
+
+        val row = storedNwsRow()
+        assertEquals("frozen once resolved from the endpoint", 74.6f, row.computedHighTemp)
+        assertEquals(
+            DailyActualsSource.NWS_STATION_PULL.storedValue,
+            row.actualsSource,
+        )
+    }
+
+    /** A cache-derived day's blend comes from the stored pool, so the recompute keeps owning it. */
+    @Test
+    fun `a cache-resolved day does not freeze its blend`() {
+        val now = System.currentTimeMillis()
+        dao.upsertObservations(coveredStation("KNUQ", 3.83f, 60.8f, 75.2f).map { it.toEntity(now) })
+        repository.recomputeDailyExtremes(now)
+        dao.upsertDailyHistory(
+            listOf(
+                storedNwsRow().copy(
+                    computedHighTemp = 99.9f,
+                    apiHighTemp = 75.2f,
+                    apiLowTemp = 60.8f,
+                    apiStationId = "KNUQ",
+                    actualsSource = DailyActualsSource.CACHED_OBSERVATIONS.storedValue,
                 ),
             ),
         )
 
         repository.recomputeDailyExtremes(now + 1000)
 
-        assertEquals("frozen once resolved from the endpoint", 74.6f, storedNwsRow().computedHighTemp)
+        assertNotEquals(
+            "a cache-derived blend must stay recomputable",
+            99.9f,
+            storedNwsRow().computedHighTemp,
+        )
     }
 
     @Test

@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">Alle nahegelegenen Stationen kombiniert und auf Ihre Koordinaten interpoliert. Näher an Ihrer Adresse, aber Lücken zwischen den Messungen werden mit der Vorhersage überbrückt, sodass der Vorhersagefehler leicht unterschätzt wird.</string>
     <string name="stats_baseline_vs_source">vs. %1$s</string>
     <string name="stats_baseline_blend_fallback">Mischwert (keine Station)</string>
+    <string name="forecast_history_actual_from_cache">aus gespeicherten Messwerten</string>
 </resources>

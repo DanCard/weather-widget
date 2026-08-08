@@ -77,6 +77,7 @@
     <string name="forecast_history_summary_climate_fill"> • %1$d climate-fill points</string>
     <string name="forecast_history_api_fallback_label">API</string>
     <string name="forecast_history_api_actual">%1$s API actual: %2$s / %3$s</string>
+    <string name="forecast_history_actual_from_cache">from stored readings</string>
     <string name="forecast_history_location_actual">Location actual: %1$s / %2$s</string>
     <string name="forecast_history_no_history_yet">No historical forecast data available yet.\nForecast snapshots are saved daily. Check back tomorrow for your first accuracy comparison.</string>
     <string name="forecast_history_no_data_fallback_source">selected source</string>

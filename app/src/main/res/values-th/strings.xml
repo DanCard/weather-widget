@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">รวมสถานีใกล้เคียงทั้งหมดแล้วประมาณค่าไปยังพิกัดของคุณ ใกล้เคียงที่อยู่ของคุณมากกว่า แต่ช่วงว่างระหว่างการตรวจวัดถูกเติมด้วยค่าพยากรณ์ ทำให้ค่าคลาดเคลื่อนของการพยากรณ์ต่ำกว่าความจริงเล็กน้อย</string>
     <string name="stats_baseline_vs_source">เทียบกับ %1$s</string>
     <string name="stats_baseline_blend_fallback">ค่าผสม (ไม่มีสถานี)</string>
+    <string name="forecast_history_actual_from_cache">จากค่าที่บันทึกไว้</string>
 </resources>

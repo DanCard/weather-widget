@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">Kết hợp mọi trạm lân cận và nội suy về tọa độ của bạn. Gần địa chỉ của bạn hơn, nhưng khoảng trống giữa các lần đo được lấp bằng dự báo, nên sai số dự báo bị đánh giá thấp một chút.</string>
     <string name="stats_baseline_vs_source">so với %1$s</string>
     <string name="stats_baseline_blend_fallback">kết hợp (không có trạm)</string>
+    <string name="forecast_history_actual_from_cache">từ số đo đã lưu</string>
 </resources>

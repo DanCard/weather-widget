@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">قریبی تمام اسٹیشنوں کو ملا کر آپ کے کوآرڈینیٹس پر انٹرپولیٹ کیا جاتا ہے۔ آپ کے پتے کے زیادہ قریب، مگر ریڈنگز کے درمیان خلا پیش گوئی سے پُر کیا جاتا ہے، اس لیے پیش گوئی کی خامی کچھ کم دکھائی دیتی ہے۔</string>
     <string name="stats_baseline_vs_source">بمقابلہ %1$s</string>
     <string name="stats_baseline_blend_fallback">مخلوط (کوئی اسٹیشن نہیں)</string>
+    <string name="forecast_history_actual_from_cache">محفوظ ریڈنگز سے</string>
 </resources>

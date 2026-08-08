@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">आस-पास के सभी स्टेशनों को मिलाकर आपके निर्देशांक पर प्रक्षेपित किया गया। आपके पते के अधिक निकट, लेकिन रीडिंग के बीच के अंतराल पूर्वानुमान से भरे जाते हैं, इसलिए पूर्वानुमान की त्रुटि थोड़ी कम आँकी जाती है।</string>
     <string name="stats_baseline_vs_source">बनाम %1$s</string>
     <string name="stats_baseline_blend_fallback">मिश्रित (कोई स्टेशन नहीं)</string>
+    <string name="forecast_history_actual_from_cache">संग्रहीत रीडिंग से</string>
 </resources>

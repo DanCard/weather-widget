@@ -286,4 +286,5 @@
     <string name="stats_baseline_explainer_blended">Усі найближчі станції об’єднано та інтерпольовано до ваших координат. Ближче до вашої адреси, але проміжки між вимірюваннями заповнюються прогнозом, тому похибка прогнозу трохи занижується.</string>
     <string name="stats_baseline_vs_source">проти %1$s</string>
     <string name="stats_baseline_blend_fallback">змішані (немає станції)</string>
+    <string name="forecast_history_actual_from_cache">із збережених вимірювань</string>
 </resources>

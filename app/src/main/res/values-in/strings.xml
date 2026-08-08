@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">Semua stasiun terdekat digabungkan dan diinterpolasikan ke koordinat Anda. Lebih dekat dengan alamat Anda, tetapi celah antar pembacaan dijembatani dengan prakiraan, sehingga galat prakiraan sedikit terlalu kecil.</string>
     <string name="stats_baseline_vs_source">vs %1$s</string>
     <string name="stats_baseline_blend_fallback">gabungan (tanpa stasiun)</string>
+    <string name="forecast_history_actual_from_cache">dari pembacaan tersimpan</string>
 </resources>

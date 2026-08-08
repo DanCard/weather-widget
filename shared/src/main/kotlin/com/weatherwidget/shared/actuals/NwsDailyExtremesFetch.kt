@@ -65,17 +65,35 @@ object NwsDailyExtremesFetch {
     )
 
     /**
+     * Per-date outcome. [Insufficient] and [Unavailable] must not be conflated: the first means the
+     * endpoint answered and simply does not have enough of that day left, which is permanent and
+     * worth falling back to our stored observations for; the second means a request failed, which a
+     * retry may fix. Treating a network blip as insufficiency would lock a cached value in over a
+     * live one that would have worked next cycle.
+     */
+    sealed interface DayOutcome {
+        data class Resolved(val actuals: DailyActualsFromStations) : DayOutcome
+
+        /** Every request succeeded, but the returned readings do not span the day. */
+        data object Insufficient : DayOutcome
+
+        /** At least one station request failed, so the pool may be incomplete for the wrong reason. */
+        data object Unavailable : DayOutcome
+    }
+
+    /**
      * @param datesEpochDayMs UTC-midnight-keyed local dates needing actuals (`daily_history.date`).
      * @param stationIdsNearestFirst candidate stations, nearest first, **including personal ones** —
      *   the blend needs them (weighted by [personalStationWeight]) even though they can never
      *   supply the api actual.
      * @param fetchStationDay pulls ONE station over ONE calendar day, returning readings enriched
      *   with `distanceKm`/`stationType` from the station list (the API response alone carries
-     *   neither). An empty list — no coverage, or a failed request — just drops that station.
+     *   neither). Return **null** when the request itself failed and an empty list when it
+     *   succeeded with nothing to report — the two lead to different outcomes.
      * @param hourlyForecastsForDay feeds `extrapolateForward`; a complete series has few gaps, so
      *   this rarely matters, but it keeps the blend identical to the live path's math.
-     * @return per date; a date whose pull produced nothing at all is absent, so callers never
-     *   overwrite a stored value with an empty result.
+     * @return one [DayOutcome] per in-range date. Dates outside the lookback window, today, and the
+     *   future are absent and cost no request.
      */
     suspend fun resolveForDates(
         datesEpochDayMs: List<Long>,
@@ -86,8 +104,8 @@ object NwsDailyExtremesFetch {
         zone: ZoneId,
         nowMs: Long,
         hourlyForecastsForDay: suspend (dayStartMs: Long, dayEndMs: Long) -> List<HourlyForecast> = { _, _ -> emptyList() },
-        fetchStationDay: suspend (stationId: String, startIso: String, endIso: String) -> List<ObservationReading>,
-    ): Map<Long, DailyActualsFromStations> {
+        fetchStationDay: suspend (stationId: String, startIso: String, endIso: String) -> List<ObservationReading>?,
+    ): Map<Long, DayOutcome> {
         if (datesEpochDayMs.isEmpty() || stationIdsNearestFirst.isEmpty()) return emptyMap()
 
         val today = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
@@ -99,7 +117,7 @@ object NwsDailyExtremesFetch {
             .sortedBy { (_, date) -> date }
         if (dates.isEmpty()) return emptyMap()
 
-        val result = mutableMapOf<Long, DailyActualsFromStations>()
+        val result = mutableMapOf<Long, DayOutcome>()
         for ((epochMs, date) in dates) {
             val dayStart = date.atStartOfDay(zone).toInstant()
             val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant()
@@ -108,8 +126,15 @@ object NwsDailyExtremesFetch {
 
             // Every station, not just until one qualifies: the blend is an interpolation across all
             // of them, so short-circuiting would change the answer rather than just save a request.
-            val pool = stationIdsNearestFirst.flatMap { fetchStationDay(it, startIso, endIso) }
-            if (pool.isEmpty()) continue
+            val perStation = stationIdsNearestFirst.map { fetchStationDay(it, startIso, endIso) }
+            if (perStation.any { it == null }) {
+                // A failed request leaves the pool short for a reason a retry may fix. Reporting
+                // Insufficient here would let one network blip permanently substitute a cached
+                // value for a live one.
+                result[epochMs] = DayOutcome.Unavailable
+                continue
+            }
+            val pool = perStation.filterNotNull().flatten()
 
             // A PARTIAL day must not overwrite a good stored blend. The endpoint's retention is a
             // rolling window from now, so the oldest day in range is sliced off at the current
@@ -119,7 +144,10 @@ object NwsDailyExtremesFetch {
             // StationDailyExtremes' per-station guard; this is the pool-level equivalent for the
             // blend, which has no guard of its own. Personal stations count here — the blend is
             // allowed to rest on them even though the api actual is not.
-            if (!poolCoversDay(pool, dayStart.toEpochMilli(), dayEnd.toEpochMilli(), zone)) continue
+            if (pool.isEmpty() || !poolCoversDay(pool, dayStart.toEpochMilli(), dayEnd.toEpochMilli(), zone)) {
+                result[epochMs] = DayOutcome.Insufficient
+                continue
+            }
 
             val blend = blendOverPool(
                 pool = pool,
@@ -130,17 +158,23 @@ object NwsDailyExtremesFetch {
                 dateEpochDayMs = epochMs,
                 zone = zone,
                 nowMs = nowMs,
-            ) ?: continue
+            )
+            if (blend == null) {
+                result[epochMs] = DayOutcome.Insufficient
+                continue
+            }
 
-            result[epochMs] = DailyActualsFromStations(
-                blendHigh = blend.first,
-                blendLow = blend.second,
-                station = StationDailyExtremes.resolve(
-                    observations = pool,
-                    sourceId = "NWS",
-                    dayStartMs = dayStart.toEpochMilli(),
-                    dayEndMs = dayEnd.toEpochMilli(),
-                    zone = zone,
+            result[epochMs] = DayOutcome.Resolved(
+                DailyActualsFromStations(
+                    blendHigh = blend.first,
+                    blendLow = blend.second,
+                    station = StationDailyExtremes.resolve(
+                        observations = pool,
+                        sourceId = "NWS",
+                        dayStartMs = dayStart.toEpochMilli(),
+                        dayEndMs = dayEnd.toEpochMilli(),
+                        zone = zone,
+                    ),
                 ),
             )
         }

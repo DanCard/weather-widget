@@ -228,19 +228,23 @@ class DesktopWeatherService(
         return stations.take(MAX_OBSERVATION_STATIONS)
     }
 
-    /** One station, one calendar day. Empty on failure so the caller falls through to the next. */
+    /**
+     * One station, one calendar day. Returns **null** when the request failed and an empty list
+     * when it answered with nothing — the caller keeps those apart so a network blip cannot
+     * masquerade as an incomplete day.
+     */
     suspend fun fetchApiObservationDay(
         station: NwsApi.StationInfo,
         startIso: String,
         endIso: String,
-    ): List<ObservationReading> =
+    ): List<ObservationReading>? =
         try {
             nwsApi.getObservations(station.id, startIso, endIso).map { it.toReading(station) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "daily-extreme day ${station.id} failed: $e")
-            emptyList()
+            null
         }
 
     /** Open-Meteo archive (ERA5) daily highs/lows over [startDate, endDate], for climate normals. */

@@ -47,6 +47,10 @@ data class DailyHistoryEntity(
     // (Open-Meteo ERA5) and for rows written before v59.
     val apiStationId: String? = null,
     val apiStationDistanceKm: Float? = null,
+    // Where the NWS actuals on this row came from — see DailyActualsSource. Doubles as the marker
+    // that a past day has been resolved, which is what freezes its blend against later recomputes.
+    // Null for non-NWS rows and for rows written before v60.
+    val actualsSource: String? = null,
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -71,6 +75,7 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     apiLowTemp = apiLowTemp,
     apiStationId = apiStationId,
     apiStationDistanceKm = apiStationDistanceKm,
+    actualsSource = actualsSource,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -95,4 +100,5 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     apiLowTemp = apiLowTemp,
     apiStationId = apiStationId,
     apiStationDistanceKm = apiStationDistanceKm,
+    actualsSource = actualsSource,
 )

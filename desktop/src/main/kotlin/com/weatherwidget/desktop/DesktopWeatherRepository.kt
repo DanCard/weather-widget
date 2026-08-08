@@ -9,7 +9,9 @@ import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
+import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.shared.history.ProviderHistoryDecision
 import com.weatherwidget.shared.history.ProviderHistoryFailureClass
 import com.weatherwidget.shared.history.ProviderHistoryPolicy
@@ -539,7 +541,10 @@ class DesktopWeatherRepository(
             if (existing == null) {
                 new
             } else {
-                val freezeBlend = existing.apiStationId != null &&
+                // Only a pull-derived blend is frozen; a CACHED_OBSERVATIONS row's blend already
+                // comes from the stored pool, so the recompute rightly keeps improving it.
+                val freezeBlend = DailyActualsSource.fromStored(existing.actualsSource) ==
+                    DailyActualsSource.NWS_STATION_PULL &&
                     LocalDate.ofEpochDay(existing.date / 86_400_000L).isBefore(LocalDate.now())
                 new.copy(
                     computedHighTemp = if (freezeBlend) existing.computedHighTemp else new.computedHighTemp,
@@ -557,6 +562,9 @@ class DesktopWeatherRepository(
                     apiLowTemp = existing.apiLowTemp,
                     apiStationId = existing.apiStationId,
                     apiStationDistanceKm = existing.apiStationDistanceKm,
+                    // Must be carried: dropping it both loses the provenance and silently disables
+                    // the freeze guard, which reads this very field on the NEXT recompute.
+                    actualsSource = existing.actualsSource,
                 )
             }
         }
@@ -956,7 +964,12 @@ class DesktopWeatherRepository(
         if (missing.isEmpty()) return
 
         val stations = weatherService.nearestStationsForDailyActuals()
-        if (stations.isEmpty()) return
+        if (stations.isEmpty()) {
+            // Never a silent return: an invisible skip here is indistinguishable from "nothing to
+            // do", which is how desktop's Synoptic fallback once hid for weeks.
+            weatherDao.log("NWS_STATION_ACTUALS_FAIL", "dates=${missing.size} reason=no_stations", "WARN")
+            return
+        }
         val stationsById = stations.associateBy { it.id }
 
         val resolved = NwsDailyExtremesFetch.resolveForDates(
@@ -973,32 +986,88 @@ class DesktopWeatherRepository(
                 )
             },
         ) { stationId, startIso, endIso ->
-            stationsById[stationId]
-                ?.let { weatherService.fetchApiObservationDay(it, startIso, endIso) }
-                .orEmpty()
+            // null == request failed (retry later); emptyList == answered with nothing.
+            stationsById[stationId]?.let { weatherService.fetchApiObservationDay(it, startIso, endIso) }
         }
         if (resolved.isEmpty()) return
 
+        val pulled = resolved.mapNotNull { (date, outcome) ->
+            (outcome as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.let { date to it.actuals }
+        }.toMap()
+
+        // Only Insufficient falls back to our retained observations; Unavailable retries.
+        val cached = resolved
+            .filterValues { it is NwsDailyExtremesFetch.DayOutcome.Insufficient }
+            .keys
+            .mapNotNull { dateMs ->
+                val day = LocalDate.ofEpochDay(dateMs / 86_400_000L)
+                val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                StationDailyExtremes.resolve(
+                    observations = weatherDao
+                        .getObservationsInRange(dayStart, dayEnd, latitude, longitude)
+                        .map { it.toReading() },
+                    sourceId = WeatherSource.NWS.id,
+                    dayStartMs = dayStart,
+                    dayEndMs = dayEnd,
+                    zone = zone,
+                )?.let { dateMs to it }
+            }.toMap()
+
+        if (pulled.isEmpty() && cached.isEmpty()) {
+            weatherDao.log(
+                "NWS_STATION_ACTUALS_OUTCOME",
+                "requested=${missing.size} stations=${stations.size} pulled=0 cached=0 " +
+                    "unavailable=${resolved.count { it.value is NwsDailyExtremesFetch.DayOutcome.Unavailable }} " +
+                    "insufficient=${resolved.count { it.value is NwsDailyExtremesFetch.DayOutcome.Insufficient }}",
+                "INFO",
+            )
+            return
+        }
+
+        val touched = pulled.keys + cached.keys
         val toUpsert = weatherDao
-            .getExtremesInRange(resolved.keys.min(), resolved.keys.max(), latitude, longitude)
+            .getExtremesInRange(touched.min(), touched.max(), latitude, longitude)
             .filter { it.source == WeatherSource.NWS.id }
             .mapNotNull { row ->
-                val actuals = resolved[row.date] ?: return@mapNotNull null
-                row.copy(
-                    computedHighTemp = actuals.blendHigh,
-                    computedLowTemp = actuals.blendLow,
-                    apiHighTemp = actuals.station?.high ?: row.apiHighTemp,
-                    apiLowTemp = actuals.station?.low ?: row.apiLowTemp,
-                    apiStationId = actuals.station?.stationId ?: row.apiStationId,
-                    apiStationDistanceKm = actuals.station?.distanceKm ?: row.apiStationDistanceKm,
-                    updatedAt = now,
-                )
+                pulled[row.date]?.let { actuals ->
+                    return@mapNotNull row.copy(
+                        computedHighTemp = actuals.blendHigh,
+                        computedLowTemp = actuals.blendLow,
+                        apiHighTemp = actuals.station?.high ?: row.apiHighTemp,
+                        apiLowTemp = actuals.station?.low ?: row.apiLowTemp,
+                        apiStationId = actuals.station?.stationId ?: row.apiStationId,
+                        apiStationDistanceKm = actuals.station?.distanceKm ?: row.apiStationDistanceKm,
+                        actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue,
+                        updatedAt = now,
+                    )
+                }
+                // Cache-derived: api actual only. The blend already comes from the stored pool via
+                // the ordinary recompute, so there is nothing here to improve on.
+                cached[row.date]?.let { station ->
+                    row.copy(
+                        apiHighTemp = station.high,
+                        apiLowTemp = station.low,
+                        apiStationId = station.stationId,
+                        apiStationDistanceKm = station.distanceKm,
+                        actualsSource = DailyActualsSource.CACHED_OBSERVATIONS.storedValue,
+                        updatedAt = now,
+                    )
+                }
             }
-        if (toUpsert.isEmpty()) return
+        if (toUpsert.isEmpty()) {
+            weatherDao.log(
+                "NWS_STATION_ACTUALS_OUTCOME",
+                "requested=${missing.size} resolved=${pulled.size + cached.size} but no matching rows to write",
+                "WARN",
+            )
+            return
+        }
         weatherDao.upsertDailyHistory(toUpsert)
         weatherDao.log(
             "NWS_STATION_ACTUALS",
-            "rows=${toUpsert.size} dates=${resolved.size}",
+            "rows=${toUpsert.size} pulled=${pulled.size} cached=${cached.size} " +
+                "unavailable=${resolved.count { it.value is NwsDailyExtremesFetch.DayOutcome.Unavailable }}",
             "DEBUG",
         )
     }

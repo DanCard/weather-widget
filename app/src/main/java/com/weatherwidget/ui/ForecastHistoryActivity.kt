@@ -25,6 +25,7 @@ import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.stats.AccuracyCalculator
@@ -421,12 +422,22 @@ class ForecastHistoryActivity : AppCompatActivity() {
             if (apiHigh != null && apiLow != null) {
                 apiActualGroup.visibility = View.VISIBLE
                 val sourceLabel = requestedSource?.displayName ?: getString(R.string.forecast_history_api_fallback_label)
+                // Provenance: a station value derived from our retained observations, because the
+                // endpoint could no longer serve that day, is not the same claim as a live pull.
+                val provenance =
+                    if (DailyActualsSource.fromStored(apiActualRow?.actualsSource) ==
+                        DailyActualsSource.CACHED_OBSERVATIONS
+                    ) {
+                        " (" + getString(R.string.forecast_history_actual_from_cache) + ")"
+                    } else {
+                        ""
+                    }
                 apiActualText.text = getString(
                     R.string.forecast_history_api_actual,
                     sourceLabel,
                     formatTemp(apiHigh),
                     formatTemp(apiLow),
-                )
+                ) + provenance
             } else {
                 apiActualGroup.visibility = View.GONE
             }

@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">Yakındaki tüm istasyonlar birleştirilip koordinatlarınıza göre enterpole edilir. Adresinize daha yakındır, ancak ölçümler arasındaki boşluklar tahmin kullanılarak doldurulur, bu yüzden tahmin hatası biraz olduğundan az görünür.</string>
     <string name="stats_baseline_vs_source">%1$s ile</string>
     <string name="stats_baseline_blend_fallback">karma (istasyon yok)</string>
+    <string name="forecast_history_actual_from_cache">kayıtlı ölçümlerden</string>
 </resources>

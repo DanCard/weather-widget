@@ -286,4 +286,5 @@
     <string name="stats_baseline_explainer_blended">Toutes les stations proches combinées et interpolées à vos coordonnées. Plus proche de votre adresse, mais les écarts entre relevés sont comblés à l\'aide de la prévision, ce qui sous-estime légèrement l\'erreur de prévision.</string>
     <string name="stats_baseline_vs_source">vs %1$s</string>
     <string name="stats_baseline_blend_fallback">combiné (aucune station)</string>
+    <string name="forecast_history_actual_from_cache">d\'après les relevés enregistrés</string>
 </resources>

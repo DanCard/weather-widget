@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">دمج جميع المحطات القريبة واستيفاؤها عند إحداثياتك. أقرب إلى عنوانك، لكن الفجوات بين القراءات تُسدّ باستخدام التوقعات، لذا يظهر خطأ التوقعات أقل قليلاً مما هو عليه.</string>
     <string name="stats_baseline_vs_source">مقابل %1$s</string>
     <string name="stats_baseline_blend_fallback">مُدمج (بلا محطة)</string>
+    <string name="forecast_history_actual_from_cache">من القراءات المخزّنة</string>
 </resources>

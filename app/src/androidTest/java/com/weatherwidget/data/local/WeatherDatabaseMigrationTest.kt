@@ -404,4 +404,31 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+    /** v60 adds actualsSource; existing rows get NULL and nothing else is disturbed. */
+    @Test
+    fun migrate59To60_addsActualsSourceWithoutTouchingOtherColumns() {
+        val date = 20182L * 86_400_000L
+        helper.createDatabase(testDb, 59).apply {
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, " +
+                    "computedHighTemp, computedLowTemp, condition, updatedAt, apiHighTemp, " +
+                    "apiLowTemp, apiStationId, apiStationDistanceKm) VALUES " +
+                    "($date, 'NWS', 37.4168, -122.0890, 75.0, 60.7, 'Clear', 1000, 75.2, 60.8, 'KNUQ', 3.83)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 60, true, WeatherDatabase.MIGRATION_59_60)
+
+        db.query(
+            "SELECT actualsSource, apiHighTemp, apiStationId, computedHighTemp FROM daily_history",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertTrue("pre-v60 rows have no recorded provenance", c.isNull(0))
+            assertEquals(75.2, c.getDouble(1), 0.001)
+            assertEquals("KNUQ", c.getString(2))
+            assertEquals(75.0, c.getDouble(3), 0.001)
+        }
+        db.close()
+    }
 }

@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.test.category.LongDuration
@@ -61,7 +62,13 @@ class NwsStationActualsStoreTest {
     @After
     fun tearDown() = db.close()
 
-    private fun observation(hour: Int, temp: Float, stationId: String, distanceKm: Float) =
+    private fun observation(
+        hour: Int,
+        temp: Float,
+        stationId: String,
+        distanceKm: Float,
+        stationType: String = "OFFICIAL",
+    ) =
         ObservationEntity(
             stationId = stationId,
             timestamp = yesterday.atStartOfDay(zone).plusHours(hour.toLong()).toInstant().toEpochMilli(),
@@ -71,10 +78,22 @@ class NwsStationActualsStoreTest {
             temperature = temp,
             condition = "Clear",
             distanceKm = distanceKm,
-            stationType = "OFFICIAL",
+            stationType = stationType,
             api = WeatherSource.NWS.id,
             fetchedAt = System.currentTimeMillis(),
         )
+
+    private fun coveredStation(
+        stationId: String,
+        distanceKm: Float,
+        low: Float,
+        high: Float,
+        stationType: String = "OFFICIAL",
+    ) = listOf(
+        observation(3, low, stationId, distanceKm, stationType),
+        observation(15, high, stationId, distanceKm, stationType),
+        observation(20, (low + high) / 2f, stationId, distanceKm, stationType),
+    )
 
     private fun nwsRow(
         rowLat: Double = keyLat,
@@ -195,9 +214,18 @@ class NwsStationActualsStoreTest {
             ),
         )
 
+        // TWICE: a single recompute passed even when the merge dropped actualsSource, because the
+        // guard reads the value the PREVIOUS write left behind. The second pass is what catches it.
+        store.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
         store.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
 
-        assertEquals("frozen once resolved from the endpoint", 74.6f, nwsRows().first().computedHighTemp)
+        val row = nwsRows().first()
+        assertEquals("frozen once resolved from the endpoint", 74.6f, row.computedHighTemp)
+        assertEquals(
+            "provenance must survive the merge or the guard disables itself",
+            DailyActualsSource.NWS_STATION_PULL.storedValue,
+            row.actualsSource,
+        )
     }
 
     @Test
@@ -250,6 +278,97 @@ class NwsStationActualsStoreTest {
         val row = nwsRows().first()
         assertEquals("the pull owns this field; the recompute must carry it through", 75.2f, row.apiHighTemp)
         assertEquals("KNUQ", row.apiStationId)
+    }
+
+    @Test
+    fun `pull-resolved rows record NWS_STATION_PULL`() = runTest {
+        db.dailyHistoryDao().insertAll(listOf(nwsRow()))
+
+        store.persistNwsDailyActuals(lat, lon, mapOf(yesterdayEpoch to actuals()))
+
+        assertEquals(
+            DailyActualsSource.NWS_STATION_PULL.storedValue,
+            nwsRows().single().actualsSource,
+        )
+    }
+
+    @Test
+    fun `cache-resolved rows record CACHED_OBSERVATIONS and leave the blend alone`() = runTest {
+        db.dailyHistoryDao().insertAll(listOf(nwsRow()))
+
+        store.persistCachedStationActuals(lat, lon, mapOf(yesterdayEpoch to extreme()))
+
+        val row = nwsRows().single()
+        assertEquals(DailyActualsSource.CACHED_OBSERVATIONS.storedValue, row.actualsSource)
+        assertEquals(75.2f, row.apiHighTemp)
+        assertEquals("KNUQ", row.apiStationId)
+        assertEquals("the blend is the recompute's to own", 75f, row.computedHighTemp)
+    }
+
+    /**
+     * The freeze marker is `actualsSource`, not `apiStationId` — the latter conflated provenance
+     * with station identity. Nulling the station id must not unfreeze a pull-derived blend.
+     */
+    @Test
+    fun `freeze keys on actualsSource, not apiStationId`() = runTest {
+        db.dailyHistoryDao().insertAll(listOf(nwsRow()))
+        store.persistNwsDailyActuals(lat, lon, mapOf(yesterdayEpoch to actuals()))
+        db.dailyHistoryDao().insertAll(nwsRows().map { it.copy(apiStationId = null) })
+        db.observationDao().insertAll(
+            listOf(observation(3, 60.8f, "KNUQ", 3.83f), observation(15, 73.4f, "KNUQ", 3.83f)),
+        )
+
+        store.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+
+        assertEquals(74.6f, nwsRows().first().computedHighTemp)
+    }
+
+    /** A cache-derived blend comes from the stored pool already, so the recompute keeps owning it. */
+    @Test
+    fun `a cache-resolved day does not freeze its blend`() = runTest {
+        db.dailyHistoryDao().insertAll(listOf(nwsRow()))
+        store.persistCachedStationActuals(lat, lon, mapOf(yesterdayEpoch to extreme()))
+        db.observationDao().insertAll(
+            listOf(observation(3, 60.8f, "KNUQ", 3.83f), observation(15, 73.4f, "KNUQ", 3.83f)),
+        )
+
+        store.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+
+        assertNotEquals(
+            "the recompute must still be able to improve a cache-derived day's blend",
+            75f,
+            nwsRows().first().computedHighTemp,
+        )
+    }
+
+    @Test
+    fun `stored-observation fallback applies the same nearest-official rule`() = runTest {
+        db.observationDao().insertAll(
+            coveredStation("AW020", 2.22f, 61.0f, 90.0f, stationType = "PERSONAL") +
+                coveredStation("KNUQ", 3.83f, 60.8f, 75.2f),
+        )
+
+        val extreme = store.stationExtremeFromStoredObservations(lat, lon, yesterday, zone)
+
+        assertEquals("KNUQ", extreme?.stationId)
+        assertEquals(75.2f, extreme?.high)
+    }
+
+    @Test
+    fun `stored-observation fallback still honours the coverage guard`() = runTest {
+        db.observationDao().insertAll(listOf(observation(11, 71.0f, "KNUQ", 3.83f)))
+
+        assertNull(store.stationExtremeFromStoredObservations(lat, lon, yesterday, zone))
+    }
+
+    @Test
+    fun `a cache-resolved date leaves the missing set`() = runTest {
+        db.dailyHistoryDao().insertAll(listOf(nwsRow()))
+        store.persistCachedStationActuals(lat, lon, mapOf(yesterdayEpoch to extreme()))
+
+        val missing = store.findNwsDatesMissingStationActuals(lat, lon, yesterdayEpoch, yesterdayEpoch)
+
+        assertTrue("a resolved day must stop costing requests", missing.isEmpty())
     }
 
     @Test

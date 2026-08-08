@@ -38,6 +38,8 @@ data class DailyHistory(
     // (NWS via StationDailyExtremes). Null for gridded api actuals and for pre-v59 rows.
     val apiStationId: String? = null,
     val apiStationDistanceKm: Float? = null,
+    /** See `DailyActualsSource`; also the marker that a past day's actuals are resolved. */
+    val actualsSource: String? = null,
 ) {
     fun toLocalDate(): LocalDate =
         LocalDate.ofEpochDay(date / 86_400_000L)

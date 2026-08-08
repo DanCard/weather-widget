@@ -143,6 +143,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         apiLowTemp REAL,
                         apiStationId TEXT,
                         apiStationDistanceKm REAL,
+                        actualsSource TEXT,
                         PRIMARY KEY (date, source, locationLat, locationLon)
                     )
                 """.trimIndent())
@@ -376,6 +377,11 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 // are legitimate. Clear them all; the station resolver refills from observations.
                 stmt.execute("UPDATE daily_history SET apiHighTemp = NULL, apiLowTemp = NULL WHERE source = 'NWS'")
             }
+            // v14: record which pipeline produced a row's NWS actuals (DailyActualsSource), which
+            // also replaces the implicit `apiStationId != null` freeze marker.
+            if (from < 14) {
+                addColumnIfMissing(stmt, "daily_history", "actualsSource", "TEXT")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -421,6 +427,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 13
+        private const val SCHEMA_VERSION = 14
     }
 }

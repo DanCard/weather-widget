@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">인근 모든 관측소를 합성해 사용자의 좌표로 보간한 값입니다. 주소에는 더 가깝지만 관측 사이의 공백을 예보로 메우므로 예보 오차가 다소 작게 나타납니다.</string>
     <string name="stats_baseline_vs_source">대 %1$s</string>
     <string name="stats_baseline_blend_fallback">혼합값(관측소 없음)</string>
+    <string name="forecast_history_actual_from_cache">저장된 관측값 기준</string>
 </resources>

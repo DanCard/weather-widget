@@ -301,4 +301,5 @@
     <string name="stats_baseline_explainer_blended">Все ближайшие станции объединены и интерполированы к вашим координатам. Ближе к вашему адресу, но промежутки между измерениями заполняются прогнозом, поэтому ошибка прогноза немного занижается.</string>
     <string name="stats_baseline_vs_source">против %1$s</string>
     <string name="stats_baseline_blend_fallback">смешанные (нет станции)</string>
+    <string name="forecast_history_actual_from_cache">из сохранённых измерений</string>
 </resources>

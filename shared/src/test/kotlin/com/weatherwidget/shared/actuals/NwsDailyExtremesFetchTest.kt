@@ -78,9 +78,9 @@ class NwsDailyExtremesFetchTest {
         windows.forEach { (start, end) ->
             assertTrue("each window spans a single day", start < end)
         }
-        assertEquals(75f, result[epoch(d5)]?.station?.high)
-        assertEquals(76f, result[epoch(d6)]?.station?.high)
-        assertEquals(77f, result[epoch(d7)]?.station?.high)
+        assertEquals(75f, (result[epoch(d5)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.station?.high)
+        assertEquals(76f, (result[epoch(d6)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.station?.high)
+        assertEquals(77f, (result[epoch(d7)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.station?.high)
     }
 
     @Test
@@ -104,8 +104,8 @@ class NwsDailyExtremesFetchTest {
             }
         }
 
-        assertNull(result[epoch(d5)])
-        assertEquals(74.0f, result[epoch(d6)]?.station?.high)
+        assertEquals(NwsDailyExtremesFetch.DayOutcome.Insufficient, result[epoch(d5)])
+        assertEquals(74.0f, (result[epoch(d6)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.station?.high)
     }
 
     @Test
@@ -126,8 +126,8 @@ class NwsDailyExtremesFetchTest {
             }
         }
 
-        assertEquals("KNUQ", result[epoch(d)]?.station?.stationId)
-        assertEquals(75.2f, result[epoch(d)]?.station?.high)
+        assertEquals("KNUQ", (result[epoch(d)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.station?.stationId)
+        assertEquals(75.2f, (result[epoch(d)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.station?.high)
     }
 
     @Test
@@ -177,7 +177,50 @@ class NwsDailyExtremesFetchTest {
             nowMs = nowMs,
         ) { _, _, _ -> emptyList() }
 
-        assertTrue(result.isEmpty())
+        assertEquals(
+            "an endpoint that answers with nothing is Insufficient — the cache may still have it",
+            NwsDailyExtremesFetch.DayOutcome.Insufficient,
+            result[epoch(d)],
+        )
+    }
+
+    /** A failed request must be distinguishable from a thin day, or a blip locks in a cached value. */
+    @Test
+    fun `a failed request reports Unavailable, not Insufficient`() = runBlocking {
+        val d = LocalDate.of(2026, 8, 5)
+        val result = NwsDailyExtremesFetch.resolveForDates(
+            datesEpochDayMs = listOf(epoch(d)),
+            stationIdsNearestFirst = listOf("KNUQ"),
+            userLat = 37.4168,
+            userLon = -122.0890,
+            personalStationWeight = 1.0,
+            zone = zone,
+            nowMs = nowMs,
+        ) { _, _, _ -> null }
+
+        assertEquals(NwsDailyExtremesFetch.DayOutcome.Unavailable, result[epoch(d)])
+    }
+
+    @Test
+    fun `one failed station makes the whole day Unavailable rather than blending a short pool`() = runBlocking {
+        val d = LocalDate.of(2026, 8, 5)
+        val result = NwsDailyExtremesFetch.resolveForDates(
+            datesEpochDayMs = listOf(epoch(d)),
+            stationIdsNearestFirst = listOf("KNUQ", "KSJC"),
+            userLat = 37.4168,
+            userLon = -122.0890,
+            personalStationWeight = 1.0,
+            zone = zone,
+            nowMs = nowMs,
+        ) { stationId, _, _ ->
+            if (stationId == "KNUQ") null else coveredDay(d, "KSJC", 15.94f, 59.0f, 80.6f)
+        }
+
+        assertEquals(
+            "a short pool for the wrong reason must retry, not resolve",
+            NwsDailyExtremesFetch.DayOutcome.Unavailable,
+            result[epoch(d)],
+        )
     }
 
     /**
@@ -209,9 +252,9 @@ class NwsDailyExtremesFetchTest {
             }
         }
 
-        assertEquals(75.2f, result[epoch(good)]?.station?.high)
-        assertNotNull("the pool spans the day, so it blends", result[epoch(split)])
-        assertNull("but no single station qualifies", result[epoch(split)]?.station)
+        assertEquals(75.2f, (result[epoch(good)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.station?.high)
+        assertTrue("the pool spans the day, so it blends", result[epoch(split)] is NwsDailyExtremesFetch.DayOutcome.Resolved)
+        assertNull("but no single station qualifies", (result[epoch(split)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.station)
     }
 
     @Test
@@ -229,7 +272,7 @@ class NwsDailyExtremesFetchTest {
             coveredDay(d, "AW020", 2.22f, 61.0f, 77.0f).map { it.copy(stationType = "PERSONAL") }
         }
 
-        val day = result[epoch(d)]
+        val day = (result[epoch(d)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals
         assertNotNull("a PWS-only pool must still blend", day)
         assertNull("but a PWS can never supply the api actual", day?.station)
         assertTrue("blend must reflect the PWS reading", day!!.blendHigh > 70f)
@@ -253,7 +296,7 @@ class NwsDailyExtremesFetchTest {
                 "AW020" -> coveredDay(d, "AW020", 2.22f, 61.0f, 90.0f).map { it.copy(stationType = "PERSONAL") }
                 else -> coveredDay(d, "KNUQ", 3.83f, 60.8f, 70.0f)
             }
-        }[epoch(d)]?.blendHigh
+        }.let { (it[epoch(d)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.blendHigh }
 
         val full = blendAt(1.0)
         val ignored = blendAt(0.0)
@@ -265,7 +308,7 @@ class NwsDailyExtremesFetchTest {
     }
 
     @Test
-    fun `a day whose every station returns nothing is absent, so no stored value is overwritten`() = runBlocking {
+    fun `a day whose every station answers with nothing is Insufficient`() = runBlocking {
         val d = LocalDate.of(2026, 8, 5)
         val result = NwsDailyExtremesFetch.resolveForDates(
             datesEpochDayMs = listOf(epoch(d)),
@@ -277,7 +320,7 @@ class NwsDailyExtremesFetchTest {
             nowMs = nowMs,
         ) { _, _, _ -> emptyList() }
 
-        assertTrue(result.isEmpty())
+        assertEquals(NwsDailyExtremesFetch.DayOutcome.Insufficient, result[epoch(d)])
     }
 
     /**
@@ -302,7 +345,11 @@ class NwsDailyExtremesFetchTest {
             (9..23).map { reading(d, it, 70f + it, "KNUQ", 3.83f) }
         }
 
-        assertTrue("a partial day must not overwrite a good stored blend", result.isEmpty())
+        assertEquals(
+            "a partial day must be reported Insufficient, not silently dropped",
+            NwsDailyExtremesFetch.DayOutcome.Insufficient,
+            result[epoch(d)],
+        )
     }
 
     @Test
@@ -318,7 +365,7 @@ class NwsDailyExtremesFetchTest {
             nowMs = nowMs,
         ) { _, _, _ -> (0..9).map { reading(d, it, 60f + it, "KNUQ", 3.83f) } }
 
-        assertTrue(result.isEmpty())
+        assertEquals(NwsDailyExtremesFetch.DayOutcome.Insufficient, result[epoch(d)])
     }
 
     @Test
