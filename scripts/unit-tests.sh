@@ -72,16 +72,32 @@ fi
 SINGLE_INVOCATION_MONITOR_PID=""
 SINGLE_INVOCATION_REPORT_POLLER_PID=""
 
+# Kill a backgrounded job together with the processes it forked.
+#
+# The children MUST be enumerated BEFORE the parent is signalled. `( tail -F ... | while
+# read ... ) &` forks three processes: the subshell ($!), the tail, and the while-loop
+# subshell. Killing $! first and only then running `pgrep -P $!` always loses the race —
+# the kernel reparents the orphans to init the instant $! dies, so pgrep matches nothing
+# and the tail survives the whole run holding an inotify watch. (tail never exits by
+# itself here: -F retries forever, and SIGPIPE only fires on a write, which never comes
+# once Gradle stops appending to the log.)
+stop_pid_tree() {
+  local pid=$1
+  [ -n "$pid" ] || return 0
+  kill -0 "$pid" 2>/dev/null || return 0
+  local kids
+  kids=$(pgrep -P "$pid" 2>/dev/null || true)
+  kill "$pid" 2>/dev/null || true
+  if [ -n "$kids" ]; then
+    # shellcheck disable=SC2086  # intentional word splitting: pgrep emits one PID per line
+    kill $kids 2>/dev/null || true
+  fi
+  wait "$pid" 2>/dev/null || true
+}
+
 cleanup() {
-  if [ -n "${SINGLE_INVOCATION_MONITOR_PID:-}" ] && kill -0 "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null; then
-    kill "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null || true
-    # tail -F orphan: the subshell kill above may leave the tail process running,
-    # especially when the script exits early. Kill all children of the subshell.
-    pgrep -P "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null | xargs -r kill 2>/dev/null || true
-  fi
-  if [ -n "${SINGLE_INVOCATION_REPORT_POLLER_PID:-}" ] && kill -0 "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null; then
-    kill "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null || true
-  fi
+  stop_pid_tree "${SINGLE_INVOCATION_MONITOR_PID:-}"
+  stop_pid_tree "${SINGLE_INVOCATION_REPORT_POLLER_PID:-}"
   if [ -n "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] && [ -d "$SINGLE_INVOCATION_REPORTED_DIR" ]; then
     rm -rf "$SINGLE_INVOCATION_REPORTED_DIR"
   fi
@@ -324,11 +340,8 @@ else
   ) >"$gradle_log" 2>&1 || overall_status=$?
 fi
 
-if [ -n "$SINGLE_INVOCATION_MONITOR_PID" ] && kill -0 "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null; then
-  kill "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null || true
-  pgrep -P "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null | xargs -r kill 2>/dev/null || true
-  SINGLE_INVOCATION_MONITOR_PID=""
-fi
+stop_pid_tree "$SINGLE_INVOCATION_MONITOR_PID"
+SINGLE_INVOCATION_MONITOR_PID=""
 if [ -n "$SINGLE_INVOCATION_REPORT_POLLER_PID" ] && kill -0 "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null; then
   # Give the poller a brief moment to pick up the final bucket's report
   # before we force-exit it, then kill if still running.
@@ -338,9 +351,7 @@ if [ -n "$SINGLE_INVOCATION_REPORT_POLLER_PID" ] && kill -0 "$SINGLE_INVOCATION_
     fi
     sleep 0.5
   done
-  if kill -0 "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null; then
-    kill "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null || true
-  fi
+  stop_pid_tree "$SINGLE_INVOCATION_REPORT_POLLER_PID"
   SINGLE_INVOCATION_REPORT_POLLER_PID=""
 fi
 

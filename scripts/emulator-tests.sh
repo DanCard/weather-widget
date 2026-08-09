@@ -25,6 +25,7 @@ TEST_TIMEOUT=300 # Seconds for tests to complete
 VISIBLE_MODE=true  # Run emulator with GUI window (default)
 VERBOSE_MODE=false  # Verbose output (default: condensed)
 PROGRESS_PID=""
+PROGRESS_PIDS=()    # per-emulator monitors in multi-emulator mode
 
 LOG_DIR="logs/emulator-tests"
 mkdir -p "$LOG_DIR"
@@ -229,17 +230,43 @@ fi
 
 echo -en "${BLUE}Selected: $EMULATOR_NAME${NC}  "
 
+# Kill a backgrounded job together with the processes it forked.
+#
+# The children MUST be enumerated BEFORE the parent is signalled: the kernel reparents
+# them to init the instant the parent dies, so a `pgrep -P` issued afterwards matches
+# nothing. Same helper and same reasoning as scripts/unit-tests.sh.
+stop_pid_tree() {
+    local pid="${1:-}"
+    [ -n "$pid" ] || return 0
+    kill -0 "$pid" 2>/dev/null || return 0
+    local kids
+    kids=$(pgrep -P "$pid" 2>/dev/null || true)
+    kill "$pid" 2>/dev/null || true
+    if [ -n "$kids" ]; then
+        # shellcheck disable=SC2086  # intentional word splitting: one PID per line
+        kill $kids 2>/dev/null || true
+    fi
+    wait "$pid" 2>/dev/null || true
+    return 0
+}
+
 # Function to cleanup emulator
 cleanup() {
     debug_log "cleanup start: USE_EXISTING=${USE_EXISTING:-unset} EMULATOR_SERIAL=${EMULATOR_SERIAL:-unset} PROGRESS_PID=${PROGRESS_PID:-unset}"
 
-    # Stop progress monitor if running
+    # Stop progress monitors. These are `while true` loops that never exit on their own,
+    # so any exit between spawn and the inline teardown — INT/TERM, or one of the `exit`
+    # paths in multi-emulator mode — strands them without this.
     if [ -n "${PROGRESS_PID:-}" ]; then
         debug_log "cleanup: kill progress monitor pid=$PROGRESS_PID"
-        kill "$PROGRESS_PID" 2>/dev/null || true
-        wait "$PROGRESS_PID" 2>/dev/null || true
+        stop_pid_tree "$PROGRESS_PID"
         debug_log "cleanup: progress monitor stop wait complete"
     fi
+    local _pid
+    for _pid in ${PROGRESS_PIDS[@]+"${PROGRESS_PIDS[@]}"}; do
+        debug_log "cleanup: kill per-emulator progress monitor pid=$_pid"
+        stop_pid_tree "$_pid"
+    done
 
     # Always keep emulator running (avoids re-launch overhead on next run)
     if [ -n "${EMULATOR_SERIAL:-}" ] && [ "$VERBOSE_MODE" = true ]; then
@@ -576,9 +603,10 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
         done
 
         # Stop progress monitors
-        for pid in "${PROGRESS_PIDS[@]}"; do
-            kill "$pid" 2>/dev/null || true
+        for pid in ${PROGRESS_PIDS[@]+"${PROGRESS_PIDS[@]}"}; do
+            stop_pid_tree "$pid"
         done
+        PROGRESS_PIDS=()
 
         if [ $OVERALL_STATUS -eq 0 ]; then
             echo -e "${GREEN}All emulators passed${NC}"
@@ -776,7 +804,12 @@ while kill -0 $GRADLE_PID 2>/dev/null; do
     WAIT_ELAPSED=$((WAIT_ELAPSED + 1))
 done
 
-# Kill gradle if still running (it often hangs after build completes)
+# Kill gradle if still running (it often hangs after build completes).
+# A bare kill of script(1) is sufficient and deliberate: closing the pty master hangs up
+# the slave, so the gradlew wrapper and its client JVM get SIGHUP and exit on their own.
+# Do NOT "improve" this into a process-tree kill — a freshly started Gradle daemon is a
+# child of the client JVM until that client exits, so a tree walk can take the daemon
+# down with it and force a cold daemon start on the next run.
 if kill -0 $GRADLE_PID 2>/dev/null; then
     debug_log "killing gradle pid=$GRADLE_PID (post-build or timeout)"
     kill $GRADLE_PID 2>/dev/null || true
@@ -856,8 +889,8 @@ if [ "$TEST_SUCCESS" = false ] && grep -qE "transform.*ClassesWithAsm.*FAILED|Ex
 fi
 
 # Kill progress monitor
-kill $PROGRESS_PID 2>/dev/null || true
-wait "$PROGRESS_PID" 2>/dev/null || true
+stop_pid_tree "$PROGRESS_PID"
+PROGRESS_PID=""
 debug_log "progress monitor stop requested after test run"
 
 TEST_END=$(date +%s)

@@ -192,10 +192,51 @@ run_one_emulator_with_retries() {
     return "$serial_status"
 }
 
+# Run every connected emulator in one parallel pass, with readiness gating and
+# transient-disconnect retry preserved at whole-run granularity.
+#
+# This delegates to emulator-tests.sh's OWN multi-emulator mode (reached by NOT setting
+# EMULATOR_TESTS_TARGET_SERIAL) instead of launching one wrapper per serial. The
+# distinction is the whole reason this is safe: that mode runs
+# `assembleDebug assembleDebugAndroidTest` ONCE and then only overlaps `adb install` and
+# `am instrument`, so two Gradle builds never touch the project concurrently. Running one
+# wrapper per serial in parallel would do exactly that, which is the concurrent
+# Kotlin/Java compilation that made earlier parallel attempts flaky.
+run_all_emulators_parallel_with_retries() {
+    local adb_bin="$1"; shift
+    local serials=("$@")
+    local attempt=1
+    local run_status=1
+    while [ "$attempt" -le "$EMULATOR_MAX_ATTEMPTS" ]; do
+        local serial
+        for serial in "${serials[@]}"; do
+            if ! wait_for_emulator_ready "$adb_bin" "$serial" 90; then
+                echo -e "${YELLOW}Warning: ${serial} did not report ready before attempt ${attempt}; proceeding anyway${NC}"
+            fi
+        done
+        : > "$EMULATOR_LOG_FILE"  # per-attempt, so the transient grep sees only this attempt
+        "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE"
+        run_status=${PIPESTATUS[0]}
+        [ "$run_status" -eq 0 ] && break
+        if [ "$attempt" -lt "$EMULATOR_MAX_ATTEMPTS" ] &&
+            grep -qiE "$TRANSIENT_DISCONNECT_REGEX" "$EMULATOR_LOG_FILE"; then
+            echo -e "${YELLOW}Transient emulator/runner disconnect (attempt ${attempt}/${EMULATOR_MAX_ATTEMPTS}); recovering devices and retrying...${NC}"
+            "$adb_bin" reconnect offline >/dev/null 2>&1 || true
+            sleep 3
+            attempt=$((attempt + 1))
+            continue
+        fi
+        # Non-transient failure (real test/build failure) or out of attempts.
+        break
+    done
+    return "$run_status"
+}
+
 # Start emulator tests only after JVM/unit tests finish. Running the long JVM bucket while
 # two emulators are both installing and executing instrumentation has produced truncated
 # per-emulator logs with no OK/FAILURES footer, even though standalone emulator-tests.sh
-# passes. Keep the phases sequential so emulator-tests.sh owns the device-intensive phase.
+# passes. Keep THOSE phases sequential so emulator-tests.sh owns the device-intensive
+# phase; within that phase the emulators themselves run in parallel.
 run_emulator_tests_for_staggered() {
     local status=0
     local adb_bin="${ADB:-$HOME/.Android/Sdk/platform-tools/adb}"
@@ -203,10 +244,11 @@ run_emulator_tests_for_staggered() {
         adb_bin="$(command -v adb || true)"
     fi
     mapfile -t connected_emulators < <("$adb_bin" devices 2>/dev/null | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
-    if [ "${#connected_emulators[@]}" -ge 1 ]; then
-        if [ "${#connected_emulators[@]}" -gt 1 ]; then
-            echo -e "${BLUE}Detected ${#connected_emulators[@]} connected emulators; running emulator tests sequentially for staggered reliability: ${connected_emulators[*]}${NC}"
-        fi
+    if [ "${#connected_emulators[@]}" -gt 1 ]; then
+        echo -e "${BLUE}Detected ${#connected_emulators[@]} connected emulators; building once, then running them in parallel: ${connected_emulators[*]}${NC}"
+        run_all_emulators_parallel_with_retries "$adb_bin" "${connected_emulators[@]}"
+        status=$?
+    elif [ "${#connected_emulators[@]}" -eq 1 ]; then
         for serial in "${connected_emulators[@]}"; do
             echo -e "${YELLOW}=== Running emulator tests on ${serial} ===${NC}"
             run_one_emulator_with_retries "$adb_bin" "$serial"

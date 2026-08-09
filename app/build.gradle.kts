@@ -232,6 +232,14 @@ tasks.configureEach {
 tasks.withType<Test> {
     // Use a modest level of parallelism to speed up unit tests without
     // overwhelming Robolectric or exposing too much shared-state contention.
+    //
+    // The ceiling of 4 is measured, not arbitrary — do not raise it hoping for a speedup.
+    // The four duration buckets run CONCURRENTLY, so peak JVM count is 4 x this value; at
+    // 4 that is already 16 Robolectric JVMs, and each one occupies roughly two cores once
+    // its GC and JIT threads are counted. On a 32-core host that saturates the machine.
+    // Measured on 32 cores / 124 GB (2026-08-08), raising the cap 4 -> 8:
+    //   Long bucket wall 41s -> 47s, Long CPU time 184s -> 321s (+74%), total wall
+    //   54s -> 51-53s (inside run-to-run noise). Strictly more work for no gain.
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
     // Works around a recurring JVM C2 JIT crash (SIGSEGV in Node::uncast, libjvm.so) seen 3x
     // (2026-05-27, 2026-06-17, 2026-07-14 hs_err_pid*.log, gitignored) on long/heavy test runs,
