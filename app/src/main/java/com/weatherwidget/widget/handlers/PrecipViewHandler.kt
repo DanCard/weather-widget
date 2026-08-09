@@ -67,6 +67,8 @@ object PrecipViewHandler {
         // See WidgetViewHandler.
         partialPush: Boolean = false,
         origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UNSPECIFIED,
+        // See CloudCoverViewHandler: a stale source snapshot in the loader, not a real data gap.
+        sourceMissingFromLoad: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -356,10 +358,13 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             if (missingHours > 0) {
                 appLogDao.log(
                     "PRECIP_COVER_GAPS",
-                    "widget=$appWidgetId source=${displaySource.id} missing=$missingHours total=$totalWindowHours",
+                    "widget=$appWidgetId source=${displaySource.id} missing=$missingHours total=$totalWindowHours " +
+                        "sourceMissingFromLoad=$sourceMissingFromLoad",
                 )
                 val cooldownMs = 15 * 60 * 1000L
-                if (stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)) {
+                if (!sourceMissingFromLoad &&
+                    stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)
+                ) {
                     stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "hourly_gaps")
                     appLogDao.log(
                         "PRECIP_GAPS_REFRESH",

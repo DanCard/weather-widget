@@ -98,6 +98,8 @@ internal object TemperatureStateResolver {
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         appLogDao: AppLogDao? = null,
         now: LocalDateTime = LocalDateTime.now(),
+        // See CloudCoverViewHandler: a stale source snapshot in the loader, not a real data gap.
+        sourceMissingFromLoad: Boolean = false,
     ): ResolutionResult {
         val effectiveAppLogDao = appLogDao ?: WeatherDatabase.getDatabase(context).appLogDao()
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
@@ -152,6 +154,7 @@ internal object TemperatureStateResolver {
             smoothedForecasts = smoothedForecasts,
             observedAt = observedAt,
             lastObservedTemp = lastObservedTemp,
+            sourceMissingFromLoad = sourceMissingFromLoad,
         )
 
         val graphHours: List<HourData>
@@ -414,6 +417,7 @@ internal object TemperatureStateResolver {
         smoothedForecasts: Map<Long, Float>,
         observedAt: Long?,
         lastObservedTemp: Float?,
+        sourceMissingFromLoad: Boolean,
     ): GraphLoadOutcome {
         if (!useGraph) {
             // Text mode (1-row widget) has no graph, but the header still shows the yesterday
@@ -501,7 +505,9 @@ internal object TemperatureStateResolver {
 
         if (missingForecasts.missingCount > 0) {
             val cooldownMs = 15 * 60 * 1000L
-            if (stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)) {
+            if (!sourceMissingFromLoad &&
+                stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)
+            ) {
                 stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "hourly_gaps")
                 database.appLogDao().log(
                     "TEMP_GAPS_REFRESH",

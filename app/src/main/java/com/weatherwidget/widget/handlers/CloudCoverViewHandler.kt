@@ -114,6 +114,11 @@ object CloudCoverViewHandler {
         // See WidgetViewHandler.
         partialPush: Boolean = false,
         origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UNSPECIFIED,
+        // True when the caller's row set held data for OTHER sources but none for this one — a stale
+        // source snapshot in the loader, not a real data gap (see HOURLY_SOURCE_MISS). The window
+        // then reads as 100% missing, so the gap detector must NOT spend an API round-trip on it;
+        // the API has nothing we don't already hold and the next paint heals it.
+        sourceMissingFromLoad: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -401,10 +406,13 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     "CLOUD_COVER_GAPS",
                     "widget=$appWidgetId source=${effectiveDisplaySource.id} " +
                         "missing=$missingHours total=$totalWindowHours " +
-                        "ranges=${missingDescription ?: "-"} reason=${missingReason ?: "-"}",
+                        "ranges=${missingDescription ?: "-"} reason=${missingReason ?: "-"} " +
+                        "sourceMissingFromLoad=$sourceMissingFromLoad",
                 )
                 val cooldownMs = 15 * 60 * 1000L
-                if (stateManager.shouldRefreshMissingData(appWidgetId, effectiveDisplaySource.id, "hourly_gaps", cooldownMs)) {
+                if (!sourceMissingFromLoad &&
+                    stateManager.shouldRefreshMissingData(appWidgetId, effectiveDisplaySource.id, "hourly_gaps", cooldownMs)
+                ) {
                     stateManager.markMissingDataRefreshRequested(appWidgetId, effectiveDisplaySource.id, "hourly_gaps")
                     appLogDao.log(
                         "CLOUD_COVER_GAPS_REFRESH",

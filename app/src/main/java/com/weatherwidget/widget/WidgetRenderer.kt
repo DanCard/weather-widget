@@ -262,6 +262,29 @@ object WidgetRenderer {
             it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id
         }
 
+        // Carrying hourly rows but NONE for the display source paints an empty graph ("no cloud
+        // data", blank curve) and then makes the gap detector burn a forced sync. Two very different
+        // causes look identical on screen, so name them here:
+        //   * present=<other sources only> → the caller's list was source-scoped to a STALE snapshot.
+        //     HourlyForecastLoader.hourlySourceIds() reads every widget's display source BEFORE the
+        //     worker fetches; a source toggle during the fetch leaves the list unable to contain the
+        //     new source. Self-heals on the next paint. Cross-check HOURLY_SOURCE_SNAPSHOT_STALE.
+        //   * present=<display source absent everywhere> with origin=USER_INTERACTION → a genuine
+        //     upstream gap; the source really has no rows at this site.
+        val sourceMissingFromLoad = sourceFilteredHourly.isEmpty() && unifiedHourlyForecasts.isNotEmpty()
+        if (sourceMissingFromLoad) {
+            val present = unifiedHourlyForecasts.groupingBy { it.source }.eachCount()
+                .entries.sortedByDescending { it.value }
+                .joinToString(",") { "${it.key}:${it.value}" }
+            WeatherDatabase.getDatabase(context).appLogDao().log(
+                "HOURLY_SOURCE_MISS",
+                "widget=$appWidgetId view=$effectiveViewMode origin=${origin.name} " +
+                    "displaySource=${displaySource.id} unified=${unifiedHourlyForecasts.size} " +
+                    "present=$present site=$locationLat,$locationLon",
+                "WARN",
+            )
+        }
+
         when (effectiveViewMode) {
             ViewMode.TEMPERATURE -> {
                 TemperatureViewHandler.updateWidget(
@@ -281,6 +304,7 @@ object WidgetRenderer {
                     uiOnly = uiOnly,
                     partialPush = partialPush,
                     origin = origin,
+                    sourceMissingFromLoad = sourceMissingFromLoad,
                 )
             }
             ViewMode.PRECIPITATION -> {
@@ -298,6 +322,7 @@ object WidgetRenderer {
                     uiOnly = uiOnly,
                     partialPush = partialPush,
                     origin = origin,
+                    sourceMissingFromLoad = sourceMissingFromLoad,
                 )
             }
             ViewMode.CLOUD_COVER -> {
@@ -316,6 +341,7 @@ object WidgetRenderer {
                     uiOnly = uiOnly,
                     partialPush = partialPush,
                     origin = origin,
+                    sourceMissingFromLoad = sourceMissingFromLoad,
                 )
             }
             ViewMode.DAILY -> {

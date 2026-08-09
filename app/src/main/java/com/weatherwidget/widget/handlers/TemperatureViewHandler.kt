@@ -63,6 +63,8 @@ object TemperatureViewHandler {
         // See WidgetViewHandler.
         partialPush: Boolean = false,
         origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UNSPECIFIED,
+        // See CloudCoverViewHandler: a stale source snapshot in the loader, not a real data gap.
+        sourceMissingFromLoad: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -161,6 +163,7 @@ object TemperatureViewHandler {
             startupToken = startupToken,
             onFetchDotResolved = onFetchDotResolved,
             appLogDao = appLogDao,
+            sourceMissingFromLoad = sourceMissingFromLoad,
         )
 
         val views = RemoteViews(context.packageName, com.weatherwidget.R.layout.widget_weather)

@@ -86,8 +86,13 @@ internal class HourlyForecastLoader(
             ).map { it.toEntity(lat, lon) }
             Log.i(
                 TAG,
+                // `sources` is the SQL scope, snapshotted from the widgets' CURRENT display sources
+                // before the caller's fetch. Log it: a later repaint that filters to a source absent
+                // from this list renders an empty graph, and without this field the two counts alone
+                // ("stitched=466" then "hourlyCount=0") look like the rows vanished.
                 "load: stitched=${stitched.size} from current=${current.size} history=${history.size} " +
-                    "center=$lat,$lon sites=${current.map { it.locationLat to it.locationLon }.distinct().size}",
+                    "center=$lat,$lon sites=${current.map { it.locationLat to it.locationLon }.distinct().size} " +
+                    "sources=${sources.joinToString("|")}",
             )
             stitched
         } catch (e: Exception) {
@@ -96,7 +101,22 @@ internal class HourlyForecastLoader(
         }
     }
 
-    private companion object {
+    companion object {
         private const val TAG = "HourlyForecastLoader"
+
+        /**
+         * Display sources that are on screen NOW but were not in the scope the rows were loaded
+         * under — so the loaded set provably contains zero rows for them.
+         *
+         * [load] filters in SQL by the sources the widgets displayed when the caller asked, which
+         * happens BEFORE the network fetch. A source toggle during the fetch (seconds) leaves the
+         * result unable to satisfy the repaint: the widget paints an empty graph and its gap
+         * detector then spends a forced sync on data it already has. A non-empty result here means
+         * "reload before rendering", not "fetch from the API".
+         */
+        fun sourcesMissingFromLoad(
+            loadedSourceIds: List<String>,
+            displaySourceIdsAtPaint: List<String>,
+        ): List<String> = displaySourceIdsAtPaint.filterNot { loadedSourceIds.contains(it) }
     }
 }

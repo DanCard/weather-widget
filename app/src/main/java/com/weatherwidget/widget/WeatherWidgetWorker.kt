@@ -354,10 +354,14 @@ class WeatherWidgetWorker
                         logStage("weather_fetched count=${weatherList.size}")
 
                         val forecastSnapshots = dataBundleLoader.fetchForecastSnapshots(location.first, location.second)
+                        // Snapshotted here, re-read at paint time below: the gap between the two spans
+                        // the fetch/backfill/actuals stages (seconds), and a source toggle inside it
+                        // makes the loaded rows unusable for the toggled widget.
+                        val hourlySourceIdsAtLoad = hourlyForecastLoader.hourlySourceIds()
                         val hourlyForecasts = hourlyForecastLoader.load(
                             lat = location.first,
                             lon = location.second,
-                            sources = hourlyForecastLoader.hourlySourceIds(),
+                            sources = hourlySourceIdsAtLoad,
                         )
                         val afterHourlyMs = SystemClock.elapsedRealtime()
                         logStage("hourly_fetched count=${hourlyForecasts.size}")
@@ -403,10 +407,41 @@ class WeatherWidgetWorker
 
                         logStage("actuals_recompute_start recompute=${!input.uiOnlyRefresh}")
                         val actualsSourceList = hourlyForecastLoader.currentDisplaySourceIds()
+
+                        // `hourlyForecasts` was scoped to `hourlySourceIdsAtLoad`, read BEFORE the fetch.
+                        // A source toggle during the fetch (seconds) leaves that list with ZERO rows for
+                        // the newly displayed source, so both the actuals recompute and the repaint below
+                        // would work from data that cannot contain it: the widget paints an empty graph
+                        // ("no cloud data") and the gap detector then burns a redundant forced sync.
+                        // Re-read once — a single scoped query — so everything downstream sees the
+                        // sources actually on screen. Cross-check HOURLY_SOURCE_MISS in WidgetRenderer.
+                        val missingAtPaint = HourlyForecastLoader.sourcesMissingFromLoad(
+                            loadedSourceIds = hourlySourceIdsAtLoad,
+                            displaySourceIdsAtPaint = actualsSourceList,
+                        )
+                        val renderHourlyForecasts = if (missingAtPaint.isEmpty()) {
+                            hourlyForecasts
+                        } else {
+                            val reloaded = hourlyForecastLoader.load(
+                                lat = location.first,
+                                lon = location.second,
+                                sources = hourlyForecastLoader.hourlySourceIds(),
+                            )
+                            appLogDao.log(
+                                "HOURLY_SOURCE_SNAPSHOT_STALE",
+                                "loaded=${hourlySourceIdsAtLoad.joinToString("|")} " +
+                                    "atPaint=${actualsSourceList.joinToString("|")} " +
+                                    "missing=${missingAtPaint.joinToString("|")} " +
+                                    "staleRows=${hourlyForecasts.size} reloadedRows=${reloaded.size}",
+                                "WARN",
+                            )
+                            reloaded
+                        }
+
                         val dailyActuals = dataBundleLoader.fetchDailyActuals(
                             lat = location.first,
                             lon = location.second,
-                            hourlyForecasts = hourlyForecasts,
+                            hourlyForecasts = renderHourlyForecasts,
                             activeSourceList = actualsSourceList,
                             recompute = !input.uiOnlyRefresh,
                         )
@@ -428,18 +463,20 @@ class WeatherWidgetWorker
                         updateAllWidgets(
                             weatherList = weatherList,
                             forecastSnapshots = forecastSnapshots,
-                            hourlyForecasts = hourlyForecasts,
+                            hourlyForecasts = renderHourlyForecasts,
                             currentTemps = currentTemps,
                             dailyActuals = dailyActuals,
                             jobType = jobType,
                             uiOnly = input.uiOnlyRefresh,
                             origin = workerOrigin,
                             loadedActualsSourceIds = actualsSourceList,
+                            // This escape hatch fires when a widget's source changed during the paint —
+                            // the same race, one stage later — so it must read the reloaded rows too.
                             reloadActuals = { sourceIds ->
                                 dataBundleLoader.reloadDailyActuals(
                                     lat = location.first,
                                     lon = location.second,
-                                    hourlyForecasts = hourlyForecasts,
+                                    hourlyForecasts = renderHourlyForecasts,
                                     sourceIds = sourceIds,
                                 )
                             },
