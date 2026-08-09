@@ -1,0 +1,1 @@
+Release 26080902: Add direct access buttons for forecast history and current observations to daily view, and streamline daily header rendering performance.
