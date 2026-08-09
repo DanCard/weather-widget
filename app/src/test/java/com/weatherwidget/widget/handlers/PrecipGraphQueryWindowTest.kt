@@ -7,7 +7,8 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetActions
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -51,7 +52,7 @@ class PrecipGraphQueryWindowTest {
     @Test
     fun `HOURLY_GRAPH_LOOKAHEAD_HOURS covers farthest reachable daily tap plus WIDE zoom forward window`() {
         val maxDailyOffset = 6 * 24 + 8 // 6 full days + 8h to reach 8AM = 152h
-        val wideForwardHours = ZoomLevel.WIDE.forwardHours
+        val wideForwardHours = ZoomStage.WIDE.window().forwardHours
         val requiredLookahead = maxDailyOffset + wideForwardHours // 164h
 
         assertTrue(
@@ -93,10 +94,10 @@ class PrecipGraphQueryWindowTest {
             centerTime = centerTime,
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
-        val expectedCount = ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours // 24
+        val expectedCount = ZoomStage.WIDE.window().backHours + ZoomStage.WIDE.window().forwardHours // 24
         assertEquals(
             "WIDE window around offset ${offsetHours}h should yield $expectedCount hours",
             expectedCount,
@@ -122,7 +123,7 @@ class PrecipGraphQueryWindowTest {
             centerTime = centerTime,
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         assertTrue(
@@ -142,7 +143,7 @@ class PrecipGraphQueryWindowTest {
             centerTime = LocalDateTime.now(),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         assertTrue("Empty input → empty output", hours.isEmpty())
@@ -165,10 +166,10 @@ class PrecipGraphQueryWindowTest {
             centerTime = centerTime,
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
-        val expectedCount = ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours
+        val expectedCount = ZoomStage.WIDE.window().backHours + ZoomStage.WIDE.window().forwardHours
         assertEquals(
             "WIDE window around offset ${offsetHours}h should yield $expectedCount hours",
             expectedCount,

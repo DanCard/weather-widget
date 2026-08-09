@@ -157,11 +157,11 @@ object WidgetRenderer {
         Log.d(
             TAG,
             "updateWidgetInternal: widget=$appWidgetId viewMode=$viewMode effectiveViewMode=$effectiveViewMode " +
-                "rows=${dimensions.rows} zoom=${stateManager.getZoomLevel(appWidgetId)}",
+                "rows=${dimensions.rows} zoom=${stateManager.getZoomWindow(appWidgetId)}",
         )
 
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-        val zoom = stateManager.getZoomLevel(appWidgetId)
+        val zoom = stateManager.getZoomWindow(appWidgetId)
         val now = LocalDateTime.now()
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
         // History views render from a fixed anchor so this automatic refresh doesn't drift them forward;

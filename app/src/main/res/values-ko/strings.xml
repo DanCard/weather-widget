@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">NWS 선호 - 미국 기상청 (미국 전용)</string>
     <string name="api_prefer_openmeteo">Open-Meteo 선호 - 전 세계 지원</string>
     <string name="api_prefer_weatherapi">WeatherAPI 선호 - 전 세계 지원</string>
+    <string name="hourly_zoom_title">시간별 확대</string>
+    <string name="hourly_zoom_description">확대된 시간별 그래프에 표시할 시간 수입니다. 그래프를 탭하면 확대 수준이 전환되며, 여기서 가장 좁은 수준을 설정합니다. 범위가 넓을수록 탭당 더 많이 이동합니다.</string>
+    <string name="hourly_zoom_value">%1$d시간</string>
+    <string name="hourly_zoom_min">4시간</string>
+    <string name="hourly_zoom_max">8시간</string>
     <string name="api_sources_title">날씨 데이터 소스</string>
     <string name="api_sources_description">소스를 사용/사용 안 함으로 설정하고 순서를 바꿉니다. 사용 중지된 소스는 다시 사용하도록 설정할 때까지 위젯 전환과 백그라운드 가져오기에서 제외됩니다.</string>
     <string name="must_keep_one_source">최소 한 개의 소스는 사용 설정 상태여야 합니다</string>

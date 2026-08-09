@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">NWS\'yi tercih et - Ulusal Hava Servisi (yalnızca ABD)</string>
     <string name="api_prefer_openmeteo">Open-Meteo\'yu tercih et - Küresel kapsama</string>
     <string name="api_prefer_weatherapi">WeatherAPI\'yi tercih et - Küresel kapsama</string>
+    <string name="hourly_zoom_title">Saatlik Yakınlaştırma</string>
+    <string name="hourly_zoom_description">Yakınlaştırılmış saatlik grafiğin kaç saat gösterdiği. Yakınlaştırma düzeyleri arasında geçiş yapmak için grafiğe dokunun; bu, en dar düzeyi belirler. Daha geniş aralıklar her dokunuşta daha fazla kaydırır.</string>
+    <string name="hourly_zoom_value">%1$d saat</string>
+    <string name="hourly_zoom_min">4 saat</string>
+    <string name="hourly_zoom_max">8 saat</string>
     <string name="api_sources_title">Hava durumu veri kaynakları</string>
     <string name="api_sources_description">Kaynakları etkinleştirin/devre dışı bırakın ve yeniden sıralayın. Devre dışı kaynaklar yeniden etkinleştirilene kadar widget geçişlerinden ve arka plan indirmelerinden hariç tutulur.</string>
     <string name="must_keep_one_source">En az bir kaynak etkin kalmalı</string>

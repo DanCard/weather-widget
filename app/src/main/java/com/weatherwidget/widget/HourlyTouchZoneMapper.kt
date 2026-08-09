@@ -9,7 +9,7 @@ object HourlyTouchZoneMapper {
     fun zoneIndexToOffset(
         zoneIndex: Int,
         currentHourlyOffset: Int,
-        zoom: ZoomLevel = ZoomLevel.WIDE,
+        zoom: ZoomWindow = ZoomStage.WIDE.window(),
     ): Int {
         val zoneSpan = HOUR_ZONE_COUNT - 1
         val perZoneHours = (zoom.backHours + zoom.forwardHours) / zoneSpan.toFloat()

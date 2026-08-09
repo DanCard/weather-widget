@@ -5,7 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import com.weatherwidget.widget.handlers.RefreshScheduler
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -92,12 +93,12 @@ class CloudCoverViewModeRoboTest {
     @Test
     fun handleSetView_daily_resetsZoomToWide() = runBlocking {
         stateManager.setViewMode(testWidgetId, ViewMode.CLOUD_COVER)
-        stateManager.setZoomLevel(testWidgetId, ZoomLevel.NARROW)
+        stateManager.setZoomLevel(testWidgetId, ZoomStage.NARROW)
 
         try { WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.DAILY) } catch (_: Exception) {}
 
         assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
@@ -176,11 +177,11 @@ class CloudCoverViewModeRoboTest {
     @Test
     fun toggleCloudCoverMode_preservesZoomLevel() {
         stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
-        stateManager.setZoomLevel(testWidgetId, ZoomLevel.NARROW)
+        stateManager.setZoomLevel(testWidgetId, ZoomStage.NARROW)
 
         stateManager.toggleCloudCoverMode(testWidgetId)
 
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test

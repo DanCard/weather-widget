@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
@@ -126,8 +127,11 @@ class DesktopGraphZoomTest {
         var z = 0f
         while (z <= 1f) {
             val span = DesktopGraphUtils.totalSpanHoursFor(z)
-            val expected = if (span <= 4) 1 else (span / 2).coerceAtLeast(1)
-            assertEquals("jump should be half the span (or 1 for narrow) at z=$z", expected, DesktopGraphUtils.navJumpHours(z))
+            // Delegates to the shared rule now, so desktop and the Android widget step identically
+            // at a given span: 1h through 5h, 2h through 8h (the configurable NARROW band), then
+            // the long-standing half-a-span above that.
+            val expected = HourlyZoomRules.navJumpHours(span)
+            assertEquals("jump should follow the shared rule at z=$z", expected, DesktopGraphUtils.navJumpHours(z))
             z += 0.1f
         }
         // Zoomed in -> small jump (doesn't overshoot the window); zoomed out -> large jump.
@@ -282,12 +286,33 @@ class DesktopGraphZoomTest {
 
     @Test
     fun `each stage maps to its canonical zoom factor`() {
-        // NARROW is the tightest (factor 0); WIDE lands on the existing default; THREE_DAY is wide.
-        // Canonical factors shifted when MAX_BACK_HOURS grew to 720 (the curve rescaled): WIDE's 12h
-        // back now sits at ~0.304 and THREE_DAY's 48h back at ~0.540.
-        assertEquals(0f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW), 0.001f)
+        // WIDE lands on the existing default; THREE_DAY is wide. Canonical factors shifted when
+        // MAX_BACK_HOURS grew to 720 (the curve rescaled): WIDE's 12h back now sits at ~0.304 and
+        // THREE_DAY's 48h back at ~0.540. Neither moves with the narrow-span setting.
         assertEquals(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR, DesktopGraphUtils.zoomFactorForStage(ZoomStage.WIDE), 0.02f)
         assertEquals(0.54f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.THREE_DAY), 0.02f)
+        // NARROW is only the curve's floor (factor 0) at its minimum 4h span, which is 2h back.
+        // Widening the setting walks it up the curve.
+        assertEquals(0f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, 4), 0.001f)
+        assertTrue(
+            "a wider narrow span must map to a wider zoom factor",
+            DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, 8) >
+                DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, 4),
+        )
+    }
+
+    @Test
+    fun `narrow stage round-trips through the snap at every configurable span`() {
+        // The desktop click cycle maps factor -> stage -> factor. If those two disagree about the
+        // configured span, a click can advance from a stage the user isn't looking at.
+        for (span in HourlyZoomRules.MIN_NARROW_SPAN_HOURS..HourlyZoomRules.MAX_NARROW_SPAN_HOURS) {
+            val factor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, span)
+            assertEquals(
+                "narrow span=$span must snap back to NARROW",
+                ZoomStage.NARROW,
+                ZoomStage.nearestByTotalSpan(DesktopGraphUtils.totalSpanHoursFor(factor), span),
+            )
+        }
     }
 
     @Test
@@ -296,7 +321,7 @@ class DesktopGraphZoomTest {
         for (stage in ZoomStage.entries) {
             assertEquals(
                 "back hours for $stage",
-                stage.backHours.toInt(),
+                stage.window().backHours.toInt(),
                 DesktopGraphUtils.backHoursFor(DesktopGraphUtils.zoomFactorForStage(stage)),
             )
         }

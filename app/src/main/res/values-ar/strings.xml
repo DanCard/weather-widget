@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">تفضيل NWS - خدمة الطقس الوطنية (الولايات المتحدة فقط)</string>
     <string name="api_prefer_openmeteo">تفضيل Open-Meteo - تغطية عالمية</string>
     <string name="api_prefer_weatherapi">تفضيل WeatherAPI - تغطية عالمية</string>
+    <string name="hourly_zoom_title">التكبير بالساعة</string>
+    <string name="hourly_zoom_description">عدد الساعات التي يعرضها الرسم البياني الساعي المكبَّر. انقر على الرسم البياني للتنقل بين مستويات التكبير؛ هذا يحدد أضيقها. النطاقات الأوسع تتنقل أكثر مع كل نقرة.</string>
+    <string name="hourly_zoom_value">%1$d ساعات</string>
+    <string name="hourly_zoom_min">4 ساعات</string>
+    <string name="hourly_zoom_max">8 ساعات</string>
     <string name="api_sources_title">مصادر بيانات الطقس</string>
     <string name="api_sources_description">فعّل/عطّل المصادر وأعد ترتيبها. تُستبعد المصادر المعطّلة من تبديل الأداة والجلب في الخلفية حتى يُعاد تفعيلها.</string>
     <string name="must_keep_one_source">يجب أن يبقى مصدر واحد على الأقل مفعّلًا</string>

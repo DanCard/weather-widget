@@ -400,7 +400,7 @@ class DesktopUiTest {
         }
 
         // Uncheck NWS
-        composeTestRule.onNodeWithTag("source_checkbox_NWS").performClick()
+        composeTestRule.onNodeWithTag("source_checkbox_NWS").performScrollTo().performClick()
         composeTestRule.onNodeWithTag("save_settings").performClick()
 
         assert(savedConfig?.visibleSources?.contains("NWS") == false)
@@ -741,8 +741,8 @@ class DesktopUiTest {
         val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(
             now.plusHours(fromTightZoom.hourlyOffset.toLong()),
         )
-        assertEquals(clickedDate.atStartOfDay(), alignedCenter.minusHours(ZoomStage.WIDE.backHours))
-        assertEquals(clickedDate.plusDays(1).atStartOfDay(), alignedCenter.plusHours(ZoomStage.WIDE.forwardHours))
+        assertEquals(clickedDate.atStartOfDay(), alignedCenter.minusHours(ZoomStage.WIDE.window().backHours))
+        assertEquals(clickedDate.plusDays(1).atStartOfDay(), alignedCenter.plusHours(ZoomStage.WIDE.window().forwardHours))
     }
 
     /** Minimal [DesktopDailyDay] for routing tests; only icon + precip carry the decision. */

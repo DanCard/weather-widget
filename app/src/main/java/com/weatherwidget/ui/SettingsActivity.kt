@@ -35,6 +35,7 @@ import dagger.hilt.android.AndroidEntryPoint
 
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import com.weatherwidget.widget.WidgetActionReceiver
@@ -60,12 +61,29 @@ class SettingsActivity : AppCompatActivity() {
         setupViews()
     }
 
+    /**
+     * ACTION_REFRESH repaints every widget directly from cache in the broadcast handler.
+     * The old triggerUiOnlyUpdate() went through WorkManager, whose "expedited" request
+     * silently degrades to deferred work under quota/Doze — the repaint then took minutes.
+     */
+    private fun repaintWidgets() {
+        sendBroadcast(
+            Intent(this, WidgetActionReceiver::class.java).apply {
+                action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
+                putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
+            },
+        )
+    }
+
     private fun setupViews() {
         // API Sources ordered checkable list
         setupApiSourcesList()
 
         // API Keys section
         setupApiKeysList()
+
+        // Hourly graph zoom span slider
+        setupHourlyZoomSpan()
 
         // Personal weather station discount slider
         setupPersonalStationDiscount()
@@ -131,18 +149,6 @@ class SettingsActivity : AppCompatActivity() {
         viewIconGalleryButton.setOnClickListener {
             val intent = Intent(this, IconGalleryActivity::class.java)
             startActivity(intent)
-        }
-
-        // ACTION_REFRESH repaints every widget directly from cache in the broadcast handler.
-        // The old triggerUiOnlyUpdate() went through WorkManager, whose "expedited" request
-        // silently degrades to deferred work under quota/Doze — the repaint then took minutes.
-        fun repaintWidgets() {
-            sendBroadcast(
-                Intent(this, WidgetActionReceiver::class.java).apply {
-                    action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
-                    putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
-                },
-            )
         }
 
         // Use Celsius Switch
@@ -370,6 +376,41 @@ class SettingsActivity : AppCompatActivity() {
         workManager.getWorkInfoByIdLiveData(currentWorkId).observe(this) { workInfo ->
             onFinished(workInfo, isForecastWork = false)
         }
+    }
+
+    /**
+     * Span of the tight (NARROW) hourly zoom, 4–8h. The SeekBar is 0..4 and offset by
+     * [HourlyZoomRules.MIN_NARROW_SPAN_HOURS], since SeekBar has no min before API 26.
+     */
+    private fun setupHourlyZoomSpan() {
+        val seekBar = findViewById<SeekBar>(R.id.hourly_zoom_seekbar)
+        val valueLabel = findViewById<TextView>(R.id.hourly_zoom_value)
+
+        fun labelFor(spanHours: Int): String = getString(R.string.hourly_zoom_value, spanHours)
+
+        val initial = widgetStateManager.getNarrowZoomSpanHours()
+        seekBar.progress = initial - HourlyZoomRules.MIN_NARROW_SPAN_HOURS
+        valueLabel.text = labelFor(initial)
+
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                valueLabel.text = labelFor(progress + HourlyZoomRules.MIN_NARROW_SPAN_HOURS)
+            }
+
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                val progress = sb?.progress ?: return
+                val spanHours = progress + HourlyZoomRules.MIN_NARROW_SPAN_HOURS
+                widgetStateManager.setNarrowZoomSpanHours(spanHours)
+                Log.d(
+                    "SETTINGS",
+                    "Hourly narrow zoom span set to ${spanHours}h " +
+                        "(navJump=${HourlyZoomRules.navJumpHours(spanHours)}h)",
+                )
+                repaintWidgets()
+            }
+        })
     }
 
     private fun setupPersonalStationDiscount() {

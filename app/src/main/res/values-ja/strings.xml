@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">NWS を優先 - 米国国立気象局（米国のみ）</string>
     <string name="api_prefer_openmeteo">Open-Meteo を優先 - 全世界対応</string>
     <string name="api_prefer_weatherapi">WeatherAPI を優先 - 全世界対応</string>
+    <string name="hourly_zoom_title">時間別ズーム</string>
+    <string name="hourly_zoom_description">拡大した時間別グラフに表示する時間数です。グラフをタップするとズームレベルが切り替わります。ここでは最も狭いレベルを設定します。範囲が広いほど、1タップあたりのスクロール量も大きくなります。</string>
+    <string name="hourly_zoom_value">%1$d時間</string>
+    <string name="hourly_zoom_min">4時間</string>
+    <string name="hourly_zoom_max">8時間</string>
     <string name="api_sources_title">気象データソース</string>
     <string name="api_sources_description">ソースの有効/無効と並べ替えができます。無効にしたソースは、再度有効にするまでウィジェットの切り替えとバックグラウンド取得から除外されます。</string>
     <string name="must_keep_one_source">少なくとも 1 つのソースを有効にしておく必要があります</string>

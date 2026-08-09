@@ -7,7 +7,7 @@ import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.WidgetQueryWindows
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomWindow
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -106,7 +106,7 @@ object SourceStalenessProbe {
         lon: Double,
         source: WeatherSource,
         centerTime: LocalDateTime? = null,
-        zoom: ZoomLevel? = null,
+        zoom: ZoomWindow? = null,
         now: LocalDateTime = LocalDateTime.now(),
         lastSuccessfulFetchAtMs: Long? = null,
     ): SourceWindowState {

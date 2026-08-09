@@ -31,9 +31,11 @@ import com.weatherwidget.desktop.theme.TertiaryActionButton
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherOutlinedButton
 import com.weatherwidget.desktop.theme.WeatherTypography
+import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.WeatherSourceDescriptions
 import com.weatherwidget.shared.util.WeatherSourceOrdering
+import kotlin.math.roundToInt
 
 /** Phase 5: default auto-save kicks in this many ms after the last edit if the window stays open. */
 private const val DEFAULT_AUTO_SAVE_DELAY_MS = 5_000L
@@ -192,6 +194,17 @@ internal fun SettingsWindow(
                             ) { updateConfig(currentConfig.copy(todayOverlayDominantAge = it)) }
                         }
 
+                        // Hourly Zoom -- matches Android's R.string.hourly_zoom_title, and sits
+                        // directly above Weather Data Sources on both platforms.
+                        SettingsCard(title = "Hourly Zoom") {
+                            HourlyZoomSpan(
+                                spanHours = currentConfig.narrowZoomSpanHours,
+                                onChanged = { newSpan ->
+                                    updateConfig(currentConfig.copy(narrowZoomSpanHours = newSpan))
+                                },
+                            )
+                        }
+
                         // Weather Data Sources -- title matches Android's
                         // R.string.api_sources_title = "Weather Data Sources".
                         SettingsCard(title = "Weather Data Sources") {
@@ -348,6 +361,44 @@ private fun TodayOverlayToggleRow(
             onCheckedChange = onChecked,
             modifier = Modifier.testTag(testTag),
         )
+    }
+}
+
+/** Span of the tight NARROW zoom stage (4–8h), mirroring Android's "Hourly Zoom" SeekBar. */
+@Composable
+private fun HourlyZoomSpan(
+    spanHours: Int,
+    onChanged: (Int) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "How many hours the zoomed-in hourly graph shows. Click the graph to cycle zoom " +
+                "levels; this sets the tightest one. Wider spans scroll further per arrow press.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "$spanHours hours",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Slider(
+            value = spanHours.toFloat(),
+            onValueChange = { onChanged(HourlyZoomRules.clampNarrowSpan(it.roundToInt())) },
+            valueRange = HourlyZoomRules.MIN_NARROW_SPAN_HOURS.toFloat()..
+                HourlyZoomRules.MAX_NARROW_SPAN_HOURS.toFloat(),
+            // 4..8 inclusive is 5 stops, i.e. 3 interior steps.
+            steps = HourlyZoomRules.MAX_NARROW_SPAN_HOURS - HourlyZoomRules.MIN_NARROW_SPAN_HOURS - 1,
+            modifier = Modifier.fillMaxWidth().testTag("hourly_zoom_span_slider")
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("4 hours", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("8 hours", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

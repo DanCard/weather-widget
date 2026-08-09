@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">เลือก NWS - กรมอุตุนิยมวิทยาแห่งชาติสหรัฐฯ (เฉพาะสหรัฐฯ)</string>
     <string name="api_prefer_openmeteo">เลือก Open-Meteo - ครอบคลุมทั่วโลก</string>
     <string name="api_prefer_weatherapi">เลือก WeatherAPI - ครอบคลุมทั่วโลก</string>
+    <string name="hourly_zoom_title">การซูมรายชั่วโมง</string>
+    <string name="hourly_zoom_description">จำนวนชั่วโมงที่กราฟรายชั่วโมงแบบซูมแสดง แตะที่กราฟเพื่อสลับระดับการซูม ค่านี้กำหนดระดับที่แคบที่สุด ช่วงที่กว้างขึ้นจะเลื่อนไกลขึ้นต่อการแตะหนึ่งครั้ง</string>
+    <string name="hourly_zoom_value">%1$d ชั่วโมง</string>
+    <string name="hourly_zoom_min">4 ชั่วโมง</string>
+    <string name="hourly_zoom_max">8 ชั่วโมง</string>
     <string name="api_sources_title">แหล่งข้อมูลสภาพอากาศ</string>
     <string name="api_sources_description">เปิด/ปิดและจัดลำดับแหล่งข้อมูล แหล่งข้อมูลที่ปิดจะถูกยกเว้นจากการสลับบนวิดเจ็ตและการดึงข้อมูลเบื้องหลังจนกว่าจะเปิดอีกครั้ง</string>
     <string name="must_keep_one_source">ต้องเปิดใช้งานอย่างน้อยหนึ่งแหล่งข้อมูล</string>

@@ -5,7 +5,8 @@ import android.content.SharedPreferences
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import org.junit.Assert.assertTrue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -22,9 +23,10 @@ object WidgetStateTestUtils {
         }
     }
 
-    fun waitForZoomLevel(context: Context, stateManager: WidgetStateManager, widgetId: Int, expected: ZoomLevel) {
+    /** Waits on the persisted zoom *stage*; the resolved window is derived, not stored. */
+    fun waitForZoomLevel(context: Context, stateManager: WidgetStateManager, widgetId: Int, expected: ZoomStage) {
         waitFor(context, "widget_zoom_level_$widgetId") {
-            stateManager.getZoomLevel(widgetId) == expected
+            stateManager.getZoomStage(widgetId) == expected
         }
     }
 

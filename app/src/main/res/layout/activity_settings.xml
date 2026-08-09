@@ -196,10 +196,76 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- Hourly Zoom Section -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/hourly_zoom_title"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="@string/hourly_zoom_description"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_surface_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/hourly_zoom_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="4dp"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    tools:text="5 hours · scrolls 1 per tap" />
+
+                <SeekBar
+                    android:id="@+id/hourly_zoom_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="4" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/hourly_zoom_min"
+                        android:textColor="@color/widget_text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="@string/hourly_zoom_max"
+                        android:textColor="@color/widget_text_secondary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
                 android:layout_marginBottom="8dp"
                 android:text="@string/api_sources_title"
                 android:textColor="@color/widget_text_primary"

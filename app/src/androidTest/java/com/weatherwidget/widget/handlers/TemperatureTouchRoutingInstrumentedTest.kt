@@ -20,7 +20,8 @@ import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -82,7 +83,7 @@ class TemperatureTouchRoutingInstrumentedTest : IsolatedIntegrationTest("tempera
     @Test
     fun bottomFooterTap_switchesFromTemperatureToCloudCover_withoutZooming() = runBlocking {
         stateManager.setViewMode(appWidgetId, ViewMode.CLOUD_COVER)
-        stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+        stateManager.setZoomLevel(appWidgetId, ZoomStage.WIDE)
         stateManager.setHourlyOffset(appWidgetId, 0)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.SILURIAN)
 
@@ -108,8 +109,8 @@ class TemperatureTouchRoutingInstrumentedTest : IsolatedIntegrationTest("tempera
         )
         assertEquals(
             "Bottom footer tap should not change zoom level",
-            ZoomLevel.WIDE,
-            stateManager.getZoomLevel(appWidgetId),
+            ZoomStage.WIDE,
+            stateManager.getZoomStage(appWidgetId),
         )
         assertEquals(
             "Bottom footer tap should preserve the current hourly offset",

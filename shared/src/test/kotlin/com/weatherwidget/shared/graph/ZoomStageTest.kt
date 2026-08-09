@@ -22,15 +22,15 @@ class ZoomStageTest {
 
     @Test
     fun `total span is back plus forward`() {
-        assertEquals(24L, ZoomStage.WIDE.totalSpanHours)
-        assertEquals(4L, ZoomStage.NARROW.totalSpanHours)
-        assertEquals(72L, ZoomStage.THREE_DAY.totalSpanHours)
+        assertEquals(24L, ZoomStage.WIDE.window().totalSpanHours)
+        assertEquals(5L, ZoomStage.NARROW.window().totalSpanHours)
+        assertEquals(72L, ZoomStage.THREE_DAY.window().totalSpanHours)
     }
 
     @Test
     fun `nearestByTotalSpan snaps to the closest stage`() {
-        // Exact span hits.
-        assertEquals(ZoomStage.NARROW, ZoomStage.nearestByTotalSpan(4))
+        // Exact span hits (NARROW at its default 5h span).
+        assertEquals(ZoomStage.NARROW, ZoomStage.nearestByTotalSpan(5))
         assertEquals(ZoomStage.WIDE, ZoomStage.nearestByTotalSpan(24))
         assertEquals(ZoomStage.THREE_DAY, ZoomStage.nearestByTotalSpan(72))
         // Off-stage spans pick the nearest: 30 is closest to WIDE(24); 60 closest to THREE_DAY(72).
@@ -39,6 +39,16 @@ class ZoomStageTest {
         // Extremes clamp to the end stages.
         assertEquals(ZoomStage.NARROW, ZoomStage.nearestByTotalSpan(0))
         assertEquals(ZoomStage.THREE_DAY, ZoomStage.nearestByTotalSpan(1000))
+    }
+
+    @Test
+    fun `nearestByTotalSpan follows the configured narrow span`() {
+        // A 14h view sits between NARROW and WIDE(24). At a 4h narrow span WIDE is nearer (10 vs
+        // 14 away); widen NARROW to 8h and the gap flips (6 vs 10), so the same on-screen span now
+        // snaps to a different stage. Desktop must therefore pass its configured span in, or a
+        // click can cycle from a stage the user isn't looking at.
+        assertEquals(ZoomStage.WIDE, ZoomStage.nearestByTotalSpan(14, narrowSpanHours = 4))
+        assertEquals(ZoomStage.NARROW, ZoomStage.nearestByTotalSpan(14, narrowSpanHours = 8))
     }
 
     @Test
@@ -56,22 +66,11 @@ class ZoomStageTest {
 
     @Test
     fun `stage parameters match the historical Android values`() {
-        assertEquals(12L, ZoomStage.WIDE.backHours)
-        assertEquals(12L, ZoomStage.WIDE.forwardHours)
-        assertEquals(6, ZoomStage.WIDE.navJump)
-        assertEquals(4, ZoomStage.WIDE.labelInterval)
-        assertEquals(3, ZoomStage.WIDE.smoothIterations)
-
-        assertEquals(2L, ZoomStage.NARROW.backHours)
-        assertEquals(2L, ZoomStage.NARROW.forwardHours)
-        assertEquals(1, ZoomStage.NARROW.navJump)
-        assertEquals(1, ZoomStage.NARROW.labelInterval)
-        assertEquals(1, ZoomStage.NARROW.smoothIterations)
-
-        assertEquals(48L, ZoomStage.THREE_DAY.backHours)
-        assertEquals(24L, ZoomStage.THREE_DAY.forwardHours)
-        assertEquals(12, ZoomStage.THREE_DAY.navJump)
-        assertEquals(12, ZoomStage.THREE_DAY.labelInterval)
-        assertEquals(3, ZoomStage.THREE_DAY.smoothIterations)
+        // The pre-setting NARROW geometry is still reachable by asking for a 4h span; the rest of
+        // the per-span table lives in ZoomWindowTest.
+        val narrow = ZoomStage.NARROW.window(4)
+        assertEquals(2L, narrow.backHours)
+        assertEquals(2L, narrow.forwardHours)
+        assertEquals(1, narrow.navJump)
     }
 }

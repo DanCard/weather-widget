@@ -3,7 +3,7 @@ package com.weatherwidget.widget.handlers
 import android.graphics.Bitmap
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.HourData
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomWindow
 
 internal data class TemperatureWidgetState(
     val appWidgetId: Int,
@@ -13,7 +13,7 @@ internal data class TemperatureWidgetState(
     val graph: GraphState,
     val warning: SourceWarningState?,
     val displaySource: WeatherSource,
-    val zoom: ZoomLevel,
+    val zoom: ZoomWindow,
     val hourlyOffset: Int,
 ) {
     data class HeaderState(

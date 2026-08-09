@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -30,6 +31,10 @@ data class DesktopConfig(
     // Continuous zoom: 0 = most zoomed-in (~±2h), 1 = most zoomed-out (6 days back / 1 day forward).
     // Legacy "zoomLevel" string configs are ignored on read (ignoreUnknownKeys) and reset to default.
     val zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
+    // Span (4..8h) of the tight NARROW zoom stage, matching Android's Settings → "Hourly Zoom".
+    // Desktop's wheel/drag zoom stays continuous down to ~±2h; this governs the stage a *click*
+    // snaps to and the nav-arrow step there, so click-cycling agrees with the widget.
+    val narrowZoomSpanHours: Int = HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS,
     val obsWindowX: Float? = null,
     val obsWindowY: Float? = null,
     val obsWindowWidth: Float? = null,

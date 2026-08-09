@@ -7,7 +7,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 
 @Category(ShortDuration::class)
 class HourlyBottomZoneHelperTest {
@@ -122,7 +123,7 @@ class HourlyBottomZoneHelperTest {
             currentViewMode = ViewMode.TEMPERATURE,
             zoneIndex = 4,
             hourlyOffset = 21,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         assertEquals(ViewMode.CLOUD_COVER, action.targetView)
@@ -136,7 +137,7 @@ class HourlyBottomZoneHelperTest {
             currentViewMode = ViewMode.TEMPERATURE,
             zoneIndex = 8,
             hourlyOffset = 21,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         assertNull(action.targetView)

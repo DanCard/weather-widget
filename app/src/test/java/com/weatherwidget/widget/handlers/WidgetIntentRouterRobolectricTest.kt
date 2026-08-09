@@ -8,7 +8,8 @@ import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.DailyActualsLoader
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import com.weatherwidget.widget.handlers.CurrentTempResolver
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.widget.handlers.RefreshScheduler
@@ -145,7 +146,7 @@ class WidgetIntentRouterRobolectricTest {
         val now = LocalDateTime.of(2026, 2, 25, 10, 12)
         val centerTime = now.plusDays(7).withHour(8).withMinute(20)
 
-        val window = GraphDataLoader.buildGraphQueryWindow(centerTime, ZoomLevel.WIDE, now)
+        val window = GraphDataLoader.buildGraphQueryWindow(centerTime, ZoomStage.WIDE.window(), now)
 
         // centerTime is 08:20 (March 4) -> rounded to 08:00. The span is the BLEND CONTEXT
         // (HOURLY_LOOKBACK_HOURS=72 / HOURLY_LOOKAHEAD_HOURS=60), NOT WIDE's visible -12h/+12h:
@@ -166,7 +167,7 @@ class WidgetIntentRouterRobolectricTest {
         val now = LocalDateTime.of(2026, 2, 25, 10, 12)
         val centerTime = now.plusHours(1).withMinute(10)
 
-        val window = GraphDataLoader.buildGraphQueryWindow(centerTime, ZoomLevel.WIDE, now)
+        val window = GraphDataLoader.buildGraphQueryWindow(centerTime, ZoomStage.WIDE.window(), now)
 
         // centerTime is 11:12 -> rounded to 11:00. Span is the blend context (72h back / 60h forward),
         // not WIDE's visible -12h/+12h.

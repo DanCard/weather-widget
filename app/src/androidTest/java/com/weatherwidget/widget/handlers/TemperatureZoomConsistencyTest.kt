@@ -4,7 +4,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.AndroidTestData
 import com.weatherwidget.testutil.IsolatedIntegrationTest
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -66,7 +67,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals
         )
         
@@ -77,7 +78,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
             actuals = actuals
         )
 
@@ -121,7 +122,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = fullActuals
         )
         
@@ -131,7 +132,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
             actuals = baseActuals
         )
 
@@ -163,7 +164,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
             actuals = fullActuals
         )
         
@@ -193,7 +194,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
         val testWidgetId = 99995
         val stateManager = com.weatherwidget.widget.WidgetStateManager(context)
         stateManager.setViewMode(testWidgetId, com.weatherwidget.widget.ViewMode.TEMPERATURE)
-        stateManager.setZoomLevel(testWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
+        stateManager.setZoomLevel(testWidgetId, com.weatherwidget.widget.ZoomStage.WIDE)
 
         val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
         val repo = com.weatherwidget.data.repository.WeatherRepository(
@@ -227,7 +228,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
 
         // 2. Trigger update in NARROW zoom
         db.appLogDao().clearAllLogs()
-        stateManager.setZoomLevel(testWidgetId, com.weatherwidget.widget.ZoomLevel.NARROW)
+        stateManager.setZoomLevel(testWidgetId, com.weatherwidget.widget.ZoomStage.NARROW)
         TemperatureViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager,

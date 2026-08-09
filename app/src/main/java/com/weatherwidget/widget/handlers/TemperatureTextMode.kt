@@ -6,7 +6,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomWindow
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -106,7 +106,7 @@ internal fun buildHeaderStateLog(
     precipProbability: Int?,
     isNowLineVisible: Boolean?,
     offset: Int,
-    zoom: ZoomLevel?,
+    zoom: ZoomWindow?,
     resolveMs: Long,
 ): String =
     "headerState widget=$widgetId mode=${viewMode.name} source=${displaySource.id} " +
@@ -123,7 +123,7 @@ internal fun buildHeaderStateLog(
         "deltaVisible=$deltaVisible deltaHiddenReason=${deltaHiddenReason ?: "none"} " +
         "precipVisible=$precipVisible precipProbability=${precipProbability ?: "none"} " +
         "isNowLineVisible=${isNowLineVisible ?: "n/a"} " +
-        "offset=$offset zoom=${zoom?.name ?: "n/a"} resolveMs=$resolveMs"
+        "offset=$offset zoom=${zoom?.stage?.name ?: "n/a"} resolveMs=$resolveMs"
 
 private fun formatLocation(location: Pair<Double, Double>?): String {
     if (location == null) return "none"

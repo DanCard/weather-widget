@@ -10,11 +10,11 @@ class ZoomLevelSmoothingTest {
 
     @Test
     fun `wide zoom uses three smoothing iterations`() {
-        assertEquals(3, ZoomLevel.WIDE.smoothIterations)
+        assertEquals(3, ZoomStage.WIDE.window().smoothIterations)
     }
 
     @Test
     fun `narrow zoom uses one smoothing iteration`() {
-        assertEquals(1, ZoomLevel.NARROW.smoothIterations)
+        assertEquals(1, ZoomStage.NARROW.window().smoothIterations)
     }
 }

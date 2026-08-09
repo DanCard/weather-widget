@@ -25,6 +25,7 @@ import com.weatherwidget.shared.graph.CurveMath
 import com.weatherwidget.shared.graph.ForecastEvolutionStyle
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
+import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.graph.NowIndicatorGeometry
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.util.SunPhase
@@ -71,16 +72,15 @@ internal object DesktopGraphUtils {
     fun totalSpanHoursFor(zoomFactor: Float): Int = backHoursFor(zoomFactor) + forwardHoursFor(zoomFactor)
 
     /**
-     * How many hours a left/right nav-arrow press shifts the view: half the visible span, so the
-     * jump scales with zoom. A fixed step overshoots badly when zoomed in (a 6h jump on a ~4h tight
-     * view skips past everything you were looking at); half-a-span keeps ~half the prior window in
-     * frame at any zoom. At least 1h so the arrow always moves.
+     * How many hours a left/right nav-arrow press shifts the view. Delegates to the shared
+     * [HourlyZoomRules.navJumpHours] so desktop and the Android widget step identically at a given
+     * span: 1h through 5h, 2h through 8h, half-a-span above that.
+     *
+     * A fixed step overshoots badly when zoomed in (a 6h jump on a ~4h tight view skips past
+     * everything you were looking at); scaling with the span keeps the prior window in frame.
      */
-    fun navJumpHours(zoomFactor: Float): Int {
-        val span = totalSpanHoursFor(zoomFactor)
-        if (span <= 4) return 1
-        return (span / 2).coerceAtLeast(1)
-    }
+    fun navJumpHours(zoomFactor: Float): Int =
+        HourlyZoomRules.navJumpHours(totalSpanHoursFor(zoomFactor))
 
     private fun geomInterp(min: Int, max: Int, z: Float): Int {
         val zc = z.coerceIn(0f, 1f)
@@ -92,11 +92,20 @@ internal object DesktopGraphUtils {
      * back-hours [geomInterp]. Lets the desktop click snap onto a shared stage while the wheel keeps
      * driving the factor continuously. We invert against *back* hours only: one factor can't satisfy
      * both spans for the asymmetric THREE_DAY stage, and history-leaning back-span is what the stages
-     * are really about. Yields NARROW→0.0, WIDE→~0.30 (≈[DEFAULT_ZOOM_FACTOR]), THREE_DAY→~0.54.
+     * are really about. WIDE→~0.30 (≈[DEFAULT_ZOOM_FACTOR]), THREE_DAY→~0.54; NARROW moves with
+     * [narrowSpanHours] (4h→0.0, the default 5h→~0.07, 8h→~0.12).
+     *
+     * [narrowSpanHours] must be the configured span, or a click can snap to a factor that renders a
+     * different window than the stage the user just selected.
      */
-    fun zoomFactorForStage(stage: ZoomStage): Float =
-        (ln(stage.backHours.toFloat() / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS.toFloat() / MIN_BACK_HOURS))
+    fun zoomFactorForStage(
+        stage: ZoomStage,
+        narrowSpanHours: Int = HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS,
+    ): Float {
+        val backHours = stage.window(narrowSpanHours).backHours.toFloat()
+        return (ln(backHours / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS.toFloat() / MIN_BACK_HOURS))
             .coerceIn(0f, 1f)
+    }
 
     /** A full calendar day: the span a day-click frames in the hourly view. */
     const val DAY_VIEW_SPAN_HOURS = 24

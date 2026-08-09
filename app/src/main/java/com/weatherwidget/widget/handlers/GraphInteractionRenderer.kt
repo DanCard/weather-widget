@@ -56,7 +56,7 @@ internal object GraphInteractionRenderer {
             Log.w(TAG, "cycleZoom: ignoring stale PendingIntent for widget ${request.appWidgetId}")
             return
         }
-        val oldZoom = stateManager.getZoomLevel(request.appWidgetId)
+        val oldZoom = stateManager.getZoomStage(request.appWidgetId)
         val newZoom = stateManager.cycleZoomLevel(request.appWidgetId)
         if (zoomCenterOffset != null) {
             stateManager.setHourlyOffset(request.appWidgetId, zoomCenterOffset)
@@ -79,7 +79,7 @@ internal object GraphInteractionRenderer {
     ): Boolean {
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
-        val zoom = if (viewMode.isGraphMode) stateManager.getZoomLevel(appWidgetId) else null
+        val zoom = if (viewMode.isGraphMode) stateManager.getZoomWindow(appWidgetId) else null
         val centerTime = zoom?.let { stateManager.resolveHourlyCenterTime(appWidgetId, now, it) }
         val location = refreshContext.location
         val state =
@@ -109,7 +109,7 @@ internal object GraphInteractionRenderer {
         val database = request.refreshContext.database
         val location = request.refreshContext.location
         val stateManager = WidgetStateManager(context)
-        val zoom = stateManager.getZoomLevel(request.appWidgetId)
+        val zoom = stateManager.getZoomWindow(request.appWidgetId)
         val displaySource = stateManager.getCurrentDisplaySource(request.appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(request.appWidgetId)
         val centerTime =

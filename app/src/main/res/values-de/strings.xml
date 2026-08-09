@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">NWS bevorzugen - National Weather Service (nur USA)</string>
     <string name="api_prefer_openmeteo">Open-Meteo bevorzugen - Weltweite Abdeckung</string>
     <string name="api_prefer_weatherapi">WeatherAPI bevorzugen - Weltweite Abdeckung</string>
+    <string name="hourly_zoom_title">Stündlicher Zoom</string>
+    <string name="hourly_zoom_description">Wie viele Stunden das vergrößerte Stundendiagramm zeigt. Tippen Sie auf das Diagramm, um die Zoomstufen zu wechseln; dies legt die engste fest. Größere Bereiche scrollen pro Tippen weiter.</string>
+    <string name="hourly_zoom_value">%1$d Stunden</string>
+    <string name="hourly_zoom_min">4 Stunden</string>
+    <string name="hourly_zoom_max">8 Stunden</string>
     <string name="api_sources_title">Wetterdatenquellen</string>
     <string name="api_sources_description">Quellen aktivieren/deaktivieren und neu anordnen. Deaktivierte Quellen sind von Widget-Umschaltungen und Hintergrundabrufen ausgeschlossen, bis sie wieder aktiviert werden.</string>
     <string name="must_keep_one_source">Mindestens eine Quelle muss aktiviert bleiben</string>

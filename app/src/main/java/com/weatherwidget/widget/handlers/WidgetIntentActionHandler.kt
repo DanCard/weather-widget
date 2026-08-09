@@ -12,7 +12,8 @@ import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetPushDispatcher
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import java.time.LocalDateTime
 
 /** Implements action state transitions and delegates data/render work to the daily/graph pipelines. */
@@ -229,7 +230,7 @@ internal object WidgetIntentActionHandler {
         val previousMode = stateManager.getViewMode(appWidgetId)
         stateManager.setViewMode(appWidgetId, targetMode)
         if (targetMode == ViewMode.DAILY || previousMode == ViewMode.DAILY) {
-            stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+            stateManager.setZoomLevel(appWidgetId, ZoomStage.WIDE)
         }
         if (targetMode.isGraphMode && targetOffset != Int.MIN_VALUE) {
             stateManager.setHourlyOffset(appWidgetId, targetOffset)

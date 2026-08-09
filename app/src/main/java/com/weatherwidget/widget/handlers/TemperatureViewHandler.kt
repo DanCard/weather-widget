@@ -84,7 +84,7 @@ object TemperatureViewHandler {
         // dispatcher promotes to full) instead of a header-only partial. See [[widget_worker_partial_push]].
         val backedThisProcess = com.weatherwidget.widget.WidgetPushDispatcher.hasFullPushedThisProcess(appWidgetId)
         if (uiOnly && backedThisProcess) {
-            val zoom = stateManager.getZoomLevel(appWidgetId)
+            val zoom = stateManager.getZoomWindow(appWidgetId)
             val nowForWindow = LocalDateTime.now()
             val windowEndTime = centerTime.plusHours(zoom.forwardHours)
             val nowInWindow = !nowForWindow.isBefore(centerTime.minusHours(zoom.backHours)) &&

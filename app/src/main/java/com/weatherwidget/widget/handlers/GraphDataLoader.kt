@@ -10,7 +10,7 @@ import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetQueryWindows
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomWindow
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -18,7 +18,7 @@ import java.time.temporal.ChronoUnit
 object GraphDataLoader {
     internal fun buildGraphQueryWindow(
         centerTime: LocalDateTime,
-        zoom: ZoomLevel,
+        zoom: ZoomWindow,
         now: LocalDateTime,
     ): GraphQueryWindow {
         val truncatedCenter = centerTime.truncatedTo(ChronoUnit.HOURS)
@@ -81,7 +81,7 @@ object GraphDataLoader {
         lat: Double,
         lon: Double,
         centerTime: LocalDateTime,
-        zoom: ZoomLevel,
+        zoom: ZoomWindow,
         now: LocalDateTime,
         source: WeatherSource? = null,
     ): List<HourlyForecastEntity> {

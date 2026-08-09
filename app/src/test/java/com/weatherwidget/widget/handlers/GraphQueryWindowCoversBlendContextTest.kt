@@ -4,7 +4,8 @@ import com.weatherwidget.widget.WidgetQueryWindows
 
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.WeatherWidgetProvider
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -43,7 +44,8 @@ class GraphQueryWindowCoversBlendContextTest {
         val centre = LocalDateTime.of(2026, 7, 14, 23, 24, 17)
         val rounded = LocalDateTime.of(2026, 7, 14, 23, 0)
 
-        ZoomLevel.entries.forEach { zoom ->
+        ZoomStage.entries.forEach { stage ->
+            val zoom = stage.window()
             val window = GraphDataLoader.buildGraphQueryWindow(centre, zoom, now)
 
             val requiredStart = rounded.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)
@@ -67,10 +69,10 @@ class GraphQueryWindowCoversBlendContextTest {
         // The exact field configuration: NARROW (±2h) scrolled ~5h into the past. Before the fix this
         // produced 21:00..05:00 — 8 hours, 7 forecast rows — starving the blend's 132h context.
         val centre = LocalDateTime.of(2026, 7, 14, 23, 24, 17)
-        val window = GraphDataLoader.buildGraphQueryWindow(centre, ZoomLevel.NARROW, now)
+        val window = GraphDataLoader.buildGraphQueryWindow(centre, ZoomStage.NARROW.window(), now)
 
         val spanHours = Duration.between(window.centerStart, window.centerEnd).toHours()
-        val visibleSpan = ZoomLevel.NARROW.backHours + ZoomLevel.NARROW.forwardHours
+        val visibleSpan = ZoomStage.NARROW.window().backHours + ZoomStage.NARROW.window().forwardHours
 
         assertTrue(
             "NARROW query span ${spanHours}h must exceed the visible ${visibleSpan}h — sizing the query " +
@@ -89,7 +91,7 @@ class GraphQueryWindowCoversBlendContextTest {
         // The provider path queries now ± lookback/graph-lookahead; the interaction path queries around
         // the scrolled centre. For a centre at "now" the two must agree on lookback depth, or the same
         // widget keeps rendering two different curves depending on which loader ran last.
-        val window = GraphDataLoader.buildGraphQueryWindow(now, ZoomLevel.NARROW, now)
+        val window = GraphDataLoader.buildGraphQueryWindow(now, ZoomStage.NARROW.window(), now)
         val providerStart = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
             .minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)
 

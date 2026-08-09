@@ -48,7 +48,7 @@ class WidgetStateManagerTest {
 
         assertEquals(ViewMode.TEMPERATURE, newMode)
         assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
@@ -59,8 +59,8 @@ class WidgetStateManagerTest {
 
         val t1 = java.time.LocalDateTime.of(2026, 6, 16, 10, 0)
         val t2 = t1.plusHours(3)
-        val c1 = stateManager.resolveHourlyCenterTime(w, t1, ZoomLevel.WIDE)
-        val c2 = stateManager.resolveHourlyCenterTime(w, t2, ZoomLevel.WIDE)
+        val c1 = stateManager.resolveHourlyCenterTime(w, t1, ZoomStage.WIDE.window())
+        val c2 = stateManager.resolveHourlyCenterTime(w, t2, ZoomStage.WIDE.window())
 
         // A later `now` (a periodic refresh) must NOT advance a history view.
         assertEquals(c1, c2)
@@ -74,8 +74,8 @@ class WidgetStateManagerTest {
 
         val t1 = java.time.LocalDateTime.of(2026, 6, 16, 10, 0)
         val t2 = t1.plusHours(3)
-        val c1 = stateManager.resolveHourlyCenterTime(w, t1, ZoomLevel.WIDE)
-        val c2 = stateManager.resolveHourlyCenterTime(w, t2, ZoomLevel.WIDE)
+        val c1 = stateManager.resolveHourlyCenterTime(w, t1, ZoomStage.WIDE.window())
+        val c2 = stateManager.resolveHourlyCenterTime(w, t2, ZoomStage.WIDE.window())
 
         assertEquals(t1, c1)
         assertEquals(t2, c2)
@@ -94,7 +94,7 @@ class WidgetStateManagerTest {
         val newMode = stateManager.toggleViewMode(w)
 
         assertEquals(ViewMode.DAILY, newMode)
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(w))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(w))
     }
 
 @Test
@@ -105,20 +105,20 @@ class WidgetStateManagerTest {
 
         assertEquals(ViewMode.PRECIPITATION, newMode)
         assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
     fun `getZoomLevel defaults to WIDE`() {
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
     fun `cycleZoomLevel toggles WIDE to NARROW`() {
         val result = stateManager.cycleZoomLevel(testWidgetId)
 
-        assertEquals(ZoomLevel.NARROW, result)
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, result)
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
@@ -127,12 +127,12 @@ class WidgetStateManagerTest {
         stateManager.cycleZoomLevel(testWidgetId) // -> NARROW
 
         val second = stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.THREE_DAY, second)
-        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.THREE_DAY, second)
+        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
 
         val third = stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.WIDE, third)
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, third)
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
@@ -177,7 +177,7 @@ class WidgetStateManagerTest {
         val newMode = stateManager.toggleViewMode(testWidgetId)
 
         assertEquals(ViewMode.DAILY, newMode)
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
@@ -187,7 +187,7 @@ class WidgetStateManagerTest {
         stateManager.toggleViewMode(testWidgetId)
 
         assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
@@ -196,7 +196,7 @@ class WidgetStateManagerTest {
 
         stateManager.clearWidgetState(testWidgetId)
 
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
@@ -381,18 +381,87 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `ZoomLevel enum has correct parameters`() {
-        assertEquals(12L, ZoomLevel.WIDE.backHours)
-        assertEquals(12L, ZoomLevel.WIDE.forwardHours)
-        assertEquals(6, ZoomLevel.WIDE.navJump)
-        assertEquals(4, ZoomLevel.WIDE.labelInterval)
-        assertEquals(3, ZoomLevel.WIDE.smoothIterations)
+    fun `ZoomWindow enum has correct parameters`() {
+        assertEquals(12L, ZoomStage.WIDE.window().backHours)
+        assertEquals(12L, ZoomStage.WIDE.window().forwardHours)
+        assertEquals(6, ZoomStage.WIDE.window().navJump)
+        assertEquals(4, ZoomStage.WIDE.window().labelInterval)
+        assertEquals(3, ZoomStage.WIDE.window().smoothIterations)
 
-        assertEquals(2L, ZoomLevel.NARROW.backHours)
-        assertEquals(2L, ZoomLevel.NARROW.forwardHours)
-        assertEquals(1, ZoomLevel.NARROW.navJump)
-        assertEquals(1, ZoomLevel.NARROW.labelInterval)
-        assertEquals(1, ZoomLevel.NARROW.smoothIterations)
+        // The default NARROW span is 5h, split back-heavy.
+        assertEquals(3L, ZoomStage.NARROW.window().backHours)
+        assertEquals(2L, ZoomStage.NARROW.window().forwardHours)
+        assertEquals(1, ZoomStage.NARROW.window().navJump)
+        assertEquals(1, ZoomStage.NARROW.window().labelInterval)
+        assertEquals(1, ZoomStage.NARROW.window().smoothIterations)
+    }
+
+    @Test
+    fun `narrow zoom span defaults to five hours`() {
+        assertEquals(5, stateManager.getNarrowZoomSpanHours())
+
+        val w = 71
+        stateManager.setZoomLevel(w, ZoomStage.NARROW)
+        assertEquals(3L, stateManager.getZoomWindow(w).backHours)
+        assertEquals(2L, stateManager.getZoomWindow(w).forwardHours)
+        assertEquals(1, stateManager.getNavJump(w))
+    }
+
+    @Test
+    fun `narrow zoom span setter clamps to the four to eight range`() {
+        stateManager.setNarrowZoomSpanHours(3)
+        assertEquals(4, stateManager.getNarrowZoomSpanHours())
+
+        stateManager.setNarrowZoomSpanHours(9)
+        assertEquals(8, stateManager.getNarrowZoomSpanHours())
+
+        stateManager.setNarrowZoomSpanHours(7)
+        assertEquals(7, stateManager.getNarrowZoomSpanHours())
+    }
+
+    @Test
+    fun `changing the span setting retunes zoom window and nav jump without restart`() {
+        val w = 72
+        stateManager.setZoomLevel(w, ZoomStage.NARROW)
+
+        stateManager.setNarrowZoomSpanHours(5)
+        assertEquals(5L, stateManager.getZoomWindow(w).totalSpanHours)
+        assertEquals(1, stateManager.getNavJump(w))
+
+        stateManager.setNarrowZoomSpanHours(7)
+        assertEquals(7L, stateManager.getZoomWindow(w).totalSpanHours)
+        assertEquals("7h span scrolls 2h per tap", 2, stateManager.getNavJump(w))
+    }
+
+    @Test
+    fun `hourly navigation steps by the span-derived nav jump`() {
+        // The persisted step must follow the setting end-to-end through SharedPreferences, not just
+        // the resolved window: this is what the arrow buttons actually move by.
+        val w = 73
+        stateManager.setZoomLevel(w, ZoomStage.NARROW)
+        stateManager.setHourlyOffset(w, 0)
+
+        stateManager.setNarrowZoomSpanHours(6)
+        assertEquals(1, stateManager.navigateHourlyRight(w))
+
+        stateManager.setHourlyOffset(w, 0)
+        stateManager.setNarrowZoomSpanHours(8)
+        assertEquals(2, stateManager.navigateHourlyRight(w))
+        assertEquals(0, stateManager.navigateHourlyLeft(w))
+    }
+
+    @Test
+    fun `span setting does not affect wide or three day zoom`() {
+        val w = 74
+        stateManager.setNarrowZoomSpanHours(8)
+
+        stateManager.setZoomLevel(w, ZoomStage.WIDE)
+        assertEquals(24L, stateManager.getZoomWindow(w).totalSpanHours)
+        assertEquals(6, stateManager.getNavJump(w))
+
+        stateManager.setZoomLevel(w, ZoomStage.THREE_DAY)
+        assertEquals(72L, stateManager.getZoomWindow(w).totalSpanHours)
+        assertEquals(12, stateManager.getNavJump(w))
     }
 
     @Test
@@ -774,13 +843,13 @@ class WidgetStateManagerTest {
         val prefs = SharedPreferencesUtil.getPrefs(context, "test_widget_state_prefs")
         prefs.edit()
             .putInt("widget_view_mode_$testWidgetId", ViewMode.CLOUD_COVER.ordinal)
-            .putInt("widget_zoom_level_$testWidgetId", ZoomLevel.NARROW.ordinal)
+            .putInt("widget_zoom_level_$testWidgetId", ZoomStage.NARROW.ordinal)
             .commit()
 
         assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
         assertEquals(ViewMode.CLOUD_COVER.name, prefs.all["widget_view_mode_$testWidgetId"])
-        assertEquals(ZoomLevel.NARROW.name, prefs.all["widget_zoom_level_$testWidgetId"])
+        assertEquals(ZoomStage.NARROW.name, prefs.all["widget_zoom_level_$testWidgetId"])
     }
 
     @Test
@@ -793,9 +862,9 @@ class WidgetStateManagerTest {
             .commit()
 
         assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
         assertEquals(ViewMode.DAILY.name, prefs.all["widget_view_mode_$testWidgetId"])
-        assertEquals(ZoomLevel.WIDE.name, prefs.all["widget_zoom_level_$testWidgetId"])
+        assertEquals(ZoomStage.WIDE.name, prefs.all["widget_zoom_level_$testWidgetId"])
     }
 
     @Test
@@ -833,13 +902,13 @@ class WidgetStateManagerTest {
         val zone = ZoneId.of("America/Los_Angeles")
         var activeZone = zone
         val clock = Clock.fixed(Instant.parse("2026-03-08T09:30:00Z"), zone)
-        val store = WidgetPresentationStateStore(prefs, clock) { activeZone }
+        val store = WidgetPresentationStateStore(prefs, clock = clock) { activeZone }
         store.setHourlyOffset(testWidgetId, 24)
 
         val center = store.resolveHourlyCenterTime(
             widgetId = testWidgetId,
             now = LocalDateTime.of(2026, 3, 8, 1, 30),
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
         )
 
         assertEquals(LocalDateTime.of(2026, 3, 9, 2, 30), center)
@@ -848,7 +917,7 @@ class WidgetStateManagerTest {
         val afterZoneChange = store.resolveHourlyCenterTime(
             widgetId = testWidgetId,
             now = LocalDateTime.of(2026, 3, 8, 4, 30),
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
         )
         assertEquals(LocalDateTime.of(2026, 3, 9, 5, 30), afterZoneChange)
     }

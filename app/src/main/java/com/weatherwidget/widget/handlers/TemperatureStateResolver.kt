@@ -30,7 +30,7 @@ import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.WidgetWorkScheduler
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomWindow
 import kotlinx.coroutines.Job
 import kotlin.coroutines.coroutineContext
 import java.time.LocalDateTime
@@ -106,7 +106,7 @@ internal object TemperatureStateResolver {
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
 
-        val zoom = stateManager.getZoomLevel(appWidgetId)
+        val zoom = stateManager.getZoomWindow(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
 
         val hourlyRangeStr = if (hourlyForecasts.isEmpty()) "empty" else {
@@ -409,7 +409,7 @@ internal object TemperatureStateResolver {
         centerTime: LocalDateTime,
         numColumns: Int,
         displaySource: WeatherSource,
-        zoom: ZoomLevel,
+        zoom: ZoomWindow,
         lat: Double,
         lon: Double,
         useGraph: Boolean,
@@ -659,7 +659,7 @@ internal object TemperatureStateResolver {
     private fun buildWarningResult(
         appWidgetId: Int,
         displaySource: WeatherSource,
-        zoom: ZoomLevel,
+        zoom: ZoomWindow,
         hourlyOffset: Int,
         warning: ApiSourceWarningHelper.SourceWarning,
         lat: Double,
@@ -694,7 +694,7 @@ internal object TemperatureStateResolver {
     private fun buildEmptyGraphResult(
         appWidgetId: Int,
         displaySource: WeatherSource,
-        zoom: ZoomLevel,
+        zoom: ZoomWindow,
         hourlyOffset: Int,
         lat: Double,
         lon: Double,

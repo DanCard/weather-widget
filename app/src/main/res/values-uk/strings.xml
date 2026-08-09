@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">Перевага NWS - Національна метеослужба (лише США)</string>
     <string name="api_prefer_openmeteo">Перевага Open-Meteo - Глобальне покриття</string>
     <string name="api_prefer_weatherapi">Перевага WeatherAPI - Глобальне покриття</string>
+    <string name="hourly_zoom_title">Погодинний масштаб</string>
+    <string name="hourly_zoom_description">Скільки годин показує збільшений погодинний графік. Торкніться графіка, щоб перемикати рівні масштабу; тут задається найвужчий. Ширші діапазони прокручуються далі за одне торкання.</string>
+    <string name="hourly_zoom_value">%1$d год</string>
+    <string name="hourly_zoom_min">4 години</string>
+    <string name="hourly_zoom_max">8 годин</string>
     <string name="api_sources_title">Джерела даних про погоду</string>
     <string name="api_sources_description">Вмикайте/вимикайте та впорядковуйте джерела. Вимкнені джерела виключаються з віджетів і фонових запитів, доки їх не увімкнути знову.</string>
     <string name="must_keep_one_source">Принаймні одне джерело має залишатися ввімкненим</string>

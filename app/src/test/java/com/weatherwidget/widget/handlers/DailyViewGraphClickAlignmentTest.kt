@@ -15,7 +15,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -65,7 +66,7 @@ class DailyViewGraphClickAlignmentTest {
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(20)
         stateManager.setHourlyOffset(20, 0)
-        stateManager.setZoomLevel(20, ZoomLevel.WIDE)
+        stateManager.setZoomLevel(20, ZoomStage.WIDE)
         stateManager.setViewMode(20, com.weatherwidget.widget.ViewMode.DAILY)
         
         // Mock AppWidgetManager to return size that results in 9 columns
@@ -151,7 +152,7 @@ class DailyViewGraphClickAlignmentTest {
 
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(21)
-        stateManager.setZoomLevel(21, ZoomLevel.WIDE)
+        stateManager.setZoomLevel(21, ZoomStage.WIDE)
         stateManager.setViewMode(21, com.weatherwidget.widget.ViewMode.DAILY)
 
         val appWidgetManager = mockk<AppWidgetManager>()
@@ -217,7 +218,7 @@ class DailyViewGraphClickAlignmentTest {
 
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(22)
-        stateManager.setZoomLevel(22, ZoomLevel.WIDE)
+        stateManager.setZoomLevel(22, ZoomStage.WIDE)
         stateManager.setViewMode(22, com.weatherwidget.widget.ViewMode.DAILY)
 
         val appWidgetManager = mockk<AppWidgetManager>()
@@ -280,7 +281,7 @@ class DailyViewGraphClickAlignmentTest {
 
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(30)
-        stateManager.setZoomLevel(30, ZoomLevel.WIDE)
+        stateManager.setZoomLevel(30, ZoomStage.WIDE)
         stateManager.setViewMode(30, com.weatherwidget.widget.ViewMode.DAILY)
 
         val appWidgetManager = mockk<AppWidgetManager>()
@@ -370,7 +371,7 @@ class DailyViewGraphClickAlignmentTest {
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(31)
         stateManager.setHourlyOffset(31, 0)
-        stateManager.setZoomLevel(31, ZoomLevel.WIDE)
+        stateManager.setZoomLevel(31, ZoomStage.WIDE)
         stateManager.setViewMode(31, com.weatherwidget.widget.ViewMode.DAILY)
 
         val appWidgetManager = mockk<AppWidgetManager>()

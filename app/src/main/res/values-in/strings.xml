@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">Utamakan NWS - National Weather Service (hanya AS)</string>
     <string name="api_prefer_openmeteo">Utamakan Open-Meteo - Cakupan global</string>
     <string name="api_prefer_weatherapi">Utamakan WeatherAPI - Cakupan global</string>
+    <string name="hourly_zoom_title">Zoom Per Jam</string>
+    <string name="hourly_zoom_description">Berapa jam yang ditampilkan grafik per jam saat diperbesar. Ketuk grafik untuk mengganti tingkat zoom; ini menentukan yang paling sempit. Rentang lebih lebar menggulir lebih jauh per ketukan.</string>
+    <string name="hourly_zoom_value">%1$d jam</string>
+    <string name="hourly_zoom_min">4 jam</string>
+    <string name="hourly_zoom_max">8 jam</string>
     <string name="api_sources_title">Sumber data cuaca</string>
     <string name="api_sources_description">Aktifkan/nonaktifkan dan urutkan ulang sumber. Sumber yang dinonaktifkan dikecualikan dari pergantian di widget dan pengambilan latar belakang sampai diaktifkan kembali.</string>
     <string name="must_keep_one_source">Setidaknya satu sumber harus tetap aktif</string>

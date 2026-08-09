@@ -67,12 +67,15 @@ class SettingsWindowSectionsTest {
         }
         composeTestRule.waitForIdle()
 
-        val unitsTop = composeTestRule.onNodeWithText("Units").fetchSemanticsNode().boundsInRoot.top
+        // positionInRoot, not boundsInRoot: boundsInRoot is clipped by the scroll viewport and
+        // collapses to zero for a section below the fold, which would invert this comparison as
+        // the form grows. Ordering is what's under test, not visibility.
+        val unitsTop = composeTestRule.onNodeWithText("Units").fetchSemanticsNode().positionInRoot.y
         val sourcesTop = composeTestRule
             .onNodeWithText("Weather Data Sources")
             .fetchSemanticsNode()
-            .boundsInRoot
-            .top
+            .positionInRoot
+            .y
 
         assertTrue(
             "Units should be the first Settings section, matching Android",

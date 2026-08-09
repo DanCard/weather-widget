@@ -1,6 +1,9 @@
 package com.weatherwidget.desktop
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -136,18 +139,23 @@ class SettingsWindowPhase5Test {
         val savedConfigs = mutableListOf<DesktopConfig>()
         val testDelay = 1_000L
         composeTestRule.setContent {
-            SettingsWindow(
-                config = sampleConfig,
-                onClose = {},
-                onSave = { savedConfigs += it.copy() },
-                onExit = {},
-                autoSaveDelayMs = testDelay,
-            )
+            // This test edits controls in two different sections (Units at the top, Weather Data
+            // Sources further down) and cannot scroll between them: the clock is frozen for the
+            // debounce assertions and performScrollTo never settles without frames. Halving the
+            // density fits the whole form in the test surface so both controls stay clickable.
+            // Nothing here depends on absolute sizes — only on which callbacks fire.
+            CompositionLocalProvider(LocalDensity provides Density(0.5f)) {
+                SettingsWindow(
+                    config = sampleConfig,
+                    onClose = {},
+                    onSave = { savedConfigs += it.copy() },
+                    onExit = {},
+                    autoSaveDelayMs = testDelay,
+                )
+            }
         }
         composeTestRule.waitForIdle()
-        // Scroll into view before freezing the clock (see autoSave_firesAfterIdlePeriod).
         val tomorrowCheckbox = composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO")
-        tomorrowCheckbox.performScrollTo()
         composeTestRule.mainClock.autoAdvance = false
 
         // First edit: disable TOMORROW_IO.

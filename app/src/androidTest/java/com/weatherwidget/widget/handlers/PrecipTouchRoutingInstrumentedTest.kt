@@ -22,7 +22,8 @@ import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -57,10 +58,10 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
     @Test
     fun bodyZoneTap_zoomsPrecipitationGraph_withoutChangingViewMode() = runBlocking {
         stateManager.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
-        stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+        stateManager.setZoomLevel(appWidgetId, ZoomStage.WIDE)
         stateManager.setHourlyOffset(appWidgetId, 0)
 
-        val views = buildBodyZoneViews(ZoomLevel.WIDE)
+        val views = buildBodyZoneViews(ZoomStage.WIDE.window())
         val applied = applyViews(views)
         val bodyZone = applied.findViewById<View>(R.id.graph_hour_zone_6)
 
@@ -71,7 +72,7 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
         instrumentation.runOnMainSync { bodyZone.performClick() }
         instrumentation.waitForIdleSync()
 
-        waitForZoomLevel(ZoomLevel.NARROW)
+        waitForZoomLevel(ZoomStage.NARROW)
 
         assertEquals(
             "Body zone tap should not change view mode",
@@ -80,8 +81,8 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
         )
         assertEquals(
             "Body zone tap should zoom from WIDE to NARROW",
-            ZoomLevel.NARROW,
-            stateManager.getZoomLevel(appWidgetId),
+            ZoomStage.NARROW,
+            stateManager.getZoomStage(appWidgetId),
         )
     }
 
@@ -89,10 +90,10 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
     fun bodyZoneTap_onNarrowZoom_cyclesToThreeDay() = runBlocking {
         // 3-state zoom cycle: WIDE -> NARROW -> THREE_DAY -> WIDE.
         stateManager.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
-        stateManager.setZoomLevel(appWidgetId, ZoomLevel.NARROW)
+        stateManager.setZoomLevel(appWidgetId, ZoomStage.NARROW)
         stateManager.setHourlyOffset(appWidgetId, 0)
 
-        val views = buildBodyZoneViews(ZoomLevel.NARROW)
+        val views = buildBodyZoneViews(ZoomStage.NARROW.window())
         val applied = applyViews(views)
         val bodyZone = applied.findViewById<View>(R.id.graph_hour_zone_6)
 
@@ -102,12 +103,12 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
         instrumentation.runOnMainSync { bodyZone!!.performClick() }
         instrumentation.waitForIdleSync()
 
-        waitForZoomLevel(ZoomLevel.THREE_DAY)
+        waitForZoomLevel(ZoomStage.THREE_DAY)
 
         assertEquals(
             "Body zone tap should advance NARROW to THREE_DAY",
-            ZoomLevel.THREE_DAY,
-            stateManager.getZoomLevel(appWidgetId),
+            ZoomStage.THREE_DAY,
+            stateManager.getZoomStage(appWidgetId),
         )
         assertEquals(
             "View mode should stay PRECIPITATION",
@@ -116,7 +117,7 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
         )
     }
 
-    private fun buildBodyZoneViews(zoom: ZoomLevel): RemoteViews {
+    private fun buildBodyZoneViews(zoom: ZoomWindow): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
 
@@ -154,7 +155,7 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
         return applied
     }
 
-    private fun waitForZoomLevel(expected: ZoomLevel) {
+    private fun waitForZoomLevel(expected: ZoomStage) {
         WidgetStateTestUtils.waitForZoomLevel(context, stateManager, appWidgetId, expected)
     }
 

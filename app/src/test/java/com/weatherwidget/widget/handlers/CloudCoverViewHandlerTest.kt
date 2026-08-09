@@ -7,7 +7,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetActions
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -19,24 +20,24 @@ class CloudCoverViewHandlerTest {
 
     @Test
     fun `wide zoom uses three cloud cover smoothing iterations`() {
-        assertEquals(3, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.WIDE))
+        assertEquals(3, CloudCoverViewHandler.smoothingIterationsFor(ZoomStage.WIDE.window()))
     }
 
     @Test
     fun `narrow zoom reduces cloud cover smoothing to zero iterations`() {
-        assertEquals(0, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.NARROW))
+        assertEquals(0, CloudCoverViewHandler.smoothingIterationsFor(ZoomStage.NARROW.window()))
     }
 
     @Test
     fun `buildWindowHourKeys spans backHours through forwardHours`() {
         val center = LocalDateTime.of(2026, 3, 14, 12, 0)
-        val keys = CloudCoverViewHandler.buildWindowHourKeys(center, ZoomLevel.WIDE)
+        val keys = CloudCoverViewHandler.buildWindowHourKeys(center, ZoomStage.WIDE.window())
 
-        val expectedSize = (ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours).toInt()
+        val expectedSize = (ZoomStage.WIDE.window().backHours + ZoomStage.WIDE.window().forwardHours).toInt()
         assertEquals(expectedSize, keys.size)
 
         val expectedStart = center
-            .minusHours(ZoomLevel.WIDE.backHours.toLong())
+            .minusHours(ZoomStage.WIDE.window().backHours.toLong())
             .atZone(ZoneId.systemDefault())
             .toInstant()
             .toEpochMilli()
@@ -46,12 +47,12 @@ class CloudCoverViewHandlerTest {
     @Test
     fun `buildWindowHourKeys aligns half-hours forward to next whole hour`() {
         val center = LocalDateTime.of(2026, 3, 14, 12, 30)
-        val keys = CloudCoverViewHandler.buildWindowHourKeys(center, ZoomLevel.WIDE)
+        val keys = CloudCoverViewHandler.buildWindowHourKeys(center, ZoomStage.WIDE.window())
 
         // 12:30 should align to 13:00 as the center, so the span is [13 - back, 13 + forward]
         val alignedCenter = LocalDateTime.of(2026, 3, 14, 13, 0)
         val expectedStart = alignedCenter
-            .minusHours(ZoomLevel.WIDE.backHours.toLong())
+            .minusHours(ZoomStage.WIDE.window().backHours.toLong())
             .atZone(ZoneId.systemDefault())
             .toInstant()
             .toEpochMilli()
@@ -74,7 +75,7 @@ class CloudCoverViewHandlerTest {
             centerTime = LocalDateTime.of(2026, 3, 14, 19, 0),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         assertEquals("non-empty input but null cloud cover should yield empty output", 0, result.size)
@@ -93,7 +94,7 @@ class CloudCoverViewHandlerTest {
             centerTime = LocalDateTime.of(2026, 3, 14, 19, 0),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         assertEquals("data outside zoom window should yield empty output", 0, result.size)
@@ -104,7 +105,7 @@ class CloudCoverViewHandlerTest {
         val offset = HourlyTouchZoneMapper.zoneIndexToOffset(
             zoneIndex = 6,
             currentHourlyOffset = 0,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         assertEquals(0, offset)
@@ -115,7 +116,7 @@ class CloudCoverViewHandlerTest {
         val offset = HourlyTouchZoneMapper.zoneIndexToOffset(
             zoneIndex = 0,
             currentHourlyOffset = 0,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         assertEquals(-12, offset)
@@ -126,7 +127,7 @@ class CloudCoverViewHandlerTest {
         val offset = HourlyTouchZoneMapper.zoneIndexToOffset(
             zoneIndex = 12,
             currentHourlyOffset = 5,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
         )
 
         assertEquals(7, offset)
@@ -145,7 +146,7 @@ class CloudCoverViewHandlerTest {
             centerTime = now,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         val labeledHours = result.filter { it.showLabel }
@@ -177,7 +178,7 @@ class CloudCoverViewHandlerTest {
             centerTime = now,
             numColumns = 8,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         val labeledHours = result.filter { it.showLabel }

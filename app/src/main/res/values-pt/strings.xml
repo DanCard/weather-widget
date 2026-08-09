@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">Preferir NWS - Serviço Meteorológico Nacional (somente EUA)</string>
     <string name="api_prefer_openmeteo">Preferir Open-Meteo - Cobertura global</string>
     <string name="api_prefer_weatherapi">Preferir WeatherAPI - Cobertura global</string>
+    <string name="hourly_zoom_title">Zoom por hora</string>
+    <string name="hourly_zoom_description">Quantas horas o gráfico horário ampliado mostra. Toque no gráfico para alternar os níveis de zoom; isto define o mais estreito. Intervalos maiores rolam mais por toque.</string>
+    <string name="hourly_zoom_value">%1$d horas</string>
+    <string name="hourly_zoom_min">4 horas</string>
+    <string name="hourly_zoom_max">8 horas</string>
     <string name="api_sources_title">Fontes de dados meteorológicos</string>
     <string name="api_sources_description">Ative/desative e reordene as fontes. Fontes desativadas ficam excluídas dos widgets e das buscas em segundo plano até serem reativadas.</string>
     <string name="must_keep_one_source">Pelo menos uma fonte deve permanecer ativada</string>

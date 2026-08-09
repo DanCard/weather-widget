@@ -82,7 +82,7 @@ object PrecipViewHandler {
 
         // Gate bitmap rebuilds on real change for opportunistic UI-only repaints.
         if (uiOnly) {
-            val zoom = stateManager.getZoomLevel(appWidgetId)
+            val zoom = stateManager.getZoomWindow(appWidgetId)
             val lastRender = stateManager.getLastGraphRender(appWidgetId)
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
             val windowSpanMinutes = zoom.totalSpanHours * 60
@@ -115,7 +115,7 @@ object PrecipViewHandler {
         views.setViewVisibility(R.id.graph_night_rain_zones, View.GONE)
 
         // Set up zoom tap zones
-        val zoom = stateManager.getZoomLevel(appWidgetId)
+        val zoom = stateManager.getZoomWindow(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
         setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
 
@@ -397,7 +397,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
             // Render precipitation graph
-            val isNarrow = zoom == com.weatherwidget.widget.ZoomLevel.NARROW
+            val isNarrow = zoom.stage == com.weatherwidget.widget.ZoomStage.NARROW
             val hourLabelSpacingDp = if (isNarrow) 18f else 28f
             val rainAmountWindowHours = hours.size
             // WIDE: split rain into wettest day (8a-8p) + wettest night (8p-8a) regions with a divider.
@@ -506,7 +506,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         centerTime: LocalDateTime,
         numColumns: Int,
         displaySource: WeatherSource,
-        zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
+        zoom: com.weatherwidget.widget.ZoomWindow = com.weatherwidget.widget.ZoomStage.WIDE.window(),
         actualPrecipByHour: Map<LocalDateTime, Float> = emptyMap(),
         now: LocalDateTime = LocalDateTime.now(),
     ): List<PrecipitationGraphRenderer.PrecipHourData> {
@@ -522,23 +522,26 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
 
         val (startHour, endHour) = computePrecipGraphWindow(centerTime, zoom)
 
-        // Narrow widgets widen the WIDE-zoom marker cadence (6h vs 4h) to fit the inline footer
-        // groups; wide widgets keep the default. Matches the temperature graph.
-        val labelInterval =
-            if (zoom == com.weatherwidget.widget.ZoomLevel.WIDE &&
-                com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns)
-            ) {
-                com.weatherwidget.shared.graph.HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
-            } else {
+        // Narrow widgets widen the marker cadence to fit the inline footer groups: WIDE 6h vs 4h,
+        // and NARROW every other hour once its span is widened past 6h. Wide widgets keep the
+        // default at both zooms. Matches the temperature graph.
+        val labelInterval = when {
+            !com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns) ->
                 zoom.labelInterval
-            }
+            zoom.stage == com.weatherwidget.widget.ZoomStage.WIDE ->
+                com.weatherwidget.shared.graph.HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
+            zoom.stage == com.weatherwidget.widget.ZoomStage.NARROW ->
+                com.weatherwidget.shared.graph.HourlyZoomRules
+                    .narrowWidgetLabelInterval(zoom.totalSpanHours.toInt())
+            else -> zoom.labelInterval
+        }
         var currentHour = startHour
         var hourIndex = 0
         val zoneId = ZoneId.systemDefault()
 
         // At THREE_DAY zoom switch the footer to one date label per day ("Tue 23"), matching the
         // temperature graph (shared rule in HourlyGraphViewCommon.resolveHourLabel).
-        val dateMode = zoom == com.weatherwidget.widget.ZoomLevel.THREE_DAY
+        val dateMode = zoom.stage == com.weatherwidget.widget.ZoomStage.THREE_DAY
         val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
         while (currentHour.isBefore(endHour)) {
@@ -586,7 +589,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
     @androidx.annotation.VisibleForTesting
     internal fun computePrecipGraphWindow(
         centerTime: LocalDateTime,
-        zoom: com.weatherwidget.widget.ZoomLevel,
+        zoom: com.weatherwidget.widget.ZoomWindow,
     ): Pair<LocalDateTime, LocalDateTime> {
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
@@ -597,7 +600,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         context: Context,
         hourlyForecasts: List<HourlyForecastEntity>,
         centerTime: LocalDateTime,
-        zoom: com.weatherwidget.widget.ZoomLevel,
+        zoom: com.weatherwidget.widget.ZoomWindow,
         displaySource: WeatherSource,
     ): Map<LocalDateTime, Float> {
         if (hourlyForecasts.isEmpty()) return emptyMap()

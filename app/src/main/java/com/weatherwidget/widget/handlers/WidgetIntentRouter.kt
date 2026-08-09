@@ -92,9 +92,9 @@ object WidgetIntentRouter {
         appWidgetId,
         "CYCLE_ZOOM",
         metadata = {
-            val zoom = WidgetStateManager(context).getZoomLevel(appWidgetId)
+            val zoom = WidgetStateManager(context).getZoomWindow(appWidgetId)
             val tap = zoomCenterOffset?.let { " tapOffset=$it" }.orEmpty()
-            fixedMetadata("from=${zoom.name}$tap")
+            fixedMetadata("from=${zoom.stage.name}$tap")
         },
     ) {
         WidgetIntentActionHandler.cycleZoom(

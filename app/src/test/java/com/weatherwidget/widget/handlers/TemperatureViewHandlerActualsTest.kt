@@ -5,7 +5,8 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -125,8 +126,8 @@ class TemperatureViewHandlerActualsTest {
     fun `idle-period nws blending stays bounded and completes quickly`() {
         val forecasts = wideForecasts()
         val actuals = idlePeriodNwsActuals()
-        val startMs = center.minusHours(ZoomLevel.WIDE.backHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val endMs = center.plusHours(ZoomLevel.WIDE.forwardHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val startMs = center.minusHours(ZoomStage.WIDE.window().backHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val endMs = center.plusHours(ZoomStage.WIDE.window().forwardHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
         val startNs = System.nanoTime()
         val blendResult = ActualTemperatureSeriesBuilder.blendObservationSeries(
@@ -160,7 +161,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
         assertTrue("wide window should surface actuals for the graph path", hours.any { it.isActual && it.actualTemperature != null })
@@ -176,7 +177,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
 
@@ -196,7 +197,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
 
@@ -217,7 +218,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = emptyList(),
         )
 
@@ -237,7 +238,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
 
@@ -256,14 +257,14 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
         val narrowHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
         )
 
         assertTrue(
@@ -271,7 +272,7 @@ class TemperatureViewHandlerActualsTest {
             wideHours.size > narrowHours.size,
         )
         assertEquals("WIDE should cover exactly 24 hours (12h back + 12h forward)", 24, wideHours.size)
-        assertEquals("NARROW should cover exactly 4 hours (2h back + 2h forward)", 4, narrowHours.size)
+        assertEquals("NARROW should cover the default 5h span (3h back + 2h forward)", 5, narrowHours.size)
     }
 
     @Test
@@ -294,7 +295,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
         
@@ -305,7 +306,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
             actuals = actuals,
         )
 
@@ -339,7 +340,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
             actuals = actuals,
         )
 
@@ -364,7 +365,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
 
@@ -393,7 +394,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
 
@@ -430,7 +431,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
             onBlendDebug = { debugLines += it() },
         )
@@ -457,7 +458,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
 
@@ -483,7 +484,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
             onBlendDebug = { debugLines += it() },
         )
@@ -514,7 +515,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
             onBlendDebug = { debugLines += it() },
         )
@@ -549,7 +550,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
             onBlendDebug = { debugLines += it() },
         )
@@ -584,7 +585,7 @@ class TemperatureViewHandlerActualsTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
 

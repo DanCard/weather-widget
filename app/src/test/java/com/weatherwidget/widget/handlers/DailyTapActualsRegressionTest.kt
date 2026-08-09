@@ -5,7 +5,8 @@ import android.content.Context
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestDatabase
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -91,7 +92,7 @@ class DailyTapActualsRegressionTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = emptyList(), // what repository=null produces
         )
 
@@ -118,8 +119,8 @@ class DailyTapActualsRegressionTest {
         })
 
         // Fetch actuals the same way TemperatureViewHandler does when repository≠null
-        val graphStart = center.minusHours(ZoomLevel.WIDE.backHours)
-        val graphEnd = center.plusHours(ZoomLevel.WIDE.forwardHours)
+        val graphStart = center.minusHours(ZoomStage.WIDE.window().backHours)
+        val graphEnd = center.plusHours(ZoomStage.WIDE.window().forwardHours)
         val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val actuals = dao.getObservationsInRange(
@@ -134,7 +135,7 @@ class DailyTapActualsRegressionTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
 
@@ -173,13 +174,13 @@ class DailyTapActualsRegressionTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = emptyList(),
         )
 
         // Fixed path — repository is non-null, actuals fetched from DB
-        val graphStart = center.minusHours(ZoomLevel.WIDE.backHours)
-        val graphEnd = center.plusHours(ZoomLevel.WIDE.forwardHours)
+        val graphStart = center.minusHours(ZoomStage.WIDE.window().backHours)
+        val graphEnd = center.plusHours(ZoomStage.WIDE.window().forwardHours)
         val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val actuals = dao.getObservationsInRange(minEpoch, maxEpoch, TestData.LAT, TestData.LON)
@@ -188,7 +189,7 @@ class DailyTapActualsRegressionTest {
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = actuals,
         )
 

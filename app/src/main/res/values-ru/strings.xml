@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">Предпочитать NWS - Национальная метеослужба (только США)</string>
     <string name="api_prefer_openmeteo">Предпочитать Open-Meteo - глобальное покрытие</string>
     <string name="api_prefer_weatherapi">Предпочитать WeatherAPI - глобальное покрытие</string>
+    <string name="hourly_zoom_title">Почасовой масштаб</string>
+    <string name="hourly_zoom_description">Сколько часов показывает увеличенный почасовой график. Нажмите на график, чтобы переключить уровни масштаба; здесь задаётся самый узкий. Более широкие диапазоны прокручиваются дальше за одно нажатие.</string>
+    <string name="hourly_zoom_value">%1$d ч</string>
+    <string name="hourly_zoom_min">4 часа</string>
+    <string name="hourly_zoom_max">8 часов</string>
     <string name="api_sources_title">Источники данных о погоде</string>
     <string name="api_sources_description">Включайте/отключайте и переупорядочивайте источники. Отключённые источники исключаются из переключения в виджете и фоновых загрузок, пока их снова не включат.</string>
     <string name="must_keep_one_source">Хотя бы один источник должен оставаться включённым</string>

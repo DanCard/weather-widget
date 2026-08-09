@@ -28,7 +28,10 @@ enum class ViewMode {
     }
 }
 
-typealias ZoomLevel = com.weatherwidget.shared.graph.ZoomStage
+// Zoom is two types on purpose: ZoomStage is the persisted/cycled selection, ZoomWindow is the
+// geometry it resolves to against the user's narrow-span setting. See ZoomStage's kdoc.
+typealias ZoomStage = com.weatherwidget.shared.graph.ZoomStage
+typealias ZoomWindow = com.weatherwidget.shared.graph.ZoomWindow
 
 /**
  * Compatibility facade for widget and global preferences.
@@ -61,7 +64,7 @@ class WidgetStateManager internal constructor(
         )
     }
     private val presentationStore by lazy {
-        WidgetPresentationStateStore(prefs)
+        WidgetPresentationStateStore(prefs, narrowSpanHours = { getNarrowZoomSpanHours() })
     }
     private val deltaStore by lazy {
         CurrentTemperatureDeltaStore(prefs)
@@ -102,6 +105,13 @@ class WidgetStateManager internal constructor(
 
     fun setPersonalStationDiscountPercent(percent: Int) {
         displayPreferences.setPersonalStationDiscountPercent(percent)
+    }
+
+    /** App-wide span (4..8h) of the tight NARROW hourly view. See [ZoomStage.window]. */
+    fun getNarrowZoomSpanHours(): Int = displayPreferences.hourlyNarrowSpanHours()
+
+    fun setNarrowZoomSpanHours(hours: Int) {
+        displayPreferences.setHourlyNarrowSpanHours(hours)
     }
 
     fun showTodayOverlayDelta(): Boolean = displayPreferences.showTodayOverlayDelta()
@@ -209,7 +219,7 @@ class WidgetStateManager internal constructor(
     fun resolveHourlyCenterTime(
         widgetId: Int,
         now: LocalDateTime,
-        zoom: ZoomLevel,
+        zoom: ZoomWindow,
     ): LocalDateTime = presentationStore.resolveHourlyCenterTime(widgetId, now, zoom)
 
     fun navigateHourlyLeft(widgetId: Int): Int =
@@ -224,16 +234,21 @@ class WidgetStateManager internal constructor(
     fun canNavigateHourlyRight(widgetId: Int): Boolean =
         getHourlyOffset(widgetId) < MAX_HOURLY_OFFSET
 
-    fun getZoomLevel(widgetId: Int): ZoomLevel = presentationStore.zoom(widgetId)
+    /** The user's persisted stage selection. Use [getZoomWindow] when you need hours/geometry. */
+    fun getZoomStage(widgetId: Int): ZoomStage = presentationStore.zoom(widgetId)
 
-    fun setZoomLevel(widgetId: Int, zoom: ZoomLevel) {
+    /** The stage resolved against the app-wide narrow-span setting: what renderers should use. */
+    fun getZoomWindow(widgetId: Int): ZoomWindow =
+        getZoomStage(widgetId).window(getNarrowZoomSpanHours())
+
+    fun setZoomLevel(widgetId: Int, zoom: ZoomStage) {
         presentationStore.setZoom(widgetId, zoom)
     }
 
-    fun cycleZoomLevel(widgetId: Int): ZoomLevel =
+    fun cycleZoomLevel(widgetId: Int): ZoomStage =
         presentationStore.cycleZoom(widgetId)
 
-    fun getNavJump(widgetId: Int): Int = getZoomLevel(widgetId).navJump
+    fun getNavJump(widgetId: Int): Int = getZoomWindow(widgetId).navJump
 
     fun setTransientMessage(widgetId: Int, message: String, expiresAtMs: Long) {
         presentationStore.setTransientMessage(widgetId, message, expiresAtMs)

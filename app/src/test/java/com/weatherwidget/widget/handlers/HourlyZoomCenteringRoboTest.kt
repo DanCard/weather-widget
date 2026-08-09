@@ -9,7 +9,8 @@ import com.weatherwidget.widget.CloudCoverGraphRenderer
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.PrecipitationGraphRenderer
 import com.weatherwidget.widget.TemperatureGraphRenderer
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -40,7 +41,7 @@ class HourlyZoomCenteringRoboTest {
             centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
         )
 
         assertCenteredLabel(hours.map(HourData::label), "12p")
@@ -53,7 +54,7 @@ class HourlyZoomCenteringRoboTest {
             centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
         )
 
         assertCenteredLabel(hours.map(PrecipitationGraphRenderer.PrecipHourData::label), "12p")
@@ -66,7 +67,7 @@ class HourlyZoomCenteringRoboTest {
             centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.NARROW,
+            zoom = ZoomStage.NARROW.window(),
         )
 
         assertCenteredLabel(hours.map(CloudCoverGraphRenderer.CloudHourData::label), "12p")
@@ -79,7 +80,7 @@ class HourlyZoomCenteringRoboTest {
             centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         // With exclusive end hour, size is 24, and index 12 is still the center (offset 0 / 12p)
@@ -87,9 +88,50 @@ class HourlyZoomCenteringRoboTest {
         assertEquals("12p", hours[12].label)
     }
 
+    @Test
+    fun `narrow window width follows the configured span`() {
+        // The setting's whole point: a wider span must render more hours. Labels, not pixels —
+        // Robolectric has no font engine.
+        fun labelsAtSpan(span: Int): List<String> = buildHourDataList(
+            hourlyForecasts = sampleHourlyForecasts(),
+            centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomStage.NARROW.window(span),
+        ).map(HourData::label)
+
+        // Back-heavy split: 4h reads 2 back / 2 forward, 8h reads 4 back / 4 forward. The end hour
+        // is exclusive, so a span of n yields n labels.
+        assertEquals(listOf("10a", "11a", "12p", "1p"), labelsAtSpan(4))
+        assertEquals(listOf("8a", "9a", "10a", "11a", "12p", "1p", "2p", "3p"), labelsAtSpan(8))
+        assertEquals(8, labelsAtSpan(8).size)
+        assertEquals(4, labelsAtSpan(4).size)
+    }
+
+    @Test
+    fun `default narrow window is five hours reading three back`() {
+        // Guards the shipped default specifically: 5h = 3 back / 2 forward around 12p.
+        val labels = buildHourDataList(
+            hourlyForecasts = sampleHourlyForecasts(),
+            centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomStage.NARROW.window(),
+        ).map(HourData::label)
+
+        assertEquals(listOf("9a", "10a", "11a", "12p", "1p"), labels)
+    }
+
+    /**
+     * All three hourly graphs must frame the selected hour identically at the default NARROW span.
+     *
+     * That default is 5h and splits back-heavy (3 back / 2 forward), so the anchor hour sits at
+     * index 3 of 5 — one right of the list's midpoint, not on it. The window leans into history
+     * deliberately; see ZoomStage.window.
+     */
     private fun assertCenteredLabel(labels: List<String>, expected: String) {
-        assertEquals(listOf("10a", "11a", "12p", "1p"), labels)
-        assertEquals(expected, labels[2])
+        assertEquals(listOf("9a", "10a", "11a", "12p", "1p"), labels)
+        assertEquals(expected, labels[3])
     }
 
     private fun sampleHourlyForecasts(count: Int = 48): List<HourlyForecastEntity> {

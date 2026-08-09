@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">NWS को प्राथमिकता - राष्ट्रीय मौसम सेवा (केवल अमेरिका)</string>
     <string name="api_prefer_openmeteo">Open-Meteo को प्राथमिकता - वैश्विक कवरेज</string>
     <string name="api_prefer_weatherapi">WeatherAPI को प्राथमिकता - वैश्विक कवरेज</string>
+    <string name="hourly_zoom_title">प्रति घंटा ज़ूम</string>
+    <string name="hourly_zoom_description">ज़ूम किया गया प्रति घंटा ग्राफ़ कितने घंटे दिखाता है। ज़ूम स्तर बदलने के लिए ग्राफ़ पर टैप करें; यह सबसे सँकरा स्तर तय करता है। बड़ी अवधि प्रत्येक टैप पर अधिक स्क्रॉल करती है।</string>
+    <string name="hourly_zoom_value">%1$d घंटे</string>
+    <string name="hourly_zoom_min">4 घंटे</string>
+    <string name="hourly_zoom_max">8 घंटे</string>
     <string name="api_sources_title">मौसम डेटा स्रोत</string>
     <string name="api_sources_description">स्रोतों को सक्षम/अक्षम करें और क्रम बदलें। अक्षम स्रोत दोबारा सक्षम होने तक विजेट टॉगल और बैकग्राउंड फ़ेच से बाहर रहते हैं।</string>
     <string name="must_keep_one_source">कम से कम एक स्रोत सक्षम रहना चाहिए</string>

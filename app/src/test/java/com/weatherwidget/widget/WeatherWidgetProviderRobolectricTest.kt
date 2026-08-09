@@ -42,7 +42,7 @@ class WeatherWidgetProviderRobolectricTest {
         stateManager.setViewMode(widgetId, ViewMode.PRECIPITATION)
         stateManager.setHourlyOffset(widgetId, 24)
         stateManager.setDateOffset(widgetId, 5)
-        stateManager.setZoomLevel(widgetId, ZoomLevel.NARROW)
+        stateManager.setZoomLevel(widgetId, ZoomStage.NARROW)
         stateManager.setTransientMessage(widgetId, "stale", Long.MAX_VALUE)
         stateManager.markMissingDataRefreshRequested(widgetId, "NWS", "hourly_gaps")
         stateManager.setWidgetLocations(intArrayOf(widgetId), 37.42, -122.08)
@@ -52,7 +52,7 @@ class WeatherWidgetProviderRobolectricTest {
         assertEquals(ViewMode.DAILY, stateManager.getViewMode(widgetId))
         assertEquals(0, stateManager.getHourlyOffset(widgetId))
         assertEquals(0, stateManager.getDateOffset(widgetId))
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(widgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(widgetId))
         assertNull(stateManager.getActiveTransientMessage(widgetId))
         assertNull(stateManager.getStoredWidgetLocation(widgetId))
         assertTrue(stateManager.shouldRefreshMissingData(widgetId, "NWS", "hourly_gaps", Long.MAX_VALUE))
@@ -97,10 +97,43 @@ class WeatherWidgetProviderRobolectricTest {
     fun `zoneIndexToOffset maps THREE_DAY asymmetric window`() {
         // THREE_DAY spans 48h back / 24h forward (72h). The visual-center zone (6) sits at
         // (24-48)/2 = -12h, and the edges land exactly on the window bounds.
-        assertEquals(-48, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0, ZoomLevel.THREE_DAY))
-        assertEquals(-12, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomLevel.THREE_DAY))
-        assertEquals(24, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0, ZoomLevel.THREE_DAY))
+        assertEquals(-48, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0, ZoomStage.THREE_DAY.window()))
+        assertEquals(-12, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomStage.THREE_DAY.window()))
+        assertEquals(24, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0, ZoomStage.THREE_DAY.window()))
         // Base offset is added through.
-        assertEquals(-38, HourlyTouchZoneMapper.zoneIndexToOffset(0, 10, ZoomLevel.THREE_DAY))
+        assertEquals(-38, HourlyTouchZoneMapper.zoneIndexToOffset(0, 10, ZoomStage.THREE_DAY.window()))
+    }
+
+    @Test
+    fun `zoneIndexToOffset edges track the configured narrow span`() {
+        // Widening the tight view must widen what its 13 touch zones address, or a tap near the
+        // edge of an 8h window would still resolve to a 4h-window hour.
+        for (span in 4..8) {
+            val zoom = ZoomStage.NARROW.window(span)
+            assertEquals(
+                "left edge at span=$span",
+                -zoom.backHours.toInt(),
+                HourlyTouchZoneMapper.zoneIndexToOffset(0, 0, zoom),
+            )
+            assertEquals(
+                "right edge at span=$span",
+                zoom.forwardHours.toInt(),
+                HourlyTouchZoneMapper.zoneIndexToOffset(12, 0, zoom),
+            )
+        }
+    }
+
+    @Test
+    fun `zoneIndexToOffset center zone shifts back on odd narrow spans`() {
+        // Odd spans split back-heavy (5h = 3 back / 2 forward), so the window is no longer centred
+        // on "now" and the mapper's asymmetryShift term goes non-zero for NARROW for the first
+        // time. The centre zone must follow the window's midpoint, (forward - back) / 2.
+        assertEquals(0, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomStage.NARROW.window(4)))
+        assertEquals(0, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomStage.NARROW.window(6)))
+        assertEquals(0, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomStage.NARROW.window(8)))
+        // (2 - 3) / 2 = -0.5, rounded half-up to 0... but the 5h and 7h windows still bias their
+        // edges backwards, which the edge test above pins. Guard the shipped default explicitly.
+        assertEquals(-3, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0, ZoomStage.NARROW.window(5)))
+        assertEquals(2, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0, ZoomStage.NARROW.window(5)))
     }
 }

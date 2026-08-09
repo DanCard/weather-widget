@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">NWS کو ترجیح - قومی موسمی سروس (صرف امریکہ)</string>
     <string name="api_prefer_openmeteo">Open-Meteo کو ترجیح - عالمی کوریج</string>
     <string name="api_prefer_weatherapi">WeatherAPI کو ترجیح - عالمی کوریج</string>
+    <string name="hourly_zoom_title">گھنٹہ وار زوم</string>
+    <string name="hourly_zoom_description">زوم کیا گیا گھنٹہ وار گراف کتنے گھنٹے دکھاتا ہے۔ زوم کی سطحیں بدلنے کے لیے گراف پر ٹیپ کریں؛ یہ سب سے تنگ سطح مقرر کرتا ہے۔ وسیع دورانیے ہر ٹیپ پر زیادہ سکرول کرتے ہیں۔</string>
+    <string name="hourly_zoom_value">%1$d گھنٹے</string>
+    <string name="hourly_zoom_min">4 گھنٹے</string>
+    <string name="hourly_zoom_max">8 گھنٹے</string>
     <string name="api_sources_title">موسمی ڈیٹا کے مآخذ</string>
     <string name="api_sources_description">مآخذ فعال/غیر فعال کریں اور ترتیب بدلیں۔ غیر فعال مآخذ دوبارہ فعال ہونے تک ویجٹ ٹوگل اور پس منظر ڈاؤن لوڈ سے خارج رہتے ہیں۔</string>
     <string name="must_keep_one_source">کم از کم ایک ماخذ فعال رہنا چاہیے</string>

@@ -3,7 +3,8 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,7 +31,7 @@ class PrecipViewHandlerTest {
             centerTime = LocalDateTime.of(2026, 3, 14, 19, 0),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         // The fallback logic is disabled, so it should be empty here
@@ -55,7 +56,7 @@ class PrecipViewHandlerTest {
             centerTime = LocalDateTime.of(2026, 3, 14, 19, 0),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         assertEquals("data outside zoom window should yield empty output", 0, result.size)
@@ -74,7 +75,7 @@ class PrecipViewHandlerTest {
             centerTime = LocalDateTime.of(2026, 3, 14, 19, 0),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         val matched = result.filter { it.precipAmountMm != null }
@@ -100,7 +101,7 @@ class PrecipViewHandlerTest {
             centerTime = LocalDateTime.of(2026, 3, 14, 18, 30),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
         )
 
         val withAmount = result.filter { it.precipAmountMm != null }
@@ -126,7 +127,7 @@ class PrecipViewHandlerTest {
             centerTime = LocalDateTime.of(2026, 3, 14, 18, 30),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actualPrecipByHour = actuals,
             now = LocalDateTime.of(2026, 3, 14, 20, 0),
         )
@@ -155,7 +156,7 @@ class PrecipViewHandlerTest {
             centerTime = LocalDateTime.of(2026, 3, 14, 18, 0),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actualPrecipByHour = actuals,
             now = LocalDateTime.of(2026, 3, 14, 17, 0),
         )

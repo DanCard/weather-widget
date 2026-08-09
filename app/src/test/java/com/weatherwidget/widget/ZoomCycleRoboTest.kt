@@ -45,64 +45,64 @@ class ZoomCycleRoboTest {
 
     @Test
     fun defaultZoomLevel_isWide() {
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
     fun cycleZoom_wideThenNarrowThenThreeDayThenWide() {
         val afterFirst = stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.NARROW, afterFirst)
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, afterFirst)
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         val afterSecond = stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.THREE_DAY, afterSecond)
-        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.THREE_DAY, afterSecond)
+        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
 
         val afterThird = stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.WIDE, afterThird)
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, afterThird)
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
     fun threeDayZoom_hasHistoryLeaningSpan() {
-        assertEquals(48L, ZoomLevel.THREE_DAY.backHours)
-        assertEquals(24L, ZoomLevel.THREE_DAY.forwardHours)
+        assertEquals(48L, ZoomStage.THREE_DAY.window().backHours)
+        assertEquals(24L, ZoomStage.THREE_DAY.window().forwardHours)
     }
 
     @Test
     fun zoomPersists_acrossWidgetUpdates() {
         stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         val freshStateManager = WidgetStateManager(context)
-        assertEquals(ZoomLevel.NARROW, freshStateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, freshStateManager.getZoomStage(testWidgetId))
     }
 
     @Test
     fun zoomResets_whenSwitchingToDailyFromHourly() {
         stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         stateManager.toggleViewMode(testWidgetId)
         assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
     fun zoomResets_whenSwitchingToDailyFromPrecipitation() {
         stateManager.setViewMode(testWidgetId, ViewMode.PRECIPITATION)
         stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         stateManager.togglePrecipitationMode(testWidgetId)
         assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
     fun zoomPreserved_whenSwitchingBetweenHourlyAndPrecip() {
         stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
             try {
@@ -111,67 +111,67 @@ class ZoomCycleRoboTest {
         }
 
         assertEquals(ViewMode.PRECIPITATION, stateManager.getViewMode(testWidgetId))
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
     fun handleCycleZoom_cyclesViaRouter() {
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
             } catch (_: Exception) {}
         }
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
             } catch (_: Exception) {}
         }
-        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
             } catch (_: Exception) {}
         }
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
     fun handleCycleZoom_withOffset_recentersOnZoomIn() {
         stateManager.setHourlyOffset(testWidgetId, 4)
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 9)
             } catch (_: Exception) {}
         }
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
         assertEquals(9, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test
     fun handleCycleZoom_withoutOffset_keepsCurrentOffset() {
         stateManager.setHourlyOffset(testWidgetId, 5)
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = null)
             } catch (_: Exception) {}
         }
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
         assertEquals(5, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test
     fun handleCycleZoom_zoomOut_usesOffset() {
         stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
         stateManager.setHourlyOffset(testWidgetId, 9)
 
         runBlocking {
@@ -180,7 +180,7 @@ class ZoomCycleRoboTest {
             } catch (_: Exception) {}
         }
         // Cycle from NARROW now advances to THREE_DAY (WIDE -> NARROW -> THREE_DAY -> WIDE).
-        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
         assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
     }
 
@@ -212,10 +212,10 @@ class ZoomCycleRoboTest {
     @Test
     fun clearWidgetState_resetsZoom() {
         stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         stateManager.clearWidgetState(testWidgetId)
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
     @Test
@@ -229,9 +229,9 @@ class ZoomCycleRoboTest {
             stateManager.clearWidgetState(testWidgetId)
             stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
             stateManager.setHourlyOffset(testWidgetId, baseOffset)
-            assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+            assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
 
-            val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(zoneIndex, baseOffset, ZoomLevel.WIDE)
+            val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(zoneIndex, baseOffset, ZoomStage.WIDE.window())
             val intent = Intent(context, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
@@ -250,7 +250,7 @@ class ZoomCycleRoboTest {
                 } catch (_: Exception) {}
             }
 
-            assertEquals("Zone $zoneIndex should zoom to NARROW", ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+            assertEquals("Zone $zoneIndex should zoom to NARROW", ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
             assertEquals("Zone $zoneIndex offset", expectedOffsets[zoneIndex], stateManager.getHourlyOffset(testWidgetId))
         }
     }
@@ -260,7 +260,7 @@ class ZoomCycleRoboTest {
         val baseOffset = 6
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(0, baseOffset, ZoomLevel.WIDE)
+        val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(0, baseOffset, ZoomStage.WIDE.window())
         val intent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
@@ -275,7 +275,7 @@ class ZoomCycleRoboTest {
             } catch (_: Exception) {}
         }
 
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
         assertEquals(-6, stateManager.getHourlyOffset(testWidgetId))
     }
 
@@ -285,7 +285,7 @@ class ZoomCycleRoboTest {
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(0, baseOffset, ZoomLevel.NARROW)
+        val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(0, baseOffset, ZoomStage.NARROW.window())
         val intent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
@@ -300,8 +300,9 @@ class ZoomCycleRoboTest {
             } catch (_: Exception) {}
         }
 
-        // Cycle from NARROW now advances to THREE_DAY; the NARROW-zone offset extra (-2) is still applied.
-        assertEquals(ZoomLevel.THREE_DAY, stateManager.getZoomLevel(testWidgetId))
-        assertEquals(-2, stateManager.getHourlyOffset(testWidgetId))
+        // Cycle from NARROW now advances to THREE_DAY; the NARROW-zone offset extra (-3 at the
+        // default 5h span) is still applied.
+        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
+        assertEquals(-3, stateManager.getHourlyOffset(testWidgetId))
     }
 }

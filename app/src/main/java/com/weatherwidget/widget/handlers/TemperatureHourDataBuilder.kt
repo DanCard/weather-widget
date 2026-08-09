@@ -17,12 +17,14 @@ import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.HourlyFooterRenderer
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
+import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.HourDataAssembler
 import com.weatherwidget.widget.WidgetQueryWindows
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -110,7 +112,7 @@ internal fun buildHourDataList(
     centerTime: LocalDateTime,
     numColumns: Int,
     displaySource: WeatherSource,
-    zoom: ZoomLevel = ZoomLevel.WIDE,
+    zoom: ZoomWindow = ZoomStage.WIDE.window(),
     actuals: List<ObservationEntity> = emptyList(),
     onBlendDebug: ((() -> String) -> Unit)? = null,
     smoothedForecasts: Map<Long, Float>? = null,
@@ -154,7 +156,7 @@ internal fun buildHourDataResult(
     centerTime: LocalDateTime,
     numColumns: Int,
     displaySource: WeatherSource,
-    zoom: ZoomLevel = ZoomLevel.WIDE,
+    zoom: ZoomWindow = ZoomStage.WIDE.window(),
     actuals: List<ObservationEntity> = emptyList(),
     onBlendDebug: ((() -> String) -> Unit)? = null,
     smoothedForecasts: Map<Long, Float>? = null,
@@ -238,20 +240,22 @@ internal fun buildHourDataResult(
             "blendedPoints=${actualSeries.blendStats?.emittedPointCount ?: 0}, visualWindow=${startHour.format(DateTimeFormatter.ISO_LOCAL_TIME)} to ${endHour.format(DateTimeFormatter.ISO_LOCAL_TIME)}"
     )
 
-    // Narrow widgets space WIDE-zoom hour markers further apart (every 6h vs 4h) so the wider
-    // inline <hour><icon><a|p> footer groups don't crowd. Wide widgets keep the default cadence.
-    val labelInterval =
-        if (zoom == ZoomLevel.WIDE && HourlyFooterRenderer.isNarrowWidget(numColumns)) {
-            HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
-        } else {
-            zoom.labelInterval
-        }
+    // Narrow widgets space hour markers further apart so the wider inline <hour><icon><a|p> footer
+    // groups don't crowd: WIDE every 6h vs 4h, and NARROW every other hour once the user widens its
+    // span past 6h. Wide widgets keep the default cadence at both zooms.
+    val labelInterval = when {
+        !HourlyFooterRenderer.isNarrowWidget(numColumns) -> zoom.labelInterval
+        zoom.stage == ZoomStage.WIDE -> HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
+        zoom.stage == ZoomStage.NARROW ->
+            HourlyZoomRules.narrowWidgetLabelInterval(zoom.totalSpanHours.toInt())
+        else -> zoom.labelInterval
+    }
 
     // At THREE_DAY zoom the window spans multiple days, where bare "12a/12p" footer labels can't
     // tell you which day a region is. Switch to one date label per day, centered under that day:
     // for each visible local date pick the in-window hour closest to local noon (clamped to the
     // window edges so partial first/last days still get a label). Near zooms keep time-of-day.
-    val dateMode = zoom == ZoomLevel.THREE_DAY
+    val dateMode = zoom.stage == ZoomStage.THREE_DAY
     val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
     // Assemble the graph point list from the shared sub-hourly-inclusive series, so the labeled actual
@@ -285,10 +289,9 @@ internal fun buildHourDataResult(
                 )
             }
             // Shared with the precip/cloud graphs so all three agree on date vs time-of-day footer labels.
-            val nonDateShowLabel = when (zoom) {
-                ZoomLevel.NARROW -> true
-                else -> hourIndex % labelInterval == 0
-            }
+            // NARROW's interval is 1 except on a narrow widget with a widened span, so this still
+            // labels every hour in the common case.
+            val nonDateShowLabel = hourIndex % labelInterval == 0
             val labelInfo = HourlyGraphViewCommon.resolveHourLabel(
                 time = time,
                 hourMs = hourMs,

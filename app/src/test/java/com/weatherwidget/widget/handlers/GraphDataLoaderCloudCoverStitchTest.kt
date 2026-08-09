@@ -4,7 +4,8 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestDatabase
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -74,7 +75,7 @@ class GraphDataLoaderCloudCoverStitchTest {
             lat = rawQueryLat,
             lon = rawQueryLon,
             centerTime = now,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             now = now,
             source = WeatherSource.NWS,
         )
@@ -118,7 +119,7 @@ class GraphDataLoaderCloudCoverStitchTest {
             lat = siteLat,
             lon = siteLon,
             centerTime = now,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             now = now,
             source = WeatherSource.NWS,
         )
@@ -182,7 +183,7 @@ class GraphDataLoaderCloudCoverStitchTest {
             lat = lat,
             lon = lon,
             centerTime = centerTime,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             now = now,
             source = WeatherSource.NWS,
         )
@@ -235,7 +236,7 @@ class GraphDataLoaderCloudCoverStitchTest {
             lat = lat,
             lon = lon,
             centerTime = centerTime,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             now = now,
             source = WeatherSource.NWS,
         )

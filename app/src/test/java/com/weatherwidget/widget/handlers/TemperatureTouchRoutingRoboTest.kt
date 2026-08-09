@@ -15,8 +15,10 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.HourlyTouchZoneMapper
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -81,7 +83,7 @@ class TemperatureTouchRoutingRoboTest {
             options = graphOptions(),
             configureState = {
                 it.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
-                it.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+                it.setZoomLevel(appWidgetId, ZoomStage.WIDE)
                 it.setHourlyOffset(appWidgetId, 0)
             },
         )
@@ -134,7 +136,7 @@ class TemperatureTouchRoutingRoboTest {
             options = graphOptions(),
             configureState = {
                 it.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
-                it.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+                it.setZoomLevel(appWidgetId, ZoomStage.WIDE)
             },
         )
         val applied = applyViews(views)
@@ -168,7 +170,7 @@ class TemperatureTouchRoutingRoboTest {
             options = graphOptions(),
             configureState = {
                 it.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
-                it.setZoomLevel(appWidgetId, ZoomLevel.NARROW)
+                it.setZoomLevel(appWidgetId, ZoomStage.NARROW)
             },
         )
 
@@ -210,6 +212,18 @@ class TemperatureTouchRoutingRoboTest {
             val intent = shadowApp.broadcastIntents.drop(beforeTap).lastOrNull()
             if (intent?.action == WidgetActions.ACTION_CYCLE_ZOOM) {
                 assertTrue(intent.hasExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET))
+                // The offset carried by the real PendingIntent must be the one the mapper computes
+                // for this zone at the *configured* narrow span — not a hardcoded 4h-window hour.
+                val zoneIndex = candidateZoneIds.indexOf(zoneId) + 1
+                assertEquals(
+                    "zone $zoneIndex offset at the default narrow span",
+                    HourlyTouchZoneMapper.zoneIndexToOffset(
+                        zoneIndex,
+                        0,
+                        ZoomStage.NARROW.window(WidgetStateManager(context).getNarrowZoomSpanHours()),
+                    ),
+                    intent.getIntExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, Int.MIN_VALUE),
+                )
                 zoomIntentFound = true
                 break
             }
@@ -218,12 +232,41 @@ class TemperatureTouchRoutingRoboTest {
     }
 
     @Test
+    fun `zoom center offsets widen when the narrow span setting widens`() = runBlocking {
+        // End-to-end guard for the setting: the hour a tap resolves to comes from the rendered
+        // PendingIntent, so widening the span must widen the offsets baked into those intents.
+        fun edgeOffsetAtSpan(span: Int): Int = runBlocking {
+            val views = renderTemperatureWidget(
+                options = graphOptions(),
+                configureState = {
+                    it.setNarrowZoomSpanHours(span)
+                    it.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
+                    it.setZoomLevel(appWidgetId, ZoomStage.NARROW)
+                    it.setHourlyOffset(appWidgetId, 0)
+                },
+            )
+            val applied = applyViews(views)
+            val shadowApp = shadowOf(app)
+            val before = shadowApp.broadcastIntents.size
+            applied.findViewById<View>(R.id.graph_hour_zone_0).performClick()
+            val intent = shadowApp.broadcastIntents.drop(before).last()
+            assertEquals(WidgetActions.ACTION_CYCLE_ZOOM, intent.action)
+            intent.getIntExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, Int.MIN_VALUE)
+        }
+
+        // Zone 0 is the left edge, so it lands on -backHours: 2h back at a 4h span, 4h at 8h.
+        assertEquals(-2, edgeOffsetAtSpan(4))
+        assertEquals(-3, edgeOffsetAtSpan(5))
+        assertEquals(-4, edgeOffsetAtSpan(8))
+    }
+
+    @Test
     fun `text mode hides graph touch overlays`() = runBlocking {
         val views = renderTemperatureWidget(
             options = textOptions(),
             configureState = {
                 it.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
-                it.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+                it.setZoomLevel(appWidgetId, ZoomStage.WIDE)
             },
         )
 

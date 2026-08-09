@@ -48,11 +48,11 @@ object CloudCoverViewHandler {
 
 
     @androidx.annotation.VisibleForTesting
-    internal fun smoothingIterationsFor(zoom: com.weatherwidget.widget.ZoomLevel): Int =
-        when (zoom) {
-            com.weatherwidget.widget.ZoomLevel.WIDE -> zoom.smoothIterations
-            com.weatherwidget.widget.ZoomLevel.THREE_DAY -> zoom.smoothIterations
-            com.weatherwidget.widget.ZoomLevel.NARROW -> (zoom.smoothIterations - 1).coerceAtLeast(0)
+    internal fun smoothingIterationsFor(zoom: com.weatherwidget.widget.ZoomWindow): Int =
+        when (zoom.stage) {
+            com.weatherwidget.widget.ZoomStage.WIDE -> zoom.smoothIterations
+            com.weatherwidget.widget.ZoomStage.THREE_DAY -> zoom.smoothIterations
+            com.weatherwidget.widget.ZoomStage.NARROW -> (zoom.smoothIterations - 1).coerceAtLeast(0)
         }
 
     /**
@@ -81,7 +81,7 @@ object CloudCoverViewHandler {
     @androidx.annotation.VisibleForTesting
     internal fun buildWindowHourKeys(
         centerTime: LocalDateTime,
-        zoom: com.weatherwidget.widget.ZoomLevel,
+        zoom: com.weatherwidget.widget.ZoomWindow,
     ): Set<Long> {
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
@@ -132,7 +132,7 @@ object CloudCoverViewHandler {
 
         // Gate bitmap rebuilds on real change for opportunistic UI-only repaints.
         if (uiOnly) {
-            val zoom = stateManager.getZoomLevel(appWidgetId)
+            val zoom = stateManager.getZoomWindow(appWidgetId)
             val lastRender = stateManager.getLastGraphRender(appWidgetId)
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
             val windowSpanMinutes = zoom.totalSpanHours * 60
@@ -169,7 +169,7 @@ object CloudCoverViewHandler {
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
         views.setViewVisibility(R.id.graph_night_rain_zones, View.GONE)
 
-        val zoom = stateManager.getZoomLevel(appWidgetId)
+        val zoom = stateManager.getZoomWindow(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
         val windowHourKeys = buildWindowHourKeys(centerTime, zoom)
         val effectiveDisplaySource = displaySource
@@ -429,7 +429,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
-            val hourLabelSpacingDp = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 18f else 28f
+            val hourLabelSpacingDp = if (zoom.stage == com.weatherwidget.widget.ZoomStage.NARROW) 18f else 28f
             val renderStartMs = SystemClock.elapsedRealtime()
             val bitmap = CloudCoverGraphRenderer.renderGraph(
                 context = context,
@@ -529,7 +529,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         centerTime: LocalDateTime,
         numColumns: Int,
         displaySource: WeatherSource,
-        zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
+        zoom: com.weatherwidget.widget.ZoomWindow = com.weatherwidget.widget.ZoomStage.WIDE.window(),
     ): List<CloudCoverGraphRenderer.CloudHourData> {
         val hours = mutableListOf<CloudCoverGraphRenderer.CloudHourData>()
         val now = LocalDateTime.now()
@@ -551,23 +551,26 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 "startHour=$startHour endHour=$endHour zoom=$zoom source=$displaySource",
         )
 
-        // Narrow widgets widen the WIDE-zoom marker cadence (6h vs 4h) to fit the inline footer
-        // groups; wide widgets keep the default. Matches the temperature graph.
-        val labelInterval =
-            if (zoom == com.weatherwidget.widget.ZoomLevel.WIDE &&
-                com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns)
-            ) {
-                com.weatherwidget.shared.graph.HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
-            } else {
+        // Narrow widgets widen the marker cadence to fit the inline footer groups: WIDE 6h vs 4h,
+        // and NARROW every other hour once its span is widened past 6h. Wide widgets keep the
+        // default at both zooms. Matches the temperature graph.
+        val labelInterval = when {
+            !com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns) ->
                 zoom.labelInterval
-            }
+            zoom.stage == com.weatherwidget.widget.ZoomStage.WIDE ->
+                com.weatherwidget.shared.graph.HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
+            zoom.stage == com.weatherwidget.widget.ZoomStage.NARROW ->
+                com.weatherwidget.shared.graph.HourlyZoomRules
+                    .narrowWidgetLabelInterval(zoom.totalSpanHours.toInt())
+            else -> zoom.labelInterval
+        }
         var currentHour = startHour
         var hourIndex = 0
         val zoneId = ZoneId.systemDefault()
 
         // At THREE_DAY zoom switch the footer to one date label per day ("Tue 23"), matching the
         // temperature graph (shared rule in HourlyGraphViewCommon.resolveHourLabel).
-        val dateMode = zoom == com.weatherwidget.widget.ZoomLevel.THREE_DAY
+        val dateMode = zoom.stage == com.weatherwidget.widget.ZoomStage.THREE_DAY
         val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
         while (currentHour.isBefore(endHour)) {

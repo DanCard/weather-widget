@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.text.util.LocalePreferences
+import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.UnitDefaults
 
 /** Owns app-wide display-unit and observation-weight preferences. */
@@ -39,6 +40,16 @@ internal class WeatherDisplayPreferences(
         prefs.edit().putInt(KEY_PERSONAL_STATION_DISCOUNT, percent.coerceIn(0, 100)).apply()
     }
 
+    /** Configured span of the tight (NARROW) hourly view, in hours. Always within 4..8. */
+    fun hourlyNarrowSpanHours(): Int =
+        HourlyZoomRules.clampNarrowSpan(
+            prefs.getInt(KEY_HOURLY_NARROW_SPAN, HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS),
+        )
+
+    fun setHourlyNarrowSpanHours(hours: Int) {
+        prefs.edit().putInt(KEY_HOURLY_NARROW_SPAN, HourlyZoomRules.clampNarrowSpan(hours)).apply()
+    }
+
     fun showTodayOverlayDelta(): Boolean = prefs.getBoolean(KEY_SHOW_TODAY_OVERLAY_DELTA, false)
 
     fun setShowTodayOverlayDelta(value: Boolean) {
@@ -63,6 +74,7 @@ internal class WeatherDisplayPreferences(
         const val TAG = "UNIT_DEFAULT"
         const val KEY_USE_CELSIUS = "use_celsius"
         const val KEY_PERSONAL_STATION_DISCOUNT = "personal_station_discount"
+        const val KEY_HOURLY_NARROW_SPAN = "hourly_narrow_span_hours"
         const val KEY_SHOW_TODAY_OVERLAY_DELTA = "show_today_overlay_delta"
         const val KEY_SHOW_TODAY_OVERLAY_DOMINANT_TEMP = "show_today_overlay_dominant_temp"
         const val KEY_SHOW_TODAY_OVERLAY_DOMINANT_AGE = "show_today_overlay_dominant_age"

@@ -17,7 +17,8 @@ import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -58,7 +59,7 @@ class PrecipTouchRoutingRoboTest {
             options = graphOptions(),
             configureState = {
                 it.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
-                it.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+                it.setZoomLevel(appWidgetId, ZoomStage.WIDE)
                 it.setHourlyOffset(appWidgetId, 0)
             },
         )
@@ -104,7 +105,7 @@ class PrecipTouchRoutingRoboTest {
             options = graphOptions(),
             configureState = {
                 it.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
-                it.setZoomLevel(appWidgetId, ZoomLevel.NARROW)
+                it.setZoomLevel(appWidgetId, ZoomStage.NARROW)
                 it.setHourlyOffset(appWidgetId, 0)
             },
         )
@@ -141,7 +142,7 @@ class PrecipTouchRoutingRoboTest {
             options = graphOptions(),
             configureState = {
                 it.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
-                it.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+                it.setZoomLevel(appWidgetId, ZoomStage.WIDE)
                 it.setHourlyOffset(appWidgetId, 0)
             },
         )
@@ -181,7 +182,7 @@ class PrecipTouchRoutingRoboTest {
             options = textOptions(),
             configureState = {
                 it.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
-                it.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+                it.setZoomLevel(appWidgetId, ZoomStage.WIDE)
             },
         )
 

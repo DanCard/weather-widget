@@ -85,7 +85,7 @@ class TemperatureConsistencyTest {
             hourlyForecasts, displaySource, HEADER_SMOOTH_ITERATIONS
         )
         val narrowSmoothed = computeSmoothedForecasts(
-            hourlyForecasts, displaySource, ZoomLevel.NARROW.smoothIterations
+            hourlyForecasts, displaySource, ZoomStage.NARROW.window().smoothIterations
         )
 
         // Sanity: NARROW (1 iteration) and HEADER (2 iterations) should differ

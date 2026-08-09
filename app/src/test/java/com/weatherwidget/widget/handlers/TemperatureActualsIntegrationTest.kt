@@ -6,7 +6,8 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -54,51 +55,51 @@ class TemperatureActualsIntegrationTest {
     @Test
     fun `handleSetView from DAILY resets zoom to WIDE when entering TEMPERATURE`() = runTest {
         stateManager.setViewMode(appWidgetId, ViewMode.DAILY)
-        stateManager.setZoomLevel(appWidgetId, ZoomLevel.NARROW)
+        stateManager.setZoomLevel(appWidgetId, ZoomStage.NARROW)
 
         runCatching {
             WidgetIntentRouter.handleSetView(context, appWidgetId, ViewMode.TEMPERATURE)
         }
 
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(appWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(appWidgetId))
     }
 
     @Test
     fun `handleSetView from DAILY resets zoom to WIDE when entering PRECIPITATION`() = runTest {
         stateManager.setViewMode(appWidgetId, ViewMode.DAILY)
-        stateManager.setZoomLevel(appWidgetId, ZoomLevel.NARROW)
+        stateManager.setZoomLevel(appWidgetId, ZoomStage.NARROW)
 
         runCatching {
             WidgetIntentRouter.handleSetView(context, appWidgetId, ViewMode.PRECIPITATION)
         }
 
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(appWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(appWidgetId))
     }
 
     @Test
     fun `handleSetView from DAILY resets zoom to WIDE when entering CLOUD_COVER`() = runTest {
         stateManager.setViewMode(appWidgetId, ViewMode.DAILY)
-        stateManager.setZoomLevel(appWidgetId, ZoomLevel.NARROW)
+        stateManager.setZoomLevel(appWidgetId, ZoomStage.NARROW)
 
         runCatching {
             WidgetIntentRouter.handleSetView(context, appWidgetId, ViewMode.CLOUD_COVER)
         }
 
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(appWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(appWidgetId))
     }
 
     @Test
     fun `handleSetView preserves NARROW zoom when switching between hourly view types`() = runTest {
         // Start in TEMPERATURE at NARROW zoom
         stateManager.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
-        stateManager.setZoomLevel(appWidgetId, ZoomLevel.NARROW)
+        stateManager.setZoomLevel(appWidgetId, ZoomStage.NARROW)
 
         // Switch to PRECIPITATION — should NOT reset zoom
         runCatching {
             WidgetIntentRouter.handleSetView(context, appWidgetId, ViewMode.PRECIPITATION)
         }
 
-        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(appWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(appWidgetId))
     }
 
 }

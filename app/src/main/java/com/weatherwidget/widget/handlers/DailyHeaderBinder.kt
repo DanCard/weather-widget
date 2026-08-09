@@ -260,7 +260,7 @@ internal object DailyHeaderBinder {
         precipProbability: Int?,
         isNowLineVisible: Boolean?,
         offset: Int,
-        zoom: com.weatherwidget.widget.ZoomLevel?,
+        zoom: com.weatherwidget.widget.ZoomWindow?,
         resolveMs: Long,
     ): String =
         "headerState widget=$widgetId mode=${viewMode.name} source=${displaySource.id} " +
@@ -276,7 +276,7 @@ internal object DailyHeaderBinder {
             "headerDelta=${formatTemp(headerDelta)} " +
             "deltaVisible=$deltaVisible deltaHiddenReason=${deltaHiddenReason ?: "none"} " +
             "precipVisible=$precipVisible precipProbability=${precipProbability ?: "none"} " +
-            "isNowLineVisible=${isNowLineVisible ?: "n/a"} offset=$offset zoom=${zoom?.name ?: "n/a"} resolveMs=$resolveMs"
+            "isNowLineVisible=${isNowLineVisible ?: "n/a"} offset=$offset zoom=${zoom?.stage?.name ?: "n/a"} resolveMs=$resolveMs"
 
     internal fun formatLocation(location: Pair<Double, Double>?): String {
         if (location == null) return "none"

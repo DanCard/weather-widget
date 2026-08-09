@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">NWS পছন্দ - জাতীয় আবহাওয়া পরিষেবা (শুধু যুক্তরাষ্ট্র)</string>
     <string name="api_prefer_openmeteo">Open-Meteo পছন্দ - বিশ্বব্যাপী কভারেজ</string>
     <string name="api_prefer_weatherapi">WeatherAPI পছন্দ - বিশ্বব্যাপী কভারেজ</string>
+    <string name="hourly_zoom_title">ঘণ্টাভিত্তিক জুম</string>
+    <string name="hourly_zoom_description">জুম করা ঘণ্টাভিত্তিক গ্রাফ কত ঘণ্টা দেখাবে। জুম স্তর বদলাতে গ্রাফে ট্যাপ করুন; এটি সবচেয়ে সংকীর্ণ স্তর নির্ধারণ করে। বড় পরিসর প্রতি ট্যাপে বেশি স্ক্রল করে।</string>
+    <string name="hourly_zoom_value">%1$d ঘণ্টা</string>
+    <string name="hourly_zoom_min">4 ঘণ্টা</string>
+    <string name="hourly_zoom_max">8 ঘণ্টা</string>
     <string name="api_sources_title">আবহাওয়া ডেটা উৎসসমূহ</string>
     <string name="api_sources_description">উৎস চালু/বন্ধ করুন এবং ক্রম বদলান। বন্ধ করা উৎস আবার চালু না করা পর্যন্ত উইজেট টগল ও ব্যাকগ্রাউন্ড আনা থেকে বাদ থাকে।</string>
     <string name="must_keep_one_source">কমপক্ষে একটি উৎস চালু থাকতে হবে</string>

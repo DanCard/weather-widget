@@ -12,7 +12,7 @@ import com.weatherwidget.widget.HourlyTouchZoneMapper
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomWindow
 import kotlin.math.roundToInt
 
 private const val TAG = "HourlyBottomZone"
@@ -114,7 +114,7 @@ object HourlyBottomZoneHelper {
         currentViewMode: ViewMode,
         zoneIndex: Int,
         hourlyOffset: Int,
-        zoom: ZoomLevel,
+        zoom: ZoomWindow,
     ): ZoneAction {
         return ZoneAction(
             targetView = DayClickHelper.resolveHourlyBottomRowAction(iconRes, currentViewMode),
@@ -136,7 +136,7 @@ object HourlyBottomZoneHelper {
         appWidgetId: Int,
         hourIconResources: List<Int?>,
         currentViewMode: ViewMode,
-        zoom: ZoomLevel,
+        zoom: ZoomWindow,
         hourlyOffset: Int,
         showBodyOverlayZones: Boolean = true,
     ) {

@@ -14,7 +14,8 @@ import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.testutil.WidgetStateTestUtils
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomStage
+import com.weatherwidget.widget.ZoomWindow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -55,7 +56,7 @@ class TemperatureHomeTouchRoutingInstrumentedTest :
     @Test
     fun homeHeaderTap_switchesFromTemperatureToDaily() = runBlocking {
         stateManager.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
-        stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+        stateManager.setZoomLevel(appWidgetId, ZoomStage.WIDE)
         stateManager.setHourlyOffset(appWidgetId, 6)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.SILURIAN)
 

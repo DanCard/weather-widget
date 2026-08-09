@@ -236,7 +236,7 @@ internal object WidgetDayClickCoordinator {
         }
 
         if (targetMode == ViewMode.PRECIPITATION) {
-            stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+            stateManager.setZoomLevel(appWidgetId, ZoomStage.WIDE)
         }
         WidgetIntentRouter.handleSetView(
             context,

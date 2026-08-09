@@ -85,16 +85,16 @@ class WidgetStateManagerMigrationInstrumentedTest {
 
         assertEquals(ViewMode.TEMPERATURE, manager.toggleViewMode(widgetId))
         assertEquals(0, manager.getHourlyOffset(widgetId))
-        assertEquals(ZoomLevel.WIDE, manager.getZoomLevel(widgetId))
+        assertEquals(ZoomStage.WIDE, manager.getZoomStage(widgetId))
 
-        manager.setZoomLevel(widgetId, ZoomLevel.NARROW)
-        assertEquals(ZoomLevel.NARROW.navJump, manager.navigateHourlyRight(widgetId))
+        manager.setZoomLevel(widgetId, ZoomStage.NARROW)
+        assertEquals(ZoomStage.NARROW.window().navJump, manager.navigateHourlyRight(widgetId))
         assertEquals(ViewMode.PRECIPITATION, manager.togglePrecipitationMode(widgetId))
-        assertEquals(ZoomLevel.NARROW.navJump, manager.getHourlyOffset(widgetId))
-        assertEquals(ZoomLevel.NARROW, manager.getZoomLevel(widgetId))
+        assertEquals(ZoomStage.NARROW.window().navJump, manager.getHourlyOffset(widgetId))
+        assertEquals(ZoomStage.NARROW, manager.getZoomStage(widgetId))
 
         assertEquals(ViewMode.DAILY, manager.togglePrecipitationMode(widgetId))
-        assertEquals(ZoomLevel.WIDE, manager.getZoomLevel(widgetId))
+        assertEquals(ZoomStage.WIDE, manager.getZoomStage(widgetId))
         assertEquals(ViewMode.CLOUD_COVER, manager.toggleCloudCoverMode(widgetId))
         assertEquals(0, manager.getHourlyOffset(widgetId))
         assertEquals(ViewMode.TEMPERATURE, manager.toggleCloudCoverMode(widgetId))

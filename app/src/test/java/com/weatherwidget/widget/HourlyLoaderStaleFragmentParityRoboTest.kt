@@ -136,7 +136,7 @@ class HourlyLoaderStaleFragmentParityRoboTest {
             lat = centerLat,
             lon = centerLon,
             centerTime = now,
-            zoom = ZoomLevel.entries.first(),
+            zoom = ZoomStage.entries.first().window(),
             now = now,
             source = source,
         )

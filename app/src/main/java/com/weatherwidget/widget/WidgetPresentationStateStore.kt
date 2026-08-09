@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.content.SharedPreferences
 import android.util.Log
+import com.weatherwidget.shared.graph.HourlyZoomRules
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
@@ -11,13 +12,19 @@ internal data class WidgetPresentationState(
     val dateOffset: Int,
     val viewMode: ViewMode,
     val hourlyOffset: Int,
-    val zoom: ZoomLevel,
+    val zoom: ZoomStage,
     val graphAnchorMs: Long?,
 )
 
-/** Owns all per-widget navigation, mode, zoom, transient banner, and last-render preferences. */
+/**
+ * Owns all per-widget navigation, mode, zoom, transient banner, and last-render preferences.
+ *
+ * [narrowSpanHours] supplies the app-wide NARROW span so navigation can resolve a [ZoomWindow]; it
+ * is a lambda rather than a value because the setting can change while widgets are live.
+ */
 internal class WidgetPresentationStateStore(
     private val prefs: SharedPreferences,
+    private val narrowSpanHours: () -> Int = { HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS },
     private val clock: Clock = Clock.systemUTC(),
     private val zoneId: () -> ZoneId = ZoneId::systemDefault,
 ) {
@@ -95,9 +102,9 @@ internal class WidgetPresentationStateStore(
         val editor = prefs.edit().putString(viewModeKey(widgetId), newMode.name)
         when {
             newMode == ViewMode.TEMPERATURE && current == ViewMode.DAILY ->
-                putHourlyPosition(editor, widgetId, 0, ZoomLevel.WIDE)
+                putHourlyPosition(editor, widgetId, 0, ZoomStage.WIDE)
             newMode == ViewMode.DAILY ->
-                editor.putString(zoomKey(widgetId), ZoomLevel.WIDE.name)
+                editor.putString(zoomKey(widgetId), ZoomStage.WIDE.name)
         }
         editor.apply()
         return newMode
@@ -109,9 +116,9 @@ internal class WidgetPresentationStateStore(
         val editor = prefs.edit().putString(viewModeKey(widgetId), newMode.name)
         when {
             newMode == ViewMode.PRECIPITATION && current == ViewMode.DAILY ->
-                putHourlyPosition(editor, widgetId, 0, ZoomLevel.WIDE)
+                putHourlyPosition(editor, widgetId, 0, ZoomStage.WIDE)
             newMode == ViewMode.DAILY ->
-                editor.putString(zoomKey(widgetId), ZoomLevel.WIDE.name)
+                editor.putString(zoomKey(widgetId), ZoomStage.WIDE.name)
         }
         editor.apply()
         return newMode
@@ -122,7 +129,7 @@ internal class WidgetPresentationStateStore(
         val newMode = if (current == ViewMode.CLOUD_COVER) ViewMode.TEMPERATURE else ViewMode.CLOUD_COVER
         val editor = prefs.edit().putString(viewModeKey(widgetId), newMode.name)
         if (newMode == ViewMode.CLOUD_COVER && current == ViewMode.DAILY) {
-            putHourlyPosition(editor, widgetId, 0, ZoomLevel.WIDE)
+            putHourlyPosition(editor, widgetId, 0, ZoomStage.WIDE)
         }
         editor.apply()
         return newMode
@@ -144,7 +151,8 @@ internal class WidgetPresentationStateStore(
 
     fun navigateHourly(widgetId: Int, direction: Int): Int {
         val current = state(widgetId)
-        val next = (current.hourlyOffset + direction * current.zoom.navJump)
+        val navJump = current.zoom.window(narrowSpanHours()).navJump
+        val next = (current.hourlyOffset + direction * navJump)
             .coerceIn(WidgetStateManager.MIN_HOURLY_OFFSET, WidgetStateManager.MAX_HOURLY_OFFSET)
         setHourlyOffset(widgetId, next)
         return next
@@ -153,7 +161,7 @@ internal class WidgetPresentationStateStore(
     fun resolveHourlyCenterTime(
         widgetId: Int,
         now: LocalDateTime,
-        zoom: ZoomLevel,
+        zoom: ZoomWindow,
     ): LocalDateTime {
         val state = state(widgetId)
         val offset = state.hourlyOffset
@@ -162,7 +170,7 @@ internal class WidgetPresentationStateStore(
         val anchorMs = state.graphAnchorMs
         Log.v(
             TAG,
-            "HOURLY_CENTER_TRACE: widget=$widgetId offset=$offset zoom=$zoom back=${zoom.backHours} " +
+            "HOURLY_CENTER_TRACE: widget=$widgetId offset=$offset zoom=${zoom.stage} back=${zoom.backHours} " +
                 "fwd=${zoom.forwardHours} includesNow=$includesNow hasAnchor=${anchorMs != null} " +
                 "branch=${if (includesNow || anchorMs == null) "liveCenter" else "anchor"}",
         )
@@ -170,7 +178,7 @@ internal class WidgetPresentationStateStore(
         return Instant.ofEpochMilli(anchorMs).atZone(zoneId()).toLocalDateTime()
     }
 
-    fun zoom(widgetId: Int): ZoomLevel {
+    fun zoom(widgetId: Int): ZoomStage {
         val key = zoomKey(widgetId)
         val raw = prefs.all[key]
         val decoded = decodeZoom(raw)
@@ -178,11 +186,11 @@ internal class WidgetPresentationStateStore(
         return decoded
     }
 
-    fun setZoom(widgetId: Int, zoom: ZoomLevel) {
+    fun setZoom(widgetId: Int, zoom: ZoomStage) {
         prefs.edit().putString(zoomKey(widgetId), zoom.name).apply()
     }
 
-    fun cycleZoom(widgetId: Int): ZoomLevel {
+    fun cycleZoom(widgetId: Int): ZoomStage {
         val next = zoom(widgetId).next()
         setZoom(widgetId, next)
         return next
@@ -259,7 +267,7 @@ internal class WidgetPresentationStateStore(
         editor: SharedPreferences.Editor,
         widgetId: Int,
         offset: Int,
-        zoom: ZoomLevel?,
+        zoom: ZoomStage?,
     ) {
         val anchorMs = clock.instant().plusSeconds(offset.toLong() * 60L * 60L).toEpochMilli()
         editor
@@ -275,12 +283,12 @@ internal class WidgetPresentationStateStore(
             else -> null
         } ?: ViewMode.DAILY
 
-    private fun decodeZoom(raw: Any?): ZoomLevel =
+    private fun decodeZoom(raw: Any?): ZoomStage =
         when (raw) {
-            is String -> ZoomLevel.entries.find { it.name == raw }
-            is Number -> ZoomLevel.entries.getOrNull(raw.toInt())
+            is String -> ZoomStage.entries.find { it.name == raw }
+            is Number -> ZoomStage.entries.getOrNull(raw.toInt())
             else -> null
-        } ?: ZoomLevel.WIDE
+        } ?: ZoomStage.WIDE
 
     private fun dateOffsetKey(widgetId: Int) = "$KEY_DATE_OFFSET_PREFIX$widgetId"
     private fun viewModeKey(widgetId: Int) = "$KEY_VIEW_MODE_PREFIX$widgetId"

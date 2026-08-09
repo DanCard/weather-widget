@@ -20,7 +20,7 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.ZoomWindow
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -46,7 +46,7 @@ internal fun setupZoomTapZones(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,
-    zoom: ZoomLevel,
+    zoom: ZoomWindow,
     hourlyOffset: Int,
 ) {
     views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)

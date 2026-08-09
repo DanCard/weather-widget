@@ -1040,12 +1040,16 @@ internal fun WidgetPopup(
                             // one before advancing.
                             val handleToggleZoom: (Int) -> Unit = { clickedOffset ->
                                 val current = ZoomStage.nearestByTotalSpan(
-                                    DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor)
+                                    DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor),
+                                    config.narrowZoomSpanHours,
                                 )
                                 val next = current.next()
                                 onUpdateConfig(
                                     config.copy(
-                                        zoomFactor = DesktopGraphUtils.zoomFactorForStage(next),
+                                        zoomFactor = DesktopGraphUtils.zoomFactorForStage(
+                                            next,
+                                            config.narrowZoomSpanHours,
+                                        ),
                                         hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
                                     )
                                 )

@@ -38,6 +38,11 @@
     <string name="api_prefer_nws">Ưu tiên NWS - Cơ quan Thời tiết Quốc gia (chỉ Hoa Kỳ)</string>
     <string name="api_prefer_openmeteo">Ưu tiên Open-Meteo - Phủ sóng toàn cầu</string>
     <string name="api_prefer_weatherapi">Ưu tiên WeatherAPI - Phủ sóng toàn cầu</string>
+    <string name="hourly_zoom_title">Thu phóng theo giờ</string>
+    <string name="hourly_zoom_description">Số giờ mà biểu đồ theo giờ khi phóng to hiển thị. Chạm vào biểu đồ để chuyển mức thu phóng; mục này đặt mức hẹp nhất. Phạm vi rộng hơn sẽ cuộn xa hơn mỗi lần chạm.</string>
+    <string name="hourly_zoom_value">%1$d giờ</string>
+    <string name="hourly_zoom_min">4 giờ</string>
+    <string name="hourly_zoom_max">8 giờ</string>
     <string name="api_sources_title">Nguồn dữ liệu thời tiết</string>
     <string name="api_sources_description">Bật/tắt và sắp xếp lại các nguồn. Nguồn bị tắt sẽ bị loại khỏi việc chuyển đổi trên tiện ích và tải nền cho đến khi được bật lại.</string>
     <string name="must_keep_one_source">Phải giữ ít nhất một nguồn được bật</string>

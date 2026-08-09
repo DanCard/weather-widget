@@ -202,7 +202,7 @@ class YesterdayActualHighConsistencyTest {
             centerTime = graphCenter,
             numColumns = 5,
             displaySource = source,
-            zoom = ZoomLevel.WIDE,
+            zoom = ZoomStage.WIDE.window(),
             actuals = observations
         )
 
