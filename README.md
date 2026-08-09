@@ -1,5 +1,7 @@
 # Weather Widget
 
+[![Get it on Google Play](https://img.shields.io/badge/Google%20Play-Weather%20Analyzer%20Widget-414141?logo=googleplay)](https://play.google.com/store/apps/details?id=com.weatherwidget)
+
 An elegant and functional Android weather widget application.
 
 ## Overview
@@ -59,6 +61,15 @@ The application is built using modern Android development practices and librarie
 *   **Ktor:** For making network requests to the weather API.
 *   **WorkManager:** For scheduling background sync tasks.
 
+## Install (Android)
+
+Available on Google Play: **[Weather Analyzer Widget](https://play.google.com/store/apps/details?id=com.weatherwidget)**
+
+After installing, long-press your home screen → **Widgets** → **Weather Widget**, and drag it into
+place. Resize it to anything from 1x1 upward; the layout adapts to the space it is given. NWS and
+Open-Meteo work with no setup — the other sources are optional and key-based, configurable in
+Settings.
+
 ## Setup Instructions
 
 To build and run this project locally, you will need a valid Weather API Key. 
@@ -108,7 +119,7 @@ one at `/usr/lib/jvm/java-21-openjdk-amd64`).
 ./gradlew :desktop:createDistributable
 
 # Build, stop the running app, and start the new repo-local distributable
-scripts/buildStart.sh
+scripts/buildStart-desktop.sh
 
 # Development only: run without the distributable wrapper
 ./gradlew :desktop:run
@@ -120,8 +131,10 @@ scripts/buildStart.sh
 Daily autostart uses `scripts/desktop-app-launcher-and-autostart.sh`, which launches the repo-local
 distributable at `desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop`.
 If the distributable is missing, the script rebuilds it once with `:desktop:createDistributable`.
-Use `scripts/buildStart.sh` to test a newly built daily app immediately.
-A single-instance lock prevents duplicate tray icons.
+Use `scripts/buildStart-desktop.sh` to test a newly built daily app immediately.
+Launching again does not produce a second tray icon: the new instance touches a `.quit` trigger file
+that the running instance is watching, so the incumbent exits and the newest launch takes over
+(last-launch-wins). Brief tray overlap during the handoff is expected.
 
 ### Tray icon
 
@@ -139,17 +152,29 @@ Once running, a temperature icon appears in your system tray. Right-click it for
 
 The tray icon is constrained to a small square by the panel. For a large, clock-sized temperature
 readout next to your clock, use the bundled [genmon](https://docs.xfce.org/panel-plugins/xfce4-genmon-plugin)
-script (it reads the same database — no extra network calls):
+client. It is a small C program that connects to the running desktop app over a Unix socket
+(`~/.local/share/weather-widget/weather.sock`) and prints the Pango markup the app already has
+cached — no database reads and no extra network calls. The desktop app must be running.
 
 1. Install **`xfce4-genmon-plugin`** if needed (`sudo apt install xfce4-genmon-plugin`).
-2. Right-click the panel → **Panel → Add New Items → Generic Monitor**.
-3. Open its properties and set **Command** to the repo script:
+2. Build the client (needs `gcc`):
+   ```bash
+   make -C genmon
    ```
-   python3 /home/dcar/projects/weather-widget/scripts/genmon-weather.py
+   The binary is gitignored, so it is built per-checkout. The autostart launcher also runs this on
+   every launch — a no-op when it is already current.
+3. Right-click the panel → **Panel → Add New Items → Generic Monitor**.
+4. Open its properties and set **Command** to the built binary, using your own checkout path:
+   ```
+   /path/to/weather-widget/genmon/genmon-weather-bin
    ```
    Set **Period** to ~120s and clear the label.
-4. Drag it next to your clock. **Clicking it opens the popup.** Tune the `FONT` constant at the top of
-   the script if you want bigger/smaller glyphs.
+5. Drag it next to your clock. **Clicking it opens the popup.**
+
+If `gcc` is unavailable the build is skipped rather than failing the launch, and the panel falls back
+to a grey `--`. An empty reading renders as the literal text `(genmon)`. To change the glyph size,
+edit the `font=` attributes in `desktop/src/main/kotlin/com/weatherwidget/desktop/PanelIpcServer.kt`
+(currently `Sans Bold 22` for the temperature).
 
 ## License
 
