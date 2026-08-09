@@ -2,10 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import android.content.Context
 import android.util.TypedValue
-import android.view.View
-import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
-import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.WeatherTimeUtils
@@ -15,6 +12,19 @@ internal object DailyHeaderBinder {
 
     internal const val DELTA_VISIBILITY_THRESHOLD = 0.1f
 
+    /**
+     * Where the header date *would* sit, if it is shown at all.
+     *
+     * Despite the name this no longer positions anything: the daily header is painted into the
+     * graph bitmap, and the date is placed and drawn by
+     * [com.weatherwidget.widget.DailyForecastHeaderRenderer.resolveHeaderDateLayout]. What survives
+     * here is the same geometry expressed in dp/RemoteViews units, used by
+     * [resolveHeaderPrecipPlacement] to answer *"would the date still fit if we also drew the rain
+     * %?"* — i.e. the header's precip-vs-date priority rule.
+     *
+     * The two implementations must stay in agreement; see the plan note in
+     * `plans/260809-daily-view-history-and-observations-buttons.md`.
+     */
     @VisibleForTesting
     internal enum class HeaderDatePlacement {
         CENTER,
@@ -26,48 +36,6 @@ internal object DailyHeaderBinder {
         val showHeaderPrecip: Boolean,
         val allowTodayColumnPrecip: Boolean,
     )
-
-    fun bindHeaderDate(
-        context: Context,
-        views: RemoteViews,
-        widthDp: Int,
-        numColumns: Int,
-        currentTempText: String?,
-        deltaText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        dateText: String,
-    ) {
-        views.setViewVisibility(R.id.header_date_center, View.GONE)
-        views.setViewVisibility(R.id.header_date_right, View.GONE)
-        if (dateText.isBlank()) return
-
-        val placement =
-            resolveHeaderDatePlacement(
-                context = context,
-                widthDp = widthDp,
-                numColumns = numColumns,
-                currentTempText = currentTempText,
-                deltaText = deltaText,
-                precipText = precipText,
-                precipTextSizeDp = precipTextSizeDp,
-                apiSourceText = apiSourceText,
-                apiTextSizeDp = apiTextSizeDp,
-                dateText = dateText,
-            ) ?: return
-
-        val targetId =
-            when (placement) {
-                HeaderDatePlacement.CENTER -> R.id.header_date_center
-                HeaderDatePlacement.RIGHT -> R.id.header_date_right
-            }
-        views.setTextViewText(targetId, dateText)
-        val datePx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DATE_TEXT_SIZE_DP, context.resources.displayMetrics)
-        views.setTextViewTextSize(targetId, TypedValue.COMPLEX_UNIT_PX, datePx)
-        views.setViewVisibility(targetId, View.VISIBLE)
-    }
 
     @VisibleForTesting
     internal fun resolveHeaderDatePlacement(
