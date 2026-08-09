@@ -1,0 +1,1 @@
+Release 26080901: Make tight hourly zoom span user-configurable (4-8h, default 5h), reload hourly forecast rows when API source toggles outrun worker scope snapshots to prevent blank graphs, and update test harness stability.
