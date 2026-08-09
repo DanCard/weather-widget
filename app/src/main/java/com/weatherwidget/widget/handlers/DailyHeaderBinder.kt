@@ -50,6 +50,8 @@ internal object DailyHeaderBinder {
         apiTextSizeDp: Float,
         dateText: String,
         includeIcon: Boolean = true,
+        centerIconsWidthDp: Float = 0f,
+        inlineIconsWidthDp: Float = 0f,
     ): HeaderDatePlacement? {
         if (numColumns < HeaderConstants.DATE_MIN_COLUMNS) return null
 
@@ -63,7 +65,7 @@ internal object DailyHeaderBinder {
                 precipTextSizeDp = precipTextSizeDp,
                 includeIcon = includeIcon,
                 currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
-            )
+            ) + HeaderWidthChecker.dpToPx(context, inlineIconsWidthDp)
         val apiLeft = HeaderWidthChecker.resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
         val dateWidth = HeaderWidthChecker.textWidthPx(context, dateText, HeaderConstants.DATE_TEXT_SIZE_DP)
         val gapPx = HeaderWidthChecker.dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
@@ -77,6 +79,7 @@ internal object DailyHeaderBinder {
             dateWidth = dateWidth,
             gapPx = gapPx,
             rightMarginPx = rightMarginPx,
+            centerIconsWidth = HeaderWidthChecker.dpToPx(context, centerIconsWidthDp),
         )
     }
 
@@ -89,18 +92,38 @@ internal object DailyHeaderBinder {
         dateWidth: Float,
         gapPx: Float,
         rightMarginPx: Float,
+        centerIconsWidth: Float = 0f,
     ): HeaderDatePlacement? {
         if (numColumns < HeaderConstants.DATE_MIN_COLUMNS) return null
-        val centerLeft = (widthPx - dateWidth) / 2f
-        val centerRight = centerLeft + dateWidth
-        if (centerLeft >= leftClusterRight + gapPx && centerRight <= apiLeft - gapPx) {
+        // Mirrors DailyForecastHeaderRenderer.resolveDateDrawX, which does the same arithmetic in
+        // bitmap px and actually paints the date. The two must agree: this side only decides
+        // whether the rain % may share the row, and suppressing it to protect a date the renderer
+        // has already moved or dropped would be a silent regression.
+        val hasSlot = centerIconsWidth > 0f
+        val center = widthPx / 2f
+        val slotRight = center + centerIconsWidth / 2f
+
+        // No slot: the historical centred position. With a slot the buttons own the centre and
+        // the date always follows them on the right, matching the desktop header.
+        if (!hasSlot &&
+            center - dateWidth / 2f >= leftClusterRight + gapPx &&
+            center + dateWidth / 2f <= apiLeft - gapPx
+        ) {
             return HeaderDatePlacement.CENTER
         }
 
         val rightCenter = widthPx - rightMarginPx
         val rightLeft = rightCenter - dateWidth / 2f
         val rightRight = rightCenter + dateWidth / 2f
-        if (rightLeft >= leftClusterRight + gapPx && rightRight <= apiLeft - gapPx) {
+        val lowerBound = if (hasSlot) maxOf(leftClusterRight, slotRight) else leftClusterRight
+        val spanLo = lowerBound + gapPx
+        val spanHi = apiLeft - gapPx
+        if (rightLeft >= spanLo && rightRight <= spanHi) {
+            return HeaderDatePlacement.RIGHT
+        }
+        // Mirrors resolveDateDrawX's free-span fallback: with the buttons holding the middle the
+        // fixed anchor can miss while the remaining gap still fits the date.
+        if (hasSlot && spanHi - spanLo >= dateWidth) {
             return HeaderDatePlacement.RIGHT
         }
 
@@ -121,6 +144,8 @@ internal object DailyHeaderBinder {
         dateText: String?,
         headerCanShowPrecip: Boolean,
         includeIcon: Boolean,
+        centerIconsWidthDp: Float = 0f,
+        inlineIconsWidthDp: Float = 0f,
     ): HeaderPrecipPlacement {
         if (precipText.isNullOrBlank() || precipTextSizeDp == null) {
             return HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = false)
@@ -143,6 +168,8 @@ internal object DailyHeaderBinder {
                     apiTextSizeDp = apiTextSizeDp,
                     dateText = dateText,
                     includeIcon = includeIcon,
+                    centerIconsWidthDp = centerIconsWidthDp,
+                    inlineIconsWidthDp = inlineIconsWidthDp,
                 ) != null
         if (dateFitsWithPrecip) {
             return HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false)
@@ -161,6 +188,8 @@ internal object DailyHeaderBinder {
                 apiTextSizeDp = apiTextSizeDp,
                 dateText = dateText,
                 includeIcon = includeIcon,
+                centerIconsWidthDp = centerIconsWidthDp,
+                inlineIconsWidthDp = inlineIconsWidthDp,
             ) != null
 
         return HeaderPrecipPlacement(

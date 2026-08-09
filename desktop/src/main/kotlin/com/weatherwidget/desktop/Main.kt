@@ -990,6 +990,13 @@ internal fun WidgetPopup(
             is DataStatus.NoData -> CenteredMessage("Tap to configure")
             is DataStatus.Live, is DataStatus.Stale -> {
                 val snapshot = forecast ?: return@Surface
+                // Published by the daily branch below from the days it actually renders. The header
+                // is composed before the daily surface measures itself, so this is reported upward
+                // rather than recomputed here: the daily column count depends on the graph area's
+                // width, and zoom-out prepends history columns that `getVisibleDateRange` knows
+                // nothing about (see DesktopDailyForecastModel.build). Defaults to true so the
+                // first frame shows both buttons rather than flashing one in.
+                var dailyTodayInView by remember { mutableStateOf(true) }
                 Column(modifier = Modifier.fillMaxSize().padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 2.dp)) {
                     WidgetHeader(
                         config = config,
@@ -1003,6 +1010,7 @@ internal fun WidgetPopup(
                         onUpdateLocation = onUpdateLocation,
                         headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
                         scale = uiScale,
+                        todayInView = dailyTodayInView,
                     )
 
                     Spacer(Modifier.height(4.dp))
@@ -1236,6 +1244,13 @@ internal fun WidgetPopup(
                                 dimensions = dimensions,
                             )
 
+                            // Report today's on-screen status up to the header: it decides whether
+                            // to show the current-observations button and which date the
+                            // forecast-history button opens. Read off the rendered days, the only
+                            // source that accounts for clamping and zoom-out history columns.
+                            val todayOnScreen = dailyState.days.any { it.isToday }
+                            SideEffect { dailyTodayInView = todayOnScreen }
+
                             // Sync both clamped values in one write so a simultaneous offset+zoom clamp
                             // doesn't clobber each other (two separate copy() calls off the same config would).
                             LaunchedEffect(dailyState.clampedDateOffset, dailyState.clampedExtraHistory) {
@@ -1422,6 +1437,8 @@ private fun WidgetHeader(
     onUpdateLocation: () -> Unit,
     headerTime: LocalDateTime = LocalDateTime.now(),
     scale: Float = 1f,
+    /** Whether today is among the days the daily view is currently rendering. */
+    todayInView: Boolean = true,
 ) {
     val showWeatherSummary = config.viewMode.isHourly
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
@@ -1604,12 +1621,44 @@ private fun WidgetHeader(
                         )
                     }
                 } else {
-                    Text(
-                        text = targetHour.format(dateFormatter),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = (12 * scale).sp,
-                        color = Color.White.copy(alpha = 0.7f)
-                    )
+                    // Daily view: date, then the same two buttons the hourly header carries.
+                    // Sizes/tints copied from the hourly branch so the two headers match.
+                    // Buttons then date, matching Android's daily header. Android cannot reliably
+                    // fit the date to the LEFT of its centred buttons (the left cluster reaches
+                    // past it on real widgets), so both platforms settle on this order rather than
+                    // disagreeing.
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy((10 * scale).dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Current observations are inherently now-ish, so this drops when today is
+                        // panned off screen — matching Android's daily header and the hourly view.
+                        if (todayInView) {
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
+                                contentDescription = "Weather station observations",
+                                tint = Color.White.copy(alpha = 0.67f),
+                                modifier = Modifier.size((15 * scale).dp).clickable {
+                                    onOpenObservations()
+                                }.testTag("open_observations_header_daily")
+                            )
+                        }
+                        // Opens today while today is on screen, otherwise the viewed date.
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource("drawable/ic_forecast_history_line.xml"),
+                            contentDescription = "Forecast history",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size((15 * scale).dp).clickable {
+                                onOpenHistory(if (todayInView) LocalDate.now() else targetHour.toLocalDate())
+                            }.testTag("open_forecast_history_daily")
+                        )
+                        Text(
+                            text = targetHour.format(dateFormatter),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = (12 * scale).sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
                 }
             }
 

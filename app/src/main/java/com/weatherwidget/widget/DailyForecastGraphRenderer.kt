@@ -138,6 +138,21 @@ object DailyForecastGraphRenderer {
         val showPrecip: Boolean = true,
         /** Scale applied to header icons and fonts on wide widgets (1.0 = normal, 1.35 = wide). */
         val headerScale: Float = 1f,
+        /**
+         * Width in **unscaled dp** of the centred RemoteViews icon pair (observations / forecast
+         * history) overlaid on the daily header, or 0f when those icons are absent or placed
+         * inline in the left cluster. Raw dp like every other metric here — the renderer applies
+         * its own `labelScale`. Non-zero reserves the centre so the painted date steps aside
+         * instead of drawing under them — see [DailyForecastHeaderRenderer.resolveDateDrawX].
+         */
+        val centerIconsWidthDp: Float = 0f,
+        /**
+         * When the date and the "from yest" caption cannot both fit, which one survives.
+         * Alternates per render so neither is permanently starved; the default `true` reproduces
+         * the historical fixed priority (date wins, caption dropped).
+         * See [DailyForecastHeaderRenderer.resolveHeaderContention].
+         */
+        val preferDateOverLabel: Boolean = true,
     )
 
     data class DayData(

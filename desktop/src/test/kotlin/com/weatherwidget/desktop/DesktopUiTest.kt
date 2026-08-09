@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -514,6 +515,66 @@ class DesktopUiTest {
 
         composeTestRule.onNodeWithTag("open_observations_header").performClick()
         assert(opened)
+    }
+
+    @Test
+    fun dailyHeaderForecastHistoryButtonOpensTodaysHistory() {
+        var opened: java.time.LocalDate? = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.DAILY),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+                onOpenHistory = { opened = it },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("open_forecast_history_daily").performClick()
+        assertEquals(java.time.LocalDate.now(), opened)
+    }
+
+    @Test
+    fun dailyHeaderObservationsButtonOpensObservations() {
+        var opened = false
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.DAILY),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = { opened = true },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("open_observations_header_daily").performClick()
+        assert(opened)
+    }
+
+    @Test
+    fun dailyAndHourlyHeadersExposeDistinctButtonTags() {
+        // The hourly header carries its own pair; the daily tags must not leak into it, or a test
+        // clicking one would silently exercise the other.
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithTag("open_forecast_history").assertExists()
+        composeTestRule.onNodeWithTag("open_forecast_history_daily").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("open_observations_header_daily").assertDoesNotExist()
     }
 
     @Test

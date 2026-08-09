@@ -64,6 +64,22 @@ internal class WidgetPresentationStateStore(
         )
     }
 
+    /**
+     * Advances and returns the per-widget header-label swap counter.
+     *
+     * Drives which of the header date / "from yest" caption survives when they cannot both fit
+     * (see `DailyForecastHeaderRenderer.resolveHeaderContention`). Per-widget so two widgets do not
+     * lock in step, persisted so the alternation survives process death, and advanced once per
+     * daily render — the widget repaints on nav taps, source toggles, unlock and each UI tick, so
+     * both values stay reachable rather than one being permanently starved.
+     */
+    fun nextHeaderLabelSwap(widgetId: Int): Int {
+        val key = headerLabelSwapKey(widgetId)
+        val next = prefs.getInt(key, 0) + 1
+        prefs.edit().putInt(key, next).apply()
+        return next
+    }
+
     fun dateOffset(widgetId: Int): Int =
         prefs.getInt(dateOffsetKey(widgetId), 0)
             .coerceIn(WidgetStateManager.MIN_DATE_OFFSET, WidgetStateManager.MAX_DATE_OFFSET)
@@ -290,6 +306,7 @@ internal class WidgetPresentationStateStore(
             else -> null
         } ?: ZoomStage.WIDE
 
+    private fun headerLabelSwapKey(widgetId: Int) = "$KEY_HEADER_LABEL_SWAP_PREFIX$widgetId"
     private fun dateOffsetKey(widgetId: Int) = "$KEY_DATE_OFFSET_PREFIX$widgetId"
     private fun viewModeKey(widgetId: Int) = "$KEY_VIEW_MODE_PREFIX$widgetId"
     private fun hourlyOffsetKey(widgetId: Int) = "$KEY_HOURLY_OFFSET_PREFIX$widgetId"
@@ -308,6 +325,7 @@ internal class WidgetPresentationStateStore(
         const val KEY_HOURLY_OFFSET_PREFIX = "widget_hourly_offset_"
         const val KEY_GRAPH_ANCHOR_MS_PREFIX = "widget_graph_anchor_ms_"
         const val KEY_RAIN_SHOWN_DATE_PREFIX = "widget_rain_shown_date_"
+        const val KEY_HEADER_LABEL_SWAP_PREFIX = "widget_header_label_swap_"
         const val KEY_ZOOM_LEVEL_PREFIX = "widget_zoom_level_"
         const val KEY_TRANSIENT_MESSAGE_PREFIX = "widget_transient_msg_"
         const val KEY_TRANSIENT_MESSAGE_EXPIRES_PREFIX = "widget_transient_msg_expires_"

@@ -20,6 +20,8 @@ import io.mockk.runs
 import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -86,13 +88,14 @@ class HistoryIconVisibilityRoboTest {
     }
 
     @Test
-    fun `daily mode hides home and history icons`() = runBlocking {
+    fun `daily text mode shows no center icons`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
+        // One row: the single-row text layout, which has no room for the buttons.
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 440)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 40)
         }
-        
+
         val viewsSlot = slot<RemoteViews>()
         every { appWidgetManager.updateAppWidget(appWidgetId, capture(viewsSlot)) } returns Unit
 
@@ -118,15 +121,20 @@ class HistoryIconVisibilityRoboTest {
 
         val root = FrameLayout(context)
         val applied = viewsSlot.captured.apply(context, root)
-        
-        val homeIcon = applied.findViewById<View>(R.id.home_icon)
-        val homeTouchZone = applied.findViewById<View>(R.id.home_touch_zone)
-        val historyIcon = applied.findViewById<View>(R.id.history_icon)
-        val forecastHistoryActivityTouchZone = applied.findViewById<View>(R.id.forecast_history_activity_touch_zone)
 
-        assertEquals("Home icon should be GONE in daily mode", View.GONE, homeIcon.visibility)
-        assertEquals("Home touch zone should be GONE in daily mode", View.GONE, homeTouchZone.visibility)
-        assertEquals("History icon should be GONE in daily mode", View.GONE, historyIcon.visibility)
-        assertEquals("History touch zone should be GONE in daily mode", View.GONE, forecastHistoryActivityTouchZone.visibility)
+        for (id in listOf(
+            R.id.history_icon,
+            R.id.forecast_history_activity_touch_zone,
+            R.id.forecast_history_activity_touch_zone_inline,
+            R.id.weather_stations_icon,
+            R.id.weather_stations_touch_zone,
+            R.id.weather_stations_touch_zone_inline,
+        )) {
+            assertEquals(
+                "view $id should be GONE in daily text mode",
+                View.GONE,
+                applied.findViewById<View>(id).visibility,
+            )
+        }
     }
 }

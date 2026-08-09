@@ -18,6 +18,21 @@ fun HeaderDisclosureLevel.showsDelta(): Boolean = this == HeaderDisclosureLevel.
 
 fun HeaderDisclosureLevel.showsPrecip(): Boolean = this == HeaderDisclosureLevel.FULL || this == HeaderDisclosureLevel.NO_ICON || this == HeaderDisclosureLevel.NO_ICON_NO_DELTA
 
+/**
+ * Where the daily view's header buttons (current observations / forecast history) are placed.
+ *
+ * [CENTER] is preferred: the pair sits in the empty middle of the header with the painted date
+ * beside it. [INLINE] is the fallback when the centred slot collides with the left cluster — the
+ * buttons are appended to the left cluster instead, exactly as the hourly view does on narrow
+ * widgets. [HIDDEN] is a last resort; the buttons must not vanish merely because the header is
+ * dense, which is what the INLINE rung exists to prevent.
+ */
+enum class DailyIconPlacement {
+    CENTER,
+    INLINE,
+    HIDDEN,
+}
+
 object HeaderWidthChecker {
     internal val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -59,6 +74,111 @@ object HeaderWidthChecker {
         }
         val zoneCount = if (showStations) 4 else 3
         return (zoneWidthDp * zoneCount + INLINE_NAV_FIRST_ZONE_MARGIN_DP).toFloat()
+    }
+
+    /**
+     * Width of the daily header button pair when centred, in dp, for [iconCount] buttons.
+     * Unscaled, like every other measurement on this side of the header (resolveHeaderDisclosure,
+     * resolveLeftClusterRightPx); the bitmap renderer applies its own labelScale.
+     */
+    fun dailyCenterIconsWidthDp(iconCount: Int, widthDp: Int): Float =
+        if (iconCount <= 0) 0f else dailyCenterIconZoneWidthDp(widthDp) * iconCount
+
+    /**
+     * Zone width [positionDailyIcons] will actually apply, so measurement and layout cannot drift.
+     *
+     * The airy zone is set via `setViewLayoutWidth` (API 31+); below that the 24dp XML width
+     * stands, which happens to equal the narrow zone.
+     */
+    fun dailyCenterIconZoneWidthDp(widthDp: Int): Float =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
+            widthDp >= HeaderConstants.DAILY_WIDE_HEADER_MIN_WIDTH_DP
+        ) {
+            HeaderConstants.DAILY_CENTER_ICON_ZONE_WIDE_DP
+        } else {
+            HeaderConstants.DAILY_CENTER_ICON_ZONE_NARROW_DP
+        }
+
+    /** Width of the daily header button pair when inline in the left cluster, in dp. */
+    fun dailyInlineIconsWidthDp(iconCount: Int): Float =
+        if (iconCount <= 0) 0f
+        else HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP * iconCount +
+            HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP
+
+    /**
+     * Three-rung ladder for the daily header buttons — see [DailyIconPlacement].
+     *
+     * [iconCount] is the LIVE button count, never a constant: the observations button is dropped
+     * when today is off screen (current observations are inherently now-ish, matching the hourly
+     * view's `positionCenterIcons(isToday)`), so a navigated header reserves 24dp rather than 48dp
+     * and consequently has MORE room for the date, not less.
+     */
+    fun resolveDailyIconPlacement(
+        context: Context,
+        widthDp: Int,
+        apiSourceText: String,
+        apiTextSizeDp: Float,
+        currentTempText: String?,
+        deltaText: String?,
+        precipText: String?,
+        precipTextSizeDp: Float?,
+        includeIcon: Boolean,
+        currentTempSizeDp: Float,
+        iconCount: Int,
+        isIconWidth: Boolean,
+        disclosure: HeaderDisclosureLevel,
+    ): DailyIconPlacement {
+        if (iconCount <= 0 || isIconWidth || disclosure == HeaderDisclosureLevel.NONE) {
+            return DailyIconPlacement.HIDDEN
+        }
+        val widthPx = dpToPx(context, widthDp.toFloat())
+        if (widthPx <= 0f) return DailyIconPlacement.HIDDEN
+
+        val leftClusterRight = resolveLeftClusterRightPx(
+            context = context,
+            currentTempText = currentTempText,
+            deltaText = deltaText,
+            precipText = precipText,
+            precipTextSizeDp = precipTextSizeDp,
+            includeIcon = includeIcon,
+            currentTempSizeDp = currentTempSizeDp,
+        )
+        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
+        val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
+
+        return resolveDailyIconPlacementFromBounds(
+            widthPx = widthPx,
+            leftClusterRight = leftClusterRight,
+            apiLeft = apiLeft,
+            centerIconsWidth = dpToPx(context, dailyCenterIconsWidthDp(iconCount, widthDp)),
+            inlineIconsWidth = dpToPx(context, dailyInlineIconsWidthDp(iconCount)),
+            gapPx = gapPx,
+        )
+    }
+
+    /**
+     * Pure ladder, extracted so it can be tested without a font engine — Robolectric has none, so
+     * anything driven by `measureText` there is not a trustworthy assertion (see
+     * `robolectric_no_font_engine`). Callers supply already-measured bounds.
+     */
+    fun resolveDailyIconPlacementFromBounds(
+        widthPx: Float,
+        leftClusterRight: Float,
+        apiLeft: Float,
+        centerIconsWidth: Float,
+        inlineIconsWidth: Float,
+        gapPx: Float,
+    ): DailyIconPlacement {
+        if (centerIconsWidth <= 0f) return DailyIconPlacement.HIDDEN
+        val slotLeft = widthPx / 2f - centerIconsWidth / 2f
+        val slotRight = widthPx / 2f + centerIconsWidth / 2f
+        if (slotLeft >= leftClusterRight + gapPx && slotRight <= apiLeft - gapPx) {
+            return DailyIconPlacement.CENTER
+        }
+        if (leftClusterRight + inlineIconsWidth + gapPx <= apiLeft) {
+            return DailyIconPlacement.INLINE
+        }
+        return DailyIconPlacement.HIDDEN
     }
 
     fun computeHeaderScale(

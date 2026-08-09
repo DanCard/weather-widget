@@ -82,6 +82,9 @@ class WidgetStateManager internal constructor(
         presentationStore.setDateOffset(widgetId, offset)
     }
 
+    /** See [WidgetPresentationStateStore.nextHeaderLabelSwap]. */
+    fun nextHeaderLabelSwap(widgetId: Int): Int = presentationStore.nextHeaderLabelSwap(widgetId)
+
     fun navigateLeft(widgetId: Int): Int = presentationStore.navigateDate(widgetId, -1)
 
     fun navigateRight(widgetId: Int): Int = presentationStore.navigateDate(widgetId, 1)

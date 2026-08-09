@@ -181,10 +181,37 @@ internal fun setupHistoryShortcut(
     displaySource: WeatherSource,
     setVisibility: Boolean = false,
     scale: Float = 1.0f,
+) = setupHistoryShortcutAt(
+    context = context,
+    views = views,
+    appWidgetId = appWidgetId,
+    date = centerTime.toLocalDate(),
+    lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT,
+    lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON,
+    displaySource = displaySource,
+    setVisibility = setVisibility,
+    scale = scale,
+)
+
+/**
+ * Binds the forecast-history button for an explicit date and location.
+ *
+ * The daily view has real coordinates and a target date to hand and no hourly rows to mine them
+ * from, so the lat/lon derivation stays in the hourly wrapper above rather than being duplicated.
+ */
+internal fun setupHistoryShortcutAt(
+    context: Context,
+    views: RemoteViews,
+    appWidgetId: Int,
+    date: LocalDate,
+    lat: Double,
+    lon: Double,
+    displaySource: WeatherSource,
+    setVisibility: Boolean = false,
+    scale: Float = 1.0f,
 ) {
-    val dateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
-    val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-    val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+    val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+    val centerTime = date.atStartOfDay()
 
     val historyIntent = Intent(context, WidgetActionReceiver::class.java).apply {
         action = WidgetActions.ACTION_DAY_CLICK
@@ -375,6 +402,16 @@ internal fun positionCenterIcons(
         Log.d("HomeShortcut", "positionCenterIcons: inline touch zones resized to ${touchWidthDp}dp for widthDp=$widthDp")
     }
 
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        // Restore the hourly line explicitly; the daily view moves this same container.
+        views.setViewLayoutMargin(
+            R.id.hourly_center_header_container,
+            RemoteViews.MARGIN_TOP,
+            HeaderConstants.HOURLY_ICON_CONTAINER_MARGIN_TOP_DP,
+            android.util.TypedValue.COMPLEX_UNIT_DIP,
+        )
+    }
+
     if (floatingVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val touchWidthDp = if (widthDp >= 450) 56 else 24
         val touchWidthPx = (touchWidthDp * density).toInt()
@@ -389,6 +426,79 @@ internal fun positionCenterIcons(
             views.setViewVisibility(id, View.GONE)
         }
     }
+}
+
+/**
+ * Places the daily view's two header buttons (current observations / forecast history).
+ *
+ * Deliberately narrower than [positionCenterIcons]: it touches only the stations and history
+ * zones, leaving the graph-selector and home zones GONE — the daily view *is* home, and the
+ * selector only cycles hourly graphs.
+ *
+ * [showObservations] is false when today is off screen, so a navigated header shows the history
+ * button alone; the reserved width in [HeaderWidthChecker.resolveDailyIconPlacement] follows the
+ * same count.
+ *
+ * Inline zone widths are set from the same fixed [HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP]
+ * the fit math used, rather than the hourly ladder, so layout and measurement cannot drift.
+ */
+internal fun positionDailyIcons(
+    views: RemoteViews,
+    placement: DailyIconPlacement,
+    showObservations: Boolean,
+    widthDp: Int,
+    density: Float,
+    scale: Float = 1.0f,
+) {
+    val floating = placement == DailyIconPlacement.CENTER
+    val inline = placement == DailyIconPlacement.INLINE
+
+    fun vis(shown: Boolean) = if (shown) View.VISIBLE else View.GONE
+
+    views.setViewVisibility(R.id.history_icon, vis(floating))
+    views.setViewVisibility(R.id.forecast_history_activity_touch_zone, vis(floating))
+    views.setViewVisibility(R.id.forecast_history_activity_touch_zone_inline, vis(inline))
+
+    val obs = showObservations
+    views.setViewVisibility(R.id.weather_stations_icon, vis(floating && obs))
+    views.setViewVisibility(R.id.weather_stations_touch_zone, vis(floating && obs))
+    views.setViewVisibility(R.id.weather_stations_touch_zone_inline, vis(inline && obs))
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        // Drop the shared container onto the daily view's PAINTED text line. See
+        // HeaderConstants.DAILY_ICON_CONTAINER_MARGIN_TOP_DP.
+        views.setViewLayoutMargin(
+            R.id.hourly_center_header_container,
+            RemoteViews.MARGIN_TOP,
+            HeaderConstants.DAILY_ICON_CONTAINER_MARGIN_TOP_DP,
+            android.util.TypedValue.COMPLEX_UNIT_DIP,
+        )
+        // Widen the zones so the pair reads as two controls, not one glued-together blob. The
+        // hourly header gets away with 24dp zones because it packs four icons; two at that pitch
+        // sit ~4dp apart. Widths must match what dailyCenterIconsWidthDp/dailyInlineIconsWidthDp
+        // measured, or the reserved slot and the drawn buttons disagree.
+        val zoneDp =
+            if (inline) HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP
+            else HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp)
+        val widthPx = (zoneDp * density).toInt().toFloat()
+        val ids =
+            if (inline) listOf(
+                R.id.weather_stations_touch_zone_inline,
+                R.id.forecast_history_activity_touch_zone_inline,
+            ) else listOf(
+                R.id.weather_stations_touch_zone,
+                R.id.forecast_history_activity_touch_zone,
+            )
+        for (id in ids) {
+            views.setViewLayoutWidth(id, widthPx, android.util.TypedValue.COMPLEX_UNIT_PX)
+        }
+    }
+
+    Log.d(
+        "DailyHeaderIcons",
+        "positionDailyIcons: placement=$placement showObservations=$showObservations " +
+            "widthDp=$widthDp zoneDp=${HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp)} scale=$scale",
+    )
 }
 
 internal fun setupGraphSelectorShortcut(

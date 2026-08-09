@@ -26,6 +26,21 @@ object HeaderConstants {
     const val API_SINGLE_SOURCE_EXTRA_MARGIN_DP = 12f
     const val API_SOURCE_CONTAINER_PADDING_DP = 14f
     const val DATE_TEXT_SIZE_DP = 20f
+    /**
+     * `layout_marginTop` applied to the shared centre-icon container in the DAILY view, in dp.
+     *
+     * The XML value (-10dp) is tuned for the hourly view, whose `current_temp` TextView carries the
+     * same -10dp so icons and text share a line. The daily view PAINTS its header text instead, at
+     * `upOffset` (-2dp), leaving the buttons ~6dp high beside the date. Lifting the date instead
+     * was tried and clipped it against the bitmap's top edge — the painted row is already close to
+     * the ceiling, so the buttons are the side with room to move.
+     *
+     * Set explicitly in both view modes ([positionDailyIcons] / [positionCenterIcons]) rather than
+     * relying on the XML default, because partial RemoteViews updates can carry a previously
+     * applied margin over into the other mode.
+     */
+    const val DAILY_ICON_CONTAINER_MARGIN_TOP_DP = -4f
+    const val HOURLY_ICON_CONTAINER_MARGIN_TOP_DP = -10f
     const val DATE_HORIZONTAL_GAP_DP = 6f
     const val DATE_RIGHT_MARGIN_DP = 112f
     const val DATE_MIN_COLUMNS = 6
@@ -33,6 +48,26 @@ object HeaderConstants {
     const val SETTINGS_ICON_MARGIN_END_DP = 0f
     const val PRECIP_TEXT_BASE_SIZE_DP = 18f
     const val CENTER_ICON_SIZE_DP = 20f
+    // Daily-view header buttons (current observations / forecast history). Zone widths are FIXED
+    // rather than following the hourly view's width-dependent 32/40/48 ladder, so one constant
+    // feeds both the fit math (HeaderWidthChecker.resolveDailyIconPlacement) and the layout
+    // (positionDailyIcons).
+    //
+    // The hourly header packs FOUR icons into 24dp zones, which reads fine as a row. Two icons at
+    // that pitch read as a single glued-together control (reported on Samsung), so the daily pair
+    // gets a wider zone — 20dp icon in a 40dp zone leaves ~20dp of air between them instead of ~4.
+    // Applied via setViewLayoutWidth, so it needs API 31+; below that the XML width stands and the
+    // fit math must measure THAT, hence the two constants.
+    // Wide headers can afford the airy zone; narrow ones cannot — every dp of zone is a dp taken
+    // from the gap the date has to fit into on the right, and 40dp zones cost that gap 16dp, which
+    // is the difference between the date showing and being dropped on a ~350dp widget.
+    const val DAILY_CENTER_ICON_ZONE_WIDE_DP = 40f
+    const val DAILY_CENTER_ICON_ZONE_NARROW_DP = 24f
+    const val DAILY_CENTER_ICON_ZONE_XML_WIDTH_DP = 24f
+    /** At or above this width the daily buttons use the airy zone. Mirrors the inline-nav cutoff. */
+    const val DAILY_WIDE_HEADER_MIN_WIDTH_DP = 420
+    const val DAILY_INLINE_ICON_ZONE_WIDTH_DP = 32f
+    const val DAILY_INLINE_FIRST_ZONE_MARGIN_DP = 1f
     const val GRAPH_SELECTOR_TEXT_SIZE_DP = 16f
     const val API_TEXT_SIZE_LARGE_DP = 12.6f
     const val API_TEXT_SIZE_MEDIUM_DP = 11.2f

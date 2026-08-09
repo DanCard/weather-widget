@@ -362,6 +362,8 @@ object DailyViewHandler : WidgetViewHandler {
             sunInfo = sunInfo,
             headerDateFormatter = headerDateFormatter(),
             deltaFromYesterday = deltaFromYesterday,
+            dateOffset = dateOffset,
+            skipYesterday = skipYesterday,
         )
 
         val currentTemp = headerResolution.state.currentTemp
@@ -835,5 +837,19 @@ object DailyViewHandler : WidgetViewHandler {
         val disclosure: HeaderDisclosureLevel,
         val headerScale: Float,
         val resolveMs: Long,
+        /** Whether today is inside the visible day window; drives both fields below. */
+        val todayInView: Boolean = true,
+        /**
+         * Live count of daily header buttons: forecast history always, current observations only
+         * when [todayInView] (current observations are inherently now-ish, matching the hourly
+         * view). Never a constant — the reserved width follows it.
+         */
+        val iconCount: Int = 0,
+        val iconPlacement: DailyIconPlacement = DailyIconPlacement.HIDDEN,
+        /**
+         * Which of the header date / "from yest" caption survives when both cannot fit. Resolved
+         * once here so the bitmap renderer and the RemoteViews bind cannot disagree.
+         */
+        val preferDateOverLabel: Boolean = true,
     )
 }

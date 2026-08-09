@@ -254,6 +254,12 @@ internal object DailyGraphRenderer {
                 showDelta = deltaVisible && disclosure.showsDelta(),
                 showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
                 headerScale = headerScale,
+                // Non-zero only when the buttons are CENTER-placed: inline buttons are already
+                // folded into the left cluster, so the painted date must not step aside for them.
+                centerIconsWidthDp = if (headerState.iconPlacement == DailyIconPlacement.CENTER) {
+                    HeaderWidthChecker.dailyCenterIconsWidthDp(headerState.iconCount, dimensions.widthDp)
+                } else 0f,
+                preferDateOverLabel = headerState.preferDateOverLabel,
             )
         } else null
 
@@ -304,6 +310,42 @@ internal object DailyGraphRenderer {
         ctx.views.setViewVisibility(R.id.settings_icon, View.INVISIBLE)
         ctx.views.setViewVisibility(R.id.header_date_center, View.GONE)
         ctx.views.setViewVisibility(R.id.header_date_right, View.GONE)
+
+        // Daily header buttons. The history target follows what is on screen: today when today is
+        // visible, otherwise the centre of the navigated window — so panning back a week and
+        // tapping opens that week's forecast history, not today's. `todayInView` was resolved from
+        // the shared visible-date-range helper; assert it against the days actually rendered.
+        val todayInView = displayDays.any { it.isToday }
+        val historyTargetDate = if (todayInView) ctx.today else ctx.centerDate
+        setupHistoryShortcutAt(
+            context = ctx.context,
+            views = ctx.views,
+            appWidgetId = ctx.appWidgetId,
+            date = historyTargetDate,
+            lat = lat,
+            lon = lon,
+            displaySource = ctx.displaySource,
+            scale = headerScale,
+        )
+        setupWeatherStationsShortcut(ctx.context, ctx.views, ctx.appWidgetId, scale = headerScale)
+        positionDailyIcons(
+            views = ctx.views,
+            placement = headerState.iconPlacement,
+            // Current observations are inherently now-ish, so the button drops off-today —
+            // matching the hourly view's positionCenterIcons(isToday).
+            showObservations = todayInView,
+            widthDp = dimensions.widthDp,
+            density = ctx.context.resources.displayMetrics.density,
+            scale = headerScale,
+        )
+        if (todayInView != headerState.todayInView) {
+            Log.w(
+                TAG,
+                "dailyHeaderIcons: todayInView disagreement widget=${ctx.appWidgetId} " +
+                    "resolver=${headerState.todayInView} rendered=$todayInView offset=${ctx.dateOffset} " +
+                    "cols=${ctx.numColumns} skipYesterday=${ctx.skipYesterday} — reserved width may be stale",
+            )
+        }
 
         DailyClickHandlerFactory.setupGraphDayClickHandlers(
             ctx.context,

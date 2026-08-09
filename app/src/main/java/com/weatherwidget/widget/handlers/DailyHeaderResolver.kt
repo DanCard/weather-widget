@@ -9,6 +9,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.DailyForecastIconResolver
+import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunInfo
 import com.weatherwidget.util.WeatherIconMapper
@@ -64,6 +65,8 @@ internal object DailyHeaderResolver {
         sunInfo: SunInfo,
         headerDateFormatter: DateTimeFormatter,
         deltaFromYesterday: Float?,
+        dateOffset: Int,
+        skipYesterday: Boolean,
     ): HeaderResolution {
         val resolution = resolveState(
             context = context,
@@ -86,6 +89,8 @@ internal object DailyHeaderResolver {
             sunInfo = sunInfo,
             headerDateFormatter = headerDateFormatter,
             deltaFromYesterday = deltaFromYesterday,
+            dateOffset = dateOffset,
+            skipYesterday = skipYesterday,
         )
         bind(
             context = context,
@@ -120,6 +125,8 @@ internal object DailyHeaderResolver {
         sunInfo: SunInfo,
         headerDateFormatter: DateTimeFormatter,
         deltaFromYesterday: Float?,
+        dateOffset: Int,
+        skipYesterday: Boolean,
     ): HeaderResolution {
         val today = now.toLocalDate()
 
@@ -239,6 +246,41 @@ internal object DailyHeaderResolver {
             currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
         )
 
+        // Daily header buttons. `todayInView` uses the shared visible-date-range helper rather than
+        // `dateOffset == 0`: the daily view shows yesterday alongside today, so a non-zero offset
+        // can still have today on screen, and an offset test would wrongly drop the observations
+        // button there. Same primitives the renderer's day window is built from.
+        val (visibleFrom, visibleTo) =
+            NavigationUtils.getVisibleDateRange(today, dateOffset, numColumns, skipYesterday)
+        val todayInView = !today.isBefore(visibleFrom) && !today.isAfter(visibleTo)
+        val iconCount = if (todayInView) 2 else 1
+        val iconPlacement = HeaderWidthChecker.resolveDailyIconPlacement(
+            context = context,
+            widthDp = dimensions.widthDp,
+            apiSourceText = apiSourceText,
+            apiTextSizeDp = apiTextSizeDp,
+            currentTempText = formattedTemp,
+            deltaText = deltaTextForFit,
+            precipText = precipTextForFit,
+            precipTextSizeDp = precipTextSizeDp,
+            includeIcon = disclosure.showsIcon(),
+            currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
+            iconCount = iconCount,
+            isIconWidth = dimensions.isIconWidth,
+            disclosure = disclosure,
+        )
+        val centerIconsWidthDp =
+            if (iconPlacement == DailyIconPlacement.CENTER) {
+                HeaderWidthChecker.dailyCenterIconsWidthDp(iconCount, dimensions.widthDp)
+            } else 0f
+        val inlineIconsWidthDp =
+            if (iconPlacement == DailyIconPlacement.INLINE) {
+                HeaderWidthChecker.dailyInlineIconsWidthDp(iconCount)
+            } else 0f
+        // Advanced once per header resolve, i.e. once per render — see nextHeaderLabelSwap.
+        val preferDateOverLabel =
+            if (useGraph) stateManager.nextHeaderLabelSwap(appWidgetId) % 2 == 0 else true
+
         val widthDpForPrecip = dimensions.widthDp - GRAPH_CONTENT_PADDING_DP
         val dateText = if (numColumns >= HeaderConstants.DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
         val headerPrecipPlacement = DailyHeaderBinder.resolveHeaderPrecipPlacement(
@@ -254,6 +296,8 @@ internal object DailyHeaderResolver {
             dateText = dateText,
             headerCanShowPrecip = disclosure.showsPrecip(),
             includeIcon = disclosure.showsIcon(),
+            centerIconsWidthDp = centerIconsWidthDp,
+            inlineIconsWidthDp = inlineIconsWidthDp,
         )
 
         // "from yest" caption after the delta: opportunistic — only when the delta itself is
@@ -272,6 +316,9 @@ internal object DailyHeaderResolver {
                 precipTextSizeDp = precipTextSizeDp,
                 includeIcon = disclosure.showsIcon(),
                 currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
+                // Inline buttons live in the same left LinearLayout after the rain %; ignoring
+                // them lets the caption stay visible while a button is pushed over the API label.
+                inlineNavWidthDp = inlineIconsWidthDp,
             )
             if (fits) label else null
         } else null
@@ -295,6 +342,10 @@ internal object DailyHeaderResolver {
             disclosure = disclosure,
             headerScale = headerScale,
             resolveMs = resolveMs,
+            todayInView = todayInView,
+            iconCount = iconCount,
+            iconPlacement = iconPlacement,
+            preferDateOverLabel = preferDateOverLabel,
         )
         return HeaderResolution(headerState, headerPrecipPlacement)
     }

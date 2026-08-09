@@ -44,11 +44,12 @@ internal object DailyForecastHeaderRenderer {
         var cursorX = -(3f * labelScale).dp(layout.density)
 
         val apiLeft = resolveApiLeftPx(header, widthPx, labelScale, layout.density, headerPaints.dateMeasurePaint)
-        // The "from yest" caption is opportunistic: drawn only when the date (higher priority)
-        // still fits with it, or when there is no date and the cluster clears the API label.
+        // The date and the "from yest" caption compete for the same row. When both cannot fit,
+        // exactly one is dropped and which one alternates per render (header.preferDateOverLabel);
+        // if neither fits alone, both go. One decision drives both so they cannot disagree.
         val deltaLabelText = header.deltaLabelText?.takeIf { it.isNotBlank() }
-        val showDeltaLabel = deltaLabelText != null &&
-            resolveDeltaLabelVisible(header, widthPx, layout, headerPaints, labelScale, upOffset, apiLeft)
+        val contention = resolveHeaderVisibility(header, widthPx, layout, headerPaints, labelScale, upOffset, apiLeft)
+        val showDeltaLabel = deltaLabelText != null && contention.showDeltaLabel
 
         if (header.showIcon && header.iconRes != null && header.iconRes != 0) {
             val iconSizePx = (HeaderConstants.WEATHER_ICON_SIZE_DP * labelScale).dp(layout.density).toInt()
@@ -125,17 +126,19 @@ internal object DailyForecastHeaderRenderer {
             canvas.drawText(header.apiSourceText, apiX, apiY, headerPaints.apiPaint)
         }
 
-        resolveHeaderDateLayout(
-            header = header,
-            widthPx = widthPx,
-            layout = layout,
-            leftClusterRight = cursorX,
-            dateRightBoundary = apiLeft,
-            headerPaints = headerPaints,
-            labelScale = labelScale,
-            upOffset = upOffset,
-        )?.let { dateLayout ->
-            canvas.drawText(header.dateText!!, dateLayout.centerX, dateLayout.baseline, headerPaints.datePaint)
+        if (contention.showDate) {
+            resolveHeaderDateLayout(
+                header = header,
+                widthPx = widthPx,
+                layout = layout,
+                leftClusterRight = cursorX,
+                dateRightBoundary = apiLeft,
+                headerPaints = headerPaints,
+                labelScale = labelScale,
+                upOffset = upOffset,
+            )?.let { dateLayout ->
+                canvas.drawText(header.dateText!!, dateLayout.centerX, dateLayout.baseline, headerPaints.datePaint)
+            }
         }
     }
 
@@ -149,9 +152,11 @@ internal object DailyForecastHeaderRenderer {
         val headerPaints = getHeaderPaintSet(header, labelScale, layout.density)
         val upOffset = -(2f * labelScale).dp(layout.density)
         val apiLeft = resolveApiLeftPx(header, widthPx, labelScale, layout.density, headerPaints.dateMeasurePaint)
-        // Match drawHeader: include the "from yest" caption in the cluster when it would be drawn.
-        val includeDeltaLabel = !header.deltaLabelText.isNullOrBlank() &&
-            resolveDeltaLabelVisible(header, widthPx, layout, headerPaints, labelScale, upOffset, apiLeft)
+        // Match drawHeader: same contention decision, so the caption is counted in the cluster only
+        // when it would be drawn, and the date reports no bounds when the caption won the row.
+        val contention = resolveHeaderVisibility(header, widthPx, layout, headerPaints, labelScale, upOffset, apiLeft)
+        if (!contention.showDate) return null
+        val includeDeltaLabel = !header.deltaLabelText.isNullOrBlank() && contention.showDeltaLabel
         val leftClusterRight = resolveLeftClusterRight(header, headerPaints, labelScale, layout.density, includeDeltaLabel)
 
         val bounds = resolveHeaderDateLayout(
@@ -186,23 +191,17 @@ internal object DailyForecastHeaderRenderer {
         val dateText = header.dateText?.takeIf { it.isNotBlank() } ?: return null
         val dateWidth = headerPaints.datePaint.measureText(dateText)
         val gapPx = (HeaderConstants.DATE_HORIZONTAL_GAP_DP * labelScale).dp(layout.density)
-        val centerX = widthPx / 2f
-        val centerLeft = centerX - dateWidth / 2f
-        val centerRight = centerX + dateWidth / 2f
         val dateBaseline = -headerPaints.datePaint.ascent() + upOffset
 
-        val drawX = if (centerLeft >= leftClusterRight + gapPx && centerRight <= dateRightBoundary - gapPx) {
-            centerX
-        } else {
-            val rightX = widthPx - (HeaderConstants.DATE_RIGHT_MARGIN_DP * labelScale).dp(layout.density)
-            val rightLeft = rightX - dateWidth / 2f
-            val rightRight = rightX + dateWidth / 2f
-            if (rightLeft >= leftClusterRight + gapPx && rightRight <= dateRightBoundary - gapPx) {
-                rightX
-            } else {
-                return null
-            }
-        }
+        val drawX = resolveDateDrawX(
+            widthPx = widthPx.toFloat(),
+            dateWidth = dateWidth,
+            leftClusterRight = leftClusterRight,
+            dateRightBoundary = dateRightBoundary,
+            centerIconsWidth = (header.centerIconsWidthDp * labelScale).dp(layout.density),
+            gapPx = gapPx,
+            rightMarginPx = (HeaderConstants.DATE_RIGHT_MARGIN_DP * labelScale).dp(layout.density),
+        ) ?: return null
 
         return HeaderDateLayout(
             bounds = RectF(
@@ -214,6 +213,66 @@ internal object DailyForecastHeaderRenderer {
             centerX = drawX,
             baseline = dateBaseline,
         )
+    }
+
+    /**
+     * Where the header date is drawn, or `null` when it does not fit anywhere.
+     *
+     * Pure so it can be tested without a font engine (Robolectric has none — see
+     * `robolectric_no_font_engine`); callers supply already-measured widths.
+     *
+     * [centerIconsWidth] is the width of the centred RemoteViews icon pair overlaid on the header.
+     * It is 0 when those icons are absent **or** placed inline (inline icons are already folded
+     * into [leftClusterRight] by the caller), in which case this reproduces the historical
+     * behaviour exactly: centred if it clears both clusters, else the right anchor, else dropped.
+     *
+     * When the slot is non-zero the icons own `[centre ± centerIconsWidth/2]` and the date always
+     * goes to their RIGHT — `… 30%   [🌡][📈]  Sat 9   NWS ⚙` — matching the desktop header, which
+     * lays the same group out in one row. Placing it left was tried first and lost: on real
+     * widgets the left cluster (`76.7° +5.8 from yest`) reaches past where the date would have to
+     * start, so it fell through to the right anyway and the two platforms disagreed.
+     */
+    internal fun resolveDateDrawX(
+        widthPx: Float,
+        dateWidth: Float,
+        leftClusterRight: Float,
+        dateRightBoundary: Float,
+        centerIconsWidth: Float,
+        gapPx: Float,
+        rightMarginPx: Float,
+    ): Float? {
+        val centerX = widthPx / 2f
+        val hasSlot = centerIconsWidth > 0f
+        val slotLeft = centerX - centerIconsWidth / 2f
+        val slotRight = centerX + centerIconsWidth / 2f
+
+        // No slot: the historical centred position. With a slot the centre is taken, and the date
+        // deliberately does NOT try to squeeze in on the left — see the KDoc.
+        if (!hasSlot &&
+            centerX - dateWidth / 2f >= leftClusterRight + gapPx &&
+            centerX + dateWidth / 2f <= dateRightBoundary - gapPx
+        ) {
+            return centerX
+        }
+
+        // Right anchor. With icons centred, the date must clear them as well as the left cluster.
+        val rightX = widthPx - rightMarginPx
+        val lowerBound = if (hasSlot) maxOf(leftClusterRight, slotRight) else leftClusterRight
+        val spanLo = lowerBound + gapPx
+        val spanHi = dateRightBoundary - gapPx
+        if (rightX - dateWidth / 2f >= spanLo && rightX + dateWidth / 2f <= spanHi) {
+            return rightX
+        }
+
+        // The anchor is a fixed position, not a search: it can miss while enough room sits a few dp
+        // to its side. Measured on a ~350dp widget where the free span right of the buttons was
+        // 53dp against a 46dp date and the date was dropped anyway. Fall back to centring the date
+        // in whatever gap is actually left, which is only reachable when the buttons hold the
+        // middle — without them the anchor and the centre already cover the whole row.
+        if (hasSlot && spanHi - spanLo >= dateWidth) {
+            return (spanLo + spanHi) / 2f
+        }
+        return null
     }
 
     private fun resolveLeftClusterRight(
@@ -260,11 +319,18 @@ internal object DailyForecastHeaderRenderer {
         return widthPx - apiMarginEndPx - apiContainerWidth + apiShiftPx
     }
 
+    /** Which of the header date / "from yest" caption survive the row. */
+    internal data class HeaderContention(
+        val showDeltaLabel: Boolean,
+        val showDate: Boolean,
+    )
+
     /**
-     * Whether the "from yest" caption is drawn in the bitmap header. The date has priority:
-     * if the caption would crowd the date out, the caption is dropped instead.
+     * Measures the header and resolves the date-vs-caption contention for [drawHeader],
+     * [resolveHeaderDateBounds] and [resolveHeaderInkBottom] alike, so all three agree on what is
+     * actually painted.
      */
-    private fun resolveDeltaLabelVisible(
+    private fun resolveHeaderVisibility(
         header: DailyForecastGraphRenderer.HeaderRenderData,
         widthPx: Int,
         layout: DailyGraphLayoutInfo,
@@ -272,64 +338,76 @@ internal object DailyForecastHeaderRenderer {
         labelScale: Float,
         upOffset: Float,
         apiLeft: Float,
-    ): Boolean {
-        if (!header.showDelta || header.deltaText.isNullOrBlank() || header.deltaLabelText.isNullOrBlank()) {
-            return false
-        }
-        val gapPx = (HeaderConstants.DATE_HORIZONTAL_GAP_DP * labelScale).dp(layout.density)
-        val leftWithLabel = resolveLeftClusterRight(header, headerPaints, labelScale, layout.density, includeDeltaLabel = true)
+    ): HeaderContention {
         val hasDateText = !header.dateText.isNullOrBlank()
-        val dateFitsWithLabel = hasDateText &&
-            resolveHeaderDateLayout(
-                header = header,
-                widthPx = widthPx,
-                layout = layout,
-                leftClusterRight = leftWithLabel,
-                dateRightBoundary = apiLeft,
-                headerPaints = headerPaints,
-                labelScale = labelScale,
-                upOffset = upOffset,
-            ) != null
-        val dateFitsWithoutLabel = hasDateText && !dateFitsWithLabel &&
-            resolveHeaderDateLayout(
-                header = header,
-                widthPx = widthPx,
-                layout = layout,
-                leftClusterRight = resolveLeftClusterRight(header, headerPaints, labelScale, layout.density, includeDeltaLabel = false),
-                dateRightBoundary = apiLeft,
-                headerPaints = headerPaints,
-                labelScale = labelScale,
-                upOffset = upOffset,
-            ) != null
-        return shouldDrawDeltaLabel(
+        fun dateFits(includeDeltaLabel: Boolean): Boolean =
+            hasDateText &&
+                resolveHeaderDateLayout(
+                    header = header,
+                    widthPx = widthPx,
+                    layout = layout,
+                    leftClusterRight = resolveLeftClusterRight(
+                        header, headerPaints, labelScale, layout.density, includeDeltaLabel,
+                    ),
+                    dateRightBoundary = apiLeft,
+                    headerPaints = headerPaints,
+                    labelScale = labelScale,
+                    upOffset = upOffset,
+                ) != null
+
+        val hasLabel = header.showDelta &&
+            !header.deltaText.isNullOrBlank() &&
+            !header.deltaLabelText.isNullOrBlank()
+        if (!hasLabel) {
+            return HeaderContention(showDeltaLabel = false, showDate = dateFits(includeDeltaLabel = false))
+        }
+
+        val gapPx = (HeaderConstants.DATE_HORIZONTAL_GAP_DP * labelScale).dp(layout.density)
+        val leftWithLabel =
+            resolveLeftClusterRight(header, headerPaints, labelScale, layout.density, includeDeltaLabel = true)
+        return resolveHeaderContention(
             hasDateText = hasDateText,
-            dateFitsWithLabel = dateFitsWithLabel,
-            dateFitsWithoutLabel = dateFitsWithoutLabel,
-            leftWithLabelRight = leftWithLabel,
-            apiLeft = apiLeft,
-            gapPx = gapPx,
+            dateFitsWithLabel = dateFits(includeDeltaLabel = true),
+            dateFitsWithoutLabel = dateFits(includeDeltaLabel = false),
+            labelFitsAlone = leftWithLabel + gapPx <= apiLeft,
+            preferDateOverLabel = header.preferDateOverLabel,
         )
     }
 
     /**
-     * Pure decision for the opportunistic delta caption, extracted for framework-free tests.
-     * Priority order: date text > caption. When the date still fits with the caption, both are
-     * shown; when the caption would displace the date, the caption is hidden; otherwise the
-     * caption shows if the cluster clears the API label on the right.
+     * Pure decision for the header date / "from yest" caption contention, extracted for
+     * framework-free tests. Assumes a caption candidate exists; callers short-circuit when it
+     * does not.
+     *
+     * The two are not symmetric. The caption sits in the LEFT cluster, so its own fit is only
+     * against the API label ([labelFitsAlone]); the date is centred, so dropping the caption
+     * shortens the left cluster and can free the date's slot, while dropping the date frees centre
+     * space the caption cannot use. So after the alternation picks a winner the winner is still
+     * re-checked, and the loser is tried before giving up on both.
+     *
+     * [preferDateOverLabel] alternates per render so neither item is permanently starved — with it
+     * pinned `true` this reproduces the historical fixed priority (date always beats caption).
      */
-    internal fun shouldDrawDeltaLabel(
+    internal fun resolveHeaderContention(
         hasDateText: Boolean,
         dateFitsWithLabel: Boolean,
         dateFitsWithoutLabel: Boolean,
-        leftWithLabelRight: Float,
-        apiLeft: Float,
-        gapPx: Float,
-    ): Boolean =
-        when {
-            dateFitsWithLabel -> true
-            hasDateText && dateFitsWithoutLabel -> false
-            else -> leftWithLabelRight + gapPx <= apiLeft
+        labelFitsAlone: Boolean,
+        preferDateOverLabel: Boolean,
+    ): HeaderContention {
+        if (!hasDateText) return HeaderContention(showDeltaLabel = labelFitsAlone, showDate = false)
+        if (dateFitsWithLabel) return HeaderContention(showDeltaLabel = true, showDate = true)
+
+        val dateOnly = HeaderContention(showDeltaLabel = false, showDate = true)
+        val labelOnly = HeaderContention(showDeltaLabel = true, showDate = false)
+        val neither = HeaderContention(showDeltaLabel = false, showDate = false)
+
+        return if (preferDateOverLabel) {
+            if (dateFitsWithoutLabel) dateOnly else if (labelFitsAlone) labelOnly else neither
+        } else {
+            if (labelFitsAlone) labelOnly else if (dateFitsWithoutLabel) dateOnly else neither
         }
+    }
 
     /**
      * The lowest y the header's ink reaches **within `xLeft..xRight`**, in bitmap pixels — i.e. how
@@ -367,6 +445,7 @@ internal object DailyForecastHeaderRenderer {
         val paints = getHeaderPaintSet(header, labelScale, layout.density)
         val upOffset = -(2f * labelScale).dp(layout.density)
         val apiLeft = resolveApiLeftPx(header, widthPx, labelScale, layout.density, paints.dateMeasurePaint)
+        val contention = resolveHeaderVisibility(header, widthPx, layout, paints, labelScale, upOffset, apiLeft)
         var bottom = 0f
 
         // Strict inequality, matching Bounds.intersects: an item that merely touches the column edge
@@ -405,9 +484,7 @@ internal object DailyForecastHeaderRenderer {
                 tempCenterY - (paints.deltaPaint.ascent() + paints.deltaPaint.descent()) / 2f,
             )
             val deltaLabelText = header.deltaLabelText?.takeIf { it.isNotBlank() }
-            if (deltaLabelText != null &&
-                resolveDeltaLabelVisible(header, widthPx, layout, paints, labelScale, upOffset, apiLeft)
-            ) {
+            if (deltaLabelText != null && contention.showDeltaLabel) {
                 cursorX += (HeaderConstants.DELTA_LABEL_MARGIN_START_DP * labelScale).dp(layout.density)
                 cursorX += considerText(
                     deltaLabelText,
@@ -447,8 +524,18 @@ internal object DailyForecastHeaderRenderer {
             )
         }
 
+        // --- centred RemoteViews icon pair overlaid on the header ---
+        // Not painted here, but it is header ink over these columns as far as the large-Today
+        // overlay is concerned: reserving nothing would let the overlay draw under the buttons.
+        if (header.centerIconsWidthDp > 0f) {
+            val iconBox = (HeaderConstants.CENTER_ICON_SIZE_DP * labelScale).dp(layout.density)
+            val slotWidth = (header.centerIconsWidthDp * labelScale).dp(layout.density)
+            val centerX = widthPx / 2f
+            consider(centerX - slotWidth / 2f, centerX + slotWidth / 2f, upOffset + iconBox)
+        }
+
         // --- centre date, placed exactly as drawHeader places it ---
-        resolveHeaderDateLayout(
+        if (contention.showDate) resolveHeaderDateLayout(
             header = header,
             widthPx = widthPx,
             layout = layout,
