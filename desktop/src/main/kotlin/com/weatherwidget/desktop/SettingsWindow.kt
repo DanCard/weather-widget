@@ -309,6 +309,25 @@ internal fun SettingsWindow(
                                 modifier = Modifier.testTag("submit_bug_report_btn"),
                             )
                         }
+
+                        // Support Development (kept last, mirrors Android's SettingsActivity)
+                        SettingsCard(title = "Support Development") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(
+                                    text = "If you find this app useful, tips are appreciated but never required.",
+                                    style = WeatherTypography.bodySmall,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                TertiaryActionButton(
+                                    text = "Tip Jar",
+                                    onClick = { openInBrowser("https://paypal.me/DannyCarde") },
+                                    modifier = Modifier.testTag("support_development_btn"),
+                                )
+                            }
+                        }
                     }
 
                     // Footer

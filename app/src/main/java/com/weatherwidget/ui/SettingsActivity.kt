@@ -151,6 +151,16 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        val supportDevelopmentButton = findViewById<Button>(R.id.support_development_button)
+        supportDevelopmentButton.setOnClickListener {
+            val url = "https://paypal.me/DannyCarde"
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+            } catch (e: Exception) {
+                Toast.makeText(this, getString(R.string.support_development_no_browser, url), Toast.LENGTH_LONG).show()
+            }
+        }
+
         // Use Celsius Switch
         val useCelsiusSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.use_celsius_switch)
         useCelsiusSwitch.isChecked = widgetStateManager.useCelsius()

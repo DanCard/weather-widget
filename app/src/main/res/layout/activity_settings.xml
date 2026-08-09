@@ -548,6 +548,50 @@
                 android:orientation="vertical"
                 android:padding="16dp" />
 
+            <!-- Support Development Section (kept last) -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/support_development_title"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/bg_surface_card"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="12dp"
+                    android:layout_weight="1"
+                    android:text="@string/support_development_description"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/support_development_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/rounded_button_yellow"
+                    android:minWidth="0dp"
+                    android:paddingStart="20dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="20dp"
+                    android:paddingBottom="10dp"
+                    android:text="@string/support_development_button"
+                    android:textColor="#1A1A1A"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
         </LinearLayout>
     </ScrollView>
 

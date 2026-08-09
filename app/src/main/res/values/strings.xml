@@ -188,6 +188,12 @@
     <string name="location_updated_from_gps">Location updated from GPS</string>
     <string name="invalid_coordinates_range">Please enter valid coordinates (-90 to 90 lat, -180 to 180 lon)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">Support Development</string>
+    <string name="support_development_description">If you find this app useful, tips are appreciated but never required.</string>
+    <string name="support_development_button">Tip Jar</string>
+    <string name="support_development_no_browser">No browser available. Visit: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">Feedback &amp; Bug Reports</string>
     <string name="feedback_and_bug_reports_description">Encountered an issue or want to suggest an improvement? Submit a detailed bug report with optional system diagnostics.</string>
