@@ -746,12 +746,11 @@ fun TemperatureGraph(
         // dropped wherever the plot has room. Format, span gate and placement are shared with Android
         // (DominantStationLabel); drawn
         // in the observed-line color because that is the line it explains. Nothing is drawn when the
-        // window is too wide (the 3-day view and beyond) or the plot has no clear band.
+        // window is too wide (the 3-day view and beyond), the plot has no clear band, or the blend is
+        // being driven by a synthetic backfill row rather than a real station (every non-NWS source).
         val dominantText = DominantStationLabel.format(
-            stationId = actualSeries.latestDominantContribution?.contribution?.stationId,
-            rawTemp = actualSeries.latestDominantContribution?.contribution?.rawTemp,
+            contribution = actualSeries.latestDominantContribution?.contribution,
             useCelsius = useCelsius,
-            lastReadingMs = actualSeries.latestDominantContribution?.contribution?.lastReadingMs,
             zoneId = zoneId,
         )
         if (dominantText != null) {

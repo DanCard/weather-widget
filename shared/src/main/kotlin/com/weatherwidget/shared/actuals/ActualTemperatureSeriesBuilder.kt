@@ -68,6 +68,17 @@ data class BlendContribution(
     val ageMs: Long,
     val weight: Double,
     val weightShare: Double,
+    /**
+     * True when this row is the historical-actuals backfill ([HistoricalActualsBackfill.syntheticStationId],
+     * e.g. `OPEN_METEO_MAIN`) rather than a thermometer — the source's own hourly forecast re-filed as
+     * observations at `distanceKm = 0`.
+     *
+     * Nothing in the other fields gives this away: the row carries `stationType = "OFFICIAL"` and resolves
+     * with `sourceKind = "observed"`, because it has to look like a station to drive the actual line at all.
+     * Surfaces that *name* the station must therefore be told (see [com.weatherwidget.shared.graph.DominantStationLabel]);
+     * under a forecast-only source it is the ONLY candidate, so it is always the dominant one.
+     */
+    val isSynthetic: Boolean = false,
 )
 
 /**
@@ -400,6 +411,7 @@ object ActualTemperatureSeriesBuilder {
                             resolvedTemp = resolved.temperature,
                             sourceKind = resolved.sourceKind,
                             ageMs = ageMs,
+                            isSynthetic = isSynthetic,
                         ),
                     )
                     soleContributorId = if (candidates.size == 1) stationId else null
@@ -498,6 +510,7 @@ object ActualTemperatureSeriesBuilder {
                                         ageMs = meta.ageMs,
                                         weight = dominantWeight,
                                         weightShare = if (weightSum > 0.0) dominantWeight / weightSum else 0.0,
+                                        isSynthetic = meta.isSynthetic,
                                     ),
                             )
                     }
@@ -523,6 +536,7 @@ object ActualTemperatureSeriesBuilder {
                                     ageMs = meta.ageMs,
                                     weight = weight,
                                     weightShare = if (weightSum > 0.0) weight / weightSum else 0.0,
+                                    isSynthetic = meta.isSynthetic,
                                 )
                             },
                         ),
@@ -575,6 +589,7 @@ object ActualTemperatureSeriesBuilder {
         val resolvedTemp: Float,
         val sourceKind: String,
         val ageMs: Long,
+        val isSynthetic: Boolean,
     )
 
     /**

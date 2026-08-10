@@ -344,10 +344,8 @@ internal object TemperatureStateResolver {
                     useCelsius = useCelsius,
                     dominantStationText =
                         DominantStationLabel.format(
-                            stationId = dominantStation?.contribution?.stationId,
-                            rawTemp = dominantStation?.contribution?.rawTemp,
+                            contribution = dominantStation?.contribution,
                             useCelsius = useCelsius,
-                            lastReadingMs = dominantStation?.contribution?.lastReadingMs,
                         ),
                 )
             } catch (e: Exception) {

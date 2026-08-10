@@ -101,10 +101,64 @@ class ActualsSyntheticBackfillPriorityTest {
         assertEquals(0, result.stats.syntheticDeprioritizedCount)
     }
 
+    // ---- isSynthetic on the captured dominant contribution ----
+    //
+    // The flag is what lets a surface that NAMES the station (the hourly graph's dominant-station
+    // label) refuse to name one that is not a thermometer. Nothing else on the row reveals it: the
+    // backfill carries stationType = OFFICIAL and resolves as "observed".
+
+    @Test
+    fun `dominant contribution is flagged synthetic for a forecast-only source`() {
+        // The everyday case, not an edge case: Open-Meteo has no stations, so OPEN_METEO_MAIN is the
+        // only candidate and is therefore ALWAYS the dominant one.
+        val at = epoch("2026-08-02T18:00:00")
+        val obs = listOf(
+            observation(
+                "OPEN_METEO_MAIN",
+                "2026-08-02T18:00:00",
+                83.2f,
+                api = WeatherSource.OPEN_METEO.id,
+                distanceKm = 0f,
+            ),
+        )
+        val dominant =
+            blend(
+                obs,
+                WeatherSource.OPEN_METEO.id,
+                forecastSource = WeatherSource.OPEN_METEO.id,
+                captureLatestDominantAtOrBeforeMs = at,
+            ).latestDominantContribution!!
+
+        assertEquals("OPEN_METEO_MAIN", dominant.contribution.stationId)
+        assertTrue("the backfill row must be flagged synthetic", dominant.contribution.isSynthetic)
+        // The fields that would otherwise pass it off as a station reading, pinned so the flag stays
+        // the only way to tell.
+        assertEquals("OFFICIAL", dominant.contribution.stationType)
+        assertEquals("observed", dominant.contribution.sourceKind)
+    }
+
+    @Test
+    fun `dominant contribution is not flagged synthetic when a real station wins`() {
+        val at = epoch("2026-08-02T18:00:00")
+        val dominant =
+            blend(
+                realStations() + nwsBackfill(),
+                WeatherSource.NWS.id,
+                captureLatestDominantAtOrBeforeMs = at,
+            ).latestDominantContribution!!
+
+        assertTrue(
+            "a real station must win over the deprioritised backfill, got ${dominant.contribution.stationId}",
+            dominant.contribution.stationId != "NWS_MAIN",
+        )
+        assertEquals(false, dominant.contribution.isSynthetic)
+    }
+
     private fun blend(
         observations: List<ObservationReading>,
         displaySourceId: String,
         forecastSource: String = WeatherSource.NWS.id,
+        captureLatestDominantAtOrBeforeMs: Long? = null,
     ) = ActualTemperatureSeriesBuilder.blendObservationSeries(
         observations = observations,
         hourlyForecasts = forecasts("2026-08-02T00:00:00", 24, forecastSource),
@@ -114,6 +168,7 @@ class ActualsSyntheticBackfillPriorityTest {
         startMs = epoch("2026-08-02T00:00:00"),
         endMs = epoch("2026-08-03T00:00:00"),
         zoneId = zone,
+        captureLatestDominantAtOrBeforeMs = captureLatestDominantAtOrBeforeMs,
     )
 
     private fun forecasts(start: String, count: Int, source: String): List<HourlyForecast> {

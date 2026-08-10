@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.shared.actuals.BlendContribution
 import com.weatherwidget.shared.util.TempUtils
 import java.time.Instant
 import java.time.ZoneId
@@ -24,7 +25,8 @@ import java.util.Locale
  *   an hour ago looks exactly like one reporting now.
  * - **Visibility**: gated by [MAX_HOURS_SPAN] and by there being room. Zoomed-out views are excluded
  *   (see the constant), and a plot with no clear band simply gets no label — this is context, never
- *   worth pushing another number off the graph for.
+ *   worth pushing another number off the graph for. Also gated on there being a real thermometer to
+ *   name: see [format]'s [BlendContribution] overload.
  * - **Position**: empty space, via [GraphEmptySpaceFinder], preferring the plot's edges.
  *
  * Each platform supplies its own measured metrics and a sampler of the *visible* curve, so this stays
@@ -70,8 +72,38 @@ object DominantStationLabel {
     private val READING_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
 
     /**
+     * The production entry point: the dominant [contribution] as a label, or null when there is nothing
+     * honest to say.
+     *
+     * Returns null for a synthetic backfill row ([BlendContribution.isSynthetic]). Those are not
+     * thermometers — they are the source's own hourly forecast re-filed as observations — so naming one
+     * would print an internal identifier (`open_meteo_main 71.2°`) beside a number that is a forecast,
+     * which is the exact misattribution the raw-vs-resolved rule above exists to prevent. This is not a
+     * rare case: forecast-only sources have no real stations, so under every source but NWS the synthetic
+     * row is the only candidate and therefore always dominant. Matches the policy
+     * `StationDailyExtremes.stationDailyExtreme` already applies when it names a station.
+     */
+    fun format(
+        contribution: BlendContribution?,
+        useCelsius: Boolean,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): String? {
+        if (contribution == null || contribution.isSynthetic) return null
+        return format(
+            stationId = contribution.stationId,
+            rawTemp = contribution.rawTemp,
+            useCelsius = useCelsius,
+            lastReadingMs = contribution.lastReadingMs,
+            zoneId = zoneId,
+        )
+    }
+
+    /**
      * `knuq 73.4° @ 5:15 pm`. Lowercase because at this font size an all-caps callsign shouts louder
      * than the temperatures it sits among.
+     *
+     * The string rules only. Callers holding a blend row want the [BlendContribution] overload, which
+     * additionally decides whether the row is a station worth naming.
      *
      * [lastReadingMs] is when that station took the reading. Null (or out of range) drops just the
      * `@ …` clause rather than the whole label — an undated temperature is still worth more than

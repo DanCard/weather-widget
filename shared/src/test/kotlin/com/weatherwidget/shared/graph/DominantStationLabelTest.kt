@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.shared.actuals.BlendContribution
 import com.weatherwidget.test.category.ShortDuration
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -106,6 +107,63 @@ class DominantStationLabelTest {
     fun noStationOrTemperatureStillReturnsNullEvenWithAReadingTime() {
         assertNull(DominantStationLabel.format(null, 73.4f, useCelsius = false, lastReadingMs = msAt(17, 15), zoneId = zone))
         assertNull(DominantStationLabel.format("KNUQ", null, useCelsius = false, lastReadingMs = msAt(17, 15), zoneId = zone))
+    }
+
+    // ---- format(BlendContribution) ----
+
+    private fun contribution(
+        stationId: String = "KNUQ",
+        rawTemp: Float = 73.4f,
+        lastReadingMs: Long = msAt(17, 15),
+        isSynthetic: Boolean = false,
+    ) = BlendContribution(
+        stationId = stationId,
+        stationName = stationId,
+        stationType = "OFFICIAL",
+        distanceKm = 3.8f,
+        lastReadingMs = lastReadingMs,
+        rawTemp = rawTemp,
+        resolvedTemp = rawTemp,
+        sourceKind = "observed",
+        ageMs = 0L,
+        weight = 1.0,
+        weightShare = 1.0,
+        isSynthetic = isSynthetic,
+    )
+
+    @Test
+    fun contributionOverloadCarriesEveryFieldThrough() {
+        assertEquals(
+            "knuq 73.4° @ 5:15 pm",
+            DominantStationLabel.format(contribution(), useCelsius = false, zoneId = zone),
+        )
+    }
+
+    @Test
+    fun syntheticContributionGetsNoLabel() {
+        // OPEN_METEO_MAIN and friends are the source's own hourly forecast re-filed as observations.
+        // Naming one would print an internal id beside a number that is not a measurement — and since
+        // forecast-only sources have no real stations, it is the dominant row every single time.
+        assertNull(
+            DominantStationLabel.format(
+                contribution(stationId = "OPEN_METEO_MAIN", rawTemp = 71.2f, isSynthetic = true),
+                useCelsius = false,
+                zoneId = zone,
+            ),
+        )
+        // Same row, flag off: proves the suppression is the flag's doing and not some other field.
+        assertNotNull(
+            DominantStationLabel.format(
+                contribution(stationId = "OPEN_METEO_MAIN", rawTemp = 71.2f, isSynthetic = false),
+                useCelsius = false,
+                zoneId = zone,
+            ),
+        )
+    }
+
+    @Test
+    fun noContributionGetsNoLabel() {
+        assertNull(DominantStationLabel.format(null, useCelsius = false, zoneId = zone))
     }
 
     @Test
