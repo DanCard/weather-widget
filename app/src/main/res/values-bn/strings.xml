@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">GPS থেকে অবস্থান আপডেট হয়েছে</string>
     <string name="invalid_coordinates_range">অনুগ্রহ করে বৈধ স্থানাঙ্ক লিখুন (অক্ষাংশ -90 থেকে 90, দ্রাঘিমাংশ -180 থেকে 180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">ডেভেলপমেন্টে সহায়তা করুন</string>
+    <string name="support_development_description">এই অ্যাপটি উপযোগী মনে হলে টিপ দিলে আমরা কৃতজ্ঞ থাকব, তবে এটি কখনোই আবশ্যক নয়।</string>
+    <string name="support_development_button">টিপ জার</string>
+    <string name="support_development_no_browser">কোনো ব্রাউজার উপলব্ধ নেই। ভিজিট করুন: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">মতামত &amp; বাগ রিপোর্ট</string>
     <string name="feedback_and_bug_reports_description">কোনো সমস্যা পেয়েছেন বা উন্নতির পরামর্শ দিতে চান? ঐচ্ছিক সিস্টেম ডায়াগনস্টিকসহ বিস্তারিত বাগ রিপোর্ট পাঠান।</string>

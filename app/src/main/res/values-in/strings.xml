@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">Lokasi diperbarui dari GPS</string>
     <string name="invalid_coordinates_range">Masukkan koordinat yang valid (lintang -90 hingga 90, bujur -180 hingga 180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">Dukung Pengembangan</string>
+    <string name="support_development_description">Jika aplikasi ini bermanfaat, tip sangat kami hargai tetapi tidak pernah diwajibkan.</string>
+    <string name="support_development_button">Beri Tip</string>
+    <string name="support_development_no_browser">Tidak ada peramban yang tersedia. Kunjungi: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">Masukan &amp; laporan bug</string>
     <string name="feedback_and_bug_reports_description">Menemukan masalah atau ingin menyarankan perbaikan? Kirim laporan bug terperinci dengan diagnostik sistem opsional.</string>

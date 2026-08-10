@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">GPS से स्थान अपडेट हुआ</string>
     <string name="invalid_coordinates_range">कृपया मान्य निर्देशांक दर्ज करें (अक्षांश -90 से 90, देशांतर -180 से 180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">विकास में सहयोग करें</string>
+    <string name="support_development_description">अगर यह ऐप आपके काम आता है, तो टिप की सराहना की जाएगी, लेकिन यह कभी ज़रूरी नहीं है।</string>
+    <string name="support_development_button">टिप जार</string>
+    <string name="support_development_no_browser">कोई ब्राउज़र उपलब्ध नहीं है। यहाँ जाएँ: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">प्रतिक्रिया &amp; बग रिपोर्ट</string>
     <string name="feedback_and_bug_reports_description">कोई समस्या मिली या सुधार सुझाना चाहते हैं? वैकल्पिक सिस्टम निदान के साथ विस्तृत बग रिपोर्ट भेजें।</string>

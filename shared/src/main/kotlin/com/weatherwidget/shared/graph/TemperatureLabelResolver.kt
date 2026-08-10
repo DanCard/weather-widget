@@ -258,10 +258,26 @@ object TemperatureLabelResolver {
         // Daily actual extrema remain the primary labels. Only when a visible slice has no confirmed
         // actual high (or low) do prominent interior observed turns fill that semantic gap. This
         // prevents multi-day views that already have daily labels from accumulating extra pink noise.
+        //
+        // And it fills that gap ONCE. TemperatureExtrema.findProminentActualTurningPoints only applies
+        // a per-reversal hysteresis (ACTUAL_TURN_REVERSAL_DEGREES, 0.75°F) with no cap, so a flat
+        // afternoon plateau on the observed line returns every chatter turn that clears it: the
+        // 2026-08-09 desktop window produced 3 highs and 2 lows inside 1.6°F over 105 minutes, all
+        // piled on the same spot. The question this fallback answers is "where did the observed line
+        // peak/bottom out in this slice?", which has one answer per side — so keep the most extreme
+        // turn and drop the rest. (Multi-peak windows are the daily-extrema path's job, not this one.)
         val fallbackActualHighIndices =
-            if (dailyActualHighLabelIndices.isEmpty()) extrema.actualProminentHighIndices else emptyList()
+            if (dailyActualHighLabelIndices.isEmpty()) {
+                mostExtremeTurn(extrema.actualProminentHighIndices, actualLabelTemps, wantMax = true)
+            } else {
+                emptyList()
+            }
         val fallbackActualLowIndices =
-            if (dailyActualLowLabelIndices.isEmpty()) extrema.actualProminentLowIndices else emptyList()
+            if (dailyActualLowLabelIndices.isEmpty()) {
+                mostExtremeTurn(extrema.actualProminentLowIndices, actualLabelTemps, wantMax = false)
+            } else {
+                emptyList()
+            }
         val actualHighLabelIndices = dailyActualHighLabelIndices + fallbackActualHighIndices
         val actualLowLabelIndices = dailyActualLowLabelIndices + fallbackActualLowIndices
 
@@ -435,6 +451,32 @@ object TemperatureLabelResolver {
         addForecastMidpointLabel(specialCandidates, effectiveActualEndIndex, hours, labelTemps, useCelsius = useCelsius)
 
         return specialCandidates
+    }
+
+    /**
+     * The single most extreme of [indices] by [temps] — warmest when [wantMax], coldest otherwise —
+     * as a 0-or-1 element list. Ties go to the earliest index so a plateau labels its onset, which is
+     * both stable across renders and the point a reader is looking for.
+     */
+    private fun mostExtremeTurn(
+        indices: List<Int>,
+        temps: List<Float>,
+        wantMax: Boolean,
+    ): List<Int> {
+        val usable = indices.filter { it in temps.indices && !temps[it].isNaN() }
+        if (usable.isEmpty()) return emptyList()
+        val best = usable.reduce { acc, i ->
+            val better = if (wantMax) temps[i] > temps[acc] else temps[i] < temps[acc]
+            if (better) i else acc
+        }
+        if (usable.size > 1) {
+            Log.v(
+                TAG,
+                "ActualTurnThinning: kept=$best of ${usable.size} " +
+                    "(${if (wantMax) "high" else "low"}s=${usable.map { "idx=$it temp=${temps[it]}" }})",
+            )
+        }
+        return listOf(best)
     }
 
     private fun addActualTurningPointLabels(

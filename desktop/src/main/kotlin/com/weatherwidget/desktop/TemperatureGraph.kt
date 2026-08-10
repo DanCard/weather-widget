@@ -719,14 +719,17 @@ fun TemperatureGraph(
             }
         }
 
-        // "knuq 73.4°": the station dominating the observation blend, dropped wherever the plot has
-        // room. Format, span gate and placement are shared with Android (DominantStationLabel); drawn
+        // "knuq 73.4° @ 5:15 pm": the station dominating the observation blend, what it read and when,
+        // dropped wherever the plot has room. Format, span gate and placement are shared with Android
+        // (DominantStationLabel); drawn
         // in the observed-line color because that is the line it explains. Nothing is drawn when the
         // window is too wide (the 3-day view and beyond) or the plot has no clear band.
         val dominantText = DominantStationLabel.format(
             stationId = actualSeries.latestDominantContribution?.contribution?.stationId,
             rawTemp = actualSeries.latestDominantContribution?.contribution?.rawTemp,
             useCelsius = useCelsius,
+            lastReadingMs = actualSeries.latestDominantContribution?.contribution?.lastReadingMs,
+            zoneId = zoneId,
         )
         if (dominantText != null) {
             val dominantStyle = TextStyle(

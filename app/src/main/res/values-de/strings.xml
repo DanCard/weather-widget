@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">Standort per GPS aktualisiert</string>
     <string name="invalid_coordinates_range">Bitte gültige Koordinaten eingeben (-90 bis 90 Breite, -180 bis 180 Länge)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">Entwicklung unterstützen</string>
+    <string name="support_development_description">Wenn diese App nützlich ist, freuen wir uns über ein Trinkgeld – erforderlich ist es aber nie.</string>
+    <string name="support_development_button">Trinkgeld</string>
+    <string name="support_development_no_browser">Kein Browser verfügbar. Besuchen Sie: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">Feedback &amp; Fehlerberichte</string>
     <string name="feedback_and_bug_reports_description">Problem entdeckt oder Verbesserungsvorschlag? Sende einen detaillierten Fehlerbericht mit optionaler Systemdiagnose.</string>

@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">GPS から位置を更新しました</string>
     <string name="invalid_coordinates_range">有効な座標を入力してください（緯度 -90〜90、経度 -180〜180）</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">開発を支援する</string>
+    <string name="support_development_description">このアプリがお役に立ったなら、チップをいただけると励みになりますが、必須ではありません。</string>
+    <string name="support_development_button">チップを送る</string>
+    <string name="support_development_no_browser">利用できるブラウザがありません。次のURLにアクセスしてください: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">フィードバック &amp; バグ報告</string>
     <string name="feedback_and_bug_reports_description">問題が起きた、または改善の提案がありますか？システム診断（任意）を添えて詳細なバグ報告を送信できます。</string>

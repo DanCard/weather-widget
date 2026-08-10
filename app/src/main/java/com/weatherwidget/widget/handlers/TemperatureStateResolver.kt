@@ -347,6 +347,7 @@ internal object TemperatureStateResolver {
                             stationId = dominantStation?.contribution?.stationId,
                             rawTemp = dominantStation?.contribution?.rawTemp,
                             useCelsius = useCelsius,
+                            lastReadingMs = dominantStation?.contribution?.lastReadingMs,
                         ),
                 )
             } catch (e: Exception) {

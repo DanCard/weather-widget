@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">Localização atualizada pelo GPS</string>
     <string name="invalid_coordinates_range">Insira coordenadas válidas (-90 a 90 lat, -180 a 180 lon)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">Apoiar o desenvolvimento</string>
+    <string name="support_development_description">Se este app for útil para você, gorjetas são muito bem-vindas, mas nunca obrigatórias.</string>
+    <string name="support_development_button">Caixa de gorjetas</string>
+    <string name="support_development_no_browser">Nenhum navegador disponível. Acesse: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">Feedback &amp; relatórios de bugs</string>
     <string name="feedback_and_bug_reports_description">Encontrou um problema ou quer sugerir uma melhoria? Envie um relatório de bug detalhado com diagnóstico opcional do sistema.</string>

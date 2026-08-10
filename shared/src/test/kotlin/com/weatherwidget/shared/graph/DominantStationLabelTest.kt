@@ -1,6 +1,8 @@
 package com.weatherwidget.shared.graph
 
 import com.weatherwidget.test.category.ShortDuration
+import java.time.LocalDateTime
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -42,9 +44,68 @@ class DominantStationLabelTest {
 
     // ---- format ----
 
+    // A fixed zone + wall-clock instant, so the expected string cannot drift with the CI machine's
+    // timezone (5:15 pm in New York is not 5:15 pm anywhere else).
+    private val zone: ZoneId = ZoneId.of("America/Los_Angeles")
+    private fun msAt(hour: Int, minute: Int): Long =
+        LocalDateTime.of(2026, 8, 9, hour, minute).atZone(zone).toInstant().toEpochMilli()
+
     @Test
     fun formatLowercasesTheStationId() {
         assertEquals("knuq 73.4°", DominantStationLabel.format("KNUQ", 73.4f, useCelsius = false))
+    }
+
+    @Test
+    fun formatAppendsTheReadingTime() {
+        assertEquals(
+            "knuq 73.4° @ 5:15 pm",
+            DominantStationLabel.format("KNUQ", 73.4f, useCelsius = false, lastReadingMs = msAt(17, 15), zoneId = zone),
+        )
+    }
+
+    @Test
+    fun readingTimeIsTwelveHourWithNoLeadingZero() {
+        assertEquals(
+            "knuq 73.4° @ 9:05 am",
+            DominantStationLabel.format("KNUQ", 73.4f, useCelsius = false, lastReadingMs = msAt(9, 5), zoneId = zone),
+        )
+        assertEquals(
+            "knuq 73.4° @ 12:00 am",
+            DominantStationLabel.format("KNUQ", 73.4f, useCelsius = false, lastReadingMs = msAt(0, 0), zoneId = zone),
+        )
+        assertEquals(
+            "knuq 73.4° @ 12:30 pm",
+            DominantStationLabel.format("KNUQ", 73.4f, useCelsius = false, lastReadingMs = msAt(12, 30), zoneId = zone),
+        )
+    }
+
+    @Test
+    fun readingTimeIsRenderedInTheSuppliedZone() {
+        // Same instant, two zones — the label must read as the local wall clock, not UTC.
+        val ms = msAt(17, 15)
+        assertEquals(
+            "knuq 73.4° @ 8:15 pm",
+            DominantStationLabel.format("KNUQ", 73.4f, useCelsius = false, lastReadingMs = ms, zoneId = ZoneId.of("America/New_York")),
+        )
+    }
+
+    @Test
+    fun missingReadingTimeDropsOnlyTheAtClause() {
+        // An undated temperature still beats no label at all.
+        assertEquals(
+            "knuq 73.4°",
+            DominantStationLabel.format("KNUQ", 73.4f, useCelsius = false, lastReadingMs = null, zoneId = zone),
+        )
+        assertEquals(
+            "knuq 73.4°",
+            DominantStationLabel.format("KNUQ", 73.4f, useCelsius = false, lastReadingMs = 0L, zoneId = zone),
+        )
+    }
+
+    @Test
+    fun noStationOrTemperatureStillReturnsNullEvenWithAReadingTime() {
+        assertNull(DominantStationLabel.format(null, 73.4f, useCelsius = false, lastReadingMs = msAt(17, 15), zoneId = zone))
+        assertNull(DominantStationLabel.format("KNUQ", null, useCelsius = false, lastReadingMs = msAt(17, 15), zoneId = zone))
     }
 
     @Test

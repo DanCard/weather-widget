@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">Đã cập nhật vị trí từ GPS</string>
     <string name="invalid_coordinates_range">Vui lòng nhập tọa độ hợp lệ (vĩ độ -90 đến 90, kinh độ -180 đến 180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">Hỗ trợ phát triển</string>
+    <string name="support_development_description">Nếu bạn thấy ứng dụng này hữu ích, chúng tôi rất trân trọng khoản ủng hộ, nhưng điều đó không bao giờ bắt buộc.</string>
+    <string name="support_development_button">Ủng hộ</string>
+    <string name="support_development_no_browser">Không có trình duyệt khả dụng. Truy cập: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">Phản hồi &amp; báo cáo lỗi</string>
     <string name="feedback_and_bug_reports_description">Gặp sự cố hoặc muốn đề xuất cải tiến? Gửi báo cáo lỗi chi tiết kèm chẩn đoán hệ thống (tùy chọn).</string>

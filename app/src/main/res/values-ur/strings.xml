@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">GPS سے مقام اپ ڈیٹ ہو گیا</string>
     <string name="invalid_coordinates_range">براہ کرم درست نقاط درج کریں (عرض بلد -90 تا 90، طول بلد -180 تا 180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">ترقی میں معاونت کریں</string>
+    <string name="support_development_description">اگر آپ کو یہ ایپ مفید لگے تو ٹِپ کی قدر کی جائے گی، لیکن یہ کبھی لازمی نہیں۔</string>
+    <string name="support_development_button">ٹِپ جار</string>
+    <string name="support_development_no_browser">کوئی براؤزر دستیاب نہیں۔ یہاں ملاحظہ کریں: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">رائے &amp; بگ رپورٹس</string>
     <string name="feedback_and_bug_reports_description">کوئی مسئلہ پیش آیا یا بہتری تجویز کرنا چاہتے ہیں؟ اختیاری سسٹم تشخیص کے ساتھ تفصیلی بگ رپورٹ بھیجیں۔</string>

@@ -181,6 +181,12 @@
     <string name="location_updated_from_gps">Місцезнаходження оновлено з GPS</string>
     <string name="invalid_coordinates_range">Введіть дійсні координати (широта від -90 до 90, довгота від -180 до 180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">Підтримати розробку</string>
+    <string name="support_development_description">Якщо цей застосунок вам корисний, чайові вітаються, але вони ніколи не є обов’язковими.</string>
+    <string name="support_development_button">Залишити чайові</string>
+    <string name="support_development_no_browser">Браузер недоступний. Перейдіть за адресою: %1$s</string>
+
     <string name="feedback_and_bug_reports">Відгуки та звіти про помилки</string>
     <string name="feedback_and_bug_reports_description">Натрапили на проблему чи маєте ідею? Надішліть докладний звіт про помилку з необов\'язковою діагностикою системи.</string>
     <string name="submit_bug_report">Надіслати звіт про помилку</string>

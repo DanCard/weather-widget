@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">Konum GPS\'ten güncellendi</string>
     <string name="invalid_coordinates_range">Lütfen geçerli koordinatlar girin (enlem -90 ile 90, boylam -180 ile 180 arası)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">Geliştirmeyi Destekle</string>
+    <string name="support_development_description">Bu uygulamayı faydalı buluyorsanız bahşişler memnuniyetle karşılanır, ancak asla zorunlu değildir.</string>
+    <string name="support_development_button">Bahşiş Kutusu</string>
+    <string name="support_development_no_browser">Kullanılabilir tarayıcı yok. Şu adresi ziyaret edin: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">Geri bildirim &amp; hata raporları</string>
     <string name="feedback_and_bug_reports_description">Bir sorunla mı karşılaştınız veya bir iyileştirme mi önermek istiyorsunuz? İsteğe bağlı sistem tanılamasıyla ayrıntılı bir hata raporu gönderin.</string>

@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">Lokalizacja zaktualizowana z GPS</string>
     <string name="invalid_coordinates_range">Wprowadź prawidłowe współrzędne (szer. od -90 do 90, dł. od -180 do 180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">Wesprzyj rozwój</string>
+    <string name="support_development_description">Jeśli ta aplikacja okaże się przydatna, napiwki są mile widziane, ale nigdy nie są wymagane.</string>
+    <string name="support_development_button">Napiwek</string>
+    <string name="support_development_no_browser">Brak dostępnej przeglądarki. Odwiedź: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">Opinie &amp; zgłoszenia błędów</string>
     <string name="feedback_and_bug_reports_description">Napotkany problem lub propozycja ulepszenia? Wyślij szczegółowe zgłoszenie błędu z opcjonalną diagnostyką systemu.</string>

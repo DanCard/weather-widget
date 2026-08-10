@@ -36,6 +36,18 @@ object TemperatureLabelEngine {
     // Expressed as a fraction of label height so the tolerance scales with the glyphs.
     private const val ACTUAL_LOW_FORECAST_OVERLAP_RATIO = 0.5f
 
+    // Gap left between an actual-extreme label and a label it had to step over, and the step budget.
+    // Both bypass placers (placeActualHighAboveCurve / placeActualLowBelowCurve) force a direction
+    // rather than searching, so without this they emit straight through whatever is already drawn.
+    //
+    // What counts as "through" is the engine's OWN budget — GraphLabelPlacementUtils.
+    // shouldAllowMinorOverlap / MINOR_OVERLAP_HEIGHT_RATIO — not a stricter any-pixel rule. A pink
+    // ACTUAL_LOW deliberately shares the valley with an amber FORECAST_LOW a couple of degrees below
+    // it, and the two are *supposed* to graze (see two-overlap-constants). Only a substantial
+    // overlap — the near-coincident stacking that made three actual highs unreadable — is resolved.
+    private const val ACTUAL_EXTREME_STACK_GAP_DP = 1.5f
+    private const val ACTUAL_EXTREME_STACK_MAX_STEPS = 4
+
     // LOCAL (forecast midpoints and some interior value labels) get a modest curve graze tolerance.
     // Non-extremum points on the body of the forecast curve frequently produce tiny line intrusions
     // into the label box even at the preferred 1dp gap (due to slope + box width + sampling margins).
@@ -545,6 +557,23 @@ object TemperatureLabelEngine {
     // actual curve across the label's x-span for the highest point (smallest y) so the label clears
     // the jagged spike rather than overlapping it, then sits one gap above. Clamps to the top edge
     // (spilling into the header band) when the peak is too close to the top to leave a full gap.
+    /**
+     * True when [bounds] overlaps the already-drawn labels by no more than the engine's standard
+     * minor-overlap budget — the same `shouldAllowMinorOverlap` test the main placement loop applies.
+     * Used by the two forced-direction placers so they tolerate exactly what the rest of the engine
+     * tolerates and resolve only what it would resolve.
+     */
+    private fun overlapIsWithinBudget(
+        role: TemperatureRole,
+        bounds: GraphRect,
+        drawnLabelMetas: List<PlacedLabelMeta>,
+        labelHeight: Float,
+    ): Boolean {
+        val overlap = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnLabelMetas.map { it.bounds })
+        if (overlap <= 0f) return true
+        return GraphLabelPlacementUtils.shouldAllowMinorOverlap(role, overlap, labelHeight)
+    }
+
     private fun placeActualHighAboveCurve(
         heightPx: Int,
         density: Float,
@@ -587,7 +616,34 @@ object TemperatureLabelEngine {
             bottom += shift
             baselineY += shift
         }
-        val bounds = GraphRect(left, top, right, bottom)
+        // This path forces "above" instead of searching, so it must yield to what is already drawn or
+        // it simply overprints it. Step up over each substantial blocker; if clearing them would push
+        // the label out of the plot, drop it. Dropping is the right end state here: a second
+        // ACTUAL_HIGH this close to a placed one comes from near-equal turning points on the same
+        // plateau, where it says nothing the survivor does not.
+        val labelHeight = labelDescent - labelAscent
+        var bounds = GraphRect(left, top, right, bottom)
+        val stackGapPx = ACTUAL_EXTREME_STACK_GAP_DP * density
+        var steps = 0
+        while (steps++ < ACTUAL_EXTREME_STACK_MAX_STEPS) {
+            if (overlapIsWithinBudget(candidate.role, bounds, drawnLabelMetas, labelHeight)) break
+            val blocker = drawnLabelMetas.firstOrNull { it.bounds.intersects(bounds) } ?: break
+            val shift = bounds.bottom - blocker.bounds.top + stackGapPx
+            top -= shift
+            bottom -= shift
+            baselineY -= shift
+            bounds = GraphRect(left, top, right, bottom)
+        }
+        if (top < 0f || !overlapIsWithinBudget(candidate.role, bounds, drawnLabelMetas, labelHeight)) {
+            Log.d(
+                TAG,
+                "PlaceDrop: role=${candidate.role} idx=$idx reason=noRoomAboveActualCurve " +
+                    "top=${top.toInt()} steps=${steps - 1} " +
+                    "overlap=${GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnLabelMetas.map { it.bounds }).toInt()} " +
+                    "labelHeight=${labelHeight.toInt()}",
+            )
+            return
+        }
         val drawLeader = geometry.sy - bottom > labelDescent
 
         resultPlacements.add(
@@ -657,7 +713,32 @@ object TemperatureLabelEngine {
             bottom += shift
             baselineY += shift
         }
-        val bounds = GraphRect(left, top, right, bottom)
+        // Same yield rule as placeActualHighAboveCurve, mirrored downward. Note this placer is reached
+        // exactly when a LABEL blocked the normal direction, so a grazing overlap is the expected case,
+        // not the exception — which is precisely why the budget, and not an any-pixel test, decides.
+        val labelHeight = labelDescent - labelAscent
+        var bounds = GraphRect(left, top, right, bottom)
+        val stackGapPx = ACTUAL_EXTREME_STACK_GAP_DP * density
+        var steps = 0
+        while (steps++ < ACTUAL_EXTREME_STACK_MAX_STEPS) {
+            if (overlapIsWithinBudget(candidate.role, bounds, drawnLabelMetas, labelHeight)) break
+            val blocker = drawnLabelMetas.firstOrNull { it.bounds.intersects(bounds) } ?: break
+            val shift = blocker.bounds.bottom - bounds.top + stackGapPx
+            top += shift
+            bottom += shift
+            baselineY += shift
+            bounds = GraphRect(left, top, right, bottom)
+        }
+        if (bottom > heightPx || !overlapIsWithinBudget(candidate.role, bounds, drawnLabelMetas, labelHeight)) {
+            Log.d(
+                TAG,
+                "PlaceDrop: role=${candidate.role} idx=$idx reason=noRoomBelowActualCurve " +
+                    "bottom=${bottom.toInt()} heightPx=$heightPx steps=${steps - 1} " +
+                    "overlap=${GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnLabelMetas.map { it.bounds }).toInt()} " +
+                    "labelHeight=${labelHeight.toInt()}",
+            )
+            return
+        }
 
         resultPlacements.add(
             PlacedLabel(

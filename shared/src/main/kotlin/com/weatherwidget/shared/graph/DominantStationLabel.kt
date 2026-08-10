@@ -1,6 +1,10 @@
 package com.weatherwidget.shared.graph
 
 import com.weatherwidget.shared.util.TempUtils
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * The "which thermometer is actually driving this line?" annotation on the hourly temperature graph:
@@ -15,6 +19,9 @@ import com.weatherwidget.shared.util.TempUtils
  *   station row ([com.weatherwidget.shared.actuals.BlendTableFormatter.formatDominantTempAgeRows]),
  *   so the two surfaces can never disagree by a rounding rule. Raw, not the value fed to the blend:
  *   an extrapolated value is a forecast in disguise and naming a station beside it would be a lie.
+ *   Then `@` and the clock time that reading was taken — the same `lastReadingMs` the Blend tab shows
+ *   in its "last read" column. Without it the number is undated, and a station that stopped reporting
+ *   an hour ago looks exactly like one reporting now.
  * - **Visibility**: gated by [MAX_HOURS_SPAN] and by there being room. Zoomed-out views are excluded
  *   (see the constant), and a plot with no clear band simply gets no label — this is context, never
  *   worth pushing another number off the graph for.
@@ -56,13 +63,35 @@ object DominantStationLabel {
     )
 
     /**
-     * `knuq 73.4°`. Lowercase because at this font size an all-caps callsign shouts louder than the
-     * temperatures it sits among. Returns null when there is nothing to name.
+     * The app's established time-of-day pattern (Observations, the fetch-failure indicator, the
+     * forecast-evolution view), lowercased to match the lowercased callsign — at 9sp a shouted "PM"
+     * pulls more attention than the temperature it qualifies.
      */
-    fun format(stationId: String?, rawTemp: Float?, useCelsius: Boolean): String? {
+    private val READING_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+
+    /**
+     * `knuq 73.4° @ 5:15 pm`. Lowercase because at this font size an all-caps callsign shouts louder
+     * than the temperatures it sits among.
+     *
+     * [lastReadingMs] is when that station took the reading. Null (or out of range) drops just the
+     * `@ …` clause rather than the whole label — an undated temperature is still worth more than
+     * nothing. Returns null only when there is no station or no temperature to name.
+     */
+    fun format(
+        stationId: String?,
+        rawTemp: Float?,
+        useCelsius: Boolean,
+        lastReadingMs: Long? = null,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): String? {
         val id = stationId?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val temp = TempUtils.formatTemp(rawTemp, useCelsius) ?: return null
-        return "${id.lowercase()} $temp"
+        val at = lastReadingMs?.takeIf { it > 0L }?.let { ms ->
+            runCatching {
+                Instant.ofEpochMilli(ms).atZone(zoneId).format(READING_TIME).lowercase(Locale.getDefault())
+            }.getOrNull()
+        }
+        return if (at != null) "${id.lowercase()} $temp @ $at" else "${id.lowercase()} $temp"
     }
 
     /**

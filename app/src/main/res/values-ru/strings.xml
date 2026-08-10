@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">Местоположение обновлено по GPS</string>
     <string name="invalid_coordinates_range">Введите корректные координаты (широта от -90 до 90, долгота от -180 до 180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">Поддержать разработку</string>
+    <string name="support_development_description">Если это приложение вам полезно, чаевые приветствуются, но они никогда не обязательны.</string>
+    <string name="support_development_button">Оставить чаевые</string>
+    <string name="support_development_no_browser">Браузер недоступен. Перейдите по адресу: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">Отзывы &amp; сообщения об ошибках</string>
     <string name="feedback_and_bug_reports_description">Столкнулись с проблемой или хотите предложить улучшение? Отправьте подробный отчёт об ошибке с необязательной системной диагностикой.</string>

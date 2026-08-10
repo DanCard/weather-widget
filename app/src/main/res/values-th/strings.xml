@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">อัปเดตตำแหน่งจาก GPS แล้ว</string>
     <string name="invalid_coordinates_range">โปรดใส่พิกัดที่ถูกต้อง (ละติจูด -90 ถึง 90, ลองจิจูด -180 ถึง 180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">สนับสนุนการพัฒนา</string>
+    <string name="support_development_description">หากคุณเห็นว่าแอปนี้มีประโยชน์ เรายินดีรับทิป แต่ไม่จำเป็นต้องให้เสมอไป</string>
+    <string name="support_development_button">ให้ทิป</string>
+    <string name="support_development_no_browser">ไม่มีเบราว์เซอร์ที่ใช้ได้ ไปที่: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">ความคิดเห็น &amp; รายงานข้อบกพร่อง</string>
     <string name="feedback_and_bug_reports_description">พบปัญหาหรืออยากเสนอการปรับปรุง? ส่งรายงานข้อบกพร่องโดยละเอียดพร้อมการวินิจฉัยระบบ (ไม่บังคับ)</string>

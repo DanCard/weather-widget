@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">GPS로 위치가 업데이트됨</string>
     <string name="invalid_coordinates_range">유효한 좌표를 입력하세요 (위도 -90~90, 경도 -180~180)</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">개발 지원하기</string>
+    <string name="support_development_description">이 앱이 유용하셨다면 후원해 주시면 감사하지만, 절대 필수는 아닙니다.</string>
+    <string name="support_development_button">후원하기</string>
+    <string name="support_development_no_browser">사용할 수 있는 브라우저가 없습니다. 다음 주소를 방문하세요: %1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">피드백 &amp; 버그 신고</string>
     <string name="feedback_and_bug_reports_description">문제가 있거나 개선을 제안하고 싶으신가요? 시스템 진단(선택 사항)과 함께 상세한 버그 신고를 보내세요.</string>

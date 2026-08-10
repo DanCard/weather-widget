@@ -183,6 +183,12 @@
     <string name="location_updated_from_gps">已通过 GPS 更新位置</string>
     <string name="invalid_coordinates_range">请输入有效坐标（纬度 -90 至 90，经度 -180 至 180）</string>
 
+    <!-- Support Development strings -->
+    <string name="support_development_title">支持开发</string>
+    <string name="support_development_description">如果您觉得这款应用有用，欢迎打赏，但绝非必须。</string>
+    <string name="support_development_button">打赏</string>
+    <string name="support_development_no_browser">没有可用的浏览器。请访问：%1$s</string>
+
     <!-- Bug Reporting strings -->
     <string name="feedback_and_bug_reports">反馈 &amp; 错误报告</string>
     <string name="feedback_and_bug_reports_description">遇到问题或想提出改进建议？提交详细的错误报告，可选附带系统诊断信息。</string>

@@ -109,7 +109,7 @@ object TemperatureGraphRenderer {
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
         useCelsius: Boolean,
-        /** Pre-formatted `knuq 73.4°`; null suppresses the dominant-station annotation entirely. */
+        /** Pre-formatted `knuq 73.4° @ 5:15 pm`; null suppresses the dominant-station annotation entirely. */
         dominantStationText: String? = null,
     ): Bitmap {
         job?.ensureActive()
