@@ -105,6 +105,12 @@ data class ActualTemperatureSeriesResult(
     val selectedStationId: String?,
     val sourceObservationCount: Int,
     val blendInputCount: Int,
+    /**
+     * The station holding the largest weight share behind the newest emitted actual. Null unless the
+     * caller asked for it via [ActualTemperatureSeriesBuilder.build]'s
+     * `captureLatestDominantAtOrBeforeMs`.
+     */
+    val latestDominantContribution: DominantBlend? = null,
 )
 
 object ActualTemperatureSeriesBuilder {
@@ -138,6 +144,12 @@ object ActualTemperatureSeriesBuilder {
         smoothedForecasts: Map<Long, Float>? = null,
         personalStationWeight: Double = 1.0,
         onBlendDebug: ((() -> String) -> Unit)? = null,
+        /**
+         * Opt in to [ActualTemperatureSeriesResult.latestDominantContribution] for the newest emitted
+         * point at or before this timestamp (usually "now"). Off by default so no existing render path
+         * pays for it; the extra work is one `maxByOrNull` over the weights already computed per point.
+         */
+        captureLatestDominantAtOrBeforeMs: Long? = null,
     ): ActualTemperatureSeriesResult {
         val forecastsByTime = HourlyForecastSelector.selectForecastsByTime(hourlyForecasts, displaySourceId, userLat, userLon)
         val truncated = centerTime.truncatedTo(ChronoUnit.HOURS)
@@ -179,6 +191,7 @@ object ActualTemperatureSeriesBuilder {
             personalStationWeight = personalStationWeight,
             zoneId = zoneId,
             onBlendDebug = onBlendDebug,
+            captureLatestDominantAtOrBeforeMs = captureLatestDominantAtOrBeforeMs,
         )
         val blendedActuals = blendedActualsResult.observations
 
@@ -258,6 +271,7 @@ object ActualTemperatureSeriesBuilder {
             selectedStationId = selectedStationId,
             sourceObservationCount = sourceActuals.size,
             blendInputCount = blendInputActuals.size,
+            latestDominantContribution = blendedActualsResult.latestDominantContribution,
         )
     }
 

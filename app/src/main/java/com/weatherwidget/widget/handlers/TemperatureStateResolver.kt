@@ -10,7 +10,9 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toReading
+import com.weatherwidget.shared.actuals.DominantBlend
 import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
+import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.HeaderFormatter
@@ -161,6 +163,7 @@ internal object TemperatureStateResolver {
         val obsQueryMs: Long
         val buildHourDataMs: Long
         var deltaFromYesterday: Float? = null
+        var dominantStation: DominantBlend? = null
         when (graphLoadResult) {
             is GraphLoadOutcome.Empty -> {
                 // HOURLY_PAINT_TRACE: an empty hour list yields a blank graph state. The widget still
@@ -180,6 +183,7 @@ internal object TemperatureStateResolver {
                 obsQueryMs = graphLoadResult.obsQueryMs
                 buildHourDataMs = graphLoadResult.buildHourDataMs
                 deltaFromYesterday = graphLoadResult.deltaFromYesterday
+                dominantStation = graphLoadResult.dominantStation
             }
         }
 
@@ -338,6 +342,12 @@ internal object TemperatureStateResolver {
                     errorCode = stateManager.getSourceLastErrorCode(displaySource),
                     errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
                     useCelsius = useCelsius,
+                    dominantStationText =
+                        DominantStationLabel.format(
+                            stationId = dominantStation?.contribution?.stationId,
+                            rawTemp = dominantStation?.contribution?.rawTemp,
+                            useCelsius = useCelsius,
+                        ),
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "renderGraph failed", e)
@@ -396,6 +406,7 @@ internal object TemperatureStateResolver {
             val obsQueryMs: Long,
             val buildHourDataMs: Long,
             val deltaFromYesterday: Float? = null,
+            val dominantStation: DominantBlend? = null,
         ) : GraphLoadOutcome()
     }
 
@@ -631,6 +642,7 @@ internal object TemperatureStateResolver {
             obsQueryMs = obsQueryMs,
             buildHourDataMs = buildHourDataMs,
             deltaFromYesterday = deltaFromYesterday,
+            dominantStation = hourDataResult.dominantStation,
         )
     }
 

@@ -29,6 +29,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
+import com.weatherwidget.shared.graph.DominantStationLabel
+import com.weatherwidget.shared.graph.GraphEmptySpaceFinder
 import com.weatherwidget.shared.graph.HourDataAssembler
 import com.weatherwidget.shared.graph.*
 import com.weatherwidget.shared.util.Log
@@ -203,6 +205,9 @@ fun TemperatureGraph(
             zoneId = zoneId,
             smoothedForecasts = null, // raw: builder uses forecast.temperature, matching the line + Android
             personalStationWeight = personalStationWeight,
+            // Names the thermometer behind the observed line for the dominant-station label below. The
+            // blend runs either way; this only asks it to keep the top-weight row for the newest point.
+            captureLatestDominantAtOrBeforeMs = now,
         )
         // TEMP DIAGNOSTIC: where does the pink actual line start/end vs the visible window? Compares
         // the first/last actual point to windowStart and the raw observation range, to chase the
@@ -339,7 +344,9 @@ fun TemperatureGraph(
         val ghostSpanHours = (windowEnd - windowStart) / 3_600_000L
         val hoursFromNowToWindowStart = (windowStart - now) / 3_600_000L
         val nowInWindow = now in windowStart..windowEnd
-        if (transitionX != null && abs(appliedDelta) >= 0.1f &&
+        // Hoisted: the free-floating labels below must know whether this line is actually painted before
+        // they reserve clearance from it.
+        val ghostLineDrawn = transitionX != null && abs(appliedDelta) >= 0.1f &&
             com.weatherwidget.shared.graph.GhostLineGate.shouldProcess(
                 fetchDotX = transitionX,
                 graphWidthPx = w,
@@ -347,7 +354,7 @@ fun TemperatureGraph(
                 nowIndicatorVisible = nowInWindow,
                 hoursFromNowToWindowStart = hoursFromNowToWindowStart,
             )
-        ) {
+        if (ghostLineDrawn && transitionX != null) {
             clipRect(left = transitionX, top = 0f, right = w, bottom = footer.graphBottom(h, scale)) {
                 val expectedPath = buildCurve(expectedCoords)
                 drawPath(
@@ -527,6 +534,38 @@ fun TemperatureGraph(
             xAtTime(point.timeMs) to yAt(point.actualTemp!!)
         }
 
+        /**
+         * Every temperature line painted at [x] — forecast (whole window), observed (up to the fetch
+         * dot) and, when drawn, the ghost line (from the fetch dot rightwards).
+         *
+         * Plural on purpose: `getCurveYAtX` above answers for the forecast curve alone, and a
+         * free-floating label that only clears the forecast happily lands on the pink observed line.
+         * See GraphEmptySpaceFinder.find.
+         */
+        fun visibleCurveYsAt(x: Float): List<Float> {
+            fun interpolate(pts: List<Pair<Float, Float>>): Float? {
+                if (pts.isEmpty()) return null
+                if (x <= pts.first().first) return pts.first().second
+                if (x >= pts.last().first) return pts.last().second
+                val nextIdx = pts.indexOfFirst { it.first > x }
+                if (nextIdx <= 0) return pts.last().second
+                val before = pts[nextIdx - 1]
+                val after = pts[nextIdx]
+                val span = after.first - before.first
+                if (span <= 0f) return before.second
+                return before.second + (after.second - before.second) * ((x - before.first) / span)
+            }
+            val ys = mutableListOf<Float>()
+            if (coords.isNotEmpty()) ys.add(getCurveYAtX(x))
+            if (transitionX == null || x <= transitionX) {
+                interpolate(actualVisiblePointsList)?.let(ys::add)
+            }
+            if (ghostLineDrawn && transitionX != null && x >= transitionX) {
+                interpolate(expectedCoords.map { it.x to it.y })?.let(ys::add)
+            }
+            return ys
+        }
+
         val effectiveActualEndIndex = if (transitionMs != null) {
             hourDataList.indexOfLast { msOf(it.dateTime) <= transitionMs }
         } else {
@@ -667,7 +706,7 @@ fun TemperatureGraph(
                 spanHours = deltaSpanHours,
                 plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
                 drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
-                curveYAt = { x -> getCurveYAtX(x) },
+                curveYsAt = ::visibleCurveYsAt,
                 metrics = metrics,
                 padPx = 6f * scale,
                 useCelsius = useCelsius,
@@ -677,6 +716,46 @@ fun TemperatureGraph(
                 val topLeft = Offset(placement.box.left, placement.box.top)
                 drawText(layout, topLeft = topLeft)
                 drawnLabels.add(Rect(topLeft, Size(metrics.width, metrics.height)))
+            }
+        }
+
+        // "knuq 73.4°": the station dominating the observation blend, dropped wherever the plot has
+        // room. Format, span gate and placement are shared with Android (DominantStationLabel); drawn
+        // in the observed-line color because that is the line it explains. Nothing is drawn when the
+        // window is too wide (the 3-day view and beyond) or the plot has no clear band.
+        val dominantText = DominantStationLabel.format(
+            stationId = actualSeries.latestDominantContribution?.contribution?.stationId,
+            rawTemp = actualSeries.latestDominantContribution?.contribution?.rawTemp,
+            useCelsius = useCelsius,
+        )
+        if (dominantText != null) {
+            val dominantStyle = TextStyle(
+                fontSize = (9 * scale).sp,
+                color = COLOR_ACTUAL,
+                shadow = androidx.compose.ui.graphics.Shadow(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    offset = Offset(0f, 1f * scale),
+                    blurRadius = 2f * scale,
+                ),
+            )
+            val measured = textMeasurer.measure(dominantText, dominantStyle)
+            val placement = DominantStationLabel.place(
+                text = dominantText,
+                spanHours = (windowEnd - windowStart) / 3_600_000L,
+                plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
+                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                curveYsAt = ::visibleCurveYsAt,
+                metrics = GraphEmptySpaceFinder.Metrics(
+                    width = measured.size.width.toFloat(),
+                    ascent = -measured.size.height.toFloat(),
+                    descent = 0f,
+                ),
+                padPx = 6f * scale,
+            )
+            if (placement != null) {
+                val topLeft = Offset(placement.box.left, placement.box.top)
+                drawText(measured, topLeft = topLeft)
+                drawnLabels.add(Rect(topLeft, Size(measured.size.width.toFloat(), measured.size.height.toFloat())))
             }
         }
 

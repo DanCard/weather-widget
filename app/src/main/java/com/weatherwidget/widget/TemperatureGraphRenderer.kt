@@ -109,6 +109,8 @@ object TemperatureGraphRenderer {
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
         useCelsius: Boolean,
+        /** Pre-formatted `knuq 73.4°`; null suppresses the dominant-station annotation entirely. */
+        dominantStationText: String? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -289,10 +291,17 @@ object TemperatureGraphRenderer {
             )
         }
 
+        // Order is a priority ladder over the same free space: the delta claims first (center-first
+        // anchors), the station label second (edge-first), and the ghost labels route around both.
         TemperatureGraphAnnotationRenderer.placeForecastDeltaLabel(
             annotationInput,
             hours,
             appliedDelta,
+        )
+        TemperatureGraphAnnotationRenderer.placeDominantStationLabel(
+            annotationInput,
+            hours,
+            dominantStationText,
         )
         TemperatureGraphAnnotationRenderer.placeGhostLineLabel(annotationInput, hours)
 

@@ -5,7 +5,9 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
+import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.graph.GhostLineLabel
+import com.weatherwidget.shared.graph.GraphEmptySpaceFinder
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.LabelPlacementDebug
@@ -26,6 +28,7 @@ internal object TemperatureGraphAnnotationRenderer {
     private const val TAG = "TempGraphRenderer"
     private const val X_COORDINATE_MATCH_TOLERANCE = 0.5f
     private const val FORECAST_DELTA_LABEL_PAD_DP = 6f
+    private const val DOMINANT_STATION_LABEL_PAD_DP = 6f
     private const val GHOST_LINE_LABEL_PAD_DP = 4f
     private const val GHOST_LINE_LABEL_GAP_DP = 2.5f
 
@@ -305,6 +308,7 @@ internal object TemperatureGraphAnnotationRenderer {
         val spanHours = Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
         val paint = input.paints.stalenessTextPaint
         val text = ForecastDeltaLabel.format(delta, input.useCelsius)
+        val ghostVisible = ghostLineVisible(input, hours)
         val placement =
             ForecastDeltaLabel.place(
                 delta = delta,
@@ -312,7 +316,7 @@ internal object TemperatureGraphAnnotationRenderer {
                 spanHours = spanHours,
                 plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
                 drawnBounds = input.graphObstacles(),
-                curveYAt = { sampleVisibleCurveY(input, it) },
+                curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
                 metrics =
                     ForecastDeltaLabel.Metrics(
                         width = paint.measureText(text),
@@ -335,6 +339,50 @@ internal object TemperatureGraphAnnotationRenderer {
         )
         input.obstacles.add(
             TemperatureGraphObstacleType.FORECAST_DELTA,
+            placement.box.toRectF(),
+        )
+    }
+
+    /**
+     * Names the station dominating the observation blend, e.g. `knuq 73.4°`, wherever the plot has room.
+     *
+     * Drawn with the staleness paint UNRECOLORED — that paint is already the observed-line color, which
+     * is exactly what this label explains. (The delta label recolors the same paint to the thermostat
+     * gradient; leaving this one alone is what keeps the two readable as different things.)
+     */
+    fun placeDominantStationLabel(
+        input: Input,
+        hours: List<HourData>,
+        dominantStationText: String?,
+    ) {
+        val text = dominantStationText?.takeIf { it.isNotBlank() } ?: return
+        if (hours.size < 2) return
+        val spanHours = Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+        val paint = input.paints.stalenessTextPaint
+        val ghostVisible = ghostLineVisible(input, hours)
+        val placement =
+            DominantStationLabel.place(
+                text = text,
+                spanHours = spanHours,
+                plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
+                drawnBounds = input.graphObstacles(),
+                curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
+                metrics =
+                    GraphEmptySpaceFinder.Metrics(
+                        width = paint.measureText(text),
+                        ascent = TemperatureGraphStyle.fontAscent(paint),
+                        descent = TemperatureGraphStyle.fontDescent(paint),
+                    ),
+                padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
+            ) ?: return
+        input.canvas.drawText(
+            placement.text,
+            placement.centerX,
+            placement.baselineY,
+            paint,
+        )
+        input.obstacles.add(
+            TemperatureGraphObstacleType.DOMINANT_STATION,
             placement.box.toRectF(),
         )
     }
@@ -474,6 +522,54 @@ internal object TemperatureGraphAnnotationRenderer {
         bounds: RectF,
     ): Boolean =
         input.obstacles.bounds().any { RectF.intersects(it, bounds) }
+
+    /**
+     * Every temperature line actually drawn at [x], for free-floating-label collision tests.
+     *
+     * Distinct from [sampleVisibleCurveY], which models the graph as ONE curve that switches from
+     * observed to forecast at the transition point. That model is right for the ghost-line geometry but
+     * wrong for collision: both lines are painted across their own x ranges at the same time, so a
+     * one-answer sampler reports open air where the other line is. The dominant-station label shipped
+     * sitting on the forecast dashes because of exactly that.
+     *
+     * [ghostVisible] must be the caller's own ghost-line gate result — the expected line is only painted
+     * when the gate passes, and reserving space for an unpainted line loses slots for nothing.
+     */
+    private fun visibleCurveYs(
+        input: Input,
+        x: Float,
+        ghostVisible: Boolean,
+    ): List<Float> {
+        val ys = mutableListOf<Float>()
+        // The forecast line spans the whole window.
+        if (input.series.forecastPoints.isNotEmpty()) {
+            TemperatureGraphSeriesResolver.interpolateYAtX(input.series.forecastPoints, x)?.let(ys::add)
+        }
+        // The observed line stops at the transition (the fetch dot).
+        val transitionX = input.series.transitionX
+        if (transitionX != null && x <= transitionX && input.series.actualVisiblePoints.isNotEmpty()) {
+            TemperatureGraphSeriesResolver.interpolateYAtX(input.series.actualVisiblePoints, x)?.let(ys::add)
+        }
+        // The ghost (expected) line starts at the fetch dot and runs to the right edge.
+        val fetchDotX = input.series.fetchDotX
+        if (ghostVisible && fetchDotX != null && x >= fetchDotX && input.series.expectedPoints.isNotEmpty()) {
+            TemperatureGraphSeriesResolver.interpolateYAtX(input.series.expectedPoints, x)?.let(ys::add)
+        }
+        return ys
+    }
+
+    /** The ghost-line gate, so [visibleCurveYs] knows whether the expected line is on the canvas. */
+    private fun ghostLineVisible(input: Input, hours: List<HourData>): Boolean =
+        TemperatureGraphSeriesRenderer.shouldRenderGhostLine(
+            TemperatureGraphSeriesRenderer.GhostGateInput(
+                hours = hours,
+                currentTime = input.currentTime,
+                fetchDotX = input.series.fetchDotX,
+                widthPx = input.widthPx,
+                nowIndicatorVisible = input.series.nowIndicatorVisible,
+                appliedDelta = input.appliedDelta,
+            ),
+        )
 
     private fun sampleVisibleCurveY(
         input: Input,

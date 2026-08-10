@@ -12,7 +12,7 @@ import org.junit.experimental.categories.Category
 class ForecastDeltaLabelTest {
 
     // A flat curve sitting near the bottom of the plot, leaving the top band empty.
-    private val lowCurve: (Float) -> Float? = { 180f }
+    private val lowCurve: (Float) -> List<Float> = { listOf(180f) }
     private val metrics = ForecastDeltaLabel.Metrics(width = 120f, ascent = -10f, descent = 4f) // height 14
     private val plot = GraphRect(0f, 0f, 400f, 200f)
 
@@ -40,7 +40,7 @@ class ForecastDeltaLabelTest {
     fun `places into the empty band clear of the curve`() {
         val p = ForecastDeltaLabel.place(
             delta = 0.4f, currentTemp = 72f, spanHours = 6,
-            plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
+            plot = plot, drawnBounds = emptyList(), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
         )
         assertNotNull(p)
         // The box must clear the low-sitting curve (curve at y=180; box stays above it).
@@ -56,26 +56,26 @@ class ForecastDeltaLabelTest {
         assertNotNull(
             ForecastDeltaLabel.place(
                 delta = 0.4f, currentTemp = 72f, spanHours = 24,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
+                plot = plot, drawnBounds = emptyList(), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
         assertNull(
             ForecastDeltaLabel.place(
                 delta = 0.4f, currentTemp = 72f, spanHours = 72,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
+                plot = plot, drawnBounds = emptyList(), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
         // boundary is inclusive.
         assertNotNull(
             ForecastDeltaLabel.place(
                 delta = 0.4f, currentTemp = 72f, spanHours = ForecastDeltaLabel.DELTA_LABEL_MAX_HOURS_SPAN,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
+                plot = plot, drawnBounds = emptyList(), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
         assertNull(
             ForecastDeltaLabel.place(
                 delta = 0.4f, currentTemp = 72f, spanHours = ForecastDeltaLabel.DELTA_LABEL_MAX_HOURS_SPAN + 1,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
+                plot = plot, drawnBounds = emptyList(), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
     }
@@ -85,7 +85,7 @@ class ForecastDeltaLabelTest {
         assertNull(
             ForecastDeltaLabel.place(
                 delta = null, currentTemp = 72f, spanHours = 6,
-                plot = plot, drawnBounds = emptyList(), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
+                plot = plot, drawnBounds = emptyList(), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )
     }
@@ -96,7 +96,7 @@ class ForecastDeltaLabelTest {
         val blocker = GraphRect(100f, 0f, 300f, 120f)
         val p = ForecastDeltaLabel.place(
             delta = 0.4f, currentTemp = 72f, spanHours = 6,
-            plot = plot, drawnBounds = listOf(blocker), curveYAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
+            plot = plot, drawnBounds = listOf(blocker), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
         )
         assertNotNull(p)
         assertTrue(!p!!.box.intersects(blocker))
@@ -108,7 +108,7 @@ class ForecastDeltaLabelTest {
         val p = ForecastDeltaLabel.place(
             delta = 0.4f, currentTemp = 72f, spanHours = 6,
             plot = GraphRect(0f, 0f, 400f, 20f), drawnBounds = emptyList(),
-            curveYAt = { null }, metrics = metrics, padPx = 4f, useCelsius = false,
+            curveYsAt = { emptyList() }, metrics = metrics, padPx = 4f, useCelsius = false,
         )
         assertNull(p)
     }

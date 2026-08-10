@@ -11,6 +11,7 @@ import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.BlendObservationStats
+import com.weatherwidget.shared.actuals.DominantBlend
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
@@ -104,6 +105,12 @@ internal class BlendDebugCollector(
 internal data class BuildHourDataResult(
     val hours: List<HourData>,
     val blendStats: BlendObservationStats?,
+    /**
+     * The station holding the largest weight share behind the newest blended actual, for the graph's
+     * dominant-station annotation. Raw, not formatted: this builder deals only in canonical °F, and
+     * `useCelsius` is a display-path concern resolved by the caller.
+     */
+    val dominantStation: DominantBlend? = null,
 )
 
 @androidx.annotation.VisibleForTesting
@@ -201,6 +208,9 @@ internal fun buildHourDataResult(
         smoothedForecasts = smoothedForecasts,
         personalStationWeight = personalStationWeight,
         onBlendDebug = onBlendDebug,
+        // Names the thermometer behind the observed line for the graph's dominant-station label. The
+        // blend runs either way; this only asks it to keep the top-weight row for the newest point.
+        captureLatestDominantAtOrBeforeMs = now.atZone(zoneId).toInstant().toEpochMilli(),
     )
     val selectedStationId = actualSeries.selectedStationId
     val blendInputActuals =
@@ -332,6 +342,7 @@ internal fun buildHourDataResult(
     return BuildHourDataResult(
         hours = finalHours,
         blendStats = actualSeries.blendStats,
+        dominantStation = actualSeries.latestDominantContribution,
     )
 }
 
