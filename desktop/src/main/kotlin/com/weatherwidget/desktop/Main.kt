@@ -116,15 +116,24 @@ internal fun dayClickConfig(
 /**
  * Persists the latest Settings draft when a close request beats the idle auto-save timer.
  * Keeping this decision pure makes title-bar and Escape handling independently testable.
+ *
+ * Saves the draft's SETTINGS fields merged onto the current persisted config, never the draft
+ * verbatim: the draft carries a snapshot of every popup-owned field (window bounds, zoom, pan, view
+ * mode) taken when the window opened, so writing it whole rewinds whatever the popup did in the
+ * meantime. Mirrors the merge the Save button and auto-save timer perform.
  */
 internal fun flushSettingsDraft(
     persistedConfig: DesktopConfig?,
     draft: DesktopConfig?,
     onSave: (DesktopConfig) -> Unit,
 ) {
-    draft
-        ?.takeIf { it != persistedConfig }
-        ?.let(onSave)
+    if (draft == null) return
+    if (persistedConfig == null) {
+        onSave(draft)
+        return
+    }
+    val merged = persistedConfig.withSettingsFrom(draft)
+    if (merged != persistedConfig) onSave(merged)
 }
 
 fun main(args: Array<String>) {
@@ -301,7 +310,20 @@ private fun runApp() = application {
 
         // Helper to save config and notify the daemon
         val saveConfigAndNotify = remember {
-            { newConfig: DesktopConfig ->
+            { newConfig: DesktopConfig, source: String ->
+                // Every writer is tagged because DesktopConfig has several of them and they all write
+                // the WHOLE object: when a settings value silently reverts, the only thing that
+                // identifies the culprit is which save carried the regression. A settings-owned field
+                // changing on a non-"settings" source is by definition a clobber, so it logs at WARN.
+                val prev = config
+                if (prev != null) {
+                    val settingsChanges = newConfig.settingsDiffFrom(prev)
+                    if (settingsChanges.isNotEmpty()) {
+                        val line = "CONFIG_SAVE source=$source settings-fields-changed: " +
+                            settingsChanges.joinToString(", ")
+                        if (source == "settings") Log.i(TAG, line) else Log.w(TAG, line)
+                    }
+                }
                 configStore.save(newConfig)
                 config = newConfig
                 runCatching {
@@ -313,7 +335,7 @@ private fun runApp() = application {
         }
 
         fun closeSettings() {
-            flushSettingsDraft(config, settingsDraft, saveConfigAndNotify)
+            flushSettingsDraft(config, settingsDraft) { saveConfigAndNotify(it, "settings-close") }
             settingsDraft = null
             settingsVisible = false
         }
@@ -729,7 +751,7 @@ private fun runApp() = application {
                 showRequestId = historyShowRequestId,
                 initialDate = historyInitialDate,
                 onClose = { historyVisible = false },
-                onConfigUpdate = { newConfig -> saveConfigAndNotify(newConfig) },
+                onConfigUpdate = { newConfig -> saveConfigAndNotify(newConfig, "observations") },
             )
         }
 
@@ -745,7 +767,7 @@ private fun runApp() = application {
                 onRefreshData = { requestFullRefresh("observations") },
                 onClose = { observationsVisible = false },
                 onConfigUpdate = { newConfig ->
-                    saveConfigAndNotify(newConfig)
+                    saveConfigAndNotify(newConfig, "observations-window")
                 }
             )
         }
@@ -779,7 +801,7 @@ private fun runApp() = application {
             ) {
                 LocationPicker(locationResolver, allowAutoSelect = config == null) { resolved ->
                     val saved = resolved.toConfig()
-                    saveConfigAndNotify(saved)
+                    saveConfigAndNotify(saved, "location-picker")
                     pickerVisible = false
                     popupVisible = true
                 }
@@ -787,11 +809,36 @@ private fun runApp() = application {
         }
 
         if (settingsVisible && config != null) {
+            val settingsConfig = config!!
             val settingsState = rememberWindowState(
-                position = WindowPosition(Alignment.Center),
-                width = 500.dp,
-                height = 700.dp,
+                position = if (settingsConfig.settingsWindowX != null && settingsConfig.settingsWindowY != null) {
+                    WindowPosition(settingsConfig.settingsWindowX.dp, settingsConfig.settingsWindowY.dp)
+                } else {
+                    WindowPosition(Alignment.Center)
+                },
+                width = settingsConfig.settingsWindowWidth?.dp ?: 500.dp,
+                height = settingsConfig.settingsWindowHeight?.dp ?: 700.dp,
             )
+
+            // Persist size/position on a debounce, the same way the popup and observations windows do.
+            // Tagged as its own source so it is distinguishable in CONFIG_SAVE lines from the edits
+            // made *inside* the window.
+            LaunchedEffect(settingsState.position, settingsState.size) {
+                kotlinx.coroutines.delay(1000)
+                val pos = settingsState.position
+                val latestConfig = config ?: return@LaunchedEffect
+                if (pos is WindowPosition.Absolute) {
+                    val newConfig = latestConfig.copy(
+                        settingsWindowX = pos.x.value,
+                        settingsWindowY = pos.y.value,
+                        settingsWindowWidth = settingsState.size.width.value,
+                        settingsWindowHeight = settingsState.size.height.value,
+                    )
+                    if (newConfig != latestConfig) {
+                        saveConfigAndNotify(newConfig, "settings-window-geometry")
+                    }
+                }
+            }
             Window(
                 onCloseRequest = { closeSettings() },
                 state = settingsState,
@@ -810,7 +857,7 @@ private fun runApp() = application {
                     config = config!!, // guarded by `config != null` in outer if
                     onClose = { closeSettings() },
                     onSave = { newConfig ->
-                        saveConfigAndNotify(newConfig)
+                        saveConfigAndNotify(newConfig, "settings")
                         settingsDraft = null
                     },
                     onDraftChanged = { draft ->
@@ -862,7 +909,7 @@ private fun runApp() = application {
                         windowHeight = windowState.size.height.value
                     )
                     if (newConfig != latestConfig) {
-                        saveConfigAndNotify(newConfig)
+                        saveConfigAndNotify(newConfig, "popup-window-geometry")
                     }
                 }
             }
@@ -913,7 +960,7 @@ private fun runApp() = application {
                         pickerVisible = true
                     },
                     onUpdateConfig = { newConfig ->
-                        saveConfigAndNotify(newConfig)
+                        saveConfigAndNotify(newConfig, "popup")
                     },
                     onOpenSettings = {
                         settingsDraft = null

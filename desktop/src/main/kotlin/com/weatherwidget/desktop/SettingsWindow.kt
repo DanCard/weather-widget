@@ -33,11 +33,13 @@ import com.weatherwidget.desktop.theme.WeatherOutlinedButton
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
+import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.WeatherSourceDescriptions
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlin.math.roundToInt
 
 /** Phase 5: default auto-save kicks in this many ms after the last edit if the window stays open. */
+private const val TAG = "SettingsWindow"
 private const val DEFAULT_AUTO_SAVE_DELAY_MS = 5_000L
 
 @Composable
@@ -75,34 +77,70 @@ internal fun SettingsWindow(
     // changes made less than [autoSaveDelayMs] ago.
     onDraftChanged: (DesktopConfig) -> Unit = {},
 ) {
-    var currentConfig by remember(config) { mutableStateOf(config) }
+    // NOT keyed on `config`. It used to be — `remember(config) { mutableStateOf(config) }` — which
+    // made Compose discard the in-progress draft and re-seed from the baseline every time anything
+    // else persisted the config. The popup saves constantly (window move/resize on a 1s debounce,
+    // zoom scroll, pan, view switches, day clicks), so an edit made in the 5s before auto-save was
+    // routinely wiped: the slider snapped back and the now-clean Save button became a silent no-op.
+    // Un-keyed, the draft survives for the life of the window; `rebase` below keeps it current.
+    var currentConfig by remember { mutableStateOf(config) }
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     fun updateConfig(updated: DesktopConfig) {
+        val changes = updated.settingsDiffFrom(currentConfig)
+        if (changes.isNotEmpty()) Log.i(TAG, "SETTINGS_EDIT ${changes.joinToString(", ")}")
         currentConfig = updated
         onDraftChanged(updated)
     }
 
-    // `config` is the latest persisted snapshot supplied by Main. It changes after either an
-    // explicit save or auto-save, which clears the dirty marker without closing the window.
-    val isDirty = currentConfig != config
+    // `config` is the latest persisted snapshot supplied by Main — and Main is not the only writer,
+    // so a new baseline usually carries a POPUP change (window bounds, zoom) rather than a settings
+    // one. Rebase rather than reset: take the popup fields from the new baseline and keep the user's
+    // settings edits. Without this, whoever saved last clobbered the other.
+    LaunchedEffect(config) {
+        val rebased = config.withSettingsFrom(currentConfig)
+        if (rebased != currentConfig) {
+            val kept = currentConfig.settingsDiffFrom(config)
+            Log.i(
+                TAG,
+                "SETTINGS_REBASE onto new baseline; " +
+                    if (kept.isEmpty()) "no unsaved edits" else "kept unsaved ${kept.joinToString(", ")}",
+            )
+            currentConfig = rebased
+        }
+    }
+
+    // Dirty means the SETTINGS-owned fields differ. Comparing whole configs would latch dirty
+    // forever the moment the popup moved its window, and saving would then write that stale
+    // geometry back over the newer one.
+    val isDirty = config.withSettingsFrom(currentConfig) != config
 
     // Re-launch on either a new draft or a newly persisted baseline. A baseline update cancels any
     // stale timer, while a flurry of edits keeps resetting the five-second idle window.
     LaunchedEffect(currentConfig, config) {
         if (!isDirty) return@LaunchedEffect
         delay(autoSaveDelayMs)
-        if (currentConfig != config) {
-            onSave(currentConfig)
+        val merged = config.withSettingsFrom(currentConfig)
+        if (merged != config) {
+            Log.i(TAG, "SETTINGS_AUTOSAVE ${merged.settingsDiffFrom(config).joinToString(", ")}")
+            onSave(merged)
         }
     }
 
     // Used by both the back arrow and the Save button so an explicit click always flushes
     // before closing, regardless of the auto-save timer.
     val saveAndClose: () -> Unit = {
-        if (isDirty) onSave(currentConfig)
+        val merged = config.withSettingsFrom(currentConfig)
+        if (isDirty) {
+            Log.i(TAG, "SETTINGS_SAVE ${merged.settingsDiffFrom(config).joinToString(", ")}")
+            onSave(merged)
+        } else {
+            // Previously the ONLY trace of the reverting-setting bug: the user clicks Save, nothing
+            // is dirty because the draft was already wiped, and the window just closes.
+            Log.i(TAG, "SETTINGS_SAVE no-op (nothing dirty)")
+        }
         onClose()
     }
 

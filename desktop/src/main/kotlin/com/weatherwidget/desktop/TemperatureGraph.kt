@@ -99,6 +99,31 @@ internal fun temperatureGraphHourWindow(
     return HourWindow(startMs, endMs)
 }
 
+/**
+ * The hourly points the temperature graph draws for a window, sorted, with a fallback for an
+ * out-of-range window.
+ *
+ * The end is **inclusive**. [temperatureGraphHourWindow] builds `endMs` as
+ * `alignedCenter.plusHours(forwardHours)` — an hour mark that is part of the view, not one past it —
+ * and hourly data lands exactly on those marks. Excluding it dropped the last point, and because
+ * `xAtTime` maps first-point→last-point across the full width (deliberately, so the curve reaches
+ * both edges), the *drawn* axis came out one hour narrower than the window: Settings → "Hourly Zoom"
+ * set to 6h rendered a 5h graph. The start was already inclusive, so this also makes the two ends
+ * symmetric.
+ *
+ * Extracted from the composable purely so the drawn span is unit-testable
+ * (see NarrowZoomSpanDisplayedHoursTest).
+ */
+internal fun hourlyPointsInWindow(
+    hourly: List<HourlyForecast>,
+    startMs: Long,
+    endMs: Long,
+    fallbackCount: Int,
+): List<HourlyForecast> =
+    hourly.filter { it.dateTime in startMs..endMs }
+        .sortedBy { it.dateTime }
+        .ifEmpty { hourly.sortedBy { it.dateTime }.take(fallbackCount) }
+
 // Delegates to the shared [TemperatureColorModel] (integer-RGB blend) so desktop produces the same
 // pixels as the Android widget for any temperature. Previously blended via Compose lerp().
 private fun tempToColor(temp: Float): Color = Color(TemperatureColorModel.tempToColorArgb(temp))
@@ -147,10 +172,8 @@ fun TemperatureGraph(
     val start = window.startMs
     val cutoff = window.endMs
 
-    val points = remember(hourly, start, cutoff) {
-        hourly.filter { it.dateTime >= start && it.dateTime < cutoff }
-            .sortedBy { it.dateTime }
-            .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours) }
+    val points = remember(hourly, start, cutoff, backHours, forwardHours) {
+        hourlyPointsInWindow(hourly, start, cutoff, backHours + forwardHours)
     }
 
     // One painter per point. Icon spacing is decided by the hour-label filter in the bottom strip

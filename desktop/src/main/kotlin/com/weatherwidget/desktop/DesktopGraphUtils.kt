@@ -102,9 +102,38 @@ internal object DesktopGraphUtils {
         stage: ZoomStage,
         narrowSpanHours: Int = HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS,
     ): Float {
-        val backHours = stage.window(narrowSpanHours).backHours.toFloat()
+        val window = stage.window(narrowSpanHours)
+        // NARROW is the one stage whose span the user types into Settings, so it is held to the
+        // stricter standard: the factor must reproduce the configured TOTAL, not just the back half.
+        // Inverting against back hours alone silently broke that, because forward hours ride a
+        // different curve (MAX_FORWARD_HOURS 168 vs MAX_BACK_HOURS 720) and only agree with the
+        // intended split by luck — at the default 5h setting the view rendered 3 back + 3 forward = 6h.
+        // Scanning for a factor whose rendered back+forward equals the setting is the same technique
+        // dayViewZoomFactor already uses, and it lands on the intended ceil/floor split for 4..8h.
+        if (stage == ZoomStage.NARROW) {
+            return narrowZoomFactors.getValue(HourlyZoomRules.clampNarrowSpan(narrowSpanHours))
+        }
+        val backHours = window.backHours.toFloat()
         return (ln(backHours / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS.toFloat() / MIN_BACK_HOURS))
             .coerceIn(0f, 1f)
+    }
+
+    /**
+     * Precomputed NARROW factors, one per configurable span. The range is five values, so this is a
+     * five-entry map built once rather than a scan on every click.
+     *
+     * Takes the LOWEST factor that renders the target span: the span is a plateau on the curve (many
+     * factors round to the same back/forward pair), and pinning the bottom edge keeps the stored
+     * factor stable and reproducible instead of drifting within the plateau.
+     */
+    private val narrowZoomFactors: Map<Int, Float> by lazy {
+        val steps = (0..1000).map { it / 1000f }
+        (HourlyZoomRules.MIN_NARROW_SPAN_HOURS..HourlyZoomRules.MAX_NARROW_SPAN_HOURS).associateWith { span ->
+            steps.firstOrNull { z -> backHoursFor(z) + forwardHoursFor(z) == span }
+                // No exact hit is not expected in 4..8h, but a nearest-match beats throwing on a
+                // future rescale of the MIN/MAX constants.
+                ?: steps.minBy { z -> kotlin.math.abs(backHoursFor(z) + forwardHoursFor(z) - span) }
+        }
     }
 
     /** A full calendar day: the span a day-click frames in the hourly view. */

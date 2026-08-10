@@ -44,6 +44,13 @@ data class DesktopConfig(
     val historyWindowY: Float? = null,
     val historyWindowWidth: Float? = null,
     val historyWindowHeight: Float? = null,
+    // Settings window bounds, mirroring the popup/observations/history windows. Popup-owned, NOT
+    // settings-owned: they are written by dragging the window, so withSettingsFrom must leave them
+    // on the newer baseline or moving the Settings window while editing would rewind itself.
+    val settingsWindowX: Float? = null,
+    val settingsWindowY: Float? = null,
+    val settingsWindowWidth: Float? = null,
+    val settingsWindowHeight: Float? = null,
     // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
     // IDW blend. 0 = no discount (counts the same as official); 100 = personal stations ignored.
     val personalStationDiscount: Int = 95,
@@ -59,6 +66,59 @@ data class DesktopConfig(
 ) {
     // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
     fun personalStationWeight(): Double = 1.0 - personalStationDiscount.coerceIn(0, 100) / 100.0
+
+    /**
+     * Returns this config with the Settings-owned fields taken from [draft].
+     *
+     * `DesktopConfig` is one object serving two independent writers: the Settings window (these
+     * fields) and the popup (window geometry, zoomFactor, hourlyOffset, dateOffset, viewMode,
+     * obs/history window bounds — plus lat/lon/label, which the location picker saves directly).
+     * Both write the whole object, so whoever saves last used to clobber the other's fields.
+     *
+     * Splitting ownership here lets the Settings window rebase an in-progress draft onto a newer
+     * persisted config instead of being reset by it: popup fields come from the newer baseline,
+     * settings fields from the draft. See [SETTINGS_OWNED_FIELDS] for the log-facing names.
+     */
+    fun withSettingsFrom(draft: DesktopConfig): DesktopConfig = copy(
+        weatherSource = draft.weatherSource,
+        visibleSources = draft.visibleSources,
+        apiKeys = draft.apiKeys,
+        narrowZoomSpanHours = draft.narrowZoomSpanHours,
+        personalStationDiscount = draft.personalStationDiscount,
+        useCelsius = draft.useCelsius,
+        todayOverlayDelta = draft.todayOverlayDelta,
+        todayOverlayDominantTemp = draft.todayOverlayDominantTemp,
+        todayOverlayDominantAge = draft.todayOverlayDominantAge,
+    )
+
+    /**
+     * `field: old -> new` for every Settings-owned field that differs from [other]. Empty when the
+     * two agree. Exists so the logs name actual values — the reverting-setting bug was invisible
+     * precisely because nothing ever logged what a save contained.
+     */
+    fun settingsDiffFrom(other: DesktopConfig): List<String> = buildList {
+        fun add(name: String, a: Any?, b: Any?) {
+            if (a != b) add("$name: $b -> $a")
+        }
+        add("weatherSource", weatherSource, other.weatherSource)
+        add("visibleSources", visibleSources, other.visibleSources)
+        add("apiKeys", apiKeys.keys.sorted(), other.apiKeys.keys.sorted())
+        add("narrowZoomSpanHours", narrowZoomSpanHours, other.narrowZoomSpanHours)
+        add("personalStationDiscount", personalStationDiscount, other.personalStationDiscount)
+        add("useCelsius", useCelsius, other.useCelsius)
+        add("todayOverlayDelta", todayOverlayDelta, other.todayOverlayDelta)
+        add("todayOverlayDominantTemp", todayOverlayDominantTemp, other.todayOverlayDominantTemp)
+        add("todayOverlayDominantAge", todayOverlayDominantAge, other.todayOverlayDominantAge)
+    }
+
+    companion object {
+        /** Documentation-only list of the fields [withSettingsFrom] carries. */
+        val SETTINGS_OWNED_FIELDS = listOf(
+            "weatherSource", "visibleSources", "apiKeys", "narrowZoomSpanHours",
+            "personalStationDiscount", "useCelsius",
+            "todayOverlayDelta", "todayOverlayDominantTemp", "todayOverlayDominantAge",
+        )
+    }
 }
 
 class DesktopConfigStore(
