@@ -153,6 +153,14 @@ object TodayColumnOverlayPlanner {
     private val ZONE_ORDER = listOf(Zone.ABOVE, Zone.BELOW, Zone.ON_COLUMN)
 
     /**
+     * Share of an ABOVE run's spare room placed above the stack; the remainder goes below it. A
+     * quarter is a deliberate top bias — the crowded seam is the one with the day's high label, so
+     * spare room reads as useful separation there and as an empty band under the header if left on
+     * the other side. See [layOut] for why this is a bias rather than a hard top hug.
+     */
+    internal const val ABOVE_SLACK_ABOVE_FRACTION = 0.25f
+
+    /**
      * Convenience entry point: one content variant, no hysteresis. Equivalent to the old
      * `place(lines, input)` and used where the caller has nothing to degrade.
      */
@@ -402,16 +410,28 @@ object TodayColumnOverlayPlanner {
         input: Input,
     ): List<Placement> {
         val free = (run.endInclusive - run.start - height).coerceAtLeast(0f)
-        // ABOVE sits at the BOTTOM of its run, backed off by [Input.padding] — as close to the column
-        // it annotates as that clearance allows. It hugged the TOP until 2026-08-07, which was
-        // indistinguishable while the run was a few px roomier than the stack, but the Android
-        // ceiling is now the header's MEASURED ink rather than a fraction of the reserved band, so a
-        // top-hugging stack floats up under the header instead of staying with its column. BELOW
-        // still hugs its far edge — that edge is away from both the bars and the header — and
-        // ON_COLUMN has bars on both sides, so it still centres.
+        // ABOVE takes [ABOVE_SLACK_ABOVE_FRACTION] of its run's slack above the stack and the rest
+        // below — a top bias — while never coming closer than [Input.padding] to the run's bottom.
+        //
+        // Both extremes have been tried and both look wrong. Bottom-hugging (2026-08-07..2026-08-10)
+        // crowds the stack against the high label and banks ALL the slack as one visibly empty band
+        // under the header: on the emulator's Meteo layout, a run of 30.2..113.9 holding a 53.6 px
+        // stack put 24.4 px of nothing above the text and ~6 px below it. A hard top hug is the
+        // opposite failure — [Input.aboveCeiling] is measured per column, so on a column the header
+        // does not reach over, the text parks at the widget's top edge, away from what it annotates.
+        // Biasing the split keeps the run's spare room where it is visible (the seam with the high
+        // label) while what floats toward the header is bounded by a fraction of the slack.
+        //
+        // The `free - padding` term binds once the run is tighter than `padding / (1 - fraction)`,
+        // where the bias alone would eat into bar-cap clearance; there it degrades to the old
+        // bottom-hug, so this never yields LESS clearance from the bars than the previous rule did.
+        //
+        // BELOW still hugs its far edge — that edge is the graph bottom, away from both the bars and
+        // the header — and ON_COLUMN has bars on both sides, so it centres outright.
         val offset =
             when (zone) {
-                Zone.ABOVE -> (free - input.padding).coerceAtLeast(0f)
+                Zone.ABOVE ->
+                    min(free * ABOVE_SLACK_ABOVE_FRACTION, (free - input.padding).coerceAtLeast(0f))
                 Zone.BELOW -> free
                 Zone.ON_COLUMN -> free / 2f
             }

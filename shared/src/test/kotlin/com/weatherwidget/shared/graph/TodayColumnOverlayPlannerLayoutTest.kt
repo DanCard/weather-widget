@@ -436,29 +436,34 @@ class TodayColumnOverlayPlannerLayoutTest {
     }
 
     @Test
-    fun `a lifted ceiling does not float the stack up under the header`() {
-        // Bottom-hugging is what makes an open ceiling safe: spare room goes to the header side, not
-        // between the stack and the column it annotates. Taken to the limit — no ceiling at all — the
-        // delta must still sit just above the rain chip rather than at y=0 among the header text.
+    fun `a lifted ceiling keeps the stack off the ceiling by a share of the slack`() {
+        // The ABOVE bias is a fraction of the slack, not a hard hug, so an open ceiling cannot pull
+        // the stack onto it. Taken to the limit — no ceiling at all — the delta still keeps a quarter
+        // of the run's spare room between itself and y=0, where the header text lives.
         val runEnd = 57.89468f // the 1% rain chip caps the ABOVE run
         val delta =
             TodayColumnOverlayPlanner
                 .place(foldHeaderBandLines, foldHeaderBandInput.copy(aboveCeiling = 0f))
                 .single { it.key == "delta" }
+        val inkTop = delta.bounds.top + foldHeaderBandLines.first().topLeading
         val inkBottom = delta.bounds.bottom - foldHeaderBandLines.first().bottomLeading
+        val slack = inkTop + (runEnd - inkBottom)
 
         assertEquals(
-            "delta's ink should sit exactly `padding` above the chip",
-            runEnd - foldHeaderBandInput.padding,
-            inkBottom,
+            "delta should take a quarter of the slack above: top gap $inkTop of $slack",
+            slack * TodayColumnOverlayPlanner.ABOVE_SLACK_ABOVE_FRACTION,
+            inkTop,
             0.01f,
         )
-        // Top-hugging would have put the box at `0 - topLeading`; a full row lower than that is the
-        // difference between sitting with the column and sitting in the header.
+        assertTrue(
+            "the bias must still leave at least `padding` off the chip",
+            inkBottom <= runEnd - foldHeaderBandInput.padding + 0.01f,
+        )
+        // A hard top hug would have put the box at `0 - topLeading`, ink flush with the header text.
         val topHuggingTop = 0f - foldHeaderBandLines.first().topLeading
         assertTrue(
-            "stack floated up under the header: top=${delta.bounds.top}, top-hugging=$topHuggingTop",
-            delta.bounds.top > topHuggingTop + foldHeaderBandLines.first().height,
+            "stack hugged the ceiling: top=${delta.bounds.top}, top-hugging=$topHuggingTop",
+            delta.bounds.top > topHuggingTop + slack * 0.2f,
         )
     }
 
@@ -663,9 +668,11 @@ class TodayColumnOverlayPlannerLayoutTest {
     }
 
     @Test
-    fun `an outer zone hugs the edge away from the bars`() {
-        // BELOW's spare room becomes distance from the bar cap; ABOVE instead stays with its column
-        // (see layOut) because its far edge is the header, not empty space.
+    fun `ABOVE splits a roomy run with a top bias while BELOW hugs the edge away from the bars`() {
+        // BELOW's spare room becomes distance from the bar cap. ABOVE instead keeps a quarter of the
+        // slack above and three quarters below (see layOut): banking every spare pixel at the bottom
+        // left a visibly empty band under the header, and banking it all at the top would strand the
+        // text at the widget edge on a column the header does not reach over.
         val line = listOf(Line("delta", "+1.8", 40f, 20f))
         val input =
             TodayColumnOverlayPlanner.Input(
@@ -679,17 +686,24 @@ class TodayColumnOverlayPlannerLayoutTest {
                 horizontalPadding = 1f,
                 padding = 0f,
             )
+        // 80 px of slack in the 0..100 band: a quarter of it above the 20 px row.
         val bounds = TodayColumnOverlayPlanner.place(line, input).single().bounds
-        assertEquals("ABOVE should sit at the bottom of the 0..100 band", 100f, bounds.bottom, 0.01f)
+        assertEquals("a quarter of the slack sits above the stack", 20f, bounds.top, 0.01f)
+        assertEquals("the other three quarters sit below it", 40f, bounds.bottom, 0.01f)
 
-        // ...and back off by `padding` when there is one, so it never touches the bar cap.
+        // Same split once there is a padding, just within the shorter 0..88 band (68 px of slack).
         val padded = TodayColumnOverlayPlanner.place(line, input.copy(padding = 12f)).single().bounds
-        assertEquals(
-            "ABOVE should clear the band end (barTop - padding) by another padding",
-            100f - 12f - 12f,
-            padded.bottom,
-            0.01f,
-        )
+        assertEquals("split within the 0..(barTop - padding) band", 17f, padded.top, 0.01f)
+
+        // ...but the bias must never buy less bar-cap clearance than the old bottom-hug did: in a run
+        // tighter than `padding / (1 - fraction)` it degrades to sitting `padding` clear of the end.
+        // Band 0..34 against a 20 px row is 14 px of slack, under the 16 px where the bias takes over.
+        val tight =
+            TodayColumnOverlayPlanner
+                .place(line, input.copy(barTop = 46f, padding = 12f))
+                .single()
+                .bounds
+        assertEquals("tight ABOVE run keeps a full `padding` off the band end", 22f, tight.bottom, 0.01f)
 
         // ...and the mirror image below the bars, so neither zone drifts toward the bar cap.
         val below =
