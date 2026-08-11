@@ -1,0 +1,1 @@
+Release 26081001: Added Tip Jar option in Settings, improved hourly station identification and dates, enhanced hourly graph zoom controls, and refined layout alignment.

@@ -41,6 +41,9 @@ The project requires Java 21. Ensure your environment is configured correctly be
 
 # Run instrumented tests
 ./scripts/emulator-tests.sh
+
+# Play Store Fastlane (binary: ~/.local/share/gem/ruby/3.3.0/bin/fastlane)
+~/.local/share/gem/ruby/3.3.0/bin/fastlane beta
 ```
 
 ### Desktop (Linux)

@@ -48,6 +48,11 @@ Use plain `./gradlew ...` by default.
 
 # Run all tests
 ./gradlew test
+
+# Play Store Fastlane Commands (fastlane binary path: ~/.local/share/gem/ruby/3.3.0/bin/fastlane)
+FASTLANE=~/.local/share/gem/ruby/3.3.0/bin/fastlane
+$FASTLANE beta       # Upload release to Open Beta track
+$FASTLANE run upload_to_play_store track:beta track_promote_to:production version_code:<VERSION> changes_not_sent_for_review:false # Promote Beta to Production
 ```
 
 ## Project Structure

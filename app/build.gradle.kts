@@ -119,8 +119,8 @@ android {
         applicationId = "com.weatherwidget"
         minSdk = 26
         targetSdk = 36
-        versionCode = 26080902
-        versionName = "26080902"
+        versionCode = 26081001
+        versionName = "26081001"
 
         testInstrumentationRunner = "com.weatherwidget.WeatherWidgetTestRunner"
         buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
