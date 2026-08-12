@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">so hôm qua</string>
     <string name="widget_loading">Đang tải...</string>
     <string name="widget_tap_to_refresh">Nhấn để làm mới</string>
+    <string name="widget_no_location">Không có vị trí — chạm để đặt</string>
     <string name="current_stations_desc">Trạm hiện tại</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Vị trí: %1$s</string>
     <string name="saving_coordinates_offline">Đang lưu tọa độ (tra cứu tên ngoại tuyến)</string>
     <string name="location_permission_required">GPS cần quyền vị trí</string>
-    <string name="location_fix_failed_default">Không lấy được vị trí hiện tại. Dùng mặc định.</string>
+    <string name="location_fix_failed_default">Không thể lấy vị trí hiện tại. Hãy đặt một vị trí bên dưới, nếu không hệ thống sẽ tự động thử lại.</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">Chưa đặt vị trí</string>

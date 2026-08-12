@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">vs wczoraj</string>
     <string name="widget_loading">Ładowanie...</string>
     <string name="widget_tap_to_refresh">Dotknij, aby odświeżyć</string>
+    <string name="widget_no_location">Brak lokalizacji — dotknij, aby ustawić</string>
     <string name="current_stations_desc">Bieżące stacje</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Lokalizacja: %1$s</string>
     <string name="saving_coordinates_offline">Zapisywanie współrzędnych (wyszukiwanie nazwy offline)</string>
     <string name="location_permission_required">GPS wymaga uprawnienia do lokalizacji</string>
-    <string name="location_fix_failed_default">Nie udało się pobrać bieżącej lokalizacji. Używana jest domyślna.</string>
+    <string name="location_fix_failed_default">Nie można pobrać bieżącej lokalizacji. Ustaw ją poniżej lub nastąpi automatyczna ponowna próba.</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">Nie ustawiono lokalizacji</string>

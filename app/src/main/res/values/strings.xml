@@ -235,13 +235,14 @@
     <string name="header_delta_from_yesterday">from yest</string>
     <string name="widget_loading">Loading...</string>
     <string name="widget_tap_to_refresh">Tap to refresh</string>
+    <string name="widget_no_location">No location — tap to set</string>
     <string name="current_stations_desc">Current Stations</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Location: %1$s</string>
     <string name="saving_coordinates_offline">Saving coordinates (Label lookup offline)</string>
     <string name="location_permission_required">Location permission required for GPS</string>
-    <string name="location_fix_failed_default">Could not get current location. Using default.</string>
+    <string name="location_fix_failed_default">Could not get current location. Set one below, or it will retry automatically.</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">No location set</string>

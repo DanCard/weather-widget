@@ -46,6 +46,7 @@ object WidgetPushDispatcher {
         LOCALE_CHANGE,
         LOADING,
         ERROR,
+        NO_LOCATION,
         DEGENERATE_DATA,
         UNSPECIFIED,
     }

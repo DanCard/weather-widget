@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">dari kemarin</string>
     <string name="widget_loading">Memuat...</string>
     <string name="widget_tap_to_refresh">Ketuk untuk menyegarkan</string>
+    <string name="widget_no_location">Tidak ada lokasi — ketuk untuk mengatur</string>
     <string name="current_stations_desc">Stasiun saat ini</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Lokasi: %1$s</string>
     <string name="saving_coordinates_offline">Menyimpan koordinat (pencarian nama offline)</string>
     <string name="location_permission_required">Izin lokasi diperlukan untuk GPS</string>
-    <string name="location_fix_failed_default">Tidak dapat memperoleh lokasi saat ini. Menggunakan default.</string>
+    <string name="location_fix_failed_default">Tidak dapat memperoleh lokasi saat ini. Atur satu di bawah, atau akan dicoba lagi otomatis.</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">Belum ada lokasi yang diatur</string>

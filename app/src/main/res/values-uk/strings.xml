@@ -224,12 +224,13 @@
     <string name="header_delta_from_yesterday">vs учора</string>
     <string name="widget_loading">Завантаження...</string>
     <string name="widget_tap_to_refresh">Торкніться, щоб оновити</string>
+    <string name="widget_no_location">Немає місцезнаходження — торкніться, щоб задати</string>
     <string name="current_stations_desc">Поточні станції</string>
 
     <string name="location_label_toast">Місце: %1$s</string>
     <string name="saving_coordinates_offline">Збереження координат (пошук назви офлайн)</string>
     <string name="location_permission_required">Для GPS потрібен дозвіл на геодані</string>
-    <string name="location_fix_failed_default">Не вдалося отримати поточне місцезнаходження. Використано типове.</string>
+    <string name="location_fix_failed_default">Не вдалося визначити поточне місцезнаходження. Задайте його нижче, інакше спробу буде повторено автоматично.</string>
 
     <string name="no_location_set">Місцезнаходження не задано</string>
     <string name="widget_location_format">Розташування віджета: %1$s, %2$s</string>

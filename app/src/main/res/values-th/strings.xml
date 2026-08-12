@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">เทียบเมื่อวาน</string>
     <string name="widget_loading">กำลังโหลด...</string>
     <string name="widget_tap_to_refresh">แตะเพื่อรีเฟรช</string>
+    <string name="widget_no_location">ไม่มีตำแหน่ง — แตะเพื่อตั้งค่า</string>
     <string name="current_stations_desc">สถานีปัจจุบัน</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">ตำแหน่ง: %1$s</string>
     <string name="saving_coordinates_offline">กำลังบันทึกพิกัด (การค้นหาชื่อออฟไลน์)</string>
     <string name="location_permission_required">GPS ต้องการสิทธิ์ตำแหน่ง</string>
-    <string name="location_fix_failed_default">ไม่สามารถหาตำแหน่งปัจจุบันได้ ใช้ค่าเริ่มต้นแทน</string>
+    <string name="location_fix_failed_default">ไม่สามารถรับตำแหน่งปัจจุบันได้ ตั้งค่าด้านล่าง หรือระบบจะลองใหม่อัตโนมัติ</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">ยังไม่ได้ตั้งตำแหน่ง</string>

@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">düne göre</string>
     <string name="widget_loading">Yükleniyor...</string>
     <string name="widget_tap_to_refresh">Yenilemek için dokunun</string>
+    <string name="widget_no_location">Konum yok — ayarlamak için dokunun</string>
     <string name="current_stations_desc">Mevcut istasyonlar</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Konum: %1$s</string>
     <string name="saving_coordinates_offline">Koordinatlar kaydediliyor (ad arama çevrimdışı)</string>
     <string name="location_permission_required">GPS için konum izni gerekli</string>
-    <string name="location_fix_failed_default">Mevcut konum alınamadı. Varsayılan kullanılıyor.</string>
+    <string name="location_fix_failed_default">Geçerli konum alınamadı. Aşağıdan bir konum ayarlayın, aksi halde otomatik olarak yeniden denenecek.</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">Konum ayarlanmadı</string>

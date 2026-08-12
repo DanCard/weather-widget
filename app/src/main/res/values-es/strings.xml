@@ -224,12 +224,13 @@
     <string name="header_delta_from_yesterday">vs ayer</string>
     <string name="widget_loading">Cargando...</string>
     <string name="widget_tap_to_refresh">Toca para actualizar</string>
+    <string name="widget_no_location">Sin ubicación: toca para configurar</string>
     <string name="current_stations_desc">Estaciones actuales</string>
 
     <string name="location_label_toast">Ubicación: %1$s</string>
     <string name="saving_coordinates_offline">Guardando coordenadas (búsqueda de nombre sin conexión)</string>
     <string name="location_permission_required">Se requiere permiso de ubicación para el GPS</string>
-    <string name="location_fix_failed_default">No se pudo obtener la ubicación actual. Se usa la predeterminada.</string>
+    <string name="location_fix_failed_default">No se pudo obtener la ubicación actual. Configura una abajo o se reintentará automáticamente.</string>
 
     <string name="no_location_set">Sin ubicación establecida</string>
     <string name="widget_location_format">Ubicación del widget: %1$s, %2$s</string>

@@ -92,6 +92,44 @@ object WidgetRenderer {
     }
 
     /**
+     * Shown when no location is resolvable at all — no canonical active location, no configured widget
+     * location, no cached weather. This is a deliberate dead end, not a transient failure: the app
+     * previously fetched and labelled Google HQ here, so a user whose GPS never resolved was shown
+     * Mountain View's weather as if it were their own. Tapping opens [ConfigActivity] to set one.
+     *
+     * The GPS auto-heal keeps running behind this state (see `LocationUpdater.allWidgetsAtDefault`),
+     * so a FOLLOW_DEVICE widget leaves it on its own once a fix arrives.
+     * Kept deliberately simple — it must never itself throw.
+     */
+    suspend fun updateWidgetNoLocation(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.NO_LOCATION,
+    ) {
+        try {
+            val views = RemoteViews(context.packageName, R.layout.widget_weather)
+            views.setViewVisibility(R.id.text_container, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_view, View.GONE)
+            views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
+            views.setTextViewText(R.id.day2_high, "--°")
+            views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_no_location))
+            Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=no_location origin=${origin.name} state=no_location thread=${Thread.currentThread().name}")
+            WidgetPushDispatcher.push(
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+                views = views,
+                partialPush = false,
+                caller = "NO_LOCATION",
+                appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
+                origin = origin,
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "updateWidgetNoLocation failed for widget=$appWidgetId", e)
+        }
+    }
+
+    /**
      * Minimal fallback shown when a widget update throws unexpectedly. Without this, a crash mid-update
      * leaves the "Loading..." placeholder on the home screen indefinitely (see [updateWidgetLoading]).
      * Tapping the widget retriggers an update, so the "Tap to refresh" hint gives the user a recovery path.

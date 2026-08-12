@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">من أمس</string>
     <string name="widget_loading">جارٍ التحميل...</string>
     <string name="widget_tap_to_refresh">انقر للتحديث</string>
+    <string name="widget_no_location">لا يوجد موقع — انقر للتعيين</string>
     <string name="current_stations_desc">المحطات الحالية</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">الموقع: %1$s</string>
     <string name="saving_coordinates_offline">جارٍ حفظ الإحداثيات (البحث عن الاسم غير متصل)</string>
     <string name="location_permission_required">إذن الموقع مطلوب لـ GPS</string>
-    <string name="location_fix_failed_default">تعذر الحصول على الموقع الحالي. سيُستخدم الافتراضي.</string>
+    <string name="location_fix_failed_default">تعذر الحصول على الموقع الحالي. عيّن موقعًا أدناه، أو ستتم إعادة المحاولة تلقائيًا.</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">لم يُعيَّن موقع</string>

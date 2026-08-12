@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">vs вчера</string>
     <string name="widget_loading">Загрузка...</string>
     <string name="widget_tap_to_refresh">Нажмите для обновления</string>
+    <string name="widget_no_location">Нет местоположения — нажмите, чтобы задать</string>
     <string name="current_stations_desc">Текущие станции</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Местоположение: %1$s</string>
     <string name="saving_coordinates_offline">Сохранение координат (определение названия офлайн)</string>
     <string name="location_permission_required">Для GPS требуется разрешение на местоположение</string>
-    <string name="location_fix_failed_default">Не удалось получить текущее местоположение. Используется значение по умолчанию.</string>
+    <string name="location_fix_failed_default">Не удалось определить текущее местоположение. Задайте его ниже, иначе попытка повторится автоматически.</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">Местоположение не задано</string>

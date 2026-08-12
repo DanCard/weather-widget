@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">vs ieri</string>
     <string name="widget_loading">Caricamento...</string>
     <string name="widget_tap_to_refresh">Tocca per aggiornare</string>
+    <string name="widget_no_location">Nessuna posizione — tocca per impostare</string>
     <string name="current_stations_desc">Stazioni attuali</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Posizione: %1$s</string>
     <string name="saving_coordinates_offline">Salvataggio coordinate (ricerca nome offline)</string>
     <string name="location_permission_required">Autorizzazione alla posizione necessaria per il GPS</string>
-    <string name="location_fix_failed_default">Impossibile ottenere la posizione attuale. Uso quella predefinita.</string>
+    <string name="location_fix_failed_default">Impossibile ottenere la posizione attuale. Impostane una qui sotto, altrimenti verrà ritentato automaticamente.</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">Nessuna posizione impostata</string>

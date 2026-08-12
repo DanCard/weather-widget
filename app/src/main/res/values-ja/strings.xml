@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">昨日比</string>
     <string name="widget_loading">読み込み中...</string>
     <string name="widget_tap_to_refresh">タップして更新</string>
+    <string name="widget_no_location">位置情報なし — タップして設定</string>
     <string name="current_stations_desc">現在の観測所</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">位置：%1$s</string>
     <string name="saving_coordinates_offline">座標を保存中（地名検索はオフライン）</string>
     <string name="location_permission_required">GPS には位置情報の権限が必要です</string>
-    <string name="location_fix_failed_default">現在地を取得できませんでした。デフォルトを使用します。</string>
+    <string name="location_fix_failed_default">現在地を取得できませんでした。下で設定するか、自動的に再試行されます。</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">位置が未設定です</string>

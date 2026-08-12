@@ -229,13 +229,14 @@
     <string name="header_delta_from_yesterday">গতকাল থেকে</string>
     <string name="widget_loading">লোড হচ্ছে...</string>
     <string name="widget_tap_to_refresh">রিফ্রেশ করতে ট্যাপ করুন</string>
+    <string name="widget_no_location">কোনো অবস্থান নেই — সেট করতে ট্যাপ করুন</string>
     <string name="current_stations_desc">বর্তমান স্টেশন</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">অবস্থান: %1$s</string>
     <string name="saving_coordinates_offline">স্থানাঙ্ক সংরক্ষণ হচ্ছে (নাম খোঁজা অফলাইন)</string>
     <string name="location_permission_required">GPS-এর জন্য অবস্থানের অনুমতি প্রয়োজন</string>
-    <string name="location_fix_failed_default">বর্তমান অবস্থান পাওয়া যায়নি। ডিফল্ট ব্যবহার হচ্ছে।</string>
+    <string name="location_fix_failed_default">বর্তমান অবস্থান পাওয়া যায়নি। নিচে একটি সেট করুন, অথবা এটি স্বয়ংক্রিয়ভাবে আবার চেষ্টা করবে।</string>
 
     <!-- Settings current-location description (LocationUpdater) -->
     <string name="no_location_set">কোনো অবস্থান নির্ধারিত নেই</string>

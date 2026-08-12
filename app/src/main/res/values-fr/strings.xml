@@ -224,12 +224,13 @@
     <string name="header_delta_from_yesterday">vs hier</string>
     <string name="widget_loading">Chargement...</string>
     <string name="widget_tap_to_refresh">Touchez pour actualiser</string>
+    <string name="widget_no_location">Aucune position — touchez pour définir</string>
     <string name="current_stations_desc">Stations actuelles</string>
 
     <string name="location_label_toast">Position : %1$s</string>
     <string name="saving_coordinates_offline">Enregistrement des coordonnées (recherche du nom hors ligne)</string>
     <string name="location_permission_required">Autorisation de localisation requise pour le GPS</string>
-    <string name="location_fix_failed_default">Impossible d\'obtenir la position actuelle. Position par défaut utilisée.</string>
+    <string name="location_fix_failed_default">Impossible d\'obtenir la position actuelle. Définissez-en une ci-dessous, sinon une nouvelle tentative aura lieu automatiquement.</string>
 
     <string name="no_location_set">Aucune position définie</string>
     <string name="widget_location_format">Position du widget : %1$s, %2$s</string>
