@@ -72,9 +72,10 @@ class WeatherWidgetWorker
 
             // Emitted here rather than at Application.onCreate: the migration runs before the database
             // is safe to touch, so it leaves its report in prefs for the first worker run to persist.
-            LegacyDefaultLocationMigration.consumePendingReport(context)?.let { report ->
-                appLogDao.log("LOCATION_MIGRATION", report, "INFO")
-            }
+            // This block owns the database half of that migration too — purging the forecast rows filed
+            // at the retired sentinel, which prefs-clearing alone left free to resurrect it. It sits
+            // above every ActiveLocationResolver.resolve() call in this file on purpose.
+            completeLegacyDefaultMigration()
 
             if (input.observationBackfillMode) {
                 return handleObservationBackfillWork(input)
@@ -87,6 +88,38 @@ class WeatherWidgetWorker
             }
 
             return handleFullSyncWork(input, device)
+        }
+
+        /**
+         * Database half of [LegacyDefaultLocationMigration]: deletes the forecast rows filed at the
+         * retired Google-HQ sentinel, then persists the migration's deferred report.
+         *
+         * Purge **before** consuming the report. The pending report is what suppresses the
+         * cached-weather fallback in [ActiveLocationResolver.resolve]; consuming it after a failed
+         * purge would re-open that fallback with the rows still sitting there, which is precisely the
+         * resurrection this fixes. A failure therefore leaves the flag set and retries next run —
+         * never fatal, since a cleanup step must not fail a sync.
+         */
+        private suspend fun completeLegacyDefaultMigration() {
+            if (!LegacyDefaultLocationMigration.isPurgePending(context)) return
+            val purged = try {
+                WeatherDatabase.getDatabase(context).forecastDao().deleteForecastsAtSite(
+                    LegacyDefaultLocationMigration.LEGACY_DEFAULT_LAT,
+                    LegacyDefaultLocationMigration.LEGACY_DEFAULT_LON,
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                appLogDao.logException(
+                    "LOCATION_MIGRATION",
+                    "Sentinel forecast purge failed; leaving the flag set to retry next run",
+                    e,
+                )
+                return
+            }
+            LegacyDefaultLocationMigration.consumePendingReport(context)?.let { report ->
+                appLogDao.log("LOCATION_MIGRATION", "$report rows_purged=$purged", "INFO")
+            }
         }
 
         // ---- work-mode handlers ----

@@ -18,8 +18,16 @@ import com.weatherwidget.util.SharedPreferencesUtil
  *  - the user would be permanently pinned to Mountain View, with no error shown — strictly worse than
  *    the behaviour this change set out to fix.
  *
- * So the sentinel has to be actively erased once, at upgrade. These are the last two references to
- * those coordinates in the app; everything else now works in terms of "unset".
+ * So the sentinel has to be actively erased once, at upgrade.
+ *
+ * **Prefs are not the only place it lives.** The first version of this migration cleared the two
+ * preference copies and stopped, on the belief that they were the last references to those
+ * coordinates. They were not: a month of `forecasts` rows carries them too, and
+ * [ActiveLocationResolver.resolve] reads them back through a location-blind `getLatestWeather()` and
+ * **re-persists** the result as canonical. The sentinel resurrected itself on the first worker run,
+ * so v1 was a no-op for exactly the installs it targeted. The purge of those rows is deferred to the
+ * worker (see [consumePendingReport]); until it runs, [isPurgePending] suppresses that fallback so no
+ * `resolve()` call site can beat the purge to it.
  *
  * **Comparison uses [LocationMatch.sameSite], never `==`.** `HourlyObservationBackfill` learned this
  * the hard way: its original guard compared the raw constant with `==`, but the coordinate flowing
@@ -34,12 +42,20 @@ import com.weatherwidget.util.SharedPreferencesUtil
 internal object LegacyDefaultLocationMigration {
 
     /** The retired hard default (Google HQ). Deleted once rollout telemetry says the migration has run. */
-    private const val LEGACY_DEFAULT_LAT = 37.4220
-    private const val LEGACY_DEFAULT_LON = -122.0841
+    internal const val LEGACY_DEFAULT_LAT = 37.4220
+    internal const val LEGACY_DEFAULT_LON = -122.0841
 
     private const val WEATHER_PREFS_NAME = "weather_prefs"
-    private const val KEY_MIGRATED = "legacy_default_cleared_v1"
-    private const val KEY_PENDING_REPORT = "legacy_default_cleared_v1_report"
+
+    /**
+     * **v2 deliberately re-runs on installs that already ran v1.** v1 cleared the prefs but not the
+     * forecast rows, so `resolve()` re-persisted the sentinel and those installs are sitting on it
+     * again with `..._v1 = true`. Re-running finds it in the active-location prefs a second time and
+     * this time the purge stops it coming back. An install that has since chosen a real location
+     * matches nothing and no-ops, so the re-run is free for everyone else.
+     */
+    private const val KEY_MIGRATED = "legacy_default_cleared_v2"
+    private const val KEY_PENDING_REPORT = "legacy_default_cleared_v2_report"
 
     data class Outcome(
         val alreadyRun: Boolean,
@@ -76,9 +92,24 @@ internal object LegacyDefaultLocationMigration {
     }
 
     /**
+     * True between [runIfNeeded] clearing a sentinel and the worker purging the matching forecast
+     * rows. While it holds, `ActiveLocationResolver.resolve()` must not fall back to the coordinates
+     * of the latest cached weather — those rows are the sentinel's third hiding place, and two of
+     * `resolve()`'s six call sites (`WidgetStartupCoordinator`, `WidgetRefreshContextResolver`) can
+     * run from `onUpdate` or a widget tap before any worker does.
+     *
+     * A prefs read, deliberately: this is consulted on paths that must not open the database.
+     */
+    fun isPurgePending(context: Context): Boolean =
+        SharedPreferencesUtil.getPrefs(context, WEATHER_PREFS_NAME).contains(KEY_PENDING_REPORT)
+
+    /**
      * Returns and clears the app_logs message left by [runIfNeeded], or null when there is nothing to
      * report. Called by the worker so the migration is durably observable without the migration itself
      * having to open the database.
+     *
+     * Consuming this also ends [isPurgePending], so the caller must purge **first** — a report
+     * consumed after a failed purge would re-enable the fallback with the rows still there.
      */
     fun consumePendingReport(context: Context): String? {
         val prefs = SharedPreferencesUtil.getPrefs(context, WEATHER_PREFS_NAME)

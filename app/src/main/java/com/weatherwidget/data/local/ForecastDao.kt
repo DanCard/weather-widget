@@ -408,6 +408,21 @@ interface ForecastDao {
     suspend fun deleteClimateNormalRows(source: String)
 
     /**
+     * Deletes every forecast row filed at one physical site. Written for
+     * [LegacyDefaultLocationMigration][com.weatherwidget.widget.LegacyDefaultLocationMigration]: prefs
+     * are not the only place the retired Google-HQ sentinel lives — a month of forecast rows carries
+     * those coordinates too, and `ActiveLocationResolver.resolve()` reads them back through the
+     * location-blind [getLatestWeather] and re-persists what it finds. Clearing the prefs alone left
+     * the sentinel to resurrect itself on the very next worker run.
+     *
+     * Scoped by [LocationMatch.ROOM_SAME_SITE_WHERE] (±0.002°), never the ±0.1° read box.
+     *
+     * @return rows deleted, for the `LOCATION_MIGRATION` breadcrumb.
+     */
+    @Query("DELETE FROM forecasts WHERE ${LocationMatch.ROOM_SAME_SITE_WHERE}")
+    suspend fun deleteForecastsAtSite(lat: Double, lon: Double): Int
+
+    /**
      * Removes existing rows for the given targets whose fetchedAt falls in a snapshot bucket window
      * [bucketStart, bucketEnd). Used to cap daily forecast-history cadence (4h primary / 8h other):
      * delete the earlier in-bucket snapshot before inserting the latest, so at most one row per

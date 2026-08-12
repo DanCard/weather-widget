@@ -13,6 +13,7 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -32,6 +33,9 @@ class ActiveLocationResolverTest : RobolectricTest() {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         ActiveLocationResolver.clearForTesting(context)
+        // The migration's run flag and pending report live here; a leaked flag would make
+        // runIfNeeded a no-op and quietly disarm the resurrection-window tests below.
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit().clear().commit()
         stateManager = WidgetStateManager(context)
         forecastDao = mockk(relaxed = true)
         
@@ -132,5 +136,66 @@ class ActiveLocationResolverTest : RobolectricTest() {
                 0.0001f,
             )
         }
+    }
+
+    // ---- the sentinel-resurrection window ----
+    //
+    // v1 of LegacyDefaultLocationMigration cleared the Google-HQ coordinates from prefs and stopped.
+    // A month of forecast rows still carried them, so the very next resolve() read them back through
+    // the location-blind getLatestWeather() and re-persisted them as canonical: the migration undid
+    // itself, silently, for exactly the installs it was written for.
+
+    /** Seeds the state an upgrading install is in the instant the migration has run. */
+    private fun runMigrationWithSentinelOnDisk() {
+        ActiveLocationResolver.persist(context, 37.4220, -122.0841)
+        LegacyDefaultLocationMigration.runIfNeeded(context)
+    }
+
+    @Test
+    fun `cached weather cannot resurrect the sentinel before the purge runs`() = runTest {
+        val sentinelWeather = mockk<ForecastEntity>()
+        coEvery { sentinelWeather.locationLat } returns 37.4220
+        coEvery { sentinelWeather.locationLon } returns -122.0841
+        coEvery { forecastDao.getLatestWeather() } returns sentinelWeather
+        runMigrationWithSentinelOnDisk()
+
+        assertNull(
+            "the cleared sentinel must not come back through the cached-weather fallback",
+            ActiveLocationResolver.resolve(context, stateManager, forecastDao),
+        )
+        assertNull(
+            "and it must certainly not be re-persisted as the canonical active location",
+            ActiveLocationResolver.current(context),
+        )
+    }
+
+    /**
+     * The suppression is scoped to the window, not permanent: an install that predates the canonical
+     * active location still has cached weather as its only location record, and must keep it.
+     */
+    @Test
+    fun `cached weather fallback works again once the purge has been consumed`() = runTest {
+        val weather = mockk<ForecastEntity>()
+        coEvery { weather.locationLat } returns 40.7128
+        coEvery { weather.locationLon } returns -74.0060
+        coEvery { forecastDao.getLatestWeather() } returns weather
+        runMigrationWithSentinelOnDisk()
+        LegacyDefaultLocationMigration.consumePendingReport(context)
+
+        val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)!!
+
+        assertEquals(40.7128, result.first, 0.0001)
+        assertEquals(-74.0060, result.second, 0.0001)
+    }
+
+    @Test
+    fun `a clean install with nothing to migrate never suppresses the fallback`() = runTest {
+        val weather = mockk<ForecastEntity>()
+        coEvery { weather.locationLat } returns 40.7128
+        coEvery { weather.locationLon } returns -74.0060
+        coEvery { forecastDao.getLatestWeather() } returns weather
+        LegacyDefaultLocationMigration.runIfNeeded(context) // nothing on disk to clear
+
+        assertNotNull(ActiveLocationResolver.resolve(context, stateManager, forecastDao))
     }
 }

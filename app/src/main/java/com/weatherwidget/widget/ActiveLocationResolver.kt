@@ -64,8 +64,19 @@ object ActiveLocationResolver {
         val configuredLocation = appWidgetIds.toList().firstNotNullOfOrNull { id ->
             stateManager.getStoredWidgetLocation(id)
         }
+        // The cached-weather fallback is the only location record an install predating the canonical
+        // active location has, so it stays — except in one bounded window. Between
+        // LegacyDefaultLocationMigration clearing the Google-HQ sentinel from prefs and the worker
+        // purging the forecast rows filed at it, those rows would hand the sentinel straight back and
+        // this method would re-persist it as canonical. That is how v1 of the migration silently
+        // undid itself. One prefs read; false for every install that has been through the purge.
+        val cachedWeatherLocation = if (LegacyDefaultLocationMigration.isPurgePending(context)) {
+            null
+        } else {
+            forecastDao.getLatestWeather()?.let { it.locationLat to it.locationLon }
+        }
         val resolved = configuredLocation
-            ?: forecastDao.getLatestWeather()?.let { it.locationLat to it.locationLon }
+            ?: cachedWeatherLocation
             ?: return null
         // One-time migration for installs that predate the canonical app-wide location. Only ever
         // writes a location we actually resolved — never a placeholder.

@@ -49,6 +49,16 @@ object LocationMatch {
         abs(lat1 - lat2) <= SAME_SITE_TOLERANCE_DEG && abs(lon1 - lon2) <= SAME_SITE_TOLERANCE_DEG
 
     /**
+     * The SQL form of [sameSite] — the tight box, deliberately **not** [ROOM_WHERE]'s ±0.1°.
+     *
+     * Reads want the coarse box ("near the user"); a row-*deleting* query must not, or it takes out
+     * everything within ~7 miles of the target. `BETWEEN` is inclusive, matching [sameSite]'s `<=`.
+     */
+    const val ROOM_SAME_SITE_WHERE =
+        "locationLat BETWEEN :lat - $SAME_SITE_TOLERANCE_DEG AND :lat + $SAME_SITE_TOLERANCE_DEG " +
+            "AND locationLon BETWEEN :lon - $SAME_SITE_TOLERANCE_DEG AND :lon + $SAME_SITE_TOLERANCE_DEG"
+
+    /**
      * Collapses a raw [ROOM_WHERE]/[JDBC_WHERE] proximity-box result to the single physical site
      * nearest (lat, lon). Sub-precision fragments of that site survive (they are [sameSite]);
      * genuinely different markers left behind by earlier GPS fixes are dropped.
