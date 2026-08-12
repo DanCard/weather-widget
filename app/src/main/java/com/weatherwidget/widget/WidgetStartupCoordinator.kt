@@ -102,18 +102,44 @@ internal class WidgetStartupCoordinator(
         var queryResult: StartupQueryResult? = null
         try {
             if (latestWeather == null) {
-                validWidgetIds.forEach { appWidgetId ->
-                    WidgetRenderer.updateWidgetLoading(
+                // No data *and* no location is a settled state, not a wait. The sync we would enqueue
+                // has nothing to fetch and returns without painting, so "Loading..." would stick until
+                // the user happened to open the app — the same stranded-placeholder failure this
+                // coordinator guards against elsewhere. Say what is actually wrong instead.
+                //
+                // Note this skips only the placeholder and the immediate sync: schedulePeriodicSync
+                // below must still run, because the periodic full sync is what carries the GPS
+                // auto-heal that eventually rescues this widget.
+                val hasLocation =
+                    ActiveLocationResolver.resolve(context, stateManager, forecastDao) != null
+                if (hasLocation) {
+                    validWidgetIds.forEach { appWidgetId ->
+                        WidgetRenderer.updateWidgetLoading(
+                            context,
+                            appWidgetManager,
+                            appWidgetId,
+                            origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE,
+                        )
+                    }
+                    WidgetWorkScheduler.enqueueRedundantImmediateSync(
                         context,
-                        appWidgetManager,
-                        appWidgetId,
-                        origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE,
+                        reason = "on_update_no_data",
                     )
+                } else {
+                    appLogDao.log(
+                        "NO_LOCATION",
+                        "reason=on_update_no_data widgets=${validWidgetIds.size} action=render_error_skip_fetch",
+                        "INFO",
+                    )
+                    validWidgetIds.forEach { appWidgetId ->
+                        WidgetRenderer.updateWidgetNoLocation(
+                            context,
+                            appWidgetManager,
+                            appWidgetId,
+                            origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE,
+                        )
+                    }
                 }
-                WidgetWorkScheduler.enqueueRedundantImmediateSync(
-                    context,
-                    reason = "on_update_no_data",
-                )
             } else {
                 queryResult =
                     loadStartupData(
