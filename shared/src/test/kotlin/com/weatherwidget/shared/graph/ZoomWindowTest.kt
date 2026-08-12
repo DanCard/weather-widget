@@ -18,8 +18,8 @@ class ZoomWindowTest {
         4 to Triple(2L, 2L, 1),
         5 to Triple(3L, 2L, 1),
         6 to Triple(3L, 3L, 1),
-        7 to Triple(4L, 3L, 2),
-        8 to Triple(4L, 4L, 2),
+        7 to Triple(4L, 3L, 1),
+        8 to Triple(4L, 4L, 1),
     )
 
     @Test
@@ -85,9 +85,8 @@ class ZoomWindowTest {
     @Test
     fun `nav jump falls back to half-a-span above the narrow range`() {
         // Desktop's continuous zoom reaches spans the NARROW setting never produces; those keep the
-        // long-standing half-span rule. The 8h->2 / 9h->4 step is intentional: the flat 2h band
-        // exists only to serve the configurable tight view.
-        assertEquals(2, HourlyZoomRules.navJumpHours(8))
+        // long-standing half-span rule. Spans up to 8h step 1h; 9h->4 step is half span.
+        assertEquals(1, HourlyZoomRules.navJumpHours(8))
         assertEquals(4, HourlyZoomRules.navJumpHours(9))
         assertEquals(12, HourlyZoomRules.navJumpHours(24))
         assertEquals(36, HourlyZoomRules.navJumpHours(72))

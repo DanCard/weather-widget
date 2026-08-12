@@ -430,7 +430,7 @@ class WidgetStateManagerTest {
 
         stateManager.setNarrowZoomSpanHours(7)
         assertEquals(7L, stateManager.getZoomWindow(w).totalSpanHours)
-        assertEquals("7h span scrolls 2h per tap", 2, stateManager.getNavJump(w))
+        assertEquals("7h span scrolls 1h per tap", 1, stateManager.getNavJump(w))
     }
 
     @Test
@@ -446,7 +446,7 @@ class WidgetStateManagerTest {
 
         stateManager.setHourlyOffset(w, 0)
         stateManager.setNarrowZoomSpanHours(8)
-        assertEquals(2, stateManager.navigateHourlyRight(w))
+        assertEquals(1, stateManager.navigateHourlyRight(w))
         assertEquals(0, stateManager.navigateHourlyLeft(w))
     }
 

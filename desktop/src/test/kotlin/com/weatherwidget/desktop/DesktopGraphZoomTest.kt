@@ -128,7 +128,7 @@ class DesktopGraphZoomTest {
         while (z <= 1f) {
             val span = DesktopGraphUtils.totalSpanHoursFor(z)
             // Delegates to the shared rule now, so desktop and the Android widget step identically
-            // at a given span: 1h through 5h, 2h through 8h (the configurable NARROW band), then
+            // at a given span: 1h through 8h (the configurable NARROW band), then
             // the long-standing half-a-span above that.
             val expected = HourlyZoomRules.navJumpHours(span)
             assertEquals("jump should follow the shared rule at z=$z", expected, DesktopGraphUtils.navJumpHours(z))

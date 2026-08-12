@@ -26,14 +26,11 @@ object HourlyZoomRules {
      * How many hours a left/right nav press shifts the view. Single source of truth for Android's
      * [ZoomWindow.navJump] and desktop's continuous `DesktopGraphUtils.navJumpHours`.
      *
-     * Tight views step finer than half-a-span so a press doesn't skip past what you were reading:
-     * 1h up to 6h of span, 2h through 8h. Above that it falls back to the half-span rule desktop's
-     * wide zooms have always used. The 8h→2 / 9h→4 step is intentional — the flat band exists only
-     * to cover the configurable NARROW range.
+     * Tight views step 1 hour across the entire configurable NARROW range (up to [MAX_NARROW_SPAN_HOURS]).
+     * Above that it falls back to the half-span rule desktop's wide zooms have always used.
      */
     fun navJumpHours(spanHours: Int): Int = when {
-        spanHours <= 6 -> 1
-        spanHours <= MAX_NARROW_SPAN_HOURS -> 2
+        spanHours <= MAX_NARROW_SPAN_HOURS -> 1
         else -> (spanHours / 2).coerceAtLeast(1)
     }
 
