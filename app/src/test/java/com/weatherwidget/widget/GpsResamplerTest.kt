@@ -91,6 +91,31 @@ class GpsResamplerTest : RobolectricTest() {
             .commit()
     }
 
+    /** A widget that exists but has never been given coordinates — the no-location state. */
+    private fun bindWidgetWithoutLocation(widgetId: Int) {
+        val info = AppWidgetProviderInfo().apply {
+            provider = ComponentName(context, WeatherWidgetProvider::class.java)
+        }
+        shadowOf(AppWidgetManager.getInstance(context)).addBoundWidget(widgetId, info)
+        SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME).edit()
+            .remove("${ConfigActivity.KEY_LAT_PREFIX}$widgetId")
+            .remove("${ConfigActivity.KEY_LON_PREFIX}$widgetId")
+            .commit()
+    }
+
+    private fun seedHistoricalPoi(label: String, lat: Double, lon: Double) {
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit()
+            .putString("historical_pois", "$label|$lat|$lon")
+            .commit()
+    }
+
+    private fun seedLegacyDeltaLocation(widgetId: Int, lat: Double, lon: Double) {
+        SharedPreferencesUtil.getPrefs(context, "widget_state_prefs").edit()
+            .putString("widget_current_temp_delta_lat_$widgetId", lat.toString())
+            .putString("widget_current_temp_delta_lon_$widgetId", lon.toString())
+            .commit()
+    }
+
     private fun outcomes(): List<String> =
         logged.filter { it.tag == GpsResampler.LOG_TAG }.map { it.message }
 
@@ -221,5 +246,56 @@ class GpsResamplerTest : RobolectricTest() {
         assertEquals(1, healed.size)
         assertTrue(outcomes().any { it.startsWith("outcome=same_site trigger=foreground") })
         assertTrue(outcomes().any { it.startsWith("outcome=candidate_detected trigger=foreground") })
+    }
+
+    // ---- "no location" must not be inferred away ----
+    //
+    // The sampler compares a fresh fix against where we currently are. Resolve that comparand through
+    // anything inferred and a widget with no location reads as "already located": same site, no
+    // candidate, and the no-location state can never be escaped by GPS — for a user standing exactly
+    // where the app could have fixed it.
+
+    @Test
+    fun `a stale place name cannot masquerade as the current location`() = runTest {
+        bindWidgetWithoutLocation(101)
+        seedHistoricalPoi("Old Home", 34.0522, -118.2437)
+
+        val changed = resampler(fix = fix(34.0522, -118.2437)).resample(context)
+
+        assertTrue("a fix must be proposed even when it matches a saved place name", changed)
+        assertEquals(listOf(Triple(34.0522, -118.2437, "Testville")), healed)
+        assertTrue(outcomes().single().startsWith("outcome=candidate_detected"))
+    }
+
+    @Test
+    fun `a legacy delta-store coordinate cannot masquerade as the current location`() = runTest {
+        bindWidgetWithoutLocation(101)
+        seedLegacyDeltaLocation(101, 34.0522, -118.2437)
+
+        val changed = resampler(fix = fix(34.0522, -118.2437)).resample(context)
+
+        assertTrue(changed)
+        assertEquals(listOf(Triple(34.0522, -118.2437, "Testville")), healed)
+    }
+
+    /** A configured location still suppresses: this narrows what counts, it does not disable the check. */
+    @Test
+    fun `a stored location at the fix site still reports same site`() = runTest {
+        bindWidgetAt(101, 34.0522, -118.2437)
+        seedHistoricalPoi("Old Home", 40.7128, -74.0060)
+
+        val changed = resampler(fix = fix(34.0522, -118.2437)).resample(context)
+
+        assertFalse(changed)
+        assertTrue(healed.isEmpty())
+        assertTrue(outcomes().single().startsWith("outcome=same_site"))
+    }
+
+    @Test
+    fun `no widgets leaves a breadcrumb that names the real reason`() = runTest {
+        resampler(fix = fix(40.7128, -74.0060)).resample(context)
+
+        assertEquals(listOf("outcome=skipped_no_widgets trigger=worker"), outcomes())
+        assertTrue(healed.isEmpty())
     }
 }

@@ -10,20 +10,28 @@ internal data class WidgetLocation(
 )
 
 /**
- * Owns raw per-widget coordinates. Authoritative reads are separate from legacy/global fallbacks so
- * callers that must not fetch at an inferred location can use [stored].
+ * Owns raw per-widget coordinates. Authoritative reads are separate from the legacy fallback so
+ * callers that must not act on an inferred location can use [stored].
  */
 internal class WidgetLocationStore(
     context: Context,
     private val deltaStore: CurrentTemperatureDeltaStore,
 ) {
     private val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-    private val weatherPrefs = SharedPreferencesUtil.getPrefs(context, WEATHER_PREFS_NAME)
 
+    /**
+     * Stored coordinates, or the legacy delta-store copy for installs that predate this file.
+     *
+     * **No longer falls back to `historical_pois`.** That list is the app's *label* store — it exists
+     * so `FriendlyLocationName` can name a coordinate without a network call — and using it as a
+     * coordinate source meant "this widget has no location" quietly became "the last place you ever
+     * saved." A device-following sample would then compare a fresh fix against a POI, find them the
+     * same site, and propose no candidate: the no-location state could never be escaped by GPS, for a
+     * user standing exactly where the app could have fixed it. The list itself is untouched.
+     */
     fun resolve(widgetId: Int): WidgetLocation? =
         stored(widgetId)
             ?: deltaStore.legacyLocation(widgetId)
-            ?: historicalPoiFallback()
 
     fun stored(widgetId: Int): WidgetLocation? {
         val latKey = "${ConfigActivity.KEY_LAT_PREFIX}$widgetId"
@@ -44,26 +52,11 @@ internal class WidgetLocationStore(
         editor.commit()
     }
 
+    /** `commit()`, matching [set] — callers enqueue a refresh immediately after clearing. */
     fun clearWidget(widgetId: Int) {
         widgetPrefs.edit()
             .remove("${ConfigActivity.KEY_LAT_PREFIX}$widgetId")
             .remove("${ConfigActivity.KEY_LON_PREFIX}$widgetId")
-            .apply()
-    }
-
-    private fun historicalPoiFallback(): WidgetLocation? =
-        weatherPrefs.getString(KEY_HISTORICAL_POIS, null)
-            ?.split("|")
-            ?.takeLast(3)
-            ?.takeIf { it.size == 3 }
-            ?.let { parts ->
-                val lat = parts[1].toDoubleOrNull() ?: return@let null
-                val lon = parts[2].toDoubleOrNull() ?: return@let null
-                WidgetLocation(lat, lon)
-            }
-
-    private companion object {
-        const val WEATHER_PREFS_NAME = "weather_prefs"
-        const val KEY_HISTORICAL_POIS = "historical_pois"
+            .commit()
     }
 }

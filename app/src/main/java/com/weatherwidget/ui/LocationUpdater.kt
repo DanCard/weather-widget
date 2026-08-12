@@ -224,10 +224,11 @@ object LocationUpdater {
         ids: IntArray = getWidgetIds(context),
     ): CandidateProposal {
         val stateManager = WidgetStateManager(context)
-        // Null when nothing is configured yet — propose() treats that as "any fresh fix is an
-        // improvement" rather than comparing against a coordinate nobody chose.
+        // Stored only, matching GpsResampler.healIfNeeded — an inferred coordinate here would make
+        // propose() judge a fresh fix against a location the user never chose. Null when nothing is
+        // configured yet, which propose() reads as "any fresh fix is an improvement."
         val active = ActiveLocationResolver.current(context)
-            ?: ids.toList().firstNotNullOfOrNull(stateManager::getWidgetLocation)
+            ?: ids.toList().firstNotNullOfOrNull(stateManager::getStoredWidgetLocation)
         val proposal = LocationHandoffStore.propose(
             context = context,
             activeLocation = active,

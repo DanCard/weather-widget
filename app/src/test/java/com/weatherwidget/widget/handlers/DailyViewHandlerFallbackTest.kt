@@ -55,6 +55,10 @@ class DailyViewHandlerFallbackTest {
         every { stateManager.getViewMode(any()) } returns com.weatherwidget.widget.ViewMode.DAILY
         every { stateManager.getDateOffset(any()) } returns 0
         every { stateManager.getWidgetLocation(any()) } returns null
+        // The backfill anchors on the *stored* location, never the inferring read. Left unstubbed the
+        // relaxed mock hands back an Object pair that blows up on destructuring, so this is also the
+        // canary if that call site ever slides back to getWidgetLocation.
+        every { stateManager.getStoredWidgetLocation(any()) } returns null
 
         val captured = mockAppWidgetManager(widgetId = 1, heightDp = 200)
         

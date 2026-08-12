@@ -91,14 +91,21 @@ class GpsResampler(
         }
         val ids = LocationUpdater.getWidgetIds(context)
         if (ids.isEmpty()) {
-            appLogDao.log(LOG_TAG, "outcome=same_site trigger=$trigger reason=no_widgets")
+            // Its own token, not same_site: these breadcrumbs are how "why didn't it move?" gets
+            // answered from a pulled database, and an outcome that names the wrong reason is worse
+            // than no row at all.
+            appLogDao.log(LOG_TAG, "outcome=skipped_no_widgets trigger=$trigger")
             return false
         }
         val stateManager = WidgetStateManager(context)
-        // Null when the app has no location at all — the state this heal exists to escape. A fresh fix
-        // can never be "the same site" as nothing, so it falls through to become a candidate.
+        // `getStoredWidgetLocation`, never `getWidgetLocation`: the latter falls back through the
+        // legacy delta store, and used to fall through to the historical-POI list as well. Comparing a
+        // fresh fix against an *inferred* coordinate is how a widget with no location reads as
+        // "already located" — same site, no candidate, no escape from the no-location state for a user
+        // standing exactly where the app could have fixed it. Null here is the real answer: a fresh fix
+        // can never be the same site as nothing, so it falls through and becomes a candidate.
         val active = ActiveLocationResolver.current(context)
-            ?: ids.toList().firstNotNullOfOrNull(stateManager::getWidgetLocation)
+            ?: ids.toList().firstNotNullOfOrNull(stateManager::getStoredWidgetLocation)
         val existingCandidate = LocationHandoffStore.getCandidate(context)
         if (active != null && LocationMatch.sameSite(active.first, active.second, lat, lon)) {
             if (existingCandidate != null) {

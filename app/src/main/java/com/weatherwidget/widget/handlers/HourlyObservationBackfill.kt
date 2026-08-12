@@ -38,7 +38,8 @@ internal sealed interface BackfillLocation {
 
 /**
  * Pure resolution of the fetch location from the widget's stored location
- * ([WidgetStateManager.getWidgetLocation], null when the widget has no configured/POI location).
+ * ([WidgetStateManager.getStoredWidgetLocation], null when the widget has no configured location —
+ * deliberately the authoritative read, never the inferring one).
  *
  * Unanchored must SKIP (Fix C) — better no observations than observations filed under a coordinate
  * nobody chose. There used to be a second way to be unanchored: a location [LocationMatch.sameSite]
@@ -159,7 +160,9 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     // possibly DEFAULT) coordinate the caller rendered with. resolveBackfillLocation SKIPs an
     // unanchored widget instead of fetching NWS obs at Googleplex — the fragmentation this whole
     // path exists to prevent. See plan 260721.
-    val fetchLocation = when (val resolved = resolveBackfillLocation(stateManager.getWidgetLocation(appWidgetId))) {
+    // `getStoredWidgetLocation`: an inferred coordinate is exactly what must not anchor an
+    // observation write. A mis-keyed row is a permanent LocationMatch fragment.
+    val fetchLocation = when (val resolved = resolveBackfillLocation(stateManager.getStoredWidgetLocation(appWidgetId))) {
         is BackfillLocation.Unanchored -> {
             database.appLogDao().log(
                 "OBS_HOURLY_BACKFILL_SKIP",
