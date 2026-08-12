@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.util.AndroidLogSink
 import com.weatherwidget.util.CrashReporter
+import com.weatherwidget.widget.LegacyDefaultLocationMigration
 import com.weatherwidget.widget.OpportunisticUpdateJobService
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
@@ -41,8 +42,32 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
         // widget was looked at / the triggering broadcast was enqueued) vs. "init+render was slow"
         // (large first_paint ageMs). See COLD_START_TRACE logs.
         Log.i(COLD_START_TAG, "process onCreate pid=${android.os.Process.myPid()}")
+        // Before any path can read a location. SharedPreferences only — deliberately no database
+        // access here (see the appLogDao comment above); the worker emits the app_logs row later via
+        // LegacyDefaultLocationMigration.consumePendingReport.
+        runLegacyDefaultLocationMigration()
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             OpportunisticUpdateJobService.scheduleOpportunisticUpdate(this)
+        }
+    }
+
+    /**
+     * Erases the retired Google-HQ placeholder coordinates from an upgrading install. Must never
+     * prevent startup: a failure here leaves the old coordinates in place (today's behaviour), while
+     * throwing would take the whole app down.
+     */
+    private fun runLegacyDefaultLocationMigration() {
+        try {
+            val outcome = LegacyDefaultLocationMigration.runIfNeeded(this)
+            if (!outcome.alreadyRun) {
+                Log.i(
+                    TAG,
+                    "LOCATION_MIGRATION cleared=${outcome.clearedCount} " +
+                        "active=${outcome.clearedActiveLocation} widgets=${outcome.clearedWidgetIds}",
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Legacy default-location migration failed", e)
         }
     }
 
@@ -65,6 +90,7 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
                 .build()
 
     companion object {
+        private const val TAG = "WeatherWidgetApp"
         private const val CRASH_PERSIST_TIMEOUT_MS = 2000L
 
         /**

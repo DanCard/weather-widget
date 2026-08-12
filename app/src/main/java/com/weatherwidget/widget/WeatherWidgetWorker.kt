@@ -70,6 +70,12 @@ class WeatherWidgetWorker
                 return Result.success()
             }
 
+            // Emitted here rather than at Application.onCreate: the migration runs before the database
+            // is safe to touch, so it leaves its report in prefs for the first worker run to persist.
+            LegacyDefaultLocationMigration.consumePendingReport(context)?.let { report ->
+                appLogDao.log("LOCATION_MIGRATION", report, "INFO")
+            }
+
             if (input.observationBackfillMode) {
                 return handleObservationBackfillWork(input)
             }

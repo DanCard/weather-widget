@@ -28,9 +28,16 @@ object ActiveLocationResolver {
             .commit()
     }
 
-    internal fun clearForTesting(context: Context) {
+    /**
+     * Drops the canonical active location, returning the app to the "no location" state. Used by
+     * [LegacyDefaultLocationMigration] and by the ConfigActivity paths that used to persist the
+     * Google-HQ placeholder.
+     */
+    fun clear(context: Context) {
         SharedPreferencesUtil.getPrefs(context, PREFS_NAME).edit().clear().commit()
     }
+
+    internal fun clearForTesting(context: Context) = clear(context)
 
     suspend fun resolve(
         context: Context,
