@@ -50,9 +50,9 @@ import kotlin.coroutines.resume
  * - Settings ("Set Location…", launched with [EXTRA_GLOBAL_CONFIG]): applies to all widgets via
  *   [LocationUpdater.applyToAllWidgets] and finishes without a result.
  *
- * "Use precise device location" sets [LocationMode.FOLLOW_DEVICE] (background auto-heal keeps
+ * "Use precise device location" sets [LocationMode.FOLLOW_DEVICE] (background sampling keeps
  * widgets tracking the device); search results and manual coordinates set [LocationMode.FIXED],
- * which pins the choice against the auto-heal.
+ * which pins the choice against that sampling.
  *
  * Widget setup auto-fills but never auto-exits: the device fix starts on open and, once
  * resolved, turns the GPS button into a one-tap "Use this location" confirm — the screen only
@@ -345,7 +345,7 @@ class ConfigActivity : AppCompatActivity() {
                     } else {
                         saveChosenLocation(outcome.coordinates.lat, outcome.coordinates.lon, null, LocationMode.FOLLOW_DEVICE)
                     }
-                LocationFixFlow.Outcome.Default ->
+                LocationFixFlow.Outcome.NoFix ->
                     if (isAutoFill) {
                         // Leave the screen open with all options; no location is saved.
                         useGpsButton.isEnabled = true
@@ -353,7 +353,7 @@ class ConfigActivity : AppCompatActivity() {
                         Toast.makeText(this@ConfigActivity, getString(R.string.location_fix_failed), Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(this@ConfigActivity, getString(R.string.location_fix_failed_default), Toast.LENGTH_SHORT).show()
-                        // Still FOLLOW_DEVICE — the auto-heal can later replace the placeholder
+                        // Still FOLLOW_DEVICE — a later sampled fix can replace the placeholder
                         // with a real fix. The placeholder is now "unset", not Google HQ: the widget
                         // shows a no-location message instead of another town's weather.
                         saveNoLocation(LocationMode.FOLLOW_DEVICE)
@@ -580,8 +580,8 @@ class ConfigActivity : AppCompatActivity() {
      * - nothing, if the user has a pinned (FIXED) location — [ActiveLocationResolver] already
      *   covers the new widget from the other widgets' prefs, and writing FOLLOW_DEVICE here
      *   would unpin every widget;
-     * - otherwise FOLLOW_DEVICE with **no location recorded**, which the GPS auto-heal later replaces
-     *   with a real fix (same as the manual GPS-failure path). The widget paints "No location — tap to
+     * - otherwise FOLLOW_DEVICE with **no location recorded**, which a later sampled fix replaces
+     *   with a real one (same as the manual GPS-failure path). The widget paints "No location — tap to
      *   set" until then; it used to be given Google-HQ coordinates and shown Mountain View's weather.
      */
     private fun completeWidgetAddOnExit(trigger: String) {
@@ -605,7 +605,7 @@ class ConfigActivity : AppCompatActivity() {
                 finishWithSuccess()
             }
             // No fix and not pinned: complete the widget-add handshake with no location at all, so the
-            // launcher keeps the widget and it paints the no-location state until the auto-heal or the
+            // launcher keeps the widget and it paints the no-location state until device sampling or the
             // user supplies one. Both branches are the same write now — the source-check that
             // distinguished them has no coordinates to check.
             else -> saveNoLocation(LocationMode.FOLLOW_DEVICE)

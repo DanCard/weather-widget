@@ -15,7 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * End-to-end check of the heal propagation path: [LocationUpdater.applyToAllWidgets] must write
+ * End-to-end check of the location propagation path: [LocationUpdater.applyToAllWidgets] must write
  * every widget's configured location, record the POI, and enqueue a force refresh. Synthetic
  * widget ids are passed explicitly so the test never touches a real widget's configuration, and
  * test mode routes all pref files to their `_test_default` variants (see SharedPreferencesUtil).

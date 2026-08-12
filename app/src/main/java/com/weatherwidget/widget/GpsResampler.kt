@@ -26,9 +26,9 @@ import kotlin.coroutines.resume
  * (The only active fix in the app is the user-initiated "Use precise device location" button in
  * [ConfigActivity][com.weatherwidget.ui.ConfigActivity] — foreground and explicit.) The cache is
  * refreshed whenever any other app on the device obtains a fix, which is sufficient for
- * weather-granularity healing; when the cache is empty the run is a no-op (best-effort).
+ * weather-granularity tracking; when the cache is empty the run is a no-op (best-effort).
  *
- * When the user pins a location (zip/address/coordinates → [LocationMode.FIXED]), both heal paths
+ * When the user pins a location (zip/address/coordinates → [LocationMode.FIXED]), both sampling paths
  * skip with an `outcome=skipped_pinned` breadcrumb so a deliberate choice is never clobbered.
  *
  * The location acquisition, permission check, and candidate proposal are injected so the decision
@@ -50,9 +50,9 @@ class GpsResampler(
     },
 ) {
     /**
-     * Background entry point: permission check → cached location → [healIfNeeded].
+     * Background entry point: permission check → cached location → [followDeviceIfMoved].
      *
-     * [trigger] names the caller in the breadcrumb and, via [healIfNeeded], decides whether a newly
+     * [trigger] names the caller in the breadcrumb and, via [followDeviceIfMoved], decides whether a newly
      * detected candidate also enqueues a refresh: the periodic worker is already mid-sync so it
      * fetches the candidate itself, while event-driven callers (charger plug-in, unlock) must ask
      * for one. Keep the worker's value as `"worker"` for that reason.
@@ -63,7 +63,7 @@ class GpsResampler(
             return false
         }
 
-        // Checked again in healIfNeeded; checking here too skips the Play services call.
+        // Checked again in followDeviceIfMoved; checking here too skips the Play services call.
         if (LocationMode.get(context) == LocationMode.FIXED) {
             appLogDao.log(LOG_TAG, "outcome=skipped_pinned trigger=$trigger")
             return false
@@ -74,7 +74,7 @@ class GpsResampler(
             appLogDao.log(LOG_TAG, "outcome=no_fix mode=last_location trigger=$trigger")
             return false
         }
-        return healIfNeeded(context, location.latitude, location.longitude, trigger = trigger)
+        return followDeviceIfMoved(context, location.latitude, location.longitude, trigger = trigger)
     }
 
     /**
@@ -84,7 +84,7 @@ class GpsResampler(
      *
      * @return true when candidate state changed, allowing the current worker to force one fetch.
      */
-    suspend fun healIfNeeded(context: Context, lat: Double, lon: Double, trigger: String): Boolean {
+    suspend fun followDeviceIfMoved(context: Context, lat: Double, lon: Double, trigger: String): Boolean {
         if (LocationMode.get(context) == LocationMode.FIXED) {
             appLogDao.log(LOG_TAG, "outcome=skipped_pinned trigger=$trigger")
             return false

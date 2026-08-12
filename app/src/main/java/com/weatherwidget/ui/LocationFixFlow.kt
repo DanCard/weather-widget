@@ -4,17 +4,19 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Pure decision chain for the "Use precise device location" flow: try an active fix,
- * fall back to the cached last fix, then to the hard default — each stage bounded by
- * a timeout so the flow always terminates.
+ * Pure decision chain for the "Use precise device location" flow: try an active fix, fall back to
+ * the cached last fix, then give up — each stage bounded by a timeout so the flow always terminates.
+ *
+ * Giving up used to mean saving the hard default coordinate, which is what [Outcome.NoFix] was named
+ * for. It now means recording no location at all.
  *
  * The timeouts exist because `getCurrentLocation(PRIORITY_HIGH_ACCURACY)` has no
  * deadline of its own: on hardware without a live GPS stream (emulators, indoors) the
  * task can sit unresolved for 30+ seconds while the config screen shows a disabled
  * button, which reads as "nothing happens" and makes users back out — cancelling the
  * widget-add handshake. A stale cached fix is an acceptable placeholder here: the
- * saved mode is FOLLOW_DEVICE, so the background auto-heal (GpsResampler) replaces it
- * with a real fix later.
+ * saved mode is FOLLOW_DEVICE, so background sampling (GpsResampler) replaces it with a
+ * real fix later.
  *
  * Kept free of Android/GMS types so plain JUnit can drive it with virtual time.
  */
@@ -30,8 +32,9 @@ class LocationFixFlow(
 
         data class Fix(val coordinates: Coordinates, override val source: String) : Outcome()
 
-        object Default : Outcome() {
-            override val source = "default"
+        /** No fix from any stage. The caller records no location; nothing is substituted. */
+        object NoFix : Outcome() {
+            override val source = "no_fix"
         }
     }
 
@@ -41,7 +44,7 @@ class LocationFixFlow(
     ): Outcome {
         attempt(activeFixTimeoutMs, activeFix)?.let { return Outcome.Fix(it, "active") }
         attempt(cachedFixTimeoutMs, cachedFix)?.let { return Outcome.Fix(it, "cached") }
-        return Outcome.Default
+        return Outcome.NoFix
     }
 
     /** Timeout and provider failures both mean "move to the next stage", never abort. */

@@ -21,7 +21,7 @@ import com.weatherwidget.di.RepositoryEntryPoint
  * Always does UI-only update from cache for instant feedback.
  * If charging and data is stale, also triggers background data fetch.
  *
- * Also the event-driven half of the GPS auto-heal. The periodic worker resamples location only on
+ * Also the event-driven half of device following. The periodic worker resamples location only on
  * a *full* sync ([WeatherWidgetWorker.handleFullSyncWork]), and the refreshes these events enqueue
  * are all `currentTempOnly`/`uiOnly` kinds — precisely the ones that gate excludes. So without the
  * calls below, plugging in and unlocking never notice that the device has moved, and a stale saved

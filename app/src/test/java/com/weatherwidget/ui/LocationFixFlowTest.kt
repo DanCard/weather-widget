@@ -59,13 +59,13 @@ class LocationFixFlowTest {
     @Test
     fun bothStagesHang_resolvesToDefaultAfterBothTimeouts() = runTest {
         val outcome = flow.resolve(activeFix = { hangForever() }, cachedFix = { hangForever() })
-        assertEquals(LocationFixFlow.Outcome.Default, outcome)
+        assertEquals(LocationFixFlow.Outcome.NoFix, outcome)
         assertEquals(15_000, currentTime) // 10s active + 5s cached, then default
     }
 
     @Test
     fun bothStagesEmpty_resolvesToDefault() = runTest {
         val outcome = flow.resolve(activeFix = { null }, cachedFix = { null })
-        assertEquals(LocationFixFlow.Outcome.Default, outcome)
+        assertEquals(LocationFixFlow.Outcome.NoFix, outcome)
     }
 }

@@ -118,7 +118,7 @@ class ConfigActivityRobolectricTest {
         val toastText = ShadowToast.getTextOfLatestToast()
         assertEquals("Location: Los Angeles, CA", toastText)
 
-        // A deliberate manual choice pins the location against the GPS auto-heal
+        // A deliberate manual choice pins the location against device sampling
         assertEquals(LocationMode.FIXED, LocationMode.get(context))
     }
 
@@ -289,7 +289,7 @@ class ConfigActivityRobolectricTest {
 
         // No coordinates written. The placeholder for "GPS never resolved" is the absence of a
         // location, not Google HQ -- writing real-looking coordinates is what made the widget show
-        // Mountain View's weather as the user's own. FOLLOW_DEVICE keeps the auto-heal running.
+        // Mountain View's weather as the user's own. FOLLOW_DEVICE keeps device sampling running.
         val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
         assertTrue(prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN).isNaN())
         assertTrue(prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN).isNaN())
@@ -326,7 +326,7 @@ class ConfigActivityRobolectricTest {
             assertEquals(Activity.RESULT_OK, shadowOf(activity).resultCode)
         }
 
-        // Pin untouched — a FOLLOW_DEVICE write here would let the auto-heal move every widget
+        // Pin untouched — a FOLLOW_DEVICE write here would let a sampled fix move every widget
         assertEquals(LocationMode.FIXED, LocationMode.get(context))
         // No per-widget default: ActiveLocationResolver covers the new widget from 9001's prefs
         val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)

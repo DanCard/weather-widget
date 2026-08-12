@@ -5,13 +5,13 @@ import android.content.Context
 /**
  * Single global flag deciding whether widget locations follow the device or stay pinned.
  *
- * - [FOLLOW_DEVICE]: the GPS auto-heal ([com.weatherwidget.widget.GpsResampler]) keeps every
- *   widget's location in sync with the device's cached fused location.
+ * - [FOLLOW_DEVICE]: [GpsResampler][com.weatherwidget.widget.GpsResampler] keeps every widget's
+ *   location in sync with the device's cached fused location.
  * - [FIXED]: the user deliberately chose a location (search result or manual coordinates);
- *   both heal paths skip entirely so the choice is never clobbered.
+ *   both sampling paths skip entirely so the choice is never clobbered.
  *
- * Absent key = [FOLLOW_DEVICE], so installs from before this flag existed keep healing.
- * Stored in `weather_prefs` (not per-widget: the heal already applies to all widgets at once).
+ * Absent key = [FOLLOW_DEVICE], so installs from before this flag existed keep following the device.
+ * Stored in `weather_prefs` (not per-widget: a sampled location applies to all widgets at once).
  */
 object LocationMode {
     const val FOLLOW_DEVICE = "follow_device"

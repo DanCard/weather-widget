@@ -11,7 +11,7 @@ import java.util.Locale
  *
  * 1. User-set aliases from the observations screen (`alias_*` in `weather_widget_prefs`).
  * 2. Previously reverse-geocoded names cached here (`geo_name_*` in `weather_prefs`).
- * 3. Labels already stored with `historical_pois` entries (search/GPS-heal save real names).
+ * 3. Labels already stored with `historical_pois` entries (search and GPS handoff both save real names).
  *
  * [resolve] adds a Nominatim reverse lookup (cached on success) when none of those hit.
  */

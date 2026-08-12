@@ -34,7 +34,7 @@ object LocationUpdater {
         )
 
     // `shouldHealTo` and `allWidgetsAtDefault` used to live here. Neither had a production caller: the
-    // decision they described is made by GpsResampler.healIfNeeded, which compares a fresh fix against
+    // decision they described is made by GpsResampler.followDeviceIfMoved, which compares a fresh fix against
     // the stored coordinates with LocationMatch.sameSite and needs no separate "is it unset?" signal.
     // They were nevertheless cited as "the GPS auto-heal signal" by CLAUDE.md and three KDocs,
     // including the one justifying LegacyDefaultLocationMigration — so the code that gated nothing was
@@ -169,9 +169,9 @@ object LocationUpdater {
 
     /**
      * Records "no location at all" across [ids] — the placeholder for "GPS never resolved", now that
-     * the placeholder is the absence of coordinates rather than Google HQ. [allWidgetsAtDefault] then
-     * reports true and the GPS auto-heal keeps trying; meanwhile the worker paints the no-location
-     * state instead of fetching weather for a coordinate nobody chose.
+     * the placeholder is the absence of coordinates rather than Google HQ. With nothing stored, the next
+     * sampled fix cannot be "the same site we already show" and is proposed as a candidate; meanwhile
+     * the worker paints the no-location state instead of fetching weather for a coordinate nobody chose.
      */
     internal fun clearActiveLocationForAllWidgets(
         context: Context,
@@ -193,7 +193,7 @@ object LocationUpdater {
         ids: IntArray = getWidgetIds(context),
     ): CandidateProposal {
         val stateManager = WidgetStateManager(context)
-        // Stored only, matching GpsResampler.healIfNeeded — an inferred coordinate here would make
+        // Stored only, matching GpsResampler.followDeviceIfMoved — an inferred coordinate here would make
         // propose() judge a fresh fix against a location the user never chose. Null when nothing is
         // configured yet, which propose() reads as "any fresh fix is an improvement."
         val active = ActiveLocationResolver.current(context)

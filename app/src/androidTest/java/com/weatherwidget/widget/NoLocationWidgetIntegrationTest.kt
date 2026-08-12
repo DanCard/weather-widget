@@ -24,7 +24,7 @@ import org.junit.runner.RunWith
  *
  * The app used to answer that state with Google HQ — it fetched live weather for Mountain View and
  * labelled it as the user's own. The correct behaviour is an explicit dead end: paint
- * "No location — tap to set", fetch nothing, and leave the GPS auto-heal eligible to rescue it.
+ * "No location — tap to set", fetch nothing, and leave device following eligible to rescue it.
  *
  * Deliberately seeds **no** forecasts. `ActiveLocationResolver.resolve` falls back to the latest
  * cached weather, so any seeded row would supply a location and defeat the test.

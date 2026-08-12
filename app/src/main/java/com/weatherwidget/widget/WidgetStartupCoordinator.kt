@@ -108,8 +108,8 @@ internal class WidgetStartupCoordinator(
                 // coordinator guards against elsewhere. Say what is actually wrong instead.
                 //
                 // Note this skips only the placeholder and the immediate sync: schedulePeriodicSync
-                // below must still run, because the periodic full sync is what carries the GPS
-                // auto-heal that eventually rescues this widget.
+                // below must still run, because the periodic full sync is what carries the device
+                // sampling that eventually rescues this widget.
                 val hasLocation =
                     ActiveLocationResolver.resolve(context, stateManager, forecastDao) != null
                 if (hasLocation) {

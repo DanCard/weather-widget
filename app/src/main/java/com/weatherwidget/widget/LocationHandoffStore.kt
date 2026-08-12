@@ -48,7 +48,7 @@ internal object LocationHandoffStore {
     /**
      * [activeLocation] is null when the app has no location at all. A fresh fix can then never be
      * "the same site we already show", so it is always worth proposing as a candidate — which is
-     * precisely the case the GPS auto-heal exists to serve.
+     * precisely the case location acquisition exists to serve.
      */
     fun propose(
         context: Context,

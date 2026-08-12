@@ -593,8 +593,8 @@ class WeatherWidgetWorker
         /**
          * Paints the no-location state on every placed widget and logs it. Returns [Result.success]
          * so the caller can `return renderNoLocationAndFinish(...)` — this is a settled state, not a
-         * transient failure, so retrying would only burn wakeups until the user acts or the GPS
-         * auto-heal lands a fix.
+         * transient failure, so retrying would only burn wakeups until the user acts or device
+         * following lands a fix.
          *
          * Deliberately does *not* honour the screen-off paint skip that [updateAllWidgets] applies.
          * That skip is a battery optimisation for repeated data repaints; here it would strand a

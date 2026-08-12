@@ -18,7 +18,7 @@ import org.junit.experimental.categories.Category
 /**
  * The upgrade path is the regression that fresh-install testing cannot see: an install that already
  * carries the Google-HQ sentinel would, without this migration, read it as a deliberately-chosen
- * location — auto-heal disabled, no-location gate never fires, permanently pinned to Mountain View.
+ * location — device following disabled, no-location gate never fires, permanently pinned to Mountain View.
  */
 @Category(LongDuration::class)
 class LegacyDefaultLocationMigrationTest : RobolectricTest() {
@@ -108,8 +108,8 @@ class LegacyDefaultLocationMigrationTest : RobolectricTest() {
 
     /**
      * A user who genuinely lives near Google HQ loses their setting once — an accepted, bounded cost
-     * of the migration, and FOLLOW_DEVICE re-heals them. What must never happen is the reverse:
-     * treating proximity as "unset" in the *steady-state* heal check. That criterion is absent/NaN
+     * of the migration, and FOLLOW_DEVICE re-acquires them. What must never happen is the reverse:
+     * treating proximity as "unset" in the *steady-state* sampling check. That criterion is absent/NaN
      * only; see LocationUpdater.allWidgetsAtDefault.
      */
     @Test

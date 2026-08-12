@@ -194,7 +194,7 @@ class MainActivity : AppCompatActivity() {
 
                 if (fineLocationGranted) {
                     checkAndRequestBackgroundLocation()
-                    maybeAutoHealLocationFromGps()
+                    maybeFollowDeviceLocation()
                 }
                 updatePermissionVisibility()
             }
@@ -207,18 +207,18 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updatePermissionVisibility()
-        maybeAutoHealLocationFromGps()
+        maybeFollowDeviceLocation()
     }
 
     /**
      * Proposes a follow-device candidate from the cached Fused last-known location — never an
      * active GPS fix, which would trigger Samsung's "app got your precise location" notice. The
      * current body remains active until candidate weather is useful. If the cache is empty this
-     * no-ops, and [GpsResampler.healIfNeeded] skips when the user pinned a location
+     * no-ops, and [GpsResampler.followDeviceIfMoved] skips when the user pinned a location
      * ([LocationMode.FIXED][com.weatherwidget.util.LocationMode]) so deliberate choices are
      * never overwritten.
      */
-    private fun maybeAutoHealLocationFromGps() {
+    private fun maybeFollowDeviceLocation() {
         val fineLocationGranted = ContextCompat.checkSelfPermission(
             this, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
@@ -230,7 +230,7 @@ class MainActivity : AppCompatActivity() {
             val lat = location.latitude
             val lon = location.longitude
             lifecycleScope.launch {
-                gpsResampler.healIfNeeded(this@MainActivity, lat, lon, trigger = "foreground")
+                gpsResampler.followDeviceIfMoved(this@MainActivity, lat, lon, trigger = "foreground")
             }
         }
     }

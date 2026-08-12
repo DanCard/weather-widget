@@ -61,7 +61,15 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   See `plans/260812-remove-default-location-and-show-error-when-unavailable.md` and
   `plans/260812-fix-gps-heal-findings-acquisition-vs-following.md`.
 - **Never request an active GPS fix from background/automatic paths** (`getCurrentLocation`/`PRIORITY_HIGH_ACCURACY`) — it triggers Samsung's "app got your precise location" warning; background paths use only passive `lastLocation` reads. The ONE exception: the user-initiated "Use precise device location" button in `ConfigActivity` (foreground, explicit tap).
-- **Location mode** (`location_mode` in `weather_prefs`, via `LocationMode`): `follow_device` (default; GPS auto-heal keeps widgets tracking the device) or `fixed` (search/coordinate choices pin the location; both heal paths skip with `GPS_RESAMPLE outcome=skipped_pinned`).
+- **Location mode** (`location_mode` in `weather_prefs`, via `LocationMode`): `follow_device` (default; `GpsResampler` keeps widgets tracking the device) or `fixed` (search/coordinate choices pin the location; both sampling paths skip with `GPS_RESAMPLE outcome=skipped_pinned`).
+- **"Heal" is not the word.** Two distinct operations share `GpsResampler`: **acquisition** (no
+  location → any location; promote as soon as anything is drawable) and **following** (site A → site
+  B; be conservative, `MOVING_GRACE_MS`, don't flap between towns). Neither is repair — nothing is
+  broken when a phone moves or has never been located — and merging them under a repair metaphor is
+  why acquisition once inherited the driving case's 30-minute grace. `evaluateCandidateUsability`
+  takes `isAcquisition` to keep them apart. Genuine self-heal (`healCorruptDatabaseVersion`, the
+  blank-widget render recovery, `syncCompatibilityCopies`) keeps the name: violated invariant,
+  one-shot, defined correct state to return to.
 - Visual style: Apple glass aesthetic
 
 ## Widget UI Layout

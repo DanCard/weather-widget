@@ -59,7 +59,7 @@ class PlaceholderTapTargetRoboTest : RobolectricTest() {
 
         assertTrue("no-location render pushed nothing", captured.viewsSlot.isCaptured)
         assertTrue(
-            "\"tap to set\" must open something — this is the only escape when GPS cannot heal it",
+            "\"tap to set\" must open something — this is the only escape when device following cannot reach it",
             rootClaimsTap(captured.viewsSlot.captured),
         )
     }
