@@ -22,7 +22,7 @@ import com.weatherwidget.di.RepositoryEntryPoint
  * If charging and data is stale, also triggers background data fetch.
  *
  * Also the event-driven half of device following. The periodic worker resamples location only on
- * a *full* sync ([WeatherWidgetWorker.handleFullSyncWork]), and the refreshes these events enqueue
+ * a *full* sync ([FullSyncPipeline.run]), and the refreshes these events enqueue
  * are all `currentTempOnly`/`uiOnly` kinds — precisely the ones that gate excludes. So without the
  * calls below, plugging in and unlocking never notice that the device has moved, and a stale saved
  * location persists until the next full sync (60 min plugged, up to 480 min on low battery).
