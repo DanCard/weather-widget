@@ -95,11 +95,12 @@ class GpsResampler(
             return false
         }
         val stateManager = WidgetStateManager(context)
+        // Null when the app has no location at all — the state this heal exists to escape. A fresh fix
+        // can never be "the same site" as nothing, so it falls through to become a candidate.
         val active = ActiveLocationResolver.current(context)
             ?: ids.toList().firstNotNullOfOrNull(stateManager::getWidgetLocation)
-            ?: (WeatherWidgetWorker.DEFAULT_LAT to WeatherWidgetWorker.DEFAULT_LON)
         val existingCandidate = LocationHandoffStore.getCandidate(context)
-        if (LocationMatch.sameSite(active.first, active.second, lat, lon)) {
+        if (active != null && LocationMatch.sameSite(active.first, active.second, lat, lon)) {
             if (existingCandidate != null) {
                 LocationHandoffStore.clear(context)
                 appLogDao.log(LOG_TAG, "outcome=returned_to_active trigger=$trigger lat=$lat lon=$lon", "INFO")

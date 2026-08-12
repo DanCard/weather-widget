@@ -38,29 +38,83 @@ class LocationUpdaterTest : RobolectricTest() {
         SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit().clear().commit()
     }
 
+    private fun bindWidget(widgetId: Int) {
+        val info = android.appwidget.AppWidgetProviderInfo().apply {
+            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
+        }
+        shadowAppWidgetManager.addBoundWidget(widgetId, info)
+    }
+
     @Test
     fun `shouldHealTo returns false when no widgets are placed`() {
         val result = LocationUpdater.shouldHealTo(context, 37.4220, -122.0841)
         assertFalse(result)
     }
 
+    /**
+     * The placeholder for "GPS never resolved" is now the absence of coordinates, so an unset widget
+     * must stay heal-eligible. It used to be recognised by equalling the Google-HQ constant.
+     */
     @Test
-    fun `shouldHealTo returns true when widgets are at default coordinates and fresh coordinates are different`() {
-        val widgetId = 201
-        val info = android.appwidget.AppWidgetProviderInfo().apply {
-            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
-        }
-        shadowAppWidgetManager.addBoundWidget(widgetId, info)
+    fun `shouldHealTo returns true when a widget has no location at all`() {
+        bindWidget(201)
 
-        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        prefs.edit()
-            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", WeatherWidgetWorker.DEFAULT_LAT.toFloat())
-            .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", WeatherWidgetWorker.DEFAULT_LON.toFloat())
+        assertTrue(LocationUpdater.shouldHealTo(context, 40.7128, -74.0060))
+    }
+
+    /**
+     * `shouldHealTo` reads the *stored* coordinates, not the resolved ones. Resolution falls back
+     * through the historical-POI list, so a never-configured widget would otherwise inherit a POI and
+     * read as "already located" — silently disabling the heal for the widget that most needs it.
+     */
+    @Test
+    fun `shouldHealTo ignores the historical-POI fallback when nothing is stored`() {
+        bindWidget(203)
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit()
+            .putString("historical_pois", "Somewhere|40.7128|-74.0060")
             .commit()
 
-        // 40.7128 is not sameSite with 37.4220
-        val result = LocationUpdater.shouldHealTo(context, 40.7128, -74.0060)
-        assertTrue(result)
+        assertTrue(LocationUpdater.shouldHealTo(context, 40.7128, -74.0060))
+    }
+
+    @Test
+    fun `allWidgetsAtDefault is true for an unset widget and false once one is configured`() {
+        bindWidget(204)
+        assertTrue(LocationUpdater.allWidgetsAtDefault(context))
+
+        SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME).edit()
+            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}204", 40.7128f)
+            .putFloat("${ConfigActivity.KEY_LON_PREFIX}204", -74.0060f)
+            .commit()
+
+        assertFalse(LocationUpdater.allWidgetsAtDefault(context))
+    }
+
+    /**
+     * Proximity must never mean "unset" in the steady-state heal check. A user who genuinely lives
+     * near Google HQ chose that location; treating it as a placeholder would let the heal overwrite a
+     * deliberate choice. Clearing the retired sentinel is the one-time migration's job instead.
+     */
+    @Test
+    fun `allWidgetsAtDefault is false for a real location near the retired default`() {
+        bindWidget(205)
+        SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME).edit()
+            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}205", 37.4220f)
+            .putFloat("${ConfigActivity.KEY_LON_PREFIX}205", -122.0841f)
+            .commit()
+
+        assertFalse(LocationUpdater.allWidgetsAtDefault(context))
+    }
+
+    @Test
+    fun `describeCurrentLocation says so when there is no location`() {
+        bindWidget(206)
+
+        val label = LocationUpdater.describeCurrentLocation(context)
+
+        // Used to read "Default Location: 37.4220, -122.0841" -- coordinates the user never chose.
+        assertTrue("expected no-location label in: $label", label.contains("No location set"))
+        assertFalse("must not format a coordinate: $label", label.contains("37.42"))
     }
 
     @Test

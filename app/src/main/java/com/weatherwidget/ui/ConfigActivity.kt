@@ -354,8 +354,9 @@ class ConfigActivity : AppCompatActivity() {
                     } else {
                         Toast.makeText(this@ConfigActivity, getString(R.string.location_fix_failed_default), Toast.LENGTH_SHORT).show()
                         // Still FOLLOW_DEVICE — the auto-heal can later replace the placeholder
-                        // with a real fix.
-                        saveChosenLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, null, LocationMode.FOLLOW_DEVICE)
+                        // with a real fix. The placeholder is now "unset", not Google HQ: the widget
+                        // shows a no-location message instead of another town's weather.
+                        saveNoLocation(LocationMode.FOLLOW_DEVICE)
                     }
             }
         }
@@ -530,6 +531,32 @@ class ConfigActivity : AppCompatActivity() {
         findViewById<EditText>(R.id.lon_input)?.isEnabled = enabled
     }
 
+    /**
+     * Completes the flow with **no location recorded at all** — the replacement for writing the
+     * Google-HQ placeholder. [mode] stays FOLLOW_DEVICE so the GPS auto-heal keeps trying;
+     * `LocationUpdater.allWidgetsAtDefault` reports true precisely because the coordinates are absent.
+     *
+     * In widget-add mode this still finishes with RESULT_OK: cancelling would make the launcher delete
+     * the pending widget, and a widget showing "No location — tap to set" is far better than no widget.
+     */
+    private fun saveNoLocation(mode: String) {
+        LocationMode.set(this, mode)
+        val widgetIds =
+            (LocationUpdater.getWidgetIds(this).toList() + appWidgetId)
+                .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+                .distinct()
+                .toIntArray()
+        LocationUpdater.clearActiveLocationForAllWidgets(this, widgetIds)
+        lifecycleScope.launch {
+            appLogDao.log("CONFIG", "Widget $appWidgetId saved with no location mode=$mode")
+        }
+        if (isGlobalMode) {
+            finish()
+        } else {
+            finishWithSuccess()
+        }
+    }
+
     private fun finishGlobalSave(lat: Double, lon: Double, label: String, mode: String) {
         // applyToAllWidgets enqueues its own force-refresh worker.
         LocationUpdater.applyToAllWidgets(this, lat, lon, label)
@@ -552,8 +579,9 @@ class ConfigActivity : AppCompatActivity() {
      * - nothing, if the user has a pinned (FIXED) location — [ActiveLocationResolver] already
      *   covers the new widget from the other widgets' prefs, and writing FOLLOW_DEVICE here
      *   would unpin every widget;
-     * - otherwise the FOLLOW_DEVICE default placeholder, which the GPS auto-heal later
-     *   replaces with a real fix (same as the manual GPS-failure path).
+     * - otherwise FOLLOW_DEVICE with **no location recorded**, which the GPS auto-heal later replaces
+     *   with a real fix (same as the manual GPS-failure path). The widget paints "No location — tap to
+     *   set" until then; it used to be given Google-HQ coordinates and shown Mountain View's weather.
      */
     private fun completeWidgetAddOnExit(trigger: String) {
         val cancelledPendingCheck = saveInProgress
@@ -575,18 +603,11 @@ class ConfigActivity : AppCompatActivity() {
                 triggerWidgetUpdate()
                 finishWithSuccess()
             }
-            cancelledPendingCheck -> finishWidgetLocationWithoutSourceCheck(
-                WeatherWidgetWorker.DEFAULT_LAT,
-                WeatherWidgetWorker.DEFAULT_LON,
-                null,
-                LocationMode.FOLLOW_DEVICE,
-            )
-            else -> saveChosenLocation(
-                WeatherWidgetWorker.DEFAULT_LAT,
-                WeatherWidgetWorker.DEFAULT_LON,
-                null,
-                LocationMode.FOLLOW_DEVICE,
-            )
+            // No fix and not pinned: complete the widget-add handshake with no location at all, so the
+            // launcher keeps the widget and it paints the no-location state until the auto-heal or the
+            // user supplies one. Both branches are the same write now — the source-check that
+            // distinguished them has no coordinates to check.
+            else -> saveNoLocation(LocationMode.FOLLOW_DEVICE)
         }
     }
 

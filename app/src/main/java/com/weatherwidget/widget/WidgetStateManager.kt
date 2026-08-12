@@ -319,6 +319,15 @@ class WidgetStateManager internal constructor(
         locationStore.set(widgetIds, lat, lon)
     }
 
+    /**
+     * Returns [widgetIds] to the "no location" state. The placeholder for "GPS never resolved" is the
+     * *absence* of coordinates — it used to be Google-HQ coordinates, which the fetch path could not
+     * distinguish from a real choice.
+     */
+    fun clearWidgetLocations(widgetIds: IntArray) {
+        widgetIds.forEach(locationStore::clearWidget)
+    }
+
     fun getCurrentTempDeltaState(
         widgetId: Int,
         source: WeatherSource,

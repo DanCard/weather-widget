@@ -41,33 +41,43 @@ object LocationUpdater {
         if (ids.isEmpty()) return false
         val stateManager = WidgetStateManager(context)
         return ids.any { id ->
-            val loc = stateManager.getWidgetLocation(id) ?: (WeatherWidgetWorker.DEFAULT_LAT to WeatherWidgetWorker.DEFAULT_LON)
+            // `stored`, not `getWidgetLocation`: the latter falls back through the legacy delta store
+            // and the historical-POI list, so a widget the user never configured would resolve to an
+            // inferred coordinate and read as "already located". Heal eligibility is about what was
+            // actually configured. An unset widget always needs healing.
+            val loc = stateManager.getStoredWidgetLocation(id) ?: return@any true
             !LocationMatch.sameSite(loc.first, loc.second, freshLat, freshLon)
         }
     }
 
     /**
-     * True when every placed widget is still pinned to the hard default coordinates (or has no
-     * location set yet). This is the signal that GPS never resolved — the auto-heal condition.
-     * Returns false when there are no widgets (nothing to heal).
+     * True when no placed widget has a location set. This is the signal that GPS never resolved — the
+     * auto-heal condition. Returns false when there are no widgets (nothing to heal).
+     *
+     * The criterion is **absent/NaN only**, never coordinate proximity. This used to also match the
+     * hard Google-HQ default, which meant a user who genuinely lived near Google HQ could have their
+     * real, deliberate choice treated as a placeholder and overwritten. Installs still carrying those
+     * coordinates are cleared once by [com.weatherwidget.widget.LegacyDefaultLocationMigration];
+     * proximity matching belongs in that one-time migration and nowhere else.
      */
     fun allWidgetsAtDefault(context: Context): Boolean {
         val ids = getWidgetIds(context)
         if (ids.isEmpty()) return false
         val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        val defaultLat = WeatherWidgetWorker.DEFAULT_LAT.toFloat()
-        val defaultLon = WeatherWidgetWorker.DEFAULT_LON.toFloat()
         return ids.all { id ->
             val lat = prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$id", Float.NaN)
             val lon = prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$id", Float.NaN)
-            (lat.isNaN() || lon.isNaN()) || (lat == defaultLat && lon == defaultLon)
+            lat.isNaN() || lon.isNaN()
         }
     }
 
-    /** The location the summary label describes: first widget → last historical POI → hard default. */
+    /**
+     * The location the summary label describes: active → first widget → last historical POI. Null when
+     * there is none; the label then reads [R.string.no_location_set] rather than inventing coordinates.
+     */
     private data class EffectiveLocation(val lat: Double, val lon: Double, val isWidgetLocation: Boolean)
 
-    private fun effectiveLocation(context: Context): EffectiveLocation {
+    private fun effectiveLocation(context: Context): EffectiveLocation? {
         ActiveLocationResolver.current(context)?.let { (lat, lon) ->
             return EffectiveLocation(lat, lon, isWidgetLocation = true)
         }
@@ -93,7 +103,7 @@ object LocationUpdater {
                 }
             }
 
-        return EffectiveLocation(WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, isWidgetLocation = false)
+        return null
     }
 
     /**
@@ -111,16 +121,26 @@ object LocationUpdater {
         context: Context,
         resolver: com.weatherwidget.data.repository.SharedLocationResolver,
     ): String {
-        val effective = effectiveLocation(context)
+        val effective = effectiveLocation(context) ?: return describe(context, null) { _, _ -> null }
         val name = FriendlyLocationName.resolve(context, resolver, effective.lat, effective.lon)
         return describe(context, effective) { _, _ -> name }
     }
 
     private fun describe(
         context: Context,
-        effective: EffectiveLocation,
+        effective: EffectiveLocation?,
         nameLookup: (Double, Double) -> String?,
     ): String {
+        if (effective == null) {
+            // No coordinates to format. Reverse-geocoding is skipped entirely — there is nothing to
+            // look up, and inventing a place name here is the bug this change set out to remove.
+            val modeSuffix = if (LocationMode.get(context) == LocationMode.FIXED) {
+                context.getString(R.string.location_mode_pinned)
+            } else {
+                context.getString(R.string.location_mode_follow)
+            }
+            return "${context.getString(R.string.no_location_set)} • $modeSuffix"
+        }
         val latText = String.format("%.4f", effective.lat)
         val lonText = String.format("%.4f", effective.lon)
         val name = nameLookup(effective.lat, effective.lon)
@@ -178,6 +198,22 @@ object LocationUpdater {
         enqueueForceRefresh(context)
     }
 
+    /**
+     * Records "no location at all" across [ids] — the placeholder for "GPS never resolved", now that
+     * the placeholder is the absence of coordinates rather than Google HQ. [allWidgetsAtDefault] then
+     * reports true and the GPS auto-heal keeps trying; meanwhile the worker paints the no-location
+     * state instead of fetching weather for a coordinate nobody chose.
+     */
+    internal fun clearActiveLocationForAllWidgets(
+        context: Context,
+        ids: IntArray = getWidgetIds(context),
+    ) {
+        LocationHandoffStore.clear(context)
+        ActiveLocationResolver.clear(context)
+        WidgetStateManager(context).clearWidgetLocations(ids)
+        enqueueForceRefresh(context)
+    }
+
     internal fun proposeFollowDeviceLocation(
         context: Context,
         lat: Double,
@@ -188,9 +224,10 @@ object LocationUpdater {
         ids: IntArray = getWidgetIds(context),
     ): CandidateProposal {
         val stateManager = WidgetStateManager(context)
+        // Null when nothing is configured yet — propose() treats that as "any fresh fix is an
+        // improvement" rather than comparing against a coordinate nobody chose.
         val active = ActiveLocationResolver.current(context)
             ?: ids.toList().firstNotNullOfOrNull(stateManager::getWidgetLocation)
-            ?: (WeatherWidgetWorker.DEFAULT_LAT to WeatherWidgetWorker.DEFAULT_LON)
         val proposal = LocationHandoffStore.propose(
             context = context,
             activeLocation = active,

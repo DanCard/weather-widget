@@ -274,7 +274,7 @@ class ConfigActivityRobolectricTest {
     }
 
     @Test
-    fun `back button saves FOLLOW_DEVICE default and completes the widget-add handshake`() {
+    fun `back button records no location and completes the widget-add handshake`() {
         val intent = Intent(context, ConfigActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
         }
@@ -288,23 +288,17 @@ class ConfigActivityRobolectricTest {
             )
         }
 
-        // Default placeholder saved; the GPS auto-heal replaces it with a real fix later
+        // No coordinates written. The placeholder for "GPS never resolved" is the absence of a
+        // location, not Google HQ -- writing real-looking coordinates is what made the widget show
+        // Mountain View's weather as the user's own. FOLLOW_DEVICE keeps the auto-heal running.
         val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        assertEquals(
-            WeatherWidgetWorker.DEFAULT_LAT.toFloat(),
-            prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN),
-            0.0001f,
-        )
-        assertEquals(
-            WeatherWidgetWorker.DEFAULT_LON.toFloat(),
-            prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN),
-            0.0001f,
-        )
+        assertTrue(prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN).isNaN())
+        assertTrue(prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN).isNaN())
         assertEquals(LocationMode.FOLLOW_DEVICE, LocationMode.get(context))
     }
 
     @Test
-    fun `system back saves FOLLOW_DEVICE default and completes the widget-add handshake`() {
+    fun `system back records no location and completes the widget-add handshake`() {
         val intent = Intent(context, ConfigActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
         }
@@ -315,11 +309,7 @@ class ConfigActivityRobolectricTest {
         }
 
         val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        assertEquals(
-            WeatherWidgetWorker.DEFAULT_LAT.toFloat(),
-            prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN),
-            0.0001f,
-        )
+        assertTrue(prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN).isNaN())
     }
 
     @Test
@@ -365,7 +355,9 @@ class ConfigActivityRobolectricTest {
         }
         ActivityScenario.launch<ConfigActivity>(intent).onActivity { activity ->
             val text = activity.findViewById<android.widget.TextView>(R.id.current_location_label).text.toString()
-            assertTrue("expected location summary in: $text", text.contains("Default Location"))
+            // No location configured: the label says so rather than formatting a coordinate the user
+            // never chose (it used to render "Default Location: 37.4220, -122.0841").
+            assertTrue("expected no-location summary in: $text", text.contains("No location set"))
             assertTrue("expected mode suffix in: $text", text.contains("Follows device"))
         }
     }
