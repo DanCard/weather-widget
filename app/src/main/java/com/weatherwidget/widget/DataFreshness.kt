@@ -154,10 +154,15 @@ object DataFreshness {
             val hourlyDao = database.hourlyForecastDao()
             val weatherDao = database.forecastDao()
 
-            // Get location from latest weather data
-            val latestWeather = weatherDao.getLatestWeather()
-            val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-            val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+            // Get location from latest weather data. No cached weather means no location to scope the
+            // query to, which is itself the answer: there is no recent hourly data. Substituting a
+            // hardcoded coordinate here used to make this look answerable when it was not.
+            val latestWeather = weatherDao.getLatestWeather() ?: run {
+                Log.d(TAG, "Recent hourly data check: hasData=false (no cached weather, no location)")
+                return false
+            }
+            val lat = latestWeather.locationLat
+            val lon = latestWeather.locationLon
 
             val now = LocalDateTime.now()
             val zoneId = ZoneId.systemDefault()

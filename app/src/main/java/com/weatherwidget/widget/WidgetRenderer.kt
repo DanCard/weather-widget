@@ -212,13 +212,20 @@ object WidgetRenderer {
                 ?: weatherList.firstOrNull()?.locationLat
                 ?: hourlyForecasts.firstOrNull()?.locationLat
                 ?: currentTemps.firstOrNull()?.locationLat
-                ?: WeatherWidgetWorker.DEFAULT_LAT
         val locationLon =
             configuredLocation?.second
                 ?: weatherList.firstOrNull()?.locationLon
                 ?: hourlyForecasts.firstOrNull()?.locationLon
                 ?: currentTemps.firstOrNull()?.locationLon
-                ?: WeatherWidgetWorker.DEFAULT_LON
+        // Unlike the handler-level fallbacks, this one is not decoration: it is the site every row is
+        // unified against. With no configured location and no data carrying one, there is nothing to
+        // render, so paint the no-location state instead of unifying against a fabricated coordinate.
+        // The worker gates on this too; this is the last line of defence for direct render paths.
+        if (locationLat == null || locationLon == null || !locationLat.isFinite() || !locationLon.isFinite()) {
+            Log.w(TAG, "updateWidgetWithData: no location for widget=$appWidgetId; painting no-location state")
+            updateWidgetNoLocation(context, appWidgetManager, appWidgetId)
+            return
+        }
 
         // 1. Pick the coordinate pair in the hourly data closest to our target location, then keep every
         // row at that SAME physical site. We can't use exact float equality: one site accumulates

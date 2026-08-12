@@ -200,8 +200,11 @@ object DailyViewHandler : WidgetViewHandler {
         val database = WeatherDatabase.getDatabase(context)
         val appLogDao = database.appLogDao()
 
-        val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        // NaN, never a hardcoded coordinate. Used for the cached climate-normals lookup below and for
+        // sun position; a NaN key simply misses the cache, which leaves PARTIAL future rows partial
+        // rather than completing them from another city's normals.
+        val lat = weatherList.firstOrNull()?.locationLat ?: Double.NaN
+        val lon = weatherList.firstOrNull()?.locationLon ?: Double.NaN
         // Cache-only read. The repository's getHistoricalNormalsByMonthDay does an HTTP fetch on a
         // cache miss, which has no business on a widget render path; ClimateNormalsRepository
         // .warmBestEffort already warms this cache on every network fetch. Used solely to complete a
@@ -315,7 +318,7 @@ object DailyViewHandler : WidgetViewHandler {
                 }
                 .toMap()
 
-        val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
+        val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
 
         // Header yesterday-delta: one observation range query per render, shared with the
         // today-column overlay (same window) via ctx.headerObservations.

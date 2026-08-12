@@ -104,9 +104,12 @@ internal object TemperatureStateResolver {
         sourceMissingFromLoad: Boolean = false,
     ): ResolutionResult {
         val effectiveAppLogDao = appLogDao ?: WeatherDatabase.getDatabase(context).appLogDao()
-        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-        val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
+        // NaN, never a hardcoded coordinate: this is derived from the rows about to be drawn, so it
+        // only fires when there are none. NaN degrades honestly downstream (sun shading falls back to
+        // UNKNOWN_LOCATION, IDW distance weights drop out) instead of silently rendering Google HQ.
+        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
+        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
+        val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
 
         val zoom = stateManager.getZoomWindow(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)

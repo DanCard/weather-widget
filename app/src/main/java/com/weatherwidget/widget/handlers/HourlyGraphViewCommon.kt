@@ -147,7 +147,7 @@ internal object HourlyGraphViewCommon {
             dateLabelMillis = dateLabelMillis,
             nonDateShowLabel = isClosest || (hourIndex % labelInterval == 0),
         )
-        val sunInfo = SunPositionUtils.getSunInfo(currentHour, lat, lon)
+        val sunInfo = SunPositionUtils.getSunInfoOrUnknown(currentHour, lat, lon)
         val isNight = sunInfo.isNight
         val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
         val isSunBoundary = sunInfo.isSunBoundary

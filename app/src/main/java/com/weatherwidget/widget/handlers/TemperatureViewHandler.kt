@@ -112,10 +112,10 @@ object TemperatureViewHandler {
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
                 currentLat = stateManager.getWidgetLocation(appWidgetId)?.first
                     ?: currentTempHourlyForecasts.firstOrNull()?.locationLat
-                    ?: WeatherWidgetWorker.DEFAULT_LAT,
+                    ?: Double.NaN,
                 currentLon = stateManager.getWidgetLocation(appWidgetId)?.second
                     ?: currentTempHourlyForecasts.firstOrNull()?.locationLon
-                    ?: WeatherWidgetWorker.DEFAULT_LON,
+                    ?: Double.NaN,
                 smoothedForecasts = liveSmoothed,
             )
             val currentFormatted = liveResolution.displayTemp?.let {
@@ -309,8 +309,11 @@ object TemperatureViewHandler {
         now: LocalDateTime,
     ) {
         val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
-        val lat = configuredLocation?.first ?: currentTempHourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = configuredLocation?.second ?: currentTempHourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        // NaN rather than a hardcoded coordinate: the configured location is the primary source here,
+        // and if neither it nor the hourly rows supply one there is nothing to resolve a current temp
+        // against. See SunPositionUtils.UNKNOWN_LOCATION for how the decoration degrades.
+        val lat = configuredLocation?.first ?: currentTempHourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
+        val lon = configuredLocation?.second ?: currentTempHourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
         val smoothed = computeSmoothedForecasts(currentTempHourlyForecasts, displaySource)
         val resolution = CurrentTemperatureResolver.resolve(
             now = now,

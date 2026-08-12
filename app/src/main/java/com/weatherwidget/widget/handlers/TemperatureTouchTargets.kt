@@ -181,17 +181,25 @@ internal fun setupHistoryShortcut(
     displaySource: WeatherSource,
     setVisibility: Boolean = false,
     scale: Float = 1.0f,
-) = setupHistoryShortcutAt(
-    context = context,
-    views = views,
-    appWidgetId = appWidgetId,
-    date = centerTime.toLocalDate(),
-    lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT,
-    lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON,
-    displaySource = displaySource,
-    setVisibility = setVisibility,
-    scale = scale,
-)
+) {
+    // Unlike the sun-position sites, these coordinates leave the widget: they become Intent extras
+    // that open ForecastHistoryActivity. A placeholder here would open the history screen at Google
+    // HQ, so with no location the shortcut is simply not bound — there is no history to show.
+    val lat = hourlyForecasts.firstOrNull()?.locationLat
+    val lon = hourlyForecasts.firstOrNull()?.locationLon
+    if (lat == null || lon == null || !lat.isFinite() || !lon.isFinite()) return
+    setupHistoryShortcutAt(
+        context = context,
+        views = views,
+        appWidgetId = appWidgetId,
+        date = centerTime.toLocalDate(),
+        lat = lat,
+        lon = lon,
+        displaySource = displaySource,
+        setVisibility = setVisibility,
+        scale = scale,
+    )
+}
 
 /**
  * Binds the forecast-history button for an explicit date and location.

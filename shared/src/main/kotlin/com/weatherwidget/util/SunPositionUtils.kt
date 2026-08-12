@@ -27,6 +27,30 @@ data class SunInfo(
 
 object SunPositionUtils {
     /**
+     * The answer when there is no location to compute against: permanent daylight, no boundary.
+     *
+     * Sun position is a *decoration* — day/night shading and icon variants — so the honest response to
+     * "we do not know where we are" is to skip the decoration, not to invent a place. Callers used to
+     * substitute a hardcoded Google-HQ coordinate here, which silently rendered another city's
+     * day/night cycle. Renderers that have no data rows to shade see no visible difference either way.
+     */
+    val UNKNOWN_LOCATION = SunInfo(
+        phase = SunPhase.DAY,
+        isNight = false,
+        isSunBoundary = false,
+        sunTimes = SunTimes(sunriseHour = 0.0, sunsetHour = 24.0),
+    )
+
+    /**
+     * [getSunInfo] for a location that may be absent. Returns [UNKNOWN_LOCATION] rather than guessing
+     * when [lat]/[lon] are null or non-finite.
+     */
+    fun getSunInfoOrUnknown(dateTime: LocalDateTime, lat: Double?, lon: Double?): SunInfo {
+        if (lat == null || lon == null || !lat.isFinite() || !lon.isFinite()) return UNKNOWN_LOCATION
+        return getSunInfo(dateTime, lat, lon)
+    }
+
+    /**
      * Computes all sun-related information for the given date, time, and location
      * in a single pass. Prefer this over calling [getSunPhase], [isNight], and
      * [isSunBoundary] separately, which would each recompute sunrise/sunset times.

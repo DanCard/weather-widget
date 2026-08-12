@@ -216,9 +216,12 @@ object CloudCoverViewHandler {
         )
 
         val now = LocalDateTime.now()
-        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-        val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
+        // NaN, never a hardcoded coordinate: this is derived from the rows about to be drawn, so it
+        // only fires when there are none. NaN degrades honestly downstream (sun shading falls back to
+        // UNKNOWN_LOCATION, IDW distance weights drop out) instead of silently rendering Google HQ.
+        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
+        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
+        val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
         val currentHourForecast = WeatherTimeUtils.getCurrentHourForecast(hourlyForecasts, effectiveDisplaySource)
         val iconRes = WeatherIconMapper.getIconResource(
             condition = currentHourForecast?.condition,
@@ -535,8 +538,10 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
     ): List<CloudCoverGraphRenderer.CloudHourData> {
         val hours = mutableListOf<CloudCoverGraphRenderer.CloudHourData>()
         val now = LocalDateTime.now()
-        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        // NaN, never a hardcoded coordinate: derived from the rows about to be drawn, so it only
+        // fires when there are none. Sun shading degrades to UNKNOWN_LOCATION downstream.
+        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
+        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
 
         val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
             .mapValues { entry ->

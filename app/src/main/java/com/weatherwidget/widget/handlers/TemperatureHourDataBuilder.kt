@@ -178,8 +178,12 @@ internal fun buildHourDataResult(
     val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
     val startHour = alignedCenter.minusHours(zoom.backHours)
     val endHour = alignedCenter.plusHours(zoom.forwardHours)
-    val lat = hourlyForecasts.firstOrNull()?.locationLat ?: com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_LAT
-    val lon = hourlyForecasts.firstOrNull()?.locationLon ?: com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_LON
+    // NaN, never a hardcoded coordinate. This is the IDW reference point for the observation blend
+    // and is derived from the rows being drawn, so it only fires when there are none — and a blend
+    // with no rows produces nothing regardless. A real coordinate here would silently weight another
+    // city's stations as if they were nearby.
+    val lat = hourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
+    val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
     val sourceActuals = actuals.filter { matchesObservationSource(it, displaySource) }
     val sourceSpanSummary =
         if (sourceActuals.isEmpty()) {
@@ -284,7 +288,7 @@ internal fun buildHourDataResult(
             if (forecast == null) {
                 Log.w(TAG, "buildHourDataList: Missing forecast for $time (ms=$hourMs) source=${displaySource.id}")
             }
-            val sunInfo = SunPositionUtils.getSunInfo(time, lat, lon)
+            val sunInfo = SunPositionUtils.getSunInfoOrUnknown(time, lat, lon)
             val isNight = sunInfo.isNight
             val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
             val isSunBoundary = sunInfo.isSunBoundary
@@ -323,7 +327,7 @@ internal fun buildHourDataResult(
                 isDateLabel = labelInfo.isDateLabel,
             )
         } else {
-            val subSunInfo = SunPositionUtils.getSunInfo(time, lat, lon)
+            val subSunInfo = SunPositionUtils.getSunInfoOrUnknown(time, lat, lon)
             base.copy(
                 label = formatHourLabel(time),
                 iconRes = null,

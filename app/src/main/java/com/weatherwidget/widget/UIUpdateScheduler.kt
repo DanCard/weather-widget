@@ -34,10 +34,16 @@ class UIUpdateScheduler(private val context: Context) {
             val hourlyDao = database.hourlyForecastDao()
             val weatherDao = database.forecastDao()
 
-            // Get location from latest weather data
-            val latestWeather = weatherDao.getLatestWeather()
-            val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-            val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+            // Get location from latest weather data. With no cached weather there is no location to
+            // scope the lookahead to; fall through to the same default cadence the empty-forecast
+            // branch below uses rather than querying at a hardcoded coordinate.
+            val latestWeather = weatherDao.getLatestWeather() ?: run {
+                Log.d(TAG, "No cached weather (no location), scheduling default 30 min update")
+                scheduleUpdate(30 * 60 * 1000L)
+                return
+            }
+            val lat = latestWeather.locationLat
+            val lon = latestWeather.locationLon
 
             // Get hourly forecasts around current time
             val now = LocalDateTime.now()
