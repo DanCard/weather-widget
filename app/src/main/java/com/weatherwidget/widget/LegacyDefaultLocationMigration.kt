@@ -8,15 +8,15 @@ import com.weatherwidget.util.SharedPreferencesUtil
 /**
  * One-time cleanup of the retired Google-HQ placeholder coordinates.
  *
- * The app used to write `37.4220, -122.0841` (Google HQ) as the "GPS never resolved" placeholder, and
- * `LocationUpdater.allWidgetsAtDefault` recognised *those exact coordinates* as the signal to keep
- * auto-healing. The placeholder is now the **absence** of finite coordinates, so an install that still
- * carries the old sentinel on disk would read as a legitimate, deliberately-chosen location:
+ * The app used to write `37.4220, -122.0841` (Google HQ) as the "GPS never resolved" placeholder. The
+ * placeholder is now the **absence** of finite coordinates, so an install that still carries the old
+ * sentinel on disk would read as a legitimate, deliberately-chosen location:
  *
- *  - `allWidgetsAtDefault` would return false, so the GPS auto-heal would stop trying;
  *  - `ActiveLocationResolver.current()` would return it, so the no-location gate would never fire;
- *  - the user would be permanently pinned to Mountain View, with no error shown — strictly worse than
- *    the behaviour this change set out to fix.
+ *  - `GpsResampler` would compare each fresh fix against it and, for anyone near Mountain View,
+ *    propose nothing;
+ *  - the user would be permanently pinned there, with no error shown — strictly worse than the
+ *    behaviour this change set out to fix.
  *
  * So the sentinel has to be actively erased once, at upgrade.
  *

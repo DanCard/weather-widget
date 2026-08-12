@@ -33,43 +33,12 @@ object LocationUpdater {
             ComponentName(context, WeatherWidgetProvider::class.java),
         )
 
-    /**
-     * Checks if any widget location needs to be auto-healed to the fresh location (i.e. is not same-site).
-     */
-    fun shouldHealTo(context: Context, freshLat: Double, freshLon: Double): Boolean {
-        val ids = getWidgetIds(context)
-        if (ids.isEmpty()) return false
-        val stateManager = WidgetStateManager(context)
-        return ids.any { id ->
-            // `stored`, not `getWidgetLocation`: the latter falls back through the legacy delta store
-            // and the historical-POI list, so a widget the user never configured would resolve to an
-            // inferred coordinate and read as "already located". Heal eligibility is about what was
-            // actually configured. An unset widget always needs healing.
-            val loc = stateManager.getStoredWidgetLocation(id) ?: return@any true
-            !LocationMatch.sameSite(loc.first, loc.second, freshLat, freshLon)
-        }
-    }
-
-    /**
-     * True when no placed widget has a location set. This is the signal that GPS never resolved — the
-     * auto-heal condition. Returns false when there are no widgets (nothing to heal).
-     *
-     * The criterion is **absent/NaN only**, never coordinate proximity. This used to also match the
-     * hard Google-HQ default, which meant a user who genuinely lived near Google HQ could have their
-     * real, deliberate choice treated as a placeholder and overwritten. Installs still carrying those
-     * coordinates are cleared once by [com.weatherwidget.widget.LegacyDefaultLocationMigration];
-     * proximity matching belongs in that one-time migration and nowhere else.
-     */
-    fun allWidgetsAtDefault(context: Context): Boolean {
-        val ids = getWidgetIds(context)
-        if (ids.isEmpty()) return false
-        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        return ids.all { id ->
-            val lat = prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$id", Float.NaN)
-            val lon = prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$id", Float.NaN)
-            lat.isNaN() || lon.isNaN()
-        }
-    }
+    // `shouldHealTo` and `allWidgetsAtDefault` used to live here. Neither had a production caller: the
+    // decision they described is made by GpsResampler.healIfNeeded, which compares a fresh fix against
+    // the stored coordinates with LocationMatch.sameSite and needs no separate "is it unset?" signal.
+    // They were nevertheless cited as "the GPS auto-heal signal" by CLAUDE.md and three KDocs,
+    // including the one justifying LegacyDefaultLocationMigration — so the code that gated nothing was
+    // load-bearing for how the subsystem got explained, and reasoning from it led somewhere wrong.
 
     /**
      * The location the summary label describes: active → first widget → last historical POI. Null when

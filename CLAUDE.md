@@ -53,9 +53,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
 - **There is no default location.** `WeatherWidgetWorker.DEFAULT_LAT/LON` (Google HQ) was deleted
   2026-08-12; it used to fetch and label Mountain View's weather for anyone whose GPS never
   resolved. "No location" is now the *absence* of coordinates: `ActiveLocationResolver.resolve()`
-  returns null, the widget paints "No location — tap to set", and nothing is fetched.
-  `LocationUpdater.allWidgetsAtDefault` (the GPS auto-heal signal) tests absent/NaN **only** —
-  never coordinate proximity. See `plans/260812-remove-default-location-and-show-error-when-unavailable.md`.
+  returns null, the widget paints "No location — tap to set" (tapping opens `ConfigActivity`), and
+  nothing is fetched. Coordinate **proximity** never means "unset" in steady state — the only
+  surviving comparison against the retired coordinates is the one-time
+  `LegacyDefaultLocationMigration`, which also purges the `forecasts` rows filed at them (prefs alone
+  left `resolve()`'s cached-weather fallback free to resurrect the sentinel).
+  See `plans/260812-remove-default-location-and-show-error-when-unavailable.md` and
+  `plans/260812-fix-gps-heal-findings-acquisition-vs-following.md`.
 - **Never request an active GPS fix from background/automatic paths** (`getCurrentLocation`/`PRIORITY_HIGH_ACCURACY`) — it triggers Samsung's "app got your precise location" warning; background paths use only passive `lastLocation` reads. The ONE exception: the user-initiated "Use precise device location" button in `ConfigActivity` (foreground, explicit tap).
 - **Location mode** (`location_mode` in `weather_prefs`, via `LocationMode`): `follow_device` (default; GPS auto-heal keeps widgets tracking the device) or `fixed` (search/coordinate choices pin the location; both heal paths skip with `GPS_RESAMPLE outcome=skipped_pinned`).
 - Visual style: Apple glass aesthetic

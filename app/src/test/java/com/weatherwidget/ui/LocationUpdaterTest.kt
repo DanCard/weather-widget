@@ -44,66 +44,10 @@ class LocationUpdaterTest : RobolectricTest() {
         shadowAppWidgetManager.addBoundWidget(widgetId, info)
     }
 
-    @Test
-    fun `shouldHealTo returns false when no widgets are placed`() {
-        val result = LocationUpdater.shouldHealTo(context, 37.4220, -122.0841)
-        assertFalse(result)
-    }
 
-    /**
-     * The placeholder for "GPS never resolved" is now the absence of coordinates, so an unset widget
-     * must stay heal-eligible. It used to be recognised by equalling the Google-HQ constant.
-     */
-    @Test
-    fun `shouldHealTo returns true when a widget has no location at all`() {
-        bindWidget(201)
 
-        assertTrue(LocationUpdater.shouldHealTo(context, 40.7128, -74.0060))
-    }
 
-    /**
-     * `shouldHealTo` reads the *stored* coordinates, not the resolved ones. Resolution falls back
-     * through the historical-POI list, so a never-configured widget would otherwise inherit a POI and
-     * read as "already located" — silently disabling the heal for the widget that most needs it.
-     */
-    @Test
-    fun `shouldHealTo ignores the historical-POI fallback when nothing is stored`() {
-        bindWidget(203)
-        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit()
-            .putString("historical_pois", "Somewhere|40.7128|-74.0060")
-            .commit()
 
-        assertTrue(LocationUpdater.shouldHealTo(context, 40.7128, -74.0060))
-    }
-
-    @Test
-    fun `allWidgetsAtDefault is true for an unset widget and false once one is configured`() {
-        bindWidget(204)
-        assertTrue(LocationUpdater.allWidgetsAtDefault(context))
-
-        SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME).edit()
-            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}204", 40.7128f)
-            .putFloat("${ConfigActivity.KEY_LON_PREFIX}204", -74.0060f)
-            .commit()
-
-        assertFalse(LocationUpdater.allWidgetsAtDefault(context))
-    }
-
-    /**
-     * Proximity must never mean "unset" in the steady-state heal check. A user who genuinely lives
-     * near Google HQ chose that location; treating it as a placeholder would let the heal overwrite a
-     * deliberate choice. Clearing the retired sentinel is the one-time migration's job instead.
-     */
-    @Test
-    fun `allWidgetsAtDefault is false for a real location near the retired default`() {
-        bindWidget(205)
-        SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME).edit()
-            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}205", 37.4220f)
-            .putFloat("${ConfigActivity.KEY_LON_PREFIX}205", -122.0841f)
-            .commit()
-
-        assertFalse(LocationUpdater.allWidgetsAtDefault(context))
-    }
 
     @Test
     fun `describeCurrentLocation says so when there is no location`() {
@@ -116,24 +60,6 @@ class LocationUpdaterTest : RobolectricTest() {
         assertFalse("must not format a coordinate: $label", label.contains("37.42"))
     }
 
-    @Test
-    fun `shouldHealTo returns false when widgets are already sameSite with fresh coordinates`() {
-        val widgetId = 202
-        val info = android.appwidget.AppWidgetProviderInfo().apply {
-            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
-        }
-        shadowAppWidgetManager.addBoundWidget(widgetId, info)
-
-        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        prefs.edit()
-            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", 37.4220f)
-            .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", -122.0841f)
-            .commit()
-
-        // 37.4221 is sameSite with 37.4220 (difference < 0.002)
-        val result = LocationUpdater.shouldHealTo(context, 37.4221, -122.0840)
-        assertFalse(result)
-    }
 
     @Test
     fun `describeCurrentLocation shows stored POI name next to widget coordinates`() {
@@ -178,24 +104,6 @@ class LocationUpdaterTest : RobolectricTest() {
         assertFalse("unexpected parenthesised name in: $label", label.contains("("))
     }
 
-    @Test
-    fun `shouldHealTo returns true when widgets are at stale coordinates and fresh coordinates are different`() {
-        val widgetId = 203
-        val info = android.appwidget.AppWidgetProviderInfo().apply {
-            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
-        }
-        shadowAppWidgetManager.addBoundWidget(widgetId, info)
-
-        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        prefs.edit()
-            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", 34.0522f) // Los Angeles
-            .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", -118.2437f)
-            .commit()
-
-        // Fresh coordinate is Googleplex (different site)
-        val result = LocationUpdater.shouldHealTo(context, 37.4220, -122.0841)
-        assertTrue(result)
-    }
 
     @Test
     fun `follow-device candidate does not replace active widget coordinates before promotion`() {

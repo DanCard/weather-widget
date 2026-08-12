@@ -533,8 +533,9 @@ class ConfigActivity : AppCompatActivity() {
 
     /**
      * Completes the flow with **no location recorded at all** — the replacement for writing the
-     * Google-HQ placeholder. [mode] stays FOLLOW_DEVICE so the GPS auto-heal keeps trying;
-     * `LocationUpdater.allWidgetsAtDefault` reports true precisely because the coordinates are absent.
+     * Google-HQ placeholder. [mode] stays FOLLOW_DEVICE, so `GpsResampler` keeps sampling: with no
+     * stored coordinates to compare against, the next cached fix cannot be "the same site we already
+     * show" and is proposed as a candidate.
      *
      * In widget-add mode this still finishes with RESULT_OK: cancelling would make the launcher delete
      * the pending widget, and a widget showing "No location — tap to set" is far better than no widget.

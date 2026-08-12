@@ -131,6 +131,9 @@ class LocationHandoffIntegrationTest : IsolatedIntegrationTest("location_handoff
             requiresHourlyData = true,
             nowMs = evaluationMs,
             candidateFirstSeenMs = candidate.firstSeenMs,
+            // Derived exactly as production does rather than hardcoded false, so this helper stays
+            // honest if a case is ever added that starts from no location.
+            isAcquisition = ActiveLocationResolver.current(context) == null,
         )
     }
 

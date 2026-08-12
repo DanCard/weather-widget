@@ -142,14 +142,16 @@ class NoLocationWidgetIntegrationTest : IsolatedIntegrationTest("no_location") {
             db.appLogDao().getLogsByTag("OBS_HOURLY_BACKFILL_RUN", 50).isEmpty(),
         )
 
-        // Stage 5: the widget stays heal-eligible, so a later GPS fix rescues it automatically.
-        assertTrue(
-            "an unset widget must remain eligible for the GPS auto-heal",
-            com.weatherwidget.ui.LocationUpdater.allWidgetsAtDefault(context),
-        )
+        // Stage 5: nothing was written, so a later fix still resolves as a new site and gets proposed
+        // as a candidate. (This used to assert LocationUpdater.allWidgetsAtDefault, which read the same
+        // prefs the line below reads and gated nothing; it has been deleted.)
         assertFalse(
             "no coordinate may have been written as a side effect",
             ActiveLocationResolver.current(context) != null,
+        )
+        assertNull(
+            "an unset widget must stay unset, so a fresh fix is never mistaken for the current site",
+            WidgetStateManager(context).getStoredWidgetLocation(widgetId),
         )
     }
 
