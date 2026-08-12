@@ -150,6 +150,7 @@ class WeatherWidgetWorker
                     resultMessage = "skipped_policy_blocked"
                 } else {
                     val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
+                        ?: return renderNoLocationAndFinish("current_temp_only")
                     val fetchStartMs = SystemClock.elapsedRealtime()
                     val refreshResult = weatherRepository.refreshCurrentTemperature(
                         latitude = location.first,
@@ -249,6 +250,7 @@ class WeatherWidgetWorker
                     resultMessage = "no_non_active_visible_sources"
                 } else {
                     val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
+                        ?: return renderNoLocationAndFinish("non_primary_current_temp")
                     val fetchStartMs = SystemClock.elapsedRealtime()
                     var successCount = 0
                     var failCount = 0
@@ -327,7 +329,12 @@ class WeatherWidgetWorker
                     WeatherDatabase.getDatabase(context).forecastDao(),
                 )
                 val candidateAtLoad = if (!input.uiOnlyRefresh) LocationHandoffStore.getCandidate(context) else null
-                val location = candidateAtLoad?.location?.let { it.lat to it.lon } ?: activeLocation
+                // Candidate first, as before. A candidate can exist with no active location yet (a GPS
+                // handoff on a never-configured install), so the no-location gate is on the resolved
+                // pair, not on activeLocation alone.
+                val location = candidateAtLoad?.location?.let { it.lat to it.lon }
+                    ?: activeLocation
+                    ?: return renderNoLocationAndFinish("full_sync")
                 Log.d(
                     TAG,
                     "doWork: Location = $location active=$activeLocation candidate=${candidateAtLoad != null} " +
@@ -539,6 +546,35 @@ class WeatherWidgetWorker
 
         // ---- widget painting ----
 
+        /**
+         * Paints the no-location state on every placed widget and logs it. Returns [Result.success]
+         * so the caller can `return renderNoLocationAndFinish(...)` — this is a settled state, not a
+         * transient failure, so retrying would only burn wakeups until the user acts or the GPS
+         * auto-heal lands a fix.
+         *
+         * Deliberately does *not* honour the screen-off paint skip that [updateAllWidgets] applies.
+         * That skip is a battery optimisation for repeated data repaints; here it would strand a
+         * first-ever run behind the "Loading..." placeholder indefinitely.
+         */
+        private suspend fun renderNoLocationAndFinish(reason: String): Result {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+            appLogDao.log(
+                "NO_LOCATION",
+                "reason=$reason widgets=${appWidgetIds.size} action=render_error_skip_fetch",
+                "INFO",
+            )
+            appWidgetIds.forEach { appWidgetId ->
+                WidgetRenderer.updateWidgetNoLocation(
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                )
+            }
+            return Result.success()
+        }
+
         private suspend fun updateAllWidgets(
             weatherList: List<ForecastEntity>,
             forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
@@ -624,7 +660,10 @@ class WeatherWidgetWorker
         private suspend fun refreshWidgetsFromCache() {
             val location = ActiveLocationResolver.resolve(
                 context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao(),
-            )
+            ) ?: run {
+                renderNoLocationAndFinish("refresh_from_cache")
+                return
+            }
             val bundle = dataBundleLoader.load(
                 latitude = location.first,
                 longitude = location.second,
@@ -759,14 +798,14 @@ class WeatherWidgetWorker
             return powerManager.isInteractive
         }
 
-        private fun getLocationName(lat: Double, lon: Double): String {
-            return if (lat == DEFAULT_LAT && lon == DEFAULT_LON) {
-                "Mountain View, CA"
-            } else {
-                com.weatherwidget.util.FriendlyLocationName.cached(context, lat, lon)
-                    ?: "%.2f, %.2f".format(lat, lon)
-            }
-        }
+        /**
+         * Never fabricates a place name. This used to answer "Mountain View, CA" for the hard-default
+         * coordinates, which is how a user with no resolvable location ended up seeing Google HQ's
+         * weather labelled as their own. A coordinate string is the honest fallback.
+         */
+        private fun getLocationName(lat: Double, lon: Double): String =
+            com.weatherwidget.util.FriendlyLocationName.cached(context, lat, lon)
+                ?: "%.2f, %.2f".format(lat, lon)
 
         // ---- constants ----
 

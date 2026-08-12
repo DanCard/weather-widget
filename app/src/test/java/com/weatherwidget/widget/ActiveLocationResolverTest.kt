@@ -13,6 +13,7 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -38,13 +39,27 @@ class ActiveLocationResolverTest : RobolectricTest() {
         shadowAppWidgetManager = shadowOf(appWidgetManager)
     }
 
+    /**
+     * The whole point of the change: this used to answer Google HQ, so the worker fetched and
+     * labelled Mountain View's weather for a user who had no location at all.
+     */
     @Test
-    fun `resolve falls back to default coordinates when no widgets and no weather data exist`() = runTest {
+    fun `resolve returns null when no widgets and no weather data exist`() = runTest {
         coEvery { forecastDao.getLatestWeather() } returns null
 
-        val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)
-        assertEquals(WeatherWidgetWorker.DEFAULT_LAT, result.first, 0.0001)
-        assertEquals(WeatherWidgetWorker.DEFAULT_LON, result.second, 0.0001)
+        assertNull(ActiveLocationResolver.resolve(context, stateManager, forecastDao))
+    }
+
+    @Test
+    fun `resolve persists nothing when there is no location to resolve`() = runTest {
+        coEvery { forecastDao.getLatestWeather() } returns null
+
+        ActiveLocationResolver.resolve(context, stateManager, forecastDao)
+
+        assertNull(
+            "the one-time migration must never write a placeholder coordinate",
+            ActiveLocationResolver.current(context),
+        )
     }
 
     @Test
@@ -54,7 +69,7 @@ class ActiveLocationResolverTest : RobolectricTest() {
         coEvery { mockWeather.locationLon } returns -74.0060
         coEvery { forecastDao.getLatestWeather() } returns mockWeather
 
-        val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)
+        val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)!!
         assertEquals(40.7128, result.first, 0.0001)
         assertEquals(-74.0060, result.second, 0.0001)
     }
@@ -80,7 +95,7 @@ class ActiveLocationResolverTest : RobolectricTest() {
         coEvery { mockWeather.locationLon } returns -74.0060
         coEvery { forecastDao.getLatestWeather() } returns mockWeather
 
-        val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)
+        val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)!!
         assertEquals(34.0522, result.first, 0.001)
         assertEquals(-118.2437, result.second, 0.001)
     }
@@ -101,7 +116,7 @@ class ActiveLocationResolverTest : RobolectricTest() {
             .commit()
         ActiveLocationResolver.persist(context, 37.4219, -122.0840)
 
-        val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)
+        val result = ActiveLocationResolver.resolve(context, stateManager, forecastDao)!!
 
         assertEquals(37.4219, result.first, 0.001)
         assertEquals(-122.0840, result.second, 0.001)

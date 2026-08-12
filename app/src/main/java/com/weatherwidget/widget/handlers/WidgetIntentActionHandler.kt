@@ -11,6 +11,7 @@ import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetPushDispatcher
+import com.weatherwidget.widget.WidgetRenderer
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomStage
 import com.weatherwidget.widget.ZoomWindow
@@ -85,7 +86,7 @@ internal object WidgetIntentActionHandler {
                 context,
                 appWidgetId,
                 if (viewMode.isGraphMode) "graph_nav" else "daily_nav",
-            )
+            ) ?: return
         val request =
             request(
                 context,
@@ -120,7 +121,7 @@ internal object WidgetIntentActionHandler {
             return
         }
         val startMs = SystemClock.elapsedRealtime()
-        val refreshContext = prepareContext(context, appWidgetId, "cycle_zoom")
+        val refreshContext = prepareContext(context, appWidgetId, "cycle_zoom") ?: return
         GraphInteractionRenderer.cycleZoom(
             InteractionRenderDispatcher.graphRequest(
                 request(
@@ -146,7 +147,7 @@ internal object WidgetIntentActionHandler {
         val stateManager = WidgetStateManager(context)
         val newSource = stateManager.toggleDisplaySource(appWidgetId)
         val viewMode = stateManager.getViewMode(appWidgetId)
-        val refreshContext = prepareContext(context, appWidgetId, "toggle_api")
+        val refreshContext = prepareContext(context, appWidgetId, "toggle_api") ?: return
         val now = LocalDateTime.now()
         if (
             GraphInteractionRenderer.selectedSourceNeedsRefresh(
@@ -291,7 +292,7 @@ internal object WidgetIntentActionHandler {
         actionTag: String,
         metadata: String = "",
     ) {
-        val refreshContext = prepareContext(context, appWidgetId, staleReason)
+        val refreshContext = prepareContext(context, appWidgetId, staleReason) ?: return
         InteractionRenderDispatcher.render(
             viewMode,
             request(
@@ -318,7 +319,7 @@ internal object WidgetIntentActionHandler {
         partialPush: Boolean = true,
         origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.ACTION_REFRESH,
     ) {
-        val refreshContext = prepareContext(context, appWidgetId, reason)
+        val refreshContext = prepareContext(context, appWidgetId, reason) ?: return
         val viewMode = WidgetStateManager(context).getViewMode(appWidgetId)
         InteractionRenderDispatcher.render(
             viewMode,
@@ -341,12 +342,26 @@ internal object WidgetIntentActionHandler {
         )
     }
 
+    /**
+     * Null when there is no location to render at. The caller must abort the interaction — but the
+     * no-location state is painted first: the user just tapped the widget, so dropping the
+     * interaction silently would look like the tap was lost.
+     */
     private suspend fun prepareContext(
         context: Context,
         appWidgetId: Int,
         reason: String,
-    ): WidgetRefreshContextResolver.Resolved {
+    ): WidgetRefreshContextResolver.Resolved? {
         val resolved = contextResolver.resolve(context, appWidgetId)
+        if (resolved == null) {
+            Log.w(TAG, "No location for widget=$appWidgetId reason=$reason; painting no-location state")
+            WidgetRenderer.updateWidgetNoLocation(
+                context = context,
+                appWidgetManager = AppWidgetManager.getInstance(context),
+                appWidgetId = appWidgetId,
+            )
+            return null
+        }
         refreshRequester.requestIfStale(context, resolved, reason)
         return resolved
     }

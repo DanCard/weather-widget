@@ -16,6 +16,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
@@ -65,7 +66,7 @@ class WidgetRefreshContextResolverRoboTest : RobolectricTest() {
                 },
             )
 
-        val resolved = resolver.resolve(context, targetWidgetId)
+        val resolved = resolver.resolve(context, targetWidgetId)!!
 
         assertEquals(targetLat, resolved.location.lat, 0.0001)
         assertEquals(targetLon, resolved.location.lon, 0.0001)
@@ -77,6 +78,29 @@ class WidgetRefreshContextResolverRoboTest : RobolectricTest() {
                 match { kotlin.math.abs(it - targetLon) < 0.0001 },
             )
         }
+    }
+
+    /**
+     * With no location anywhere, there is nothing to build a refresh context around. The caller must
+     * see null and abort rather than receive a context pointing at a fabricated coordinate.
+     */
+    @Test
+    fun `resolve returns null when no location is available`() = kotlinx.coroutines.test.runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ActiveLocationResolver.clearForTesting(context)
+        SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME).edit().clear().commit()
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit().clear().commit()
+
+        val forecastDao = mockk<ForecastDao>()
+        coEvery { forecastDao.getLatestWeather() } returns null
+        val database = mockk<WeatherDatabase>()
+        every { database.forecastDao() } returns forecastDao
+        val resolver = WidgetRefreshContextResolver(
+            databaseProvider = { database },
+            sourceSuccessAt = { _, _, _, _ -> 0L },
+        )
+
+        assertNull(resolver.resolve(context, 303))
     }
 
     private fun forecast(lat: Double, lon: Double, fetchedAt: Long) =

@@ -39,11 +39,20 @@ object ActiveLocationResolver {
 
     internal fun clearForTesting(context: Context) = clear(context)
 
+    /**
+     * The app-wide location to fetch and render at, or **null when there is genuinely none** — no
+     * canonical active location, no configured widget location, no cached weather.
+     *
+     * Null is a real answer, not a failure to be papered over. This used to fall back to Google HQ,
+     * so a user whose GPS never resolved had live weather fetched for Mountain View and labelled as
+     * theirs. Callers must gate on null (the worker renders the no-location state) rather than
+     * substituting a coordinate of their own.
+     */
     suspend fun resolve(
         context: Context,
         stateManager: WidgetStateManager,
         forecastDao: ForecastDao
-    ): Pair<Double, Double> {
+    ): Pair<Double, Double>? {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
@@ -57,8 +66,9 @@ object ActiveLocationResolver {
         }
         val resolved = configuredLocation
             ?: forecastDao.getLatestWeather()?.let { it.locationLat to it.locationLon }
-            ?: (WeatherWidgetWorker.DEFAULT_LAT to WeatherWidgetWorker.DEFAULT_LON)
-        // One-time migration for installs that predate the canonical app-wide location.
+            ?: return null
+        // One-time migration for installs that predate the canonical app-wide location. Only ever
+        // writes a location we actually resolved — never a placeholder.
         persist(context, resolved.first, resolved.second)
         syncCompatibilityCopies(stateManager, appWidgetIds, resolved)
         return resolved

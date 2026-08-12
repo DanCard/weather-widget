@@ -31,13 +31,15 @@ internal class WidgetRefreshContextResolver(
         val latestSuccessfulOrContentAtMs: Long?,
     )
 
-    suspend fun resolve(context: Context, appWidgetId: Int): Resolved {
+    /** Null when no location is resolvable at all — there is nothing to build a refresh context around. */
+    suspend fun resolve(context: Context, appWidgetId: Int): Resolved? {
         val database = databaseProvider(context)
         val forecastDao = database.forecastDao()
         val stateManager = WidgetStateManager(context)
         // The app has one active site. Per-widget coordinate keys are synchronized compatibility
         // copies; the canonical resolver also neutralizes divergent legacy keys.
         val targetLocation = ActiveLocationResolver.resolve(context, stateManager, forecastDao)
+            ?: return null
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val content = forecastDao.getLatestForecastBySource(
             displaySource.id,
