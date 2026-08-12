@@ -1,0 +1,1 @@
+Release 26081101: Fix hourly graph zoom span rendering to display full selected hour window.
