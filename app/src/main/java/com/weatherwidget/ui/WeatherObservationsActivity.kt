@@ -363,12 +363,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     private fun effectiveVisibleSources(): List<WeatherSource> {
-        val location = activeLocation
-        return if (location != null) {
-            widgetStateManager.getEffectiveVisibleSourcesOrder(location.first, location.second)
-        } else {
-            widgetStateManager.getVisibleSourcesOrder()
-        }
+        return widgetStateManager.getVisibleSourcesOrder()
     }
 
     override fun onDestroy() {

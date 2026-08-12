@@ -83,11 +83,11 @@ class DesktopWeatherService(
     private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { effectiveKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
     private val synopticApi = SynopticApi(httpClient, json)
 
-    constructor(config: DesktopConfig?) : this(
-        latitude = config?.lat ?: FALLBACK_LATITUDE,
-        longitude = config?.lon ?: FALLBACK_LONGITUDE,
-        weatherSource = config?.weatherSource ?: "NWS",
-        apiKeys = config?.apiKeys ?: emptyMap()
+    constructor(config: DesktopConfig) : this(
+        latitude = config.lat,
+        longitude = config.lon,
+        weatherSource = config.weatherSource,
+        apiKeys = config.apiKeys
     )
 
     /**
@@ -656,8 +656,9 @@ class DesktopWeatherService(
     fun close() = httpClient.close()
 
     companion object {
-        const val FALLBACK_LATITUDE = 37.4220
-        const val FALLBACK_LONGITUDE = -122.0841
+        // No fallback coordinates. "No location" is the absence of a config, not a stand-in for one;
+        // a null config opens the location picker and must never silently show Google-HQ weather as
+        // the user's own (the desktop analog of the Android H1 fix).
 
         // How far back to pull observations for the actuals / accuracy pipeline.
         const val HISTORY_DAYS = 7L

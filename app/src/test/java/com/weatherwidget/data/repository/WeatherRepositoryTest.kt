@@ -119,9 +119,6 @@ class WeatherRepositoryTest {
             WeatherSource.WEATHER_API,
             WeatherSource.SILURIAN,
         )
-        every { widgetStateManager.getEffectiveVisibleSourcesOrder(any<Double>(), any<Double>()) } answers {
-            widgetStateManager.getVisibleSourcesOrder()
-        }
     }
 
     @Test

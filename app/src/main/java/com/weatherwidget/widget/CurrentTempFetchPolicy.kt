@@ -1,5 +1,7 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.util.BatteryTier
+
 /**
  * Policy decisions for lightweight current-temperature network refresh.
  */
@@ -7,7 +9,9 @@ object CurrentTempFetchPolicy {
     const val CHARGING_INTERVAL_MINUTES = 10L
     const val CHARGING_SCREEN_OFF_INTERVAL_MINUTES = 16L
     const val OPPORTUNISTIC_INTERVAL_MINUTES = 45L
-    const val OPPORTUNISTIC_MIN_BATTERY_PERCENT = 65
+
+    // Single source of truth for the battery cutoff lives in BatteryTier (shared).
+    const val OPPORTUNISTIC_MIN_BATTERY_PERCENT = BatteryTier.OPPORTUNISTIC_MIN_BATTERY_PERCENT
 
     /**
      * Returns the appropriate charging loop interval based on screen state.

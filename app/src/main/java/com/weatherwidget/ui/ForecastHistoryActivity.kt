@@ -742,7 +742,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     private fun effectiveVisibleSources(): List<WeatherSource> {
-        return widgetStateManager.getEffectiveVisibleSourcesOrder(targetLat, targetLon)
+        return widgetStateManager.getVisibleSourcesOrder()
     }
 
     private fun updateFreshnessCard() {

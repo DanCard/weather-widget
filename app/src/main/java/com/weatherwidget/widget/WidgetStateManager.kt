@@ -150,12 +150,6 @@ class WidgetStateManager internal constructor(
 
     fun getActiveDisplaySourceIds(): Set<String> = sourcePreferences.activeDisplaySourceIds()
 
-    @Suppress("UNUSED_PARAMETER")
-    fun getEffectiveVisibleSourcesOrder(
-        latitude: Double,
-        longitude: Double,
-    ): List<WeatherSource> = getVisibleSourcesOrder()
-
     fun getEffectiveVisibleSourcesOrder(widgetId: Int): List<WeatherSource> =
         getVisibleSourcesOrder()
 
@@ -169,13 +163,6 @@ class WidgetStateManager internal constructor(
     ): Boolean = sourcePreferences.setVisibleSourcesForSetup(sources, widgetIds)
 
     fun isSourceVisible(source: WeatherSource): Boolean = sourcePreferences.isVisible(source)
-
-    @Suppress("UNUSED_PARAMETER")
-    fun isSourceVisible(
-        source: WeatherSource,
-        latitude: Double,
-        longitude: Double,
-    ): Boolean = sourcePreferences.isVisible(source)
 
     fun getCurrentDisplaySource(widgetId: Int): WeatherSource =
         sourcePreferences.currentDisplaySource(widgetId)
@@ -421,24 +408,6 @@ class WidgetStateManager internal constructor(
                     WeatherSource.SILURIAN,
                 )
             }
-
-        @Deprecated("Use WeatherSource.NWS.displayName instead", ReplaceWith("WeatherSource.NWS.displayName"))
-        const val SOURCE_NWS = "NWS"
-
-        @Deprecated("Use WeatherSource.OPEN_METEO.displayName instead", ReplaceWith("WeatherSource.OPEN_METEO.displayName"))
-        const val SOURCE_OPEN_METEO = "Open-Meteo"
-
-        @Deprecated("Use WeatherSource.VISUAL_CROSSING.displayName instead", ReplaceWith("WeatherSource.VISUAL_CROSSING.displayName"))
-        const val SOURCE_VISUAL_CROSSING = "Visual Crossing"
-
-        @Deprecated("Use WeatherSource.OPEN_WEATHER_MAP.displayName instead", ReplaceWith("WeatherSource.OPEN_WEATHER_MAP.displayName"))
-        const val SOURCE_OPEN_WEATHER_MAP = "OpenWeatherMap"
-
-        @Deprecated("Use WeatherSource.WEATHER_API.displayName instead", ReplaceWith("WeatherSource.WEATHER_API.displayName"))
-        const val SOURCE_WEATHER_API = "WeatherAPI"
-
-        @Deprecated("Use WeatherSource.GENERIC_GAP.id instead", ReplaceWith("WeatherSource.GENERIC_GAP.id"))
-        const val SOURCE_GENERIC_GAP = "Generic"
 
         @Synchronized
         fun setPrefsNameOverrideForTesting(prefsName: String?) {

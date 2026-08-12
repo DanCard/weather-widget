@@ -559,6 +559,12 @@ class WeatherWidgetWorker
 
                         if (!input.uiOnlyRefresh) {
                             UIUpdateScheduler(context).scheduleNextUpdate()
+                            // Re-pin the periodic full-sync cadence to the battery state observed at the
+                            // end of this run. ACTION_BATTERY_CHANGED cannot be manifest-registered
+                            // (sticky broadcast), so without this the periodic interval stays pinned to
+                            // the value captured at startup / the last power transition and never
+                            // self-corrects as the battery level drifts (see code-review M3).
+                            WidgetWorkScheduler.schedulePeriodicSync(context)
                         } else {
                             manageCurrentTempLoopAfterRun(device)
                         }

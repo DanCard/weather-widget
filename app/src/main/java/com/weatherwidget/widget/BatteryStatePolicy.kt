@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.content.Intent
 import android.os.BatteryManager
+import com.weatherwidget.shared.util.BatteryTier
 
 object BatteryStatePolicy {
     fun isEffectivelyCharging(
@@ -12,7 +13,7 @@ object BatteryStatePolicy {
         return status == BatteryManager.BATTERY_STATUS_CHARGING ||
             status == BatteryManager.BATTERY_STATUS_FULL ||
             plugged > 0 ||
-            batteryLevel >= 100
+            batteryLevel >= BatteryTier.FULL_BATTERY_LEVEL
     }
 
     fun isEffectivelyCharging(batteryStatus: Intent?): Boolean {

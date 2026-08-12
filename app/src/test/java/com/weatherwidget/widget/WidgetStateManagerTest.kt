@@ -215,10 +215,10 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getEffectiveVisibleSourcesOrder preserves Open-Meteo when enabled`() {
+    fun `getVisibleSourcesOrder preserves Open-Meteo when enabled`() {
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
-        val sources = stateManager.getEffectiveVisibleSourcesOrder(37.42, -122.08)
+        val sources = stateManager.getVisibleSourcesOrder()
 
         assertEquals(
             listOf(

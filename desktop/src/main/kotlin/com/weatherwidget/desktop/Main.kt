@@ -263,11 +263,14 @@ private fun runApp() = application {
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.apiKeys) {
             currentConfig?.let {
                 DesktopWeatherService(it.lat, it.lon, it.weatherSource, it.apiKeys, weatherDao)
-            } ?: DesktopWeatherService(currentConfig)
+            }
         }
         val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.personalStationDiscount) {
-            currentConfig?.let {
-                DesktopWeatherRepository(weatherService, weatherDao, it.lat, it.lon, it.weatherSource, it.personalStationWeight())
+            val service = weatherService
+            currentConfig?.let { cfg ->
+                service?.let {
+                    DesktopWeatherRepository(it, weatherDao, cfg.lat, cfg.lon, cfg.weatherSource, cfg.personalStationWeight())
+                }
             }
         }
 

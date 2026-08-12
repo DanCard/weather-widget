@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.util.BatteryTier
 import com.weatherwidget.shared.util.NonPrimaryObservationPolicy
 
 /**
@@ -42,7 +43,7 @@ object ForecastFetchPolicy {
         isActiveSource: Boolean,
         batteryLevel: Int,
     ): Long? {
-        val treatAsCharging = isCharging || batteryLevel >= 80
+        val treatAsCharging = BatteryTier.treatAsCharging(isCharging, batteryLevel)
 
         if (!treatAsCharging) {
             val base = BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
@@ -58,7 +59,7 @@ object ForecastFetchPolicy {
     }
 
     fun periodicTickMinutes(isCharging: Boolean, batteryLevel: Int): Long {
-        val treatAsCharging = isCharging || batteryLevel >= 80
+        val treatAsCharging = BatteryTier.treatAsCharging(isCharging, batteryLevel)
         if (treatAsCharging) return CHARGING_SCREEN_ON_ACTIVE_MINUTES
         return BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
             ?: OFF_CHARGER_LOW_BATTERY_TICK_MINUTES
