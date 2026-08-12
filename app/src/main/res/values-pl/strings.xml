@@ -242,8 +242,6 @@
     <string name="no_location_set">Nie ustawiono lokalizacji</string>
     <string name="widget_location_format">Lokalizacja widżetu: %1$s, %2$s</string>
     <string name="widget_location_named_format">Lokalizacja widżetu: %1$s (%2$s, %3$s)</string>
-    <string name="default_location_format">Lokalizacja domyślna: %1$s, %2$s</string>
-    <string name="default_location_named_format">Lokalizacja domyślna: %1$s (%2$s, %3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">Bieżące obserwacje</string>

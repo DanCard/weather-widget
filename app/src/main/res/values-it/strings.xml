@@ -242,8 +242,6 @@
     <string name="no_location_set">Nessuna posizione impostata</string>
     <string name="widget_location_format">Posizione del widget: %1$s, %2$s</string>
     <string name="widget_location_named_format">Posizione del widget: %1$s (%2$s, %3$s)</string>
-    <string name="default_location_format">Posizione predefinita: %1$s, %2$s</string>
-    <string name="default_location_named_format">Posizione predefinita: %1$s (%2$s, %3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">Osservazioni attuali</string>

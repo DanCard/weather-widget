@@ -242,8 +242,6 @@
     <string name="no_location_set">位置が未設定です</string>
     <string name="widget_location_format">ウィジェットの位置：%1$s、%2$s</string>
     <string name="widget_location_named_format">ウィジェットの位置：%1$s (%2$s、%3$s)</string>
-    <string name="default_location_format">デフォルトの位置：%1$s、%2$s</string>
-    <string name="default_location_named_format">デフォルトの位置：%1$s (%2$s、%3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">現在の観測</string>

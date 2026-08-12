@@ -60,6 +60,27 @@ class LocationUpdaterTest : RobolectricTest() {
         assertFalse("must not format a coordinate: $label", label.contains("37.42"))
     }
 
+    /**
+     * Settings must agree with the widget. With no active and no widget location the widget paints
+     * "No location — tap to set"; this label used to reach past that into `historical_pois` and
+     * announce "Default Location: Mountain View, California (37.4220, -122.0841)" — a coordinate the
+     * app is not using, under the name of a concept that no longer exists. The POI list is still read
+     * for *names* elsewhere, which is why seeding one here is not enough to make a location.
+     */
+    @Test
+    fun `a saved place name is not a location`() {
+        bindWidget(207)
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit()
+            .putString("historical_pois", "Mountain View, California|37.4220|-122.0841")
+            .commit()
+
+        val label = LocationUpdater.describeCurrentLocation(context)
+
+        assertTrue("expected no-location label in: $label", label.contains("No location set"))
+        assertFalse("must not resurrect the POI coordinate: $label", label.contains("37.42"))
+        assertFalse("must not name a place we are not using: $label", label.contains("Mountain View"))
+    }
+
 
     @Test
     fun `describeCurrentLocation shows stored POI name next to widget coordinates`() {

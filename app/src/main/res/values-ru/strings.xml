@@ -242,8 +242,6 @@
     <string name="no_location_set">Местоположение не задано</string>
     <string name="widget_location_format">Местоположение виджета: %1$s, %2$s</string>
     <string name="widget_location_named_format">Местоположение виджета: %1$s (%2$s, %3$s)</string>
-    <string name="default_location_format">Местоположение по умолчанию: %1$s, %2$s</string>
-    <string name="default_location_named_format">Местоположение по умолчанию: %1$s (%2$s, %3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">Текущие наблюдения</string>

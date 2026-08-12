@@ -235,8 +235,6 @@
     <string name="no_location_set">Місцезнаходження не задано</string>
     <string name="widget_location_format">Розташування віджета: %1$s, %2$s</string>
     <string name="widget_location_named_format">Розташування віджета: %1$s (%2$s, %3$s)</string>
-    <string name="default_location_format">Типове місце: %1$s, %2$s</string>
-    <string name="default_location_named_format">Типове місце: %1$s (%2$s, %3$s)</string>
 
     <string name="current_observations_title">Поточні спостереження</string>
     <string name="obs_subtitle_nearby_stations">Дані наживо з найближчих станцій</string>

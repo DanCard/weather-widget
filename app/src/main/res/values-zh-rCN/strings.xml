@@ -242,8 +242,6 @@
     <string name="no_location_set">未设置位置</string>
     <string name="widget_location_format">小部件位置：%1$s，%2$s</string>
     <string name="widget_location_named_format">小部件位置：%1$s (%2$s，%3$s)</string>
-    <string name="default_location_format">默认位置：%1$s，%2$s</string>
-    <string name="default_location_named_format">默认位置：%1$s (%2$s，%3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">当前观测</string>

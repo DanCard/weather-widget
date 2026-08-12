@@ -242,8 +242,6 @@
     <string name="no_location_set">Konum ayarlanmadı</string>
     <string name="widget_location_format">Widget konumu: %1$s, %2$s</string>
     <string name="widget_location_named_format">Widget konumu: %1$s (%2$s, %3$s)</string>
-    <string name="default_location_format">Varsayılan konum: %1$s, %2$s</string>
-    <string name="default_location_named_format">Varsayılan konum: %1$s (%2$s, %3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">Mevcut gözlemler</string>

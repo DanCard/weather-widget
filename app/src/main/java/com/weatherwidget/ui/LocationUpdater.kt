@@ -41,46 +41,30 @@ object LocationUpdater {
     // load-bearing for how the subsystem got explained, and reasoning from it led somewhere wrong.
 
     /**
-     * The location the summary label describes: active → first widget → last historical POI. Null when
-     * there is none; the label then reads [R.string.no_location_set] rather than inventing coordinates.
+     * The location the summary label describes: active → first widget. Null when there is none; the
+     * label then reads [R.string.no_location_set] rather than inventing coordinates.
+     *
+     * It used to end in a `historical_pois` fallback, which made this label disagree with the widget
+     * in exactly the state that matters. With no active and no widget location the widget paints
+     * "No location — tap to set", while Settings read the last saved POI back and announced
+     * "Default Location: Springfield" — a coordinate the app is not using, under the name of a concept
+     * that no longer exists. The POI list stays what it is elsewhere: a source of *names*
+     * ([FriendlyLocationName]), never of coordinates.
      */
-    private data class EffectiveLocation(val lat: Double, val lon: Double, val isWidgetLocation: Boolean)
-
-    private fun effectiveLocation(context: Context): EffectiveLocation? {
-        ActiveLocationResolver.current(context)?.let { (lat, lon) ->
-            return EffectiveLocation(lat, lon, isWidgetLocation = true)
-        }
+    private fun effectiveLocation(context: Context): Pair<Double, Double>? {
+        ActiveLocationResolver.current(context)?.let { return it }
         val ids = getWidgetIds(context)
         if (ids.isNotEmpty()) {
-            WidgetStateManager(context).getWidgetLocation(ids[0])?.let { (lat, lon) ->
-                return EffectiveLocation(lat, lon, isWidgetLocation = true)
-            }
+            WidgetStateManager(context).getWidgetLocation(ids[0])?.let { return it }
         }
-
-        // Fallback to historical_pois default POI
-        val weatherPrefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
-        weatherPrefs.getString("historical_pois", null)
-            ?.split(";")
-            ?.lastOrNull()
-            ?.split("|")
-            ?.takeLast(3)
-            ?.let { parts ->
-                if (parts.size == 3) {
-                    val lat = parts[1].toDoubleOrNull()
-                    val lon = parts[2].toDoubleOrNull()
-                    if (lat != null && lon != null) return EffectiveLocation(lat, lon, isWidgetLocation = false)
-                }
-            }
-
         return null
     }
 
     /**
-     * Human-readable summary of the effective location (first widget → last historical POI →
-     * hard default) plus whether it's pinned or follows the device. Shown on both the Settings
-     * screen and the location setup screen ([ConfigActivity]). Prepends a friendly place name
-     * when one is known locally; [describeCurrentLocationResolved] adds a reverse-geocode
-     * fallback for the callers that can suspend.
+     * Human-readable summary of the effective location (active → first widget) plus whether it's
+     * pinned or follows the device. Shown on both the Settings screen and the location setup screen
+     * ([ConfigActivity]). Prepends a friendly place name when one is known locally;
+     * [describeCurrentLocationResolved] adds a reverse-geocode fallback for the callers that can suspend.
      */
     fun describeCurrentLocation(context: Context): String =
         describe(context, effectiveLocation(context)) { lat, lon -> FriendlyLocationName.cached(context, lat, lon) }
@@ -91,43 +75,32 @@ object LocationUpdater {
         resolver: com.weatherwidget.data.repository.SharedLocationResolver,
     ): String {
         val effective = effectiveLocation(context) ?: return describe(context, null) { _, _ -> null }
-        val name = FriendlyLocationName.resolve(context, resolver, effective.lat, effective.lon)
+        val name = FriendlyLocationName.resolve(context, resolver, effective.first, effective.second)
         return describe(context, effective) { _, _ -> name }
     }
 
     private fun describe(
         context: Context,
-        effective: EffectiveLocation?,
+        effective: Pair<Double, Double>?,
         nameLookup: (Double, Double) -> String?,
     ): String {
-        if (effective == null) {
-            // No coordinates to format. Reverse-geocoding is skipped entirely — there is nothing to
-            // look up, and inventing a place name here is the bug this change set out to remove.
-            val modeSuffix = if (LocationMode.get(context) == LocationMode.FIXED) {
-                context.getString(R.string.location_mode_pinned)
-            } else {
-                context.getString(R.string.location_mode_follow)
-            }
-            return "${context.getString(R.string.no_location_set)} • $modeSuffix"
-        }
-        val latText = String.format("%.4f", effective.lat)
-        val lonText = String.format("%.4f", effective.lon)
-        val name = nameLookup(effective.lat, effective.lon)
-        val labelText = when {
-            name != null && effective.isWidgetLocation ->
-                context.getString(R.string.widget_location_named_format, name, latText, lonText)
-            name != null ->
-                context.getString(R.string.default_location_named_format, name, latText, lonText)
-            effective.isWidgetLocation ->
-                context.getString(R.string.widget_location_format, latText, lonText)
-            else ->
-                context.getString(R.string.default_location_format, latText, lonText)
-        }
-
         val modeSuffix = if (LocationMode.get(context) == LocationMode.FIXED) {
             context.getString(R.string.location_mode_pinned)
         } else {
             context.getString(R.string.location_mode_follow)
+        }
+        if (effective == null) {
+            // No coordinates to format. Reverse-geocoding is skipped entirely — there is nothing to
+            // look up, and inventing a place name here is the bug this change set out to remove.
+            return "${context.getString(R.string.no_location_set)} • $modeSuffix"
+        }
+        val latText = String.format("%.4f", effective.first)
+        val lonText = String.format("%.4f", effective.second)
+        val name = nameLookup(effective.first, effective.second)
+        val labelText = if (name != null) {
+            context.getString(R.string.widget_location_named_format, name, latText, lonText)
+        } else {
+            context.getString(R.string.widget_location_format, latText, lonText)
         }
         return "$labelText • $modeSuffix"
     }

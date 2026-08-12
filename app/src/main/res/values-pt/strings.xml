@@ -242,8 +242,6 @@
     <string name="no_location_set">Nenhuma localização definida</string>
     <string name="widget_location_format">Localização do widget: %1$s, %2$s</string>
     <string name="widget_location_named_format">Localização do widget: %1$s (%2$s, %3$s)</string>
-    <string name="default_location_format">Localização padrão: %1$s, %2$s</string>
-    <string name="default_location_named_format">Localização padrão: %1$s (%2$s, %3$s)</string>
 
     <!-- Current Observations screen -->
     <string name="current_observations_title">Observações atuais</string>

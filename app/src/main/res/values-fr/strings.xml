@@ -235,8 +235,6 @@
     <string name="no_location_set">Aucune position définie</string>
     <string name="widget_location_format">Position du widget : %1$s, %2$s</string>
     <string name="widget_location_named_format">Position du widget : %1$s (%2$s, %3$s)</string>
-    <string name="default_location_format">Position par défaut : %1$s, %2$s</string>
-    <string name="default_location_named_format">Position par défaut : %1$s (%2$s, %3$s)</string>
 
     <string name="current_observations_title">Observations actuelles</string>
     <string name="obs_subtitle_nearby_stations">Données en temps réel des stations proches</string>
