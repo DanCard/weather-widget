@@ -1,6 +1,28 @@
 # Location auto-heal: review fixes + split acquisition from following
 
-**Status:** 📋 Planned, not yet implemented · 2026-08-12
+**Status:** ✅ Implemented 2026-08-12 — 6 commits, `6662d026`..`213180e9`. 1924 unit tests pass; app,
+androidTest and `:desktop` compile.
+
+> **⚠️ Release 26081201 landed mid-stream.** Another session committed the Play Store release
+> (`e5eda810`, Open Beta + Production) between commit 1 and commit 2, so **commit 1 (the sentinel
+> purge) shipped to Production; commits 2–6 did not.** Worth confirming the `.aab` was built from a
+> tree containing `6662d026` before relying on that. Nothing here is unsafe half-applied — commit 1
+> stands alone — but the upgrade fix is live without the escape-hatch fixes that follow it.
+>
+> **Deviations from the plan:**
+> - **The migration key moved to v2** (plan said nothing about this). Installs that already ran v1 —
+>   including local debug builds — are sitting on a *resurrected* sentinel with v1 marked done, so the
+>   migration has to re-run to catch them. v2 finds it in the active-location prefs a second time and
+>   the purge stops it returning.
+> - **`historical_pois` is not cleared**, reversing the review's first recommendation. It is the label
+>   store `FriendlyLocationName` reads; the fix is in the readers, not the data.
+> - **Instrumented tests not yet run** — unit suite and all three source sets compile, but
+>   `scripts/emulator-tests.sh` has not been run against these changes.
+>
+> **Follow-up found while working:** `default_location_format` / `default_location_named_format` in
+> `strings.xml` still render "Default Location: 37.42, -122.08" for a POI-derived coordinate in
+> Settings. Not touched here — the text exists in 19 locales and changing English alone leaves the
+> rest stale.
 **Plan:** [plans/260812-fix-gps-heal-findings-acquisition-vs-following.md](../plans/260812-fix-gps-heal-findings-acquisition-vs-following.md)
 **Review:** [plans/260812-code-review-gps-auto-heal.md](../plans/260812-code-review-gps-auto-heal.md)
 
