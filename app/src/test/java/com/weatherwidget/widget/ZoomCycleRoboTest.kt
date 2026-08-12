@@ -34,6 +34,10 @@ class ZoomCycleRoboTest {
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
+        // These tests exercise widget-state mechanics, not location handling. They previously relied
+        // on the resolver's Google-HQ fallback to supply a location; with that gone, an interaction on
+        // a location-less widget correctly paints the no-location state instead of rendering.
+        ActiveLocationResolver.persist(context, 37.4220, -122.0841)
         RefreshScheduler.setIsRefreshDisabledForTesting(true)
     }
 

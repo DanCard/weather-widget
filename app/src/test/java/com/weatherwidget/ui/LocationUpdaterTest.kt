@@ -7,7 +7,6 @@ import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetProvider
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.CandidateProposal
 import com.weatherwidget.widget.LocationHandoffStore
 import org.junit.Assert.assertFalse

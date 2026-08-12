@@ -27,7 +27,6 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.FetchDotDebug
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.WidgetStateManager

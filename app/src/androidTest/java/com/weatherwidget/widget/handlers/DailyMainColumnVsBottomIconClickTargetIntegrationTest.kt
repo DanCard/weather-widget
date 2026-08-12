@@ -16,7 +16,6 @@ import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.testutil.WidgetStateTestUtils
 import com.weatherwidget.testutil.dateEpoch
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -28,6 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
 import java.time.LocalDateTime
+import com.weatherwidget.widget.TestLocations
 
 /**
  * Integration test verifying the split click behavior in the daily forecast view.
@@ -57,8 +57,8 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
                 ForecastEntity(
                     targetDate = dateEpoch(todayStr),
                     dateOfPrediction = dateEpoch(todayStr),
-                    locationLat = WeatherWidgetWorker.DEFAULT_LAT,
-                    locationLon = WeatherWidgetWorker.DEFAULT_LON,
+                    locationLat = TestLocations.LAT,
+                    locationLon = TestLocations.LON,
                     highTemp = 72f,
                     lowTemp = 54f,
                     condition = "Cloudy",
@@ -73,8 +73,8 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
                 listOf(
                     com.weatherwidget.data.local.HourlyForecastEntity(
                         dateTime = todayMidnight + 12 * 3600000L, // Noon
-                        locationLat = WeatherWidgetWorker.DEFAULT_LAT,
-                        locationLon = WeatherWidgetWorker.DEFAULT_LON,
+                        locationLat = TestLocations.LAT,
+                        locationLon = TestLocations.LON,
                         temperature = 70f,
                         condition = "Cloudy",
                         source = WeatherSource.NWS.id,
@@ -163,8 +163,8 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
         val weatherList = db.forecastDao().getForecastsInRange(
             dateEpoch(today.toString()),
             dateEpoch(today.plusDays(7).toString()),
-            WeatherWidgetWorker.DEFAULT_LAT,
-            WeatherWidgetWorker.DEFAULT_LON
+            TestLocations.LAT,
+            TestLocations.LON
         )
 
         // Prepare data for setup handlers
@@ -193,12 +193,12 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
 
         DailyClickHandlerFactory.setupGraphDayClickHandlers(
             context, views, testWidgetId, now, days, 
-            WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, 
+            TestLocations.LAT, TestLocations.LON, 
             displaySource, 5
         )
         DailyClickHandlerFactory.setupGraphBottomDayClickHandlers(
             context, views, testWidgetId, now, days,
-            WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON,
+            TestLocations.LAT, TestLocations.LON,
             displaySource, 5
         )
         

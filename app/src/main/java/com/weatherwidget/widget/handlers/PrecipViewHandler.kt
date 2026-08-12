@@ -22,7 +22,6 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.PrecipitationGraphRenderer
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -45,8 +44,6 @@ import java.util.Locale
 object PrecipViewHandler {
     private const val TAG = "PrecipViewHandler"
     private const val CELL_HEIGHT_DP = 90
-
-
 
     /**
      * Update widget with precipitation data.

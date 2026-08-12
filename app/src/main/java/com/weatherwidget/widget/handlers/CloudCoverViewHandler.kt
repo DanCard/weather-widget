@@ -22,7 +22,6 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.WidgetActionReceiver
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
@@ -44,8 +43,6 @@ import java.util.Locale
 object CloudCoverViewHandler {
     private const val TAG = "CloudCoverViewHandler"
     private const val CELL_HEIGHT_DP = 90
-
-
 
     @androidx.annotation.VisibleForTesting
     internal fun smoothingIterationsFor(zoom: com.weatherwidget.widget.ZoomWindow): Int =
@@ -617,8 +614,6 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
         return hours
     }
-
-
 
     private fun updateCloudTextMode(
         views: RemoteViews,

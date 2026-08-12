@@ -16,7 +16,6 @@ import com.weatherwidget.testutil.WidgetStateTestUtils
 import com.weatherwidget.testutil.dateEpoch
 import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -28,6 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
 import java.time.LocalDateTime
+import com.weatherwidget.widget.TestLocations
 
 /**
  * Reproduces the reported bug: tapping a future day (e.g. "Tuesday of next week") whose active
@@ -66,8 +66,8 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
                     ForecastEntity(
                         targetDate = dateEpoch(targetDay.toString()),
                         dateOfPrediction = dateEpoch(LocalDate.now().toString()),
-                        locationLat = WeatherWidgetWorker.DEFAULT_LAT,
-                        locationLon = WeatherWidgetWorker.DEFAULT_LON,
+                        locationLat = TestLocations.LAT,
+                        locationLon = TestLocations.LON,
                         highTemp = 78f,
                         lowTemp = 55f,
                         condition = "Sunny",
@@ -177,8 +177,8 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
         val forecasts = db.forecastDao().getForecastsInRange(
             dateEpoch(today.minusDays(5).toString()),
             dateEpoch(today.plusDays(10).toString()),
-            WeatherWidgetWorker.DEFAULT_LAT,
-            WeatherWidgetWorker.DEFAULT_LON,
+            TestLocations.LAT,
+            TestLocations.LON,
         )
 
         val days = DailyViewLogic.prepareGraphDays(
@@ -202,7 +202,7 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
 
         DailyClickHandlerFactory.setupGraphDayClickHandlers(
             context, views, testWidgetId, now, days,
-            WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON,
+            TestLocations.LAT, TestLocations.LON,
             displaySource, 5,
         )
 

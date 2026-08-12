@@ -84,12 +84,15 @@ class SettingsActivityRobolectricTest {
     }
 
     @Test
-    fun `location label shows default location and follow mode when nothing is set`() {
+    fun `location label says no location is set, with follow mode, when nothing is set`() {
         val intent = Intent(context, SettingsActivity::class.java)
         ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->
             val locationLabel = activity.findViewById<TextView>(R.id.current_location_label)
             val text = locationLabel.text.toString()
-            assertTrue("expected default location in: $text", text.contains("Default Location"))
+            // Used to read "Default Location: 37.4220, -122.0841" — Google HQ presented as the user's
+            // own. With no location there is nothing to format, so the label says exactly that.
+            assertTrue("expected no-location label in: $text", text.contains("No location set"))
+            assertFalse("must not format a coordinate: $text", text.contains("37.42"))
             assertTrue("expected follow-mode suffix in: $text", text.contains("Follows device"))
         }
     }

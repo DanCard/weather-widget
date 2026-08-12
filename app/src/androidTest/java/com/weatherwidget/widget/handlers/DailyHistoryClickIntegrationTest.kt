@@ -15,7 +15,6 @@ import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.testutil.WidgetStateTestUtils
 import com.weatherwidget.testutil.dateEpoch
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -28,6 +27,7 @@ import org.junit.runner.RunWith
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import com.weatherwidget.widget.TestLocations
 
 /**
  * Integrated test to reproduce failure when clicking on a historical day (3 days back)
@@ -61,8 +61,8 @@ class DailyHistoryClickIntegrationTest : IsolatedIntegrationTest("daily_history_
                     ForecastEntity(
                         targetDate = dateEpoch(threeDaysAgo.toString()),
                         dateOfPrediction = dateEpoch(threeDaysAgo.toString()),
-                        locationLat = WeatherWidgetWorker.DEFAULT_LAT,
-                        locationLon = WeatherWidgetWorker.DEFAULT_LON,
+                        locationLat = TestLocations.LAT,
+                        locationLon = TestLocations.LON,
                         highTemp = 65f,
                         lowTemp = 45f,
                         condition = "Sunny",
@@ -82,8 +82,8 @@ class DailyHistoryClickIntegrationTest : IsolatedIntegrationTest("daily_history_
                         timestamp = startOfDay + 12 * 3600000L, // Noon
                         temperature = 60f,
                         condition = "Sunny",
-                        locationLat = WeatherWidgetWorker.DEFAULT_LAT,
-                        locationLon = WeatherWidgetWorker.DEFAULT_LON,
+                        locationLat = TestLocations.LAT,
+                        locationLon = TestLocations.LON,
                         api = WeatherSource.NWS.id,
                         fetchedAt = System.currentTimeMillis()
                     )
@@ -143,8 +143,8 @@ class DailyHistoryClickIntegrationTest : IsolatedIntegrationTest("daily_history_
         val forecasts = db.forecastDao().getForecastsInRange(
             dateEpoch(today.minusDays(5).toString()),
             dateEpoch(today.plusDays(7).toString()),
-            WeatherWidgetWorker.DEFAULT_LAT,
-            WeatherWidgetWorker.DEFAULT_LON
+            TestLocations.LAT,
+            TestLocations.LON
         )
 
         val days = DailyViewLogic.prepareGraphDays(
@@ -168,7 +168,7 @@ class DailyHistoryClickIntegrationTest : IsolatedIntegrationTest("daily_history_
 
         DailyClickHandlerFactory.setupGraphDayClickHandlers(
             context, views, testWidgetId, now, days, 
-            WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, 
+            TestLocations.LAT, TestLocations.LON, 
             displaySource, 5
         )
         

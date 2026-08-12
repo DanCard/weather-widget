@@ -151,8 +151,8 @@ class LocaleSwitchIntegrationTest : IsolatedIntegrationTest("locale_switch") {
                 ForecastEntity(
                     targetDate = dateEpoch(today.plusDays(offset.toLong()).toString()),
                     dateOfPrediction = dateEpoch(today.toString()),
-                    locationLat = WeatherWidgetWorker.DEFAULT_LAT,
-                    locationLon = WeatherWidgetWorker.DEFAULT_LON,
+                    locationLat = TestLocations.LAT,
+                    locationLon = TestLocations.LON,
                     highTemp = 70f + offset,
                     lowTemp = 50f + offset,
                     condition = "Sunny",

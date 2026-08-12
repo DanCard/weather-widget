@@ -17,7 +17,6 @@ import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetProvider
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ActiveLocationResolver
 import io.mockk.coEvery

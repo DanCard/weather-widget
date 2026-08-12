@@ -16,7 +16,6 @@ import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.GraphRepaintGate
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.widget.WidgetActions

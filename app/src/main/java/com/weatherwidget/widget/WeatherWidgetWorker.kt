@@ -824,8 +824,9 @@ class WeatherWidgetWorker
             private const val TAG = "WeatherWidgetWorker"
             private const val MIN_RENDER_INTERVAL_MS = 30_000L
 
-            const val DEFAULT_LAT = 37.4220
-            const val DEFAULT_LON = -122.0841
+            // No DEFAULT_LAT/DEFAULT_LON. "No location" is the absence of coordinates, not a
+            // stand-in for one; the retired Google-HQ values survive only in
+            // LegacyDefaultLocationMigration, which erases them from upgrading installs.
             const val KEY_UI_ONLY_REFRESH = "ui_only_refresh"
             const val KEY_FORCE_REFRESH = "force_refresh"
             const val KEY_LOCATION_CANDIDATE_REFRESH = "location_candidate_refresh"

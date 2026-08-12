@@ -20,6 +20,11 @@ import java.time.MonthDay
 class ClimateGapFiller(private val climateNormalDao: ClimateNormalDao) {
 
     suspend fun cachedNormalsByMonthDay(latitude: Double, longitude: Double): Map<MonthDay, Pair<Float, Float>> {
+        // No location, no normals. Callers pass NaN when they have no coordinate at all (rather than a
+        // hardcoded stand-in), and ClimateNormals.locationKey rounds, which throws on NaN. Returning
+        // no rows leaves PARTIAL future rows partial — the correct outcome, since normals for an
+        // unknown place are meaningless.
+        if (!latitude.isFinite() || !longitude.isFinite()) return emptyMap()
         val locationKey = ClimateNormals.locationKey(latitude, longitude)
         val cached = climateNormalDao.getNormalsForLocation(locationKey)
         if (cached.isEmpty()) return emptyMap()

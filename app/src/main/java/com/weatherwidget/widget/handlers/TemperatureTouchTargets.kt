@@ -16,7 +16,6 @@ import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.ui.WeatherObservationsActivity
 import com.weatherwidget.widget.HourlyTouchZoneMapper
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
@@ -24,8 +23,6 @@ import com.weatherwidget.widget.ZoomWindow
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-
-
 
 internal val HOUR_ZONE_IDS = listOf(
     R.id.graph_hour_zone_0, R.id.graph_hour_zone_1, R.id.graph_hour_zone_2,

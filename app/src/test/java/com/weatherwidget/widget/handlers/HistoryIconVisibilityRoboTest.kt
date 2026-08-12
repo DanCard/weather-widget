@@ -30,6 +30,7 @@ import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
+import com.weatherwidget.widget.ActiveLocationResolver
 
 
 
@@ -49,6 +50,10 @@ class HistoryIconVisibilityRoboTest {
         try { WorkManager.initialize(context, Configuration.Builder().build()) } catch (_: IllegalStateException) { }
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(appWidgetId)
+        // These tests exercise widget-state mechanics, not location handling. They previously relied
+        // on the resolver's Google-HQ fallback to supply a location; with that gone, an interaction on
+        // a location-less widget correctly paints the no-location state instead of rendering.
+        ActiveLocationResolver.persist(context, 37.4220, -122.0841)
     }
 
     @Test
