@@ -1,388 +1,341 @@
 # Weather Widget Architecture
 
-## Overview
+> Last updated 2026-08-12. This document supersedes the May-2026 version and reflects the
+> current three-module codebase (`:app`, `:shared`, `:desktop`).
 
-Android weather widget app with resizable widget support, dual-API data sources (NWS and Open-Meteo), and forecast accuracy tracking. Features a two-tier update system that separates UI updates from data fetches for optimal battery efficiency.
+## 1. Overview
 
-## Core Architecture
+Weather Widget is a resizable Android home-screen widget plus a Linux desktop tray/window app
+that render the same weather content. The system has grown well beyond "a widget with two APIs"
+into a multi-provider forecasting/observation pipeline with forecast-accuracy tracking,
+forecast-history snapshots, climate-normals gap filling, and cross-platform graph rendering.
 
-### Data Layer
+### Scale (measured 2026-08-12)
 
-#### Database (Room)
-- **WeatherEntity**: Daily weather data (high/low temps, conditions, actual vs forecast)
-  - Composite primary key: `(date, source)` allows comparison between NWS and Open-Meteo
-  - Tracks `isActual` flag to distinguish observations from forecasts
-  - `fetchedAt` timestamp for staleness checking
+| Module | Main lines | Test lines | Test files | Role |
+|--------|-----------|-----------|-----------|------|
+| `:app` (Android) | ~46k | ~54k | 272 unit + 41 instrumented | Widget, Room DB, repositories, scheduling, UI activities |
+| `:shared` (pure JVM) | ~18k | ~17k | 112 unit | API clients, graph math/labels, actuals blending, cross-platform logic |
+| `:desktop` (Compose) | ~14k | ~6.5k | 37 unit | Tray/window app, two-process daemon/UI split |
 
-- **ForecastSnapshotEntity**: Historical forecast snapshots for accuracy tracking
-  - Stores 1-day-ahead predictions before 8pm cutoff
-  - Enables comparison of predicted vs actual temperatures
+The `:shared` test suite runs entirely on the JVM in under a second (~513 tests) — it is the
+project's algorithmic core, and everything that can be made platform-agnostic lives there.
 
-- **HourlyForecastEntity**: Hourly temperature data for interpolation
-  - Enables smooth current temperature transitions
-  - Used for UI-only updates without network requests
+### Weather sources
 
-#### Repositories
-- **WeatherRepository**: Coordinates data fetching from multiple APIs
-  - Manages NWS and Open-Meteo API calls
-  - Handles data persistence and cache invalidation
-  - Fetches historical observations for accuracy tracking
+`WeatherSource` (in `shared/.../data/model/WeatherSource.kt`) defines the providers:
 
-### Widget Layer
+- **NWS** — US-only, keyless, `STATION_OBSERVATION` history (ASOS/AWOS via `/stations/{id}/observations`).
+- **Open-Meteo** — global, keyless, `REANALYSIS_ARCHIVE` history (ERA5).
+- **Silurian**, **WeatherAPI**, **Visual Crossing**, **OpenWeatherMap**, **Tomorrow.io** — keyed providers with varying historical products.
+- **GENERIC_GAP** — a synthetic "Climate Avg" source used to fill missing days from climate normals (not a real API).
 
-#### Widget Provider
-- **WeatherWidgetProvider**: Main widget lifecycle manager
-  - Handles widget creation, updates, and user interactions
-  - Manages navigation (history browsing, forecast scrolling)
-  - API source toggling (NWS ↔ Open-Meteo)
-  - **View mode toggling (Daily ↔ Hourly)**
-  - Coordinates scheduled updates
+Each source now declares a `HistoricalDataKind` describing *what* its past-hour product is
+(station observation vs. reanalysis vs. provider archive), which gates how it may be used as
+"actual" data.
 
-#### Widget State Management
-- **WidgetStateManager**: Persists per-widget state
-  - Date offset for navigation (30 days history, 14 days forecast)
-  - **View Mode**: Toggles between DAILY and HOURLY views
-  - **Hourly Offset**: Tracks time navigation in hourly view (±24h window)
-  - Current display source (NWS or Open-Meteo)
-  - Navigation bounds checking
-  - Accuracy display mode preference
+## 2. Module boundaries
 
-#### Widget Sizing & Rendering
-- **Responsive Layout**: Adapts to widget size (1x1 to 8+ columns)
-  - 1x1: Today's high (+ current temp if space allows)
-  - 1x3: Yesterday, today, tomorrow (text only)
-  - 2x3: Graphical bars with high/low ranges
-  - 4+ cols: Additional forecast days (2-5 days)
+The single most important architectural decision is the `:shared` seam:
 
-- **TemperatureGraphRenderer**: Renders graphical temperature bars (Daily View)
-  - Height-based text scaling for readability
-  - Past days show forecast overlay (yellow bar) for accuracy comparison
-  - Multiple display modes: FORECAST_BAR, ACCURACY_DOT, SIDE_BY_SIDE, DIFFERENCE
+- **`:shared`** owns everything that is pure JVM: API clients (`NwsApi`, `OpenMeteoApi`, …),
+  data *models*, the graph geometry + label-placement engine, actuals aggregation, observation
+  merging, accuracy math, and shared utilities. It must not reference `android.content.Context`,
+  Room, RemoteViews, or widget preferences.
+- **`:app`** owns Android coupling: Room entities/DAOs, Hilt graph, widget lifecycle, scheduling,
+  RemoteViews rendering glue, and the activities.
+- **`:desktop`** reuses `:shared` models and API clients, and reimplements the *rendering* and
+  *orchestration* layers in Compose for Desktop (its own thin config/location/repository classes).
 
-- **HourlyGraphRenderer**: Renders hourly temperature trends (Hourly View)
-  - Smooth Bezier curve connecting 24 data points
-  - Dynamic vertical scaling based on min/max temp in window
-  - Visual "NOW" indicator line
-  - Adaptive density (Graph for 2+ rows, Text list for 1 row)
+This seam is what makes the 112-file pure-JVM test suite and the Android↔desktop parity work.
+The renderer "engines" (label placement, axis scaling, curve smoothing, overlay planning) are all
+in `shared/.../shared/graph/` precisely so both platforms compute identical geometry and the
+platform layer only *draws* the result.
 
-### Update System
+## 3. Data layer
 
-#### Two-Tier Update Architecture
+### 3.1 Android persistence (Room)
 
-The widget uses separate update mechanisms for UI updates vs data fetches to minimize battery impact while maintaining current temperature accuracy.
+`app/.../data/local/WeatherDatabase.kt` is a single Room database at **schema version 61** with
+8 entities and 8 DAOs:
 
-**Update Strategy Table:**
+| Entity | Purpose |
+|--------|---------|
+| `ForecastEntity` | Daily forecast rows, one per `(targetDate, dateOfPrediction, source, lat, lon, batchFetchedAt)` — keeps per-batch history for evolution/accuracy. |
+| `HourlyForecastEntity` | Hourly forecast points for interpolation + hourly view. |
+| `HourlyForecastHistoryEntity` | Hourly forecast *snapshots* bucketed by `timestampToGroupPredictions` — "what we predicted at time T". |
+| `ObservationEntity` | Station observations keyed `(stationId, timestamp, lat, lon)`; carries `api`, `qcFailed`, `isWebFallback`, precip. |
+| `DailyHistoryEntity` | Per-day rolled-up actuals (`computedHighTemp/LowTemp`, `apiHighTemp/LowTemp`, frozen forecast columns, `actualsSource`, `lastWriter`). |
+| `ClimateNormalEntity` | Monthly-day climate normals for gap-filling. |
+| `AppLogEntity` | Persistent diagnostic log (`app_logs`). |
+| `ApiUsageEntity` | Per-day per-source call counts for quota visibility. |
 
-| Update Type | Frequency | Method | Wakeup | Purpose |
-|-------------|-----------|--------|--------|---------|
-| **Current Temp UI** | 15-60 min (temp-based) | AlarmManager | No (opportunistic) | Update interpolated temp from cache |
-| **Opportunistic UI** | ~30 min | JobScheduler (8+) | No (piggyback) | Update when system already awake |
-| **Data Fetch** | 60-480 min (battery-aware) | WorkManager | Yes (controlled) | Fetch from APIs |
-| **User Interaction** | Immediate | Direct DB read | N/A | Instant UI update + conditional fetch |
-| **Screen Unlock** | Immediate | Direct DB read | N/A | UI update + fetch if charging & stale |
+The schema carries ~17 hand-written migrations (44→61), several of which perform delicate data
+surgery rather than simple column adds:
 
-#### Update Components
+- **Float-coordinate fragmentation** is a recurring theme: float lat/lon inside primary keys let
+  GPS/geocoding jitter strand rows. Migrations 47/48 and 49/50 round lat/lon onto a quantization
+  grid and dedupe fragments; `LocationMatch.quantize` is the shared contract that all writers must
+  respect.
+- **Table renames with index rebuilds** (50/51 `daily_extremes`→`daily_history`), **sentinel-data
+  poisoning cleanup** (58/59 wipes NWS "API actuals" that were really forecast/ERA5 data), and
+  **conditional/idempotent ALTERs** (`addColumnIfMissing`) for self-healing.
+- A `healCorruptDatabaseVersion` path corrects version-vs-schema drift left by older destructive
+  migrations before Room runs.
 
-**1. UI Update Scheduler (UIUpdateScheduler)**
-- Uses `AlarmManager.setAndAllowWhileIdle()` for opportunistic updates
-- Calculates next update time based on temperature change rate:
-  - 15 min intervals: temp changing ≥6°F/hour
-  - 20 min intervals: temp changing ≥4°F/hour
-  - 30 min intervals: temp changing ≥2°F/hour
-  - 60 min intervals: temp changing <2°F/hour
-- No guaranteed wakeup - fires when device already awake from other activity
-- Re-schedules itself after each update
+Location identity is the subtlest correctness issue in the whole data layer: `LocationMatch`
+(shared) defines how a coordinate quantizes to a site, and a mis-keyed row is a permanent
+fragment that `selectNearestSite` silently drops.
 
-**2. Opportunistic Update Job (OpportunisticUpdateJobService)**
-- Android 8+ only (uses JobScheduler)
-- Runs every ~30 minutes when device already awake
-- Piggybacks on system wakeups (no independent wakeups)
-- Checks for recent hourly data before updating
+### 3.2 Desktop persistence
 
-**3. Data Fetch Worker (WeatherWidgetWorker)**
-- Battery-aware update intervals:
-  - Plugged in: 60 min
-  - Battery >50%: 120 min
-  - Battery 20-50%: 240 min
-  - Battery <20%: 480 min
-- Fetches from NWS and Open-Meteo APIs
-- Fetches historical observations (7 days)
-- Fetches hourly forecasts (extended ±24h range for hourly view)
-- Saves forecast snapshots (before 8pm daily)
-- Triggers UI update scheduler after completion
+Desktop has its own thin SQLite layer (`shared/.../data/local/desktop/`): `DesktopWeatherDatabase`
++ `DesktopWeatherDao` (1,127 lines, 37 queries) over `DesktopForecastRow`, `DesktopObservationEntity`,
+`DesktopLogEntity`, `DesktopStationCacheEntity`, etc. This is a *second* persistence implementation
+parallel to the Android Room layer — not a shared one. It exists because Room is Android-only, but
+it means DAO logic is (partially) duplicated across platforms.
 
-**4. Staleness Checking (DataFreshness)**
-- Determines if data needs refreshing (threshold: 30 minutes)
-- Checks availability of hourly data for interpolation
-- Used by user interaction handlers to decide if background fetch needed
+### 3.3 Repositories (Android)
 
-**5. Screen Unlock Receiver (ScreenOnReceiver)**
-- Listens for `ACTION_USER_PRESENT` (screen unlock)
-- Always: UI-only update from cache (instant feedback)
-- If charging + data stale: trigger background data fetch
-- Battery-conscious: only fetches when plugged in
+The repository layer is the coordination tier between APIs and DAOs:
 
-**6. User Interaction Handlers**
-- **ACTION_REFRESH**: UI update first (instant), then conditional background fetch
-- **Navigation (left/right arrows)**: Direct database read, immediate UI update
-- **API Toggle**: Direct database read, immediate source switch
-- All interactions provide instant visual feedback from cached data
+- **`WeatherRepository`** — public facade used by the worker/UI; `getWeatherData`, `refreshCurrentTemperature`, backfill entry points.
+- **`ForecastRepository`** + **`ForecastFetchCoordinator`** — selects which sources to fetch (per-source staleness via `ForecastFetchPolicy`/`ForecastStalenessPolicy`), fans out Ktor calls concurrently, classifies/persists results, and logs per-source failures.
+- **`ObservationRepository`** / **`CurrentTempRepository`** / **`CurrentObservationReader`** — station observations and the computed NWS current-temperature blend.
+- **`DailyActualsStore`** (673 lines) / **`DailyHistorySnapshotter`** — the "actual high/low" roll-up.
+- **Backfillers** — `NwsObservationBackfiller`, `NwsApiDailyActualsFetcher`, `WeatherApiHistoryBackfiller`, `ClimateGapFiller` — idempotent, run "if needed".
+- **`WeatherRetentionManager`** — 30-day rolling retention.
 
-### Temperature Interpolation
+## 4. The sync pipeline
 
-**TemperatureInterpolator**
-- Calculates current temperature between hourly forecast data points
-- Linear interpolation based on minutes into current hour
-- Threshold: skips interpolation if temp difference <1°F
-- Provides methods for calculating optimal update frequency
-- Falls back to nearest hour if surrounding data unavailable
+`WeatherWidgetWorker` is now a **thin dispatcher**. It decodes `WorkInput` and routes to one of
+three modes, delegating the full sync to `FullSyncPipeline`:
 
-**Current Temperature Display Priority:**
-1. Interpolated from hourly forecasts (most accurate)
-2. API-provided current temp (fallback)
-3. Hidden if unavailable
-
-### Forecast Accuracy Tracking
-
-**AccuracyCalculator**
-- Compares 1-day-ahead predictions vs actual observations
-- Separate tracking for high and low temperatures
-- Metrics (30-day lookback):
-  - Average error (MAE)
-  - Directional bias (e.g., "forecasts run 2° high")
-  - Maximum error
-  - Percent within ±3°F
-  - Accuracy score (0-5 scale)
-
-**Display Modes:**
-- **FORECAST_BAR**: Yellow overlay showing predicted range
-- **ACCURACY_DOT**: Color-coded indicator (green ≤2°, yellow ≤5°, red >5°)
-- **SIDE_BY_SIDE**: "72° (N:68°)" with source
-- **DIFFERENCE**: "72° (N:+4)" with delta
-- **NONE**: No comparison shown
-
-### API Source Management
-
-**Dual-API Strategy:**
-- Both NWS and Open-Meteo fetched and stored equally
-- Composite keys allow side-by-side comparison
-- User preference modes:
-  - **Alternate** (default): Pseudo-random initial source (varies daily + by widget ID)
-  - **NWS Primary**: Prefer NWS with Open-Meteo fallback
-  - **Open-Meteo Primary**: Prefer Open-Meteo with NWS fallback
-- Tap API indicator to toggle display source (per-widget state)
-
-**API Characteristics:**
-- **NWS**: Free, US-only, official government data, no API key required
-- **Open-Meteo**: Free, global coverage, no API key required, consistent format
-
-## Data Flow
-
-### Initial Widget Creation
 ```
-1. WeatherWidgetProvider.onUpdate()
-   ↓
-2. Display loading state
-   ↓
-3. Trigger immediate data fetch (WeatherWidgetWorker)
-   ↓
-4. Fetch from both NWS and Open-Meteo
-   ↓
-5. Fetch historical observations
-   ↓
-6. Fetch hourly forecasts
-   ↓
-7. Save all data to Room database
-   ↓
-8. Update all widgets with new data
-   ↓
-9. Schedule next data fetch (battery-aware)
-   ↓
-10. Schedule UI update (AlarmManager + JobScheduler)
+GPS resample (piggyback) → location resolution/promotion → fetch → snapshots
+→ NWS observation backfill → actuals recompute → repaint all widgets → re-schedule
 ```
 
-### Scheduled UI Update
-```
-1. AlarmManager fires (opportunistic, no wakeup)
-   ↓
-2. UIUpdateReceiver.onReceive()
-   ↓
-3. Trigger UI-only worker (WeatherWidgetWorker with KEY_UI_ONLY_REFRESH=true)
-   ↓
-4. Read hourly forecasts from database
-   ↓
-5. Interpolate current temperature
-   ↓
-6. Update all widgets (no network request)
-   ↓
-7. Schedule next UI update based on temp change rate
-```
+`FullSyncPipeline.run` documents its own timing (`SYNC_STAGE`, `SYNC_PERF` rows when >500 ms) and
+its races. Two notable race-handling patterns:
 
-### User Interaction (Tap/Swipe)
-```
-1. User taps refresh / navigates / toggles API / toggles View
-   ↓
-2. BroadcastReceiver handles intent
-   ↓
-3. Direct database read (goAsync() for non-blocking)
-   ↓
-4. Immediate widget update (instant feedback)
-   ↓
-5. Check data staleness (parallel coroutine)
-   ↓
-6. If stale: trigger background data fetch
-   ↓
-7. Data fetch completes → update widgets again with fresh data
-```
+1. **Hourly source snapshot re-read**: hourly forecasts are loaded *before* the fetch but scoped to
+   the sources visible at load time. If the user toggles a source mid-fetch, the loaded rows would
+   contain zero rows for the newly-displayed source; the pipeline detects this
+   (`HourlyForecastLoader.sourcesMissingFromLoad`) and re-reads once before actuals recompute and
+   repaint.
+2. **Per-source staleness, not a global timestamp**: no "just fetched, skip everything" gate at the
+   worker level; freshness is enforced per source one layer down, so a genuinely stale source is
+   never deferred for a whole cooldown window.
 
-### Screen Unlock
+### Work modes (`WorkInput`)
+
+- **full sync** — everything above.
+- **`currentTempOnly`** — current-temperature refresh, gated by `CurrentTempFetchPolicy` (battery/interactive).
+- **`nonPrimaryCurrentTempOnly`** — refresh the *visible but not displayed* sources in the background.
+- **`observationBackfillOnly`** — NWS observation backfill with an explicit coordinate (refuses to run without a real location, to avoid filing mis-keyed rows).
+- **`uiOnlyRefresh`** — re-render from cache only, no network.
+
+The `WorkerExceptionHandler` + `ProcessExitLogger` pair exists because a cancelled in-flight worker
+can **segfault the ART interpreter** on debuggable builds (native crash, invisible to the JVM crash
+logger). Enqueue policies are therefore disciplined: `KEEP`/`APPEND_OR_REPLACE` for unique work,
+`REPLACE` only for delayed/not-yet-running work, `UPDATE` for periodic work.
+
+## 5. Widget layer
+
+### 5.1 Entry and interaction routing
+
 ```
-1. ACTION_USER_PRESENT broadcast
-   ↓
-2. ScreenOnReceiver.onReceive()
-   ↓
-3. Trigger UI-only update (always, instant feedback)
-   ↓
-4. Check if charging (parallel)
-   ↓
-5. If charging: check data staleness
-   ↓
-6. If charging + stale: trigger background data fetch
+WeatherWidgetProvider (AppWidgetProvider, Hilt)
+  └─ WidgetStartupCoordinator            (onUpdate path)
+  └─ WidgetIntentRouter                  (resize; public interaction facade)
+       └─ WidgetInteractionCoordinator   (per-widget mutex + app-log metadata)
+            └─ WidgetIntentActionHandler (navigate / toggle API / toggle view / set view / cycle zoom)
+                 └─ view handlers        (DailyViewHandler, TemperatureViewHandler,
+                                          PrecipViewHandler, CloudCoverViewHandler)
 ```
 
-## Battery Optimization Strategies
+Key properties:
 
-### Zero Independent Wakeups for UI
-- AlarmManager uses `setAndAllowWhileIdle()` (opportunistic)
-- JobScheduler piggybacks on existing system wakeups
-- UI updates only happen when device already awake
+- **Per-widget interaction serialization**: `WidgetInteractionCoordinator` takes a per-widget lock
+  so overlapping taps on the same widget cannot interleave; every interaction is logged with
+  before/after state metadata (`NAV`, `TOGGLE_API`, `CYCLE_ZOOM`, …).
+- **Instant feedback from cache**: navigation and view toggles are direct DB reads (via
+  `goAsync()`-backed `BroadcastAsyncRunner`), then a conditional background fetch if stale.
+- **`WidgetRenderer` → `WidgetPaintCoordinator`** is the paint path: it turns the loaded
+  `weatherList`/`hourlyForecasts`/`dailyActuals`/`currentTemps` into RemoteViews per widget, with
+  an escape hatch (`reloadActuals`) for source-toggled widgets.
 
-### Battery-Aware Data Fetching
-- Interval scales with battery level (60-480 min)
-- Longer intervals on battery, shorter when charging
-- WorkManager handles scheduling with constraints
+### 5.2 View modes & state
 
-### Intelligent Staleness Checking
-- Only fetch new data if >30 min old
-- User interactions check staleness before fetching
-- Screen unlock only fetches when charging + stale
+`WidgetStateManager` persists per-widget state (view mode, day offset, hourly offset, zoom window,
+display source, accuracy mode). The view modes are Daily (forecast bars), Hourly (temperature /
+precipitation / cloud-cover graphs), and text mode for one-row widgets. Zoom is a multi-stage
+window (`ZoomStage`/`ZoomWindow` in shared) with configurable narrow span.
 
-### Efficient Database Queries
-- Direct database reads for user interactions (no worker overhead)
-- Indexed queries on date and location
-- Limit hourly forecast queries to ±3 hour window
+The **touch-zone problem** is intrinsic here: RemoteViews cannot express real touch layout, so tap
+routing is computed from rendered geometry (column x-ranges, header rows, footer, day-click zones)
+and mapped back to actions via `*TouchTargets`/`*ClickHelper` classes. This is a large fraction of
+the bug history (see the `plans/` entries named "touch zone / click routing / tap").
 
-### Cached Data Leveraging
-- Hourly forecasts enable UI updates without network
-- Temperature interpolation from cached data
-- Historical data available for immediate navigation
+### 5.3 Renderers
 
-## Error Handling
+Android renderers (`DailyForecastGraphRenderer`, `PrecipitationGraphRenderer` (951 lines),
+`TemperatureGraphRenderer` split into `TemperatureGraphSeriesRenderer`/`TemperatureGraphAnnotationRenderer`/…,
+`CloudCoverGraphRenderer`, `ForecastEvolutionRenderer`) all draw into `Canvas` bitmaps. The
+*decision-making* (where labels go, how curves are smoothed, how the today-column overlay is
+planned) lives in `:shared`, and the Android file only executes the plan.
 
-### Network Failures
-- Try alternate API if primary fails
-- Fall back to cached data with error indicator
-- Display "offline" indicator with last update timestamp
-- Retry with exponential backoff (WorkManager)
+## 6. Graph label placement — the algorithmic core
 
-### GPS/Location Failures
-- Fall back to last known location
-- Default to Google HQ (37.4220, -122.0841) if no location
-- Display location name for user awareness
+The hardest and most-iterated part of the codebase is the graph **label placement engine** in
+`shared/.../shared/graph/`:
 
-### Missing Data
-- Display "Tap to configure" for new widgets
-- Show "--°" for unavailable temperatures
-- Hide current temp if interpolation fails
-- Toast notification when navigating beyond available data
+| File | Lines | Responsibility |
+|------|------:|----------------|
+| `TemperatureLabelEngine` | 1,202 | Per-role label candidate generation, curve avoidance, leader-line displacement |
+| `TemperatureLabelResolver` | 1,031 | Collision resolution / ordering across candidate labels |
+| `GraphLabelPlacementUtils` | 363 | Overlap tests, minor-overlap budgets, shared geometry |
+| `TemperatureExtrema` | 399 | Which points on the curve are "the high/low/actual high/…" |
+| `ValueLabelEngine` | 390 | Generic numeric label placement |
+| `DualHighLabel` / `GhostLineLabel` / `FetchDotLabel` / `ForecastDeltaLabel` / `DominantStationLabel` | ~215 each | Special label roles with their own rules |
+| `TodayColumnOverlayPlanner` / `TodayColumnOverlayBlocks` / `LargeTodayOverlayPolicy` | ~513 | The "today" column station-overlay layout |
 
-### Database Errors
-- Graceful degradation to empty state
-- Logging for debugging
-- Retry on next scheduled update
+This is a continuous collision-avoidance layout problem: each label has a **role**
+(`TemperatureRole`: HIGH, LOW, ACTUAL_HIGH, ACTUAL_LOW, START, END, LOCAL, …), each role has its own
+curve-avoidance margin and overlap tolerance, labels emit **leader lines** when displaced from their
+anchor, and the engine must produce pixel-identical geometry on Android Canvas and Desktop Compose
+(shared pure functions + a platform `LabelTextMetrics` for text measurement). The `plans/` directory
+contains dozens of "label overlap/collision/leader-line/ghost-line" investigations accumulated over
+months — this subsystem is where most rendering bugs live.
 
-## Data Retention
+## 7. Actuals / observation blending
 
-- **Weather data**: 30 days (rolling window)
-- **Forecast snapshots**: 30 days (for accuracy tracking)
-- **Hourly forecasts**: Auto-cleanup of old data
-- **Navigation range**: 30 days history, 14 days forecast
+The second-hardest subsystem is computing "the actual high/low for the day" from heterogeneous
+observation sources. Shared pieces:
 
-## Performance Considerations
+- `ActualTemperatureSeriesBuilder` (875 lines) + `ActualsAggregator` + `ApiActualPicker` +
+  `DailyActualsSource` + `DailyForecastSelector` + `HistoricalActualsBackfill` +
+  `NwsDailyExtremesFetch` + `StationDailyExtremes`.
+- `LatestObservationMerge`, `NwsQualityControl` (QC-flag rejection), `ObservationFallbackPolicy`,
+  `ObservationSourceMatcher` (shared `observations/`).
+- `YesterdayDeltaCalculator`, `TodayColumnOverlayContentResolver`.
 
-### Widget Rendering
-- Bitmap caching for graph rendering
-- Height-based text scaling for readability
-- Minimal margins to maximize content area
-- Touch zones optimized for reliable input
+The complexity is reconciling, per day, the NWS station readings (with QC flags and Synoptic web
+fallback), Open-Meteo's ERA5 archive, and the provider archive products, into one consistent
+`computedHigh/Low` that matches across the daily view, hourly graph, and accuracy stats — while
+handling sentinel temperatures, personal-station discounting, location fragmentation, and
+cross-location leaks. The `DailyHistoryEntity` stores both the IDW-blended value
+(`computedHighTemp`) and the provider-reported value (`apiHighTemp`), plus an `actualsSource` /
+`lastWriter` provenance trail so the pipeline is auditable.
 
-### Database Performance
-- Composite indexes on (date, source)
-- Location-based queries with lat/lon filtering
-- Limit queries to necessary date ranges
-- Batch updates for multiple widgets
+## 8. Scheduling & battery strategy
 
-### Memory Management
-- Coroutines for async operations
-- goAsync() for BroadcastReceivers to avoid ANRs
-- Expedited work requests for user interactions
-- Cleanup of old data to prevent database bloat
+The Android update system remains a battery-first multi-tier design, now with more tiers:
 
-## Build Configuration
+| Update type | Frequency | Mechanism | Wakeup |
+|-------------|-----------|-----------|--------|
+| Current-temp UI | temp-rate adaptive | `CurrentTempUpdateScheduler` + WorkManager | opportunistic |
+| Opportunistic UI | ~30 min | `OpportunisticUpdateJobService` (JobScheduler) | piggyback |
+| Full data fetch | 60–480 min battery-aware | `WeatherWidgetWorker` (periodic) | controlled |
+| Non-primary source refresh | gated | `NonPrimaryObservationScheduler` | opportunistic |
+| User interaction | immediate | direct DB read | — |
+| Screen unlock | immediate | `ScreenOnReceiver` | — |
 
-- **Java**: Requires Java 21 (Android Studio bundled JDK)
-- **JAVA_HOME**: `/home/dcar/Downloads/high/android-studio/jbr`
-- **Gradle**: 8.13
-- **Min SDK**: API level for widgets (check build.gradle)
-- **Target SDK**: Latest stable Android version
+Policy logic is extracted into testable classes: `BatteryFetchStrategy`, `BatteryStatePolicy`,
+`CurrentTempFetchPolicy`, `ForecastFetchPolicy`, `ForecastStalenessPolicy`, `StartupFetchPolicy`,
+`PowerConnectedRefreshPolicy`, `UIUpdateIntervalStrategy`, `WidgetRefreshPolicy`. `WidgetLoopScheduler`
+manages the current-temp / non-primary re-arm loops after each run.
 
-## Testing Strategy
+## 9. Desktop architecture — two-process split
 
-### Widget Testing
-```bash
-# Build and install
-JAVA_HOME=/home/dcar/Downloads/high/android-studio/jbr ./gradlew installDebug
+The desktop app is a **headless daemon + ephemeral UI** split (see `DesktopProcess.kt`,
+`DaemonProcess.kt`, `Main.kt`):
 
-# On device/emulator:
-# 1. Long-press home screen → "Widgets"
-# 2. Find "Weather Widget" and drag to home screen
-# 3. Resize to test different layouts (1x1, 1x3, 2x3, 4x3, etc.)
-
-# Or use ADB:
-adb shell am start -a android.appwidget.action.APPWIDGET_PICK
+```
+launcher (scripts/desktop-app-launcher-and-autostart.sh)
+  └─ jpackage binary "daemon" mode
+       ├─ owns: weather DB, fetch loops, config, genmon panel socket, tray
+       └─ launches: "ui" mode child process (Compose window/tray) on demand
 ```
 
-### Update Testing
-- Monitor logs for scheduled updates
-- Check AlarmManager and JobScheduler status
-- Test user interactions (tap, navigate, toggle)
-- Verify screen unlock behavior
-- Check battery-aware intervals at different battery levels
+Inter-process coordination uses **trigger files** in the shared XDG data dir (`.data-updated`,
+`.refresh-requested`, `.quit-<launchId>`, `.ui-show`) plus a socket push (`PanelIpcServer` /
+`UiNotifyChannel`) for reliable non-lossy notification, with a slow polling fallback
+(`UI_FALLBACK_TICK_MS`) in case a watch event is missed. Single-instance is enforced by the
+`.quit-<launchId>` token scheme (`signalIncumbentToQuit` / `supersededByNewerInstance`).
 
-### Data Testing
-- Verify both APIs being fetched
-- Check accuracy tracking calculations
-- Test navigation bounds (30 days back, 14 forward)
-- Validate temperature interpolation
-- Confirm data cleanup (30-day retention)
+The daemon does substantial Linux integration:
 
-## Future Enhancements
+- `gdbus` monitoring of `logind` `PrepareForSleep` (suspend/resume) and NetworkManager
+  `StateChanged`/`Connectivity` (network restore), with debounce and jitter to avoid the
+  post-wake "thundering herd" of re-fetches.
+- Resume detection by wall-clock-jump heuristics on a 30s heartbeat (`isSuspendJump`).
+- A "network warm-up grace window" (`isNetworkWarmupWindow`) so post-wake DNS failures are not
+  surfaced as hard errors.
+- `java.awt.headless=true` in the daemon; negative-DNS-cache TTL = 0.
 
-### Potential Improvements
-- Weather condition icons/animations
-- Multiple location support
-- Custom location selection (map picker)
-- Precipitation probability display
-- Wind speed/direction
-- Sunrise/sunset times
-- Weather alerts/warnings
-- Widget themes (light/dark/custom colors)
-- Export accuracy statistics
-- Notification for significant weather changes
+`Main.kt` (1,825 lines) is the single biggest file in the project and is the desktop UI composition
+root (tray, popup, windows, drag-scroll, pan/zoom input). Desktop rendering (`DailyForecastGraph`
+1,082 lines, `TemperatureGraph` 967, `DesktopGraphUtils` 753) mirrors the Android renderers but
+reuses the shared graph engines for geometry.
 
-### Optimization Opportunities
-- Differential updates (only changed data)
-- Predictive pre-fetching based on user patterns
-- Machine learning for accuracy prediction
-- Adaptive update intervals based on weather volatility
-- Smart data retention based on usage patterns
+## 10. Observability
+
+The project has an unusually strong diagnostics culture, centered on the persistent `app_logs`
+table and the shared `Log` router:
+
+- **Tiered persistence**: `VERBOSE` is the explicit "do not persist" tier (high-frequency
+  render/poll traces, logcat/console only); `DEBUG` and above persist to `app_logs`. The boundary is
+  wired at the `CurrentTemperatureResolver.dbLogger` assignment in both `AppModule` and `DaemonProcess`.
+- **Sparse, queryable events**: `SYNC_START/SUCCESS/FAILURE`, `SYNC_PERF`, `CURR_FETCH_*`,
+  `WIDGET_LIFECYCLE`, `NAV`/`TOGGLE_API` interaction rows, `OBS_*_BACKFILL_*`, `LOCATION_MIGRATION`.
+- **`ProcessExitLogger`** logs `ApplicationExitInfo` (the only in-app source for native/LMK/ANR
+  deaths), critical because the worker-cancel crash is a *native* crash invisible to the JVM logger.
+- **`WidgetPerfLogger` / `InteractionTimingLogger` / `WidgetUpdateTracker`** track per-interaction
+  and per-paint latency.
+- API calls are counted per-source per-day in `ApiUsageEntity`.
+
+## 11. Testing strategy
+
+The strategy is **pure-function extraction first, mocking last** (see `arch/testing-strategy.md`):
+
+1. Pure JVM logic → plain unit tests (the entire `:shared` suite).
+2. Needs Context/Room/prefs → Robolectric via `com.weatherwidget.test.RobolectricTest`.
+3. Needs real Canvas/Bitmap, RemoteViews `performClick`, real view measure/layout, or real SQLite
+   migrations → instrumented `androidTest` (emulator-first via `scripts/emulator-tests.sh`).
+
+Every test class carries a `@Category` duration bucket (Short/Medium/Long) in all three modules,
+enforced by build validation. The test suite is enormous relative to the main code (~1.3:1 in
+`:app`), reflecting how much correctness-critical logic has been extracted.
+
+## 12. Architectural assessment
+
+### Strengths
+
+- **Excellent pure-logic seam (`:shared`)** — the algorithmic core is platform-free and fast-tested; this is the foundation of Android↔desktop parity.
+- **Testable policy extraction** — scheduling/fetch/staleness policies are small pure classes with unit tests, keeping the worker thin.
+- **Deep observability** — the tiered app-log system and process-exit logging turn "dead widget" incidents into queryable evidence.
+- **Disciplined concurrency** — per-widget interaction locks and WorkManager enqueue-policy rules encode hard-won lessons (the native-crash trap) directly into the code comments.
+- **Self-healing, idempotent data layer** — conditional migrations, fragment-dedupe, and retry-until-flag-consumed backfills.
+
+### Tensions / risks
+
+- **Concentration of complexity** in graph label placement, actuals blending, and widget
+  touch-routing — the three areas that dominate the bug history.
+- **God files persist** — `PrecipitationGraphRenderer` (951), `DailyViewHandler` (858),
+  `DesktopWeatherDao` (1,127), `Main.kt` (1,825), `TemperatureLabelEngine` (1,202). Decomposition
+  has been attempted repeatedly (there are plans for it) but large files keep re-accumulating.
+- **Two parallel persistence layers** (Android Room vs. desktop SQLite) and some duplicated utility
+  code across `app/util` and `shared/util` (e.g. `RainAnalyzer`, `TempUtils`, `NavigationUtils`,
+  `SunPositionUtils` exist in both). A "shared code deduplication" effort is ongoing.
+- **Documentation lag** — ~450 files in `plans/` but `ARCHITECTURE.md` had not been refreshed since
+  May; the plan archive is the de-facto knowledge base and is hard to navigate.
+
+## 13. Complexity hotspots (ranked)
+
+1. **Graph label placement engine** (`shared/graph`) — continuous collision-avoidance layout with per-role rules, leader lines, and dual-platform pixel parity. Most-recurring bug source.
+2. **Actuals / observation blending** (`shared/actuals`, `shared/observations`, `ObservationRepository`, `DailyActualsStore`) — reconciling heterogeneous observation sources into one consistent daily "actual".
+3. **Widget interaction & touch routing** (`handlers/`, renderers) — RemoteViews constraints force geometry-derived tap zones with per-widget state and serialization.
+4. **Data layer + migrations** (`WeatherDatabase`, DAOs, `LocationMatch`) — float-coordinate fragmentation and 17 data-surgery migrations.
+5. **Desktop daemon/UI process split** (`DaemonProcess`, `Main`, `DesktopProcess`, `PanelIpcServer`) — suspend/resume/network detection, single-instance, and IPC.
