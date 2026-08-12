@@ -754,8 +754,20 @@ class DesktopUiTest {
             }
 
             composeTestRule.onNodeWithTag("app_logs_window").assertExists()
-            composeTestRule.onNodeWithText("Fetch success").assertExists()
-            composeTestRule.onNodeWithText("Network error").assertExists()
+
+            // AppLogsWindow starts with an empty list and fills it from a LaunchedEffect that reads
+            // SQLite on a background dispatcher before hopping to Dispatchers.Main. Asserting the rows
+            // exist without waiting races that load — it passes on an idle machine and fails under
+            // full-suite load. Same waitUntil the filter assertion below already uses.
+            composeTestRule.waitUntil(timeoutMillis = 5000L) {
+                try {
+                    composeTestRule.onNodeWithText("Fetch success").assertExists()
+                    composeTestRule.onNodeWithText("Network error").assertExists()
+                    true
+                } catch (e: AssertionError) {
+                    false
+                }
+            }
 
             // Filter out "error"
             composeTestRule.onNodeWithTag("app_log_filter_input").performTextInput("error")
