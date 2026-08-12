@@ -1,0 +1,1 @@
+Release 26081201: Render explicit no-location state on widget updates and eliminate default location fallback.
