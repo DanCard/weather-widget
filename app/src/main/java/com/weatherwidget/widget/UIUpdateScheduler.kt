@@ -82,8 +82,7 @@ class UIUpdateScheduler(private val context: Context) {
             val nextUpdateTime = Instant.ofEpochMilli(nextUpdateEpochMs).atZone(ZoneId.systemDefault()).toLocalDateTime()
 
             // If plugged in (and screen is on, handled by receiver), update very frequently
-            val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-            val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
+            val isCharging = BatterySnapshotProvider.snapshot(context).isCharging
 
             // Use strategy to compute actual delay
             val delayMillis = UIUpdateIntervalStrategy.computeDelayMillis(

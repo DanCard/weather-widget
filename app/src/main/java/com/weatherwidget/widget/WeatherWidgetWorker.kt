@@ -3,9 +3,6 @@ package com.weatherwidget.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.BatteryManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.hilt.work.HiltWorker
@@ -344,15 +341,13 @@ class WeatherWidgetWorker
         // ---- diagnostics ----
 
         private fun measureDeviceContext(): DeviceContext {
-            val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-            val isPlugged = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
+            val snapshot = BatterySnapshotProvider.snapshot(context)
             val isScreenInteractive = isScreenInteractive()
             val lastFullFetchMs = weatherRepository.lastNetworkFetchTimeMs
             val lastFullFetchAge = if (lastFullFetchMs > 0) (System.currentTimeMillis() - lastFullFetchMs) / 1000 else -1
             return DeviceContext(
-                isCharging = isPlugged,
-                batteryLevel = batteryLevel,
+                isCharging = snapshot.isCharging,
+                batteryLevel = snapshot.batteryLevel,
                 isScreenInteractive = isScreenInteractive,
                 lastFullFetchAgeSeconds = lastFullFetchAge,
             )

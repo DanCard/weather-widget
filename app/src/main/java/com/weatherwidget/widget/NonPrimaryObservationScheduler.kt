@@ -1,8 +1,6 @@
 package com.weatherwidget.widget
 
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.work.Constraints
@@ -64,8 +62,7 @@ object NonPrimaryObservationScheduler {
         ignoreRunningWorkId: UUID? = null,
         isScreenInteractive: Boolean = true,
     ) {
-        val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
+        val isCharging = BatterySnapshotProvider.snapshot(context).isCharging
         Log.d(TAG, "scheduleNextUpdate: isCharging=$isCharging isScreenInteractive=$isScreenInteractive ignoreRunningWorkId=$ignoreRunningWorkId")
 
         val intervalMinutes = NonPrimaryObservationPolicy.intervalMinutes(isCharging, isScreenInteractive)

@@ -1,8 +1,6 @@
 package com.weatherwidget.widget
 
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.os.PowerManager
 import android.util.Log
 import androidx.annotation.VisibleForTesting
@@ -20,9 +18,8 @@ internal object WidgetRefreshCoordinator {
         requestedWidgetId: Int? = null,
     ) {
         restartHeartbeats(context)
-        val batteryStatus: Intent? =
-            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
+        val snapshot = BatterySnapshotProvider.snapshot(context)
+        val isCharging = snapshot.isCharging
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val isDataStale = DataFreshness.isDataStale(context)
         val freshnessSummary = DataFreshness.getVisibleSourceFreshnessSummary(context)
@@ -48,9 +45,8 @@ internal object WidgetRefreshCoordinator {
 
     suspend fun restartHeartbeats(context: Context) {
         UIUpdateScheduler(context).scheduleNextUpdate()
-        val batteryStatus: Intent? =
-            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
+        val snapshot = BatterySnapshotProvider.snapshot(context)
+        val isCharging = snapshot.isCharging
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         if (
             CurrentTempFetchPolicy.shouldScheduleChargingLoop(

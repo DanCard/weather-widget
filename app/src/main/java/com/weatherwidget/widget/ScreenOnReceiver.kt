@@ -3,8 +3,6 @@ package com.weatherwidget.widget
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.os.BatteryManager
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import dagger.hilt.android.EntryPointAccessors
@@ -119,7 +117,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         val uiOnly = WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
             isCharging = battery.isCharging,
         )
-        Log.d(TAG, "Screen unlocked - charging=${battery.isCharging}, battery=${battery.level}%, uiOnly=$uiOnly")
+        Log.d(TAG, "Screen unlocked - charging=${battery.isCharging}, battery=${battery.batteryLevel}%, uiOnly=$uiOnly")
 
         resampleLocationAsync(context, trigger = "user_present")
 
@@ -152,7 +150,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
             try {
                 WeatherDatabase.getDatabase(context).appLogDao().log(
                     "UNLOCK_REFRESH_POLICY",
-                    "charging=${battery.isCharging} battery=${battery.level}% uiOnly=$uiOnly",
+                    "charging=${battery.isCharging} battery=${battery.batteryLevel}% uiOnly=$uiOnly",
                 )
                 UIUpdateScheduler(context).scheduleNextUpdate()
 
@@ -228,27 +226,8 @@ class ScreenOnReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun getBatteryState(context: Context): BatteryState {
-        val batteryStatus: Intent? =
-            IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { filter ->
-                context.registerReceiver(null, filter)
-            }
-
-        val level = batteryStatus?.let { intent ->
-            val rawLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-            val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-            if (rawLevel >= 0 && scale > 0) {
-                (rawLevel * 100) / scale
-            } else {
-                100
-            }
-        } ?: 100
-
-        return BatteryState(
-            isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus),
-            level = level,
-        )
-    }
+    private fun getBatteryState(context: Context): BatterySnapshot =
+        BatterySnapshotProvider.snapshot(context)
 
     companion object {
         private const val TAG = "ScreenOnReceiver"
@@ -259,8 +238,3 @@ class ScreenOnReceiver : BroadcastReceiver() {
         internal const val KEY_LAST_RESAMPLE_MS = "last_gps_resample_ms"
     }
 }
-
-private data class BatteryState(
-    val isCharging: Boolean,
-    val level: Int,
-)

@@ -42,13 +42,6 @@ class UIUpdateReceiver : BroadcastReceiver() {
 
         Log.d(TAG, "UI update alarm triggered")
 
-        val batteryStatus =
-            context.registerReceiver(
-                null,
-                android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED),
-            )
-        val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
-
         WidgetWorkScheduler.enqueueUiRepaint(context, reason = "ui_update_alarm")
         Log.d(TAG, "UI-only update enqueued")
 

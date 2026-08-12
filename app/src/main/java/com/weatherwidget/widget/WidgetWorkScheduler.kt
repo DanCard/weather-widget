@@ -2,9 +2,6 @@ package com.weatherwidget.widget
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.BatteryManager
 import android.util.Log
 import androidx.work.Constraints
 import androidx.work.Data
@@ -33,11 +30,8 @@ object WidgetWorkScheduler {
     private const val WORK_NAME_UI_DELAYED_PREFIX = "weather_widget_one_time_ui_delayed_"
 
     fun schedulePeriodicSync(context: Context) {
-        val batteryStatus: Intent? =
-            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-        val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
-        val tickMinutes = ForecastFetchPolicy.periodicTickMinutes(isCharging, batteryLevel)
+        val snapshot = BatterySnapshotProvider.snapshot(context)
+        val tickMinutes = ForecastFetchPolicy.periodicTickMinutes(snapshot.isCharging, snapshot.batteryLevel)
         val request =
             PeriodicWorkRequestBuilder<WeatherWidgetWorker>(tickMinutes, TimeUnit.MINUTES)
                 .setInputData(
@@ -65,7 +59,7 @@ object WidgetWorkScheduler {
         Log.d(
             TAG,
             "PERIODIC_REFRESH_SCHEDULE: name=$WORK_NAME_PERIODIC intervalMinutes=$tickMinutes " +
-                "charging=$isCharging battery=$batteryLevel policy=update " +
+                "charging=${snapshot.isCharging} battery=${snapshot.batteryLevel} policy=update " +
                 "nextWindowStartMs=$nextWindowStartMs",
         )
     }

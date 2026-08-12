@@ -6,9 +6,6 @@ import android.app.job.JobScheduler
 import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.BatteryManager
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -171,26 +168,7 @@ class OpportunisticUpdateJobService : JobService() {
             Log.d(TAG, "Opportunistic update job cancelled")
         }
 
-        internal fun getPowerState(context: Context): OpportunisticPowerState {
-            val batteryStatus: Intent? =
-                context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            val rawLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-            val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-            val batteryLevel =
-                if (rawLevel >= 0 && scale > 0) {
-                    (rawLevel * 100) / scale
-                } else {
-                    -1
-                }
-            return OpportunisticPowerState(
-                isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus),
-                batteryLevel = batteryLevel,
-            )
-        }
+        internal fun getPowerState(context: Context): BatterySnapshot =
+            BatterySnapshotProvider.snapshot(context)
     }
 }
-
-internal data class OpportunisticPowerState(
-    val isCharging: Boolean,
-    val batteryLevel: Int,
-)
