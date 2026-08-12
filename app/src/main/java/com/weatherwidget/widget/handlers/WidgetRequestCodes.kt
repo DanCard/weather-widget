@@ -28,6 +28,8 @@ object WidgetRequestCodes {
     private const val BASE_BOTTOM_HOUR_CLICK = 3000
     private const val BASE_NIGHT_RAIN_CLICK = 4000
     private const val BASE_DEAD_ZONE = 5000
+    private const val BASE_SET_LOCATION = 5100
+    private const val BASE_ERROR_REFRESH = 5200
 
     fun navLeft(id: Int) = id * 10000 + BASE_NAV_LEFT
     fun navRight(id: Int) = id * 10000 + BASE_NAV_RIGHT
@@ -56,4 +58,10 @@ object WidgetRequestCodes {
     fun bottomHourClick(id: Int, index: Int) = id * 10000 + BASE_BOTTOM_HOUR_CLICK + index
     fun nightRainClick(id: Int, dayIndex: Int) = id * 10000 + BASE_NIGHT_RAIN_CLICK + dayIndex
     fun deadZone(id: Int) = id * 10000 + BASE_DEAD_ZONE
+
+    /** The "No location — tap to set" root target. */
+    fun setLocation(id: Int) = id * 10000 + BASE_SET_LOCATION
+
+    /** The "Tap to refresh" root target on the error placeholder. */
+    fun errorRefresh(id: Int) = id * 10000 + BASE_ERROR_REFRESH
 }

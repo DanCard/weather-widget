@@ -1,7 +1,9 @@
 package com.weatherwidget.widget
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
 import android.view.View
@@ -18,6 +20,8 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.ui.ConfigActivity
+import com.weatherwidget.widget.handlers.WidgetRequestCodes
 import com.weatherwidget.widget.handlers.CurrentTempResolver
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.widget.handlers.CloudCoverViewHandler
@@ -95,10 +99,16 @@ object WidgetRenderer {
      * Shown when no location is resolvable at all — no canonical active location, no configured widget
      * location, no cached weather. This is a deliberate dead end, not a transient failure: the app
      * previously fetched and labelled Google HQ here, so a user whose GPS never resolved was shown
-     * Mountain View's weather as if it were their own. Tapping opens [ConfigActivity] to set one.
+     * Mountain View's weather as if it were their own.
      *
-     * The GPS auto-heal keeps running behind this state (see `LocationUpdater.allWidgetsAtDefault`),
-     * so a FOLLOW_DEVICE widget leaves it on its own once a fix arrives.
+     * **The tap has to be wired here.** This is a full push of a fresh view tree, so every
+     * PendingIntent from the last render is gone — including `setupDeadZoneCatchAll`, without which a
+     * Samsung launcher sends an unclaimed tap to MainActivity and every other launcher does nothing.
+     * The message says "tap to set", so the tap opens [ConfigActivity]; with the device-following path
+     * possibly blocked, it is the user's only way out of this state.
+     *
+     * Device following keeps running behind it (`GpsResampler`, driven by the periodic full sync), so
+     * a FOLLOW_DEVICE widget can also leave on its own once a fix arrives.
      * Kept deliberately simple — it must never itself throw.
      */
     suspend fun updateWidgetNoLocation(
@@ -114,6 +124,7 @@ object WidgetRenderer {
             views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
             views.setTextViewText(R.id.day2_high, "--°")
             views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_no_location))
+            views.setOnClickPendingIntent(R.id.widget_root, setLocationIntent(context, appWidgetId))
             Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=no_location origin=${origin.name} state=no_location thread=${Thread.currentThread().name}")
             WidgetPushDispatcher.push(
                 appWidgetManager = appWidgetManager,
@@ -132,8 +143,11 @@ object WidgetRenderer {
     /**
      * Minimal fallback shown when a widget update throws unexpectedly. Without this, a crash mid-update
      * leaves the "Loading..." placeholder on the home screen indefinitely (see [updateWidgetLoading]).
-     * Tapping the widget retriggers an update, so the "Tap to refresh" hint gives the user a recovery path.
      * Kept deliberately simple — it must never itself throw.
+     *
+     * "Tap to refresh" was the promise; the intent that makes it true is bound below. Like
+     * [updateWidgetNoLocation] this is a full push, so it inherits no PendingIntent from the render it
+     * replaced, and the recovery path this placeholder exists to offer was doing nothing at all.
      */
     suspend fun updateWidgetError(
         context: Context,
@@ -148,6 +162,7 @@ object WidgetRenderer {
             views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
             views.setTextViewText(R.id.day2_high, "--°")
             views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_tap_to_refresh))
+            views.setOnClickPendingIntent(R.id.widget_root, errorRefreshIntent(context, appWidgetId))
             Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=error origin=${origin.name} state=error thread=${Thread.currentThread().name}")
             WidgetPushDispatcher.push(
                 appWidgetManager = appWidgetManager,
@@ -162,6 +177,33 @@ object WidgetRenderer {
             Log.e(TAG, "updateWidgetError failed for widget=$appWidgetId", e)
         }
     }
+
+    /**
+     * Opens the location setup screen in **global** mode: a location applies to every widget
+     * (`applyActiveLocationToAllWidgets`), and global mode plain `finish()`es on save instead of
+     * completing a widget-add handshake that nobody started here. The widget id still rides along so
+     * the CONFIG breadcrumb attributes the visit.
+     */
+    private fun setLocationIntent(context: Context, appWidgetId: Int): PendingIntent =
+        PendingIntent.getActivity(
+            context,
+            WidgetRequestCodes.setLocation(appWidgetId),
+            Intent(context, ConfigActivity::class.java)
+                .putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+    private fun errorRefreshIntent(context: Context, appWidgetId: Int): PendingIntent =
+        PendingIntent.getBroadcast(
+            context,
+            WidgetRequestCodes.errorRefresh(appWidgetId),
+            Intent(context, WidgetActionReceiver::class.java)
+                .setAction(WidgetActions.ACTION_REFRESH)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
     suspend fun updateWidgetWithData(
         context: Context,
