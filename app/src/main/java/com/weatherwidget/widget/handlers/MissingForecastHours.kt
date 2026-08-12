@@ -24,7 +24,9 @@ internal fun summarizeMissingForecastHours(
     var wrongSourceCount = 0
     var current = startHour
 
-    while (current.isBefore(endHour)) {
+    // End-inclusive, matching the hours the graph draws (ActualTemperatureSeriesBuilder): the last
+    // mark is part of the view, so a gap there has to be reported like any other.
+    while (!current.isAfter(endHour)) {
         val hourMs = current.atZone(zoneId).toInstant().toEpochMilli()
         val selected = forecastsByTime[hourMs]
         when {

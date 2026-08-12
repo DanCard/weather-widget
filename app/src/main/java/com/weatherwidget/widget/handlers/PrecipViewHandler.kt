@@ -544,7 +544,10 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         val dateMode = zoom.stage == com.weatherwidget.widget.ZoomStage.THREE_DAY
         val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
-        while (currentHour.isBefore(endHour)) {
+        // End-INCLUSIVE, same as the temperature graph's shared ActualTemperatureSeriesBuilder: an
+        // n-hour window spans start..start+n and needs n+1 marks, or the drawn axis is an hour
+        // narrower than the Hourly Zoom setting promises.
+        while (!currentHour.isAfter(endHour)) {
             val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
             val forecast = forecastsByTime[hourMs]
 

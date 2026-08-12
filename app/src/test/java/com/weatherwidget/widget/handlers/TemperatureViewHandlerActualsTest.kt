@@ -271,8 +271,11 @@ class TemperatureViewHandlerActualsTest {
             "WIDE (${wideHours.size}) should have more hours than NARROW (${narrowHours.size})",
             wideHours.size > narrowHours.size,
         )
-        assertEquals("WIDE should cover exactly 24 hours (12h back + 12h forward)", 24, wideHours.size)
-        assertEquals("NARROW should cover the default 5h span (3h back + 2h forward)", 5, narrowHours.size)
+        // Marks, not hours: a window covering n hours runs start..start+n and so carries n+1 marks
+        // (both edges belong to the view). This test previously asserted n and therefore passed on a
+        // graph covering an hour less than its own name claims — see SharedNarrowSpanDisplayedHoursTest.
+        assertEquals("WIDE should cover exactly 24 hours (12h back + 12h forward)", 25, wideHours.size)
+        assertEquals("NARROW should cover the default 5h span (3h back + 2h forward)", 6, narrowHours.size)
     }
 
     @Test

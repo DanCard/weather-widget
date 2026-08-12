@@ -27,7 +27,10 @@ class MissingForecastHoursTest {
 
         val result = summarizeMissingForecastHours(
             startHour = start,
-            endHour = start.plusHours(5),
+            // endHour is inclusive (it is a mark inside the view), so this walks hours 0..4 — exactly
+            // the five the fixture above describes. It used to read plusHours(5) against an exclusive
+            // end for the same five hours.
+            endHour = start.plusHours(4),
             zoneId = zoneId,
             forecastsByTime = forecasts,
             displaySource = WeatherSource.NWS,

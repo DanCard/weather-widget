@@ -90,7 +90,9 @@ object CloudCoverViewHandler {
         val zoneId = ZoneId.systemDefault()
         return buildSet {
             var currentHour = startHour
-            while (currentHour.isBefore(endHour)) {
+            // End-inclusive, matching the hours buildCloudHourDataList actually draws — otherwise
+            // this under-counts the window by one hour and the missing-data flag lies about it.
+            while (!currentHour.isAfter(endHour)) {
                 add(currentHour.atZone(zoneId).toInstant().toEpochMilli())
                 currentHour = currentHour.plusHours(1)
             }
@@ -573,7 +575,10 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val dateMode = zoom.stage == com.weatherwidget.widget.ZoomStage.THREE_DAY
         val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
-        while (currentHour.isBefore(endHour)) {
+        // End-INCLUSIVE, same as the temperature graph's shared ActualTemperatureSeriesBuilder: an
+        // n-hour window spans start..start+n and needs n+1 marks, or the drawn axis is an hour
+        // narrower than the Hourly Zoom setting promises.
+        while (!currentHour.isAfter(endHour)) {
             val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
             val forecast = forecastsByTime[hourMs]
 

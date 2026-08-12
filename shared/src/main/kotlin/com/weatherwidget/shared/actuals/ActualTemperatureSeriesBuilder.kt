@@ -208,7 +208,14 @@ object ActualTemperatureSeriesBuilder {
 
         val topHourPoints = mutableListOf<ActualTemperaturePoint>()
         var currentHour = startHour
-        while (currentHour.isBefore(endHour)) {
+        // End-INCLUSIVE: endHour is `alignedCenter + forwardHours`, a mark inside the view, not one
+        // past it. A window of `start..start+n` is n hours wide and needs n+1 marks. Excluding the
+        // end emitted n marks covering n-1 hours, and since the renderers map first-mark→last-mark
+        // across the full graph width, the *drawn* axis came out an hour short of the setting:
+        // Settings → "Hourly Zoom" at 8h drew 12a…7a, seven hours of weather. The actuals filter
+        // just below was already inclusive, so the two halves of one window disagreed. Desktop hit
+        // the same off-by-one one layer up and fixed it there (`hourlyPointsInWindow`).
+        while (!currentHour.isAfter(endHour)) {
             val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
             val forecast = forecastsByTime[hourMs]
             topHourPoints += ActualTemperaturePoint(

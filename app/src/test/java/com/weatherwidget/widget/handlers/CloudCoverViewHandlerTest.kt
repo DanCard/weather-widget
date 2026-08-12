@@ -33,7 +33,9 @@ class CloudCoverViewHandlerTest {
         val center = LocalDateTime.of(2026, 3, 14, 12, 0)
         val keys = CloudCoverViewHandler.buildWindowHourKeys(center, ZoomStage.WIDE.window())
 
-        val expectedSize = (ZoomStage.WIDE.window().backHours + ZoomStage.WIDE.window().forwardHours).toInt()
+        // +1: the window is end-inclusive, so an n-hour span has n+1 hour keys — the same count the
+        // cloud graph draws. Counting n here would under-report the window's data coverage by an hour.
+        val expectedSize = (ZoomStage.WIDE.window().backHours + ZoomStage.WIDE.window().forwardHours).toInt() + 1
         assertEquals(expectedSize, keys.size)
 
         val expectedStart = center

@@ -97,7 +97,8 @@ class PrecipGraphQueryWindowTest {
             zoom = ZoomStage.WIDE.window(),
         )
 
-        val expectedCount = ZoomStage.WIDE.window().backHours + ZoomStage.WIDE.window().forwardHours // 24
+        // +1: the window is end-inclusive, so 24 hours of coverage are drawn as 25 hour marks.
+        val expectedCount = ZoomStage.WIDE.window().backHours + ZoomStage.WIDE.window().forwardHours + 1
         assertEquals(
             "WIDE window around offset ${offsetHours}h should yield $expectedCount hours",
             expectedCount,
@@ -169,7 +170,8 @@ class PrecipGraphQueryWindowTest {
             zoom = ZoomStage.WIDE.window(),
         )
 
-        val expectedCount = ZoomStage.WIDE.window().backHours + ZoomStage.WIDE.window().forwardHours
+        // +1: the window is end-inclusive, so 24 hours of coverage are drawn as 25 hour marks.
+        val expectedCount = ZoomStage.WIDE.window().backHours + ZoomStage.WIDE.window().forwardHours + 1
         assertEquals(
             "WIDE window around offset ${offsetHours}h should yield $expectedCount hours",
             expectedCount,

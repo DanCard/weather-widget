@@ -83,8 +83,9 @@ class HourlyZoomCenteringRoboTest {
             zoom = ZoomStage.WIDE.window(),
         )
 
-        // With exclusive end hour, size is 24, and index 12 is still the center (offset 0 / 12p)
-        assertEquals(24, hours.size)
+        // End hour is INCLUSIVE, so 24 hours of coverage are 25 marks; index 12 is still the center
+        // (offset 0 / 12p).
+        assertEquals(25, hours.size)
         assertEquals("12p", hours[12].label)
     }
 
@@ -100,17 +101,19 @@ class HourlyZoomCenteringRoboTest {
             zoom = ZoomStage.NARROW.window(span),
         ).map(HourData::label)
 
-        // Back-heavy split: 4h reads 2 back / 2 forward, 8h reads 4 back / 4 forward. The end hour
-        // is exclusive, so a span of n yields n labels.
-        assertEquals(listOf("10a", "11a", "12p", "1p"), labelsAtSpan(4))
-        assertEquals(listOf("8a", "9a", "10a", "11a", "12p", "1p", "2p", "3p"), labelsAtSpan(8))
-        assertEquals(8, labelsAtSpan(8).size)
-        assertEquals(4, labelsAtSpan(4).size)
+        // Back-heavy split: 4h reads 2 back / 2 forward, 8h reads 4 back / 4 forward. Both edge marks
+        // belong to the view, so a span of n hours yields n+1 labels covering n hours — the number the
+        // user counts is the coverage, not the marks (see SharedNarrowSpanDisplayedHoursTest).
+        assertEquals(listOf("10a", "11a", "12p", "1p", "2p"), labelsAtSpan(4))
+        assertEquals(listOf("8a", "9a", "10a", "11a", "12p", "1p", "2p", "3p", "4p"), labelsAtSpan(8))
+        assertEquals(9, labelsAtSpan(8).size)
+        assertEquals(5, labelsAtSpan(4).size)
     }
 
     @Test
     fun `default narrow window is five hours reading three back`() {
-        // Guards the shipped default specifically: 5h = 3 back / 2 forward around 12p.
+        // Guards the shipped default specifically: 5h = 3 back / 2 forward around 12p, drawn as six
+        // marks (9a..2p) covering five hours.
         val labels = buildHourDataList(
             hourlyForecasts = sampleHourlyForecasts(),
             centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
@@ -119,18 +122,18 @@ class HourlyZoomCenteringRoboTest {
             zoom = ZoomStage.NARROW.window(),
         ).map(HourData::label)
 
-        assertEquals(listOf("9a", "10a", "11a", "12p", "1p"), labels)
+        assertEquals(listOf("9a", "10a", "11a", "12p", "1p", "2p"), labels)
     }
 
     /**
      * All three hourly graphs must frame the selected hour identically at the default NARROW span.
      *
      * That default is 5h and splits back-heavy (3 back / 2 forward), so the anchor hour sits at
-     * index 3 of 5 — one right of the list's midpoint, not on it. The window leans into history
-     * deliberately; see ZoomStage.window.
+     * index 3 of the six marks — left of the list's midpoint, not on it. The window leans into
+     * history deliberately; see ZoomStage.window.
      */
     private fun assertCenteredLabel(labels: List<String>, expected: String) {
-        assertEquals(listOf("9a", "10a", "11a", "12p", "1p"), labels)
+        assertEquals(listOf("9a", "10a", "11a", "12p", "1p", "2p"), labels)
         assertEquals(expected, labels[3])
     }
 
