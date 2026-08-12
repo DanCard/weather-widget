@@ -4,7 +4,6 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.test.category.ShortDuration
-import com.weatherwidget.widget.WeatherWidgetWorker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,9 +19,6 @@ import java.time.ZoneId
 @Category(ShortDuration::class)
 class HourlyObservationBackfillLocationTest {
 
-    private val defaultLat = WeatherWidgetWorker.DEFAULT_LAT
-    private val defaultLon = WeatherWidgetWorker.DEFAULT_LON
-
     @Test
     fun `null widget location is unanchored`() {
         val resolved = resolveBackfillLocation(null)
@@ -32,23 +28,32 @@ class HourlyObservationBackfillLocationTest {
         )
     }
 
+    /**
+     * The Googleplex-proximity guard is gone with the hard default itself: "no location" is now the
+     * absence of coordinates. Non-finite coordinates are the write-side form of that absence and must
+     * skip for the same reason -- a mis-keyed observation row is a permanent LocationMatch fragment.
+     */
     @Test
-    fun `exact default location is unanchored`() {
-        val resolved = resolveBackfillLocation(defaultLat to defaultLon)
-        assertEquals(BackfillLocation.Unanchored("unanchored_default_location"), resolved)
+    fun `non-finite coordinates are unanchored`() {
+        assertEquals(
+            BackfillLocation.Unanchored("unanchored_non_finite_location"),
+            resolveBackfillLocation(Double.NaN to Double.NaN),
+        )
+        assertEquals(
+            BackfillLocation.Unanchored("unanchored_non_finite_location"),
+            resolveBackfillLocation(37.417 to Double.NaN),
+        )
     }
 
+    /**
+     * The retired default coordinates are now just coordinates. Nothing in the steady-state pipeline
+     * may treat proximity to them as "unset" -- installs still carrying them are cleared once by
+     * LegacyDefaultLocationMigration instead.
+     */
     @Test
-    fun `quantized default is still recognized as unanchored`() {
-        // The exact-equality guard's blind spot: the coordinate arrives 3-dp quantized
-        // (-122.0841 -> -122.084), so `== DEFAULT_LON` missed it and the fetch ran at HQ. sameSite
-        // is quantization-safe and must still classify it as the default.
-        val quantizedDefault = LocationMatch.quantize(defaultLat) to LocationMatch.quantize(defaultLon)
-        assertTrue(quantizedDefault.second != defaultLon) // proves the value actually changed
-        assertEquals(
-            BackfillLocation.Unanchored("unanchored_default_location"),
-            resolveBackfillLocation(quantizedDefault),
-        )
+    fun `coordinates near the retired default anchor like any other location`() {
+        val resolved = resolveBackfillLocation(37.4220 to -122.0841)
+        assertEquals(BackfillLocation.Anchored(37.422, -122.084), resolved)
     }
 
     @Test

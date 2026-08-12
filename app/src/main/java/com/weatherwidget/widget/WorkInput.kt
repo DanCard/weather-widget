@@ -47,8 +47,10 @@ internal data class WorkInput(
                 currentTempReason = data.getString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON) ?: "unspecified",
                 targetSourceId = data.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE),
                 observationBackfillMode = observationBackfillMode,
-                backfillLat = data.getDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, WeatherWidgetWorker.DEFAULT_LAT),
-                backfillLon = data.getDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, WeatherWidgetWorker.DEFAULT_LON),
+                // NaN, not a coordinate: a backfill enqueued without an explicit location has no
+                // location, and must skip rather than pull observations for somewhere else.
+                backfillLat = data.getDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, Double.NaN),
+                backfillLon = data.getDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, Double.NaN),
                 backfillHours = data.getLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS),
                 backfillReason = data.getString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON) ?: "unspecified",
                 noHourlyWidgetId = noHourlyWidgetId,

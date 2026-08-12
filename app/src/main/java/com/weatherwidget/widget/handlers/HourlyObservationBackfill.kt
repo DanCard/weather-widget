@@ -40,10 +40,15 @@ internal sealed interface BackfillLocation {
  * Pure resolution of the fetch location from the widget's stored location
  * ([WidgetStateManager.getWidgetLocation], null when the widget has no configured/POI location).
  *
- * Two ways to be unanchored, both of which must SKIP (Fix C): (1) no location at all; (2) a location
- * that is [LocationMatch.sameSite] the hard default (Googleplex). The old guard compared the raw
- * constant with `==`, but the coordinate flowing through had been 3-dp quantized (−122.0841 →
- * −122.084), so `==` silently missed it and the fetch proceeded at HQ. `sameSite` is quantization-safe.
+ * Unanchored must SKIP (Fix C) — better no observations than observations filed under a coordinate
+ * nobody chose. There used to be a second way to be unanchored: a location [LocationMatch.sameSite]
+ * the hard Googleplex default. That guard is gone because the default itself is gone; "no location"
+ * is now represented by the absence of coordinates, which the null check above already covers.
+ *
+ * The lesson from that guard is worth keeping: its first version compared the raw constant with `==`,
+ * but the coordinate flowing through had been 3-dp quantized (−122.0841 → −122.084), so `==` silently
+ * missed and the fetch proceeded at HQ. Any surviving comparison against those coordinates — there is
+ * exactly one, in [com.weatherwidget.widget.LegacyDefaultLocationMigration] — must use `sameSite`.
  *
  * Anchored coordinates are quantized to the shared write-key grid so the fetched rows land on the
  * same key every source uses (Fix A alignment).
@@ -52,8 +57,8 @@ internal sealed interface BackfillLocation {
 internal fun resolveBackfillLocation(widgetLocation: Pair<Double, Double>?): BackfillLocation {
     if (widgetLocation == null) return BackfillLocation.Unanchored("unanchored_no_widget_location")
     val (lat, lon) = widgetLocation
-    if (LocationMatch.sameSite(lat, lon, WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON)) {
-        return BackfillLocation.Unanchored("unanchored_default_location")
+    if (!lat.isFinite() || !lon.isFinite()) {
+        return BackfillLocation.Unanchored("unanchored_non_finite_location")
     }
     return BackfillLocation.Anchored(LocationMatch.quantize(lat), LocationMatch.quantize(lon))
 }
@@ -210,8 +215,8 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     // Fetch under the widget's resolved location — NOT observations.firstOrNull()?.location.
     // The decisive trigger here is reason=no_nws_observations, in which case the proximity-box
     // observation list is either empty (firstOrNull null) or holds only *other* sources' rows
-    // fetched under a neighbouring coordinate. The old DEFAULT_LAT/LON fallback then wrote the
-    // NWS backfill under Google HQ (37.422/-122.0841), ~0.7 km from a real GPS fix (37.4168) —
+    // fetched under a neighbouring coordinate. The old hard-default fallback then wrote the
+    // NWS backfill under Google HQ, ~0.7 km from a real GPS fix (37.4168) —
     // a permanent LocationMatch fragment that selectNearestSite later drops, so the Current
     // Observations screen showed "No recent observations found for NWS". See [[snapshot_paths_must_select_a_site]].
     // Jittered short delay: avoids landing in the first-second startup scrum (see

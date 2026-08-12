@@ -100,6 +100,17 @@ class WeatherWidgetWorker
                 errorMessage = "Observation backfill failed (reason=${input.backfillReason})",
                 onException = { Result.failure() },
             ) {
+                if (!input.backfillLat.isFinite() || !input.backfillLon.isFinite()) {
+                    // Enqueued without an explicit location. Skipping loses nothing; fetching would
+                    // file observations under a coordinate nobody chose, and a mis-keyed row is a
+                    // permanent LocationMatch fragment that selectNearestSite silently drops later.
+                    appLogDao.log(
+                        "OBS_HOURLY_BACKFILL_SKIP",
+                        "reason=${input.backfillReason} cause=no_location",
+                        "INFO",
+                    )
+                    return@handleWorkerExceptions Result.success()
+                }
                 appLogDao.log(
                     "OBS_HOURLY_BACKFILL_RUN",
                     "reason=${input.backfillReason} lat=${input.backfillLat} lon=${input.backfillLon} lookbackHours=${input.backfillHours}",
