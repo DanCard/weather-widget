@@ -440,9 +440,9 @@ internal fun positionCenterIcons(
  * zones, leaving the graph-selector and home zones GONE — the daily view *is* home, and the
  * selector only cycles hourly graphs.
  *
- * [showObservations] is false when today is off screen, so a navigated header shows the history
- * button alone; the reserved width in [HeaderWidthChecker.resolveDailyIconPlacement] follows the
- * same count.
+ * [showObservations] is false when neither today nor yesterday is on screen, so a navigated header
+ * shows the history button alone; the reserved width in [HeaderWidthChecker.resolveDailyIconPlacement]
+ * follows the same count.
  *
  * Inline zone widths are set from the same fixed [HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP]
  * the fit math used, rather than the hourly ladder, so layout and measurement cannot drift.

@@ -1047,6 +1047,7 @@ internal fun WidgetPopup(
                 // nothing about (see DesktopDailyForecastModel.build). Defaults to true so the
                 // first frame shows both buttons rather than flashing one in.
                 var dailyTodayInView by remember { mutableStateOf(true) }
+                var dailyObservationsInView by remember { mutableStateOf(true) }
                 Column(modifier = Modifier.fillMaxSize().padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 2.dp)) {
                     WidgetHeader(
                         config = config,
@@ -1061,6 +1062,7 @@ internal fun WidgetPopup(
                         headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
                         scale = uiScale,
                         todayInView = dailyTodayInView,
+                        observationsInView = dailyObservationsInView,
                     )
 
                     Spacer(Modifier.height(4.dp))
@@ -1299,7 +1301,12 @@ internal fun WidgetPopup(
                             // forecast-history button opens. Read off the rendered days, the only
                             // source that accounts for clamping and zoom-out history columns.
                             val todayOnScreen = dailyState.days.any { it.isToday }
-                            SideEffect { dailyTodayInView = todayOnScreen }
+                            val observationsOnScreen =
+                                dailyState.days.any { it.isToday || it.daysFromToday == -1 }
+                            SideEffect {
+                                dailyTodayInView = todayOnScreen
+                                dailyObservationsInView = observationsOnScreen
+                            }
 
                             // Sync both clamped values in one write so a simultaneous offset+zoom clamp
                             // doesn't clobber each other (two separate copy() calls off the same config would).
@@ -1487,8 +1494,10 @@ private fun WidgetHeader(
     onUpdateLocation: () -> Unit,
     headerTime: LocalDateTime = LocalDateTime.now(),
     scale: Float = 1f,
-    /** Whether today is among the days the daily view is currently rendering. */
+    /** Whether today is among the days the daily view is rendering; drives the history target date. */
     todayInView: Boolean = true,
+    /** Whether today or yesterday is on screen; drives the current-observations button. */
+    observationsInView: Boolean = true,
 ) {
     val showWeatherSummary = config.viewMode.isHourly
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
@@ -1681,9 +1690,9 @@ private fun WidgetHeader(
                         horizontalArrangement = Arrangement.spacedBy((10 * scale).dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Current observations are inherently now-ish, so this drops when today is
-                        // panned off screen — matching Android's daily header and the hourly view.
-                        if (todayInView) {
+                        // Current observations are inherently now-ish, so this drops when today AND
+                        // yesterday are panned off screen — matching Android's daily header.
+                        if (observationsInView) {
                             Icon(
                                 painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
                                 contentDescription = "Weather station observations",

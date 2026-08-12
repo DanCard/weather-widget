@@ -317,6 +317,9 @@ internal object DailyGraphRenderer {
         // the shared visible-date-range helper; assert it against the days actually rendered.
         val todayInView = displayDays.any { it.isToday }
         val historyTargetDate = if (todayInView) ctx.today else ctx.centerDate
+        // The observations button stays while today OR yesterday is on screen — its station-history
+        // affordance is date-independent. Dropped only when both are off.
+        val observationsInView = displayDays.any { it.isToday || it.date == ctx.today.minusDays(1) }
         setupHistoryShortcutAt(
             context = ctx.context,
             views = ctx.views,
@@ -331,18 +334,17 @@ internal object DailyGraphRenderer {
         positionDailyIcons(
             views = ctx.views,
             placement = headerState.iconPlacement,
-            // Current observations are inherently now-ish, so the button drops off-today —
-            // matching the hourly view's positionCenterIcons(isToday).
-            showObservations = todayInView,
+            showObservations = observationsInView,
             widthDp = dimensions.widthDp,
             density = ctx.context.resources.displayMetrics.density,
             scale = headerScale,
         )
-        if (todayInView != headerState.todayInView) {
+        if (observationsInView != headerState.observationsInView) {
             Log.w(
                 TAG,
-                "dailyHeaderIcons: todayInView disagreement widget=${ctx.appWidgetId} " +
-                    "resolver=${headerState.todayInView} rendered=$todayInView offset=${ctx.dateOffset} " +
+                "dailyHeaderIcons: observationsInView disagreement widget=${ctx.appWidgetId} " +
+                    "resolver=${headerState.observationsInView} rendered=$observationsInView " +
+                    "offset=${ctx.dateOffset} " +
                     "cols=${ctx.numColumns} skipYesterday=${ctx.skipYesterday} — reserved width may be stale",
             )
         }

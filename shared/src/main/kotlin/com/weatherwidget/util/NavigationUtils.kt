@@ -79,6 +79,24 @@ object NavigationUtils {
     }
 
     /**
+     * Whether the daily header's current-observations button should show for a visible window.
+     *
+     * True when today OR yesterday falls inside [visibleFrom]..[visibleTo]. Yesterday is included
+     * because the station-history affordance behind the button is date-independent (tapping a
+     * station opens its NWS time-series page), so a user panned back to yesterday still has a
+     * reason to reach it. Contrast the forecast-history button, whose target date is strictly
+     * today-vs-centre and so is not covered by this predicate.
+     */
+    fun isTodayOrYesterdayInRange(
+        today: LocalDate,
+        visibleFrom: LocalDate,
+        visibleTo: LocalDate,
+    ): Boolean {
+        fun inRange(date: LocalDate): Boolean = !date.isBefore(visibleFrom) && !date.isAfter(visibleTo)
+        return inRange(today) || inRange(today.minusDays(1))
+    }
+
+    /**
      * Returns the list of day offsets relative to the center date that should be displayed.
      *
      * @param numColumns Number of grid columns available in the widget.

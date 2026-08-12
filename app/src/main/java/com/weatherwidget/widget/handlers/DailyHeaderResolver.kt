@@ -246,14 +246,15 @@ internal object DailyHeaderResolver {
             currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
         )
 
-        // Daily header buttons. `todayInView` uses the shared visible-date-range helper rather than
-        // `dateOffset == 0`: the daily view shows yesterday alongside today, so a non-zero offset
+        // Daily header buttons. `observationsInView` uses the shared visible-date-range helper rather
+        // than `dateOffset == 0`: the daily view shows yesterday alongside today, so a non-zero offset
         // can still have today on screen, and an offset test would wrongly drop the observations
-        // button there. Same primitives the renderer's day window is built from.
+        // button there. Same primitives the renderer's day window is built from. The button stays for
+        // yesterday too — its station-history affordance is date-independent.
         val (visibleFrom, visibleTo) =
             NavigationUtils.getVisibleDateRange(today, dateOffset, numColumns, skipYesterday)
-        val todayInView = !today.isBefore(visibleFrom) && !today.isAfter(visibleTo)
-        val iconCount = if (todayInView) 2 else 1
+        val observationsInView = NavigationUtils.isTodayOrYesterdayInRange(today, visibleFrom, visibleTo)
+        val iconCount = if (observationsInView) 2 else 1
         val iconPlacement = HeaderWidthChecker.resolveDailyIconPlacement(
             context = context,
             widthDp = dimensions.widthDp,
@@ -342,7 +343,7 @@ internal object DailyHeaderResolver {
             disclosure = disclosure,
             headerScale = headerScale,
             resolveMs = resolveMs,
-            todayInView = todayInView,
+            observationsInView = observationsInView,
             iconCount = iconCount,
             iconPlacement = iconPlacement,
             preferDateOverLabel = preferDateOverLabel,

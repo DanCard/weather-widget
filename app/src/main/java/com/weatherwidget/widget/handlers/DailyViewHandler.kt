@@ -840,12 +840,12 @@ object DailyViewHandler : WidgetViewHandler {
         val disclosure: HeaderDisclosureLevel,
         val headerScale: Float,
         val resolveMs: Long,
-        /** Whether today is inside the visible day window; drives both fields below. */
-        val todayInView: Boolean = true,
+        /** Whether today or yesterday is inside the visible day window; drives [iconCount]. */
+        val observationsInView: Boolean = true,
         /**
          * Live count of daily header buttons: forecast history always, current observations only
-         * when [todayInView] (current observations are inherently now-ish, matching the hourly
-         * view). Never a constant — the reserved width follows it.
+         * when [observationsInView] (today OR yesterday on screen — the station-history affordance
+         * behind the button is date-independent). Never a constant — the reserved width follows it.
          */
         val iconCount: Int = 0,
         val iconPlacement: DailyIconPlacement = DailyIconPlacement.HIDDEN,

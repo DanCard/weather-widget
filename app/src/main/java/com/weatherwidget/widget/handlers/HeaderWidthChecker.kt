@@ -109,9 +109,9 @@ object HeaderWidthChecker {
      * Three-rung ladder for the daily header buttons — see [DailyIconPlacement].
      *
      * [iconCount] is the LIVE button count, never a constant: the observations button is dropped
-     * when today is off screen (current observations are inherently now-ish, matching the hourly
-     * view's `positionCenterIcons(isToday)`), so a navigated header reserves 24dp rather than 48dp
-     * and consequently has MORE room for the date, not less.
+     * when today AND yesterday are both off screen (the station-history affordance behind it is
+     * date-independent, so yesterday keeps it), so a fully navigated header reserves 24dp rather
+     * than 48dp and consequently has MORE room for the date, not less.
      */
     fun resolveDailyIconPlacement(
         context: Context,

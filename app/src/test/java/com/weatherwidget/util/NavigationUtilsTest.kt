@@ -93,6 +93,51 @@ class NavigationUtilsTest {
             NavigationUtils.shouldSkipYesterday(sixPm))
     }
 
+    // --- isTodayOrYesterdayInRange: the observations-button gate ---
+
+    @Test
+    fun `observations button shows when today is in range`() {
+        val today = LocalDate.of(2026, 8, 12)
+        assertTrue(
+            NavigationUtils.isTodayOrYesterdayInRange(today, today, today.plusDays(3)),
+        )
+    }
+
+    @Test
+    fun `observations button shows when only yesterday is in range`() {
+        val today = LocalDate.of(2026, 8, 12)
+        // Panned back so today has scrolled off the right edge but yesterday still shows.
+        assertTrue(
+            NavigationUtils.isTodayOrYesterdayInRange(today, today.minusDays(3), today.minusDays(1)),
+        )
+    }
+
+    @Test
+    fun `observations button drops when neither today nor yesterday is in range`() {
+        val today = LocalDate.of(2026, 8, 12)
+        // Fully navigated into the future: window starts the day after today.
+        assertFalse(
+            NavigationUtils.isTodayOrYesterdayInRange(today, today.plusDays(1), today.plusDays(5)),
+        )
+        // Fully navigated into the past: window ends the day before yesterday.
+        assertFalse(
+            NavigationUtils.isTodayOrYesterdayInRange(today, today.minusDays(6), today.minusDays(2)),
+        )
+    }
+
+    @Test
+    fun `observations button respects the range boundaries inclusively`() {
+        val today = LocalDate.of(2026, 8, 12)
+        // yesterday as the leftmost column still counts.
+        assertTrue(
+            NavigationUtils.isTodayOrYesterdayInRange(today, today.minusDays(1), today.minusDays(1)),
+        )
+        // today as the rightmost column still counts.
+        assertTrue(
+            NavigationUtils.isTodayOrYesterdayInRange(today, today.minusDays(1), today),
+        )
+    }
+
     // --- dailyLoadWindow: the query window must track the render, never a flat constant ---
 
     @Test
