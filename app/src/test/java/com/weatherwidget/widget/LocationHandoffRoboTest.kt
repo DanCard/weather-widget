@@ -70,6 +70,7 @@ class LocationHandoffRoboTest : RobolectricTest() {
             requiresHourlyData = true,
             nowMs = nowMs,
             candidateFirstSeenMs = awayCandidate.firstSeenMs,
+            isAcquisition = false,
         )
 
         assertFalse(sparseAway.useful)
@@ -82,6 +83,7 @@ class LocationHandoffRoboTest : RobolectricTest() {
             requiresHourlyData = true,
             nowMs = nowMs,
             candidateFirstSeenMs = awayCandidate.firstSeenMs,
+            isAcquisition = false,
         )
         assertTrue(completeAway.useful)
         assertTrue(LocationUpdater.promoteCandidateIfMatches(context, awayCandidate, intArrayOf(widgetId)))
@@ -107,6 +109,7 @@ class LocationHandoffRoboTest : RobolectricTest() {
             requiresHourlyData = true,
             nowMs = nowMs + 1_000L,
             candidateFirstSeenMs = homeCandidate.firstSeenMs,
+            isAcquisition = false,
         )
         assertTrue(cachedHome.useful)
         assertTrue(LocationUpdater.promoteCandidateIfMatches(context, homeCandidate, intArrayOf(widgetId)))

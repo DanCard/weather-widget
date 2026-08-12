@@ -28,6 +28,7 @@ class LocationHandoffPolicyTest {
             requiresHourlyData = true,
             nowMs = nowMs,
             candidateFirstSeenMs = nowMs,
+            isAcquisition = false,
         )
 
         assertTrue(result.useful)
@@ -43,6 +44,7 @@ class LocationHandoffPolicyTest {
             requiresHourlyData = true,
             nowMs = nowMs,
             candidateFirstSeenMs = nowMs - LocationHandoffPolicy.MOVING_GRACE_MS + 1,
+            isAcquisition = false,
         )
 
         assertFalse(result.useful)
@@ -58,6 +60,7 @@ class LocationHandoffPolicyTest {
             requiresHourlyData = true,
             nowMs = nowMs,
             candidateFirstSeenMs = nowMs - LocationHandoffPolicy.MOVING_GRACE_MS,
+            isAcquisition = false,
         )
 
         assertTrue(result.useful)
@@ -73,6 +76,7 @@ class LocationHandoffPolicyTest {
             requiresHourlyData = false,
             nowMs = nowMs,
             candidateFirstSeenMs = nowMs,
+            isAcquisition = false,
         )
 
         assertTrue(result.useful)
@@ -88,10 +92,90 @@ class LocationHandoffPolicyTest {
             requiresHourlyData = true,
             nowMs = nowMs,
             candidateFirstSeenMs = nowMs - LocationHandoffPolicy.MOVING_GRACE_MS,
+            isAcquisition = false,
         )
 
         assertFalse(result.useful)
         assertEquals("insufficient_daily_coverage", result.reason)
+    }
+
+    // ---- acquisition, where the thing being replaced is an error message ----
+
+    /**
+     * The regression that motivated the split: identical inputs, opposite answers. In following mode
+     * this candidate waits — correctly, there is a good body on screen for the old site. In
+     * acquisition mode the "body" is "No location — tap to set", so waiting buys nothing and costs
+     * the user hours: promotion is only retried on a full sync, up to 480 min apart on low battery.
+     */
+    @Test
+    fun `acquisition promotes inside the grace where following would wait`() {
+        fun evaluate(isAcquisition: Boolean) = evaluateCandidateUsability(
+            forecasts = dailyForecasts(),
+            hourlyForecasts = hourlyForecasts(0..12),
+            requiredSourceIds = setOf(source),
+            requiresHourlyData = true,
+            nowMs = nowMs,
+            candidateFirstSeenMs = nowMs,
+            isAcquisition = isAcquisition,
+        )
+
+        val acquiring = evaluate(isAcquisition = true)
+        assertTrue(acquiring.useful)
+        assertEquals("acquisition_daily_coverage", acquiring.reason)
+
+        val following = evaluate(isAcquisition = false)
+        assertFalse("following mode must keep its caution", following.useful)
+        assertEquals("waiting_for_history_or_stability", following.reason)
+    }
+
+    /** Acquisition skips the hourly requirement too — daily coverage is enough to draw something. */
+    @Test
+    fun `acquisition promotes with no hourly data at all`() {
+        val result = evaluateCandidateUsability(
+            forecasts = dailyForecasts(),
+            hourlyForecasts = emptyList(),
+            requiredSourceIds = setOf(source),
+            requiresHourlyData = true,
+            nowMs = nowMs,
+            candidateFirstSeenMs = nowMs,
+            isAcquisition = true,
+        )
+
+        assertTrue(result.useful)
+        assertEquals("acquisition_daily_coverage", result.reason)
+    }
+
+    /** But not into a blank: swapping the error message for an empty graph is no improvement. */
+    @Test
+    fun `acquisition still waits for something drawable`() {
+        val result = evaluateCandidateUsability(
+            forecasts = dailyForecasts(dayCount = 1),
+            hourlyForecasts = hourlyForecasts(-12..12),
+            requiredSourceIds = setOf(source),
+            requiresHourlyData = true,
+            nowMs = nowMs,
+            candidateFirstSeenMs = nowMs,
+            isAcquisition = true,
+        )
+
+        assertFalse(result.useful)
+        assertEquals("insufficient_daily_coverage", result.reason)
+    }
+
+    @Test
+    fun `acquisition does not promote when no source is displayed`() {
+        val result = evaluateCandidateUsability(
+            forecasts = dailyForecasts(),
+            hourlyForecasts = hourlyForecasts(-12..12),
+            requiredSourceIds = emptySet(),
+            requiresHourlyData = true,
+            nowMs = nowMs,
+            candidateFirstSeenMs = nowMs,
+            isAcquisition = true,
+        )
+
+        assertFalse(result.useful)
+        assertEquals("no_display_sources", result.reason)
     }
 
     private fun dailyForecasts(dayCount: Int = 3): List<ForecastEntity> {

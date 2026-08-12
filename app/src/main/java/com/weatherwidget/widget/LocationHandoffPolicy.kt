@@ -28,11 +28,26 @@ internal object LocationHandoffPolicy {
 }
 
 /**
- * Decides whether candidate-location data is useful enough to replace the last complete body.
+ * Decides whether candidate-location data is useful enough to replace what the widget shows.
  *
- * This intentionally distinguishes "complete cached 24h window" from "successful current/future
- * response at a genuinely new site." The latter becomes usable after a movement grace instead of
- * requiring historical forecasts that the app could not have collected before arriving.
+ * There are two operations here and they want opposite biases:
+ *
+ *  - **Following** ([isAcquisition] = false): site A → site B, with a perfectly good body for A on
+ *    screen. Be conservative. Distinguish "complete cached 24h window" from "successful
+ *    current/future response at a genuinely new site"; the latter becomes usable only after a
+ *    movement grace, so driving past three forecast sites doesn't repaint and refetch at each one.
+ *  - **Acquisition** ([isAcquisition] = true): there is no active location, so what's on screen is
+ *    "No location — tap to set". There is no body to protect and nothing to flap between. Any
+ *    drawable forecast beats an error message, immediately.
+ *
+ * Sharing one answer meant acquisition inherited the driving case's caution: a fresh install could
+ * fetch its weather successfully and keep showing the error for the length of the grace — and, since
+ * promotion is only retried on a full sync, in practice until the next one (60 min plugged, up to
+ * 480 min on low battery). Hence a branch rather than a smaller [LocationHandoffPolicy.MOVING_GRACE_MS]:
+ * a compromise constant would have to be wrong for one of the two cases, and tuning it later for the
+ * driving case would silently re-strand first-time users.
+ *
+ * @param isAcquisition true when the app has no active location at all.
  */
 @VisibleForTesting
 internal fun evaluateCandidateUsability(
@@ -42,6 +57,7 @@ internal fun evaluateCandidateUsability(
     requiresHourlyData: Boolean,
     nowMs: Long,
     candidateFirstSeenMs: Long,
+    isAcquisition: Boolean,
 ): CandidateUsability {
     if (requiredSourceIds.isEmpty()) {
         return CandidateUsability(useful = false, reason = "no_display_sources")
@@ -62,6 +78,12 @@ internal fun evaluateCandidateUsability(
     }
     if (!dailyReady) {
         return CandidateUsability(useful = false, reason = "insufficient_daily_coverage")
+    }
+
+    // Still gated on dailyReady above: promoting with nothing to draw would swap one blank state for
+    // another. Past that, the error message is the thing being replaced, so nothing is worth waiting for.
+    if (isAcquisition) {
+        return CandidateUsability(useful = true, reason = "acquisition_daily_coverage")
     }
 
     if (!requiresHourlyData) {
@@ -133,6 +155,9 @@ internal suspend fun tryPromoteLocationCandidate(
         requiresHourlyData = requiresHourlyData,
         nowMs = System.currentTimeMillis(),
         candidateFirstSeenMs = candidateAtLoad.firstSeenMs,
+        // current(), not resolve(): the question is whether a location is *established*, and resolve()
+        // would answer yes off this very candidate's freshly-written forecast rows.
+        isAcquisition = ActiveLocationResolver.current(context) == null,
     )
     if (!usability.useful) {
         val message = "state=candidate_waiting_data reason=${usability.reason} " +
