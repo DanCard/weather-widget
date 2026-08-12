@@ -1,6 +1,31 @@
 # Remove hardcoded Mountain View default & show error when no location
 
-**Status:** Plan (rev 2) · **Target:** H1 from `plans/260812-code-review-refresh-coordination.md`
+**Status:** ✅ Implemented 2026-08-12 (rev 2) · **Target:** H1 from `plans/260812-code-review-refresh-coordination.md`
+
+> **Shipped as 8 commits** (`d79e7f8c`..`e100d3d1`). All 1911 unit tests pass; app, androidTest and
+> `:desktop` compile; the new instrumented test and `AddWidgetIntegrationTest` pass on emulator-5554.
+>
+> **Deviations from the plan, and why:**
+> - **§7 used `Double.NaN`, not `Double?`.** Threading nullable coordinates through the graph pipeline
+>   rippled into ~14 call sites across the renderers for code that is defence-in-depth by
+>   construction. NaN removes every fake coordinate with a far smaller diff and degrades honestly at
+>   each consumer. Two consumers needed explicit guards: `SunPositionUtils` (`require(lat in -90..90)`)
+>   via the new `getSunInfoOrUnknown`, and `ClimateGapFiller` (`roundToInt` throws on NaN) — the latter
+>   caught by an existing test, not by inspection.
+> - **Two sites got a real skip instead of NaN**, because their coordinates are not decoration:
+>   `setupHistoryShortcut` (Intent extras — a placeholder would open the history screen at Google HQ)
+>   and `WidgetRenderer` (the site every row is unified against — it paints the no-location state).
+> - **One extra commit beyond the plan's seven** (`e100d3d1`): the instrumented test exposed that
+>   `WidgetStartupCoordinator` painted a permanent "Loading…" for a no-location widget, since the sync
+>   it enqueued now returns without painting.
+>
+> **Confirmed while implementing:** the plan's insistence on `sameSite` over `==` was not theoretical.
+> Flipping the migration to `==` fails **five of seven** migration tests — the `Float` pref round-trip
+> alone makes `37.4220f.toDouble() != 37.4220`, so an `==`-based migration would have been a silent
+> no-op on every install.
+>
+> **Still open (deliberately deferred):** deleting `LegacyDefaultLocationMigration` and its two
+> constants once `LOCATION_MIGRATION` telemetry shows the migration has run — see §8.
 **Goal:** Delete the Google-HQ hardcoded default/fallback location (`WeatherWidgetWorker.DEFAULT_LAT/LON` = 37.4220, -122.0841). When no location is resolvable, the widget shows an explicit "no location" error instead of silently fetching/labeling Mountain View weather.
 
 **Rev 2 changes:** added the upgrade migration (§4, the change most likely to regress existing users),

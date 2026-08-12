@@ -49,7 +49,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
 
 - Display yesterday's actual data alongside predictions
 - Graphical display when widget size permits
-- Location via the setup screen (`ConfigActivity`, also reachable from Settings → "Set Location…"): precise device location, city/address/ZIP search (Nominatim), or manual coordinates (default: Google HQ).
+- Location via the setup screen (`ConfigActivity`, also reachable from Settings → "Set Location…"): precise device location, city/address/ZIP search (Nominatim), or manual coordinates.
+- **There is no default location.** `WeatherWidgetWorker.DEFAULT_LAT/LON` (Google HQ) was deleted
+  2026-08-12; it used to fetch and label Mountain View's weather for anyone whose GPS never
+  resolved. "No location" is now the *absence* of coordinates: `ActiveLocationResolver.resolve()`
+  returns null, the widget paints "No location — tap to set", and nothing is fetched.
+  `LocationUpdater.allWidgetsAtDefault` (the GPS auto-heal signal) tests absent/NaN **only** —
+  never coordinate proximity. See `plans/260812-remove-default-location-and-show-error-when-unavailable.md`.
 - **Never request an active GPS fix from background/automatic paths** (`getCurrentLocation`/`PRIORITY_HIGH_ACCURACY`) — it triggers Samsung's "app got your precise location" warning; background paths use only passive `lastLocation` reads. The ONE exception: the user-initiated "Use precise device location" button in `ConfigActivity` (foreground, explicit tap).
 - **Location mode** (`location_mode` in `weather_prefs`, via `LocationMode`): `follow_device` (default; GPS auto-heal keeps widgets tracking the device) or `fixed` (search/coordinate choices pin the location; both heal paths skip with `GPS_RESAMPLE outcome=skipped_pinned`).
 - Visual style: Apple glass aesthetic
@@ -162,7 +168,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for complete update system design.
 | Scenario | Behavior |
 |----------|----------|
 | No network | Show cached data with "offline" indicator and last update timestamp |
-| GPS unavailable | Fall back to last known location or default (Google HQ); display location name |
+| GPS unavailable | Fall back to last known location; if nothing resolves, show "No location — tap to set" and fetch nothing (never a stand-in coordinate) |
 | API failure | Try other API; if both fail, show cached data with error indicator |
 | No data available | Display "Tap to configure" message |
 
