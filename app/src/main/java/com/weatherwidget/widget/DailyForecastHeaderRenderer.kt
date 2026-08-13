@@ -95,7 +95,9 @@ internal object DailyForecastHeaderRenderer {
 
         if (header.showPrecip && !header.precipText.isNullOrBlank()) {
             cursorX += (HeaderConstants.PRECIP_MARGIN_START_DP * labelScale).dp(layout.density)
-            canvas.drawText(header.precipText, cursorX, -headerPaints.precipPaint.ascent() + upOffset, headerPaints.precipPaint)
+            val precipBaseline = -headerPaints.precipPaint.ascent() + upOffset +
+                (HeaderConstants.PRECIP_EXTRA_DROP_DP * labelScale).dp(layout.density)
+            canvas.drawText(header.precipText, cursorX, precipBaseline, headerPaints.precipPaint)
             cursorX += headerPaints.precipPaint.measureText(header.precipText)
         }
 
@@ -496,11 +498,13 @@ internal object DailyForecastHeaderRenderer {
         }
         if (header.showPrecip && !header.precipText.isNullOrBlank()) {
             cursorX += (HeaderConstants.PRECIP_MARGIN_START_DP * labelScale).dp(layout.density)
+            // Mirrors drawHeader's extra drop, so the overlay ceiling knows how low the % reaches.
             cursorX += considerText(
                 header.precipText,
                 paints.precipPaint,
                 cursorX,
-                -paints.precipPaint.ascent() + upOffset,
+                -paints.precipPaint.ascent() + upOffset +
+                    (HeaderConstants.PRECIP_EXTRA_DROP_DP * labelScale).dp(layout.density),
             )
         }
         val leftClusterRight = cursorX

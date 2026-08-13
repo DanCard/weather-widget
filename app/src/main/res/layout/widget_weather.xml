@@ -1576,12 +1576,15 @@
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
+            <!-- marginTop: -10dp is the header row's shared lift, minus the 2dp of
+                 HeaderConstants.PRECIP_EXTRA_DROP_DP so this % sits at the same height as the
+                 daily view's painted one. Keep the two in step. -->
             <TextView
                 android:id="@+id/precip_probability"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_vertical"
-                android:layout_marginTop="-10dp"
+                android:layout_marginTop="-8dp"
                 android:paddingEnd="0dp"
                 android:text=""
                 android:textSize="26sp"

@@ -47,6 +47,17 @@ object HeaderConstants {
     const val SETTINGS_ICON_SIZE_DP = 18f
     const val SETTINGS_ICON_MARGIN_END_DP = 0f
     const val PRECIP_TEXT_BASE_SIZE_DP = 18f
+    /**
+     * Extra downward nudge for the header rain chance, in dp, relative to the rest of the header row.
+     *
+     * The `%` runs larger than the temperature beside it, so sharing the row's top anchor left it
+     * reading high against the other header items. Applied in BOTH Android header paths so the label
+     * does not shift when the view mode changes: the daily view's painted baseline
+     * (`DailyForecastHeaderRenderer`, draw and ink-bounds walk alike) and the hourly view's
+     * `precip_probability` TextView, whose `layout_marginTop` is this much less negative than the
+     * -10dp the rest of the row carries.
+     */
+    const val PRECIP_EXTRA_DROP_DP = 2f
     const val CENTER_ICON_SIZE_DP = 20f
     // Daily-view header buttons (current observations / forecast history). Zone widths are FIXED
     // rather than following the hourly view's width-dependent 32/40/48 ladder, so one constant
