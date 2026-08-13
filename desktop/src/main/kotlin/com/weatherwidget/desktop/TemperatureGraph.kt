@@ -72,7 +72,13 @@ private const val ACTUALS_CONTEXT_LOOKAHEAD_HOURS = 60L
 private const val ACTUALS_CONTEXT_EDGE_PAD_HOURS = 12L
 // Temperature value labels (on-curve highs/lows + now/current temp) are 10% larger than the 14sp
 // time/axis labels for readability. Hour-of-day and day labels keep 14sp.
-private const val TEMP_VALUE_LABEL_SP = 15.4f // 14sp + 10%
+private const val TEMP_VALUE_LABEL_SP = 15f
+// Dominant-station label mixed sizes, decoupled from the shared temp-label size: the temperature
+// is largest (20% below TEMP_VALUE_LABEL_SP), the clock digits mid-size, and the station id plus
+// the `@`/am-pm punctuation smallest (7sp, also the base dominantStyle).
+private const val DOMINANT_TEMP_LABEL_SP = 13f // 14f (TEMP_VALUE_LABEL_SP) − 20%
+private const val DOMINANT_STATION_LABEL_SP = 7f
+private const val DOMINANT_TIME_LABEL_SP = 11f
 // Ghost-line label: wispier than the forecast/actual temp labels — fainter and 30% smaller.
 private const val GHOST_LINE_LABEL_ALPHA = 0.43f
 private const val GHOST_LINE_LABEL_SIZE_SCALE = 0.7f
@@ -772,7 +778,7 @@ fun TemperatureGraph(
             }
         if (dominantLabel != null && dominantReason == null) {
             val dominantStyle = TextStyle(
-                fontSize = (11.25f * scale).sp,
+                fontSize = (DOMINANT_STATION_LABEL_SP * scale).sp,
                 color = COLOR_ACTUAL,
                 shadow = androidx.compose.ui.graphics.Shadow(
                     color = Color.Black.copy(alpha = 0.7f),
@@ -780,17 +786,24 @@ fun TemperatureGraph(
                     blurRadius = 2f * scale,
                 ),
             )
-            // Mixed-size: the temperature runs at the graph's temp-label size while the station id
-            // and `@ time` inherit the small annotation size from dominantStyle. One AnnotatedString
-            // so Compose lays the spans out on a shared baseline.
+            // Mixed-size: the temperature runs at DOMINANT_TEMP_LABEL_SP, the clock digits at
+            // DOMINANT_TIME_LABEL_SP, and the station id plus the `@`/am-pm punctuation at the
+            // smaller DOMINANT_STATION_LABEL_SP (the base dominantStyle). One AnnotatedString so
+            // Compose lays the spans on a shared baseline.
             val annotated = buildAnnotatedString {
                 dominantLabel.segments.forEach { segment ->
-                    if (segment.part == DominantStationLabel.Part.TEMPERATURE) {
-                        withStyle(SpanStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp)) {
-                            append(segment.text)
-                        }
-                    } else {
-                        append(segment.text)
+                    when (segment.part) {
+                        DominantStationLabel.Part.TEMPERATURE ->
+                            withStyle(SpanStyle(fontSize = (DOMINANT_TEMP_LABEL_SP * scale).sp)) {
+                                append(segment.text)
+                            }
+                        DominantStationLabel.Part.TIME ->
+                            withStyle(SpanStyle(fontSize = (DOMINANT_TIME_LABEL_SP * scale).sp)) {
+                                append(segment.text)
+                            }
+                        DominantStationLabel.Part.STATION,
+                        DominantStationLabel.Part.AT,
+                        DominantStationLabel.Part.AMPM -> append(segment.text)
                     }
                 }
             }

@@ -64,10 +64,14 @@ object DominantStationLabel {
         val box: GraphRect,
     )
 
-    /** The three visual parts of the label, so renderers can size the temperature independently. */
-    enum class Part { STATION, TEMPERATURE, TIME }
+    /**
+     * The visual parts of the label, so renderers can size each run independently: the station id
+     * plus the `@`/am-pm punctuation stay small, the clock digits are mid-size, and the temperature
+     * is largest.
+     */
+    enum class Part { STATION, TEMPERATURE, AT, TIME, AMPM }
 
-    /** One run of the label with a single part role, e.g. `knuq ` / `66.2°` / ` @ 8:10 pm`. */
+    /** One run of the label with a single part role, e.g. `knuq ` / `66.2°` / ` @` / ` 8:10` / ` pm`. */
     data class Segment(val text: String, val part: Part)
 
     /**
@@ -78,10 +82,16 @@ object DominantStationLabel {
 
     /**
      * The app's established time-of-day pattern (Observations, the fetch-failure indicator, the
-     * forecast-evolution view), lowercased to match the lowercased callsign — at 9sp a shouted "PM"
-     * pulls more attention than the temperature it qualifies.
+     * forecast-evolution view), split into clock digits and the am/pm marker so renderers can keep
+     * the punctuation (`@` and am/pm) small while the digits stay mid-size. The am/pm is lowercased
+     * to match the lowercased callsign — at 9sp a shouted "PM" pulls more attention than the
+     * temperature it qualifies.
      */
-    private val READING_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+    private val CLOCK_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm", Locale.getDefault())
+    private val AM_PM: DateTimeFormatter = DateTimeFormatter.ofPattern("a", Locale.getDefault())
+
+    /** The clock digits and the am/pm suffix, formatted separately for independent sizing. */
+    private data class ReadingTime(val clock: String, val amPm: String)
 
     /**
      * The production entry point: the dominant [contribution] as a label, or null when there is nothing
@@ -141,9 +151,9 @@ object DominantStationLabel {
     ): String? = formatLabelText(stationId, rawTemp, useCelsius, lastReadingMs, zoneId)?.fullText
 
     /**
-     * Builds the label as distinct segments — station id, temperature, and `@ time` — so a renderer
-     * can size the temperature separately. The concatenation ([LabelText.fullText]) is exactly what
-     * [format] returns.
+     * Builds the label as distinct segments — station id, temperature, `@`, clock time, and am/pm —
+     * so a renderer can size each run independently. The concatenation ([LabelText.fullText]) is
+     * exactly what [format] returns.
      */
     fun formatLabelText(
         stationId: String?,
@@ -154,15 +164,23 @@ object DominantStationLabel {
     ): LabelText? {
         val id = stationId?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val temp = TempUtils.formatTemp(rawTemp, useCelsius) ?: return null
-        val at = lastReadingMs?.takeIf { it > 0L }?.let { ms ->
+        val reading = lastReadingMs?.takeIf { it > 0L }?.let { ms ->
             runCatching {
-                Instant.ofEpochMilli(ms).atZone(zoneId).format(READING_TIME).lowercase(Locale.getDefault())
+                val zoned = Instant.ofEpochMilli(ms).atZone(zoneId)
+                ReadingTime(
+                    clock = zoned.format(CLOCK_TIME),
+                    amPm = zoned.format(AM_PM).lowercase(Locale.getDefault()),
+                )
             }.getOrNull()
         }
         val segments = buildList {
             add(Segment("${id.lowercase()} ", Part.STATION))
             add(Segment(temp, Part.TEMPERATURE))
-            if (at != null) add(Segment(" @ $at", Part.TIME))
+            if (reading != null) {
+                add(Segment(" @", Part.AT))
+                add(Segment(" ${reading.clock}", Part.TIME))
+                add(Segment(" ${reading.amPm}", Part.AMPM))
+            }
         }
         return LabelText(
             fullText = segments.joinToString(separator = "") { it.text },

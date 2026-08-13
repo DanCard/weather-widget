@@ -372,11 +372,18 @@ internal object TemperatureGraphAnnotationRenderer {
         } else {
             val ghostVisible = ghostLineVisible(input, hours)
             val tempPaint = input.paints.dominantTempTextPaint
-            val smallPaint = input.paints.stalenessTextPaint
+            val stationPaint = input.paints.dominantStationTextPaint
+            val timePaint = input.paints.dominantTimeTextPaint
             val segmentWidths =
                 dominantStationLabel.segments.map { segment ->
                     val paint =
-                        if (segment.part == DominantStationLabel.Part.TEMPERATURE) tempPaint else smallPaint
+                        when (segment.part) {
+                            DominantStationLabel.Part.TEMPERATURE -> tempPaint
+                            DominantStationLabel.Part.TIME -> timePaint
+                            DominantStationLabel.Part.STATION,
+                            DominantStationLabel.Part.AT,
+                            DominantStationLabel.Part.AMPM -> stationPaint
+                        }
                     paint.measureText(segment.text)
                 }
             val totalWidth = segmentWidths.sum()
@@ -399,10 +406,12 @@ internal object TemperatureGraphAnnotationRenderer {
                 var x = placement.box.left
                 dominantStationLabel.segments.forEachIndexed { index, segment ->
                     val paint =
-                        if (segment.part == DominantStationLabel.Part.TEMPERATURE) {
-                            Paint(tempPaint).apply { textAlign = Paint.Align.LEFT }
-                        } else {
-                            Paint(smallPaint).apply { textAlign = Paint.Align.LEFT }
+                        when (segment.part) {
+                            DominantStationLabel.Part.TEMPERATURE -> tempPaint
+                            DominantStationLabel.Part.TIME -> timePaint
+                            DominantStationLabel.Part.STATION,
+                            DominantStationLabel.Part.AT,
+                            DominantStationLabel.Part.AMPM -> stationPaint
                         }
                     input.canvas.drawText(segment.text, x, placement.baselineY, paint)
                     x += segmentWidths[index]

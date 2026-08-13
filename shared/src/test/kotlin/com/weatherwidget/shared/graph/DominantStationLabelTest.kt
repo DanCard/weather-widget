@@ -197,7 +197,9 @@ class DominantStationLabelTest {
             listOf(
                 DominantStationLabel.Segment("knuq ", DominantStationLabel.Part.STATION),
                 DominantStationLabel.Segment("73.4°", DominantStationLabel.Part.TEMPERATURE),
-                DominantStationLabel.Segment(" @ 5:15 pm", DominantStationLabel.Part.TIME),
+                DominantStationLabel.Segment(" @", DominantStationLabel.Part.AT),
+                DominantStationLabel.Segment(" 5:15", DominantStationLabel.Part.TIME),
+                DominantStationLabel.Segment(" pm", DominantStationLabel.Part.AMPM),
             ),
             label.segments,
         )
