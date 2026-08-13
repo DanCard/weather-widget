@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.graph.HourlyZoomRules
+import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -144,6 +145,36 @@ internal fun mergeNonSettingsSave(
     return if (allowWeatherSourceChange) merged.copy(weatherSource = draft.weatherSource) else merged
 }
 
+/**
+ * Heals a persisted config whose `zoomFactor` was left at an old NARROW-stage factor when
+ * `narrowZoomSpanHours` changed (the pre-resnap bug). The graph renders its window purely from
+ * `zoomFactor`, so `narrowZoomSpanHours = 6` with a factor that renders 4 h showed a 4 h view.
+ *
+ * Precise by design: it only fires when the stored factor is *exactly* the NARROW factor for the
+ * span it renders (4..8 h) — i.e. the user clicked into NARROW and the setting was changed out from
+ * under it. Continuous wheel positions (arbitrary floats near the narrow band) are left untouched,
+ * so a user who deliberately zoomed to, say, 7 h is not yanked to the configured span on restart.
+ * The 4..8 span factors are exactly the values `zoomFactorForStage(NARROW, s)` produces for each
+ * setting, so exact `Float` equality against a freshly computed factor is stable across the JSON
+ * round-trip (shortest-round-trip float encoding).
+ */
+internal fun repairStaleNarrowZoomFactor(config: DesktopConfig): DesktopConfig {
+    val configured = config.narrowZoomSpanHours
+    val renderedTotal = DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor)
+    if (renderedTotal !in HourlyZoomRules.MIN_NARROW_SPAN_HOURS..HourlyZoomRules.MAX_NARROW_SPAN_HOURS) {
+        return config
+    }
+    if (renderedTotal == configured) return config
+    // Only a factor that IS the NARROW factor for its rendered span is a stale click-to-NARROW
+    // value; anything else is a continuous zoom position we must not disturb.
+    if (config.zoomFactor != DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, renderedTotal)) {
+        return config
+    }
+    return config.copy(
+        zoomFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, configured),
+    )
+}
+
 class DesktopConfigStore(
     private val configPath: Path = defaultConfigPath(),
     private val json: Json = Json {
@@ -159,10 +190,13 @@ class DesktopConfigStore(
             val normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(decoded.visibleSources)
             val normalizedSource = decoded.weatherSource.takeIf { it in normalizedVisible }
                 ?: normalizedVisible.first()
-            val normalized = decoded.copy(
+            var normalized = decoded.copy(
                 weatherSource = normalizedSource,
                 visibleSources = normalizedVisible,
             )
+            // Heal configs written before the save-time re-snap existed: a stale NARROW factor
+            // makes the view render the wrong number of hours for the configured span.
+            normalized = repairStaleNarrowZoomFactor(normalized)
             if (normalized != decoded) save(normalized)
             normalized
         }.getOrNull()

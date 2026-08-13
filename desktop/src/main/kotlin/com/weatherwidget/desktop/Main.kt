@@ -136,6 +136,30 @@ internal fun flushSettingsDraft(
     if (merged != persistedConfig) onSave(merged)
 }
 
+/**
+ * Re-snaps the continuous [DesktopConfig.zoomFactor] when the user changes the NARROW span while
+ * already viewing the NARROW stage.
+ *
+ * The desktop hourly view draws its visible window purely from [DesktopConfig.zoomFactor];
+ * [DesktopConfig.narrowZoomSpanHours] only influences the factor a *click* stores when it cycles
+ * onto NARROW. So changing the setting while sitting in NARROW used to leave the graph on the old
+ * span until the next click — the view looked dead. This mirrors the click path: resolve the stage
+ * the current factor is nearest to (against the OLD span, exactly as the click handler does) and,
+ * if that stage is NARROW, store the factor for the NEW span so the already-open graph re-renders
+ * at the configured width. WIDE / THREE_DAY are independent of the setting and left untouched, as
+ * is any wheel-zoom position whose nearest stage is not NARROW.
+ */
+internal fun resnapNarrowZoomAfterSpanChange(prev: DesktopConfig, next: DesktopConfig): DesktopConfig {
+    if (prev.narrowZoomSpanHours == next.narrowZoomSpanHours) return next
+    val currentStage = ZoomStage.nearestByTotalSpan(
+        DesktopGraphUtils.totalSpanHoursFor(prev.zoomFactor),
+        prev.narrowZoomSpanHours,
+    )
+    if (currentStage != ZoomStage.NARROW) return next
+    val newFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, next.narrowZoomSpanHours)
+    return if (newFactor == next.zoomFactor) next else next.copy(zoomFactor = newFactor)
+}
+
 fun main(args: Array<String>) {
     // Surface shared-module diagnostics on the console (default JulSink drops DEBUG). First thing so
     // even startup logging from :shared is visible.
@@ -325,7 +349,7 @@ private fun runApp() = application {
                 // clobber settings-owned fields (the reported "Hourly Zoom reverted to 6h" bug).
                 // weatherSource is the one settings-owned field the popup header and location picker
                 // legitimately change, so it is allowed through for those two sources.
-                val effective = if (prev != null && source != "settings" && source != "settings-close") {
+                var effective = if (prev != null && source != "settings" && source != "settings-close") {
                     mergeNonSettingsSave(
                         persisted = prev,
                         draft = newConfig,
@@ -333,6 +357,22 @@ private fun runApp() = application {
                     )
                 } else {
                     newConfig
+                }
+
+                // Changing "Hourly Zoom" hours while the popup is already sitting in the NARROW
+                // stage must re-render that view at the new span, not wait for the next click: the
+                // graph draws purely from zoomFactor, which the setting otherwise never touches.
+                if (prev != null) {
+                    val resnapped = resnapNarrowZoomAfterSpanChange(prev, effective)
+                    if (resnapped != effective) {
+                        Log.i(
+                            TAG,
+                            "CONFIG_SAVE source=$source re-snapped NARROW zoom " +
+                                "zoomFactor ${effective.zoomFactor} -> ${resnapped.zoomFactor} " +
+                                "for new span ${resnapped.narrowZoomSpanHours}h",
+                        )
+                    }
+                    effective = resnapped
                 }
 
                 if (prev != null) {
