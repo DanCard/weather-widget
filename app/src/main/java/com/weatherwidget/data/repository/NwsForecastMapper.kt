@@ -23,7 +23,6 @@ import javax.inject.Singleton
 class NwsForecastMapper @Inject constructor(
     private val nwsApi: NwsApi,
     private val appLogDao: AppLogDao,
-    private val dailyActualsStore: DailyActualsStore,
 ) {
     private val TAG = "NwsForecastMapper"
     private val NWS_PERIOD_SUMMARY_COUNT = 8

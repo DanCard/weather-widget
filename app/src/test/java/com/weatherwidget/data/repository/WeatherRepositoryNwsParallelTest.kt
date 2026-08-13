@@ -74,7 +74,7 @@ class WeatherRepositoryNwsParallelTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            DailyActualsStore(observationDao, mockk(relaxed = true), appLogDao, hourlyForecastDao, mockk(relaxed = true))
+            OpenMeteoPastDayActualsWriter(mockk(relaxed = true), appLogDao)
         )
         val currentRepo = CurrentTempRepository(
             context,

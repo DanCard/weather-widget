@@ -66,7 +66,7 @@ class NwsMiddayOverrideTest {
         climateNormalDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
 
-        val nwsForecastMapper = NwsForecastMapper(nwsApi, appLogDao, DailyActualsStore(observationDao, mockk(relaxed = true), appLogDao, hourlyForecastDao, mockk(relaxed = true)))
+        val nwsForecastMapper = NwsForecastMapper(nwsApi, appLogDao)
         forecastRepository = ForecastRepository(
             context,
             forecastDao,
@@ -86,7 +86,7 @@ class NwsMiddayOverrideTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             nwsForecastMapper,
-            DailyActualsStore(observationDao, mockk(relaxed = true), appLogDao, hourlyForecastDao, mockk(relaxed = true))
+            OpenMeteoPastDayActualsWriter(mockk(relaxed = true), appLogDao)
         )
         currentTempRepository = CurrentTempRepository(
             context,

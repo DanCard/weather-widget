@@ -91,7 +91,7 @@ class WeatherRepositoryTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             nwsForecastMapper,
-            DailyActualsStore(observationDao, dailyHistoryDao, appLogDao, hourlyForecastDao, mockk(relaxed = true)),
+            OpenMeteoPastDayActualsWriter(dailyHistoryDao, appLogDao),
         )
         currentTempRepository = CurrentTempRepository(
             context,

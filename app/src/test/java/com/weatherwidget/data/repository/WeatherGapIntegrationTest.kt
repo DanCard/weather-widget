@@ -61,7 +61,7 @@ class WeatherGapIntegrationTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true))
+            OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao())
         )
         val currentRepo = CurrentTempRepository(
             context,

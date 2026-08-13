@@ -19,6 +19,7 @@ import com.weatherwidget.data.repository.NwsCurrentObservationUpdater
 import com.weatherwidget.data.repository.NwsObservationBackfiller
 import com.weatherwidget.data.repository.NwsObservationSource
 import com.weatherwidget.data.repository.ObservationRepository
+import com.weatherwidget.data.repository.OpenMeteoPastDayActualsWriter
 import com.weatherwidget.data.repository.PersonalStationWeightProvider
 import com.weatherwidget.data.repository.WidgetPersonalStationWeightProvider
 import com.weatherwidget.data.model.WeatherSource
@@ -253,11 +254,11 @@ object AppModule {
         tomorrowIoApi: TomorrowIoApi,
         openWeatherMapApi: OpenWeatherMapApi,
         nwsForecastMapper: NwsForecastMapper,
-        dailyActualsStore: DailyActualsStore,
+        openMeteoPastDayActualsWriter: OpenMeteoPastDayActualsWriter,
         nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, hourlyForecastHistoryDao, appLogDao,
-        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, dailyActualsStore, nwsApiDailyActualsFetcher
+        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, openMeteoPastDayActualsWriter, nwsApiDailyActualsFetcher
     )
 
     @Provides

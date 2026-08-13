@@ -66,7 +66,7 @@ class ForecastRepository
         tomorrowIoApi: TomorrowIoApi? = null,
         openWeatherMapApi: OpenWeatherMapApi? = null,
         nwsForecastMapper: NwsForecastMapper,
-        dailyActualsStore: DailyActualsStore,
+        openMeteoPastDayActualsWriter: OpenMeteoPastDayActualsWriter,
         // Null only in unit tests that never exercise a network fetch; production DI always
         // supplies it (see AppModule.provideForecastRepository).
         nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher? = null,
@@ -113,7 +113,7 @@ class ForecastRepository
             snapshotStore = snapshotStore,
             hourlyStore = hourlyStore,
             weatherApiHistoryBackfiller = weatherApiHistoryBackfiller,
-            dailyActualsStore = dailyActualsStore,
+            openMeteoPastDayActualsWriter = openMeteoPastDayActualsWriter,
             nwsApiDailyActualsFetcher = nwsApiDailyActualsFetcher,
         )
         private val retentionManager = WeatherRetentionManager(

@@ -42,7 +42,7 @@ internal class ForecastFetchCoordinator(
     private val snapshotStore: ForecastSnapshotStore,
     private val hourlyStore: HourlyForecastStore,
     private val weatherApiHistoryBackfiller: WeatherApiHistoryBackfiller,
-    private val dailyActualsStore: DailyActualsStore,
+    private val openMeteoPastDayActualsWriter: OpenMeteoPastDayActualsWriter,
     private val nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher?,
 ) {
     fun requiresNetworkFetch(
@@ -329,7 +329,7 @@ internal class ForecastFetchCoordinator(
             )
         }
         if (source == WeatherSource.OPEN_METEO) {
-            dailyActualsStore.persistOpenMeteoPastDayActuals(latitude, longitude, result.daily)
+            openMeteoPastDayActualsWriter.persistOpenMeteoPastDayActuals(latitude, longitude, result.daily)
         }
         return result.daily.map { day ->
             snapshotStore.mapDailyForecast(

@@ -73,8 +73,8 @@ class HourlyChangeGateSiteExactIntegrationTest {
             observationRepository = mockk(relaxed = true),
             tomorrowIoApi = mockk(relaxed = true),
             openWeatherMapApi = mockk(relaxed = true),
-            nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao(), DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true))),
-            dailyActualsStore = DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true)),
+            nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao()),
+            openMeteoPastDayActualsWriter = OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao()),
         )
     }
 

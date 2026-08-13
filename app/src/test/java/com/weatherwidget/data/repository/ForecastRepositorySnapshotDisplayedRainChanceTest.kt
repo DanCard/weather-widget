@@ -61,7 +61,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
             dailyHistoryDao = db.dailyHistoryDao(),
             observationRepository = mockk(relaxed = true),
             nwsForecastMapper = mockk(relaxed = true),
-            dailyActualsStore = DailyActualsStore(db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(), mockk(relaxed = true)),
+            openMeteoPastDayActualsWriter = OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao()),
         )
     }
 

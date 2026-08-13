@@ -33,7 +33,7 @@ class ForecastRepositoryDayNightPrecipTest {
             dailyHistoryDao = mockk(),
             observationRepository = mockk(),
             nwsForecastMapper = mockk(),
-            dailyActualsStore = DailyActualsStore(mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true))
+            openMeteoPastDayActualsWriter = OpenMeteoPastDayActualsWriter(mockk(relaxed = true), mockk(relaxed = true))
         )
 
         val targetDate = LocalDate.of(2026, 5, 25)
@@ -100,7 +100,7 @@ class ForecastRepositoryDayNightPrecipTest {
             dailyHistoryDao = mockk(),
             observationRepository = mockk(),
             nwsForecastMapper = mockk(),
-            dailyActualsStore = DailyActualsStore(mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true))
+            openMeteoPastDayActualsWriter = OpenMeteoPastDayActualsWriter(mockk(relaxed = true), mockk(relaxed = true))
         )
 
         val daily = DailyForecast(
