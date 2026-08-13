@@ -6,6 +6,12 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Tracks and manages active widget update jobs to prevent redundant parallel updates.
  * Allows canceling an existing update for a specific widget before starting a new one.
+ *
+ * Ownership split with WidgetActionJobRegistry: this registry covers provider-side (system
+ * lifecycle) work — onUpdate startup, resize, and paint jobs — using replace-by-cancel semantics.
+ * WidgetActionJobRegistry covers receiver-side user PendingIntents (nav, toggles, day clicks),
+ * which are serialized by WidgetInteractionCoordinator's per-widget mutex and are only cancelled
+ * wholesale on widget deletion. Both are cleaned up in WeatherWidgetProvider.onDeleted.
  */
 object WidgetUpdateTracker {
     

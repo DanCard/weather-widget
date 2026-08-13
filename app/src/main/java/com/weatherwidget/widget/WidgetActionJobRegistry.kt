@@ -3,7 +3,12 @@ package com.weatherwidget.widget
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Job
 
-/** Tracks every active action for a widget without cancelling earlier serialized actions. */
+/**
+ * Tracks every active action for a widget without cancelling earlier serialized actions.
+ * Receiver-side actions are serialized by WidgetInteractionCoordinator's per-widget mutex, so
+ * cancel-by-name would be wrong here; jobs are only cancelled on widget deletion (onDeleted).
+ * Provider-side (system lifecycle) jobs use WidgetUpdateTracker instead.
+ */
 internal object WidgetActionJobRegistry {
     private val jobsByWidget = ConcurrentHashMap<Int, MutableSet<Job>>()
 

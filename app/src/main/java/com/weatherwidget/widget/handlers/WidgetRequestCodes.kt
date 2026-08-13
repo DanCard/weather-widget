@@ -5,6 +5,11 @@ import com.weatherwidget.widget.ViewMode
 /**
  * Centrally manages request codes for PendingIntents to ensure they are unique
  * across different widgets and actions.
+ *
+ * Each code is `widgetId * 10000 + base` with bases spaced ≥ 50 apart, so codes never collide
+ * within a widget and different widgets are separated by at least 10000. This assumes the
+ * host-allocated widgetId stays below ~214,748 (Int.MAX_VALUE / 10000); Android hosts allocate
+ * small positive ints, so the multiplication never overflows in practice.
  */
 object WidgetRequestCodes {
     private const val BASE_NAV_LEFT = 0

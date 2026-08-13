@@ -34,6 +34,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         com.weatherwidget.WeatherWidgetApp.logFirstTriggerOnce("onUpdate")
+        // Startup work is coalesced in three independent layers, each for a different duplicate
+        // source: this 500ms onUpdate debounce (repeated system broadcasts), the resize debounce
+        // in WidgetInteractionCoordinator.awaitLatestResizeRequest, and WidgetUpdateTracker's
+        // replace-by-cancel of the prior job for the same widget. None of these cancels a running
+        // WeatherWidgetWorker (see the WorkManager enqueue-policy rules in AGENTS.md).
         val now = SystemClock.elapsedRealtime()
         val filteredIds = appWidgetIds.filter { id ->
             val last = lastUpdateByWidgetId[id] ?: 0L

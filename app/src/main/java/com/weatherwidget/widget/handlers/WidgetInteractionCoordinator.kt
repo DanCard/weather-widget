@@ -32,6 +32,10 @@ internal object WidgetInteractionCoordinator {
     /**
      * Captures [metadata] after taking the widget lock, then performs [block] under that same lock.
      * This makes state-transition breadcrumbs truthful even when two broadcasts arrive together.
+     *
+     * Failures are logged (FAIL breadcrumb + logcat) and swallowed rather than rethrown: widget
+     * rendering is best-effort, so callers cannot distinguish a partially-applied state transition
+     * from a clean one. CancellationException is the one exception that always propagates.
      */
     suspend fun runInteraction(
         appLogDao: AppLogDao,

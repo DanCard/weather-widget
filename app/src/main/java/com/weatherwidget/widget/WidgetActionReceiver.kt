@@ -168,11 +168,9 @@ class WidgetActionReceiver : BroadcastReceiver() {
             logRejected(intent, "invalid_widget")
             return
         }
-        val stateManager = WidgetStateManager(context)
-        if (stateManager.getViewMode(appWidgetId) == ViewMode.DAILY) {
-            Log.e(TAG, "CYCLE_ZOOM received in DAILY mode widget=$appWidgetId")
-            return
-        }
+        // The authoritative DAILY-mode guard lives in WidgetIntentActionHandler.cycleZoom
+        // (under the per-widget lock); a lingering CYCLE_ZOOM PendingIntent for a widget that
+        // since switched to DAILY is a benign stale-tap case, not an error.
         val centerOffset =
             if (intent.hasExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET)) {
                 intent.getIntExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, 0)

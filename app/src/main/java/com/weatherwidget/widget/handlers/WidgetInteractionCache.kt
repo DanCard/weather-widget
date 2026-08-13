@@ -72,6 +72,10 @@ internal object WidgetInteractionCache {
 
     private class Entry(val data: Data, val storedAtElapsedMs: Long)
 
+    // Neither map is actively evicted: expired entries are dropped lazily on get(), and
+    // loadMutexes only grows with distinct keys. Bounded in practice — keys are 3dp-quantized
+    // coordinates × epoch-day × load window, and the app has few locations — so correctness
+    // never depends on explicit invalidation.
     private val entries = ConcurrentHashMap<Key, Entry>()
     private val loadMutexes = ConcurrentHashMap<Key, Mutex>()
 
