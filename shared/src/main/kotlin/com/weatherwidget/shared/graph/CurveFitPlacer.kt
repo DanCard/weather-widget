@@ -24,7 +24,6 @@ internal object CurveFitPlacer {
     }
 
     fun tryExactFit(
-        widthPx: Int,
         heightPx: Int,
         density: Float,
         actualVisiblePoints: List<Pair<Float, Float>>,
@@ -46,7 +45,6 @@ internal object CurveFitPlacer {
         val allowedDipPx = CollisionTester.allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
         for (placeAbove in directions) {
             val outcome = tryDirection(
-                widthPx = widthPx,
                 heightPx = heightPx,
                 density = density,
                 actualVisiblePoints = actualVisiblePoints,
@@ -65,7 +63,7 @@ internal object CurveFitPlacer {
                 allowedDipPx = allowedDipPx,
                 resultPlacements = resultPlacements,
             )
-            Log.d(TAG, "ExactFitOutcome: role=${candidate.role} idx=$idx placeAbove=$placeAbove outcome=$outcome")
+            Log.v(TAG, "ExactFitOutcome: role=${candidate.role} idx=$idx placeAbove=$placeAbove outcome=$outcome")
             when (outcome) {
                 Outcome.NATURAL_FITS -> return false
                 Outcome.PLACED -> return true
@@ -100,8 +98,6 @@ internal object CurveFitPlacer {
     }
 
     private fun checkBlockers(
-        widthPx: Int,
-        heightPx: Int,
         density: Float,
         actualVisiblePoints: List<Pair<Float, Float>>,
         forecastPoints: List<Pair<Float, Float>>,
@@ -148,7 +144,7 @@ internal object CurveFitPlacer {
             flipDecided = false,
         )
 
-        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", geometry.sy)} baseBounds=(${baseBounds.left},${baseBounds.top},${baseBounds.right},${baseBounds.bottom}) intrusion=${if (curveResult.intrusion.isEmpty) "none" else "minY=${String.format("%.1f", curveResult.intrusion.minY)} maxY=${String.format("%.1f", curveResult.intrusion.maxY)}"} labelBlocker=${obstacles.labelOrHardBlocked} iconBlocker=${obstacles.iconBlocked} hardBlocker=${obstacles.overlapsHard} allowedDip=${String.format("%.1f", allowedDip)} curveDip=${String.format("%.2f", curveResult.curveDipDepth)} tolerant=${candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOCAL}")
+        Log.v(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", geometry.sy)} baseBounds=(${baseBounds.left},${baseBounds.top},${baseBounds.right},${baseBounds.bottom}) intrusion=${if (curveResult.intrusion.isEmpty) "none" else "minY=${String.format("%.1f", curveResult.intrusion.minY)} maxY=${String.format("%.1f", curveResult.intrusion.maxY)}"} labelBlocker=${obstacles.labelOrHardBlocked} iconBlocker=${obstacles.iconBlocked} hardBlocker=${obstacles.overlapsHard} allowedDip=${String.format("%.1f", allowedDip)} curveDip=${String.format("%.2f", curveResult.curveDipDepth)} tolerant=${candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOCAL}")
 
         if ((curveResult.intrusion.isEmpty || curveResult.curveWithinDip) && !obstacles.labelOrHardBlocked && !obstacles.iconBlocked) {
             return BlockerResult.NaturalFits
@@ -160,7 +156,6 @@ internal object CurveFitPlacer {
     }
 
     private fun tryDirection(
-        widthPx: Int,
         heightPx: Int,
         density: Float,
         actualVisiblePoints: List<Pair<Float, Float>>,
@@ -180,7 +175,7 @@ internal object CurveFitPlacer {
         resultPlacements: MutableList<PlacedLabel>,
     ): Outcome {
         val blockerResult = checkBlockers(
-            widthPx = widthPx, heightPx = heightPx, density = density,
+            density = density,
             actualVisiblePoints = actualVisiblePoints, forecastPoints = forecastPoints,
             candidate = candidate, geometry = geometry, placeAbove = placeAbove,
             gapDp = gapDp, labelAscent = labelAscent, labelDescent = labelDescent,
@@ -236,21 +231,21 @@ internal object CurveFitPlacer {
                     geometry.clampedX + geometry.textWidth / 2f, newV.bottom
                 )
                 if (newBounds.top < 0f || newBounds.bottom > heightPx) {
-                    Log.d(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED offscreen newBounds=(${newBounds.left},${newBounds.top},${newBounds.right},${newBounds.bottom})")
+                    Log.v(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED offscreen newBounds=(${newBounds.left},${newBounds.top},${newBounds.right},${newBounds.bottom})")
                     return Outcome.GAVE_UP
                 }
                 val overlapsLabel = drawnLabelMetas.any { it.bounds.intersects(newBounds) }
                 val overlapsIcon = drawnIconBounds.any { it.intersects(newBounds) }
                 val overlapsHard = reservedHardBounds.any { it.intersects(newBounds) }
                 if (overlapsLabel || overlapsIcon || overlapsHard) {
-                    Log.d(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon overlapsHard=$overlapsHard")
+                    Log.v(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon overlapsHard=$overlapsHard")
                     return Outcome.GAVE_UP
                 }
                 val residual = combinedCurveIntrusion(actualVisiblePoints, forecastPoints, newBounds)
                 if (!residual.isEmpty) {
                     val residualDepth = if (placeAbove) newBounds.bottom - residual.maxY else residual.minY - newBounds.top
                     if (residualDepth > allowedDipPx + 1f) {
-                        Log.d(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED residualCurveIntrusion depth=${String.format("%.1f", residualDepth)} allowedDip=${String.format("%.1f", allowedDipPx)}")
+                        Log.v(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED residualCurveIntrusion depth=${String.format("%.1f", residualDepth)} allowedDip=${String.format("%.1f", allowedDipPx)}")
                         return Outcome.GAVE_UP
                     }
                 }

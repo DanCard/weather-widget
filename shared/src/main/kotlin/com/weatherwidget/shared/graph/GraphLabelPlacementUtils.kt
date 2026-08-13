@@ -187,6 +187,11 @@ object GraphLabelPlacementUtils {
      * Finds indices of local maxima (or minima) in an integer signal, handling flat plateaus by
      * returning the plateau midpoint. Pure; shared by the hourly value-label engine and the Android
      * graph renderers (which delegate here).
+     *
+     * Distinct from [com.weatherwidget.shared.graph.TemperatureExtrema.findLocalExtremaIndices],
+     * which scans a Float signal for BOTH directions in one pass with its own plateau walk. The two
+     * are deliberately NOT unified: their plateau handling differs, and value labels (integer %)
+     * and the temperature curve (Float) need different prominence semantics.
      */
     fun findLocalExtremaIndices(values: List<Int>, isMax: Boolean): Set<Int> {
         if (values.size < 3) return emptySet()

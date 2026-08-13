@@ -304,6 +304,13 @@ object TemperatureExtrema {
         )
     }
 
+    /**
+     * Local extrema (maxima AND minima) of a Float signal, in one pass, with a plateau walk that
+     * returns the plateau midpoint. Distinct from
+     * [com.weatherwidget.shared.graph.GraphLabelPlacementUtils.findLocalExtremaIndices], which
+     * scans an Int signal for ONE direction per call — see that function's note on why they are not
+     * unified.
+     */
     fun findLocalExtremaIndices(temps: List<Float>): List<Int> {
         val extrema = mutableListOf<Int>()
         if (temps.size < 3) return extrema

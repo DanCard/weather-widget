@@ -210,7 +210,7 @@ object TemperatureLabelEngine {
         val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = false)
             .copy(aboveDp = GraphLabelPlacementUtils.TEMP_PREFERRED_ABOVE_GAP_DP)
 
-        Log.d(TAG, "EngineInput: heightPx=$heightPx widthPx=$widthPx fetchDotX=${fetchDotX?.let { String.format("%.1f", it) }} transitionX=${transitionX?.let { String.format("%.1f", it) }} labelHeight=${String.format("%.1f", labelHeight)} hardBounds=${reservedHardBounds.map { "(${String.format("%.1f", it.left)},${String.format("%.1f", it.top)},${String.format("%.1f", it.right)},${String.format("%.1f", it.bottom)})" }}")
+        Log.v(TAG, "EngineInput: heightPx=$heightPx widthPx=$widthPx fetchDotX=${fetchDotX?.let { String.format("%.1f", it) }} transitionX=${transitionX?.let { String.format("%.1f", it) }} labelHeight=${String.format("%.1f", labelHeight)} hardBounds=${reservedHardBounds.map { "(${String.format("%.1f", it.left)},${String.format("%.1f", it.top)},${String.format("%.1f", it.right)},${String.format("%.1f", it.bottom)})" }}")
 
         for (candidate in candidates) {
             val idx = candidate.index
@@ -296,7 +296,6 @@ object TemperatureLabelEngine {
 
             if (candidate.role in CollisionTester.CURVE_AVOIDANCE_ROLES && !isCurveAvoidanceExempt) {
                 placed = CurveFitPlacer.tryExactFit(
-                    widthPx = widthPx,
                     heightPx = heightPx,
                     density = density,
                     actualVisiblePoints = avoidanceActualPoints,
