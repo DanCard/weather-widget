@@ -866,6 +866,13 @@ object ActualTemperatureSeriesBuilder {
         return 1.0f - (ageMs.toFloat() / TIME_DECAY_MAX_AGE_MS.toFloat())
     }
 
+    /**
+     * The blend's source gate: trust the stored `api` column (written at insert time) rather than
+     * the stationId prefix — the authoritative "which provider supplied this reading" field for
+     * blend input. Station-ID classification (synthetic NWS_BLEND/`<SOURCE>_MAIN` rows, POI grid)
+     * is handled separately by [ObservationSourceMatcher]; the two rules agree because api and
+     * stationId are written together at insert time.
+     */
     private fun matchesObservationSource(observation: ObservationReading, displaySourceId: String): Boolean =
         (observation.api == displaySourceId || observation.api == GENERIC_GAP_SOURCE) && 
         observation.stationId != "NWS_BLEND"

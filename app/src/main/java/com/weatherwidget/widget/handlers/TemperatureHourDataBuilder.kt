@@ -372,6 +372,13 @@ internal fun selectObservationSeries(
     )
 }
 
+/**
+ * Android hourly-graph counterpart to the shared blend's api-field source gate
+ * (`ActualTemperatureSeriesBuilder.matchesObservationSource`): trust the stored `api` column for
+ * blend input, not the stationId prefix (that classification is `ObservationSourceMatcher`'s job).
+ * Unlike the shared rule this does not additionally exclude `NWS_BLEND` — the callers pass a
+ * station-selected series that already excludes it.
+ */
 internal fun matchesObservationSource(
     observation: ObservationEntity,
     displaySource: WeatherSource,

@@ -83,6 +83,11 @@ class CurrentTempRepository
             private const val LOW_PRIORITY_RANK_THRESHOLD = 3
             private const val LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS = 3_600_000L // 60 minutes
 
+            // Spatial-interpolation sample grid around the user (see getPointsOfInterest). ~0.072°
+            // lat ≈ 8 km and ~0.09° lon ≈ 9-10 km at mid-latitudes.
+            private const val POI_LAT_OFFSET_DEGREES = 0.072
+            private const val POI_LON_OFFSET_DEGREES = 0.09
+
             fun appendHistoricalPoi(poiString: String, latitude: Double, longitude: Double, name: String): String {
                 val poiStrings = poiString.split(";").filter { it.isNotEmpty() }.toMutableList()
                 poiStrings.removeIf { it.contains("|$latitude|$longitude") }
@@ -420,13 +425,22 @@ class CurrentTempRepository
             }
         }
 
+        /**
+         * Five fetch points for the current temperature: the user's site plus four offset samples.
+         * Each is filed as its own stationId — the centre as `<SOURCE>_MAIN` (the synthetic backfill
+         * ID), the offsets as `<SOURCE>_<index>` — so the IDW blend can spatially interpolate. The
+         * offsets are deliberately NOT flagged synthetic (see
+         * ObservationSourceMatcher.isSyntheticBackfillStation): they rank as real "sites" in the
+         * blend and surface as POIs in the stations list, while the centre row is the synthetic
+         * backfill and is deprioritised against them.
+         */
         private fun getPointsOfInterest(latitude: Double, longitude: Double): List<Triple<Double, Double, String>> =
             listOf(
                 Triple(latitude, longitude, "Current"),
-                Triple(latitude + 0.072, longitude, "North"),
-                Triple(latitude - 0.072, longitude, "South"),
-                Triple(latitude, longitude + 0.09, "East"),
-                Triple(latitude, longitude - 0.09, "West"),
+                Triple(latitude + POI_LAT_OFFSET_DEGREES, longitude, "North"),
+                Triple(latitude - POI_LAT_OFFSET_DEGREES, longitude, "South"),
+                Triple(latitude, longitude + POI_LON_OFFSET_DEGREES, "East"),
+                Triple(latitude, longitude - POI_LON_OFFSET_DEGREES, "West"),
             )
 
         private fun extractCurrentErrorCode(exception: Exception): String = when (exception) {

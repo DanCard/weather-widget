@@ -27,6 +27,14 @@ object ObservationSourceMatcher {
      * The blend uses this to rank such a row below every real station
      * (`ActualTemperatureSeriesBuilder.blendCandidateTemperature`): its zero distance would otherwise
      * win the near-zero override outright and suppress genuine readings.
+     *
+     * Deliberately matches ONLY `<SOURCE>_MAIN`. The current-temperature POI grid
+     * (`CurrentTempRepository.getPointsOfInterest`) files its four offset samples as
+     * `<SOURCE>_<index>` — also model-derived, not real thermometers — but they are NOT flagged here
+     * because they must rank as distinct "sites" for the spatial-interpolation blend and surface as
+     * POIs in the stations list. This asymmetry is intentional; changing it would silently switch
+     * the forecast-only-source current blend from interpolating over the offsets to the centre-only
+     * near-zero override.
      */
     fun isSyntheticBackfillStation(stationId: String, sourceId: String): Boolean =
         stationId == HistoricalActualsBackfill.syntheticStationId(sourceId)
@@ -41,6 +49,19 @@ object ObservationSourceMatcher {
             WeatherSource.TOMORROW_IO,
         ).associateWith { "${it.id}_" }
 
+    /**
+     * Station-ID-based classifier used by the stations list (Android WeatherObservationsSupport and
+     * desktop ObservationsWindow). It must key on [stationId] rather than the stored `api` column
+     * because it also has to reject synthetic rows (NWS_BLEND, `<SOURCE>_MAIN`) and non-NWS prefixes
+     * within the NWS pool.
+     *
+     * The blend path answers the same "does this observation belong to source X?" question with the
+     * OTHER key — the stored `api` field — via
+     * `ActualTemperatureSeriesBuilder.matchesObservationSource` (and Android's
+     * `TemperatureHourDataBuilder.matchesObservationSource`). The two rules agree because both are
+     * written together at insert time (`api = source.id`, stationId = `<SOURCE>_…`); they can only
+     * drift if a new writer sets one without the other.
+     */
     fun matchesObservationSource(stationId: String, source: WeatherSource): Boolean =
         when (source) {
             WeatherSource.NWS ->
