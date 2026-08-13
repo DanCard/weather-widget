@@ -50,6 +50,16 @@ object GraphLabelPlacementUtils {
     )
 
     /**
+     * Thresholds in [filterDenseLabelCandidates] are interpreted by magnitude: values at or below
+     * this ceiling are "decluttering" passes (they always run to completion so a mandatory small
+     * dedupe happens even if it pushes the list under [maxCandidates]); values above it are
+     * "reduction" passes (they stop once the list is under [maxCandidates]). Callers must therefore
+     * pass decluttering thresholds in (0, 5] and reduction thresholds > 5 — the distinction is
+     * encoded in the number, not in a separate flag.
+     */
+    private const val DECLUTTER_THRESHOLD_MAX = 5
+
+    /**
      * Filters out nearby candidates that are too similar in value, prioritizing more significant extrema.
      */
     fun <T> filterDenseLabelCandidates(
@@ -76,16 +86,19 @@ object GraphLabelPlacementUtils {
         }
         val softProtectedAnchors = protectedIndices.filter { it in items.indices && it !in immovableAnchors }.toSet()
 
-        // Add a mandatory small decluttering threshold if not already present
-        val effectiveThresholds = if ((diffThresholds.firstOrNull() ?: 0) > 5) {
-            listOf(5) + diffThresholds
+        // A mandatory small decluttering threshold is always prepended when the caller's list starts
+        // above the ceiling (see DECLUTTER_THRESHOLD_MAX), so a near-duplicate pair is deduped even
+        // before any "reduction" pass is allowed to stop early.
+        val effectiveThresholds = if ((diffThresholds.firstOrNull() ?: 0) > DECLUTTER_THRESHOLD_MAX) {
+            listOf(DECLUTTER_THRESHOLD_MAX) + diffThresholds
         } else {
             diffThresholds
         }
 
         for (threshold in effectiveThresholds) {
-            // If we are already under the cap AND this is a "reduction" threshold (not a decluttering one), break.
-            if (retained.size <= maxCandidates && threshold > 5) break
+            // Decluttering passes (<= DECLUTTER_THRESHOLD_MAX) run to completion; reduction passes
+            // (> DECLUTTER_THRESHOLD_MAX) stop once the list is under maxCandidates.
+            if (retained.size <= maxCandidates && threshold > DECLUTTER_THRESHOLD_MAX) break
 
             val toRemove = mutableSetOf<Int>()
             val processingOrder =
@@ -103,9 +116,9 @@ object GraphLabelPlacementUtils {
                     )
 
             for (candidateIdx in processingOrder) {
-                // Mandatory decluttering threshold (5) should always run to completion.
-                // Thresholds > 5 are "reduction" thresholds and should respect maxCandidates.
-                if (retained.size - toRemove.size <= maxCandidates && threshold > 5) break
+                // Mandatory decluttering passes should always run to completion.
+                // Reduction passes should respect maxCandidates.
+                if (retained.size - toRemove.size <= maxCandidates && threshold > DECLUTTER_THRESHOLD_MAX) break
                 if (candidateIdx in toRemove) continue
 
 

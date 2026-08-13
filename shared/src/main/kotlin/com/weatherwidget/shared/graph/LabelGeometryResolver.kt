@@ -111,21 +111,34 @@ internal object LabelGeometryResolver {
     }
 
     internal fun sortCandidates(candidates: MutableList<TempLabelCandidate>) {
+        // Precompute each candidate's secondary ordering key once, rather than rescanning the whole
+        // temperature list for the neighbouring values inside the comparator — the old comparator was
+        // O(n² log n) and buried the peak/valley rule in a side-effecting lambda. The ordering itself
+        // is unchanged: role group first, then (negative value for peaks, else value).
+        val secondaryKey = candidates.associateWith { candidate ->
+            val displayTemp = candidate.labelTemps[candidate.index]
+            val leftVal = findPrevDifferent(candidate.labelTemps, candidate.index)
+            val rightVal = findNextDifferent(candidate.labelTemps, candidate.index)
+            val isPeak = candidate.role in PEAK_ROLES ||
+                (candidate.role == TemperatureRole.LOCAL && displayTemp > leftVal && displayTemp > rightVal)
+            if (isPeak) -displayTemp else displayTemp
+        }
         candidates.sortWith(
-            compareBy<TempLabelCandidate> {
-                when (it.role) {
-                    TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW -> 0
-                    TemperatureRole.LOCAL, TemperatureRole.ACTUAL_END -> 1
-                    else -> 2 // START, END
-                }
-            }.thenBy {
-                val displayTemp = it.labelTemps[it.index]
-                val leftVal = findPrevDifferent(it.labelTemps, it.index)
-                val rightVal = findNextDifferent(it.labelTemps, it.index)
-                val isPeak = it.role in listOf(TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH, TemperatureRole.ACTUAL_HIGH, TemperatureRole.PAST_FORECAST_HIGH) || (it.role == TemperatureRole.LOCAL && displayTemp > leftVal && displayTemp > rightVal)
-                if (isPeak) -displayTemp else displayTemp
-            }
+            compareBy<TempLabelCandidate> { roleGroup(it.role) }
+                .thenBy { secondaryKey.getValue(it) }
         )
+    }
+
+    private val PEAK_ROLES = setOf(
+        TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH,
+        TemperatureRole.ACTUAL_HIGH, TemperatureRole.PAST_FORECAST_HIGH,
+    )
+
+    private fun roleGroup(role: TemperatureRole): Int = when (role) {
+        TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
+        TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW -> 0
+        TemperatureRole.LOCAL, TemperatureRole.ACTUAL_END -> 1
+        else -> 2 // START, END
     }
 
     private fun findPrevDifferent(temps: List<Float>, idx: Int): Float {

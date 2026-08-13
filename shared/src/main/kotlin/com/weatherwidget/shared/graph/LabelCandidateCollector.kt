@@ -447,6 +447,13 @@ internal object LabelCandidateCollector {
         return anchors
     }
 
+    /** A value-slot key: the formatted value plus the inclusive bounds of its equal-value run. */
+    private data class ValueSlot(
+        val formattedValue: String,
+        val first: Int,
+        val last: Int,
+    )
+
     private fun deduplicateAnchors(
         potentialAnchors: List<Pair<Int, TemperatureRole>>,
         labelTemps: List<Float>,
@@ -464,7 +471,7 @@ internal object LabelCandidateCollector {
             TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
             TemperatureRole.LOCAL
         )
-        val slotToAnchor = mutableMapOf<Triple<String, Int, Int>, Int>()
+        val slotToAnchor = mutableMapOf<ValueSlot, Int>()
         for ((idx, role) in potentialAnchors) {
             val isActualRole = role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.ACTUAL_END
             val temps = if (isActualRole) actualLabelTemps else labelTemps
@@ -473,7 +480,7 @@ internal object LabelCandidateCollector {
             var first = idx; var last = idx
             while (first > 0 && temps[first - 1] == v) first--
             while (last < temps.lastIndex && temps[last + 1] == v) last++
-            val slotKey = Triple(formattedValue, first, last)
+            val slotKey = ValueSlot(formattedValue, first, last)
             val existingIdx = slotToAnchor[slotKey]
             if (existingIdx == null) {
                 slotToAnchor[slotKey] = idx

@@ -36,6 +36,10 @@ object TemperatureLabelEngine {
 
     internal fun shouldLogPlacement(role: TemperatureRole): Boolean = role in LOGGED_ROLES
 
+    // prefersAbovePlacement looks at ±VALUE_NEIGHBOR_WINDOW samples and places a value above its
+    // curve when the local maximum is within SIGNIFICANT_MAX_GAP degrees of it — i.e. the value sits
+    // on (or very near) the top of its neighbourhood. 5 samples and 1° were tuned so a START/END/LOCAL
+    // value on a shallow local crest stays above the line instead of flipping below into a pocket.
     private const val VALUE_NEIGHBOR_WINDOW = 5
     private const val SIGNIFICANT_MAX_GAP = 1.0f
 
@@ -465,6 +469,11 @@ object TemperatureLabelEngine {
                 }
             }
 
+            // FORCED is the essential-label floor: an essential label that could not be placed cleanly
+            // is still emitted at its last computed slot rather than dropped. This is deliberately
+            // stricter than the forced-direction placers (ActualExtremePlacers), which DROP a
+            // near-coincident second ACTUAL_HIGH/LOW: those are redundant by construction, whereas an
+            // essential label must never vanish.
             if (!placed && geometry.isEssential && forceBounds != null) {
                 val drawLeader = forceStep > 0
                 val lineEndY = if (forceDrawBelow) forceBounds.top else forceBounds.bottom
