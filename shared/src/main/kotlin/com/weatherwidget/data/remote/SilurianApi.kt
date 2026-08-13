@@ -100,6 +100,8 @@ class SilurianApi(
         // API² has no separate "current observation" endpoint; current temp is interpolated from the
         // hourly series upstream (CurrentTemperatureResolver), and the actual line is driven by the
         // include_past hours re-filed as observations. So we deliberately leave current* unset.
+        logCloudCoverSummary(hourlyRoot["hourly"]?.jsonArray, "hourly")
+        logCloudCoverSummary(dailyRoot["daily"]?.jsonArray, "daily")
         ForecastResult(
             daily = daily,
             hourly = hourly,
@@ -136,6 +138,57 @@ class SilurianApi(
 
     private fun JsonObject.floatOrNull(key: String): Float? = this[key]?.jsonPrimitive?.floatOrNull
     private fun JsonObject.intOrNull(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
+
+    /**
+     * One DEBUG row per fetch summarising the API's raw `cloud_cover` payload. The daily bar's
+     * cloud shading is driven by the *hourly noon* reading, so a null/absent/0 noon value is the
+     * difference between "cloud cover 0%" and a missing percentage. Non-integer values (e.g.
+     * floats) are also counted because [JsonObject.intOrNull] silently drops them — the OpenAPI
+     * schema says `integer`, but a backend change to a float would surface here, not as an error.
+     */
+    private fun logCloudCoverSummary(arr: JsonArray?, kind: String) {
+        if (arr == null) {
+            Log.d(TAG, "cloudCoverSummary kind=$kind array=absent")
+            return
+        }
+        var total = 0
+        var present = 0
+        var missing = 0
+        var zero = 0
+        var nonInt = 0
+        val noonIssues = mutableListOf<String>()
+        for (el in arr) {
+            val obj = el.jsonObject
+            total++
+            val ts = obj["timestamp"]?.jsonPrimitive?.contentOrNull
+            val isNoon = ts != null && ts.length >= 13 && ts.substring(11, 13) == "12"
+            val cloud = obj["cloud_cover"]
+            when {
+                cloud == null || cloud is JsonNull -> {
+                    missing++
+                    if (isNoon) noonIssues.add("$ts=null")
+                }
+                else -> {
+                    val int = (cloud as? JsonPrimitive)?.intOrNull
+                    if (int == null) {
+                        nonInt++
+                        if (isNoon) noonIssues.add("$ts=nonInt($cloud)")
+                    } else {
+                        present++
+                        if (int == 0) {
+                            zero++
+                            if (isNoon) noonIssues.add("$ts=0")
+                        }
+                    }
+                }
+            }
+        }
+        val noon = if (noonIssues.isEmpty()) "-" else noonIssues.joinToString(",")
+        Log.d(
+            TAG,
+            "cloudCoverSummary kind=$kind total=$total present=$present missing=$missing zero=$zero nonInt=$nonInt noonIssues=$noon",
+        )
+    }
 
     /**
      * Parses an ISO-8601 date-time. The API returns local times (with `timezone=local`); the string

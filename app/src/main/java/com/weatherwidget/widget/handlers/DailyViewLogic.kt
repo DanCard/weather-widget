@@ -593,7 +593,8 @@ object DailyViewLogic {
                 TAG,
                 "cloudDecision: date=$date isPast=$isPastDate weatherPresent=${weather != null}" +
                     " actualPresent=${actual != null} iconRes=$iconRes isMixed=${WeatherIconMapper.isMixed(iconRes)}" +
-                    " cloudCoverRatioOverride=$cloudCoverRatioOverride storedNoonCloud=$storedNoonCloud hasOverlay=${fHigh != null && fLow != null}",
+                    " cloudCoverRatioOverride=$cloudCoverRatioOverride measuredCloudCover=$measuredCloudCoverPercent" +
+                    " storedNoonCloud=$storedNoonCloud hasOverlay=${fHigh != null && fLow != null}",
             )
 
             val rawRainSummary = if (!isPastDate) {
