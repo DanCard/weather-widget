@@ -121,6 +121,29 @@ data class DesktopConfig(
     }
 }
 
+/**
+ * Merges a save from a non-settings writer onto the latest persisted config.
+ *
+ * `DesktopConfig` is written whole by several windows, and the popup / observations / history
+ * windows compute their updates from their own `config` snapshot — which can lag the persisted
+ * config — while the location picker builds a config with *default* settings fields. Saving any of
+ * those verbatim clobbers settings-owned fields (the reported "Hourly Zoom reverted to 6h" bug).
+ *
+ * This keeps every non-settings field from [draft] (popup geometry/zoom/pan/view mode, obs/history
+ * window bounds, lat/lon/label) while taking every settings-owned field from [persisted].
+ * [allowWeatherSourceChange] re-admits the one settings-owned field other writers legitimately
+ * change: the popup header toggles the active source, and the location picker chooses a per-region
+ * default (NWS for the US, Open-Meteo elsewhere).
+ */
+internal fun mergeNonSettingsSave(
+    persisted: DesktopConfig,
+    draft: DesktopConfig,
+    allowWeatherSourceChange: Boolean,
+): DesktopConfig {
+    val merged = draft.withSettingsFrom(persisted)
+    return if (allowWeatherSourceChange) merged.copy(weatherSource = draft.weatherSource) else merged
+}
+
 class DesktopConfigStore(
     private val configPath: Path = defaultConfigPath(),
     private val json: Json = Json {

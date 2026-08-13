@@ -142,4 +142,64 @@ class SettingsDraftRebaseTest {
             after.settingsDiffFrom(before).isEmpty(),
         )
     }
+
+    @Test
+    fun `a stale popup save cannot clobber a fresh settings edit`() {
+        // The reported bug: Settings saves narrowZoomSpanHours=4, then the popup writes its stale
+        // snapshot (still 6) back over it. The merge must keep 4 while admitting the popup's zoom.
+        val persisted = config(narrowZoomSpanHours = 4)
+        val stalePopupDraft = config(narrowZoomSpanHours = 6, zoomFactor = 0.5f)
+
+        val merged = mergeNonSettingsSave(persisted, stalePopupDraft, allowWeatherSourceChange = true)
+
+        assertEquals("the fresh settings edit must survive", 4, merged.narrowZoomSpanHours)
+        assertEquals("the popup's zoom must pass through", 0.5f, merged.zoomFactor)
+    }
+
+    @Test
+    fun `weatherSource passes through only when the writer may change it`() {
+        val persisted = config().copy(weatherSource = "NWS")
+        val draft = config().copy(weatherSource = "OPEN_METEO")
+
+        assertEquals(
+            "the popup/location-picker may change the active source",
+            "OPEN_METEO",
+            mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = true).weatherSource,
+        )
+        assertEquals(
+            "other writers must not clobber the active source",
+            "NWS",
+            mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = false).weatherSource,
+        )
+    }
+
+    @Test
+    fun `every settings-owned field is preserved by the merge`() {
+        // Guards the merge list: a settings field the merge forgets would revert the same way
+        // narrowZoomSpanHours did.
+        val persisted = config().copy(
+            weatherSource = "OPEN_METEO",
+            visibleSources = listOf("OPEN_METEO", "NWS"),
+            apiKeys = mapOf("SILURIAN" to "abc"),
+            narrowZoomSpanHours = 4,
+            personalStationDiscount = 10,
+            useCelsius = true,
+            todayOverlayDelta = true,
+            todayOverlayDominantTemp = true,
+            todayOverlayDominantAge = true,
+        )
+        // A stale draft whose settings fields are all different, carrying a popup zoom/pan change.
+        val draft = config().copy(zoomFactor = 0.7f, hourlyOffset = 3)
+
+        val merged = mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = false)
+
+        DesktopConfig.SETTINGS_OWNED_FIELDS.forEach { field ->
+            assertTrue(
+                "$field must come from the persisted config, not the stale draft",
+                merged.settingsDiffFrom(persisted).none { it.startsWith("$field:") },
+            )
+        }
+        assertEquals("popup zoom must pass through", 0.7f, merged.zoomFactor)
+        assertEquals("popup pan must pass through", 3, merged.hourlyOffset)
+    }
 }

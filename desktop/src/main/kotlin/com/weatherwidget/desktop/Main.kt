@@ -316,19 +316,50 @@ private fun runApp() = application {
             { newConfig: DesktopConfig, source: String ->
                 // Every writer is tagged because DesktopConfig has several of them and they all write
                 // the WHOLE object: when a settings value silently reverts, the only thing that
-                // identifies the culprit is which save carried the regression. A settings-owned field
-                // changing on a non-"settings" source is by definition a clobber, so it logs at WARN.
+                // identifies the culprit is which save carried the regression.
                 val prev = config
+
+                // Non-settings writers (popup, observations/history windows, location picker) compute
+                // their updates from their own config snapshot, which can lag the persisted config, and
+                // write the whole object back. Merge them onto the latest persisted config so they can't
+                // clobber settings-owned fields (the reported "Hourly Zoom reverted to 6h" bug).
+                // weatherSource is the one settings-owned field the popup header and location picker
+                // legitimately change, so it is allowed through for those two sources.
+                val effective = if (prev != null && source != "settings" && source != "settings-close") {
+                    mergeNonSettingsSave(
+                        persisted = prev,
+                        draft = newConfig,
+                        allowWeatherSourceChange = source == "popup" || source == "location-picker",
+                    )
+                } else {
+                    newConfig
+                }
+
                 if (prev != null) {
-                    val settingsChanges = newConfig.settingsDiffFrom(prev)
+                    val settingsChanges = effective.settingsDiffFrom(prev)
                     if (settingsChanges.isNotEmpty()) {
                         val line = "CONFIG_SAVE source=$source settings-fields-changed: " +
                             settingsChanges.joinToString(", ")
-                        if (source == "settings") Log.i(TAG, line) else Log.w(TAG, line)
+                        val level = if (source == "settings" || source == "settings-close") "INFO" else "WARN"
+                        if (source == "settings" || source == "settings-close") Log.i(TAG, line) else Log.w(TAG, line)
+                        // Persist the same breadcrumb to the queryable app_logs DB. This bug was invisible
+                        // there because CONFIG_SAVE went only to the console/autostart file.
+                        weatherDao.log("CONFIG_SAVE", "source=$source ${settingsChanges.joinToString(", ")}", level)
+                    }
+
+                    // Positive proof the merge is working: a non-settings writer carried stale settings
+                    // values that were corrected before persisting.
+                    val mergedAway = newConfig.settingsDiffFrom(effective)
+                    if (mergedAway.isNotEmpty()) {
+                        val line = "CONFIG_SAVE source=$source merged-away-stale-settings: " +
+                            mergedAway.joinToString(", ")
+                        Log.i(TAG, line)
+                        weatherDao.log("CONFIG_SAVE", "source=$source ${mergedAway.joinToString(", ")}", "INFO")
                     }
                 }
-                configStore.save(newConfig)
-                config = newConfig
+
+                configStore.save(effective)
+                config = effective
                 runCatching {
                     val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
                     java.nio.file.Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
