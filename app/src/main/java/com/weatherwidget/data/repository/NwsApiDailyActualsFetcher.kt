@@ -34,7 +34,7 @@ class NwsApiDailyActualsFetcher
     @Inject
     constructor(
         private val observationSource: NwsObservationSource,
-        private val dailyActualsStore: DailyActualsStore,
+        private val stationActualsStore: NwsStationActualsStore,
         private val appLogDao: AppLogDao,
         private val personalStationWeightProvider: PersonalStationWeightProvider,
     ) {
@@ -46,7 +46,7 @@ class NwsApiDailyActualsFetcher
                 .toEpochDay() * WidgetConstants.MS_IN_A_DAY
             val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
-            val missing = dailyActualsStore
+            val missing = stationActualsStore
                 .findNwsDatesMissingStationActuals(latitude, longitude, startMs, endMs)
             if (missing.isEmpty()) return
 
@@ -71,7 +71,7 @@ class NwsApiDailyActualsFetcher
                 zone = zone,
                 nowMs = now,
                 hourlyForecastsForDay = { dayStartMs, dayEndMs ->
-                    dailyActualsStore.nwsHourlyForecastsForDay(latitude, longitude, dayStartMs, dayEndMs)
+                    stationActualsStore.nwsHourlyForecastsForDay(latitude, longitude, dayStartMs, dayEndMs)
                 },
             ) { stationId, startIso, endIso ->
                 val station = stationsById[stationId] ?: return@resolveForDates emptyList()
@@ -85,7 +85,7 @@ class NwsApiDailyActualsFetcher
                 }
                 .toMap()
             if (pulled.isNotEmpty()) {
-                dailyActualsStore.persistNwsDailyActuals(latitude, longitude, pulled)
+                stationActualsStore.persistNwsDailyActuals(latitude, longitude, pulled)
             }
 
             // Only Insufficient falls back. Unavailable means a request failed, so the date stays
@@ -95,12 +95,12 @@ class NwsApiDailyActualsFetcher
                 .keys
             val cached = insufficient.mapNotNull { dateMs ->
                 val date = LocalDate.ofEpochDay(dateMs / WidgetConstants.MS_IN_A_DAY)
-                dailyActualsStore
+                stationActualsStore
                     .stationExtremeFromStoredObservations(latitude, longitude, date, zone)
                     ?.let { dateMs to it }
             }.toMap()
             if (cached.isNotEmpty()) {
-                dailyActualsStore.persistCachedStationActuals(latitude, longitude, cached)
+                stationActualsStore.persistCachedStationActuals(latitude, longitude, cached)
             }
 
             val unavailable = resolved.count { it.value is NwsDailyExtremesFetch.DayOutcome.Unavailable }
