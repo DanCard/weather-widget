@@ -256,9 +256,12 @@ class DailyActualsStore @Inject constructor(
      * the freeze guard reads that same field, the race also defeats the guard on the very cycle
      * that establishes it — both dates' blends moved despite being pull-derived.
      *
-     * This shrinks the window to the merge loop rather than closing it outright; a genuine fix
-     * would wrap read+merge+write in a transaction, which is awkward while the blend math sits
-     * between the caller's own DAO reads.
+     * This used to only shrink the window to the merge loop. The write is now an optimistic
+     * conditional UPDATE ([DailyHistoryDao.updateBlendIfUnchanged]) that sets ONLY the columns the
+     * recompute owns and is keyed on the row's `updatedAt` still matching what we read — so a
+     * concurrent [persistNwsDailyActuals] can no longer have its provenance clobbered by a stale
+     * snapshot, and a conflicting write is detected and skipped. (Residual, accepted risk: `updatedAt`
+     * is millisecond precision, so two writes in the same millisecond could theoretically collide.)
      */
     private suspend fun persistExtremes(
         date: LocalDate,
@@ -320,7 +323,7 @@ class DailyActualsStore @Inject constructor(
                             "apiHigh=${existing.apiHighTemp}->${merged.apiHighTemp} station=${merged.apiStationId}",
                         "DEBUG",
                     )
-                    toInsert.add(merged.copy(updatedAt = new.updatedAt))
+                    updateBlendRow(merged, existing, new.updatedAt, date)
                 }
             }
             if (!changedAny) {
@@ -333,6 +336,44 @@ class DailyActualsStore @Inject constructor(
         }
 
         if (toInsert.isNotEmpty()) dailyHistoryDao.insertAll(toInsert)
+    }
+
+    /**
+     * Writes a recomputed blend for ONE existing fragment via an optimistic conditional UPDATE
+     * (full PK + the `updatedAt` we read). Only the fields the blend recompute owns are set, so a
+     * concurrent writer that already bumped provenance fields (`actualsSource`, `apiHighTemp`, …)
+     * can never be clobbered. 0 affected rows means that writer landed between our read and write;
+     * the row is left alone and the next recompute will pick up the change.
+     */
+    private suspend fun updateBlendRow(
+        merged: DailyHistoryEntity,
+        existing: DailyHistoryEntity,
+        newUpdatedAt: Long,
+        date: LocalDate,
+    ) {
+        val updated = dailyHistoryDao.updateBlendIfUnchanged(
+            date = merged.date,
+            source = merged.source,
+            locationLat = merged.locationLat,
+            locationLon = merged.locationLon,
+            computedHighTemp = merged.computedHighTemp,
+            computedLowTemp = merged.computedLowTemp,
+            condition = merged.condition,
+            precipAmountMm = merged.precipAmountMm,
+            precipDayMm = merged.precipDayMm,
+            precipNightMm = merged.precipNightMm,
+            lastWriter = merged.lastWriter,
+            updatedAt = newUpdatedAt,
+            expectedUpdatedAt = existing.updatedAt,
+        )
+        if (updated == 0) {
+            appLogDao.log(
+                "DAILY_HISTORY_RACE",
+                "date=$date src=${merged.source} at=${merged.locationLat},${merged.locationLon} " +
+                    "expectedUpdatedAt=${existing.updatedAt} — skipped, row changed concurrently",
+                "WARN",
+            )
+        }
     }
 
     internal suspend fun incompletelyCoveredPastDates(

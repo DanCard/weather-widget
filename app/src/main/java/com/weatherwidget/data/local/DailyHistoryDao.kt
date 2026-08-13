@@ -10,6 +10,47 @@ interface DailyHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(extremes: List<DailyHistoryEntity>)
 
+    /**
+     * Optimistic, field-limited write for the blend recompute. Sets ONLY the columns the blend
+     * recompute owns and is conditional on the row's `updatedAt` still matching the value the
+     * caller read ([expectedUpdatedAt]) — so a concurrent writer (e.g. the NWS station pull
+     * writing `actualsSource`/`apiHighTemp`) can never have its provenance clobbered by a stale
+     * recompute snapshot, and a conflicting write returns 0 so the caller can skip the row.
+     */
+    @Query(
+        """
+        UPDATE daily_history SET
+            computedHighTemp = :computedHighTemp,
+            computedLowTemp = :computedLowTemp,
+            condition = :condition,
+            precipAmountMm = :precipAmountMm,
+            precipDayMm = :precipDayMm,
+            precipNightMm = :precipNightMm,
+            lastWriter = :lastWriter,
+            updatedAt = :updatedAt
+        WHERE date = :date
+          AND source = :source
+          AND locationLat = :locationLat
+          AND locationLon = :locationLon
+          AND updatedAt = :expectedUpdatedAt
+        """,
+    )
+    suspend fun updateBlendIfUnchanged(
+        date: Long,
+        source: String,
+        locationLat: Double,
+        locationLon: Double,
+        computedHighTemp: Float,
+        computedLowTemp: Float,
+        condition: String,
+        precipAmountMm: Float?,
+        precipDayMm: Float?,
+        precipNightMm: Float?,
+        lastWriter: String?,
+        updatedAt: Long,
+        expectedUpdatedAt: Long,
+    ): Int
+
     @Query(
         """
         SELECT * FROM daily_history
