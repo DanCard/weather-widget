@@ -66,6 +66,9 @@ class NwsObservationSource(
     internal suspend fun stationsFromUrl(stationsUrl: String): List<NwsApi.StationInfo> {
         if (stationsUrl.isEmpty()) return emptyList()
 
+        // Cache keyed by the stations URL's hashCode: compact and stable for a single location's
+        // gridpoint. Collision risk is negligible (a handful of URLs per install); a wrong hit
+        // would at worst serve a stale station list until the 24h cache expiry refreshes it.
         val stationsKey = "observation_stations_v4_${stationsUrl.hashCode()}"
         val timeKey = "observation_stations_time_v4_${stationsUrl.hashCode()}"
         val cachedString = prefs.getString(stationsKey, null)

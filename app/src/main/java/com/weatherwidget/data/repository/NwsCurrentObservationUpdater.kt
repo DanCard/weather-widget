@@ -20,6 +20,10 @@ import javax.inject.Singleton
 private const val TAG = "NwsCurrentObsUpdate"
 internal const val MAX_NWS_STATIONS = 5
 
+// Retry cadence for the CLOSEST station only (see fetchNwsCurrent). The other stations get a
+// single attempt each.
+private val CLOSEST_STATION_RETRY_DELAYS_MS = listOf(10_000L, 30_000L)
+
 @Singleton
 class NwsCurrentObservationUpdater @Inject constructor(
     private val observationSource: NwsObservationSource,
@@ -37,10 +41,12 @@ class NwsCurrentObservationUpdater @Inject constructor(
         if (stations.isEmpty()) return@coroutineScope null
 
         val fetchStartMs = System.currentTimeMillis()
+        // Only the CLOSEST station is retried (10s, then 30s); the other stations get a single
+        // attempt each. The closest station dominates the IDW blend, so its freshness is worth the
+        // extra latency; retrying all five would multiply the worst-case fetch time.
         val closestDeferred = async {
-            val retryDelaysMs = listOf(10_000L, 30_000L)
             var entity = fetchAndStoreStation(stations.first(), latitude, longitude, attempt = 0, stationIndex = 0)
-            for ((index, delayMs) in retryDelaysMs.withIndex()) {
+            for ((index, delayMs) in CLOSEST_STATION_RETRY_DELAYS_MS.withIndex()) {
                 if (entity != null) break
                 delay(delayMs)
                 entity = fetchAndStoreStation(

@@ -14,6 +14,11 @@ import java.time.ZoneId
  */
 object ActualsAggregator {
 
+    // Precip day/night split (8 AM – 8 PM local). Distinct from the OTHER day-partition conventions,
+    // each with its own purpose: StationDailyExtremes' coverage windows (12–18 high / 0–7 low)
+    // gate what a sparse station must have reported; DailyHistorySnapshotter's freeze windows
+    // (20:00 / 08:00) decide when a day's overlay/rain-chance is frozen; DailyActualsStore's
+    // DAYTIME_COVERAGE_HOUR (14) is a one-hour afternoon-coverage probe.
     private const val DAY_START_HOUR = 8
     private const val DAY_END_HOUR = 20
 
