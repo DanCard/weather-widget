@@ -24,20 +24,7 @@ data class PlacedLabel(
 
 object TemperatureLabelEngine {
     private const val TAG = "TempLabelEngine"
-    private const val CURVE_AVOIDANCE_CLEAR_PX = 1.5f
     private const val MAX_LEADER_DISPLACEMENT_STEPS = 3
-
-    // Gap left between an actual-extreme label and a label it had to step over, and the step budget.
-    // Both bypass placers (placeActualHighAboveCurve / placeActualLowBelowCurve) force a direction
-    // rather than searching, so without this they emit straight through whatever is already drawn.
-    //
-    // What counts as "through" is now CollisionTester's single rule (shared with the main placement
-    // loop and the curve-avoidance pre-pass). A pink ACTUAL_LOW deliberately shares the valley with
-    // an amber FORECAST_LOW a couple of degrees below it, and the two are *supposed* to graze. Only
-    // a substantial overlap — the near-coincident stacking that made three actual highs unreadable —
-    // is resolved.
-    private const val ACTUAL_EXTREME_STACK_GAP_DP = 1.5f
-    private const val ACTUAL_EXTREME_STACK_MAX_STEPS = 4
 
 
     private val LOGGED_ROLES: Set<TemperatureRole> = setOf(
@@ -47,7 +34,7 @@ object TemperatureLabelEngine {
         TemperatureRole.START, TemperatureRole.END,
     )
 
-    private fun shouldLogPlacement(role: TemperatureRole): Boolean = role in LOGGED_ROLES
+    internal fun shouldLogPlacement(role: TemperatureRole): Boolean = role in LOGGED_ROLES
 
     private const val VALUE_NEIGHBOR_WINDOW = 5
     private const val SIGNIFICANT_MAX_GAP = 1.0f
@@ -131,7 +118,7 @@ object TemperatureLabelEngine {
 
     // Left-edge counterpart to computeLeftEdgeStartOrdering for when the forecast partner is a HIGH
     // (not a START). A left-edge forecast high and a near-coincident equal-or-cooler ACTUAL_HIGH
-    // would both be force-placed above and stack (the actual via placeActualHighAboveCurve); drop
+    // would both be force-placed above and stack (the actual via ActualExtremePlacers.place); drop
     // the cooler observed high BELOW its own peak while the warmer forecast high stays above. Scoped
     // to the left edge AND the equal-or-cooler case, so the lone actual high and the genuinely
     // warmer actual are untouched. Returns ONLY the actual override; the forecast high keeps its
@@ -159,7 +146,7 @@ object TemperatureLabelEngine {
     // extreme nested under a much taller/deeper actual curve must sit flush on its OWN forecast peak
     // or valley; treating the towering actual curve as an obstacle drives the label far off-anchor
     // with a long, unhelpful leader line. (ACTUAL_LOW is handled the same way via its own carve-out;
-    // ACTUAL_HIGH uses placeActualHighAboveCurve; START/END/ACTUAL_END keep full avoidance.)
+    // ACTUAL_HIGH uses ActualExtremePlacers.place; START/END/ACTUAL_END keep full avoidance.)
     private val FORECAST_ONLY_AVOIDANCE_ROLES = setOf(
         TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.LOCAL,
         TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
@@ -268,7 +255,8 @@ object TemperatureLabelEngine {
             // A left-edge ACTUAL_HIGH paired with a warmer forecast high is rerouted below the curve
             // via leftEdgeOrder; let it flow through the normal loop instead of forcing it above.
             if (candidate.role == TemperatureRole.ACTUAL_HIGH && labelKey !in leftEdgeOrder) {
-                placeActualHighAboveCurve(
+                ActualExtremePlacers.place(
+                    placeAbove = true,
                     heightPx = heightPx,
                     density = density,
                     actualVisiblePoints = actualVisiblePoints,
@@ -303,7 +291,7 @@ object TemperatureLabelEngine {
                 }
 
             if (candidate.role in CollisionTester.CURVE_AVOIDANCE_ROLES && !isCurveAvoidanceExempt) {
-                placed = tryExactFitCurveAvoidance(
+                placed = CurveFitPlacer.tryExactFit(
                     widthPx = widthPx,
                     heightPx = heightPx,
                     density = density,
@@ -389,7 +377,7 @@ object TemperatureLabelEngine {
                     }
 
                     if (hasCollision && !placeAbove && geometry.isValley && step == 0 && !flipDecided) {
-                        val outcome = tryValleyBelowCascade(
+                        val outcome = ValleyCascade.tryBelow(
                             widthPx = widthPx,
                             heightPx = heightPx,
                             candidate = candidate,
@@ -401,7 +389,7 @@ object TemperatureLabelEngine {
                             labelHeight = labelHeight,
                         )
                         when (outcome) {
-                            is ValleyCascadeOutcome.Below -> {
+                            is ValleyCascade.Outcome.Below -> {
                                 val cascadeResult = outcome.result
                                 resultPlacements.add(
                                     PlacedLabel(
@@ -425,11 +413,11 @@ object TemperatureLabelEngine {
                                 placed = true
                                 break@outer
                             }
-                            ValleyCascadeOutcome.FlipAbove -> {
+                            ValleyCascade.Outcome.FlipAbove -> {
                                 flipDecided = true
                                 continue
                             }
-                            ValleyCascadeOutcome.None -> Unit
+                            ValleyCascade.Outcome.None -> Unit
                         }
                     }
 
@@ -503,616 +491,6 @@ object TemperatureLabelEngine {
         }
 
         return resultPlacements
-    }
-
-    // Places the observed-high label above the actual line's local peak. Scans the high-resolution
-    // actual curve across the label's x-span for the highest point (smallest y) so the label clears
-    // the jagged spike rather than overlapping it, then sits one gap above. Clamps to the top edge
-    // (spilling into the header band) when the peak is too close to the top to leave a full gap.
-    /**
-     * True when the forced-direction placers must yield: the candidate box overlaps an already-drawn
-     * label, icon, or hard bound beyond CollisionTester's standard minor-overlap budgets. This is the
-     * same rule the main placement loop and the curve-avoidance pre-pass apply, so the forced placers
-     * resolve exactly what the rest of the engine resolves — no more, no less. (The forced placers
-     * never test the curve itself: they are pinned to it by design.)
-     */
-    private fun forcedPlacerBlocked(
-        role: TemperatureRole,
-        bounds: GraphRect,
-        isValley: Boolean,
-        placeAbove: Boolean,
-        drawnLabelMetas: List<PlacedLabelMeta>,
-        drawnIconBounds: List<GraphRect>,
-        reservedHardBounds: List<GraphRect>,
-        labelHeight: Float,
-    ): Boolean = CollisionTester.obstacles(
-        role = role,
-        bounds = bounds,
-        isValley = isValley,
-        placeAbove = placeAbove,
-        drawnLabelMetas = drawnLabelMetas,
-        drawnIconBounds = drawnIconBounds,
-        reservedHardBounds = reservedHardBounds,
-        labelHeight = labelHeight,
-    ).anyBlocked
-
-    /**
-     * The first already-drawn obstacle (label, icon, or hard bound) intersecting [bounds], in draw
-     * order, or null when none intersects. The forced placers step the candidate over this blocker.
-     */
-    private fun firstBlockerBounds(
-        bounds: GraphRect,
-        drawnLabelMetas: List<PlacedLabelMeta>,
-        drawnIconBounds: List<GraphRect>,
-        reservedHardBounds: List<GraphRect>,
-    ): GraphRect? =
-        drawnLabelMetas.firstOrNull { it.bounds.intersects(bounds) }?.bounds
-            ?: drawnIconBounds.firstOrNull { it.intersects(bounds) }
-            ?: reservedHardBounds.firstOrNull { it.intersects(bounds) }
-
-    private fun placeActualHighAboveCurve(
-        heightPx: Int,
-        density: Float,
-        actualVisiblePoints: List<Pair<Float, Float>>,
-        candidate: TempLabelCandidate,
-        geometry: ResolvedLabelGeometry,
-        labelAscent: Float,
-        labelDescent: Float,
-        drawnLabelMetas: MutableList<PlacedLabelMeta>,
-        drawnIconBounds: List<GraphRect>,
-        reservedHardBounds: List<GraphRect>,
-        idx: Int,
-        temps: List<Float>,
-        resultPlacements: MutableList<PlacedLabel>,
-    ) {
-        val halfWidth = geometry.textWidth / 2f
-        val left = geometry.clampedX - halfWidth
-        val right = geometry.clampedX + halfWidth
-
-        // Highest visible actual point beneath the label (fall back to the hourly anchor).
-        var curveTopY = geometry.sy
-        for ((px, py) in actualVisiblePoints) {
-            if (px in left..right && py < curveTopY) curveTopY = py
-        }
-
-        // The observed high rides right on its spike (this path never flips below), so use the tighter
-        // actual-high gap rather than the shared above gap.
-        val gapAbovePx = GraphLabelPlacementUtils.TEMP_ACTUAL_HIGH_ABOVE_GAP_DP * density
-        val placement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-            pointY = curveTopY,
-            placeAbove = true,
-            gapPx = gapAbovePx,
-            textAscent = labelAscent,
-            textDescent = labelDescent,
-        )
-        var top = placement.top
-        var bottom = placement.bottom
-        var baselineY = placement.baselineY
-        if (top < 0f) {
-            val shift = -top
-            top += shift
-            bottom += shift
-            baselineY += shift
-        }
-        // This path forces "above" instead of searching, so it must yield to what is already drawn or
-        // it simply overprints it. Step up over each substantial blocker; if clearing them would push
-        // the label out of the plot, drop it. Dropping is the right end state here: a second
-        // ACTUAL_HIGH this close to a placed one comes from near-equal turning points on the same
-        // plateau, where it says nothing the survivor does not.
-        val labelHeight = labelDescent - labelAscent
-        var bounds = GraphRect(left, top, right, bottom)
-        val stackGapPx = ACTUAL_EXTREME_STACK_GAP_DP * density
-        var steps = 0
-        while (steps++ < ACTUAL_EXTREME_STACK_MAX_STEPS) {
-            if (!forcedPlacerBlocked(candidate.role, bounds, isValley = false, placeAbove = true, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) break
-            val blocker = firstBlockerBounds(bounds, drawnLabelMetas, drawnIconBounds, reservedHardBounds) ?: break
-            val shift = bounds.bottom - blocker.top + stackGapPx
-            top -= shift
-            bottom -= shift
-            baselineY -= shift
-            bounds = GraphRect(left, top, right, bottom)
-        }
-        if (top < 0f || forcedPlacerBlocked(candidate.role, bounds, isValley = false, placeAbove = true, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) {
-            Log.d(
-                TAG,
-                "PlaceDrop: role=${candidate.role} idx=$idx reason=noRoomAboveActualCurve " +
-                    "top=${top.toInt()} steps=${steps - 1} " +
-                    "overlap=${GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnLabelMetas.map { it.bounds }).toInt()} " +
-                    "labelHeight=${labelHeight.toInt()}",
-            )
-            return
-        }
-        val drawLeader = geometry.sy - bottom > labelDescent
-
-        resultPlacements.add(
-            PlacedLabel(
-                index = idx,
-                role = candidate.role,
-                text = geometry.label,
-                x = geometry.clampedX,
-                baselineY = baselineY,
-                placedAbove = true,
-                drawLeaderLine = drawLeader,
-                leaderFromY = geometry.sy,
-                leaderToY = bottom,
-                isFuture = geometry.isFuture,
-                rawTemperature = candidate.rawTemperature,
-                displayTemperature = temps[idx],
-                reason = "aboveActualCurve",
-                displacementSteps = 0,
-            )
-        )
-        drawnLabelMetas.add(PlacedLabelMeta(bounds, isValleyBelow = false, role = candidate.role, temperature = temps[idx]))
-    }
-
-    // Places the observed-low label tight below the actual line's local trough. Used as a fallback
-    // when the normal below direction is blocked by curve intrusion (instead of flipping above through
-    // the lines). Scans the actual curve across the label's x-span for the lowest point (largest y)
-    // so the label clears the jagged trough, then sits one tight gap below. Clamps to the bottom edge
-    // when the trough is too close to the bottom to leave a full gap. No leader line — the label sits
-    // right at the trough.
-    private fun placeActualLowBelowCurve(
-        heightPx: Int,
-        density: Float,
-        actualVisiblePoints: List<Pair<Float, Float>>,
-        candidate: TempLabelCandidate,
-        geometry: ResolvedLabelGeometry,
-        labelAscent: Float,
-        labelDescent: Float,
-        drawnLabelMetas: MutableList<PlacedLabelMeta>,
-        drawnIconBounds: List<GraphRect>,
-        reservedHardBounds: List<GraphRect>,
-        idx: Int,
-        temps: List<Float>,
-        resultPlacements: MutableList<PlacedLabel>,
-    ) {
-        val halfWidth = geometry.textWidth / 2f
-        val left = geometry.clampedX - halfWidth
-        val right = geometry.clampedX + halfWidth
-
-        // Lowest visible actual point beneath the label (fall back to the hourly anchor).
-        var curveBottomY = geometry.sy
-        for ((px, py) in actualVisiblePoints) {
-            if (px in left..right && py > curveBottomY) curveBottomY = py
-        }
-
-        val gapBelowPx = GraphLabelPlacementUtils.TEMP_ACTUAL_LOW_BELOW_GAP_DP * density
-        val placement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-            pointY = curveBottomY,
-            placeAbove = false,
-            gapPx = gapBelowPx,
-            textAscent = labelAscent,
-            textDescent = labelDescent,
-        )
-        var top = placement.top
-        var bottom = placement.bottom
-        var baselineY = placement.baselineY
-        if (bottom > heightPx) {
-            val shift = heightPx - bottom
-            top += shift
-            bottom += shift
-            baselineY += shift
-        }
-        // Same yield rule as placeActualHighAboveCurve, mirrored downward. Note this placer is reached
-        // exactly when a LABEL blocked the normal direction, so a grazing overlap is the expected case,
-        // not the exception — which is precisely why the budget, and not an any-pixel test, decides.
-        val labelHeight = labelDescent - labelAscent
-        var bounds = GraphRect(left, top, right, bottom)
-        val stackGapPx = ACTUAL_EXTREME_STACK_GAP_DP * density
-        var steps = 0
-        while (steps++ < ACTUAL_EXTREME_STACK_MAX_STEPS) {
-            if (!forcedPlacerBlocked(candidate.role, bounds, isValley = true, placeAbove = false, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) break
-            val blocker = firstBlockerBounds(bounds, drawnLabelMetas, drawnIconBounds, reservedHardBounds) ?: break
-            val shift = blocker.bottom - bounds.top + stackGapPx
-            top += shift
-            bottom += shift
-            baselineY += shift
-            bounds = GraphRect(left, top, right, bottom)
-        }
-        if (bottom > heightPx || forcedPlacerBlocked(candidate.role, bounds, isValley = true, placeAbove = false, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) {
-            Log.d(
-                TAG,
-                "PlaceDrop: role=${candidate.role} idx=$idx reason=noRoomBelowActualCurve " +
-                    "bottom=${bottom.toInt()} heightPx=$heightPx steps=${steps - 1} " +
-                    "overlap=${GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnLabelMetas.map { it.bounds }).toInt()} " +
-                    "labelHeight=${labelHeight.toInt()}",
-            )
-            return
-        }
-
-        resultPlacements.add(
-            PlacedLabel(
-                index = idx,
-                role = candidate.role,
-                text = geometry.label,
-                x = geometry.clampedX,
-                baselineY = baselineY,
-                placedAbove = false,
-                drawLeaderLine = false,
-                leaderFromY = geometry.sy,
-                leaderToY = geometry.sy,
-                isFuture = geometry.isFuture,
-                rawTemperature = candidate.rawTemperature,
-                displayTemperature = temps[idx],
-                reason = "belowActualCurve",
-                displacementSteps = 0,
-            )
-        )
-        drawnLabelMetas.add(PlacedLabelMeta(bounds, isValleyBelow = true, role = candidate.role, temperature = temps[idx]))
-    }
-
-    private fun tryExactFitCurveAvoidance(
-        widthPx: Int,
-        heightPx: Int,
-        density: Float,
-        actualVisiblePoints: List<Pair<Float, Float>>,
-        forecastPoints: List<Pair<Float, Float>>,
-        candidate: TempLabelCandidate,
-        geometry: ResolvedLabelGeometry,
-        directions: List<Boolean>,
-        gapDp: GraphLabelPlacementUtils.LabelGapDp,
-        labelAscent: Float,
-        labelDescent: Float,
-        drawnLabelMetas: MutableList<PlacedLabelMeta>,
-        drawnIconBounds: List<GraphRect>,
-        reservedHardBounds: List<GraphRect>,
-        idx: Int,
-        temps: List<Float>,
-        resultPlacements: MutableList<PlacedLabel>,
-        allActualVisiblePoints: List<Pair<Float, Float>>,
-    ): Boolean {
-        val allowedDipPx = CollisionTester.allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
-        for (placeAbove in directions) {
-            val outcome = tryExactFitForDirection(
-                widthPx = widthPx,
-                heightPx = heightPx,
-                density = density,
-                actualVisiblePoints = actualVisiblePoints,
-                forecastPoints = forecastPoints,
-                candidate = candidate,
-                geometry = geometry,
-                placeAbove = placeAbove,
-                gapDp = gapDp,
-                labelAscent = labelAscent,
-                labelDescent = labelDescent,
-                drawnLabelMetas = drawnLabelMetas,
-                drawnIconBounds = drawnIconBounds,
-                reservedHardBounds = reservedHardBounds,
-                idx = idx,
-                temps = temps,
-                allowedDipPx = allowedDipPx,
-                resultPlacements = resultPlacements,
-            )
-            Log.d(TAG, "ExactFitOutcome: role=${candidate.role} idx=$idx placeAbove=$placeAbove outcome=$outcome")
-            when (outcome) {
-                ExactFitOutcome.NATURAL_FITS -> return false
-                ExactFitOutcome.PLACED -> return true
-                ExactFitOutcome.LABEL_OR_ICON_BLOCKED -> {
-                    // ACTUAL_LOW: when the normal below direction is blocked (curve intrusion),
-                    // try tight-below-trough placement instead of falling through to above.
-                    // Gated on idx !in leftEdgeOrder to preserve left-edge pairing behavior.
-                    if (!placeAbove && candidate.role == TemperatureRole.ACTUAL_LOW) {
-                        placeActualLowBelowCurve(
-                            heightPx = heightPx,
-                            density = density,
-                            actualVisiblePoints = allActualVisiblePoints,
-                            candidate = candidate,
-                            geometry = geometry,
-                            labelAscent = labelAscent,
-                            labelDescent = labelDescent,
-                            drawnLabelMetas = drawnLabelMetas,
-                            drawnIconBounds = drawnIconBounds,
-                            reservedHardBounds = reservedHardBounds,
-                            idx = idx,
-                            temps = temps,
-                            resultPlacements = resultPlacements,
-                        )
-                        return true
-                    }
-                    continue
-                }
-                ExactFitOutcome.GAVE_UP -> return false
-            }
-        }
-        return false
-    }
-
-    private enum class ExactFitOutcome { NATURAL_FITS, PLACED, LABEL_OR_ICON_BLOCKED, GAVE_UP }
-
-    private sealed class ExactFitBlockerResult {
-        object NaturalFits : ExactFitBlockerResult()
-        object LabelOrIconBlocked : ExactFitBlockerResult()
-        data class CurveOnly(val intrusion: CurveIntrusion, val baseBounds: GraphRect, val baseGapPx: Float) : ExactFitBlockerResult()
-    }
-
-    private fun checkExactFitBlockers(
-        widthPx: Int,
-        heightPx: Int,
-        density: Float,
-        actualVisiblePoints: List<Pair<Float, Float>>,
-        forecastPoints: List<Pair<Float, Float>>,
-        candidate: TempLabelCandidate,
-        geometry: ResolvedLabelGeometry,
-        placeAbove: Boolean,
-        gapDp: GraphLabelPlacementUtils.LabelGapDp,
-        labelAscent: Float,
-        labelDescent: Float,
-        drawnLabelMetas: List<PlacedLabelMeta>,
-        drawnIconBounds: List<GraphRect>,
-        reservedHardBounds: List<GraphRect>,
-        idx: Int,
-    ): ExactFitBlockerResult {
-        val baseGapPx = if (placeAbove) gapDp.aboveDp * density else gapDp.belowDp * density
-        val baseV = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-            pointY = geometry.sy, placeAbove = placeAbove,
-            gapPx = baseGapPx, textAscent = labelAscent, textDescent = labelDescent
-        )
-        val baseBounds = GraphRect(
-            geometry.clampedX - geometry.textWidth / 2f, baseV.top,
-            geometry.clampedX + geometry.textWidth / 2f, baseV.bottom
-        )
-        val labelHeight = labelDescent - labelAscent
-        val obstacles = CollisionTester.obstacles(
-            role = candidate.role,
-            bounds = baseBounds,
-            isValley = geometry.isValley,
-            placeAbove = placeAbove,
-            drawnLabelMetas = drawnLabelMetas,
-            drawnIconBounds = drawnIconBounds,
-            reservedHardBounds = reservedHardBounds,
-            labelHeight = labelHeight,
-        )
-        val allowedDip = CollisionTester.allowedDipPxFor(candidate.role, density, labelHeight)
-        val curveResult = CollisionTester.curve(
-            role = candidate.role,
-            bounds = baseBounds,
-            placeAbove = placeAbove,
-            avoidanceActualPoints = actualVisiblePoints,
-            forecastPoints = forecastPoints,
-            allowedDipPx = allowedDip,
-            isCurveAvoidanceExempt = false,
-            flipDecided = false,
-        )
-
-        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", geometry.sy)} baseBounds=(${baseBounds.left},${baseBounds.top},${baseBounds.right},${baseBounds.bottom}) intrusion=${if (curveResult.intrusion.isEmpty) "none" else "minY=${String.format("%.1f", curveResult.intrusion.minY)} maxY=${String.format("%.1f", curveResult.intrusion.maxY)}"} labelBlocker=${obstacles.labelOrHardBlocked} iconBlocker=${obstacles.iconBlocked} hardBlocker=${obstacles.overlapsHard} allowedDip=${String.format("%.1f", allowedDip)} curveDip=${String.format("%.2f", curveResult.curveDipDepth)} tolerant=${candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOCAL}")
-
-        if ((curveResult.intrusion.isEmpty || curveResult.curveWithinDip) && !obstacles.labelOrHardBlocked && !obstacles.iconBlocked) {
-            return ExactFitBlockerResult.NaturalFits
-        }
-        if (obstacles.labelOrHardBlocked || obstacles.iconBlocked) {
-            return ExactFitBlockerResult.LabelOrIconBlocked
-        }
-        return ExactFitBlockerResult.CurveOnly(curveResult.intrusion, baseBounds, baseGapPx)
-    }
-
-    private fun tryExactFitForDirection(
-        widthPx: Int,
-        heightPx: Int,
-        density: Float,
-        actualVisiblePoints: List<Pair<Float, Float>>,
-        forecastPoints: List<Pair<Float, Float>>,
-        candidate: TempLabelCandidate,
-        geometry: ResolvedLabelGeometry,
-        placeAbove: Boolean,
-        gapDp: GraphLabelPlacementUtils.LabelGapDp,
-        labelAscent: Float,
-        labelDescent: Float,
-        drawnLabelMetas: MutableList<PlacedLabelMeta>,
-        drawnIconBounds: List<GraphRect>,
-        reservedHardBounds: List<GraphRect>,
-        idx: Int,
-        temps: List<Float>,
-        allowedDipPx: Float,
-        resultPlacements: MutableList<PlacedLabel>,
-    ): ExactFitOutcome {
-        val blockerResult = checkExactFitBlockers(
-            widthPx = widthPx, heightPx = heightPx, density = density,
-            actualVisiblePoints = actualVisiblePoints, forecastPoints = forecastPoints,
-            candidate = candidate, geometry = geometry, placeAbove = placeAbove,
-            gapDp = gapDp, labelAscent = labelAscent, labelDescent = labelDescent,
-            drawnLabelMetas = drawnLabelMetas, drawnIconBounds = drawnIconBounds,
-            reservedHardBounds = reservedHardBounds, idx = idx
-        )
-        when (blockerResult) {
-            is ExactFitBlockerResult.NaturalFits -> return ExactFitOutcome.NATURAL_FITS
-            is ExactFitBlockerResult.LabelOrIconBlocked -> return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
-            is ExactFitBlockerResult.CurveOnly -> {
-                // Forecast curve often dips below the actual valley. A shallow dip is acceptable
-                // partial overlap: keep the low label flush below its valley (handled by the main
-                // step loop) instead of flipping it above with a long leader line. Only a deep dip
-                // warrants flipping above.
-                if (candidate.role == TemperatureRole.ACTUAL_LOW && !placeAbove) {
-                    val dipDepth = blockerResult.intrusion.maxY - blockerResult.baseBounds.top
-                    return if (dipDepth > allowedDipPx) {
-                        ExactFitOutcome.LABEL_OR_ICON_BLOCKED
-                    } else {
-                        ExactFitOutcome.GAVE_UP
-                    }
-                }
-                // LOCAL (midpoints) also tolerates small grazes. If within tolerance, fall back
-                // so the normal step-0 path can place it flush (no forced curveFit leader).
-                if (candidate.role == TemperatureRole.LOCAL) {
-                    val dipDepth = if (placeAbove) {
-                        blockerResult.baseBounds.bottom - blockerResult.intrusion.minY
-                    } else {
-                        blockerResult.intrusion.maxY - blockerResult.baseBounds.top
-                    }
-                    if (dipDepth <= allowedDipPx) {
-                        return ExactFitOutcome.GAVE_UP
-                    }
-                }
-                // Actual curve rises from the start point into the above-space; prefer below.
-                if (candidate.role == TemperatureRole.START && placeAbove) {
-                    return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
-                }
-                val extra = if (placeAbove) {
-                    blockerResult.baseBounds.bottom - blockerResult.intrusion.minY + CURVE_AVOIDANCE_CLEAR_PX - allowedDipPx
-                } else {
-                    blockerResult.intrusion.maxY + CURVE_AVOIDANCE_CLEAR_PX - allowedDipPx - blockerResult.baseBounds.top
-                }
-                if (extra <= 0f) return ExactFitOutcome.GAVE_UP
-
-                val newGapPx = blockerResult.baseGapPx + extra
-                val newV = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-                    pointY = geometry.sy, placeAbove = placeAbove,
-                    gapPx = newGapPx, textAscent = labelAscent, textDescent = labelDescent
-                )
-                val newBounds = GraphRect(
-                    geometry.clampedX - geometry.textWidth / 2f, newV.top,
-                    geometry.clampedX + geometry.textWidth / 2f, newV.bottom
-                )
-                if (newBounds.top < 0f || newBounds.bottom > heightPx) {
-                    Log.d(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED offscreen newBounds=(${newBounds.left},${newBounds.top},${newBounds.right},${newBounds.bottom})")
-                    return ExactFitOutcome.GAVE_UP
-                }
-                val overlapsLabel = drawnLabelMetas.any { it.bounds.intersects(newBounds) }
-                val overlapsIcon = drawnIconBounds.any { it.intersects(newBounds) }
-                val overlapsHard = reservedHardBounds.any { it.intersects(newBounds) }
-                if (overlapsLabel || overlapsIcon || overlapsHard) {
-                    Log.d(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon overlapsHard=$overlapsHard")
-                    return ExactFitOutcome.GAVE_UP
-                }
-                val residual = combinedCurveIntrusion(actualVisiblePoints, forecastPoints, newBounds)
-                if (!residual.isEmpty) {
-                    val residualDepth = if (placeAbove) newBounds.bottom - residual.maxY else residual.minY - newBounds.top
-                    if (residualDepth > allowedDipPx + 1f) {
-                        Log.d(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED residualCurveIntrusion depth=${String.format("%.1f", residualDepth)} allowedDip=${String.format("%.1f", allowedDipPx)}")
-                        return ExactFitOutcome.GAVE_UP
-                    }
-                }
-
-                val lineEndY = if (placeAbove) newBounds.bottom else newBounds.top
-                resultPlacements.add(
-                    PlacedLabel(
-                        index = idx,
-                        role = candidate.role,
-                        text = geometry.label,
-                        x = geometry.clampedX,
-                        baselineY = newV.baselineY,
-                        placedAbove = placeAbove,
-                        drawLeaderLine = true,
-                        leaderFromY = geometry.sy,
-                        leaderToY = lineEndY,
-                        isFuture = geometry.isFuture,
-                        rawTemperature = candidate.rawTemperature,
-                        displayTemperature = temps[idx],
-                        reason = "${if (placeAbove) "above" else "below"}+curveFit(${String.format("%.1f", extra)}px)",
-                        displacementSteps = 1,
-                    )
-                )
-                drawnLabelMetas.add(PlacedLabelMeta(newBounds, isValleyBelow = !placeAbove && geometry.isValley, role = candidate.role, temperature = temps[idx]))
-                return ExactFitOutcome.PLACED
-            }
-        }
-    }
-
-    private data class CascadeResult(
-        val x: Float,
-        val baselineY: Float,
-        val bounds: GraphRect,
-        val reason: String,
-    )
-
-    private sealed class ValleyCascadeOutcome {
-        data class Below(val result: CascadeResult) : ValleyCascadeOutcome()
-        object FlipAbove : ValleyCascadeOutcome()
-        object None : ValleyCascadeOutcome()
-    }
-
-    private fun tryValleyBelowCascade(
-        widthPx: Int,
-        heightPx: Int,
-        candidate: TempLabelCandidate,
-        geometry: ResolvedLabelGeometry,
-        verticalPlacement: GraphLabelPlacementUtils.LabelVerticalPlacement,
-        drawnLabelMetas: List<PlacedLabelMeta>,
-        drawnIconBounds: List<GraphRect>,
-        reservedHardBounds: List<GraphRect>,
-        labelHeight: Float,
-    ): ValleyCascadeOutcome {
-        val centerX = geometry.clampedX
-        val halfWidth = geometry.textWidth / 2f
-
-        val centeredBounds = GraphRect(centerX - halfWidth, verticalPlacement.top, centerX + halfWidth, verticalPlacement.bottom)
-        val drawnBoundsList = drawnLabelMetas.map { it.bounds }
-
-        val collidingMeta = drawnLabelMetas.firstOrNull { it.bounds.intersects(centeredBounds) }
-        if (collidingMeta == null) return ValleyCascadeOutcome.None
-
-        val horizontalOverlap = maxOf(0f, minOf(centeredBounds.right, collidingMeta.bounds.right) - maxOf(centeredBounds.left, collidingMeta.bounds.left))
-        val verticalOverlap = maxOf(0f, minOf(centeredBounds.bottom, collidingMeta.bounds.bottom) - maxOf(centeredBounds.top, collidingMeta.bounds.top))
-
-        val shiftAmount = horizontalOverlap * GraphLabelPlacementUtils.VALLEY_HORIZONTAL_SHIFT_FRACTION
-        for (shiftSign in listOf(-1, 1)) {
-            val shiftedX = centerX + shiftSign * shiftAmount
-            val shiftedBounds = GraphRect(shiftedX - halfWidth, verticalPlacement.top, shiftedX + halfWidth, verticalPlacement.bottom)
-            val onScreen = shiftedBounds.top >= 0f && shiftedBounds.bottom <= heightPx &&
-                shiftedBounds.left >= 0f && shiftedBounds.right <= widthPx
-            if (!onScreen) continue
-
-            val overlapsLabel = drawnBoundsList.any { it.intersects(shiftedBounds) }
-            val overlapsIcon = drawnIconBounds.any { it.intersects(shiftedBounds) }
-            val overlapsHard = reservedHardBounds.any { it.intersects(shiftedBounds) }
-            if (!overlapsLabel && !overlapsIcon && !overlapsHard) {
-                return ValleyCascadeOutcome.Below(
-                    CascadeResult(
-                        x = shiftedX,
-                        baselineY = verticalPlacement.baselineY,
-                        bounds = shiftedBounds,
-                        reason = "below-shifted",
-                    )
-                )
-            }
-        }
-
-        // The centered below-fallbacks below would sit on the hard bound; only take them when the
-        // centered slot is clear of hard obstacles, otherwise fall through so the label flips above.
-        val centeredOverlapsHard = reservedHardBounds.any { it.intersects(centeredBounds) }
-
-        val overlapRatio = verticalOverlap / labelHeight
-        if (!centeredOverlapsHard && overlapRatio <= GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO) {
-            if (shouldLogPlacement(candidate.role)) {
-                Log.d(TAG, "LabelCascade: role=${candidate.role} option2-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO}")
-            }
-            return ValleyCascadeOutcome.Below(
-                CascadeResult(
-                    x = centerX,
-                    baselineY = verticalPlacement.baselineY,
-                    bounds = centeredBounds,
-                    reason = "below-relaxed",
-                )
-            )
-        }
-
-        if (collidingMeta.isValleyBelow) {
-            val currentTemp = geometry.displayTemperature
-            val collidingTemp = collidingMeta.temperature
-            if (currentTemp > collidingTemp) {
-                if (shouldLogPlacement(candidate.role)) {
-                    Log.d(TAG, "LabelCascade: role=${candidate.role} flip-above-warmer current=${String.format("%.1f", currentTemp)} colliding=${String.format("%.1f", collidingTemp)} collidingRole=${collidingMeta.role} ratio=${String.format("%.2f", overlapRatio)}")
-                }
-                return ValleyCascadeOutcome.FlipAbove
-            }
-            if (!centeredOverlapsHard && overlapRatio <= GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO) {
-                if (shouldLogPlacement(candidate.role)) {
-                    Log.d(TAG, "LabelCascade: role=${candidate.role} option1-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO} collidingRole=${collidingMeta.role}")
-                }
-                return ValleyCascadeOutcome.Below(
-                    CascadeResult(
-                        x = centerX,
-                        baselineY = verticalPlacement.baselineY,
-                        bounds = centeredBounds,
-                        reason = "below-valley-overlap",
-                    )
-                )
-            }
-        }
-
-        if (shouldLogPlacement(candidate.role)) {
-            Log.d(TAG, "LabelCascade: role=${candidate.role} all-options-exhausted ratio=${String.format("%.2f", overlapRatio)} collidingIsValleyBelow=${collidingMeta.isValleyBelow}")
-        }
-
-        return ValleyCascadeOutcome.None
     }
 
 }
