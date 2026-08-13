@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.RectF
 import android.util.Log
+import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.LabelPlacementDebug
 import kotlinx.coroutines.Job
@@ -109,8 +110,8 @@ object TemperatureGraphRenderer {
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
         useCelsius: Boolean,
-        /** Pre-formatted `knuq 73.4° @ 5:15 pm`; null suppresses the dominant-station annotation entirely. */
-        dominantStationText: String? = null,
+        /** Pre-formatted `knuq 73.4° @ 5:15 pm` (with segments for mixed sizing); null suppresses the annotation entirely. */
+        dominantStationLabel: DominantStationLabel.LabelText? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -301,7 +302,7 @@ object TemperatureGraphRenderer {
         TemperatureGraphAnnotationRenderer.placeDominantStationLabel(
             annotationInput,
             hours,
-            dominantStationText,
+            dominantStationLabel,
         )
         TemperatureGraphAnnotationRenderer.placeGhostLineLabel(annotationInput, hours)
 

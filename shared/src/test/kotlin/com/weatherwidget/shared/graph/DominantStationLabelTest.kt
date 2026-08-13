@@ -184,6 +184,41 @@ class DominantStationLabelTest {
         assertNull(DominantStationLabel.format("KNUQ", null, useCelsius = false))
     }
 
+    // ---- formatLabelText (mixed-size segments) ----
+
+    @Test
+    fun formatLabelTextSplitsTheLabelIntoStationTemperatureAndTime() {
+        val label =
+            requireNotNull(
+                DominantStationLabel.formatLabelText("KNUQ", 73.4f, useCelsius = false, lastReadingMs = msAt(17, 15), zoneId = zone),
+            )
+        assertEquals("knuq 73.4° @ 5:15 pm", label.fullText)
+        assertEquals(
+            listOf(
+                DominantStationLabel.Segment("knuq ", DominantStationLabel.Part.STATION),
+                DominantStationLabel.Segment("73.4°", DominantStationLabel.Part.TEMPERATURE),
+                DominantStationLabel.Segment(" @ 5:15 pm", DominantStationLabel.Part.TIME),
+            ),
+            label.segments,
+        )
+    }
+
+    @Test
+    fun formatLabelTextWithoutTimeHasNoTimeSegment() {
+        val label =
+            requireNotNull(
+                DominantStationLabel.formatLabelText("KNUQ", 73.4f, useCelsius = false, lastReadingMs = null, zoneId = zone),
+            )
+        assertEquals("knuq 73.4°", label.fullText)
+        assertEquals(
+            listOf(
+                DominantStationLabel.Segment("knuq ", DominantStationLabel.Part.STATION),
+                DominantStationLabel.Segment("73.4°", DominantStationLabel.Part.TEMPERATURE),
+            ),
+            label.segments,
+        )
+    }
+
     // ---- visibility ----
 
     @Test

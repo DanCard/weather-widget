@@ -21,8 +21,11 @@ object TemperatureGraphStyle {
     const val HOUR_LABEL_SIZE_DP = 23f
     const val NOW_LABEL_SIZE_DP = 15.5f
     const val DAY_LABEL_SIZE_DP = 23f
-    const val VALUE_LABEL_SIZE_DP = 25.3f // 23dp + 10%
-    const val STALENESS_LABEL_SIZE_DP = 12f
+    const val FETCH_DOT_VALUE_LABEL_SIZE_DP = 25f
+    const val STALENESS_LABEL_SIZE_DP = 18f
+    // Temperature inside the dominant-station label; the station id and `@ time` stay at
+    // STALENESS_LABEL_SIZE_DP (mixed-size label).
+    const val DOMINANT_TEMP_LABEL_SIZE_DP = 25f
     const val DOT_RADIUS_DP = 3.2f
     const val RING_STROKE_DP = 1.5f
     const val OUTER_RING_STROKE_DP = 0.5f
@@ -195,9 +198,9 @@ object TemperatureGraphStyle {
             strokeWidth = dpToPx(context, OUTER_RING_STROKE_DP * labelScale)
         }
 
-        val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val fetchDotValueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_ACTUAL_LINE
-            textSize = dpToPx(context, VALUE_LABEL_SIZE_DP * labelScale)
+            textSize = dpToPx(context, FETCH_DOT_VALUE_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.LEFT
             setShadowLayer(dpToPx(context, HourlyGraphDefaults.TEMP_LABEL_SHADOW_RADIUS_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.TEMP_LABEL_SHADOW_DY_DP * labelScale), HourlyGraphDefaults.COLOR_SHADOW_SOLID)
         }
@@ -206,6 +209,16 @@ object TemperatureGraphStyle {
             color = COLOR_ACTUAL_LINE
             textSize = dpToPx(context, STALENESS_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
+        }
+
+        // Temperature segment of the dominant-station label, drawn larger than the station/time
+        // segments that share the staleness paint above. LEFT-aligned because the segment renderer
+        // draws each run at an explicit x.
+        val dominantTempTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_ACTUAL_LINE
+            textSize = dpToPx(context, DOMINANT_TEMP_LABEL_SIZE_DP * labelScale)
+            textAlign = Paint.Align.LEFT
             setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
         }
 
@@ -252,8 +265,9 @@ object TemperatureGraphStyle {
             todayDayLabelPaint = todayDayLabelPaint,
             ringPaint = ringPaint,
             outerRingPaint = outerRingPaint,
-            valueTextPaint = valueTextPaint,
+            fetchDotValueTextPaint = fetchDotValueTextPaint,
             stalenessTextPaint = stalenessTextPaint,
+            dominantTempTextPaint = dominantTempTextPaint,
             actualLeaderLinePaint = actualLeaderLinePaint,
             forecastLeaderLinePaint = forecastLeaderLinePaint,
             dotPaint = dotPaint,

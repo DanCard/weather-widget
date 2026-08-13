@@ -64,6 +64,18 @@ object DominantStationLabel {
         val box: GraphRect,
     )
 
+    /** The three visual parts of the label, so renderers can size the temperature independently. */
+    enum class Part { STATION, TEMPERATURE, TIME }
+
+    /** One run of the label with a single part role, e.g. `knuq ` / `66.2°` / ` @ 8:10 pm`. */
+    data class Segment(val text: String, val part: Part)
+
+    /**
+     * The formatted label as segments plus their concatenation. [fullText] matches [format]; the
+     * segments preserve the structure (and the position of the temperature) for mixed-size drawing.
+     */
+    data class LabelText(val fullText: String, val segments: List<Segment>)
+
     /**
      * The app's established time-of-day pattern (Observations, the fetch-failure indicator, the
      * forecast-evolution view), lowercased to match the lowercased callsign — at 9sp a shouted "PM"
@@ -87,9 +99,20 @@ object DominantStationLabel {
         contribution: BlendContribution?,
         useCelsius: Boolean,
         zoneId: ZoneId = ZoneId.systemDefault(),
-    ): String? {
+    ): String? = formatLabelText(contribution, useCelsius, zoneId)?.fullText
+
+    /**
+     * Structured form of [format] for renderers that style the temperature differently from the
+     * station id and reading time. Returns null for the same reasons as [format] — synthetic backfill
+     * rows and missing station/temperature.
+     */
+    fun formatLabelText(
+        contribution: BlendContribution?,
+        useCelsius: Boolean,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): LabelText? {
         if (contribution == null || contribution.isSynthetic) return null
-        return format(
+        return formatLabelText(
             stationId = contribution.stationId,
             rawTemp = contribution.rawTemp,
             useCelsius = useCelsius,
@@ -115,7 +138,20 @@ object DominantStationLabel {
         useCelsius: Boolean,
         lastReadingMs: Long? = null,
         zoneId: ZoneId = ZoneId.systemDefault(),
-    ): String? {
+    ): String? = formatLabelText(stationId, rawTemp, useCelsius, lastReadingMs, zoneId)?.fullText
+
+    /**
+     * Builds the label as distinct segments — station id, temperature, and `@ time` — so a renderer
+     * can size the temperature separately. The concatenation ([LabelText.fullText]) is exactly what
+     * [format] returns.
+     */
+    fun formatLabelText(
+        stationId: String?,
+        rawTemp: Float?,
+        useCelsius: Boolean,
+        lastReadingMs: Long? = null,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): LabelText? {
         val id = stationId?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val temp = TempUtils.formatTemp(rawTemp, useCelsius) ?: return null
         val at = lastReadingMs?.takeIf { it > 0L }?.let { ms ->
@@ -123,7 +159,15 @@ object DominantStationLabel {
                 Instant.ofEpochMilli(ms).atZone(zoneId).format(READING_TIME).lowercase(Locale.getDefault())
             }.getOrNull()
         }
-        return if (at != null) "${id.lowercase()} $temp @ $at" else "${id.lowercase()} $temp"
+        val segments = buildList {
+            add(Segment("${id.lowercase()} ", Part.STATION))
+            add(Segment(temp, Part.TEMPERATURE))
+            if (at != null) add(Segment(" @ $at", Part.TIME))
+        }
+        return LabelText(
+            fullText = segments.joinToString(separator = "") { it.text },
+            segments = segments,
+        )
     }
 
     /**

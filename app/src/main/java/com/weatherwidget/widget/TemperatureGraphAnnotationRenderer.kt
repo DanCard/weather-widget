@@ -353,38 +353,79 @@ internal object TemperatureGraphAnnotationRenderer {
     fun placeDominantStationLabel(
         input: Input,
         hours: List<HourData>,
-        dominantStationText: String?,
+        dominantStationLabel: DominantStationLabel.LabelText?,
     ) {
-        val text = dominantStationText?.takeIf { it.isNotBlank() } ?: return
-        if (hours.size < 2) return
-        val spanHours = Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
-        val paint = input.paints.stalenessTextPaint
-        val ghostVisible = ghostLineVisible(input, hours)
-        val placement =
-            DominantStationLabel.place(
-                text = text,
-                spanHours = spanHours,
-                plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
-                drawnBounds = input.graphObstacles(),
-                curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
-                metrics =
-                    GraphEmptySpaceFinder.Metrics(
-                        width = paint.measureText(text),
-                        ascent = TemperatureGraphStyle.fontAscent(paint),
-                        descent = TemperatureGraphStyle.fontDescent(paint),
-                    ),
-                padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
-            ) ?: return
-        input.canvas.drawText(
-            placement.text,
-            placement.centerX,
-            placement.baselineY,
-            paint,
-        )
-        input.obstacles.add(
-            TemperatureGraphObstacleType.DOMINANT_STATION,
-            placement.box.toRectF(),
-        )
+        val text = dominantStationLabel?.fullText?.takeIf { it.isNotBlank() }
+        val spanHours =
+            if (hours.size >= 2) {
+                Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+            } else {
+                0L
+            }
+        val reason: String
+        if (dominantStationLabel == null) {
+            reason = "no_text"
+        } else if (hours.size < 2) {
+            reason = "too_few_hours"
+        } else if (spanHours > DominantStationLabel.MAX_HOURS_SPAN) {
+            reason = "span_too_wide"
+        } else {
+            val ghostVisible = ghostLineVisible(input, hours)
+            val tempPaint = input.paints.dominantTempTextPaint
+            val smallPaint = input.paints.stalenessTextPaint
+            val segmentWidths =
+                dominantStationLabel.segments.map { segment ->
+                    val paint =
+                        if (segment.part == DominantStationLabel.Part.TEMPERATURE) tempPaint else smallPaint
+                    paint.measureText(segment.text)
+                }
+            val totalWidth = segmentWidths.sum()
+            val placement =
+                DominantStationLabel.place(
+                    text = text,
+                    spanHours = spanHours,
+                    plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
+                    drawnBounds = input.graphObstacles(),
+                    curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
+                    metrics =
+                        GraphEmptySpaceFinder.Metrics(
+                            width = totalWidth,
+                            ascent = TemperatureGraphStyle.fontAscent(tempPaint),
+                            descent = TemperatureGraphStyle.fontDescent(tempPaint),
+                        ),
+                    padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
+                )
+            if (placement != null) {
+                var x = placement.box.left
+                dominantStationLabel.segments.forEachIndexed { index, segment ->
+                    val paint =
+                        if (segment.part == DominantStationLabel.Part.TEMPERATURE) {
+                            Paint(tempPaint).apply { textAlign = Paint.Align.LEFT }
+                        } else {
+                            Paint(smallPaint).apply { textAlign = Paint.Align.LEFT }
+                        }
+                    input.canvas.drawText(segment.text, x, placement.baselineY, paint)
+                    x += segmentWidths[index]
+                }
+                input.obstacles.add(
+                    TemperatureGraphObstacleType.DOMINANT_STATION,
+                    placement.box.toRectF(),
+                )
+                reason = "drawn"
+            } else {
+                reason = "no_empty_band"
+            }
+        }
+        // Mirrors the desktop DominantStationDiag. Placement-side reasons only: the upstream
+        // no_contribution/synthetic/format_null gate lives in TemperatureStateResolver.
+        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+            Log.v(
+                TAG,
+                "DominantStationDiag: reason=$reason spanH=$spanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
+                    "text=${text ?: "null"} drawnBounds=${input.obstacles.bounds().size} " +
+                    "plotW=${input.widthPx} plotH=${(input.graphBottom - input.graphTop).roundToInt()}",
+            )
+        }
     }
 
     fun placeGhostLineLabel(

@@ -100,7 +100,7 @@ internal object TemperatureFetchDotRenderer {
         val clampedX = fetchDotX.coerceIn(dotRadius, input.widthPx - dotRadius)
         val outerRadius = dotRadius + input.paints.ringPaint.strokeWidth / 2f
         val valueLabel = TemperatureGraphStyle.formatTemp(lastObservedTemp, input.useCelsius) + "°"
-        val valuePaint = input.paints.valueTextPaint
+        val valuePaint = input.paints.fetchDotValueTextPaint
         val ageLabel = resolveAgeLabel(input)
         val baseSideGap =
             TemperatureGraphStyle.dpToPx(
@@ -195,7 +195,7 @@ internal object TemperatureFetchDotRenderer {
 
         plan.valueLayout?.let { valueLayout ->
             val localValuePaint =
-                Paint(input.paints.valueTextPaint).apply {
+                Paint(input.paints.fetchDotValueTextPaint).apply {
                     textAlign = valueLayout.align
                 }
             input.canvas.drawText(plan.valueLabel, valueLayout.x, valueLayout.y, localValuePaint)
@@ -218,7 +218,7 @@ internal object TemperatureFetchDotRenderer {
                     } else {
                         plan.valueLabel
                     },
-                valueColor = input.paints.valueTextPaint.color,
+                valueColor = input.paints.fetchDotValueTextPaint.color,
                 stalenessColor = plan.staleness?.let { input.paints.stalenessTextPaint.color },
                 stalenessLabelY = finalAgeY,
             ),

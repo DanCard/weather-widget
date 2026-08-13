@@ -19,9 +19,12 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.mutableStateOf
@@ -158,6 +161,7 @@ fun TemperatureGraph(
     val lastActualDiagKey = remember { mutableStateOf("") }
     val lastGapLabelDiagKey = remember { mutableStateOf("") }
     val lastGhostLabelDiagKey = remember { mutableStateOf("") }
+    val lastDominantDiagKey = remember { mutableStateOf("") }
 
     val backHours = DesktopGraphUtils.backHoursFor(zoomFactor)
     val forwardHours = DesktopGraphUtils.forwardHoursFor(zoomFactor)
@@ -497,7 +501,7 @@ fun TemperatureGraph(
                 val ageTextLayout = textMeasurer.measure(
                     ageLabelText,
                     TextStyle(
-                        fontSize = (9 * scale).sp,
+                        fontSize = (11.25f * scale).sp,
                         color = COLOR_ACTUAL,
                         shadow = androidx.compose.ui.graphics.Shadow(
                             color = Color.Black.copy(alpha = 0.7f),
@@ -710,7 +714,7 @@ fun TemperatureGraph(
             val deltaSpanHours = (windowEnd - windowStart) / 3_600_000L
             val deltaText = ForecastDeltaLabel.format(appliedDelta, useCelsius)
             val deltaStyle = TextStyle(
-                fontSize = (9 * scale).sp,
+                fontSize = (11.25f * scale).sp,
                 shadow = androidx.compose.ui.graphics.Shadow(
                     color = Color.Black.copy(alpha = 0.7f),
                     offset = Offset(0f, 1f * scale),
@@ -748,14 +752,27 @@ fun TemperatureGraph(
         // in the observed-line color because that is the line it explains. Nothing is drawn when the
         // window is too wide (the 3-day view and beyond), the plot has no clear band, or the blend is
         // being driven by a synthetic backfill row rather than a real station (every non-NWS source).
-        val dominantText = DominantStationLabel.format(
-            contribution = actualSeries.latestDominantContribution?.contribution,
+        val dominantContribution = actualSeries.latestDominantContribution?.contribution
+        val dominantSpanHours = (windowEnd - windowStart) / 3_600_000L
+        val dominantLabel = DominantStationLabel.formatLabelText(
+            contribution = dominantContribution,
             useCelsius = useCelsius,
             zoneId = zoneId,
         )
-        if (dominantText != null) {
+        val dominantText = dominantLabel?.fullText
+        // Why the label may be dropped, resolved BEFORE placement so a too-wide window is not
+        // misreported as "no_empty_band" (DominantStationLabel.place gates span internally too).
+        var dominantReason: String? =
+            when {
+                dominantContribution == null -> "no_contribution"
+                dominantContribution.isSynthetic -> "synthetic"
+                dominantText == null -> "format_null"
+                dominantSpanHours > DominantStationLabel.MAX_HOURS_SPAN -> "span_too_wide"
+                else -> null
+            }
+        if (dominantLabel != null && dominantReason == null) {
             val dominantStyle = TextStyle(
-                fontSize = (9 * scale).sp,
+                fontSize = (11.25f * scale).sp,
                 color = COLOR_ACTUAL,
                 shadow = androidx.compose.ui.graphics.Shadow(
                     color = Color.Black.copy(alpha = 0.7f),
@@ -763,24 +780,71 @@ fun TemperatureGraph(
                     blurRadius = 2f * scale,
                 ),
             )
-            val measured = textMeasurer.measure(dominantText, dominantStyle)
+            // Mixed-size: the temperature runs at the graph's temp-label size while the station id
+            // and `@ time` inherit the small annotation size from dominantStyle. One AnnotatedString
+            // so Compose lays the spans out on a shared baseline.
+            val annotated = buildAnnotatedString {
+                dominantLabel.segments.forEach { segment ->
+                    if (segment.part == DominantStationLabel.Part.TEMPERATURE) {
+                        withStyle(SpanStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp)) {
+                            append(segment.text)
+                        }
+                    } else {
+                        append(segment.text)
+                    }
+                }
+            }
+            val measured = textMeasurer.measure(annotated, dominantStyle)
+            val dominantPlot = GraphRect(0f, top, w, footer.graphBottom(h, scale))
+            val dominantPadPx = 6f * scale
+            val dominantMetrics = GraphEmptySpaceFinder.Metrics(
+                width = measured.size.width.toFloat(),
+                ascent = -measured.size.height.toFloat(),
+                descent = 0f,
+            )
             val placement = DominantStationLabel.place(
                 text = dominantText,
-                spanHours = (windowEnd - windowStart) / 3_600_000L,
-                plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
+                spanHours = dominantSpanHours,
+                plot = dominantPlot,
                 drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
                 curveYsAt = ::visibleCurveYsAt,
-                metrics = GraphEmptySpaceFinder.Metrics(
-                    width = measured.size.width.toFloat(),
-                    ascent = -measured.size.height.toFloat(),
-                    descent = 0f,
-                ),
-                padPx = 6f * scale,
+                metrics = dominantMetrics,
+                padPx = dominantPadPx,
             )
             if (placement != null) {
                 val topLeft = Offset(placement.box.left, placement.box.top)
                 drawText(measured, topLeft = topLeft)
                 drawnLabels.add(Rect(topLeft, Size(measured.size.width.toFloat(), measured.size.height.toFloat())))
+                dominantReason = "drawn"
+            } else {
+                dominantReason = "no_empty_band"
+            }
+        }
+
+        // TEMP DIAGNOSTIC: why is the dominant-station label absent? Mirrors the GapLabelDiag/
+        // GhostLabelDiag pattern — fires once per change so it doesn't spam the console/autostart log
+        // on every recomposition. Keep; these graph-label bugs recur.
+        run {
+            val key =
+                listOf(
+                    dominantReason,
+                    dominantText,
+                    dominantSpanHours,
+                    dominantContribution?.stationId,
+                    dominantContribution?.rawTemp,
+                    w,
+                    h,
+                    drawnLabels.size,
+                ).joinToString("|")
+            if (key != lastDominantDiagKey.value) {
+                lastDominantDiagKey.value = key
+                Log.i(
+                    "DominantStationDiag",
+                    "reason=${dominantReason ?: "unknown"} spanH=$dominantSpanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
+                        "contribution=${dominantContribution?.let { "${it.stationId} raw=${it.rawTemp} synthetic=${it.isSynthetic}" } ?: "null"} " +
+                        "text=${dominantText ?: "null"} drawnBounds=${drawnLabels.size} " +
+                        "plotW=${w.roundToInt()} plotH=${(footer.graphBottom(h, scale) - top).roundToInt()}",
+                )
             }
         }
 

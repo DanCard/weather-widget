@@ -324,6 +324,28 @@ internal object TemperatureStateResolver {
         if (useGraph) {
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
+            val dominantContribution = dominantStation?.contribution
+            val dominantStationLabel =
+                DominantStationLabel.formatLabelText(
+                    contribution = dominantContribution,
+                    useCelsius = useCelsius,
+                )
+            val dominantTextReason =
+                when {
+                    dominantContribution == null -> "no_contribution"
+                    dominantContribution.isSynthetic -> "synthetic"
+                    dominantStationLabel == null -> "format_null"
+                    else -> "text_ok"
+                }
+            // Mirrors the desktop DominantStationDiag. Upstream gate only: the placement-side
+            // span_too_wide/no_empty_band/drawn gate lives in TemperatureGraphAnnotationRenderer.
+            Log.v(
+                TAG,
+                "DominantStationDiag: source=${displaySource.id} reason=$dominantTextReason " +
+                    "contribution=${dominantContribution?.let { "${it.stationId} raw=${it.rawTemp} synthetic=${it.isSynthetic}" } ?: "null"} " +
+                    "text=${dominantStationLabel?.fullText ?: "null"}",
+            )
+
             val renderStartMs = System.currentTimeMillis()
             bitmap = try {
                 TemperatureGraphRenderer.renderGraph(
@@ -344,11 +366,7 @@ internal object TemperatureStateResolver {
                     errorCode = stateManager.getSourceLastErrorCode(displaySource),
                     errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
                     useCelsius = useCelsius,
-                    dominantStationText =
-                        DominantStationLabel.format(
-                            contribution = dominantStation?.contribution,
-                            useCelsius = useCelsius,
-                        ),
+                    dominantStationLabel = dominantStationLabel,
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "renderGraph failed", e)
