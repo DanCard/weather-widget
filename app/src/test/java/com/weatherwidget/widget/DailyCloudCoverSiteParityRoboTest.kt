@@ -23,7 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -155,7 +155,7 @@ class DailyCloudCoverSiteParityRoboTest {
         provider.scope = CoroutineScope(SupervisorJob() + testDispatcher)
         ShadowLog.clear()
         provider.onUpdate(context, mockAppWidgetManager, intArrayOf(widgetId))
-        advanceUntilIdle()
+        awaitStartupPaintCompletion(testScheduler)
 
         // Breadcrumb asserts first (repo pattern): a startup paint that errors or is cancelled
         // logs HOURLY_PAINT_TRACE and would otherwise fail this test with an opaque
@@ -180,6 +180,33 @@ class DailyCloudCoverSiteParityRoboTest {
             onUpdateRatio,
             0.0f,
         )
+    }
+
+    /**
+     * Drives the virtual test scheduler AND waits for the onUpdate startup paint to finish on
+     * Room's real executor threads. advanceUntilIdle() alone returns as soon as the virtual queue is
+     * empty — which is the moment the render coroutine first suspends on a DAO read, before the real
+     * thread completes it — so under full-suite load the paint could still be in flight when the
+     * asserts run. Poll the startup_done / startup_ERROR / startup_CANCELLED breadcrumb that
+     * WidgetStartupCoordinator writes AFTER WidgetRenderer.updateWidgetWithData returns, bounded by a
+     * real-time deadline, so the test never races an in-flight paint.
+     */
+    private suspend fun awaitStartupPaintCompletion(testScheduler: TestCoroutineScheduler) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline) {
+            testScheduler.advanceUntilIdle()
+            val trace = db.appLogDao().getLogsByTag("HOURLY_PAINT_TRACE", 20)
+            if (trace.any {
+                    it.message.startsWith("phase=startup_done") ||
+                        it.message.startsWith("phase=startup_ERROR") ||
+                        it.message.startsWith("phase=startup_CANCELLED")
+                }
+            ) {
+                return
+            }
+            Thread.sleep(10)
+        }
+        testScheduler.advanceUntilIdle()
     }
 
     /**
