@@ -207,6 +207,8 @@
     <string name="widget_no_hourly_result_still_missing">Результат оновлення: нових погодинних даних температури для %1$s отримати не вдалося. Дані закінчуються %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Результат оновлення: нових погодинних даних температури для %1$s отримати не вдалося.</string>
     <string name="widget_no_hourly_result_available">Результат оновлення:\nПогодинні дані для %1$s тепер доступні</string>
+    <string name="widget_nav_no_history">Більше немає доступної історії</string>
+    <string name="widget_nav_no_forecast">Більше немає доступних прогнозів</string>
     <string name="units_title">Одиниці</string>
     <string name="use_celsius_label">Використовувати градуси Цельсія</string>
     <string name="today_overlay_title">Денний вигляд — Колонка «Сьогодні»</string>

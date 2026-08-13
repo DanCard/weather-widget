@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">ریفریش کا نتیجہ: %1$s کے لیے نیا گھنٹہ وار درجہ حرارت ڈیٹا حاصل نہیں ہو سکا۔ ڈیٹا %2$s پر ختم ہوتا ہے</string>
     <string name="widget_no_hourly_result_still_missing_unknown">ریفریش کا نتیجہ: %1$s کے لیے نیا گھنٹہ وار درجہ حرارت ڈیٹا حاصل نہیں ہو سکا۔</string>
     <string name="widget_no_hourly_result_available">ریفریش کے نتائج:\n%1$s کے لیے گھنٹہ وار ڈیٹا اب دستیاب ہے</string>
+    <string name="widget_nav_no_history">مزید کوئی تاریخ دستیاب نہیں</string>
+    <string name="widget_nav_no_forecast">مزید کوئی پیش گوئی دستیاب نہیں</string>
     <string name="units_title">اکائیاں</string>
     <string name="use_celsius_label">سیلسیس استعمال کریں</string>
     <string name="today_overlay_title">روزانہ منظر — آج کا کالم</string>

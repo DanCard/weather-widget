@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">更新結果：%1$s の新しい 1 時間ごとの気温データは取得できませんでした。データは %2$s で終わっています</string>
     <string name="widget_no_hourly_result_still_missing_unknown">更新結果：%1$s の新しい 1 時間ごとの気温データは取得できませんでした。</string>
     <string name="widget_no_hourly_result_available">更新結果：\n%1$s の 1 時間ごとのデータが利用可能になりました</string>
+    <string name="widget_nav_no_history">これ以上の履歴はありません</string>
+    <string name="widget_nav_no_forecast">これ以上の予報はありません</string>
     <string name="units_title">単位</string>
     <string name="use_celsius_label">摂氏を使用</string>
     <string name="today_overlay_title">日表示 — 今日の列</string>

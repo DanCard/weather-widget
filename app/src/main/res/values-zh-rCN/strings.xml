@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">刷新结果：未能获取 %1$s 的新逐小时温度数据。数据截至 %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">刷新结果：未能获取 %1$s 的新逐小时温度数据。</string>
     <string name="widget_no_hourly_result_available">刷新结果：\n%1$s 的逐小时数据现已可用</string>
+    <string name="widget_nav_no_history">没有更多历史记录</string>
+    <string name="widget_nav_no_forecast">没有更多预报</string>
     <string name="units_title">单位</string>
     <string name="use_celsius_label">使用摄氏度</string>
     <string name="today_overlay_title">每日视图 — 今日列</string>

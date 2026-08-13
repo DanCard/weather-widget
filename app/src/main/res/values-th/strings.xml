@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">ผลการรีเฟรช: ไม่สามารถดึงข้อมูลอุณหภูมิรายชั่วโมงใหม่ของ %1$s ได้ ข้อมูลสิ้นสุดที่ %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">ผลการรีเฟรช: ไม่สามารถดึงข้อมูลอุณหภูมิรายชั่วโมงใหม่ของ %1$s ได้</string>
     <string name="widget_no_hourly_result_available">ผลการรีเฟรช:\nข้อมูลรายชั่วโมงของ %1$s พร้อมใช้งานแล้ว</string>
+    <string name="widget_nav_no_history">ไม่มีประวัติเพิ่มเติม</string>
+    <string name="widget_nav_no_forecast">ไม่มีการพยากรณ์เพิ่มเติม</string>
     <string name="units_title">หน่วย</string>
     <string name="use_celsius_label">ใช้เซลเซียส</string>
     <string name="today_overlay_title">มุมมองรายวัน — คอลัมน์วันนี้</string>

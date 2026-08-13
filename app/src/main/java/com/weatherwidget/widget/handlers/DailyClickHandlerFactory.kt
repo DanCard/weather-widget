@@ -33,28 +33,28 @@ internal object DailyClickHandlerFactory {
         precipProbability: Int? = null,
     ): Intent {
         val isHistory = date.isBefore(now.toLocalDate())
-        val showHistory = DayClickHelper.shouldShowHistory(isHistory)
 
         return Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_DAY_CLICK
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra("date", date.toString())
             putExtra("isHistory", isHistory)
-            putExtra("showHistory", showHistory)
+            // Day-column taps always route to the hourly graph, never history. The explicit false
+            // keeps the intent contract unambiguous: the coordinator only honors an explicit true
+            // from the dedicated forecast-history shortcut.
+            putExtra("showHistory", false)
             putExtra("index", dayIndex)
             putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
             putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
             putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
             clickSource?.let { putExtra(WidgetActions.EXTRA_CLICK_SOURCE, it) }
 
-            if (!showHistory) {
-                val targetMode = targetModeOverride
-                    ?: if (isHistory) ViewMode.TEMPERATURE
-                    else DayClickHelper.resolveDailyTargetViewMode(iconRes, precipProbability)
-                val offset = offsetOverride ?: DayClickHelper.calculatePrecipitationOffset(now, date)
-                putExtra(WidgetActions.EXTRA_TARGET_VIEW, targetMode.name)
-                putExtra(WidgetActions.EXTRA_HOURLY_OFFSET, offset)
-            }
+            val targetMode = targetModeOverride
+                ?: if (isHistory) ViewMode.TEMPERATURE
+                else DayClickHelper.resolveDailyTargetViewMode(iconRes, precipProbability)
+            val offset = offsetOverride ?: DayClickHelper.calculatePrecipitationOffset(now, date)
+            putExtra(WidgetActions.EXTRA_TARGET_VIEW, targetMode.name)
+            putExtra(WidgetActions.EXTRA_HOURLY_OFFSET, offset)
         }
     }
 

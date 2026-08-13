@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">Wynik odświeżania: nie udało się pobrać nowych godzinowych danych temperatury dla %1$s. Dane kończą się %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Wynik odświeżania: nie udało się pobrać nowych godzinowych danych temperatury dla %1$s.</string>
     <string name="widget_no_hourly_result_available">Wynik odświeżania:\nDane godzinowe dla %1$s są już dostępne</string>
+    <string name="widget_nav_no_history">Brak dodatkowej historii</string>
+    <string name="widget_nav_no_forecast">Brak kolejnych prognoz</string>
     <string name="units_title">Jednostki</string>
     <string name="use_celsius_label">Używaj stopni Celsjusza</string>
     <string name="today_overlay_title">Widok dzienny — Kolumna „Dziś”</string>

@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">Ergebnis der Aktualisierung: Keine neuen stündlichen Temperaturdaten für %1$s abrufbar. Daten enden %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Ergebnis der Aktualisierung: Keine neuen stündlichen Temperaturdaten für %1$s abrufbar.</string>
     <string name="widget_no_hourly_result_available">Ergebnis der Aktualisierung:\nStündliche Daten für %1$s jetzt verfügbar</string>
+    <string name="widget_nav_no_history">Kein weiterer Verlauf verfügbar</string>
+    <string name="widget_nav_no_forecast">Keine weitere Vorhersage verfügbar</string>
     <string name="units_title">Einheiten</string>
     <string name="use_celsius_label">Celsius verwenden</string>
     <string name="today_overlay_title">Tagesansicht — Spalte „Heute“</string>

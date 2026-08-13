@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">Kết quả làm mới: Không lấy được dữ liệu nhiệt độ theo giờ mới cho %1$s. Dữ liệu kết thúc %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Kết quả làm mới: Không lấy được dữ liệu nhiệt độ theo giờ mới cho %1$s.</string>
     <string name="widget_no_hourly_result_available">Kết quả làm mới:\nDữ liệu theo giờ cho %1$s đã sẵn sàng</string>
+    <string name="widget_nav_no_history">Không có thêm lịch sử</string>
+    <string name="widget_nav_no_forecast">Không có thêm dự báo</string>
     <string name="units_title">Đơn vị</string>
     <string name="use_celsius_label">Dùng độ C</string>
     <string name="today_overlay_title">Chế độ xem hằng ngày — Cột hôm nay</string>

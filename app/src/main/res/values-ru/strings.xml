@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">Результат обновления: новые почасовые данные о температуре для %1$s получить не удалось. Данные заканчиваются %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Результат обновления: новые почасовые данные о температуре для %1$s получить не удалось.</string>
     <string name="widget_no_hourly_result_available">Результат обновления:\nПочасовые данные для %1$s теперь доступны</string>
+    <string name="widget_nav_no_history">Больше нет доступной истории</string>
+    <string name="widget_nav_no_forecast">Больше нет доступных прогнозов</string>
     <string name="units_title">Единицы измерения</string>
     <string name="use_celsius_label">Использовать Цельсий</string>
     <string name="today_overlay_title">Дневной вид — Колонка «Сегодня»</string>

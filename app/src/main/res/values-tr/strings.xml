@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">Yenileme sonucu: %1$s için yeni saatlik sıcaklık verisi alınamadı. Veriler %2$s tarihinde bitiyor</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Yenileme sonucu: %1$s için yeni saatlik sıcaklık verisi alınamadı.</string>
     <string name="widget_no_hourly_result_available">Yenileme sonucu:\n%1$s için saatlik veriler artık mevcut</string>
+    <string name="widget_nav_no_history">Başka geçmiş yok</string>
+    <string name="widget_nav_no_forecast">Başka tahmin yok</string>
     <string name="units_title">Birimler</string>
     <string name="use_celsius_label">Celsius kullan</string>
     <string name="today_overlay_title">Günlük Görünüm — Bugün Sütunu</string>

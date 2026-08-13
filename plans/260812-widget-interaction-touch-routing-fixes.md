@@ -36,12 +36,16 @@ Verification: `:app` Robolectric batch for the day-click/router tests.
   normal day taps (history is reachable only via the dedicated icon, which sets `showHistory=true`
   directly). Delete the dead branch/extras or document the intentional split.
 
-## Phase 3 — Medium: localization + dead-zone UX (finding #4)
+## Phase 3 — Medium: localization + dead-zone debug signal (finding #4)
 
-- Move the hardcoded English toasts ("No additional history available", "No more forecast
-  available", "Dead zone tapped") into `res/values/strings.xml`.
-- Make the `widget_root` dead-zone catch-all silent (no user-visible toast); keep it as a
-  no-op/VERBOSE-log absorber.
+- Move the two user-facing boundary toasts ("No additional history available", "No more forecast
+  available") into `res/values/strings.xml` (`widget_nav_no_history`, `widget_nav_no_forecast`) in
+  both emit sites: `TemperatureTouchTargets.setupNavigationButtons` and
+  `DailyViewHandler.setupNavigationButtons`.
+- The `widget_root` catch-all is intentionally NOT silent: a dead-zone tap means a touch-routing
+  gap and should never happen, and its job is to ensure the home screen never takes over. Keep the
+  "Dead zone tapped" toast as a debug-only signal (`BuildConfig.DEBUG`); release absorbs the tap
+  silently with a blank message so no debug text ships to production.
 
 ## Phase 4 — Medium: log severity + guard dedupe (finding #5)
 

@@ -12,7 +12,6 @@ object WidgetRequestCodes {
     private const val BASE_API_TOGGLE = 100
     private const val BASE_VIEW_TOGGLE = 200
     private const val BASE_PRECIP_TOGGLE = 300
-    private const val BASE_DUAL_TOGGLE = 350
     private const val BASE_CYCLE_ZOOM = 400
     private const val BASE_ZOOM_ZONE = 500
     private const val BASE_SET_TEMP = 600
@@ -36,7 +35,6 @@ object WidgetRequestCodes {
     fun apiToggle(id: Int) = id * 10000 + BASE_API_TOGGLE
     fun viewToggle(id: Int) = id * 10000 + BASE_VIEW_TOGGLE
     fun precipToggle(id: Int) = id * 10000 + BASE_PRECIP_TOGGLE
-    fun dualToggle(id: Int) = id * 10000 + BASE_DUAL_TOGGLE
     fun cycleZoom(id: Int) = id * 10000 + BASE_CYCLE_ZOOM
     fun cycleZoomZone(id: Int, index: Int) = id * 10000 + BASE_ZOOM_ZONE + index
     fun setTemperature(id: Int) = id * 10000 + BASE_SET_TEMP

@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">نتيجة التحديث: تعذر جلب بيانات جديدة لدرجة الحرارة بالساعة لـ %1$s. تنتهي البيانات %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">نتيجة التحديث: تعذر جلب بيانات جديدة لدرجة الحرارة بالساعة لـ %1$s.</string>
     <string name="widget_no_hourly_result_available">نتائج التحديث:\nبيانات الساعة متاحة الآن لـ %1$s</string>
+    <string name="widget_nav_no_history">لا يتوفر سجل إضافي</string>
+    <string name="widget_nav_no_forecast">لا تتوفر توقعات إضافية</string>
     <string name="units_title">الوحدات</string>
     <string name="use_celsius_label">استخدام درجة مئوية</string>
     <string name="today_overlay_title">العرض اليومي — عمود اليوم</string>

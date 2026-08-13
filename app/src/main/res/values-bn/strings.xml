@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">রিফ্রেশের ফলাফল: %1$s-এর জন্য নতুন ঘণ্টাভিত্তিক তাপমাত্রার ডেটা আনা যায়নি। ডেটা শেষ হয় %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">রিফ্রেশের ফলাফল: %1$s-এর জন্য নতুন ঘণ্টাভিত্তিক তাপমাত্রার ডেটা আনা যায়নি।</string>
     <string name="widget_no_hourly_result_available">রিফ্রেশের ফলাফল:\n%1$s-এর ঘণ্টাভিত্তিক ডেটা এখন উপলব্ধ</string>
+    <string name="widget_nav_no_history">আর কোনো অতিরিক্ত ইতিহাস নেই</string>
+    <string name="widget_nav_no_forecast">আর কোনো পূর্বাভাস নেই</string>
     <string name="units_title">একক</string>
     <string name="use_celsius_label">সেলসিয়াস ব্যবহার করুন</string>
     <string name="today_overlay_title">দৈনিক ভিউ — আজকের কলাম</string>

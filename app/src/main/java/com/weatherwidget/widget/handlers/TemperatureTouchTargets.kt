@@ -8,6 +8,7 @@ import android.os.Build
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
+import com.weatherwidget.BuildConfig
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -94,7 +95,7 @@ internal fun setupNavigationButtons(
     } else {
         val toastIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SHOW_TOAST
-            putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "No additional history available")
+            putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, context.getString(R.string.widget_nav_no_history))
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         }
         val toastPendingIntent = PendingIntent.getBroadcast(
@@ -122,7 +123,7 @@ internal fun setupNavigationButtons(
     } else {
         val toastIntent = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SHOW_TOAST
-            putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "No more forecast available")
+            putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, context.getString(R.string.widget_nav_no_forecast))
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         }
         val toastPendingIntent = PendingIntent.getBroadcast(
@@ -554,10 +555,14 @@ internal fun setupGraphSelectorShortcut(
 /**
  * Backstop click handler on the widget root. On Samsung (One UI Home), a tap that lands on a region
  * with no PendingIntent falls through to launching the app's LAUNCHER activity (MainActivity), which
- * we don't want. Binding a harmless toast broadcast to [R.id.widget_root] absorbs those "dead zone"
- * taps so the launcher never takes over. RemoteViews dispatches a click to the deepest view that has
- * a PendingIntent, so every real touch zone still wins — only unclaimed taps reach the root.
+ * we don't want. Binding a toast broadcast to [R.id.widget_root] absorbs those "dead zone" taps so
+ * the launcher never takes over. RemoteViews dispatches a click to the deepest view that has a
+ * PendingIntent, so every real touch zone still wins — only unclaimed taps reach the root.
  * Must be set on every render (RemoteViews are rebuilt each update).
+ *
+ * A dead-zone tap means a touch-routing gap and should never happen. The "Dead zone tapped" toast
+ * is a deliberate debug signal (debug builds only); in release the message is left blank so the tap
+ * is absorbed silently and the home screen still never shows.
  */
 internal fun setupDeadZoneCatchAll(
     context: Context,
@@ -566,7 +571,9 @@ internal fun setupDeadZoneCatchAll(
 ) {
     val toastIntent = Intent(context, WidgetActionReceiver::class.java).apply {
         action = WidgetActions.ACTION_SHOW_TOAST
-        putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "Dead zone tapped")
+        if (BuildConfig.DEBUG) {
+            putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "Dead zone tapped")
+        }
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
     }
     val pendingIntent = PendingIntent.getBroadcast(

@@ -69,18 +69,6 @@ class DayClickHelperTest {
         assertFalse(DayClickHelper.hasRainForecast(rainSummary = "", dailyPrecipProbability = 0))
     }
 
-    // ── shouldShowHistory: history routing is disabled; past days now go to temperature graph ──
-
-    @Test
-    fun `past day does not show history`() {
-        assertFalse(DayClickHelper.shouldShowHistory(isPastDay = true))
-    }
-
-    @Test
-    fun `today does not show history`() {
-        assertFalse(DayClickHelper.shouldShowHistory(isPastDay = false))
-    }
-
     // ── icon-home routing ──
 
     @Test
@@ -269,7 +257,6 @@ class DayClickHelperTest {
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability)
 
         assertTrue("Daily precipitation 16% should count as rain", hasRain)
-        assertFalse("Today should NOT show history", DayClickHelper.shouldShowHistory(false))
         assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_rain, dailyPrecipProbability))
     }
 
@@ -301,7 +288,6 @@ class DayClickHelperTest {
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability = 60)
 
         assertTrue(hasRain)
-        assertFalse(DayClickHelper.shouldShowHistory(false))
         assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_storm, 60))
     }
 
@@ -317,15 +303,7 @@ class DayClickHelperTest {
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability = 0)
 
         assertFalse(hasRain)
-        assertFalse(DayClickHelper.shouldShowHistory(false))
         assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear, 0))
-    }
-
-    @Test
-    fun `past day with daily precip no longer routes to history`() {
-        val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = 80)
-        assertTrue(hasRain)
-        assertFalse("Past days route to temperature graph, not history", DayClickHelper.shouldShowHistory(isPastDay = true))
     }
 
     @Test

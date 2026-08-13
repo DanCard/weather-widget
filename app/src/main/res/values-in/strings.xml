@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">Hasil penyegaran: Tidak ada data suhu per jam baru yang dapat diambil untuk %1$s. Data berakhir %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Hasil penyegaran: Tidak ada data suhu per jam baru yang dapat diambil untuk %1$s.</string>
     <string name="widget_no_hourly_result_available">Hasil penyegaran:\nData per jam kini tersedia untuk %1$s</string>
+    <string name="widget_nav_no_history">Tidak ada riwayat tambahan</string>
+    <string name="widget_nav_no_forecast">Tidak ada prakiraan lainnya</string>
     <string name="units_title">Satuan</string>
     <string name="use_celsius_label">Gunakan Celsius</string>
     <string name="today_overlay_title">Tampilan Harian — Kolom Hari Ini</string>

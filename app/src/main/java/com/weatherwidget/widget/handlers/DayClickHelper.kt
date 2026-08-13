@@ -20,8 +20,6 @@ object DayClickHelper {
         return !rainSummary.isNullOrEmpty() || (dailyPrecipProbability != null && dailyPrecipProbability > 8)
     }
 
-    fun shouldShowHistory(@Suppress("UNUSED_PARAMETER") isPastDay: Boolean): Boolean = false
-
     fun resolveDailyTargetViewMode(iconRes: Int?, precipProbability: Int?): ViewMode =
         mapDayClickView(
             DayClickResolver.resolveView(

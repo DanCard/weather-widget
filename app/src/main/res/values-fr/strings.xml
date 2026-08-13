@@ -207,6 +207,8 @@
     <string name="widget_no_hourly_result_still_missing">Résultat de l\'actualisation : aucune nouvelle donnée horaire de température pour %1$s. Les données s\'arrêtent %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Résultat de l\'actualisation : aucune nouvelle donnée horaire de température pour %1$s.</string>
     <string name="widget_no_hourly_result_available">Résultat de l\'actualisation :\nDonnées horaires désormais disponibles pour %1$s</string>
+    <string name="widget_nav_no_history">Aucun historique supplémentaire disponible</string>
+    <string name="widget_nav_no_forecast">Aucune autre prévision disponible</string>
     <string name="units_title">Unités</string>
     <string name="use_celsius_label">Utiliser les degrés Celsius</string>
     <string name="today_overlay_title">Vue quotidienne — Colonne du jour</string>

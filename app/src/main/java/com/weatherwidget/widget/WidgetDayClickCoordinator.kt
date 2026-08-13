@@ -22,8 +22,11 @@ internal object WidgetDayClickCoordinator {
     ) {
         val appWidgetId = widgetId(intent)
         val date = intent.getStringExtra(EXTRA_DATE).orEmpty()
+        // showHistory is an explicit opt-in set only by the dedicated forecast-history shortcut
+        // (setupHistoryShortcutAt). Day-column taps never set it — past days route to the hourly
+        // graph instead of history — so isHistory is log-only here.
         val isHistory = intent.getBooleanExtra(EXTRA_IS_HISTORY, false)
-        val showHistory = intent.getBooleanExtra(EXTRA_SHOW_HISTORY, isHistory)
+        val showHistory = intent.getBooleanExtra(EXTRA_SHOW_HISTORY, false)
         val index = intent.getIntExtra(EXTRA_INDEX, -1)
         val targetViewName =
             intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW) ?: ViewMode.PRECIPITATION.name

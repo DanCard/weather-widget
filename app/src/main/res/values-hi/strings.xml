@@ -211,6 +211,8 @@
     <string name="widget_no_hourly_result_still_missing">रीफ़्रेश का परिणाम: %1$s के लिए नया प्रति घंटा तापमान डेटा नहीं मिल सका। डेटा %2$s पर समाप्त होता है</string>
     <string name="widget_no_hourly_result_still_missing_unknown">रीफ़्रेश का परिणाम: %1$s के लिए नया प्रति घंटा तापमान डेटा नहीं मिल सका।</string>
     <string name="widget_no_hourly_result_available">रीफ़्रेश के परिणाम:\n%1$s के लिए प्रति घंटा डेटा अब उपलब्ध है</string>
+    <string name="widget_nav_no_history">कोई अतिरिक्त इतिहास उपलब्ध नहीं है</string>
+    <string name="widget_nav_no_forecast">कोई और पूर्वानुमान उपलब्ध नहीं है</string>
     <string name="units_title">इकाइयाँ</string>
     <string name="use_celsius_label">सेल्सियस उपयोग करें</string>
     <string name="today_overlay_title">दैनिक दृश्य — आज का कॉलम</string>

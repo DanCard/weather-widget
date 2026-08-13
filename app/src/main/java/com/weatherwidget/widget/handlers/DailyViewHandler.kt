@@ -760,7 +760,7 @@ object DailyViewHandler : WidgetViewHandler {
             requestCode = WidgetRequestCodes.navLeft(appWidgetId),
             navAction = WidgetActions.ACTION_NAV_LEFT,
             canNavigate = canLeft,
-            toastMessage = "No additional history available",
+            toastMessage = context.getString(R.string.widget_nav_no_history),
         )
 
         views.setViewVisibility(R.id.nav_right, View.VISIBLE)
@@ -774,7 +774,7 @@ object DailyViewHandler : WidgetViewHandler {
             requestCode = WidgetRequestCodes.navRight(appWidgetId),
             navAction = WidgetActions.ACTION_NAV_RIGHT,
             canNavigate = canRight,
-            toastMessage = "No more forecast available",
+            toastMessage = context.getString(R.string.widget_nav_no_forecast),
         )
     }
 
