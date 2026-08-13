@@ -10,7 +10,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.handlers.NoHourlyDayClickCoordinator
-import com.weatherwidget.widget.handlers.WidgetIntentRouter
+import com.weatherwidget.widget.handlers.WidgetIntentActionHandler
 import java.time.LocalDate
 
 /** Owns history and two-phase hourly-availability behavior for daily widget taps. */
@@ -235,10 +235,11 @@ internal object WidgetDayClickCoordinator {
             return
         }
 
-        if (targetMode == ViewMode.PRECIPITATION) {
-            stateManager.setZoomLevel(appWidgetId, ZoomStage.WIDE)
-        }
-        WidgetIntentRouter.handleSetView(
+        // The caller (WidgetIntentRouter.handleDayClick) already holds the per-widget mutex, so
+        // call the lock-free action handler directly — re-entering runInteraction would deadlock.
+        // Zoom is reset to WIDE inside setView (previous mode is always DAILY on the day-click
+        // path), so the old explicit setZoomLevel(WIDE) here is gone.
+        WidgetIntentActionHandler.setView(
             context,
             appWidgetId,
             targetMode,

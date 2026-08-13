@@ -67,7 +67,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
                     return
                 }
                 launchForWidget(context, intent) {
-                    WidgetDayClickCoordinator.handleDayClick(context, intent, repository)
+                    WidgetIntentRouter.handleDayClick(context, intent, repository)
                 }
             }
             WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE -> {
@@ -76,7 +76,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
                     return
                 }
                 launchForWidget(context, intent) {
-                    WidgetDayClickCoordinator.handleRefreshComplete(context, intent)
+                    WidgetIntentRouter.handleRefreshComplete(context, intent)
                 }
             }
             WidgetActions.ACTION_NAV_LEFT,

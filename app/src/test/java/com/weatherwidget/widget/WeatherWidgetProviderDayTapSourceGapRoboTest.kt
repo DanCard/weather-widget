@@ -43,16 +43,16 @@ import java.time.temporal.ChronoUnit
 
 /**
  * Broadcast-level regression test for the day-tap NPE (2026-07-08): drives the FULL day-tap
- * chain — ACTION_DAY_CLICK intent → WeatherWidgetProvider.onReceive → goAsync/launchAsync →
- * handleDayClickAction → WidgetIntentRouter.handleSetView → refreshGraphView → render — against
- * the production crash shape (full OPEN_METEO hourly coverage, NWS missing two hours, NWS
- * displayed).
+ * chain — ACTION_DAY_CLICK intent → WidgetActionReceiver.onReceive → goAsync/launchAsync →
+ * WidgetIntentRouter.handleDayClick → WidgetDayClickCoordinator.handleDayClick →
+ * WidgetIntentActionHandler.setView → render — against the production crash shape (full
+ * OPEN_METEO hourly coverage, NWS missing two hours, NWS displayed).
  *
- * With the old `!!` in computeSmoothedForecasts, handleSetView caught an NPE after flipping the
+ * With the old `!!` in computeSmoothedForecasts, setView caught an NPE after flipping the
  * stored view mode: the widget state said TEMPERATURE but no RemoteViews update was ever pushed,
  * so the widget silently stayed on the daily view. Asserting the mode flip alone would therefore
  * pass with the bug — the load-bearing asserts are the captured updateAppWidget call and the
- * SET_VIEW_RENDER_OK / SET_VIEW_FAIL app_logs breadcrumbs.
+ * DAY_CLICK_RENDER_OK / DAY_CLICK_FAIL app_logs breadcrumbs.
  *
  * Harness follows WeatherWidgetProviderNoHourlyRoboTest (scope seam + StandardTestDispatcher;
  * goAsync returns null on direct onReceive and finishPendingResultSafely tolerates it).
@@ -131,13 +131,13 @@ class WeatherWidgetProviderDayTapSourceGapRoboTest {
             stateManager.getViewMode(widgetId),
         )
 
-        // Breadcrumb asserts first: SET_VIEW_FAIL carries the caught exception message, making a
+        // Breadcrumb asserts first: DAY_CLICK_FAIL carries the caught exception message, making a
         // failure here self-diagnosing (the old bug surfaced only as a swallowed logcat line).
-        val fails = db.appLogDao().getLogsByTag("SET_VIEW_FAIL", 10)
-        assertTrue("no SET_VIEW_FAIL row expected; got ${fails.map { it.message }}", fails.isEmpty())
-        val renderOk = db.appLogDao().getLogsByTag("SET_VIEW_RENDER_OK", 10)
+        val fails = db.appLogDao().getLogsByTag("DAY_CLICK_FAIL", 10)
+        assertTrue("no DAY_CLICK_FAIL row expected; got ${fails.map { it.message }}", fails.isEmpty())
+        val renderOk = db.appLogDao().getLogsByTag("DAY_CLICK_RENDER_OK", 10)
         assertTrue(
-            "SET_VIEW_RENDER_OK breadcrumb must be persisted; got ${renderOk.map { it.message }}",
+            "DAY_CLICK_RENDER_OK breadcrumb must be persisted; got ${renderOk.map { it.message }}",
             renderOk.any { it.message.contains("widget=$widgetId") && it.message.contains("mode=TEMPERATURE") },
         )
         assertTrue(

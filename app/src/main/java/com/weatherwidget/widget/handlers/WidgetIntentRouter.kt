@@ -1,11 +1,15 @@
 package com.weatherwidget.widget.handlers
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetDayClickCoordinator
 import com.weatherwidget.widget.WidgetStateManager
 
 /**
@@ -173,6 +177,49 @@ object WidgetIntentRouter {
             repository,
             interactionToken,
         )
+    }
+
+    /**
+     * Serializes the whole day-click transition (transient-message state, zoom/mode transitions,
+     * and the resulting render) under the per-widget mutex. This is the one interaction path that
+     * historically mutated [com.weatherwidget.widget.WidgetStateManager] outside the lock.
+     */
+    suspend fun handleDayClick(
+        context: Context,
+        intent: Intent,
+        repository: WeatherRepository,
+    ) {
+        val appWidgetId =
+            intent.getIntExtra(
+                AppWidgetManager.EXTRA_APPWIDGET_ID,
+                AppWidgetManager.INVALID_APPWIDGET_ID,
+            )
+        runInteraction(
+            context,
+            appWidgetId,
+            "DAY_CLICK",
+            metadata = {
+                val mode = intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW).orEmpty()
+                fixedMetadata(if (mode.isNotEmpty()) "mode=$mode" else "")
+            },
+        ) {
+            WidgetDayClickCoordinator.handleDayClick(context, intent, repository)
+        }
+    }
+
+    /** Serializes the two-phase no-hourly follow-up (sets the post-refresh transient message). */
+    suspend fun handleRefreshComplete(
+        context: Context,
+        intent: Intent,
+    ) {
+        val appWidgetId =
+            intent.getIntExtra(
+                AppWidgetManager.EXTRA_APPWIDGET_ID,
+                AppWidgetManager.INVALID_APPWIDGET_ID,
+            )
+        runInteraction(context, appWidgetId, "NO_HOURLY_COMPLETE") {
+            WidgetDayClickCoordinator.handleRefreshComplete(context, intent)
+        }
     }
 
     suspend fun handleResize(

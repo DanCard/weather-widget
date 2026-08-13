@@ -28,8 +28,9 @@ import java.time.temporal.ChronoUnit
  * hours, NWS displayed.
  *
  * The command receiver runs with its real IO scope, so completion is detected by awaiting the
- * SET_VIEW_RENDER_OK / SET_VIEW_FAIL app_logs breadcrumbs that handleSetView persists (the old
- * failure mode was a swallowed logcat-only exception — invisible to app_logs sweeps).
+ * DAY_CLICK_RENDER_OK / DAY_CLICK_FAIL app_logs breadcrumbs that WidgetIntentRouter.handleDayClick
+ * persists (the old failure mode was a swallowed logcat-only exception — invisible to app_logs
+ * sweeps).
  *
  * Runs via ./scripts/emulator-tests.sh ONLY (IsolatedIntegrationTest clears the app database).
  * See plans/260708-daytap-npe-automated-testplan.md; JVM layers:
@@ -67,11 +68,11 @@ class DayTapSourceGapInstrumentedTest : IsolatedIntegrationTest("day_tap_source_
     fun dayTapRendersHourlyViewDespiteSourceGaps() {
         context.sendBroadcast(dayClickIntent(LocalDate.now()))
 
-        val (renderOk, fails) = awaitSetViewOutcome(timeoutMs = 15_000)
+        val (renderOk, fails) = awaitDayClickOutcome(timeoutMs = 15_000)
 
-        assertTrue("no SET_VIEW_FAIL row expected; got ${fails.map { it.message }}", fails.isEmpty())
+        assertTrue("no DAY_CLICK_FAIL row expected; got ${fails.map { it.message }}", fails.isEmpty())
         assertTrue(
-            "SET_VIEW_RENDER_OK must be persisted within timeout; got ${renderOk.map { it.message }}",
+            "DAY_CLICK_RENDER_OK must be persisted within timeout; got ${renderOk.map { it.message }}",
             renderOk.any { it.message.contains("widget=$widgetId") && it.message.contains("mode=TEMPERATURE") },
         )
         assertEquals(
@@ -81,16 +82,16 @@ class DayTapSourceGapInstrumentedTest : IsolatedIntegrationTest("day_tap_source_
         )
     }
 
-    private fun awaitSetViewOutcome(timeoutMs: Long) = runBlocking {
+    private fun awaitDayClickOutcome(timeoutMs: Long) = runBlocking {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
-            val ok = db.appLogDao().getLogsByTag("SET_VIEW_RENDER_OK", 10)
-            val fail = db.appLogDao().getLogsByTag("SET_VIEW_FAIL", 10)
+            val ok = db.appLogDao().getLogsByTag("DAY_CLICK_RENDER_OK", 10)
+            val fail = db.appLogDao().getLogsByTag("DAY_CLICK_FAIL", 10)
             if (ok.isNotEmpty() || fail.isNotEmpty()) return@runBlocking ok to fail
             delay(200)
         }
-        db.appLogDao().getLogsByTag("SET_VIEW_RENDER_OK", 10) to
-            db.appLogDao().getLogsByTag("SET_VIEW_FAIL", 10)
+        db.appLogDao().getLogsByTag("DAY_CLICK_RENDER_OK", 10) to
+            db.appLogDao().getLogsByTag("DAY_CLICK_FAIL", 10)
     }
 
     /**
