@@ -24,54 +24,21 @@ data class PlacedLabel(
 
 object TemperatureLabelEngine {
     private const val TAG = "TempLabelEngine"
-    private const val MIN_INTERPOLATION_SPAN = 0.0001f
-    private const val CURVE_AVOIDANCE_MARGIN_PX = 0.5f
     private const val CURVE_AVOIDANCE_CLEAR_PX = 1.5f
-    private const val CURVE_AVOIDANCE_ALLOWED_DIP_DP = 5f
     private const val MAX_LEADER_DISPLACEMENT_STEPS = 3
-
-    // ACTUAL_LOW tolerates more forecast-curve overlap than other roles: a low label belongs
-    // below its valley, and a shallow forecast dip under that valley is acceptable partial
-    // overlap rather than a reason to push the label off-anchor with a long leader line.
-    // Expressed as a fraction of label height so the tolerance scales with the glyphs.
-    private const val ACTUAL_LOW_FORECAST_OVERLAP_RATIO = 0.5f
 
     // Gap left between an actual-extreme label and a label it had to step over, and the step budget.
     // Both bypass placers (placeActualHighAboveCurve / placeActualLowBelowCurve) force a direction
     // rather than searching, so without this they emit straight through whatever is already drawn.
     //
-    // What counts as "through" is the engine's OWN budget — GraphLabelPlacementUtils.
-    // shouldAllowMinorOverlap / MINOR_OVERLAP_HEIGHT_RATIO — not a stricter any-pixel rule. A pink
-    // ACTUAL_LOW deliberately shares the valley with an amber FORECAST_LOW a couple of degrees below
-    // it, and the two are *supposed* to graze (see two-overlap-constants). Only a substantial
-    // overlap — the near-coincident stacking that made three actual highs unreadable — is resolved.
+    // What counts as "through" is now CollisionTester's single rule (shared with the main placement
+    // loop and the curve-avoidance pre-pass). A pink ACTUAL_LOW deliberately shares the valley with
+    // an amber FORECAST_LOW a couple of degrees below it, and the two are *supposed* to graze. Only
+    // a substantial overlap — the near-coincident stacking that made three actual highs unreadable —
+    // is resolved.
     private const val ACTUAL_EXTREME_STACK_GAP_DP = 1.5f
     private const val ACTUAL_EXTREME_STACK_MAX_STEPS = 4
 
-    // LOCAL (forecast midpoints and some interior value labels) get a modest curve graze tolerance.
-    // Non-extremum points on the body of the forecast curve frequently produce tiny line intrusions
-    // into the label box even at the preferred 1dp gap (due to slope + box width + sampling margins).
-    // Allowing a small graze (3dp) avoids unnecessary full-height leaders while still preventing
-    // obvious visual overlap with the drawn line.
-    private const val LOCAL_CURVE_GRAZE_DP = 3f
-
-    private fun allowedDipPxFor(role: TemperatureRole, density: Float, labelHeight: Float): Float =
-        when (role) {
-            TemperatureRole.ACTUAL_LOW -> labelHeight * ACTUAL_LOW_FORECAST_OVERLAP_RATIO
-            TemperatureRole.LOCAL -> LOCAL_CURVE_GRAZE_DP * density
-            else -> CURVE_AVOIDANCE_ALLOWED_DIP_DP * density
-        }
-
-    private val CURVE_AVOIDANCE_ROLES: Set<TemperatureRole> = setOf(
-        TemperatureRole.ACTUAL_END,
-        TemperatureRole.ACTUAL_HIGH,
-        TemperatureRole.ACTUAL_LOW,
-        TemperatureRole.HIGH,
-        TemperatureRole.LOW,
-        TemperatureRole.LOCAL,
-        TemperatureRole.START,
-        TemperatureRole.END,
-    )
 
     private val LOGGED_ROLES: Set<TemperatureRole> = setOf(
         TemperatureRole.ACTUAL_LOW, TemperatureRole.LOW,
@@ -310,6 +277,8 @@ object TemperatureLabelEngine {
                     labelAscent = labelAscent,
                     labelDescent = labelDescent,
                     drawnLabelMetas = drawnLabelMetas,
+                    drawnIconBounds = drawnIconBounds,
+                    reservedHardBounds = reservedHardBounds,
                     idx = idx,
                     temps = temps,
                     resultPlacements = resultPlacements,
@@ -333,7 +302,7 @@ object TemperatureLabelEngine {
                     actualVisiblePoints
                 }
 
-            if (candidate.role in CURVE_AVOIDANCE_ROLES && !isCurveAvoidanceExempt) {
+            if (candidate.role in CollisionTester.CURVE_AVOIDANCE_ROLES && !isCurveAvoidanceExempt) {
                 placed = tryExactFitCurveAvoidance(
                     widthPx = widthPx,
                     heightPx = heightPx,
@@ -359,7 +328,7 @@ object TemperatureLabelEngine {
 
             val gapAbovePx = gapDp.aboveDp * density
             val gapBelowPx = gapDp.belowDp * density
-            val allowedCurveDipPx = allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
+            val allowedCurveDipPx = CollisionTester.allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
 
             outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
                 for (placeAbove in directions) {
@@ -387,53 +356,36 @@ object TemperatureLabelEngine {
                     val onScreen = bounds.top >= 0f && bounds.bottom <= heightPx
                     if (!onScreen) continue
 
-                    val drawnBoundsList = drawnLabelMetas.map { it.bounds }
-                    val overlapsLabel = drawnBoundsList.any { it.intersects(bounds) }
-                    val overlapsIcon = drawnIconBounds.any { it.intersects(bounds) }
-                    val labelOverlap = if (overlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnBoundsList) else 0f
-                    val iconOverlap = if (overlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnIconBounds) else 0f
+                    val obstacles = CollisionTester.obstacles(
+                        role = candidate.role,
+                        bounds = bounds,
+                        isValley = geometry.isValley,
+                        placeAbove = placeAbove,
+                        drawnLabelMetas = drawnLabelMetas,
+                        drawnIconBounds = drawnIconBounds,
+                        reservedHardBounds = reservedHardBounds,
+                        labelHeight = labelHeight,
+                    )
+                    val curveResult = CollisionTester.curve(
+                        role = candidate.role,
+                        bounds = bounds,
+                        placeAbove = placeAbove,
+                        avoidanceActualPoints = avoidanceActualPoints,
+                        forecastPoints = forecastPoints,
+                        allowedDipPx = allowedCurveDipPx,
+                        isCurveAvoidanceExempt = isCurveAvoidanceExempt,
+                        flipDecided = flipDecided,
+                    )
 
-                    val currentIconRatio = if (!placeAbove && geometry.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
-
-                    val allowMinorLabelOverlap = overlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlap, labelHeight)
-                    val allowMinorIconOverlap = overlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlap <= labelHeight * currentIconRatio
-
-                    val curveAvoidanceEligible = candidate.role in CURVE_AVOIDANCE_ROLES
-                    val curveIntrusion = if (curveAvoidanceEligible) combinedCurveIntrusion(avoidanceActualPoints, forecastPoints, bounds) else CurveIntrusion.NONE
-                    // ACTUAL_LOW and LOCAL (midpoints) tolerate a shallow forecast-curve dip as partial
-                    // overlap (keeps the label closer to the curve instead of displacing with a long leader);
-                    // other roles do not. This softens the check for non-extrema points on the line.
-                    val curveDipDepth = when {
-                        curveIntrusion.isEmpty -> 0f
-                        placeAbove -> bounds.bottom - curveIntrusion.minY
-                        else -> curveIntrusion.maxY - bounds.top
-                    }
-                    val curveWithinDip = (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOCAL) &&
-                        !curveIntrusion.isEmpty && curveDipDepth <= allowedCurveDipPx
-                    val allowFlippedAboveCurveGraze = flipDecided && placeAbove && curveAvoidanceEligible
-                    val overlapsCurve = curveAvoidanceEligible && !curveIntrusion.isEmpty && !allowFlippedAboveCurveGraze && !isCurveAvoidanceExempt && !curveWithinDip
-
-                    // Hard obstacles (fetch-dot value/age labels) tolerate the SAME minor (whitespace-
-                    // level) overlap as placed labels: a label rect is built from full font
-                    // ascent/descent, so a sub-budget overlap is empty leading, not glyph ink. This
-                    // lets e.g. a NOW-valley ACTUAL_LOW hug its valley instead of dropping a full
-                    // label-height with a long leader. A real overlap still exceeds the budget, so a
-                    // forecast LOW landing squarely on the dot value still flips above (260612).
-                    val overlapsHard = reservedHardBounds.any { it.intersects(bounds) }
-                    val hardOverlap = if (overlapsHard) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, reservedHardBounds) else 0f
-                    val allowMinorHardOverlap = overlapsHard &&
-                        GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, hardOverlap, labelHeight) &&
-                        GraphLabelPlacementUtils.hardOverlapIsSideOnly(bounds, reservedHardBounds)
-
-                    val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve || (overlapsHard && !allowMinorHardOverlap)
+                    val hasCollision = obstacles.anyBlocked || curveResult.curveBlocked
 
                     if (hasCollision && shouldLogPlacement(candidate.role)) {
-                        val curveDepth = if (overlapsCurve) curveDipDepth else 0f
+                        val curveDepth = if (curveResult.curveBlocked) curveResult.curveDipDepth else 0f
                         Log.d(TAG, "PlaceReject: role=${candidate.role} idx=$idx step=$step above=$placeAbove " +
-                            "blocker=[label=$overlapsLabel/${String.format("%.1f", labelOverlap)}(minorOK=$allowMinorLabelOverlap) " +
-                            "icon=$overlapsIcon/${String.format("%.1f", iconOverlap)}(minorOK=$allowMinorIconOverlap) " +
-                            "hard=$overlapsHard/${String.format("%.1f", hardOverlap)}(minorOK=$allowMinorHardOverlap) " +
-                            "curve=$overlapsCurve depth=${String.format("%.2f", curveDepth)}] bounds=(${String.format("%.1f", bounds.top)},${String.format("%.1f", bounds.bottom)})")
+                            "blocker=[label=${obstacles.overlapsLabel}/${String.format("%.1f", obstacles.labelOverlapPx)}(minorOK=${obstacles.allowMinorLabelOverlap}) " +
+                            "icon=${obstacles.overlapsIcon}/${String.format("%.1f", obstacles.iconOverlapPx)}(minorOK=${obstacles.allowMinorIconOverlap}) " +
+                            "hard=${obstacles.overlapsHard}/${String.format("%.1f", obstacles.hardOverlapPx)}(minorOK=${obstacles.allowMinorHardOverlap}) " +
+                            "curve=${curveResult.curveBlocked} depth=${String.format("%.2f", curveDepth)}] bounds=(${String.format("%.1f", bounds.top)},${String.format("%.1f", bounds.bottom)})")
                     }
 
                     if (hasCollision && !placeAbove && geometry.isValley && step == 0 && !flipDecided) {
@@ -493,7 +445,7 @@ object TemperatureLabelEngine {
                         val drawLeader = step > 0
                         val lineEndY = if (!placeAbove) bounds.top else bounds.bottom
                         if (shouldLogPlacement(candidate.role)) {
-                            Log.d(TAG, "PlaceAccept: role=${candidate.role} idx=$idx step=$step above=$placeAbove leader=$drawLeader hardOverlap=${String.format("%.1f", hardOverlap)} allowMinorHardOverlap=$allowMinorHardOverlap")
+                            Log.d(TAG, "PlaceAccept: role=${candidate.role} idx=$idx step=$step above=$placeAbove leader=$drawLeader hardOverlap=${String.format("%.1f", obstacles.hardOverlapPx)} allowMinorHardOverlap=${obstacles.allowMinorHardOverlap}")
                         }
                         if (drawLeader && candidate.role == TemperatureRole.LOCAL) {
                             val distToTrans = transitionX?.let { kotlin.math.abs(geometry.clampedX - it) } ?: -1f
@@ -558,21 +510,45 @@ object TemperatureLabelEngine {
     // the jagged spike rather than overlapping it, then sits one gap above. Clamps to the top edge
     // (spilling into the header band) when the peak is too close to the top to leave a full gap.
     /**
-     * True when [bounds] overlaps the already-drawn labels by no more than the engine's standard
-     * minor-overlap budget — the same `shouldAllowMinorOverlap` test the main placement loop applies.
-     * Used by the two forced-direction placers so they tolerate exactly what the rest of the engine
-     * tolerates and resolve only what it would resolve.
+     * True when the forced-direction placers must yield: the candidate box overlaps an already-drawn
+     * label, icon, or hard bound beyond CollisionTester's standard minor-overlap budgets. This is the
+     * same rule the main placement loop and the curve-avoidance pre-pass apply, so the forced placers
+     * resolve exactly what the rest of the engine resolves — no more, no less. (The forced placers
+     * never test the curve itself: they are pinned to it by design.)
      */
-    private fun overlapIsWithinBudget(
+    private fun forcedPlacerBlocked(
         role: TemperatureRole,
         bounds: GraphRect,
+        isValley: Boolean,
+        placeAbove: Boolean,
         drawnLabelMetas: List<PlacedLabelMeta>,
+        drawnIconBounds: List<GraphRect>,
+        reservedHardBounds: List<GraphRect>,
         labelHeight: Float,
-    ): Boolean {
-        val overlap = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnLabelMetas.map { it.bounds })
-        if (overlap <= 0f) return true
-        return GraphLabelPlacementUtils.shouldAllowMinorOverlap(role, overlap, labelHeight)
-    }
+    ): Boolean = CollisionTester.obstacles(
+        role = role,
+        bounds = bounds,
+        isValley = isValley,
+        placeAbove = placeAbove,
+        drawnLabelMetas = drawnLabelMetas,
+        drawnIconBounds = drawnIconBounds,
+        reservedHardBounds = reservedHardBounds,
+        labelHeight = labelHeight,
+    ).anyBlocked
+
+    /**
+     * The first already-drawn obstacle (label, icon, or hard bound) intersecting [bounds], in draw
+     * order, or null when none intersects. The forced placers step the candidate over this blocker.
+     */
+    private fun firstBlockerBounds(
+        bounds: GraphRect,
+        drawnLabelMetas: List<PlacedLabelMeta>,
+        drawnIconBounds: List<GraphRect>,
+        reservedHardBounds: List<GraphRect>,
+    ): GraphRect? =
+        drawnLabelMetas.firstOrNull { it.bounds.intersects(bounds) }?.bounds
+            ?: drawnIconBounds.firstOrNull { it.intersects(bounds) }
+            ?: reservedHardBounds.firstOrNull { it.intersects(bounds) }
 
     private fun placeActualHighAboveCurve(
         heightPx: Int,
@@ -583,6 +559,8 @@ object TemperatureLabelEngine {
         labelAscent: Float,
         labelDescent: Float,
         drawnLabelMetas: MutableList<PlacedLabelMeta>,
+        drawnIconBounds: List<GraphRect>,
+        reservedHardBounds: List<GraphRect>,
         idx: Int,
         temps: List<Float>,
         resultPlacements: MutableList<PlacedLabel>,
@@ -626,15 +604,15 @@ object TemperatureLabelEngine {
         val stackGapPx = ACTUAL_EXTREME_STACK_GAP_DP * density
         var steps = 0
         while (steps++ < ACTUAL_EXTREME_STACK_MAX_STEPS) {
-            if (overlapIsWithinBudget(candidate.role, bounds, drawnLabelMetas, labelHeight)) break
-            val blocker = drawnLabelMetas.firstOrNull { it.bounds.intersects(bounds) } ?: break
-            val shift = bounds.bottom - blocker.bounds.top + stackGapPx
+            if (!forcedPlacerBlocked(candidate.role, bounds, isValley = false, placeAbove = true, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) break
+            val blocker = firstBlockerBounds(bounds, drawnLabelMetas, drawnIconBounds, reservedHardBounds) ?: break
+            val shift = bounds.bottom - blocker.top + stackGapPx
             top -= shift
             bottom -= shift
             baselineY -= shift
             bounds = GraphRect(left, top, right, bottom)
         }
-        if (top < 0f || !overlapIsWithinBudget(candidate.role, bounds, drawnLabelMetas, labelHeight)) {
+        if (top < 0f || forcedPlacerBlocked(candidate.role, bounds, isValley = false, placeAbove = true, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) {
             Log.d(
                 TAG,
                 "PlaceDrop: role=${candidate.role} idx=$idx reason=noRoomAboveActualCurve " +
@@ -682,6 +660,8 @@ object TemperatureLabelEngine {
         labelAscent: Float,
         labelDescent: Float,
         drawnLabelMetas: MutableList<PlacedLabelMeta>,
+        drawnIconBounds: List<GraphRect>,
+        reservedHardBounds: List<GraphRect>,
         idx: Int,
         temps: List<Float>,
         resultPlacements: MutableList<PlacedLabel>,
@@ -721,15 +701,15 @@ object TemperatureLabelEngine {
         val stackGapPx = ACTUAL_EXTREME_STACK_GAP_DP * density
         var steps = 0
         while (steps++ < ACTUAL_EXTREME_STACK_MAX_STEPS) {
-            if (overlapIsWithinBudget(candidate.role, bounds, drawnLabelMetas, labelHeight)) break
-            val blocker = drawnLabelMetas.firstOrNull { it.bounds.intersects(bounds) } ?: break
-            val shift = blocker.bounds.bottom - bounds.top + stackGapPx
+            if (!forcedPlacerBlocked(candidate.role, bounds, isValley = true, placeAbove = false, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) break
+            val blocker = firstBlockerBounds(bounds, drawnLabelMetas, drawnIconBounds, reservedHardBounds) ?: break
+            val shift = blocker.bottom - bounds.top + stackGapPx
             top += shift
             bottom += shift
             baselineY += shift
             bounds = GraphRect(left, top, right, bottom)
         }
-        if (bottom > heightPx || !overlapIsWithinBudget(candidate.role, bounds, drawnLabelMetas, labelHeight)) {
+        if (bottom > heightPx || forcedPlacerBlocked(candidate.role, bounds, isValley = true, placeAbove = false, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) {
             Log.d(
                 TAG,
                 "PlaceDrop: role=${candidate.role} idx=$idx reason=noRoomBelowActualCurve " +
@@ -781,7 +761,7 @@ object TemperatureLabelEngine {
         resultPlacements: MutableList<PlacedLabel>,
         allActualVisiblePoints: List<Pair<Float, Float>>,
     ): Boolean {
-        val allowedDipPx = allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
+        val allowedDipPx = CollisionTester.allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
         for (placeAbove in directions) {
             val outcome = tryExactFitForDirection(
                 widthPx = widthPx,
@@ -821,6 +801,8 @@ object TemperatureLabelEngine {
                             labelAscent = labelAscent,
                             labelDescent = labelDescent,
                             drawnLabelMetas = drawnLabelMetas,
+                            drawnIconBounds = drawnIconBounds,
+                            reservedHardBounds = reservedHardBounds,
                             idx = idx,
                             temps = temps,
                             resultPlacements = resultPlacements,
@@ -869,41 +851,38 @@ object TemperatureLabelEngine {
             geometry.clampedX - geometry.textWidth / 2f, baseV.top,
             geometry.clampedX + geometry.textWidth / 2f, baseV.bottom
         )
-        val intrusion = combinedCurveIntrusion(actualVisiblePoints, forecastPoints, baseBounds)
-        val baseOverlapsLabel = drawnLabelMetas.any { it.bounds.intersects(baseBounds) }
-        val baseOverlapsIcon = drawnIconBounds.any { it.intersects(baseBounds) }
-        val baseOverlapsHard = reservedHardBounds.any { it.intersects(baseBounds) }
-
         val labelHeight = labelDescent - labelAscent
-        val drawnLabelBoundsList = drawnLabelMetas.map { it.bounds }
-        val labelOverlapPx = if (baseOverlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, drawnLabelBoundsList) else 0f
-        val iconOverlapPx = if (baseOverlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, drawnIconBounds) else 0f
-        val iconOverlapRatio = if (!placeAbove && geometry.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
-        val hardOverlapPx = if (baseOverlapsHard) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, reservedHardBounds) else 0f
-        val allowMinorLabelOverlap = baseOverlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlapPx, labelHeight)
-        val allowMinorIconOverlap = baseOverlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlapPx <= labelHeight * iconOverlapRatio
-        // Hard obstacles (fetch-dot value/age labels) tolerate the same minor (whitespace-level)
-        // overlap as placed labels, so the pre-pass does not pre-emptively reject the below direction
-        // for a sub-budget hit; a real (> budget) overlap still blocks and the caller flips above.
-        val allowMinorHardOverlap = baseOverlapsHard &&
-            GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, hardOverlapPx, labelHeight) &&
-            GraphLabelPlacementUtils.hardOverlapIsSideOnly(baseBounds, reservedHardBounds)
-        val effectiveLabelBlocker = (baseOverlapsLabel && !allowMinorLabelOverlap) || (baseOverlapsHard && !allowMinorHardOverlap)
-        val effectiveIconBlocker = baseOverlapsIcon && !allowMinorIconOverlap
+        val obstacles = CollisionTester.obstacles(
+            role = candidate.role,
+            bounds = baseBounds,
+            isValley = geometry.isValley,
+            placeAbove = placeAbove,
+            drawnLabelMetas = drawnLabelMetas,
+            drawnIconBounds = drawnIconBounds,
+            reservedHardBounds = reservedHardBounds,
+            labelHeight = labelHeight,
+        )
+        val allowedDip = CollisionTester.allowedDipPxFor(candidate.role, density, labelHeight)
+        val curveResult = CollisionTester.curve(
+            role = candidate.role,
+            bounds = baseBounds,
+            placeAbove = placeAbove,
+            avoidanceActualPoints = actualVisiblePoints,
+            forecastPoints = forecastPoints,
+            allowedDipPx = allowedDip,
+            isCurveAvoidanceExempt = false,
+            flipDecided = false,
+        )
 
-        val curveDipDepth = if (intrusion.isEmpty) 0f else if (placeAbove) baseBounds.bottom - intrusion.minY else intrusion.maxY - baseBounds.top
-        val isCurveTolerant = candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOCAL
-        val thisAllowedDip = allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
+        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", geometry.sy)} baseBounds=(${baseBounds.left},${baseBounds.top},${baseBounds.right},${baseBounds.bottom}) intrusion=${if (curveResult.intrusion.isEmpty) "none" else "minY=${String.format("%.1f", curveResult.intrusion.minY)} maxY=${String.format("%.1f", curveResult.intrusion.maxY)}"} labelBlocker=${obstacles.labelOrHardBlocked} iconBlocker=${obstacles.iconBlocked} hardBlocker=${obstacles.overlapsHard} allowedDip=${String.format("%.1f", allowedDip)} curveDip=${String.format("%.2f", curveResult.curveDipDepth)} tolerant=${candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOCAL}")
 
-        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", geometry.sy)} baseBounds=(${baseBounds.left},${baseBounds.top},${baseBounds.right},${baseBounds.bottom}) intrusion=${if (intrusion.isEmpty) "none" else "minY=${String.format("%.1f", intrusion.minY)} maxY=${String.format("%.1f", intrusion.maxY)}"} labelBlocker=$effectiveLabelBlocker iconBlocker=$effectiveIconBlocker hardBlocker=$baseOverlapsHard allowedDip=${String.format("%.1f", thisAllowedDip)} curveDip=${String.format("%.2f", curveDipDepth)} tolerant=$isCurveTolerant")
-
-        if ((intrusion.isEmpty || (isCurveTolerant && curveDipDepth <= thisAllowedDip)) && !effectiveLabelBlocker && !effectiveIconBlocker) {
+        if ((curveResult.intrusion.isEmpty || curveResult.curveWithinDip) && !obstacles.labelOrHardBlocked && !obstacles.iconBlocked) {
             return ExactFitBlockerResult.NaturalFits
         }
-        if (effectiveLabelBlocker || effectiveIconBlocker) {
+        if (obstacles.labelOrHardBlocked || obstacles.iconBlocked) {
             return ExactFitBlockerResult.LabelOrIconBlocked
         }
-        return ExactFitBlockerResult.CurveOnly(intrusion, baseBounds, baseGapPx)
+        return ExactFitBlockerResult.CurveOnly(curveResult.intrusion, baseBounds, baseGapPx)
     }
 
     private fun tryExactFitForDirection(
@@ -1136,67 +1115,4 @@ object TemperatureLabelEngine {
         return ValleyCascadeOutcome.None
     }
 
-    internal data class CurveIntrusion(val minY: Float, val maxY: Float) {
-        val isEmpty: Boolean get() = minY > maxY
-        companion object {
-            val NONE = CurveIntrusion(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)
-            fun merge(a: CurveIntrusion, b: CurveIntrusion): CurveIntrusion = when {
-                a.isEmpty -> b
-                b.isEmpty -> a
-                else -> CurveIntrusion(minOf(a.minY, b.minY), maxOf(a.maxY, b.maxY))
-            }
-        }
-    }
-
-    private fun curveIntrusionInLabel(
-        points: List<Pair<Float, Float>>,
-        bounds: GraphRect,
-    ): CurveIntrusion {
-        if (points.size < 2) return CurveIntrusion.NONE
-        val left = bounds.left - CURVE_AVOIDANCE_MARGIN_PX
-        val right = bounds.right + CURVE_AVOIDANCE_MARGIN_PX
-        val top = bounds.top - CURVE_AVOIDANCE_MARGIN_PX
-        val bottom = bounds.bottom + CURVE_AVOIDANCE_MARGIN_PX
-        var minY = Float.POSITIVE_INFINITY
-        var maxY = Float.NEGATIVE_INFINITY
-        for (i in 1 until points.size) {
-            val a = points[i - 1]
-            val b = points[i]
-            val segMinX = minOf(a.first, b.first)
-            val segMaxX = maxOf(a.first, b.first)
-            if (segMaxX < left || segMinX > right) continue
-            val span = (b.first - a.first)
-            val ySegMin: Float
-            val ySegMax: Float
-            if (abs(span) < MIN_INTERPOLATION_SPAN) {
-                ySegMin = a.second
-                ySegMax = a.second
-            } else {
-                val xL = maxOf(segMinX, left)
-                val xR = minOf(segMaxX, right)
-                val tL = ((xL - a.first) / span).coerceIn(0f, 1f)
-                val tR = ((xR - a.first) / span).coerceIn(0f, 1f)
-                val yL = a.second + (b.second - a.second) * tL
-                val yR = a.second + (b.second - a.second) * tR
-                ySegMin = minOf(yL, yR)
-                ySegMax = maxOf(yL, yR)
-            }
-            if (ySegMax < top || ySegMin > bottom) continue
-            val clipMin = maxOf(ySegMin, top)
-            val clipMax = minOf(ySegMax, bottom)
-            if (clipMin < minY) minY = clipMin
-            if (clipMax > maxY) maxY = clipMax
-        }
-        return CurveIntrusion(minY, maxY)
-    }
-
-    private fun combinedCurveIntrusion(
-        actualVisiblePoints: List<Pair<Float, Float>>,
-        forecastPoints: List<Pair<Float, Float>>,
-        bounds: GraphRect
-    ): CurveIntrusion {
-        val a = curveIntrusionInLabel(actualVisiblePoints, bounds)
-        val f = curveIntrusionInLabel(forecastPoints, bounds)
-        return CurveIntrusion.merge(a, f)
-    }
 }
