@@ -71,7 +71,7 @@ internal class WidgetPaintCoordinator(
         uiOnly: Boolean = false,
         origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.WORKER_FETCH,
         loadedActualsSourceIds: Collection<String> = emptyList(),
-        reloadActuals: (suspend (List<String>) -> DailyActualsBySource)? = null,
+        reloadActuals: (suspend (List<String>, List<HourlyForecastEntity>) -> DailyActualsBySource)? = null,
         loadedHourlySourceIds: Collection<String> = emptyList(),
         hourlyLat: Double? = null,
         hourlyLon: Double? = null,
@@ -85,19 +85,22 @@ internal class WidgetPaintCoordinator(
         val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
-        val effectiveActuals = resolveEffectiveActuals(
-            appWidgetIds = appWidgetIds,
-            loadedActualsSourceIds = loadedActualsSourceIds,
-            reloadActuals = reloadActuals,
-            dailyActuals = dailyActuals,
-        )
-
+        // Resolve hourly first so the actuals repair below can consume the reloaded rows instead of
+        // the stale list the caller loaded (both races fire together when a source toggles late).
         val effectiveHourlyForecasts = resolveEffectiveHourly(
             appWidgetIds = appWidgetIds,
             loadedHourlySourceIds = loadedHourlySourceIds,
             lat = hourlyLat,
             lon = hourlyLon,
             hourlyForecasts = hourlyForecasts,
+        )
+
+        val effectiveActuals = resolveEffectiveActuals(
+            appWidgetIds = appWidgetIds,
+            loadedActualsSourceIds = loadedActualsSourceIds,
+            reloadActuals = reloadActuals,
+            dailyActuals = dailyActuals,
+            hourlyForecasts = effectiveHourlyForecasts,
         )
 
         val effectiveOrigin = if (uiOnly) WidgetPushDispatcher.Origin.UI_ONLY else origin
@@ -130,8 +133,9 @@ internal class WidgetPaintCoordinator(
     private suspend fun resolveEffectiveActuals(
         appWidgetIds: IntArray,
         loadedActualsSourceIds: Collection<String>,
-        reloadActuals: (suspend (List<String>) -> DailyActualsBySource)?,
+        reloadActuals: (suspend (List<String>, List<HourlyForecastEntity>) -> DailyActualsBySource)?,
         dailyActuals: DailyActualsBySource,
+        hourlyForecasts: List<HourlyForecastEntity>,
     ): DailyActualsBySource {
         val paintSourceIds = appWidgetIds.map { widgetStateManager.getCurrentDisplaySource(it).id }.distinct()
         val uncoveredSources = DailyActualsCoverage.uncoveredSources(paintSourceIds, loadedActualsSourceIds)
@@ -146,6 +150,7 @@ internal class WidgetPaintCoordinator(
         )
         return reloadActuals(
             DailyActualsCoverage.unionSourceIds(paintSourceIds, loadedActualsSourceIds),
+            hourlyForecasts,
         ).takeIf { it.isNotEmpty() } ?: dailyActuals
     }
 
@@ -218,11 +223,11 @@ internal class WidgetPaintCoordinator(
             loadedHourlySourceIds = bundle.activeSourceIds,
             hourlyLat = location.first,
             hourlyLon = location.second,
-            reloadActuals = { sourceIds ->
+            reloadActuals = { sourceIds, hourly ->
                 dataBundleLoader.reloadDailyActuals(
                     lat = location.first,
                     lon = location.second,
-                    hourlyForecasts = bundle.hourlyForecasts,
+                    hourlyForecasts = hourly,
                     sourceIds = sourceIds,
                 )
             },

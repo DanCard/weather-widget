@@ -227,11 +227,11 @@ internal class FullSyncPipeline(
                         hourlyLon = location.second,
                         // This escape hatch fires when a widget's source changed during the paint —
                         // the same race, one stage later — so it must read the reloaded rows too.
-                        reloadActuals = { sourceIds ->
+                        reloadActuals = { sourceIds, hourly ->
                             dataBundleLoader.reloadDailyActuals(
                                 lat = location.first,
                                 lon = location.second,
-                                hourlyForecasts = renderHourlyForecasts,
+                                hourlyForecasts = hourly,
                                 sourceIds = sourceIds,
                             )
                         },
