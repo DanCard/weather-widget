@@ -125,6 +125,17 @@ fun runDaemon() {
         }.onFailure { Log.w(TAG, "current_status persist failed: $it") }
     }
 
+    // Re-resolves + persists the published current_status from the current in-memory forecast. The
+    // minute loop calls this so the snapshot interpolates smoothly between fetches (the fetch paths
+    // already persist via publishForecastState); the UI then only has to re-read a single row.
+    fun refreshCurrentStatus() {
+        val forecast = forecastState.value ?: return
+        val resolver = currentStatusResolver ?: return
+        runCatching {
+            weatherDao.upsertCurrentStatus(resolver.resolve(forecast, System.currentTimeMillis()))
+        }.onFailure { Log.w(TAG, "current_status persist failed: $it") }
+    }
+
     fun quit(killUi: Boolean = true) {
         Log.i(TAG, "Quitting daemon (killUi=$killUi)...")
         // Kill UI process if running
@@ -360,16 +371,18 @@ fun runDaemon() {
                 runLaunchRefresh(newRepo, config, "startup")
             }
 
-            // 3a. Panel refresh trigger loop (lightweight, no database/disk I/O)
+            // 3a. Panel/status refresh loop: re-resolve the published current_status each minute
+            // (single owner keeps the interpolation smooth), then re-render the panel from it.
             launch {
                 while (true) {
                     delay(60_000L - (System.currentTimeMillis() % 60_000L))
                     try {
+                        refreshCurrentStatus()
                         ipcServer.triggerRefresh()
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to trigger panel refresh: ${e.message}")
+                        Log.e(TAG, "Failed to refresh panel/status: ${e.message}")
                     }
                 }
             }

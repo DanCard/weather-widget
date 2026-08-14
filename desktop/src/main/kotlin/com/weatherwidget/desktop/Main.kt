@@ -720,7 +720,9 @@ private fun runApp() = application {
             }
         }
 
-        // Time ticker for in-memory interpolation of current temperature
+        // Time ticker: re-reads the daemon-published current_status each minute. The daemon owns
+        // the resolution (and re-persists it on its own minute cadence), so this process only
+        // re-reads a single row instead of re-running the IDW blend.
         var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
         LaunchedEffect(Unit) {
             while (true) {
@@ -729,19 +731,14 @@ private fun runApp() = application {
             }
         }
 
-        val resolvedTempAndDelta = remember(forecast, repository, nowMs) {
-            val f = forecast
-            val repo = repository
-            if (f != null && repo != null) {
-                repo.resolveCurrentTempInMemory(f, nowMs)
-            } else {
-                DesktopWeatherRepository.ResolvedCurrentTemp(
-                    f?.currentTemp, f?.appliedDelta, f?.deltaFromYesterday,
-                )
-            }
+        // Phase 3: consume the daemon-published snapshot; fall back to the values loadCached()
+        // already resolved when the daemon hasn't published yet (e.g. startup/preview paths).
+        val publishedStatus = remember(forecast, currentConfig, nowMs) {
+            val cfg = currentConfig
+            if (cfg != null) weatherDao.getCurrentStatus(cfg.lat, cfg.lon, cfg.weatherSource) else null
         }
-        val resolvedCurrentTemp = resolvedTempAndDelta.displayTemp
-        val resolvedDeltaFromYesterday = resolvedTempAndDelta.deltaFromYesterday
+        val resolvedCurrentTemp = publishedStatus?.displayTempF ?: forecast?.currentTemp
+        val resolvedDeltaFromYesterday = publishedStatus?.deltaFromYesterdayF ?: forecast?.deltaFromYesterday
 
         // Dynamic icon showing the current temperature.
         val textMeasurer = remember { createTrayTextMeasurer() }
