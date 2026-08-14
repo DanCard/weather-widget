@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
+import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.orNullIfImplausibleTempF
@@ -1106,6 +1107,67 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
+    /**
+     * Overwrites the single resolved-current-status row for (location, source). Written by the
+     * daemon after each fetch; read by the genmon panel and the UI popup so they consume one
+     * published value instead of re-deriving it independently.
+     */
+    fun upsertCurrentStatus(status: CurrentStatus) {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                INSERT OR REPLACE INTO current_status
+                (locationLat, locationLon, source, displayTempF, appliedDeltaF, deltaFromYesterdayF, observedAtMs, condition, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.setDouble(1, LocationMatch.quantize(status.locationLat))
+                stmt.setDouble(2, LocationMatch.quantize(status.locationLon))
+                stmt.setString(3, status.source)
+                stmt.setNullableFloat(4, status.displayTempF)
+                stmt.setNullableFloat(5, status.appliedDeltaF)
+                stmt.setNullableFloat(6, status.deltaFromYesterdayF)
+                stmt.setNullableLong(7, status.observedAtMs)
+                stmt.setString(8, status.condition)
+                stmt.setLong(9, status.updatedAt)
+                stmt.executeUpdate()
+            }
+        }
+    }
+
+    /** Reads the latest published [CurrentStatus] for (location, source), or null when none yet. */
+    fun getCurrentStatus(locationLat: Double, locationLon: Double, source: String): CurrentStatus? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                SELECT locationLat, locationLon, source, displayTempF, appliedDeltaF, deltaFromYesterdayF, observedAtMs, condition, updatedAt
+                FROM current_status
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
+                ORDER BY updatedAt DESC LIMIT 1
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    return CurrentStatus(
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
+                        source = rs.getString("source"),
+                        displayTempF = rs.getNullableFloat("displayTempF"),
+                        appliedDeltaF = rs.getNullableFloat("appliedDeltaF"),
+                        deltaFromYesterdayF = rs.getNullableFloat("deltaFromYesterdayF"),
+                        observedAtMs = rs.getNullableLong("observedAtMs"),
+                        condition = rs.getString("condition"),
+                        updatedAt = rs.getLong("updatedAt"),
+                    )
+                }
+            }
+        }
+        return null
+    }
+
     // Helper extensions for nullable types with JDBC
     private fun PreparedStatement.setNullableInt(index: Int, value: Int?) {
         if (value == null) setNull(index, Types.INTEGER) else setInt(index, value)
@@ -1115,6 +1177,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         if (value == null) setNull(index, Types.REAL) else setFloat(index, value)
     }
 
+    private fun PreparedStatement.setNullableLong(index: Int, value: Long?) {
+        if (value == null) setNull(index, Types.INTEGER) else setLong(index, value)
+    }
+
     private fun java.sql.ResultSet.getNullableInt(column: String): Int? {
         val v = getInt(column)
         return if (wasNull()) null else v
@@ -1122,6 +1188,11 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     private fun java.sql.ResultSet.getNullableFloat(column: String): Float? {
         val v = getFloat(column)
+        return if (wasNull()) null else v
+    }
+
+    private fun java.sql.ResultSet.getNullableLong(column: String): Long? {
+        val v = getLong(column)
         return if (wasNull()) null else v
     }
 }

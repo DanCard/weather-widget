@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
@@ -346,5 +347,44 @@ class DesktopWeatherDaoTest {
         dao.cleanup(now + 10000)
         
         assertEquals(0, dao.getDailyForecasts(lat, lon, source).size)
+    }
+
+    @Test
+    fun `test current status round-trip overwrites and preserves nulls`() {
+        val lat = 40.0
+        val lon = -75.0
+        val source = "NWS"
+
+        val status = CurrentStatus(
+            locationLat = lat,
+            locationLon = lon,
+            source = source,
+            displayTempF = 66.79f,
+            appliedDeltaF = 4.08f,
+            deltaFromYesterdayF = 1.3f,
+            observedAtMs = 1_780_000_000_000L,
+            condition = "Clear",
+            updatedAt = 1_780_000_000_000L,
+        )
+        dao.upsertCurrentStatus(status)
+
+        val read = dao.getCurrentStatus(lat, lon, source)
+        assertNotNull(read)
+        assertEquals(66.79f, read!!.displayTempF)
+        assertEquals(4.08f, read.appliedDeltaF)
+        assertEquals(1.3f, read.deltaFromYesterdayF)
+        assertEquals(1_780_000_000_000L, read.observedAtMs)
+        assertEquals("Clear", read.condition)
+        assertEquals(1_780_000_000_000L, read.updatedAt)
+
+        // Overwrite with the same key and null value fields: the single row is replaced, not duplicated.
+        val updated = status.copy(displayTempF = null, condition = null, updatedAt = 1_780_000_000_001L)
+        dao.upsertCurrentStatus(updated)
+
+        val reread = dao.getCurrentStatus(lat, lon, source)
+        assertNotNull(reread)
+        assertEquals(null, reread!!.displayTempF)
+        assertEquals(null, reread.condition)
+        assertEquals(1_780_000_000_001L, reread.updatedAt)
     }
 }

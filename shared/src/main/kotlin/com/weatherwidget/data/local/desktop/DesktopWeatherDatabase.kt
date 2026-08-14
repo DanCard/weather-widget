@@ -185,6 +185,27 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     )
                 """.trimIndent())
 
+                // Current status — the daemon's published resolved current-temperature snapshot.
+                // Single row per (location, source), overwritten on every fetch. The genmon panel
+                // and the UI popup read this instead of re-deriving the value themselves, so the
+                // two displays cannot drift. display/applied/delta columns are REAL so one-decimal
+                // values survive; nullable because a fresh install resolves nothing until its first
+                // fetch.
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS current_status (
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        source TEXT NOT NULL,
+                        displayTempF REAL,
+                        appliedDeltaF REAL,
+                        deltaFromYesterdayF REAL,
+                        observedAtMs INTEGER,
+                        condition TEXT,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY (locationLat, locationLon, source)
+                    )
+                """.trimIndent())
+
                 // Migration / Versioning
                 val rs = stmt.executeQuery("PRAGMA user_version")
                 val currentVersion = if (rs.next()) rs.getInt(1) else 0

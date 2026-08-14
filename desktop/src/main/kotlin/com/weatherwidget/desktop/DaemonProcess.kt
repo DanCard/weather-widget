@@ -81,6 +81,8 @@ fun runDaemon() {
     // One catch-up refresh at a time, last-wins: a new kick (resume or network-restored) cancels a
     // predecessor that may still be sleeping in its offline retry backoff.
     var catchUpRefreshJob: Job? = null
+    // Rebuilt alongside `repo` in startFetchLoops; owns the resolved current-status packaging.
+    var currentStatusResolver: CurrentStatusResolver? = null
 
     // IPC server
     val ipcServer = PanelIpcServer(appDir) {
@@ -105,6 +107,19 @@ fun runDaemon() {
     // reconnect). See UiNotifyChannel.kt.
     val uiNotifyServer = UiNotifyServer(appDir).apply { start() }
     uiNotifyServerRef = uiNotifyServer
+
+    // Single write path for the forecast snapshot: set the flow AND persist the resolved current
+    // status so the panel/UI (later phases) consume one published value instead of re-deriving it
+    // independently. Persistence is best-effort — a current_status write failure must never break a
+    // fetch.
+    fun publishForecastState(result: ForecastResult?) {
+        forecastState.value = result
+        val resolver = currentStatusResolver ?: return
+        if (result == null) return
+        runCatching {
+            weatherDao.upsertCurrentStatus(resolver.resolve(result, System.currentTimeMillis()))
+        }.onFailure { Log.w(TAG, "current_status persist failed: $it") }
+    }
 
     fun quit(killUi: Boolean = true) {
         Log.i(TAG, "Quitting daemon (killUi=$killUi)...")
@@ -148,7 +163,7 @@ fun runDaemon() {
             val cached = activeRepo.loadCached()
             Log.i(TAG, "Cached data loaded. Null? ${cached == null}")
             if (cached != null) {
-                forecastState.value = cached
+                publishForecastState(cached)
                 val lastFetch = weatherDao.getLastSuccessfulFetch(config.weatherSource)
                 dataStatusState.value = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
                 Log.i(TAG, "DataStatus updated to Live (cached). lastFetch: $lastFetch")
@@ -189,7 +204,7 @@ fun runDaemon() {
                             }
                             LaunchRefreshAction.NONE -> forecastState.value
                         }
-                        forecastState.value = result
+                        publishForecastState(result)
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                         notifyDataUpdated()
                         Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
@@ -238,7 +253,7 @@ fun runDaemon() {
                 if (activeRepo.ensureClimateNormals()) {
                     // Newly populated → reload so future-day gap bars appear without waiting for the
                     // next refresh cycle.
-                    activeRepo.loadCached()?.let { forecastState.value = it }
+                    activeRepo.loadCached()?.let { publishForecastState(it) }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -328,6 +343,12 @@ fun runDaemon() {
         weatherService = svc
         val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.weatherSource, config.personalStationWeight())
         repo = newRepo
+        currentStatusResolver = CurrentStatusResolver(
+            latitude = config.lat,
+            longitude = config.lon,
+            source = config.weatherSource,
+            resolveTemp = { f, now -> newRepo.resolveCurrentTempInMemory(f, now) },
+        )
 
         fetchJob = daemonScope.launch {
             // 1. Startup refresh
@@ -367,7 +388,7 @@ fun runDaemon() {
                     try {
                         Log.i(TAG, "Temp actuals loop refresh starting for ${config.weatherSource} (charging=$isCharging, level=$level%)...")
                         val result = newRepo.refreshObservations()
-                        forecastState.value = result
+                        publishForecastState(result)
                         dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.weatherSource) ?: System.currentTimeMillis())
                         weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
                         notifyDataUpdated()
@@ -413,7 +434,7 @@ fun runDaemon() {
                     try {
                         Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource (charging=$isCharging, level=$level%)...")
                         val result = newRepo.refresh()
-                        forecastState.value = result
+                        publishForecastState(result)
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                         notifyDataUpdated()
                         Log.i(TAG, "Active source forecast refresh successful.")
@@ -612,7 +633,7 @@ fun runDaemon() {
                                 if (activeRepo != null && activeConfig != null) {
                                     val cached = activeRepo.loadCached()
                                     if (cached != null) {
-                                        forecastState.value = cached
+                                        publishForecastState(cached)
                                         // The UI only touches this trigger after a *successful*
                                         // refresh() (exceptions skip the notify), so a
                                         // non-failed derivation is accurate here.
