@@ -1,9 +1,11 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.file.Files
 import org.junit.experimental.categories.Category
 
 @Category(ShortDuration::class)
@@ -53,5 +55,51 @@ class PanelIpcServerTest {
             assertTrue(m.contains("<tool>Weather Widget — measured just now</tool>"))
             assertTrue(m.contains("<txtclick>touch /tmp/.show</txtclick>"))
         }
+    }
+
+    private fun testConfig() = DesktopConfig(lat = 37.4220, lon = -122.0841, label = "Test", useCelsius = false)
+
+    private fun server() = PanelIpcServer(
+        appDataDir = Files.createTempDirectory("panel-ipc-test"),
+        markupProvider = { "" },
+    )
+
+    @Test
+    fun `generateMarkup reports measured for a fresh observation`() {
+        val m = server().generateMarkup(
+            observedAtMs = System.currentTimeMillis() - 60_000L,
+            currentTemp = 72.5f,
+            deltaFromYesterday = 1.2f,
+            dataStatus = DataStatus.Live(System.currentTimeMillis()),
+            config = testConfig(),
+        )
+        assertTrue("temp body missing", m.contains("72.5°"))
+        assertTrue("fresh obs must read measured", m.contains("measured just now"))
+        assertTrue("delta span missing", m.contains("+1.2"))
+    }
+
+    @Test
+    fun `generateMarkup reports interpolated for an old observation`() {
+        val m = server().generateMarkup(
+            observedAtMs = System.currentTimeMillis() - (31 * 60 * 1000L),
+            currentTemp = 72.5f,
+            deltaFromYesterday = null,
+            dataStatus = DataStatus.Live(System.currentTimeMillis()),
+            config = testConfig(),
+        )
+        assertTrue("stale obs must read interpolated", m.contains("interpolated just now"))
+    }
+
+    @Test
+    fun `generateMarkup reports no data when nothing has been published`() {
+        val m = server().generateMarkup(
+            observedAtMs = null,
+            currentTemp = null,
+            deltaFromYesterday = null,
+            dataStatus = DataStatus.Live(System.currentTimeMillis()),
+            config = testConfig(),
+        )
+        assertTrue("empty body must be --", m.contains("--"))
+        assertTrue("empty state must read no data", m.contains("no data just now"))
     }
 }

@@ -1,7 +1,6 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.DataStatus
-import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.shared.util.Log
 import java.net.StandardProtocolFamily
 import java.net.UnixDomainSocketAddress
@@ -113,7 +112,7 @@ class PanelIpcServer(
     }
 
     fun generateMarkup(
-        forecast: ForecastResult?,
+        observedAtMs: Long?,
         currentTemp: Float?,
         deltaFromYesterday: Float?,
         dataStatus: DataStatus,
@@ -145,15 +144,13 @@ class PanelIpcServer(
                 String.format(Locale.US, "%+.1f", displayDelta)
             }
 
-        // Tooltip detail matches the legacy python script logic
-        val detail = if (forecast != null) {
-            val obsAt = forecast.currentObservedAt
-            if (obsAt != null && (System.currentTimeMillis() - obsAt) <= 30 * 60 * 1000L) {
-                "measured"
-            } else {
-                "interpolated"
-            }
-        } else if (config == null) "not configured" else "no data"
+        // Tooltip detail: measured when the published observation is fresh, interpolated otherwise.
+        val detail = when {
+            observedAtMs != null && (System.currentTimeMillis() - observedAtMs) <= 30 * 60 * 1000L -> "measured"
+            observedAtMs != null -> "interpolated"
+            config == null -> "not configured"
+            else -> "no data"
+        }
         
         val ageStr = when (dataStatus) {
             is DataStatus.Live -> "just now"

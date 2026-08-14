@@ -86,20 +86,24 @@ fun runDaemon() {
 
     // IPC server
     val ipcServer = PanelIpcServer(appDir) {
-        val forecast = forecastState.value
         val dataStatus = dataStatusState.value
         val config = configState.value
-        val currentRepo = repo
-        
-        val resolved = if (forecast != null && currentRepo != null) {
-            currentRepo.resolveCurrentTempInMemory(forecast, System.currentTimeMillis())
+        // Phase 2: serve the daemon's published current_status (a single DB read) instead of
+        // re-running the ~350ms IDW blend on every panel connect. The panel and the UI popup now
+        // consume the same persisted value, so they cannot drift.
+        val status = if (config != null) {
+            weatherDao.getCurrentStatus(config.lat, config.lon, config.weatherSource)
         } else {
-            DesktopWeatherRepository.ResolvedCurrentTemp(
-                forecast?.currentTemp, forecast?.appliedDelta, forecast?.deltaFromYesterday,
-            )
+            null
         }
 
-        generateMarkup(forecast, resolved.displayTemp, resolved.deltaFromYesterday, dataStatus, config)
+        generateMarkup(
+            observedAtMs = status?.observedAtMs,
+            currentTemp = status?.displayTempF,
+            deltaFromYesterday = status?.deltaFromYesterdayF,
+            dataStatus = dataStatus,
+            config = config,
+        )
     }.apply { start() }
 
     // Non-lossy daemon → UI push channel. `notifyDataUpdated()` pushes over this in addition to the
