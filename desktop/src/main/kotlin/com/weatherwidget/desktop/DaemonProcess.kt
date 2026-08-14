@@ -81,57 +81,22 @@ fun runDaemon() {
     // Rebuilt alongside `repo` in startFetchLoops; owns the resolved current-status packaging.
     var currentStatusResolver: CurrentStatusResolver? = null
 
-    // IPC server
-    val ipcServer = PanelIpcServer(appDir) {
-        val dataStatus = dataStatusState.value
-        val config = configState.value
-        // Phase 2: serve the daemon's published current_status (a single DB read) instead of
-        // re-running the ~350ms IDW blend on every panel connect. The panel and the UI popup now
-        // consume the same persisted value, so they cannot drift.
-        val status = if (config != null) {
-            weatherDao.getCurrentStatus(config.lat, config.lon, config.settings.weatherSource)
-        } else {
-            null
-        }
-
-        generateMarkup(
-            observedAtMs = status?.observedAtMs,
-            currentTemp = status?.displayTempF,
-            deltaFromYesterday = status?.deltaFromYesterdayF,
-            dataStatus = dataStatus,
-            config = config,
-        )
-    }.apply { start() }
+    // Panel + current-status publisher: serves the genmon panel and persists the resolved
+    // current_status (single writer). See PanelPublisher.
+    val panelPublisher = PanelPublisher(
+        appDataDir = appDir,
+        weatherDao = weatherDao,
+        forecastState = forecastState,
+        dataStatusState = dataStatusState,
+        configState = configState,
+        resolverProvider = { currentStatusResolver },
+    )
 
     // Non-lossy daemon → UI push channel. `notifyDataUpdated()` pushes over this in addition to the
     // `.data-updated` file trigger; the UI holds the connection open and reloads on each push (and on
     // reconnect). See UiNotifyChannel.kt.
     val uiNotifyServer = UiNotifyServer(appDir).apply { start() }
     uiNotifyServerRef = uiNotifyServer
-
-    // Single write path for the forecast snapshot: set the flow AND persist the resolved current
-    // status so the panel/UI (later phases) consume one published value instead of re-deriving it
-    // independently. Persistence is best-effort — a current_status write failure must never break a
-    // fetch.
-    fun publishForecastState(result: ForecastSnapshot?) {
-        forecastState.value = result
-        val resolver = currentStatusResolver ?: return
-        if (result == null) return
-        runCatching {
-            weatherDao.upsertCurrentStatus(resolver.resolve(result, System.currentTimeMillis()))
-        }.onFailure { Log.w(TAG, "current_status persist failed: $it") }
-    }
-
-    // Re-resolves + persists the published current_status from the current in-memory forecast. The
-    // minute loop calls this so the snapshot interpolates smoothly between fetches (the fetch paths
-    // already persist via publishForecastState); the UI then only has to re-read a single row.
-    fun refreshCurrentStatus() {
-        val snapshot = forecastState.value ?: return
-        val resolver = currentStatusResolver ?: return
-        runCatching {
-            weatherDao.upsertCurrentStatus(resolver.resolve(snapshot, System.currentTimeMillis()))
-        }.onFailure { Log.w(TAG, "current_status persist failed: $it") }
-    }
 
     fun quit(killUi: Boolean = true) {
         Log.i(TAG, "Quitting daemon (killUi=$killUi)...")
@@ -162,7 +127,7 @@ fun runDaemon() {
     // Sync the state flows with IPC server updates
     daemonScope.launch {
         combine(forecastState, dataStatusState, configState) { _, _, _ ->
-            ipcServer.triggerRefresh()
+            panelPublisher.triggerPanelRefresh()
         }.collect {}
     }
 
@@ -175,7 +140,7 @@ fun runDaemon() {
             val cached = activeRepo.loadCached()
             Log.i(TAG, "Cached data loaded. Null? ${cached == null}")
             if (cached != null) {
-                publishForecastState(cached)
+                panelPublisher.publishForecastState(cached)
                 val lastFetch = weatherDao.getLastSuccessfulFetch(config.settings.weatherSource)
                 dataStatusState.value = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
                 Log.i(TAG, "DataStatus updated to Live (cached). lastFetch: $lastFetch")
@@ -216,7 +181,7 @@ fun runDaemon() {
                             }
                             LaunchRefreshAction.NONE -> forecastState.value
                         }
-                        publishForecastState(result)
+                        panelPublisher.publishForecastState(result)
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                         notifyDataUpdated()
                         Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
@@ -265,7 +230,7 @@ fun runDaemon() {
                 if (activeRepo.ensureClimateNormals()) {
                     // Newly populated → reload so future-day gap bars appear without waiting for the
                     // next refresh cycle.
-                    activeRepo.loadCached()?.let { publishForecastState(it) }
+                    activeRepo.loadCached()?.let { panelPublisher.publishForecastState(it) }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -374,8 +339,8 @@ fun runDaemon() {
                 while (true) {
                     delay(60_000L - (System.currentTimeMillis() % 60_000L))
                     try {
-                        refreshCurrentStatus()
-                        ipcServer.triggerRefresh()
+                        panelPublisher.refreshCurrentStatus()
+                        panelPublisher.triggerPanelRefresh()
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -402,7 +367,7 @@ fun runDaemon() {
                     try {
                         Log.i(TAG, "Temp actuals loop refresh starting for ${config.settings.weatherSource} (charging=$isCharging, level=$level%)...")
                         val result = newRepo.refreshObservations()
-                        publishForecastState(result)
+                        panelPublisher.publishForecastState(result)
                         dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.settings.weatherSource) ?: System.currentTimeMillis())
                         weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
                         notifyDataUpdated()
@@ -448,7 +413,7 @@ fun runDaemon() {
                     try {
                         Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource (charging=$isCharging, level=$level%)...")
                         val result = newRepo.refresh()
-                        publishForecastState(result)
+                        panelPublisher.publishForecastState(result)
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                         notifyDataUpdated()
                         Log.i(TAG, "Active source forecast refresh successful.")
@@ -574,7 +539,7 @@ fun runDaemon() {
     if (currentConfig != null) {
         startFetchLoops()
     } else {
-        ipcServer.triggerRefresh()
+        panelPublisher.triggerPanelRefresh()
     }
 
     // WatchService loop
@@ -647,7 +612,7 @@ fun runDaemon() {
                                 if (activeRepo != null && activeConfig != null) {
                                     val cached = activeRepo.loadCached()
                                     if (cached != null) {
-                                        publishForecastState(cached)
+                                        panelPublisher.publishForecastState(cached)
                                         // The UI only touches this trigger after a *successful*
                                         // refresh() (exceptions skip the notify), so a
                                         // non-failed derivation is accurate here.
