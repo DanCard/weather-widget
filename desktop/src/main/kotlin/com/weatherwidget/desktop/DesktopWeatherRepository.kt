@@ -504,7 +504,14 @@ class DesktopWeatherRepository(
                 hourly = cachedHourly,
                 dailyActuals = cached?.dailyActuals ?: emptyMap(),
                 dailySnapshots = cached?.dailySnapshots ?: emptyMap(),
-                rawObservations = if (result.rawObservations.isNotEmpty()) result.rawObservations else cached?.rawObservations ?: emptyList(),
+                // DB-derived, NOT the network `result.rawObservations`. The daemon stores this
+                // returned ForecastResult in forecastState and the genmon panel re-resolves its
+                // temperature from it via resolveCurrentTempInMemory; the UI process, by contrast,
+                // re-reads observations from the DB (loadCached). Returning the freshly-fetched
+                // list here made the panel's IDW blend see a slightly different observation set
+                // than the popup, so the two showed different temperatures. cached.rawObservations
+                // is exactly what loadCached will hand the UI, so this keeps them in agreement.
+                rawObservations = cached?.rawObservations ?: result.rawObservations,
             )
         } catch (e: Exception) {
             if (e !is kotlinx.coroutines.CancellationException) {
