@@ -251,7 +251,7 @@ class PanelIpcServer(
                         val cmdVal = valReader.readLine()?.trim() ?: ""
                         queryProcess.waitFor()
 
-                        if (cmdVal.contains("genmon-weather-bin") || cmdVal.contains("genmon-weather.py")) {
+                        if (cmdVal.contains("genmon-weather-bin")) {
                             val parts = trimmed.split("/")
                             if (parts.size >= 3) {
                                 val pluginPart = parts[2] // "plugin-XX"

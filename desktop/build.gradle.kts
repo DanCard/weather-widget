@@ -94,13 +94,6 @@ dependencies {
     testImplementation(libs.ktor.client.mock)
 }
 
-// Bundle the genmon panel script into the jar (single source of truth: scripts/genmon-weather.py).
-// The packaged app extracts it to a stable XDG path on first run so the panel command survives a
-// repo move/removal.
-tasks.named<Copy>("processResources") {
-    from(rootProject.file("scripts/genmon-weather.py")) { into("scripts") }
-}
-
 compose.desktop {
     application {
         mainClass = "com.weatherwidget.desktop.MainKt"

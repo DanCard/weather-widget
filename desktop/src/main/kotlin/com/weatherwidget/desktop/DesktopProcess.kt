@@ -270,20 +270,6 @@ fun supersededByNewerInstance(dir: Path, myLaunchId: String): Boolean {
     }.getOrDefault(false)
 }
 
-fun maybePackagedSetup() {
-    if (!isPackaged()) return
-    runCatching { extractGenmonScript() }.onFailure { System.err.println("genmon extract failed: $it") }
-}
-
-fun extractGenmonScript() {
-    val target = appDataDir().resolve("genmon-weather.py")
-    if (Files.exists(target)) return
-    val stream = object {}.javaClass.getResourceAsStream("/scripts/genmon-weather.py") ?: return
-    Files.createDirectories(target.parent)
-    stream.use { Files.copy(it, target) }
-    target.toFile().setExecutable(true)
-}
-
 fun launchUiProcess(): Process {
     val command = mutableListOf<String>()
     if (isPackaged()) {
