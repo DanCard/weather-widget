@@ -66,11 +66,11 @@ currentCondition = "Sunny"),
 )
 
     private val stubConfig = DesktopConfig(
-        lat = 37.4220,
-        lon = -122.0841,
-        label = "Mountain View",
-        visibleSources = listOf("NWS"),
-    )
+lat = 37.4220,
+lon = -122.0841,
+label = "Mountain View",
+settings = DesktopSettings(visibleSources = listOf("NWS")),
+)
 
     /** Hourly data that a successful refresh would return for the target day (≥2 NWS points). */
     private val refreshedHourly: List<HourlyForecast> = nearTermHourly + listOf(

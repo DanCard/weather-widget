@@ -29,8 +29,8 @@ class DesktopConfigStoreTest {
         val loaded = DesktopConfigStore(configPath).load()
 
         requireNotNull(loaded)
-        assertEquals(listOf("OPEN_METEO"), loaded.visibleSources)
-        assertEquals("OPEN_METEO", loaded.weatherSource)
+        assertEquals(listOf("OPEN_METEO"), loaded.settings.visibleSources)
+        assertEquals("OPEN_METEO", loaded.settings.weatherSource)
         val normalizedJson = configPath.readText()
         assertEquals(false, normalizedJson.contains("VISUAL_CROSSING"))
         assertEquals(false, normalizedJson.contains("OPEN_WEATHER_MAP"))
@@ -38,7 +38,11 @@ class DesktopConfigStoreTest {
 
     @Test
     fun `obsSelectedTab defaults to TAB_OBSERVATIONS and persists tab selection`() {
-        val defaultConfig = DesktopConfig(lat = 37.42, lon = -122.08, label = "Test")
+        val defaultConfig = DesktopConfig(
+lat = 37.42,
+lon = -122.08,
+label = "Test",
+)
         assertEquals(TAB_OBSERVATIONS, defaultConfig.obsSelectedTab)
 
         val configPath = Files.createTempDirectory("desktop-config-obs-tab").resolve("config.json")

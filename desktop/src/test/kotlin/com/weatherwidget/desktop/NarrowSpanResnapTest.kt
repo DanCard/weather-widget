@@ -25,12 +25,12 @@ class NarrowSpanResnapTest {
         narrowZoomSpanHours: Int = HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS,
         zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
     ) = DesktopConfig(
-        lat = 37.42,
-        lon = -122.08,
-        label = "Test",
-        narrowZoomSpanHours = narrowZoomSpanHours,
-        zoomFactor = zoomFactor,
-    )
+lat = 37.42,
+lon = -122.08,
+label = "Test",
+zoomFactor = zoomFactor,
+settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
+)
 
     @Test
     fun `changing the span while viewing NARROW re-snaps the zoom factor`() {
@@ -39,7 +39,7 @@ class NarrowSpanResnapTest {
             narrowZoomSpanHours = oldSpan,
             zoomFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, oldSpan),
         )
-        val next = prev.copy(narrowZoomSpanHours = 8)
+        val next = prev.copy(settings = prev.settings.copy(narrowZoomSpanHours = 8))
 
         val result = resnapNarrowZoomAfterSpanChange(prev, next)
 
@@ -47,7 +47,7 @@ class NarrowSpanResnapTest {
             DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, 8),
             result.zoomFactor,
         )
-        assertEquals(8, result.narrowZoomSpanHours)
+        assertEquals(8, result.settings.narrowZoomSpanHours)
     }
 
     @Test
@@ -57,7 +57,7 @@ class NarrowSpanResnapTest {
             val oldFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, oldSpan)
             spans.filter { it != oldSpan }.forEach { newSpan ->
                 val prev = config(narrowZoomSpanHours = oldSpan, zoomFactor = oldFactor)
-                val result = resnapNarrowZoomAfterSpanChange(prev, prev.copy(narrowZoomSpanHours = newSpan))
+                val result = resnapNarrowZoomAfterSpanChange(prev, prev.copy(settings = prev.settings.copy(narrowZoomSpanHours = newSpan)))
                 val back = DesktopGraphUtils.backHoursFor(result.zoomFactor)
                 val forward = DesktopGraphUtils.forwardHoursFor(result.zoomFactor)
                 assertEquals(
@@ -78,23 +78,23 @@ class NarrowSpanResnapTest {
     @Test
     fun `changing the span while viewing WIDE leaves the zoom factor untouched`() {
         val prev = config(zoomFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.WIDE))
-        val next = prev.copy(narrowZoomSpanHours = 8)
+        val next = prev.copy(settings = prev.settings.copy(narrowZoomSpanHours = 8))
 
         val result = resnapNarrowZoomAfterSpanChange(prev, next)
 
         assertEquals(prev.zoomFactor, result.zoomFactor)
-        assertEquals(8, result.narrowZoomSpanHours)
+        assertEquals(8, result.settings.narrowZoomSpanHours)
     }
 
     @Test
     fun `changing the span while viewing THREE_DAY leaves the zoom factor untouched`() {
         val prev = config(zoomFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.THREE_DAY))
-        val next = prev.copy(narrowZoomSpanHours = 8)
+        val next = prev.copy(settings = prev.settings.copy(narrowZoomSpanHours = 8))
 
         val result = resnapNarrowZoomAfterSpanChange(prev, next)
 
         assertEquals(prev.zoomFactor, result.zoomFactor)
-        assertEquals(8, result.narrowZoomSpanHours)
+        assertEquals(8, result.settings.narrowZoomSpanHours)
     }
 
     @Test
@@ -108,7 +108,7 @@ class NarrowSpanResnapTest {
                 DesktopGraphUtils.backHoursFor(z) + DesktopGraphUtils.forwardHoursFor(z) == 6
             }
         val prev = config(narrowZoomSpanHours = 5, zoomFactor = nearNarrowFactor)
-        val next = prev.copy(narrowZoomSpanHours = 7)
+        val next = prev.copy(settings = prev.settings.copy(narrowZoomSpanHours = 7))
 
         val result = resnapNarrowZoomAfterSpanChange(prev, next)
 

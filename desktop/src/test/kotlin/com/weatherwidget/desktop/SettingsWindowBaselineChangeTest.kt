@@ -36,12 +36,12 @@ class SettingsWindowBaselineChangeTest {
     val composeTestRule = createComposeRule()
 
     private val sampleConfig = DesktopConfig(
-        lat = 0.0,
-        lon = 0.0,
-        label = "Test Location",
-        visibleSources = listOf("NWS", "OPEN_METEO", "SILURIAN", "TOMORROW_IO"),
-        useCelsius = false,
-    )
+lat = 0.0,
+lon = 0.0,
+label = "Test Location",
+settings = DesktopSettings(visibleSources = listOf("NWS", "OPEN_METEO", "SILURIAN", "TOMORROW_IO"),
+useCelsius = false),
+)
 
     /** Long enough that auto-save never fires mid-test; every save here is an explicit click. */
     private val noAutoSave = 600_000L
@@ -84,7 +84,7 @@ class SettingsWindowBaselineChangeTest {
         assertEquals(
             "the pending edit must be what gets written",
             listOf("NWS", "OPEN_METEO", "SILURIAN"),
-            saved.single().visibleSources,
+            saved.single().settings.visibleSources,
         )
         assertEquals("the popup's newer window position must not be rewound", 640f, saved.single().windowX)
         assertEquals(480f, saved.single().windowY)
@@ -123,7 +123,7 @@ class SettingsWindowBaselineChangeTest {
         assertEquals(1, saved.size)
         assertEquals(
             listOf("NWS", "OPEN_METEO", "SILURIAN"),
-            saved.single().visibleSources,
+            saved.single().settings.visibleSources,
         )
         assertEquals("the last popup zoom must win", 0.55f, saved.single().zoomFactor, 0.0001f)
         assertEquals("the last popup position must win", 170f, saved.single().windowX)

@@ -25,10 +25,10 @@ class SettingsWindowOverlayTogglesTest {
     val composeTestRule = createComposeRule()
 
     private val sampleConfig = DesktopConfig(
-        lat = 0.0,
-        lon = 0.0,
-        label = "Test Location",
-    )
+lat = 0.0,
+lon = 0.0,
+label = "Test Location",
+)
 
     @Test
     fun overlayTogglesDefaultOff() {
@@ -65,26 +65,26 @@ class SettingsWindowOverlayTogglesTest {
 
         composeTestRule.onNodeWithTag("today_overlay_delta_switch").performClick()
         composeTestRule.waitForIdle()
-        assertTrue(drafts.last().todayOverlayDelta)
-        assertFalse(drafts.last().todayOverlayDominantTemp)
-        assertFalse(drafts.last().todayOverlayDominantAge)
+        assertTrue(drafts.last().settings.todayOverlayDelta)
+        assertFalse(drafts.last().settings.todayOverlayDominantTemp)
+        assertFalse(drafts.last().settings.todayOverlayDominantAge)
 
         composeTestRule.onNodeWithTag("today_overlay_dominant_temp_switch").performClick()
         composeTestRule.waitForIdle()
-        assertTrue(drafts.last().todayOverlayDelta)
-        assertTrue(drafts.last().todayOverlayDominantTemp)
-        assertFalse(drafts.last().todayOverlayDominantAge)
+        assertTrue(drafts.last().settings.todayOverlayDelta)
+        assertTrue(drafts.last().settings.todayOverlayDominantTemp)
+        assertFalse(drafts.last().settings.todayOverlayDominantAge)
 
         composeTestRule.onNodeWithTag("today_overlay_dominant_age_switch").performClick()
         composeTestRule.waitForIdle()
-        assertTrue(drafts.last().todayOverlayDominantAge)
+        assertTrue(drafts.last().settings.todayOverlayDominantAge)
 
         // Toggle delta back off: only that field changes.
         composeTestRule.onNodeWithTag("today_overlay_delta_switch").performClick()
         composeTestRule.waitForIdle()
-        assertFalse(drafts.last().todayOverlayDelta)
-        assertTrue(drafts.last().todayOverlayDominantTemp)
-        assertTrue(drafts.last().todayOverlayDominantAge)
+        assertFalse(drafts.last().settings.todayOverlayDelta)
+        assertTrue(drafts.last().settings.todayOverlayDominantTemp)
+        assertTrue(drafts.last().settings.todayOverlayDominantAge)
 
         assertEquals("one draft per toggle", 4, drafts.size)
     }

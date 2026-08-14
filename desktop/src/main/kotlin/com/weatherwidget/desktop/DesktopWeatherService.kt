@@ -67,10 +67,10 @@ class DesktopWeatherService(
     }
 
     // Build-time keys (from local.properties / env, baked in via DesktopApiKeys) provide the default,
-    // and a key entered in desktop Settings (config.apiKeys) overrides it — same precedence as
+    // and a key entered in desktop Settings (config.settings.apiKeys) overrides it — same precedence as
     // Android's `widgetStateManager.getApiKey(...) ?: BuildConfig.<SOURCE>_API_KEY`. Blank config
     // values are ignored so they can't wipe a baked-in key. These keys are never written back to
-    // config.json (the store only persists config.apiKeys).
+    // config.json (the store only persists config.settings.apiKeys).
     private val effectiveKeys: Map<String, String> =
         DesktopApiKeys.DEFAULTS + apiKeys.filterValues { it.isNotBlank() }
 
@@ -86,8 +86,8 @@ class DesktopWeatherService(
     constructor(config: DesktopConfig) : this(
         latitude = config.lat,
         longitude = config.lon,
-        weatherSource = config.weatherSource,
-        apiKeys = config.apiKeys
+        weatherSource = config.settings.weatherSource,
+        apiKeys = config.settings.apiKeys
     )
 
     /**

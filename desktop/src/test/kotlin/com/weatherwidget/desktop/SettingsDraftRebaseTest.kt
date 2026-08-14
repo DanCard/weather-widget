@@ -26,15 +26,15 @@ class SettingsDraftRebaseTest {
         viewMode: ViewMode = ViewMode.DAILY,
         personalStationDiscount: Int = 95,
     ) = DesktopConfig(
-        lat = 37.42,
-        lon = -122.08,
-        label = "Test",
-        narrowZoomSpanHours = narrowZoomSpanHours,
-        zoomFactor = zoomFactor,
-        windowX = windowX,
-        viewMode = viewMode,
-        personalStationDiscount = personalStationDiscount,
-    )
+lat = 37.42,
+lon = -122.08,
+label = "Test",
+zoomFactor = zoomFactor,
+windowX = windowX,
+viewMode = viewMode,
+settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours,
+personalStationDiscount = personalStationDiscount),
+)
 
     @Test
     fun `an unsaved settings edit survives a popup config save`() {
@@ -42,7 +42,7 @@ class SettingsDraftRebaseTest {
         val baseline = config(narrowZoomSpanHours = 5)
 
         // 1. User drags the Hourly Zoom slider to 7. Draft only — not yet persisted.
-        val draft = baseline.copy(narrowZoomSpanHours = 7)
+        val draft = baseline.copy(settings = baseline.settings.copy(narrowZoomSpanHours = 7))
 
         // 2. Within the 5s auto-save window the popup persists something of its own: the window was
         //    nudged, so Main writes windowX off the PERSISTED config, which still says 5h.
@@ -51,7 +51,7 @@ class SettingsDraftRebaseTest {
         // 3. The Settings window rebases instead of resetting.
         val rebased = newBaseline.withSettingsFrom(draft)
 
-        assertEquals("the user's 7h edit must survive", 7, rebased.narrowZoomSpanHours)
+        assertEquals("the user's 7h edit must survive", 7, rebased.settings.narrowZoomSpanHours)
         assertEquals("the popup's window move must survive too", 120f, rebased.windowX)
     }
 
@@ -60,12 +60,12 @@ class SettingsDraftRebaseTest {
         // The mirror image: the draft carries a stale copy of every popup field, so saving the draft
         // verbatim would rewind the window position and zoom the user just changed.
         val baseline = config(narrowZoomSpanHours = 5, zoomFactor = 0.3f, windowX = 10f)
-        val draft = baseline.copy(narrowZoomSpanHours = 8)
+        val draft = baseline.copy(settings = baseline.settings.copy(narrowZoomSpanHours = 8))
 
         val newBaseline = baseline.copy(zoomFactor = 0.75f, windowX = 900f, viewMode = ViewMode.HOURLY)
         val saved = newBaseline.withSettingsFrom(draft)
 
-        assertEquals(8, saved.narrowZoomSpanHours)
+        assertEquals(8, saved.settings.narrowZoomSpanHours)
         assertEquals("zoom must stay where the popup put it", 0.75f, saved.zoomFactor)
         assertEquals("window position must stay where the popup put it", 900f, saved.windowX)
         assertEquals("view mode must stay where the popup put it", ViewMode.HOURLY, saved.viewMode)
@@ -86,7 +86,7 @@ class SettingsDraftRebaseTest {
             movedWindow.withSettingsFrom(untouchedDraft),
         )
 
-        val editedDraft = baseline.copy(personalStationDiscount = 40)
+        val editedDraft = baseline.copy(settings = baseline.settings.copy(personalStationDiscount = 40))
         assertNotEquals(
             "a real settings edit must still read dirty",
             movedWindow,
@@ -99,28 +99,21 @@ class SettingsDraftRebaseTest {
         // Guards the merge list: a field added to the Settings UI but forgotten in withSettingsFrom
         // would silently revert exactly the way narrowZoomSpanHours did.
         val baseline = config()
-        val draft = baseline.copy(
-            weatherSource = "OPEN_METEO",
-            visibleSources = listOf("OPEN_METEO"),
-            apiKeys = mapOf("SILURIAN" to "abc"),
-            narrowZoomSpanHours = 8,
-            personalStationDiscount = 10,
-            useCelsius = !baseline.useCelsius,
-            todayOverlayDelta = true,
-            todayOverlayDominantTemp = true,
-            todayOverlayDominantAge = true,
-        )
+        val draft = baseline.copy(settings = baseline.settings.copy(weatherSource = "OPEN_METEO",
+visibleSources = listOf("OPEN_METEO"),
+apiKeys = mapOf("SILURIAN" to "abc"),
+narrowZoomSpanHours = 8,
+personalStationDiscount = 10,
+useCelsius = !baseline.settings.useCelsius,
+todayOverlayDelta = true,
+todayOverlayDominantTemp = true,
+todayOverlayDominantAge = true))
         val rebased = baseline.copy(windowX = 5f).withSettingsFrom(draft)
 
-        DesktopConfig.SETTINGS_OWNED_FIELDS.forEach { field ->
-            assertTrue(
-                "$field is listed as settings-owned but did not survive the rebase",
-                rebased.settingsDiffFrom(draft).none { it.startsWith("$field:") },
-            )
-        }
-        assertTrue(
+        assertEquals(
             "rebased draft must be settings-identical to the draft",
-            rebased.settingsDiffFrom(draft).isEmpty(),
+            draft.settings,
+            rebased.settings,
         )
     }
 
@@ -128,7 +121,7 @@ class SettingsDraftRebaseTest {
     fun `settings diff names the field and both values`() {
         // The logging this bug needed: nothing ever printed what a save contained.
         val before = config(narrowZoomSpanHours = 5)
-        val after = before.copy(narrowZoomSpanHours = 7)
+        val after = before.copy(settings = before.settings.copy(narrowZoomSpanHours = 7))
         assertEquals(listOf("narrowZoomSpanHours: 5 -> 7"), after.settingsDiffFrom(before))
         assertTrue("identical configs must diff empty", before.settingsDiffFrom(before).isEmpty())
     }
@@ -152,24 +145,24 @@ class SettingsDraftRebaseTest {
 
         val merged = mergeNonSettingsSave(persisted, stalePopupDraft, allowWeatherSourceChange = true)
 
-        assertEquals("the fresh settings edit must survive", 4, merged.narrowZoomSpanHours)
+        assertEquals("the fresh settings edit must survive", 4, merged.settings.narrowZoomSpanHours)
         assertEquals("the popup's zoom must pass through", 0.5f, merged.zoomFactor)
     }
 
     @Test
     fun `weatherSource passes through only when the writer may change it`() {
-        val persisted = config().copy(weatherSource = "NWS")
-        val draft = config().copy(weatherSource = "OPEN_METEO")
+        val persisted = config().copy(settings = config().settings.copy(weatherSource = "NWS"))
+        val draft = config().copy(settings = config().settings.copy(weatherSource = "OPEN_METEO"))
 
         assertEquals(
             "the popup/location-picker may change the active source",
             "OPEN_METEO",
-            mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = true).weatherSource,
+            mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = true).settings.weatherSource,
         )
         assertEquals(
             "other writers must not clobber the active source",
             "NWS",
-            mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = false).weatherSource,
+            mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = false).settings.weatherSource,
         )
     }
 
@@ -177,28 +170,25 @@ class SettingsDraftRebaseTest {
     fun `every settings-owned field is preserved by the merge`() {
         // Guards the merge list: a settings field the merge forgets would revert the same way
         // narrowZoomSpanHours did.
-        val persisted = config().copy(
-            weatherSource = "OPEN_METEO",
-            visibleSources = listOf("OPEN_METEO", "NWS"),
-            apiKeys = mapOf("SILURIAN" to "abc"),
-            narrowZoomSpanHours = 4,
-            personalStationDiscount = 10,
-            useCelsius = true,
-            todayOverlayDelta = true,
-            todayOverlayDominantTemp = true,
-            todayOverlayDominantAge = true,
-        )
+        val persisted = config().copy(settings = config().settings.copy(weatherSource = "OPEN_METEO",
+visibleSources = listOf("OPEN_METEO", "NWS"),
+apiKeys = mapOf("SILURIAN" to "abc"),
+narrowZoomSpanHours = 4,
+personalStationDiscount = 10,
+useCelsius = true,
+todayOverlayDelta = true,
+todayOverlayDominantTemp = true,
+todayOverlayDominantAge = true))
         // A stale draft whose settings fields are all different, carrying a popup zoom/pan change.
         val draft = config().copy(zoomFactor = 0.7f, hourlyOffset = 3)
 
         val merged = mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = false)
 
-        DesktopConfig.SETTINGS_OWNED_FIELDS.forEach { field ->
-            assertTrue(
-                "$field must come from the persisted config, not the stale draft",
-                merged.settingsDiffFrom(persisted).none { it.startsWith("$field:") },
-            )
-        }
+        assertEquals(
+            "settings must come from the persisted config, not the stale draft",
+            persisted.settings,
+            merged.settings,
+        )
         assertEquals("popup zoom must pass through", 0.7f, merged.zoomFactor)
         assertEquals("popup pan must pass through", 3, merged.hourlyOffset)
     }

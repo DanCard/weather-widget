@@ -38,11 +38,13 @@ class SettingsWindowPhase5Test {
         lat = 0.0,
         lon = 0.0,
         label = "Test Location",
-        // TOMORROW_IO is in the default list of configurable sources, which is what the
-        // source-list row toggles. Adding it here makes it visible so toggling it has effect.
-        visibleSources = listOf("NWS", "OPEN_METEO", "SILURIAN", "TOMORROW_IO"),
-        // Keep the Switch transition and assertion independent of the Gradle JVM's locale.
-        useCelsius = false,
+        settings = DesktopSettings(
+            // TOMORROW_IO is in the default list of configurable sources, which is what the
+            // source-list row toggles. Adding it here makes it visible so toggling it has effect.
+            visibleSources = listOf("NWS", "OPEN_METEO", "SILURIAN", "TOMORROW_IO"),
+            // Keep the Switch transition and assertion independent of the Gradle JVM's locale.
+            useCelsius = false,
+        ),
     )
 
     @Test
@@ -78,7 +80,7 @@ class SettingsWindowPhase5Test {
         assertEquals(
             "the owning Window receives the same draft for title-bar/Escape close",
             listOf("NWS", "OPEN_METEO", "SILURIAN"),
-            drafts.single().visibleSources,
+            drafts.single().settings.visibleSources,
         )
     }
 
@@ -130,7 +132,7 @@ class SettingsWindowPhase5Test {
         assertEquals(
             "the auto-saved config is the post-edit one (TOMORROW_IO no longer visible)",
             listOf("NWS", "OPEN_METEO", "SILURIAN"),
-            savedConfigs.single().visibleSources,
+            savedConfigs.single().settings.visibleSources,
         )
     }
 
@@ -184,12 +186,12 @@ class SettingsWindowPhase5Test {
         assertEquals(
             "TOMORROW_IO edit was preserved into the auto-saved config",
             listOf("NWS", "OPEN_METEO", "SILURIAN"),
-            saved.visibleSources,
+            saved.settings.visibleSources,
         )
         assertEquals(
             "Use Celsius edit was preserved into the auto-saved config",
             true,
-            saved.useCelsius,
+            saved.settings.useCelsius,
         )
     }
 
@@ -225,13 +227,13 @@ class SettingsWindowPhase5Test {
         composeTestRule.onNodeWithText("Save •").assertDoesNotExist()
         assertEquals(
             listOf("NWS", "OPEN_METEO", "SILURIAN"),
-            persistedConfig.value.visibleSources,
+            persistedConfig.value.settings.visibleSources,
         )
     }
 
     @Test
     fun closeFlushesDirtyDraftButNotAnAlreadyPersistedDraft() {
-        val dirtyDraft = sampleConfig.copy(useCelsius = !sampleConfig.useCelsius)
+        val dirtyDraft = sampleConfig.copy(settings = sampleConfig.settings.copy(useCelsius = !sampleConfig.settings.useCelsius))
         val savedConfigs = mutableListOf<DesktopConfig>()
 
         flushSettingsDraft(sampleConfig, dirtyDraft) { savedConfigs += it }

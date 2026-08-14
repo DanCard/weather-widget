@@ -125,15 +125,15 @@ internal fun ForecastHistoryWindow(
         LaunchedEffect(showRequestId) {
             if (showRequestId > 0) window.toFront()
         }
-        val visibleSources = remember(config.visibleSources) {
-            config.visibleSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
+        val visibleSources = remember(config.settings.visibleSources) {
+            config.settings.visibleSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
         }
         // Keyed on showRequestId: each fresh open re-seeds the viewed date (e.g. the hourly
         // graph's center day), while prev/next navigation within one showing is untouched.
         var targetDate by remember(showRequestId) { mutableStateOf(initialDate) }
         var source by remember {
             mutableStateOf(
-                WeatherSource.fromId(config.weatherSource).takeIf { it in visibleSources }
+                WeatherSource.fromId(config.settings.weatherSource).takeIf { it in visibleSources }
                     ?: visibleSources.first(),
             )
         }
@@ -174,7 +174,7 @@ internal fun ForecastHistoryWindow(
                 when {
                     loading -> Text("Loading…", color = Color.Gray)
                     d == null -> Text("No data.", color = Color.Gray)
-                    else -> Content(d, graphMode, source, config.useCelsius)
+                    else -> Content(d, graphMode, source, config.settings.useCelsius)
                 }
             }
         }
@@ -546,7 +546,7 @@ private fun loadHistory(
     val newestAge = newestFetch?.let { System.currentTimeMillis() - it }
 
     val calc = DesktopAccuracyCalculator(dao, orderedVisibleSources = visibleSources)
-    val useCelsius = config.useCelsius
+    val useCelsius = config.settings.useCelsius
     val summary = buildString {
         visibleSources.forEachIndexed { index, s ->
             val stats = calc.calculateAccuracy(s.id, lat, lon, days = 30)

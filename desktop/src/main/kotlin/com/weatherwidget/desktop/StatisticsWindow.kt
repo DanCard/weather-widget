@@ -54,7 +54,7 @@ internal fun StatisticsWindow(
             }
         }
     ) {
-        val source = config.weatherSource
+        val source = config.settings.weatherSource
         var loading by remember { mutableStateOf(true) }
         var stats by remember { mutableStateOf<AccuracyPure.AccuracyStatistics?>(null) }
         var breakdown by remember { mutableStateOf<List<AccuracyPure.DailyAccuracy>>(emptyList()) }
@@ -63,7 +63,7 @@ internal fun StatisticsWindow(
             loading = true
             val calc = DesktopAccuracyCalculator(
                 weatherDao,
-                orderedVisibleSources = config.visibleSources.map { WeatherSource.fromId(it) }
+                orderedVisibleSources = config.settings.visibleSources.map { WeatherSource.fromId(it) }
                     .ifEmpty { listOf(WeatherSource.NWS) },
             )
             val (s, b) = withContext(Dispatchers.IO) {
@@ -86,11 +86,11 @@ internal fun StatisticsWindow(
                     loading -> Text("Calculating…", color = Color.Gray)
                     stats == null -> EmptyState()
                     else -> {
-                        SummaryCard(stats!!, config.useCelsius)
+                        SummaryCard(stats!!, config.settings.useCelsius)
                         Spacer(Modifier.height(16.dp))
                         Text("Day-by-day", fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
-                        BreakdownTable(breakdown, config.useCelsius)
+                        BreakdownTable(breakdown, config.settings.useCelsius)
                     }
                 }
             }

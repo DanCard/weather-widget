@@ -203,9 +203,9 @@ internal fun SettingsWindow(
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                                 Switch(
-                                    checked = currentConfig.useCelsius,
+                                    checked = currentConfig.settings.useCelsius,
                                     onCheckedChange = { isChecked ->
-                                        updateConfig(currentConfig.copy(useCelsius = isChecked))
+                                        updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(useCelsius = isChecked)))
                                     },
                                     modifier = Modifier.testTag("use_celsius_switch")
                                 )
@@ -217,28 +217,28 @@ internal fun SettingsWindow(
                         SettingsCard(title = "Daily View — Today Column") {
                             TodayOverlayToggleRow(
                                 label = "Show delta from forecast",
-                                checked = currentConfig.todayOverlayDelta,
+                                checked = currentConfig.settings.todayOverlayDelta,
                                 testTag = "today_overlay_delta_switch",
-                            ) { updateConfig(currentConfig.copy(todayOverlayDelta = it)) }
+                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDelta = it))) }
                             TodayOverlayToggleRow(
                                 label = "Show dominant station temperature",
-                                checked = currentConfig.todayOverlayDominantTemp,
+                                checked = currentConfig.settings.todayOverlayDominantTemp,
                                 testTag = "today_overlay_dominant_temp_switch",
-                            ) { updateConfig(currentConfig.copy(todayOverlayDominantTemp = it)) }
+                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantTemp = it))) }
                             TodayOverlayToggleRow(
                                 label = "Show reading age",
-                                checked = currentConfig.todayOverlayDominantAge,
+                                checked = currentConfig.settings.todayOverlayDominantAge,
                                 testTag = "today_overlay_dominant_age_switch",
-                            ) { updateConfig(currentConfig.copy(todayOverlayDominantAge = it)) }
+                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantAge = it))) }
                         }
 
                         // Hourly Zoom -- matches Android's R.string.hourly_zoom_title, and sits
                         // directly above Weather Data Sources on both platforms.
                         SettingsCard(title = "Hourly Zoom") {
                             HourlyZoomSpan(
-                                spanHours = currentConfig.narrowZoomSpanHours,
+                                spanHours = currentConfig.settings.narrowZoomSpanHours,
                                 onChanged = { newSpan ->
-                                    updateConfig(currentConfig.copy(narrowZoomSpanHours = newSpan))
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(narrowZoomSpanHours = newSpan)))
                                 },
                             )
                         }
@@ -247,9 +247,9 @@ internal fun SettingsWindow(
                         // R.string.api_sources_title = "Weather Data Sources".
                         SettingsCard(title = "Weather Data Sources") {
                             ApiSourcesList(
-                                visibleSources = currentConfig.visibleSources,
+                                visibleSources = currentConfig.settings.visibleSources,
                                 onChanged = { newSources ->
-                                    updateConfig(currentConfig.copy(visibleSources = newSources))
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(visibleSources = newSources)))
                                 },
                                 onMustKeepOne = {
                                     // Phase 4 item 3: Android shows a toast; Snackbar is the
@@ -266,9 +266,9 @@ internal fun SettingsWindow(
                         // Personal Weather Stations
                         SettingsCard(title = "Personal Weather Stations") {
                             PersonalStationDiscount(
-                                discountPercent = currentConfig.personalStationDiscount,
+                                discountPercent = currentConfig.settings.personalStationDiscount,
                                 onChanged = { newPercent ->
-                                    updateConfig(currentConfig.copy(personalStationDiscount = newPercent))
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(personalStationDiscount = newPercent)))
                                 }
                             )
                         }
@@ -276,9 +276,9 @@ internal fun SettingsWindow(
                         // API Keys
                         SettingsCard(title = "API Keys") {
                             ApiKeysList(
-                                apiKeys = currentConfig.apiKeys,
+                                apiKeys = currentConfig.settings.apiKeys,
                                 onChanged = { newKeys ->
-                                    updateConfig(currentConfig.copy(apiKeys = newKeys))
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(apiKeys = newKeys)))
                                 }
                             )
                         }

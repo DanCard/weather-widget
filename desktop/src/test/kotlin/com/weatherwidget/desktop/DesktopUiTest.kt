@@ -51,9 +51,11 @@ currentCondition = "Sunny"),
         lat = 37.4220,
         lon = -122.0841,
         label = "Mountain View",
-        // Keep temperature assertions independent of the JVM's process locale. CI may expose a
-        // language-only locale (for example "en"), whose intentional application default is °C.
-        useCelsius = false,
+        settings = DesktopSettings(
+            // Keep temperature assertions independent of the JVM's process locale. CI may expose a
+            // language-only locale (for example "en"), whose intentional application default is °C.
+            useCelsius = false,
+        ),
     )
 
     @Test
@@ -380,7 +382,7 @@ currentCondition = "Sunny"),
         composeTestRule.onNodeWithTag("api_key_TOMORROW_IO").performTextInput("test-key-123")
         composeTestRule.onNodeWithTag("save_settings").performClick()
 
-        assert(savedConfig?.apiKeys?.get("TOMORROW_IO") == "test-key-123")
+        assert(savedConfig?.settings?.apiKeys?.get("TOMORROW_IO") == "test-key-123")
     }
 
     @Test
@@ -403,7 +405,7 @@ currentCondition = "Sunny"),
     @Test
     fun testSettingsSourceToggle() {
         var savedConfig: DesktopConfig? = null
-        val configWithMultipleSources = stubConfig.copy(visibleSources = listOf("NWS", "OPEN_METEO"))
+        val configWithMultipleSources = stubConfig.copy(settings = stubConfig.settings.copy(visibleSources = listOf("NWS", "OPEN_METEO")))
         
         composeTestRule.setContent {
             SettingsWindow(
@@ -418,8 +420,8 @@ currentCondition = "Sunny"),
         composeTestRule.onNodeWithTag("source_checkbox_NWS").performScrollTo().performClick()
         composeTestRule.onNodeWithTag("save_settings").performClick()
 
-        assert(savedConfig?.visibleSources?.contains("NWS") == false)
-        assert(savedConfig?.visibleSources?.size == 1)
+        assert(savedConfig?.settings?.visibleSources?.contains("NWS") == false)
+        assert(savedConfig?.settings?.visibleSources?.size == 1)
     }
 
     @Test

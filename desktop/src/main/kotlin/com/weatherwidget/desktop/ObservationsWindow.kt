@@ -141,7 +141,7 @@ private fun loadBlendTables(
         personalStationWeight = config.personalStationWeight(),
         captureBreakdowns = BLEND_TABLE_POINTS,
     )
-    return BlendTableFormatter.format(result.breakdowns, config.useCelsius)
+    return BlendTableFormatter.format(result.breakdowns, config.settings.useCelsius)
 }
 
 /**
@@ -235,7 +235,7 @@ internal fun ObservationsWindow(
             window.toFront()
             window.requestFocus()
         }
-        var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.weatherSource)) }
+        var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.settings.weatherSource)) }
         var observations by remember { mutableStateOf<List<DesktopObservationEntity>>(emptyList()) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var blendTables by remember { mutableStateOf<List<BlendTable>>(emptyList()) }
@@ -319,7 +319,7 @@ internal fun ObservationsWindow(
                         )
 
                         // Source Cycler
-                        val visibleSources = config.visibleSources.map { WeatherSource.valueOf(it) }
+                        val visibleSources = config.settings.visibleSources.map { WeatherSource.valueOf(it) }
                         if (visibleSources.isNotEmpty()) {
                             Button(
                                 onClick = {
@@ -423,7 +423,7 @@ internal fun ObservationsWindow(
                     Box(modifier = Modifier.weight(1f)) {
                         when (selectedTab) {
                             TAB_BLEND -> BlendTableView(blendTables, currentSource.id)
-                            TAB_OBSERVATIONS -> ObservationList(observations, config.useCelsius, nowMs)
+                            TAB_OBSERVATIONS -> ObservationList(observations, config.settings.useCelsius, nowMs)
                             else -> LogList(logs)
                         }
                     }

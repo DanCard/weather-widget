@@ -15,7 +15,7 @@ import org.junit.experimental.categories.Category
  * promise travels through and checks the graph actually renders that many:
  *
  * ```
- * DesktopConfig.narrowZoomSpanHours   (what the user typed)
+ * DesktopConfig.settings.narrowZoomSpanHours   (what the user typed)
  *   → zoomFactorForStage(NARROW, span) (what the popup click stores as config.zoomFactor)
  *     → backHoursFor / forwardHoursFor  (what the renderers turn that factor into)
  *       → start..cutoff                 (the window the hourly graphs actually draw)
@@ -45,12 +45,12 @@ class NarrowZoomSpanDisplayedHoursTest {
         narrowZoomSpanHours: Int = HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS,
         zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
     ) = DesktopConfig(
-        lat = 37.42,
-        lon = -122.08,
-        label = "Test",
-        narrowZoomSpanHours = narrowZoomSpanHours,
-        zoomFactor = zoomFactor,
-    )
+lat = 37.42,
+lon = -122.08,
+label = "Test",
+zoomFactor = zoomFactor,
+settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
+)
 
     /** The window the hourly graphs draw, computed exactly as `rememberHourlyGraphSetup` does. */
     private data class RenderedWindow(val backHours: Int, val forwardHours: Int, val startMs: Long, val cutoffMs: Long) {
@@ -76,11 +76,11 @@ class NarrowZoomSpanDisplayedHoursTest {
     private fun tapToggleZoom(config: DesktopConfig): DesktopConfig {
         val current = ZoomStage.nearestByTotalSpan(
             DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor),
-            config.narrowZoomSpanHours,
+            config.settings.narrowZoomSpanHours,
         )
         val next = current.next()
         return config.copy(
-            zoomFactor = DesktopGraphUtils.zoomFactorForStage(next, config.narrowZoomSpanHours),
+            zoomFactor = DesktopGraphUtils.zoomFactorForStage(next, config.settings.narrowZoomSpanHours),
         )
     }
 
@@ -203,14 +203,14 @@ class NarrowZoomSpanDisplayedHoursTest {
         // Worth its own case: the defect this guards against was live at the default, so every fresh
         // install rendered an hour more than Settings claimed.
         val fresh = config()
-        assertEquals(HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS, fresh.narrowZoomSpanHours)
+        assertEquals(HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS, fresh.settings.narrowZoomSpanHours)
 
         val narrow = fresh.copy(
-            zoomFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, fresh.narrowZoomSpanHours),
+            zoomFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, fresh.settings.narrowZoomSpanHours),
         )
         assertEquals(
-            "a fresh install must render its default ${fresh.narrowZoomSpanHours}h",
-            fresh.narrowZoomSpanHours,
+            "a fresh install must render its default ${fresh.settings.narrowZoomSpanHours}h",
+            fresh.settings.narrowZoomSpanHours,
             renderedWindow(narrow, 1_754_000_000_000L).totalHours,
         )
     }

@@ -24,12 +24,12 @@ class RepairStaleNarrowZoomFactorTest {
         narrowZoomSpanHours: Int = HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS,
         zoomFactor: Float = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
     ) = DesktopConfig(
-        lat = 37.42,
-        lon = -122.08,
-        label = "Test",
-        narrowZoomSpanHours = narrowZoomSpanHours,
-        zoomFactor = zoomFactor,
-    )
+lat = 37.42,
+lon = -122.08,
+label = "Test",
+zoomFactor = zoomFactor,
+settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
+)
 
     private fun renderedTotal(zoomFactor: Float): Int =
         DesktopGraphUtils.backHoursFor(zoomFactor) + DesktopGraphUtils.forwardHoursFor(zoomFactor)
@@ -42,7 +42,7 @@ class RepairStaleNarrowZoomFactorTest {
         val healed = repairStaleNarrowZoomFactor(stale)
 
         assertEquals(6, renderedTotal(healed.zoomFactor))
-        assertEquals(6, healed.narrowZoomSpanHours)
+        assertEquals(6, healed.settings.narrowZoomSpanHours)
     }
 
     @Test

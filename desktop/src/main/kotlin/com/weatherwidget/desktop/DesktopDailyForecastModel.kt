@@ -178,24 +178,24 @@ object DesktopDailyForecastModel {
                 snapshots = snapshotsByDate[date].orEmpty(),
                 hourly = forecast.raw.hourly,
                 currentTemp = forecast.resolved.currentTemp,
-                displaySourceId = config.weatherSource,
+                displaySourceId = config.settings.weatherSource,
             )
         }
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val overlayFlags =
-            Triple(config.todayOverlayDelta, config.todayOverlayDominantTemp, config.todayOverlayDominantAge)
+            Triple(config.settings.todayOverlayDelta, config.settings.todayOverlayDominantTemp, config.settings.todayOverlayDominantAge)
         val todayOverlay =
             if (overlayDecision.enabled && (overlayFlags.first || overlayFlags.second || overlayFlags.third)) {
                 val obsCount = forecast.raw.rawObservations.size
                 val result = TodayColumnOverlayContentResolver.resolveLatest(
                     observations = forecast.raw.rawObservations,
                     hourlyForecasts = forecast.raw.hourly,
-                    displaySourceId = WeatherSource.fromDisplaySource(config.weatherSource).id,
+                    displaySourceId = WeatherSource.fromDisplaySource(config.settings.weatherSource).id,
                     userLat = config.lat,
                     userLon = config.lon,
                     nowMs = nowMs,
                     personalStationWeight = config.personalStationWeight(),
-                    useCelsius = config.useCelsius,
+                    useCelsius = config.settings.useCelsius,
                     // Overlay delta row = FORECAST delta (swapped with the header, which now shows
                     // the yesterday delta).
                     forecastDelta = forecast.resolved.appliedDelta,

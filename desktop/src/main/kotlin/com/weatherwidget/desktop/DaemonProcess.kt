@@ -89,7 +89,7 @@ fun runDaemon() {
         // re-running the ~350ms IDW blend on every panel connect. The panel and the UI popup now
         // consume the same persisted value, so they cannot drift.
         val status = if (config != null) {
-            weatherDao.getCurrentStatus(config.lat, config.lon, config.weatherSource)
+            weatherDao.getCurrentStatus(config.lat, config.lon, config.settings.weatherSource)
         } else {
             null
         }
@@ -176,14 +176,14 @@ fun runDaemon() {
             Log.i(TAG, "Cached data loaded. Null? ${cached == null}")
             if (cached != null) {
                 publishForecastState(cached)
-                val lastFetch = weatherDao.getLastSuccessfulFetch(config.weatherSource)
+                val lastFetch = weatherDao.getLastSuccessfulFetch(config.settings.weatherSource)
                 dataStatusState.value = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
                 Log.i(TAG, "DataStatus updated to Live (cached). lastFetch: $lastFetch")
             }
 
             val now = System.currentTimeMillis()
-            val lastForecastFetch = weatherDao.getLastSuccessfulFetch(config.weatherSource)
-            val lastObservationFetch = weatherDao.getLastSuccessfulObservationFetch(config.weatherSource)
+            val lastForecastFetch = weatherDao.getLastSuccessfulFetch(config.settings.weatherSource)
+            val lastObservationFetch = weatherDao.getLastSuccessfulObservationFetch(config.settings.weatherSource)
             val launchRefreshAction = determineLaunchRefreshAction(
                 cachePresent = cached != null,
                 lastObservationFetchMs = lastObservationFetch,
@@ -195,7 +195,7 @@ fun runDaemon() {
 
             weatherDao.log(
                 tag = "LAUNCH_REFRESH_CHECK",
-                message = "reason=$reason source=${config.weatherSource} cachePresent=${cached != null} action=$launchRefreshAction " +
+                message = "reason=$reason source=${config.settings.weatherSource} cachePresent=${cached != null} action=$launchRefreshAction " +
                     "lastForecastFetch=$lastForecastFetch forecastAgeMs=${lastForecastFetch?.let { now - it }} " +
                     "lastObservationFetch=$lastObservationFetch observationAgeMs=${lastObservationFetch?.let { now - it }}",
                 level = "INFO"
@@ -244,7 +244,7 @@ fun runDaemon() {
                         }
                         val failReason = if (isOffline) "offline" else "source_error"
                         weatherDao.log("REFRESH_FAIL", "$reason fetch: $failReason ${e.message}", "WARN")
-                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.weatherSource)
+                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.settings.weatherSource)
                         dataStatusState.value = deriveDataStatus(
                             cachePresent = forecastState.value != null,
                             lastFetchMs = lastSuccess,
@@ -351,14 +351,14 @@ fun runDaemon() {
         runCatching { weatherService?.close() }
 
         val config = currentConfig ?: return
-        val svc = DesktopWeatherService(config.lat, config.lon, config.weatherSource, config.apiKeys, weatherDao)
+        val svc = DesktopWeatherService(config.lat, config.lon, config.settings.weatherSource, config.settings.apiKeys, weatherDao)
         weatherService = svc
-        val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.weatherSource, config.personalStationWeight())
+        val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.settings.weatherSource, config.personalStationWeight())
         repo = newRepo
         currentStatusResolver = CurrentStatusResolver(
             latitude = config.lat,
             longitude = config.lon,
-            source = config.weatherSource,
+            source = config.settings.weatherSource,
             resolveTemp = { raw, now -> newRepo.resolveCurrentTempInMemory(raw, now) },
         )
 
@@ -398,12 +398,12 @@ fun runDaemon() {
 
                     delay(delayMs)
 
-                    val src = WeatherSource.fromDisplaySource(config.weatherSource).id
+                    val src = WeatherSource.fromDisplaySource(config.settings.weatherSource).id
                     try {
-                        Log.i(TAG, "Temp actuals loop refresh starting for ${config.weatherSource} (charging=$isCharging, level=$level%)...")
+                        Log.i(TAG, "Temp actuals loop refresh starting for ${config.settings.weatherSource} (charging=$isCharging, level=$level%)...")
                         val result = newRepo.refreshObservations()
                         publishForecastState(result)
-                        dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.weatherSource) ?: System.currentTimeMillis())
+                        dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.settings.weatherSource) ?: System.currentTimeMillis())
                         weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
                         notifyDataUpdated()
                         Log.i(TAG, "Temp actuals loop refresh successful.")
@@ -416,7 +416,7 @@ fun runDaemon() {
                         val reason = if (isOffline) "offline" else "source_error"
                         weatherDao.log("REFRESH_FAIL", "temp actuals: $reason ${e.message}", "WARN")
                         weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(src, e), "WARN")
-                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.weatherSource)
+                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.settings.weatherSource)
                         dataStatusState.value = deriveDataStatus(
                             cachePresent = forecastState.value != null,
                             lastFetchMs = lastSuccess,
@@ -442,8 +442,8 @@ fun runDaemon() {
 
                     delay(delayMs)
 
-                    val activeSource = config.weatherSource
-                    val allVisible = config.visibleSources
+                    val activeSource = config.settings.weatherSource
+                    val allVisible = config.settings.visibleSources
 
                     try {
                         Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource (charging=$isCharging, level=$level%)...")
@@ -460,7 +460,7 @@ fun runDaemon() {
                         val isOffline = isOfflineException(e)
                         val reason = if (isOffline) "offline" else "source_error"
                         weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
-                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.weatherSource)
+                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.settings.weatherSource)
                         dataStatusState.value = deriveDataStatus(
                             cachePresent = forecastState.value != null,
                             lastFetchMs = lastSuccess,
@@ -487,7 +487,7 @@ fun runDaemon() {
                                     config.lat,
                                     config.lon,
                                     otherSource,
-                                    config.apiKeys,
+                                    config.settings.apiKeys,
                                     weatherDao
                                 )
                                 val otherRepo = DesktopWeatherRepository(
@@ -535,7 +535,7 @@ fun runDaemon() {
 
                     delay(delayMs)
 
-                    val nonActiveSources = config.visibleSources.filter { it != config.weatherSource }
+                    val nonActiveSources = config.settings.visibleSources.filter { it != config.settings.weatherSource }
                     for (otherSource in nonActiveSources) {
                         try {
                             Log.i(TAG, "Non-primary actuals refresh starting for $otherSource...")
@@ -543,7 +543,7 @@ fun runDaemon() {
                                 config.lat,
                                 config.lon,
                                 otherSource,
-                                config.apiKeys,
+                                config.settings.apiKeys,
                                 weatherDao
                             )
                             val otherRepo = DesktopWeatherRepository(
@@ -653,7 +653,7 @@ fun runDaemon() {
                                         // non-failed derivation is accurate here.
                                         dataStatusState.value = deriveDataStatus(
                                             cachePresent = true,
-                                            lastFetchMs = weatherDao.getLastSuccessfulFetch(activeConfig.weatherSource),
+                                            lastFetchMs = weatherDao.getLastSuccessfulFetch(activeConfig.settings.weatherSource),
                                             refreshFailed = false,
                                             failureIsOffline = false,
                                         )
@@ -675,8 +675,8 @@ fun runDaemon() {
                                     val locationOrSourceChanged = localConfig == null ||
                                             newConfig.lat != localConfig.lat ||
                                             newConfig.lon != localConfig.lon ||
-                                            newConfig.weatherSource != localConfig.weatherSource ||
-                                            newConfig.visibleSources != localConfig.visibleSources
+                                            newConfig.settings.weatherSource != localConfig.settings.weatherSource ||
+                                            newConfig.settings.visibleSources != localConfig.settings.visibleSources
                                     
                                     currentConfig = newConfig
                                     configState.value = newConfig

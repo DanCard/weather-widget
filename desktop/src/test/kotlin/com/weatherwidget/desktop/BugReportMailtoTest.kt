@@ -15,19 +15,19 @@ import org.junit.experimental.categories.Category
 class BugReportMailtoTest {
 
     private val sampleConfig = DesktopConfig(
-        lat = 37.3861,
-        lon = -122.0839,
-        label = "Mountain View",
-        weatherSource = "NWS",
-        visibleSources = listOf("NWS", "OPEN_METEO"),
-        viewMode = ViewMode.DAILY,
-        useCelsius = false,
-        personalStationDiscount = 95,
-        apiKeys = mapOf(
+lat = 37.3861,
+lon = -122.0839,
+label = "Mountain View",
+viewMode = ViewMode.DAILY,
+settings = DesktopSettings(weatherSource = "NWS",
+visibleSources = listOf("NWS", "OPEN_METEO"),
+useCelsius = false,
+personalStationDiscount = 95,
+apiKeys = mapOf(
             "TOMORROW_IO" to "secret-tomorrow-key",
             "SILURIAN" to "secret-silurian-key",
-        ),
-    )
+        )),
+)
 
     @Test
     fun mailtoIsWellFormedWithSubjectAndBody() {
@@ -69,7 +69,7 @@ class BugReportMailtoTest {
 
     @Test
     fun emptyApiKeysRendersNoneRatherThanEmptyMap() {
-        val mailto = buildBugReportMailto(sampleConfig.copy(apiKeys = emptyMap()))
+        val mailto = buildBugReportMailto(sampleConfig.copy(settings = sampleConfig.settings.copy(apiKeys = emptyMap())))
         val decodedBody = java.net.URLDecoder.decode(mailto.substringAfter("body="), "UTF-8")
 
         assertTrue(

@@ -118,7 +118,7 @@ class PanelIpcServer(
         dataStatus: DataStatus,
         config: DesktopConfig?
     ): String {
-        val useCelsius = config?.useCelsius
+        val useCelsius = config?.settings?.useCelsius
             ?: com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(Locale.getDefault())
         val temp = currentTemp
         val displayTemp = if (useCelsius && temp != null) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(temp) else temp

@@ -161,7 +161,12 @@ class DailyForecastGraphTapZoneTest {
         assertEquals(DayClickResolver.DayTapZone.BOTTOM_ICON, zone)
 
         val routed = dayClickConfig(
-            DesktopConfig(lat = 37.42, lon = -122.08, label = "test", visibleSources = listOf("NWS")),
+            DesktopConfig(
+lat = 37.42,
+lon = -122.08,
+label = "test",
+settings = DesktopSettings(visibleSources = listOf("NWS")),
+),
             targetDate,
             days,
             zone,
@@ -174,7 +179,12 @@ class DailyForecastGraphTapZoneTest {
         assertEquals(
             ViewMode.HOURLY,
             dayClickConfig(
-                DesktopConfig(lat = 37.42, lon = -122.08, label = "test", visibleSources = listOf("NWS")),
+                DesktopConfig(
+lat = 37.42,
+lon = -122.08,
+label = "test",
+settings = DesktopSettings(visibleSources = listOf("NWS")),
+),
                 targetDate,
                 days,
                 mainZone,

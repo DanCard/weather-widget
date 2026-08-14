@@ -28,10 +28,10 @@ class SettingsWindowSectionsTest {
     val composeTestRule = createComposeRule()
 
     private val sampleConfig = DesktopConfig(
-        lat = 0.0,
-        lon = 0.0,
-        label = "Test Location",
-    )
+lat = 0.0,
+lon = 0.0,
+label = "Test Location",
+)
 
     @Test
     fun allSectionTitlesArePresentAsCards() {

@@ -25,10 +25,10 @@ class DesktopStartupTest {
     @Test
     fun testCoreComponentInitialization() {
         val config = DesktopConfig(
-            lat = 0.0,
-            lon = 0.0,
-            label = "Test"
-        )
+lat = 0.0,
+lon = 0.0,
+label = "Test",
+)
         
         // This should not throw any exceptions
         val service = DesktopWeatherService(config)
@@ -232,7 +232,12 @@ class DesktopStartupTest {
         val loaded = store.load()
         assert(loaded == null)
         
-        val newConfig = DesktopConfig(37.0, -122.0, "CA", "Manual")
+        val newConfig = DesktopConfig(
+            lat = 37.0,
+            lon = -122.0,
+            label = "CA",
+            settings = DesktopSettings(weatherSource = "Manual"),
+        )
         store.save(newConfig)
         
         val reloaded = store.load()
@@ -249,7 +254,12 @@ class DesktopStartupTest {
      */
     @Test
     fun testPopupLoadingState() {
-        val stubConfig = DesktopConfig(37.0, -122.0, "CA", "Manual")
+        val stubConfig = DesktopConfig(
+            lat = 37.0,
+            lon = -122.0,
+            label = "CA",
+            settings = DesktopSettings(weatherSource = "Manual"),
+        )
         
         composeTestRule.setContent {
             WidgetPopup(

@@ -12,12 +12,12 @@ import org.junit.experimental.categories.Category
 class DesktopDailyForecastModelTest {
 
     private val config = DesktopConfig(
-        lat = 37.4220,
-        lon = -122.0841,
-        label = "Test",
-        weatherSource = "NWS",
-        dateOffset = -1
-    )
+lat = 37.4220,
+lon = -122.0841,
+label = "Test",
+dateOffset = -1,
+settings = DesktopSettings(weatherSource = "NWS"),
+)
 
     private fun extreme(date: String, high: Float, low: Float, condition: String) = DailyHistory(
         date = LocalDate.parse(date).toEpochDay() * 86_400_000L,
@@ -299,13 +299,11 @@ class DesktopDailyForecastModelTest {
         val forecast = overlayForecast()
 
         val state = DesktopDailyForecastModel.build(
-            config.copy(
-                dateOffset = 0,
-                useCelsius = false,
-                todayOverlayDelta = true,
-                todayOverlayDominantTemp = true,
-                todayOverlayDominantAge = true,
-            ),
+            config.copy(dateOffset = 0,
+settings = config.settings.copy(useCelsius = false,
+todayOverlayDelta = true,
+todayOverlayDominantTemp = true,
+todayOverlayDominantAge = true)),
             forecast,
             DesktopDailyForecastModel.dimensions(600, 400),
             now,
@@ -323,7 +321,8 @@ class DesktopDailyForecastModelTest {
     fun `large desktop Today overlay is null when all overlay toggles default off`() {
         val now = LocalDateTime.parse("2026-08-04T08:20:00")
         val state = DesktopDailyForecastModel.build(
-            config.copy(dateOffset = 0, useCelsius = false),
+            config.copy(dateOffset = 0,
+settings = config.settings.copy(useCelsius = false)),
             overlayForecast(),
             DesktopDailyForecastModel.dimensions(600, 400),
             now,
@@ -337,7 +336,9 @@ class DesktopDailyForecastModelTest {
     fun `large desktop Today overlay shows reading age alone when only age toggle on`() {
         val now = LocalDateTime.parse("2026-08-04T08:20:00")
         val state = DesktopDailyForecastModel.build(
-            config.copy(dateOffset = 0, useCelsius = false, todayOverlayDominantAge = true),
+            config.copy(dateOffset = 0,
+settings = config.settings.copy(useCelsius = false,
+todayOverlayDominantAge = true)),
             overlayForecast(),
             DesktopDailyForecastModel.dimensions(600, 400),
             now,

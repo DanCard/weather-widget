@@ -141,7 +141,7 @@ internal fun flushSettingsDraft(
  * already viewing the NARROW stage.
  *
  * The desktop hourly view draws its visible window purely from [DesktopConfig.zoomFactor];
- * [DesktopConfig.narrowZoomSpanHours] only influences the factor a *click* stores when it cycles
+ * [DesktopConfig.settings.narrowZoomSpanHours] only influences the factor a *click* stores when it cycles
  * onto NARROW. So changing the setting while sitting in NARROW used to leave the graph on the old
  * span until the next click — the view looked dead. This mirrors the click path: resolve the stage
  * the current factor is nearest to (against the OLD span, exactly as the click handler does) and,
@@ -150,13 +150,13 @@ internal fun flushSettingsDraft(
  * is any wheel-zoom position whose nearest stage is not NARROW.
  */
 internal fun resnapNarrowZoomAfterSpanChange(prev: DesktopConfig, next: DesktopConfig): DesktopConfig {
-    if (prev.narrowZoomSpanHours == next.narrowZoomSpanHours) return next
+    if (prev.settings.narrowZoomSpanHours == next.settings.narrowZoomSpanHours) return next
     val currentStage = ZoomStage.nearestByTotalSpan(
         DesktopGraphUtils.totalSpanHoursFor(prev.zoomFactor),
-        prev.narrowZoomSpanHours,
+        prev.settings.narrowZoomSpanHours,
     )
     if (currentStage != ZoomStage.NARROW) return next
-    val newFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, next.narrowZoomSpanHours)
+    val newFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, next.settings.narrowZoomSpanHours)
     return if (newFactor == next.zoomFactor) next else next.copy(zoomFactor = newFactor)
 }
 
@@ -284,16 +284,16 @@ private fun runApp() = application {
         val uiScope = rememberCoroutineScope()
         val currentConfig = config
 
-        val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.apiKeys) {
+        val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.apiKeys) {
             currentConfig?.let {
-                DesktopWeatherService(it.lat, it.lon, it.weatherSource, it.apiKeys, weatherDao)
+                DesktopWeatherService(it.lat, it.lon, it.settings.weatherSource, it.settings.apiKeys, weatherDao)
             }
         }
-        val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.weatherSource, currentConfig?.personalStationDiscount) {
+        val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.personalStationDiscount) {
             val service = weatherService
             currentConfig?.let { cfg ->
                 service?.let {
-                    DesktopWeatherRepository(it, weatherDao, cfg.lat, cfg.lon, cfg.weatherSource, cfg.personalStationWeight())
+                    DesktopWeatherRepository(it, weatherDao, cfg.lat, cfg.lon, cfg.settings.weatherSource, cfg.personalStationWeight())
                 }
             }
         }
@@ -369,7 +369,7 @@ private fun runApp() = application {
                             TAG,
                             "CONFIG_SAVE source=$source re-snapped NARROW zoom " +
                                 "zoomFactor ${effective.zoomFactor} -> ${resnapped.zoomFactor} " +
-                                "for new span ${resnapped.narrowZoomSpanHours}h",
+                                "for new span ${resnapped.settings.narrowZoomSpanHours}h",
                         )
                     }
                     effective = resnapped
@@ -497,7 +497,7 @@ private fun runApp() = application {
                 val cached = repo.loadCached()
                 if (cached != null) {
                     forecast = cached
-                    val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.weatherSource)
+                    val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.settings?.weatherSource)
                     dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
                 }
             } catch (e: Exception) {
@@ -552,7 +552,7 @@ private fun runApp() = application {
                     return
                 }
                 
-                val src = WeatherSource.fromDisplaySource(activeConfig.weatherSource).id
+                val src = WeatherSource.fromDisplaySource(activeConfig.settings.weatherSource).id
                 val status = weatherDao.getLatestCurrentTempStatus(src)
                 if (status != null && !status.ok && status.timestamp > dismissedErrorTimestamp) {
                     val timeFmt = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
@@ -735,15 +735,15 @@ private fun runApp() = application {
         // already resolved when the daemon hasn't published yet (e.g. startup/preview paths).
         val publishedStatus = remember(forecast, currentConfig, nowMs) {
             val cfg = currentConfig
-            if (cfg != null) weatherDao.getCurrentStatus(cfg.lat, cfg.lon, cfg.weatherSource) else null
+            if (cfg != null) weatherDao.getCurrentStatus(cfg.lat, cfg.lon, cfg.settings.weatherSource) else null
         }
         val resolvedCurrentTemp = publishedStatus?.displayTempF ?: forecast?.resolved?.currentTemp
         val resolvedDeltaFromYesterday = publishedStatus?.deltaFromYesterdayF ?: forecast?.resolved?.deltaFromYesterday
 
         // Dynamic icon showing the current temperature.
         val textMeasurer = remember { createTrayTextMeasurer() }
-        val appIcon = remember(resolvedCurrentTemp, currentConfig?.useCelsius) {
-            val useCelsius = currentConfig?.useCelsius
+        val appIcon = remember(resolvedCurrentTemp, currentConfig?.settings?.useCelsius) {
+            val useCelsius = currentConfig?.settings?.useCelsius
                 ?: com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault())
             TemperatureTrayPainter(resolvedCurrentTemp, textMeasurer, useCelsius)
         }
@@ -761,7 +761,7 @@ private fun runApp() = application {
                 "origin=$origin repository=" +
                     (if (repo == null) "NULL (no-op)" else "present") +
                     " config=" +
-                    (currentConfig?.let { "lat=${it.lat} lon=${it.lon} src=${it.weatherSource}" }
+                    (currentConfig?.let { "lat=${it.lat} lon=${it.lon} src=${it.settings.weatherSource}" }
                         ?: "null"),
                 "INFO",
             )
@@ -1169,14 +1169,14 @@ internal fun WidgetPopup(
                             val handleToggleZoom: (Int) -> Unit = { clickedOffset ->
                                 val current = ZoomStage.nearestByTotalSpan(
                                     DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor),
-                                    config.narrowZoomSpanHours,
+                                    config.settings.narrowZoomSpanHours,
                                 )
                                 val next = current.next()
                                 onUpdateConfig(
                                     config.copy(
                                         zoomFactor = DesktopGraphUtils.zoomFactorForStage(
                                             next,
-                                            config.narrowZoomSpanHours,
+                                            config.settings.narrowZoomSpanHours,
                                         ),
                                         hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
                                     )
@@ -1204,7 +1204,7 @@ internal fun WidgetPopup(
                             if (config.viewMode == ViewMode.CLOUD_COVER) {
                                 CloudCoverGraph(
                                     hourly = snapshot.raw.hourly,
-                                    displaySourceId = config.weatherSource,
+                                    displaySourceId = config.settings.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
@@ -1222,7 +1222,7 @@ internal fun WidgetPopup(
                                 PrecipitationGraph(
                                     hourly = snapshot.raw.hourly,
                                     observations = snapshot.raw.rawObservations,
-                                    displaySourceId = config.weatherSource,
+                                    displaySourceId = config.settings.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
@@ -1242,7 +1242,7 @@ internal fun WidgetPopup(
                                     currentTemp = snapshot.resolved.currentTemp,
                                     currentObservedAt = snapshot.resolved.currentObservedAt,
                                     observations = snapshot.raw.rawObservations,
-                                    displaySourceId = config.weatherSource,
+                                    displaySourceId = config.settings.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
@@ -1256,7 +1256,7 @@ internal fun WidgetPopup(
                                     onToggleZoom = handleToggleZoom,
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
-                                    useCelsius = config.useCelsius,
+                                    useCelsius = config.settings.useCelsius,
                                 )
                             }
                             NavArrow(
@@ -1427,7 +1427,7 @@ internal fun WidgetPopup(
                             }
 
                             val handleDayClick: (LocalDate, DayClickResolver.DayTapZone) -> Unit = { clickedDate, zone ->
-                                val visibleSourceIds = config.visibleSources.toSet()
+                                val visibleSourceIds = config.settings.visibleSources.toSet()
                                 val clickedDay = dailyState.days.find { it.date == clickedDate }
                                 val precipProb = clickedDay?.forecast?.precipProbability
                                     ?: clickedDay?.snapshot?.precipProbability
@@ -1467,14 +1467,14 @@ internal fun WidgetPopup(
                                     modifier = Modifier.fillMaxSize().then(dailyInput),
                                     scale = uiScale,
                                     onDayClick = handleDayClick,
-                                    useCelsius = config.useCelsius,
+                                    useCelsius = config.settings.useCelsius,
                                 )
                             } else {
                                 DailyForecastTextMode(
                                     state = dailyState,
                                     modifier = Modifier.fillMaxSize().then(dailyInput),
                                     onDayClick = handleDayClick,
-                                    useCelsius = config.useCelsius,
+                                    useCelsius = config.settings.useCelsius,
                                 )
                             }
 
@@ -1576,8 +1576,8 @@ private fun WidgetHeader(
     val nowLocal = remember(nowEpoch, zoneId) {
         LocalDateTime.ofInstant(Instant.ofEpochMilli(nowEpoch), zoneId)
     }
-    val displaySource = remember(config.weatherSource) {
-        WeatherSource.fromDisplaySource(config.weatherSource)
+    val displaySource = remember(config.settings.weatherSource) {
+        WeatherSource.fromDisplaySource(config.settings.weatherSource)
     }
     val displayTemp = resolvedCurrentTemp ?: forecast.resolved.currentTemp
     // The header shows the DELTA FROM YESTERDAY (observed vs blended actual 24h earlier). It is
@@ -1643,14 +1643,14 @@ private fun WidgetHeader(
                         modifier = Modifier.size((22 * scale).dp).padding(end = 4.dp)
                     )
                     Text(
-                        text = displayTemp?.let { formatTrayTemperature(it, config.useCelsius) + "°" } ?: "—",
+                        text = displayTemp?.let { formatTrayTemperature(it, config.settings.useCelsius) + "°" } ?: "—",
                         style = MaterialTheme.typography.displaySmall,
                         fontSize = (15 * scale).sp
                     )
                 }
                 if (deltaTemp != null) {
                     Spacer(Modifier.width(2.dp))
-                    val displayDelta = if (config.useCelsius) deltaTemp / 1.8f else deltaTemp
+                    val displayDelta = if (config.settings.useCelsius) deltaTemp / 1.8f else deltaTemp
                     Text(
                         text = String.format(Locale.US, "%+.1f", displayDelta),
                         style = MaterialTheme.typography.labelSmall,
@@ -1795,10 +1795,10 @@ private fun WidgetHeader(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val visibleSources = config.visibleSources
+                val visibleSources = config.settings.visibleSources
                 // Show the shared short label (e.g. "Meteo"), matching Android's API indicator, rather
                 // than the raw stored id ("OPEN_METEO"). One source of truth: WeatherSource.shortDisplayName.
-                val sourceLabel = WeatherSource.fromDisplaySource(config.weatherSource).shortDisplayName
+                val sourceLabel = WeatherSource.fromDisplaySource(config.settings.weatherSource).shortDisplayName
                 if (visibleSources.size > 1) {
                     Text(
                         text = sourceLabel,
@@ -1806,8 +1806,8 @@ private fun WidgetHeader(
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = (10 * scale).sp,
                         modifier = Modifier.clickable {
-                            val nextIdx = (visibleSources.indexOf(config.weatherSource) + 1) % visibleSources.size
-                            onUpdateConfig(config.copy(weatherSource = visibleSources[nextIdx]))
+                            val nextIdx = (visibleSources.indexOf(config.settings.weatherSource) + 1) % visibleSources.size
+                            onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = visibleSources[nextIdx])))
                         }.padding(end = 6.dp)
                     )
                 } else {

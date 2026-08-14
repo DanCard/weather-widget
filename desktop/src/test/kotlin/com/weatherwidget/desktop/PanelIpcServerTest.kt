@@ -57,7 +57,12 @@ class PanelIpcServerTest {
         }
     }
 
-    private fun testConfig() = DesktopConfig(lat = 37.4220, lon = -122.0841, label = "Test", useCelsius = false)
+    private fun testConfig() = DesktopConfig(
+lat = 37.4220,
+lon = -122.0841,
+label = "Test",
+settings = DesktopSettings(useCelsius = false),
+)
 
     private fun server() = PanelIpcServer(
         appDataDir = Files.createTempDirectory("panel-ipc-test"),
