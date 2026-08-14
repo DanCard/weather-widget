@@ -56,7 +56,7 @@ label = "Test Location",
     }
 
     @Test
-    fun unitsSectionPrecedesWeatherSources_likeAndroid() {
+    fun sectionOrderMatchesAndroid() {
         composeTestRule.setContent {
             SettingsWindow(
                 config = sampleConfig,
@@ -70,17 +70,25 @@ label = "Test Location",
         // positionInRoot, not boundsInRoot: boundsInRoot is clipped by the scroll viewport and
         // collapses to zero for a section below the fold, which would invert this comparison as
         // the form grows. Ordering is what's under test, not visibility.
-        val unitsTop = composeTestRule.onNodeWithText("Units").fetchSemanticsNode().positionInRoot.y
-        val sourcesTop = composeTestRule
-            .onNodeWithText("Weather Data Sources")
-            .fetchSemanticsNode()
-            .positionInRoot
-            .y
-
-        assertTrue(
-            "Units should be the first Settings section, matching Android",
-            unitsTop < sourcesTop,
+        val order = listOf(
+            "Hourly Zoom",
+            "Personal Weather Stations",
+            "Units",
+            "Daily View — Today Column",
+            "Weather Data Sources",
         )
+        val tops = order.associateWith { title ->
+            composeTestRule.onNodeWithText(title).fetchSemanticsNode().positionInRoot.y
+        }
+
+        // Pin the first-five-section order to match Android's activity_settings.xml reorder
+        // (Hourly Zoom, Personal Weather Stations, Units, Daily View, Weather Data Sources).
+        order.zipWithNext().forEach { (upper, lower) ->
+            assertTrue(
+                "\"$upper\" should precede \"$lower\", matching Android",
+                tops.getValue(upper) < tops.getValue(lower),
+            )
+        }
     }
 
     @Test

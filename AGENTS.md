@@ -13,6 +13,16 @@ There is also a Linux app that is intended to function similarly.
 - **App Log Auditing**: Persists fetch and cleanup events for diagnostics
 - **Battery-Aware Updates**: Adjusts fetch intervals based on battery level (60-480 min)
 
+## Dual-Platform Changes (Memory)
+
+**Apply every change to BOTH Android (`:app`) and Linux Desktop (`:desktop`) unless the user
+explicitly restricts the request to a single platform.** This includes UI/layout/settings
+reordering, preferences, default values, and behavior — not just feature logic.
+
+When a settings section is added, removed, or reordered in the Android layout
+(`app/src/main/res/layout/activity_settings.xml`), mirror the same change in the desktop settings
+window (`desktop/src/main/kotlin/com/weatherwidget/desktop/SettingsWindow.kt`), and vice versa.
+
 ## Technology Stack
 
 | Component | Technology |

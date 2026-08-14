@@ -190,8 +190,29 @@ internal fun SettingsWindow(
                             .verticalScroll(scrollState)
                             .padding(16.dp)
                     ) {
+                        // Hourly Zoom -- matches Android's R.string.hourly_zoom_title, and sits
+                        // directly above Personal Weather Stations on both platforms.
+                        SettingsCard(title = "Hourly Zoom") {
+                            HourlyZoomSpan(
+                                spanHours = currentConfig.settings.narrowZoomSpanHours,
+                                onChanged = { newSpan ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(narrowZoomSpanHours = newSpan)))
+                                },
+                            )
+                        }
+
+                        // Personal Weather Stations
+                        SettingsCard(title = "Personal Weather Stations") {
+                            PersonalStationDiscount(
+                                discountPercent = currentConfig.settings.personalStationDiscount,
+                                onChanged = { newPercent ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(personalStationDiscount = newPercent)))
+                                }
+                            )
+                        }
+
                         // Units — Android keeps this high-use display preference directly below
-                        // the Settings header.
+                        // the Personal Weather Stations discount slider.
                         SettingsCard(title = "Units") {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -232,17 +253,6 @@ internal fun SettingsWindow(
                             ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantAge = it))) }
                         }
 
-                        // Hourly Zoom -- matches Android's R.string.hourly_zoom_title, and sits
-                        // directly above Weather Data Sources on both platforms.
-                        SettingsCard(title = "Hourly Zoom") {
-                            HourlyZoomSpan(
-                                spanHours = currentConfig.settings.narrowZoomSpanHours,
-                                onChanged = { newSpan ->
-                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(narrowZoomSpanHours = newSpan)))
-                                },
-                            )
-                        }
-
                         // Weather Data Sources -- title matches Android's
                         // R.string.api_sources_title = "Weather Data Sources".
                         SettingsCard(title = "Weather Data Sources") {
@@ -260,16 +270,6 @@ internal fun SettingsWindow(
                                         )
                                     }
                                 },
-                            )
-                        }
-
-                        // Personal Weather Stations
-                        SettingsCard(title = "Personal Weather Stations") {
-                            PersonalStationDiscount(
-                                discountPercent = currentConfig.settings.personalStationDiscount,
-                                onChanged = { newPercent ->
-                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(personalStationDiscount = newPercent)))
-                                }
                             )
                         }
 

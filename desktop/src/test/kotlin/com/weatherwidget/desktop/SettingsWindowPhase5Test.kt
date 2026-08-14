@@ -141,8 +141,8 @@ class SettingsWindowPhase5Test {
         val savedConfigs = mutableListOf<DesktopConfig>()
         val testDelay = 1_000L
         composeTestRule.setContent {
-            // This test edits controls in two different sections (Units at the top, Weather Data
-            // Sources further down) and cannot scroll between them: the clock is frozen for the
+            // This test edits controls in two different sections (Units below Personal Weather
+            // Stations, Weather Data Sources further down) and cannot scroll between them: the clock is frozen for the
             // debounce assertions and performScrollTo never settles without frames. Halving the
             // density fits the whole form in the test surface so both controls stay clickable.
             // Nothing here depends on absolute sizes — only on which callbacks fire.
