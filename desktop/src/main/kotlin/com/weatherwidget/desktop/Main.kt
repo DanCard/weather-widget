@@ -28,7 +28,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DataStatus
@@ -193,10 +193,10 @@ fun main(args: Array<String>) {
 }
 
 /** Oldest timestamp present in a loaded forecast (oldest observation or hourly point), or null. */
-private fun oldestLoadedMs(f: ForecastResult): Long? =
+private fun oldestLoadedMs(f: ForecastSnapshot): Long? =
     listOfNotNull(
-        f.rawObservations.minOfOrNull { it.timestamp },
-        f.hourly.minOfOrNull { it.dateTime },
+        f.raw.rawObservations.minOfOrNull { it.timestamp },
+        f.raw.hourly.minOfOrNull { it.dateTime },
     ).minOrNull()
 
 private fun runApp() = application {
@@ -268,7 +268,7 @@ private fun runApp() = application {
             )
         }
 
-        var forecast by remember { mutableStateOf<ForecastResult?>(null) }
+        var forecast by remember { mutableStateOf<ForecastSnapshot?>(null) }
         var dataStatus by remember { mutableStateOf<DataStatus>(DataStatus.Loading) }
         // Transient "Fetching older data…" banner shown while an on-demand deep-history pull runs.
         var historyFetchToast by remember { mutableStateOf<String?>(null) }
@@ -453,7 +453,7 @@ private fun runApp() = application {
         // fires so the UI never strands on the pending banner.
         val onNeedHourlyRefresh: ((List<HourlyForecast>) -> Unit) -> Unit = remember(repository) {
             { onComplete: (List<HourlyForecast>) -> Unit ->
-                onComplete(forecast?.hourly ?: emptyList())
+                onComplete(forecast?.raw?.hourly ?: emptyList())
             }
         }
 
@@ -609,7 +609,7 @@ private fun runApp() = application {
                     }
                     val errorLine = if (host.isNotEmpty()) "$friendlyError · $host" else friendlyError
                     
-                    val lastGoodObsMs = forecast?.currentObservedAt
+                    val lastGoodObsMs = forecast?.resolved?.currentObservedAt
                     val lastGoodLine = if (lastGoodObsMs != null) {
                         val timeStr = timeFmt.format(Instant.ofEpochMilli(lastGoodObsMs))
                         val ageStr = formatAge(now - lastGoodObsMs)
@@ -737,8 +737,8 @@ private fun runApp() = application {
             val cfg = currentConfig
             if (cfg != null) weatherDao.getCurrentStatus(cfg.lat, cfg.lon, cfg.weatherSource) else null
         }
-        val resolvedCurrentTemp = publishedStatus?.displayTempF ?: forecast?.currentTemp
-        val resolvedDeltaFromYesterday = publishedStatus?.deltaFromYesterdayF ?: forecast?.deltaFromYesterday
+        val resolvedCurrentTemp = publishedStatus?.displayTempF ?: forecast?.resolved?.currentTemp
+        val resolvedDeltaFromYesterday = publishedStatus?.deltaFromYesterdayF ?: forecast?.resolved?.deltaFromYesterday
 
         // Dynamic icon showing the current temperature.
         val textMeasurer = remember { createTrayTextMeasurer() }
@@ -1079,7 +1079,7 @@ internal fun createTrayTextMeasurer(): TextMeasurer =
 @Composable
 internal fun WidgetPopup(
     config: DesktopConfig,
-    forecast: ForecastResult?,
+    forecast: ForecastSnapshot?,
     dataStatus: DataStatus,
     resolvedCurrentTemp: Float? = null,
     resolvedDeltaFromYesterday: Float? = null,
@@ -1203,7 +1203,7 @@ internal fun WidgetPopup(
                             }
                             if (config.viewMode == ViewMode.CLOUD_COVER) {
                                 CloudCoverGraph(
-                                    hourly = snapshot.hourly,
+                                    hourly = snapshot.raw.hourly,
                                     displaySourceId = config.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,
@@ -1220,8 +1220,8 @@ internal fun WidgetPopup(
                                 )
                             } else if (config.viewMode == ViewMode.PRECIPITATION) {
                                 PrecipitationGraph(
-                                    hourly = snapshot.hourly,
-                                    observations = snapshot.rawObservations,
+                                    hourly = snapshot.raw.hourly,
+                                    observations = snapshot.raw.rawObservations,
                                     displaySourceId = config.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,
@@ -1238,10 +1238,10 @@ internal fun WidgetPopup(
                                 )
                             } else {
                                 TemperatureGraph(
-                                    hourly = snapshot.hourly,
-                                    currentTemp = snapshot.currentTemp,
-                                    currentObservedAt = snapshot.currentObservedAt,
-                                    observations = snapshot.rawObservations,
+                                    hourly = snapshot.raw.hourly,
+                                    currentTemp = snapshot.resolved.currentTemp,
+                                    currentObservedAt = snapshot.resolved.currentObservedAt,
+                                    observations = snapshot.raw.rawObservations,
                                     displaySourceId = config.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,
@@ -1441,7 +1441,7 @@ internal fun WidgetPopup(
                                     "date=$clickedDate zone=$zone targetView=$targetView offset=$newOffset " +
                                         "icon=${clickedDay?.iconName} precip=$precipProb clickSource=$clickSource",
                                 )
-                                if (NoHourlyChecker.hasHourlyForDay(snapshot.hourly, clickedDate, visibleSourceIds)) {
+                                if (NoHourlyChecker.hasHourlyForDay(snapshot.raw.hourly, clickedDate, visibleSourceIds)) {
                                     noHourlyMessage = null
                                     onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days, zone))
                                 } else {
@@ -1552,7 +1552,7 @@ private fun NavArrow(
 @Composable
 private fun WidgetHeader(
     config: DesktopConfig,
-    forecast: ForecastResult,
+    forecast: ForecastSnapshot,
     resolvedCurrentTemp: Float? = null,
     resolvedDeltaFromYesterday: Float? = null,
     onUpdateConfig: (DesktopConfig) -> Unit,
@@ -1579,19 +1579,19 @@ private fun WidgetHeader(
     val displaySource = remember(config.weatherSource) {
         WeatherSource.fromDisplaySource(config.weatherSource)
     }
-    val displayTemp = resolvedCurrentTemp ?: forecast.currentTemp
+    val displayTemp = resolvedCurrentTemp ?: forecast.resolved.currentTemp
     // The header shows the DELTA FROM YESTERDAY (observed vs blended actual 24h earlier). It is
     // pan-independent, so it always shows when it exists and clears the noise threshold — no
     // graph-window gate, matching Android's post-swap header.
-    val deltaVal = resolvedDeltaFromYesterday ?: forecast.deltaFromYesterday
+    val deltaVal = resolvedDeltaFromYesterday ?: forecast.resolved.deltaFromYesterday
     val deltaTemp = deltaVal?.takeIf { kotlin.math.abs(it) >= 0.1f }
 
-    val todayForecast = remember(forecast.daily, nowLocal) {
-        forecast.daily.firstOrNull { it.date == nowLocal.toLocalDate().toString() }
+    val todayForecast = remember(forecast.raw.daily, nowLocal) {
+        forecast.raw.daily.firstOrNull { it.date == nowLocal.toLocalDate().toString() }
     }
-    val precipProb = remember(forecast.hourly, displaySource, todayForecast, nowLocal) {
+    val precipProb = remember(forecast.raw.hourly, displaySource, todayForecast, nowLocal) {
         PrecipProbabilityCalculator.getNext8HourPrecipProbability(
-            hourlyForecasts = forecast.hourly,
+            hourlyForecasts = forecast.raw.hourly,
             displaySourceId = displaySource.id,
             fallbackSourceId = WeatherSource.GENERIC_GAP.id,
             fallbackDailyProbability = todayForecast?.precipProbability,
@@ -1602,12 +1602,12 @@ private fun WidgetHeader(
     // Header rain-chance sizing, matching Android: probability-scaled (shared step table), plus
     // the NIGHT_SCALE shrink only in the daily view when the next-8h rain is predominantly
     // overnight. Base size is the desktop header temp size (Android's precip base == its temp base).
-    val precipFontScale = remember(precipProb, forecast.hourly, displaySource, nowLocal, isHourly, config.lat, config.lon) {
+    val precipFontScale = remember(precipProb, forecast.raw.hourly, displaySource, nowLocal, isHourly, config.lat, config.lon) {
         precipProb?.let { prob ->
             val isNightPrecip = !isHourly && run {
                 val sunTimes = com.weatherwidget.util.SunPositionUtils.getSunTimes(nowLocal, config.lat, config.lon)
                 PrecipProbabilityCalculator.isNext8HourPrecipPredominantlyNight(
-                    hourlyForecasts = forecast.hourly,
+                    hourlyForecasts = forecast.raw.hourly,
                     displaySourceId = displaySource.id,
                     fallbackSourceId = WeatherSource.GENERIC_GAP.id,
                     referenceTime = nowLocal,
@@ -1638,7 +1638,7 @@ private fun WidgetHeader(
                     }.testTag("current_temp_toggle")
                 ) {
                     androidx.compose.foundation.Image(
-                        painter = WeatherIcon.painter(forecast.currentCondition),
+                        painter = WeatherIcon.painter(forecast.resolved.currentCondition),
                         contentDescription = null,
                         modifier = Modifier.size((22 * scale).dp).padding(end = 4.dp)
                     )

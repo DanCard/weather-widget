@@ -95,11 +95,11 @@ class DesktopRefreshObservationsTest {
 
         val returned = repository.refreshObservations()
 
-        assertEquals(1, returned.rawObservations.size)
-        assertEquals("IN_RANGE", returned.rawObservations.single().stationId)
+        assertEquals(1, returned.raw.rawObservations.size)
+        assertEquals("IN_RANGE", returned.raw.rawObservations.single().stationId)
         assertTrue(
             "the panel must resolve from the same observations the popup reads from the DB",
-            returned.rawObservations.none { it.stationId == "OUT_OF_RANGE" },
+            returned.raw.rawObservations.none { it.stationId == "OUT_OF_RANGE" },
         )
     }
 }

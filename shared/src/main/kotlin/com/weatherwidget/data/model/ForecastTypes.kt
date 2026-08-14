@@ -101,6 +101,66 @@ data class ForecastResult(
     val nwsDailyExtremes: NwsApi.DailyTemperatureExtremes? = null,
 )
 
+/**
+ * Everything the network/DB produced for a location/source. No display decisions — the values here
+ * are inputs to resolution, never outputs. The `provider*` trio carries the raw "current
+ * conditions" some providers return, deliberately renamed so it can't be mistaken for the resolved
+ * value (see [ResolvedView]).
+ */
+data class RawFetch(
+    val hourly: List<HourlyForecast> = emptyList(),
+    val daily: List<DailyForecast> = emptyList(),
+    val rawObservations: List<ObservationReading> = emptyList(),
+    val dailyActuals: Map<String, DailyHistory> = emptyMap(),
+    val dailySnapshots: Map<String, List<DailyForecastSnapshot>> = emptyMap(),
+    val nwsDailyExtremes: NwsApi.DailyTemperatureExtremes? = null,
+    val providerCurrentTemp: Float? = null,
+    val providerCurrentCondition: String? = null,
+    val providerCurrentObservedAt: Long? = null,
+)
+
+/**
+ * What to display now, produced by the resolver. The five fields this holds are the only display
+ * state in the pipeline; they must come from a single resolution owner, never from a raw fetch.
+ */
+data class ResolvedView(
+    val currentTemp: Float? = null,
+    val currentCondition: String? = null,
+    val currentObservedAt: Long? = null,
+    val appliedDelta: Float? = null,
+    val deltaFromYesterday: Float? = null,
+)
+
+/** Full snapshot: raw data + resolved display values, for consumers that need both. */
+data class ForecastSnapshot(
+    val raw: RawFetch,
+    val resolved: ResolvedView,
+)
+
+/**
+ * 5b migration bridge: interprets a [ForecastResult]'s `current*` fields as RESOLVED values (the
+ * historical consumer semantics — the UI/daemon read them as the display temperature) and the rest
+ * as raw. Only the `refresh()` null-cache fallback uses this; it is deleted in sub-step 5e once the
+ * API clients return [RawFetch] directly.
+ */
+fun ForecastResult.toSnapshot(): ForecastSnapshot = ForecastSnapshot(
+    raw = RawFetch(
+        hourly = hourly,
+        daily = daily,
+        rawObservations = rawObservations,
+        dailyActuals = dailyActuals,
+        dailySnapshots = dailySnapshots,
+        nwsDailyExtremes = nwsDailyExtremes,
+    ),
+    resolved = ResolvedView(
+        currentTemp = currentTemp,
+        currentCondition = currentCondition,
+        currentObservedAt = currentObservedAt,
+        appliedDelta = appliedDelta,
+        deltaFromYesterday = deltaFromYesterday,
+    ),
+)
+
 sealed class DataStatus {
     data object Loading : DataStatus()
     data class Live(val updatedAt: Long) : DataStatus()

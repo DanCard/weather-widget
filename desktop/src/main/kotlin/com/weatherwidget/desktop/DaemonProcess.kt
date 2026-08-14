@@ -1,6 +1,6 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
@@ -60,7 +60,7 @@ fun runDaemon() {
     }
 
 
-    val forecastState = MutableStateFlow<ForecastResult?>(null)
+    val forecastState = MutableStateFlow<ForecastSnapshot?>(null)
     val dataStatusState = MutableStateFlow<DataStatus>(DataStatus.Loading)
     val configState = MutableStateFlow<DesktopConfig?>(currentConfig)
 
@@ -113,7 +113,7 @@ fun runDaemon() {
     // status so the panel/UI (later phases) consume one published value instead of re-deriving it
     // independently. Persistence is best-effort — a current_status write failure must never break a
     // fetch.
-    fun publishForecastState(result: ForecastResult?) {
+    fun publishForecastState(result: ForecastSnapshot?) {
         forecastState.value = result
         val resolver = currentStatusResolver ?: return
         if (result == null) return
@@ -126,10 +126,10 @@ fun runDaemon() {
     // minute loop calls this so the snapshot interpolates smoothly between fetches (the fetch paths
     // already persist via publishForecastState); the UI then only has to re-read a single row.
     fun refreshCurrentStatus() {
-        val forecast = forecastState.value ?: return
+        val snapshot = forecastState.value ?: return
         val resolver = currentStatusResolver ?: return
         runCatching {
-            weatherDao.upsertCurrentStatus(resolver.resolve(forecast, System.currentTimeMillis()))
+            weatherDao.upsertCurrentStatus(resolver.resolve(snapshot, System.currentTimeMillis()))
         }.onFailure { Log.w(TAG, "current_status persist failed: $it") }
     }
 
@@ -359,7 +359,7 @@ fun runDaemon() {
             latitude = config.lat,
             longitude = config.lon,
             source = config.weatherSource,
-            resolveTemp = { f, now -> newRepo.resolveCurrentTempInMemory(f, now) },
+            resolveTemp = { raw, now -> newRepo.resolveCurrentTempInMemory(raw, now) },
         )
 
         fetchJob = daemonScope.launch {

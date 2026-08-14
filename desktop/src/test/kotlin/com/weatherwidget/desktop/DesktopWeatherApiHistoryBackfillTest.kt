@@ -101,7 +101,7 @@ class DesktopWeatherApiHistoryBackfillTest {
 
         val result = repository.refresh(now)
 
-        assertFalse(result.hourly.isEmpty())
+        assertFalse(result.raw.hourly.isEmpty())
         assertFalse(repository.needsDeeperHistory(48))
         val log =
             dao.getLatestLogByTagAndMessagePrefix(

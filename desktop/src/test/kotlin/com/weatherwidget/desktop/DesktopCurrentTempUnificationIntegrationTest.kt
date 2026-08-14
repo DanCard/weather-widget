@@ -146,7 +146,7 @@ class DesktopCurrentTempUnificationIntegrationTest {
         assertEquals(
             "Desktop repository must resolve current temperature identically to the shared resolver",
             expectedResolution.displayTemp!!,
-            result!!.currentTemp!!,
+            result!!.resolved.currentTemp!!,
             0.01f
         )
     }

@@ -3,7 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContent
@@ -117,7 +117,7 @@ object DesktopDailyForecastModel {
 
     fun build(
         config: DesktopConfig,
-        forecast: ForecastResult,
+        forecast: ForecastSnapshot,
         dimensions: DesktopWidgetDimensions,
         now: LocalDateTime = LocalDateTime.now(),
     ): DesktopDailyViewState {
@@ -154,9 +154,9 @@ object DesktopDailyForecastModel {
         val offset = clampOffset(config.dateOffset, today, displayColumns, skipYesterday, availableDates)
         val skipHistory = NavigationUtils.shouldSkipHistory(skipYesterday, offset)
         val centerDate = NavigationUtils.getDisplayCenterDate(today, offset, skipYesterday)
-        val daysByDate = forecast.daily.associateBy { LocalDate.parse(it.date) }
-        val actualsByDate = forecast.dailyActuals.mapKeys { LocalDate.parse(it.key) }
-        val snapshotsByDate = forecast.dailySnapshots.mapKeys { LocalDate.parse(it.key) }
+        val daysByDate = forecast.raw.daily.associateBy { LocalDate.parse(it.date) }
+        val actualsByDate = forecast.raw.dailyActuals.mapKeys { LocalDate.parse(it.key) }
+        val snapshotsByDate = forecast.raw.dailySnapshots.mapKeys { LocalDate.parse(it.key) }
 
         // Scroll-wheel zoom (history-biased): prepend extra history days on the LEFT while today + the
         // future stay anchored on the right. The extra is clamped to available history and the cap; when
@@ -176,8 +176,8 @@ object DesktopDailyForecastModel {
                 forecast = daysByDate[date],
                 actual = actualsByDate[date],
                 snapshots = snapshotsByDate[date].orEmpty(),
-                hourly = forecast.hourly,
-                currentTemp = forecast.currentTemp,
+                hourly = forecast.raw.hourly,
+                currentTemp = forecast.resolved.currentTemp,
                 displaySourceId = config.weatherSource,
             )
         }
@@ -186,10 +186,10 @@ object DesktopDailyForecastModel {
             Triple(config.todayOverlayDelta, config.todayOverlayDominantTemp, config.todayOverlayDominantAge)
         val todayOverlay =
             if (overlayDecision.enabled && (overlayFlags.first || overlayFlags.second || overlayFlags.third)) {
-                val obsCount = forecast.rawObservations.size
+                val obsCount = forecast.raw.rawObservations.size
                 val result = TodayColumnOverlayContentResolver.resolveLatest(
-                    observations = forecast.rawObservations,
-                    hourlyForecasts = forecast.hourly,
+                    observations = forecast.raw.rawObservations,
+                    hourlyForecasts = forecast.raw.hourly,
                     displaySourceId = WeatherSource.fromDisplaySource(config.weatherSource).id,
                     userLat = config.lat,
                     userLon = config.lon,
@@ -198,7 +198,7 @@ object DesktopDailyForecastModel {
                     useCelsius = config.useCelsius,
                     // Overlay delta row = FORECAST delta (swapped with the header, which now shows
                     // the yesterday delta).
-                    forecastDelta = forecast.appliedDelta,
+                    forecastDelta = forecast.resolved.appliedDelta,
                     showForecastDelta = overlayFlags.first,
                     showDominantStationTemp = overlayFlags.second,
                     showDominantReadingAge = overlayFlags.third,
@@ -420,10 +420,10 @@ object DesktopDailyForecastModel {
         )
     }
 
-    private fun buildAvailableDates(forecast: ForecastResult): Set<LocalDate> =
-        forecast.daily.map { LocalDate.parse(it.date) }.toSet() +
-            forecast.dailyActuals.keys.map { LocalDate.parse(it) } +
-            forecast.dailySnapshots.keys.map { LocalDate.parse(it) }
+    private fun buildAvailableDates(forecast: ForecastSnapshot): Set<LocalDate> =
+        forecast.raw.daily.map { LocalDate.parse(it.date) }.toSet() +
+            forecast.raw.dailyActuals.keys.map { LocalDate.parse(it) } +
+            forecast.raw.dailySnapshots.keys.map { LocalDate.parse(it) }
 
     private fun clampOffset(
         dateOffset: Int,

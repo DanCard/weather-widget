@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.toSnapshot
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -27,7 +28,7 @@ class CurrentStatusResolverTest {
         val forecast = ForecastResult(
             currentObservedAt = 1_780_000_000_000L,
             currentCondition = "Clear",
-        )
+        ).toSnapshot()
         val status = resolver.resolve(forecast, now = 1_780_000_000_500L)
 
         assertEquals(37.4220, status.locationLat, 0.0)
@@ -47,7 +48,7 @@ class CurrentStatusResolverTest {
             DesktopWeatherRepository.ResolvedCurrentTemp(null, null, null)
         }
 
-        val status = resolver.resolve(ForecastResult(), now = 42L)
+        val status = resolver.resolve(ForecastResult().toSnapshot(), now = 42L)
 
         assertNull(status.displayTempF)
         assertNull(status.appliedDeltaF)

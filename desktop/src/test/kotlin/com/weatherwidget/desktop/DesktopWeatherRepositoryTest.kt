@@ -88,11 +88,11 @@ class DesktopWeatherRepositoryTest {
             val expectedForecast = 72f + (74f - 72f) * fraction
             val expectedTemp = expectedForecast + 3.3f
 
-            println("DIAGNOSTIC: currentTemp=${result!!.currentTemp} appliedDelta=${result.appliedDelta} expectedTemp=$expectedTemp")
+            println("DIAGNOSTIC: currentTemp=${result!!.resolved.currentTemp} appliedDelta=${result.resolved.appliedDelta} expectedTemp=$expectedTemp")
 
             // 4. Verify display temperature and applied delta
-            assertEquals(expectedTemp, result.currentTemp!!, 0.05f)
-            assertEquals(3.3f, result.appliedDelta!!, 0.01f)
+            assertEquals(expectedTemp, result.resolved.currentTemp!!, 0.05f)
+            assertEquals(3.3f, result.resolved.appliedDelta!!, 0.01f)
         } catch (e: Throwable) {
             e.printStackTrace()
             throw e
@@ -139,7 +139,7 @@ class DesktopWeatherRepositoryTest {
         val result = repository.loadCached()
         assertNotNull(result)
 
-        val merged = result!!.hourly.associateBy { it.dateTime }
+        val merged = result!!.raw.hourly.associateBy { it.dateTime }
         // Past hour shows the LATEST forecast: the live row wins for temp/condition, and history only
         // backfills the cloudCover the live row was missing — see HourlyForecastStitcher.
         val repaired = merged[now - 3600_000L]!!
@@ -167,7 +167,7 @@ class DesktopWeatherRepositoryTest {
         val monthlyLow = (1..12).associateWith { (it * 5 + 20).toFloat() }
         dao.upsertClimateNormals(ClimateNormals.locationKey(37.4220, -122.0841), monthlyHigh, monthlyLow)
 
-        val daily = repository.loadCached()!!.daily
+        val daily = repository.loadCached()!!.raw.daily
         val byDate = daily.associateBy { LocalDate.parse(it.date) }
 
         // Real forecast days are untouched (not climate normals).
@@ -254,11 +254,11 @@ class DesktopWeatherRepositoryTest {
         val cachedResult = repository.loadCached(now)
         assertNotNull(cachedResult)
 
-        val inMemoryResult = repository.resolveCurrentTempInMemory(cachedResult!!, now)
+        val inMemoryResult = repository.resolveCurrentTempInMemory(cachedResult!!.raw, now)
         assertNotNull(inMemoryResult)
-        assertEquals(cachedResult.currentTemp, inMemoryResult.displayTemp)
-        assertEquals(cachedResult.appliedDelta, inMemoryResult.appliedDelta)
-        assertEquals(cachedResult.deltaFromYesterday, inMemoryResult.deltaFromYesterday)
+        assertEquals(cachedResult.resolved.currentTemp, inMemoryResult.displayTemp)
+        assertEquals(cachedResult.resolved.appliedDelta, inMemoryResult.appliedDelta)
+        assertEquals(cachedResult.resolved.deltaFromYesterday, inMemoryResult.deltaFromYesterday)
     }
 }
 

@@ -56,7 +56,7 @@ class DesktopDailyForecastModelTest {
                         DailyForecastSnapshot("2026-06-02", 76f, 58f, "Cloudy", fetchedAt = 1L),
                     )
                 )
-            ),
+            ).toSnapshot(),
             dimensions = DesktopDailyForecastModel.dimensions(600, 400),
             now = now
         )
@@ -100,7 +100,7 @@ class DesktopDailyForecastModelTest {
                         DailyForecastSnapshot("2026-06-01", 75f, 57f, "Cloudy", fetchedAt = 1L),
                     ),
                 ),
-            ),
+            ).toSnapshot(),
             dimensions = DesktopDailyForecastModel.dimensions(600, 400),
             now = now,
         )
@@ -128,7 +128,7 @@ class DesktopDailyForecastModelTest {
                         DailyForecastSnapshot("2026-06-01", 75f, 57f, "Cloudy", fetchedAt = 1L),
                     ),
                 ),
-            ),
+            ).toSnapshot(),
             dimensions = DesktopDailyForecastModel.dimensions(600, 400),
             now = now,
         )
@@ -152,7 +152,7 @@ class DesktopDailyForecastModelTest {
                 dailyActuals = mapOf(
                     "2026-06-03" to extreme("2026-06-03", 97.7f, 60.3f, "Sunny"),
                 ),
-            ),
+            ).toSnapshot(),
             dimensions = DesktopDailyForecastModel.dimensions(600, 400),
             now = now,
         )
@@ -197,7 +197,7 @@ class DesktopDailyForecastModelTest {
         val forecast = ForecastResult(
             daily = forecastRange("2026-06-10", 8),       // today..+7
             dailyActuals = actualsRange("2026-06-01", 9), // 06-01..06-09
-        )
+        ).toSnapshot()
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 3)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
@@ -218,7 +218,7 @@ class DesktopDailyForecastModelTest {
         val forecast = ForecastResult(
             daily = forecastRange("2026-06-10", 8),
             dailyActuals = actualsRange("2026-06-01", 9), // earliest = 06-01
-        )
+        ).toSnapshot()
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 20)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
@@ -235,7 +235,7 @@ class DesktopDailyForecastModelTest {
         val forecast = ForecastResult(
             daily = forecastRange("2026-06-10", 8),
             dailyActuals = actualsRange("2026-05-20", 21), // 05-20..06-09, 20 days left of base edge
-        )
+        ).toSnapshot()
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 30)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
@@ -252,7 +252,7 @@ class DesktopDailyForecastModelTest {
         val forecast = ForecastResult(
             daily = forecastRange("2026-06-10", 8),
             dailyActuals = actualsRange("2026-06-01", 9),
-        )
+        ).toSnapshot()
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 0)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
@@ -318,7 +318,7 @@ class DesktopDailyForecastModelTest {
         assertEquals("0m", state.todayOverlay?.dominantAgeText)
     }
 
-    private fun overlayForecast(): ForecastResult {
+    private fun overlayForecast(): ForecastSnapshot {
         fun reading(station: String, local: String, temp: Float, distanceKm: Float) =
             ObservationReading(
                 stationId = station,
@@ -343,7 +343,7 @@ class DesktopDailyForecastModelTest {
                 reading("DOM", "2026-08-04T08:20:00", 62.6f, 0.2f),
                 reading("FAR", "2026-08-04T08:20:00", 70f, 20f),
             ),
-        )
+        ).toSnapshot()
     }
 
     @Test
@@ -353,7 +353,7 @@ class DesktopDailyForecastModelTest {
         val forecast = ForecastResult(
             daily = forecastRange("2026-06-10", 5),
             dailyActuals = actualsRange("2026-06-01", 9),
-        )
+        ).toSnapshot()
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 2)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(300, 400), now)
 
@@ -370,7 +370,7 @@ class DesktopDailyForecastModelTest {
         val forecast = ForecastResult(
             daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
             dailyActuals = mapOf("2026-06-01" to extreme("2026-06-01", 77f, 56f, "Fair"))
-        )
+        ).toSnapshot()
         val state = DesktopDailyForecastModel.build(config, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
         
         assertFalse(state.canNavigateLeft) // Already at the earliest date (June 1st)

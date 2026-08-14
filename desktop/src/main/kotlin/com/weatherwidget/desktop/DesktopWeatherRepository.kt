@@ -110,14 +110,14 @@ class DesktopWeatherRepository(
         return ResolvedCurrentTemp(resolution.displayTemp, resolution.appliedDelta, deltaFromYesterday)
     }
 
-    fun resolveCurrentTempInMemory(forecast: ForecastResult, now: Long): ResolvedCurrentTemp {
+    fun resolveCurrentTempInMemory(raw: RawFetch, now: Long): ResolvedCurrentTemp {
         // High-frequency path: runs on every genmon panel connect and every UI minute tick.
         // VERBOSE keeps the CURR_TEMP_RESULT row out of app_logs (the sparse fetch-cycle
         // resolves in loadCached/refreshObservations stay DEBUG and remain queryable).
-        return resolveForForecastResult(forecast.hourly, forecast.rawObservations, now, resultLogLevel = "VERBOSE")
+        return resolveForForecastResult(raw.hourly, raw.rawObservations, now, resultLogLevel = "VERBOSE")
     }
 
-    suspend fun loadCached(now: Long = currentTimeMillis()): ForecastResult? = withContext(Dispatchers.IO) {
+    suspend fun loadCached(now: Long = currentTimeMillis()): ForecastSnapshot? = withContext(Dispatchers.IO) {
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
         // Cover the widest zoom-out (6 days back) so the continuous-zoom graph never truncates history.
         val stitchedStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
@@ -156,17 +156,21 @@ class DesktopWeatherRepository(
             return@withContext null
         }
 
-        ForecastResult(
-            currentTemp = resolved.displayTemp,
-            currentCondition = latestObs?.condition ?: hourly.firstOrNull()?.condition,
-            currentObservedAt = newestObs?.timestamp,
-            appliedDelta = resolved.appliedDelta,
-            deltaFromYesterday = resolved.deltaFromYesterday,
-            daily = appendClimateNormalGaps(daily, now),
-            hourly = hourly,
-            dailyActuals = actuals,
-            dailySnapshots = snapshots,
-            rawObservations = observations,
+        ForecastSnapshot(
+            raw = RawFetch(
+                hourly = hourly,
+                daily = appendClimateNormalGaps(daily, now),
+                rawObservations = observations,
+                dailyActuals = actuals,
+                dailySnapshots = snapshots,
+            ),
+            resolved = ResolvedView(
+                currentTemp = resolved.displayTemp,
+                currentCondition = latestObs?.condition ?: hourly.firstOrNull()?.condition,
+                currentObservedAt = newestObs?.timestamp,
+                appliedDelta = resolved.appliedDelta,
+                deltaFromYesterday = resolved.deltaFromYesterday,
+            ),
         )
     }
 
@@ -240,7 +244,7 @@ class DesktopWeatherRepository(
 
     suspend fun refresh(
         now: Long = currentTimeMillis(),
-    ): ForecastResult = withContext(Dispatchers.IO) {
+    ): ForecastSnapshot = withContext(Dispatchers.IO) {
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
         Log.i(TAG, "refresh() started source=$weatherSource")
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
@@ -305,7 +309,7 @@ class DesktopWeatherRepository(
             )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
-            loadCached(now) ?: result
+            loadCached(now) ?: result.toSnapshot()
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) {
                 // Cancellation is not a pipeline failure, so it stays out of CURRENT_TEMP_STATUS
@@ -468,7 +472,7 @@ class DesktopWeatherRepository(
         )
     }
 
-    suspend fun refreshObservations(): ForecastResult = withContext(Dispatchers.IO) {
+    suspend fun refreshObservations(): ForecastSnapshot = withContext(Dispatchers.IO) {
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
         try {
             val result = weatherService.fetchObservationsOnly()
@@ -490,28 +494,24 @@ class DesktopWeatherRepository(
             )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
-            val cachedHourly = cached?.hourly ?: emptyList()
-            val cachedObs = cached?.rawObservations ?: emptyList()
-            val resolvedCached = resolveForForecastResult(cachedHourly, cachedObs, now)
+            if (cached == null) {
+                return@withContext result.toSnapshot()
+            }
 
-            result.copy(
-                currentTemp = resolvedCached.displayTemp,
-                appliedDelta = resolvedCached.appliedDelta,
-                deltaFromYesterday = resolvedCached.deltaFromYesterday,
-                currentCondition = result.currentCondition ?: cached?.currentCondition,
-                currentObservedAt = result.currentObservedAt ?: cached?.currentObservedAt,
-                daily = cached?.daily ?: emptyList(),
-                hourly = cachedHourly,
-                dailyActuals = cached?.dailyActuals ?: emptyMap(),
-                dailySnapshots = cached?.dailySnapshots ?: emptyMap(),
-                // DB-derived, NOT the network `result.rawObservations`. The daemon stores this
-                // returned ForecastResult in forecastState and the genmon panel re-resolves its
-                // temperature from it via resolveCurrentTempInMemory; the UI process, by contrast,
-                // re-reads observations from the DB (loadCached). Returning the freshly-fetched
-                // list here made the panel's IDW blend see a slightly different observation set
-                // than the popup, so the two showed different temperatures. cached.rawObservations
-                // is exactly what loadCached will hand the UI, so this keeps them in agreement.
-                rawObservations = cached?.rawObservations ?: result.rawObservations,
+            // Re-resolve the temp/delta fields against the DB-derived snapshot; keep the network's
+            // provider current identity when present, and the DB-derived raw observations (the
+            // Phase 1 invariant: the panel and popup must see the same observation set).
+            val resolvedCached = resolveForForecastResult(cached.raw.hourly, cached.raw.rawObservations, now)
+
+            ForecastSnapshot(
+                raw = cached.raw,
+                resolved = ResolvedView(
+                    currentTemp = resolvedCached.displayTemp,
+                    currentCondition = result.currentCondition ?: cached.resolved.currentCondition,
+                    currentObservedAt = result.currentObservedAt ?: cached.resolved.currentObservedAt,
+                    appliedDelta = resolvedCached.appliedDelta,
+                    deltaFromYesterday = resolvedCached.deltaFromYesterday,
+                ),
             )
         } catch (e: Exception) {
             if (e !is kotlinx.coroutines.CancellationException) {

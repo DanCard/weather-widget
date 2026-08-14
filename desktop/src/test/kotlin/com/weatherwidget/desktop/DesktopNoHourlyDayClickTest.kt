@@ -14,6 +14,7 @@ import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.toSnapshot
 import com.weatherwidget.test.category.MediumDuration
 import org.junit.Rule
 import org.junit.Test
@@ -61,7 +62,7 @@ class DesktopNoHourlyDayClickTest {
         currentCondition = "Sunny",
         daily = dailyEntries,
         hourly = nearTermHourly,
-    )
+    ).toSnapshot()
 
     private val stubConfig = DesktopConfig(
         lat = 37.4220,
