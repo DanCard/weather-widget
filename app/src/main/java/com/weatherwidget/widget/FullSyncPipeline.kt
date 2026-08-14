@@ -184,6 +184,11 @@ internal class FullSyncPipeline(
                         )
                         reloaded
                     }
+                    // Scope the final list was actually loaded under, so the paint-time guard in
+                    // WidgetPaintCoordinator can detect a toggle that lands AFTER this re-read.
+                    val renderHourlySourceIds =
+                        if (missingAtPaint.isEmpty()) hourlySourceIdsAtLoad
+                        else hourlyForecastLoader.hourlySourceIds()
 
                     val dailyActuals = dataBundleLoader.fetchDailyActuals(
                         lat = location.first,
@@ -217,6 +222,9 @@ internal class FullSyncPipeline(
                         uiOnly = input.uiOnlyRefresh,
                         origin = workerOrigin,
                         loadedActualsSourceIds = actualsSourceList,
+                        loadedHourlySourceIds = renderHourlySourceIds,
+                        hourlyLat = location.first,
+                        hourlyLon = location.second,
                         // This escape hatch fires when a widget's source changed during the paint —
                         // the same race, one stage later — so it must read the reloaded rows too.
                         reloadActuals = { sourceIds ->

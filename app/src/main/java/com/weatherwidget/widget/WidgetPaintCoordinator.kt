@@ -72,6 +72,9 @@ internal class WidgetPaintCoordinator(
         origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.WORKER_FETCH,
         loadedActualsSourceIds: Collection<String> = emptyList(),
         reloadActuals: (suspend (List<String>) -> DailyActualsBySource)? = null,
+        loadedHourlySourceIds: Collection<String> = emptyList(),
+        hourlyLat: Double? = null,
+        hourlyLon: Double? = null,
     ) = coroutineScope {
         if (!isScreenInteractive()) {
             appLogDao.log("WIDGET_PAINT_SKIP", "reason=screen_off", "INFO")
@@ -89,6 +92,14 @@ internal class WidgetPaintCoordinator(
             dailyActuals = dailyActuals,
         )
 
+        val effectiveHourlyForecasts = resolveEffectiveHourly(
+            appWidgetIds = appWidgetIds,
+            loadedHourlySourceIds = loadedHourlySourceIds,
+            lat = hourlyLat,
+            lon = hourlyLon,
+            hourlyForecasts = hourlyForecasts,
+        )
+
         val effectiveOrigin = if (uiOnly) WidgetPushDispatcher.Origin.UI_ONLY else origin
         for (appWidgetId in appWidgetIds) {
             if (shouldSkipWidgetRender(appWidgetId)) {
@@ -102,7 +113,7 @@ internal class WidgetPaintCoordinator(
                     appWidgetId = appWidgetId,
                     weatherList = weatherList,
                     forecastSnapshots = forecastSnapshots,
-                    hourlyForecasts = hourlyForecasts,
+                    hourlyForecasts = effectiveHourlyForecasts,
                     currentTemps = currentTemps,
                     dailyActualsBySource = effectiveActuals,
                     repository = weatherRepository,
@@ -138,6 +149,42 @@ internal class WidgetPaintCoordinator(
         ).takeIf { it.isNotEmpty() } ?: dailyActuals
     }
 
+    /**
+     * Hourly counterpart of [resolveEffectiveActuals]. [HourlyForecastLoader.load] scopes its SQL to
+     * the sources displayed when the caller asked, and a source toggle landing after that snapshot —
+     * but before this paint — leaves the passed list with zero rows for the newly selected source. The
+     * hourly views then paint "Cloud data unavailable" (or a blank curve) and the gap detector would
+     * burn a redundant forced sync on data the API already delivered. Reload once, here, against the
+     * sources actually on screen; the common path (no toggle in flight) does no extra query.
+     */
+    private suspend fun resolveEffectiveHourly(
+        appWidgetIds: IntArray,
+        loadedHourlySourceIds: Collection<String>,
+        lat: Double?,
+        lon: Double?,
+        hourlyForecasts: List<HourlyForecastEntity>,
+    ): List<HourlyForecastEntity> {
+        val paintSourceIds = appWidgetIds.map { widgetStateManager.getCurrentDisplaySource(it).id }.distinct()
+        val missing = HourlyForecastLoader.sourcesMissingFromLoad(
+            loadedSourceIds = loadedHourlySourceIds.toList(),
+            displaySourceIdsAtPaint = paintSourceIds,
+        )
+        if (missing.isEmpty() || lat == null || lon == null) return hourlyForecasts
+
+        val reloaded = hourlyForecastLoader.load(lat, lon, hourlyForecastLoader.hourlySourceIds())
+        appLogDao.log(
+            "HOURLY_SOURCE_RACE",
+            "loaded=${loadedHourlySourceIds.joinToString("|")} " +
+                "atPaint=${paintSourceIds.joinToString("|")} " +
+                "missing=${missing.joinToString("|")} " +
+                "staleRows=${hourlyForecasts.size} reloadedRows=${reloaded.size}",
+            "WARN",
+        )
+        // Keep the original when the repair reload comes back empty — a transient DB miss must not
+        // blank every widget's hourly graph.
+        return reloaded.takeIf { it.isNotEmpty() } ?: hourlyForecasts
+    }
+
     private fun shouldSkipWidgetRender(appWidgetId: Int): Boolean {
         val last = lastRenderMs[appWidgetId] ?: return false
         return SystemClock.elapsedRealtime() - last < MIN_RENDER_INTERVAL_MS
@@ -168,6 +215,9 @@ internal class WidgetPaintCoordinator(
             jobType = WidgetUpdateTracker.JobType.BACKGROUND_SYNC,
             origin = WidgetPushDispatcher.Origin.WORKER_CACHE,
             loadedActualsSourceIds = bundle.activeSourceIds,
+            loadedHourlySourceIds = bundle.activeSourceIds,
+            hourlyLat = location.first,
+            hourlyLon = location.second,
             reloadActuals = { sourceIds ->
                 dataBundleLoader.reloadDailyActuals(
                     lat = location.first,
