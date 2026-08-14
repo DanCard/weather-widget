@@ -306,7 +306,7 @@ class RefreshDelayTest {
         try {
             val result = service.fetchObservationsOnly()
 
-            assertNull(result.currentTemp)
+            assertNull(result.providerCurrentTemp)
             assertTrue(result.daily.isEmpty())
             assertTrue(result.hourly.isEmpty())
             assertTrue(result.rawObservations.isEmpty())

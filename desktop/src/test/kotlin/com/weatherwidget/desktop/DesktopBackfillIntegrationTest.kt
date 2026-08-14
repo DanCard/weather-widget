@@ -2,7 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.MediumDuration
@@ -56,8 +56,8 @@ class DesktopBackfillIntegrationTest {
     @Test
     fun `refresh never backfills Open-Meteo into history`() = runTest {
         val baseHour = (System.currentTimeMillis() / 3600_000L) * 3600_000L
-        coEvery { weatherService.fetchForecast() } returns ForecastResult(
-            currentTemp = 70f,
+        coEvery { weatherService.fetchForecast() } returns RawFetch(
+            providerCurrentTemp = 70f,
             hourly = listOf(HourlyForecast(baseHour, 70f, "Clear", source = "NWS")),
             daily = emptyList(),
         )

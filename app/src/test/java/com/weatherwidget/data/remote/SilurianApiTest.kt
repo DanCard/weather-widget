@@ -112,8 +112,8 @@ class SilurianApiTest {
         assertEquals(6.35f, result.daily[0].precipAmountMm!!, 0.001f)
 
         // API² has no current-observation endpoint.
-        assertNull(result.currentTemp)
-        assertNull(result.currentObservedAt)
+        assertNull(result.providerCurrentTemp)
+        assertNull(result.providerCurrentObservedAt)
     }
 
     @Test

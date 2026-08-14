@@ -50,7 +50,7 @@ class WeatherApiHistoryTest {
         assertEquals("/v1/history.json", requestedPath)
         assertEquals("2026-07-27", requestedDate)
         assertFalse(includedEndDate)
-        assertNull(result.currentTemp)
+        assertNull(result.providerCurrentTemp)
         assertEquals(1, result.daily.size)
         assertEquals(2, result.hourly.size)
         assertEquals(78.2f, result.daily.single().highTemp, 0.001f)

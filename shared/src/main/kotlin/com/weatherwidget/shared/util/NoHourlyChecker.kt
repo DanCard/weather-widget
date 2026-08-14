@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
  * Pure logic for the "no hourly data" day-tap flow, shared between Android and desktop.
  *
  * Android uses this after querying the DB (it checks in-DB rows). Desktop uses this against the
- * already-loaded [ForecastResult.hourly] list — no DB access needed.
+ * already-loaded [RawFetch.hourly] list — no DB access needed.
  */
 object NoHourlyChecker {
 

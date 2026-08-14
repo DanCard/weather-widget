@@ -13,7 +13,7 @@ import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -249,7 +249,7 @@ class CurrentTempRepository
             stationLabelPrefix: String,
             latitude: Double,
             longitude: Double,
-            fetch: suspend (Double, Double) -> ForecastResult,
+            fetch: suspend (Double, Double) -> RawFetch,
         ): CurrentReadingPayload? = coroutineScope {
             val pointsOfInterest = getPointsOfInterest(latitude, longitude)
             val deferredResults = pointsOfInterest.mapIndexed { index, point ->
@@ -266,14 +266,14 @@ class CurrentTempRepository
                     } catch (e: Exception) {
                         null
                     }
-                    val currentTemp = result?.currentTemp
+                    val currentTemp = result?.providerCurrentTemp
                     if (result != null && currentTemp != null) {
                         val stationId = if (point.third == "Current") "${stationPrefix}_MAIN" else "${stationPrefix}_$index"
-                        val condition = result.currentCondition ?: "Unknown"
+                        val condition = result.providerCurrentCondition ?: "Unknown"
                         val obsEntity = ObservationEntity(
                             stationId,
                             "$stationLabelPrefix: ${point.third}",
-                            result.currentObservedAt ?: System.currentTimeMillis(),
+                            result.providerCurrentObservedAt ?: System.currentTimeMillis(),
                             currentTemp,
                             condition,
                             point.first,
@@ -290,9 +290,9 @@ class CurrentTempRepository
 
             deferredResults.firstNotNullOfOrNull { result ->
                 val forecastResult = result ?: return@firstNotNullOfOrNull null
-                val currentTemp = forecastResult.currentTemp
+                val currentTemp = forecastResult.providerCurrentTemp
                 if (currentTemp != null) {
-                    CurrentReadingPayload(source, currentTemp, forecastResult.currentCondition, forecastResult.currentObservedAt)
+                    CurrentReadingPayload(source, currentTemp, forecastResult.providerCurrentCondition, forecastResult.providerCurrentObservedAt)
                 } else {
                     null
                 }
@@ -389,14 +389,14 @@ class CurrentTempRepository
                     }
                     // currentTemp captured locally: it's a property from the :shared module, which
                     // Kotlin cannot smart-cast across the module boundary.
-                    val currentTemp = result?.currentTemp
+                    val currentTemp = result?.providerCurrentTemp
                     if (result != null && currentTemp != null) {
                         val stationId = if (point.third == "Current") "TOMORROW_IO_MAIN" else "TOMORROW_IO_$index"
-                        val condition = result.currentCondition ?: "Unknown"
+                        val condition = result.providerCurrentCondition ?: "Unknown"
                         val obsEntity = ObservationEntity(
                             stationId,
                             "Tmrw: ${point.third}",
-                            result.currentObservedAt ?: System.currentTimeMillis(),
+                            result.providerCurrentObservedAt ?: System.currentTimeMillis(),
                             currentTemp,
                             condition,
                             point.first,
@@ -413,13 +413,13 @@ class CurrentTempRepository
 
             deferredReadings.firstNotNullOfOrNull { it }?.let { result ->
                 // Local capture: currentTemp is a :shared-module property (no cross-module smart-cast).
-                val currentTemp = result.currentTemp
+                val currentTemp = result.providerCurrentTemp
                 if (currentTemp != null) {
                     CurrentReadingPayload(
                         WeatherSource.TOMORROW_IO,
                         currentTemp,
-                        result.currentCondition,
-                        result.currentObservedAt
+                        result.providerCurrentCondition,
+                        result.providerCurrentObservedAt
                     )
                 } else null
             }

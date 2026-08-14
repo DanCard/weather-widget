@@ -108,10 +108,10 @@ class DesktopSynopticFallbackTest {
         val result = service.fetchObservationsOnly()
         
         // 4. Verify that the Synoptic fallback was triggered and returned the fresh data (in Fahrenheit)
-        assertNotNull(result.currentTemp)
+        assertNotNull(result.providerCurrentTemp)
         val expectedF = (21.5f * 1.8f) + 32f
-        assertEquals(expectedF, result.currentTemp!!, 0.01f)
-        assertEquals("clear", result.currentCondition)
+        assertEquals(expectedF, result.providerCurrentTemp!!, 0.01f)
+        assertEquals("clear", result.providerCurrentCondition)
     }
 
     @Test

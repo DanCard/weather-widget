@@ -3,7 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyForecast
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -67,7 +67,7 @@ class DesktopWeatherApiHistoryBackfillTest {
     @Test
     fun `refresh backfills yesterday once and derives daily history`() = runTest {
         coEvery { service.fetchWeatherApiHistory(yesterday) } returns
-            ForecastResult(rawObservations = historyReadings(24))
+            RawFetch(rawObservations = historyReadings(24))
 
         repository.refresh(now)
         repository.refresh(now + 60_000L)
@@ -113,9 +113,9 @@ class DesktopWeatherApiHistoryBackfillTest {
         assertTrue(log.message.contains("retryAtMs="))
     }
 
-    private fun currentForecast(): ForecastResult =
-        ForecastResult(
-            currentTemp = 70f,
+    private fun currentForecast(): RawFetch =
+        RawFetch(
+            providerCurrentTemp = 70f,
             hourly =
                 listOf(
                     HourlyForecast(

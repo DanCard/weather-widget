@@ -5,7 +5,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.DailyForecast
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -317,7 +317,7 @@ internal class ForecastFetchCoordinator(
         latitude: Double,
         longitude: Double,
         source: WeatherSource,
-        fetch: suspend () -> ForecastResult?,
+        fetch: suspend () -> RawFetch?,
     ): List<ForecastEntity>? {
         val result = fetch() ?: return null
         if (result.hourly.isNotEmpty()) {

@@ -2,7 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.test.category.ShortDuration
@@ -60,7 +60,7 @@ class DesktopRefreshObservationsTest {
     fun `refreshObservations returns DB-derived observations not the raw network list`() = runTest {
         val now = (System.currentTimeMillis() / 3600_000L) * 3600_000L
 
-        // A non-empty cache is required for loadCached to return a ForecastResult (it returns null
+        // A non-empty cache is required for loadCached to return a ForecastSnapshot (it returns null
         // only when both hourly and daily are empty).
         dao.upsertHourlyForecasts(
             lat, lon, source,
@@ -89,7 +89,7 @@ class DesktopRefreshObservationsTest {
             locationLon = lon,
             api = "NWS",
         )
-        coEvery { weatherService.fetchObservationsOnly() } returns ForecastResult(
+        coEvery { weatherService.fetchObservationsOnly() } returns RawFetch(
             rawObservations = listOf(inRange, outOfRange),
         )
 

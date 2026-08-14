@@ -11,10 +11,11 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DataStatus
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.ForecastSnapshot
+import com.weatherwidget.data.model.RawFetch
+import com.weatherwidget.data.model.ResolvedView
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.model.toSnapshot
 import com.weatherwidget.test.category.MediumDuration
 import org.junit.Rule
 import org.junit.Test
@@ -57,12 +58,12 @@ class DesktopNoHourlyDayClickTest {
         HourlyForecast(epochMs(today, 12), 74f, "Sunny", source = WeatherSource.NWS.id),
     )
 
-    private val stubForecast = ForecastResult(
-        currentTemp = 72f,
-        currentCondition = "Sunny",
-        daily = dailyEntries,
-        hourly = nearTermHourly,
-    ).toSnapshot()
+    private val stubForecast = ForecastSnapshot(
+raw = RawFetch(daily = dailyEntries,
+hourly = nearTermHourly),
+resolved = ResolvedView(currentTemp = 72f,
+currentCondition = "Sunny"),
+)
 
     private val stubConfig = DesktopConfig(
         lat = 37.4220,

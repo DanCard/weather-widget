@@ -102,8 +102,8 @@ class TomorrowIoApiTest {
         val result = api.getForecast(37.4220, -122.0841)
 
         assertNotNull(result)
-        assertEquals(65.5f, result.currentTemp!!, 0.1f)
-        assertEquals("Cloudy", result.currentCondition)
+        assertEquals(65.5f, result.providerCurrentTemp!!, 0.1f)
+        assertEquals("Cloudy", result.providerCurrentCondition)
         
         assertEquals(1, result.hourly.size)
         assertEquals(65.5f, result.hourly[0].temperature, 0.1f)

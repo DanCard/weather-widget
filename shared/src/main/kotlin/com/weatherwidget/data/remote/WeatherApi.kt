@@ -1,7 +1,7 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.data.model.DailyForecast
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.HttpClient
@@ -32,7 +32,7 @@ class WeatherApi(
         lat: Double,
         lon: Double,
         days: Int = 14,
-    ): ForecastResult {
+    ): RawFetch {
         val apiKey = requireApiKey()
 
         val response: HttpResponse = httpClient.get(FORECAST_URL) {
@@ -55,7 +55,7 @@ class WeatherApi(
         lat: Double,
         lon: Double,
         date: LocalDate,
-    ): ForecastResult {
+    ): RawFetch {
         val apiKey = requireApiKey()
         val response = httpClient.get(HISTORY_URL) {
             parameter("key", apiKey)
@@ -91,7 +91,7 @@ class WeatherApi(
         return response.bodyAsText()
     }
 
-    private fun parseResponse(responseBody: String): ForecastResult {
+    private fun parseResponse(responseBody: String): RawFetch {
         val root = json.parseToJsonElement(responseBody).jsonObject
 
         val currentObj = root["current"]?.jsonObject
@@ -139,10 +139,10 @@ class WeatherApi(
             }
         }
 
-        return ForecastResult(
-            currentTemp = currentTemp,
-            currentCondition = currentCondition,
-            currentObservedAt = currentObservedAt,
+        return RawFetch(
+            providerCurrentTemp = currentTemp,
+            providerCurrentCondition = currentCondition,
+            providerCurrentObservedAt = currentObservedAt,
             daily = dailyForecasts,
             hourly = hourlyForecasts
         )

@@ -4,7 +4,7 @@ package com.weatherwidget.data.model
  * The resolved "what should we show right now" status, published by the daemon after each fetch.
  *
  * This is the single-owner snapshot the genmon panel and the popup header will consume (instead of
- * each process re-deriving it from its own in-memory [ForecastResult] — the split-brain that made
+ * each process re-deriving it from its own in-memory [ForecastSnapshot] — the split-brain that made
  * the panel and popup drift). All temperatures are °F; unit conversion happens at display time.
  *
  * Keyed by (locationLat, locationLon, source), mirroring the other coordinate-keyed weather tables.

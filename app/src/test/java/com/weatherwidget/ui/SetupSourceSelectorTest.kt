@@ -1,7 +1,7 @@
 package com.weatherwidget.ui
 
 import com.weatherwidget.data.model.DailyForecast
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.NwsApi
@@ -211,12 +211,12 @@ class SetupSourceSelectorTest {
             val nwsApi = mockk<NwsApi>(relaxed = true)
             val weatherApi = mockk<WeatherApi>()
             val checker = SetupSourceAvailabilityChecker(nwsApi, weatherApi)
-            coEvery { weatherApi.getForecast(any(), any(), any()) } returns ForecastResult()
+            coEvery { weatherApi.getForecast(any(), any(), any()) } returns RawFetch()
 
             val empty = checker.checkWeatherApi(51.5074, -0.1278)
 
             coEvery { weatherApi.getForecast(any(), any(), any()) } returns
-                ForecastResult(
+                RawFetch(
                     daily =
                         listOf(
                             DailyForecast(

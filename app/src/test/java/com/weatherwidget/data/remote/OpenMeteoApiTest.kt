@@ -109,7 +109,7 @@ class OpenMeteoApiTest {
             val forecast = api.getForecast(37.42, -122.08)
 
             assertEquals(3, forecast.daily.size)
-            assertEquals(65.5f, forecast.currentTemp!!, 0.001f)
+            assertEquals(65.5f, forecast.providerCurrentTemp!!, 0.001f)
 
             assertEquals("2026-01-27", forecast.daily[0].date)
             assertEquals(70f, forecast.daily[0].highTemp, 0.001f)
@@ -168,7 +168,7 @@ class OpenMeteoApiTest {
 
             val forecast = api.getForecast(37.42, -122.08)
 
-            assertNull(forecast.currentTemp)
+            assertNull(forecast.providerCurrentTemp)
             assertEquals(1, forecast.daily.size)
         }
 

@@ -3,7 +3,7 @@ package com.weatherwidget.data.remote
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.*
@@ -36,7 +36,7 @@ class OpenMeteoApi
             lon: Double,
             days: Int = ForecastHorizon.MAX_DAYS,
             historyDays: Int = 0,
-        ): ForecastResult {
+        ): RawFetch {
             val response: String =
                 httpClient.get("$BASE_URL/forecast") {
                     parameter("latitude", lat)
@@ -153,10 +153,10 @@ cloudCover = hourlyCloudCover.getOrNull(index),
             Log.d(TAG, "getForecast: parsed ${hourlyForecasts.size} hourly forecasts")
 
 val currentCondition = current?.get("weather_code")?.jsonPrimitive?.content?.toIntOrNull()?.let { weatherCodeToCondition(it) }
-return ForecastResult(
-currentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toFloatOrNull(),
-currentCondition = currentCondition,
-currentObservedAt = parseCurrentObservedAt(
+return RawFetch(
+providerCurrentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toFloatOrNull(),
+providerCurrentCondition = currentCondition,
+providerCurrentObservedAt = parseCurrentObservedAt(
 timeRaw = current?.get("time")?.jsonPrimitive?.content,
 timezone = timezone,
 ),

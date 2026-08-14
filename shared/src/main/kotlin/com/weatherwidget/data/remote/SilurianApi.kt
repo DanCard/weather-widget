@@ -2,7 +2,7 @@ package com.weatherwidget.data.remote
 
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.*
@@ -46,7 +46,7 @@ class SilurianApi(
     suspend fun getForecast(
         lat: Double,
         lon: Double,
-    ): ForecastResult = coroutineScope {
+    ): RawFetch = coroutineScope {
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
             throw IllegalStateException("SILURIAN_API_KEY is missing.")
@@ -102,7 +102,7 @@ class SilurianApi(
         // include_past hours re-filed as observations. So we deliberately leave current* unset.
         logCloudCoverSummary(hourlyRoot["hourly"]?.jsonArray, "hourly")
         logCloudCoverSummary(dailyRoot["daily"]?.jsonArray, "daily")
-        ForecastResult(
+        RawFetch(
             daily = daily,
             hourly = hourly,
         )

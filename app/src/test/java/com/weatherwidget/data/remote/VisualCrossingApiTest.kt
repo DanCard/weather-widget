@@ -100,8 +100,8 @@ class VisualCrossingApiTest {
         val api = VisualCrossingApi(createMockClient(responseJson), json) { "test-key" }
         val forecast = api.getForecast(37.42, -122.08)
 
-        assertEquals(62.4f, forecast.currentTemp!!, 0.001f)
-        assertEquals("Rain, Partially cloudy", forecast.currentCondition)
+        assertEquals(62.4f, forecast.providerCurrentTemp!!, 0.001f)
+        assertEquals("Rain, Partially cloudy", forecast.providerCurrentCondition)
         assertEquals(2, forecast.daily.size)
         assertEquals(2, forecast.hourly.size)
         assertEquals("2026-03-31", forecast.daily[0].date)
@@ -132,10 +132,10 @@ class VisualCrossingApiTest {
         val api = VisualCrossingApi(createMockClient(responseJson), json) { "test-key" }
         val forecast = api.getForecast(37.42, -122.08)
 
-        assertNotNull(forecast.currentTemp)
-        assertEquals(62.4f, forecast.currentTemp!!, 0.001f)
-        assertEquals("Rain, Partially cloudy", forecast.currentCondition)
-        assertEquals(1774940400000L, forecast.currentObservedAt)
+        assertNotNull(forecast.providerCurrentTemp)
+        assertEquals(62.4f, forecast.providerCurrentTemp!!, 0.001f)
+        assertEquals("Rain, Partially cloudy", forecast.providerCurrentCondition)
+        assertEquals(1774940400000L, forecast.providerCurrentObservedAt)
     }
 
     @Test

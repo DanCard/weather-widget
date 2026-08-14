@@ -2,7 +2,7 @@ package com.weatherwidget.data.remote
 
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.*
@@ -28,7 +28,7 @@ class TomorrowIoApi(
     suspend fun getForecast(
         lat: Double,
         lon: Double,
-    ): ForecastResult {
+    ): RawFetch {
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
             throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
@@ -137,10 +137,10 @@ class TomorrowIoApi(
             OffsetDateTime.parse(it).toInstant().toEpochMilli()
         }
 
-        return ForecastResult(
-            currentTemp = currentTemp,
-            currentCondition = currentCondition,
-            currentObservedAt = currentObservedAt,
+        return RawFetch(
+            providerCurrentTemp = currentTemp,
+            providerCurrentCondition = currentCondition,
+            providerCurrentObservedAt = currentObservedAt,
             daily = dailyForecasts,
             hourly = hourlyForecasts
         )

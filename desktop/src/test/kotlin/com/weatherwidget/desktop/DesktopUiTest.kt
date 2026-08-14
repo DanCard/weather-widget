@@ -14,11 +14,12 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.ForecastSnapshot
+import com.weatherwidget.data.model.RawFetch
+import com.weatherwidget.data.model.ResolvedView
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.model.toSnapshot
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.WeatherConditionResolver
@@ -34,17 +35,17 @@ class DesktopUiTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private val stubForecast = ForecastResult(
-        currentTemp = 72f,
-        currentCondition = "Sunny",
-        daily = listOf(
+    private val stubForecast = ForecastSnapshot(
+raw = RawFetch(daily = listOf(
             DailyForecast("2026-06-01", 75f, 55f, "Sunny", precipProbability = 0),
             DailyForecast("2026-06-02", 78f, 58f, "Cloudy", precipProbability = 10)
         ),
-        hourly = listOf(
+hourly = listOf(
             HourlyForecast(System.currentTimeMillis(), 72f, "Sunny")
-        )
-    ).toSnapshot()
+        )),
+resolved = ResolvedView(currentTemp = 72f,
+currentCondition = "Sunny"),
+)
 
     private val stubConfig = DesktopConfig(
         lat = 37.4220,

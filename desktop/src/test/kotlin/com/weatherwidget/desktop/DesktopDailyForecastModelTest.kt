@@ -30,12 +30,42 @@ class DesktopDailyForecastModelTest {
         updatedAt = System.currentTimeMillis()
     )
 
+
+    /** Test fixture: builds a [ForecastSnapshot] from the old flat ForecastResult-shaped args. */
+    private fun snapshot(
+        currentTemp: Float? = null,
+        currentCondition: String? = null,
+        currentObservedAt: Long? = null,
+        appliedDelta: Float? = null,
+        deltaFromYesterday: Float? = null,
+        daily: List<DailyForecast> = emptyList(),
+        hourly: List<HourlyForecast> = emptyList(),
+        rawObservations: List<ObservationReading> = emptyList(),
+        dailyActuals: Map<String, DailyHistory> = emptyMap(),
+        dailySnapshots: Map<String, List<DailyForecastSnapshot>> = emptyMap(),
+    ): ForecastSnapshot = ForecastSnapshot(
+        raw = RawFetch(
+            hourly = hourly,
+            daily = daily,
+            rawObservations = rawObservations,
+            dailyActuals = dailyActuals,
+            dailySnapshots = dailySnapshots,
+        ),
+        resolved = ResolvedView(
+            currentTemp = currentTemp,
+            currentCondition = currentCondition,
+            currentObservedAt = currentObservedAt,
+            appliedDelta = appliedDelta,
+            deltaFromYesterday = deltaFromYesterday,
+        ),
+    )
+
     @Test
     fun `build properly groups and maps daily data`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
         val state = DesktopDailyForecastModel.build(
             config = config,
-            forecast = ForecastResult(
+            forecast = snapshot(
                 currentTemp = 72.4f,
                 currentCondition = "Sunny",
                 daily = listOf(
@@ -56,7 +86,7 @@ class DesktopDailyForecastModelTest {
                         DailyForecastSnapshot("2026-06-02", 76f, 58f, "Cloudy", fetchedAt = 1L),
                     )
                 )
-            ).toSnapshot(),
+            ),
             dimensions = DesktopDailyForecastModel.dimensions(600, 400),
             now = now
         )
@@ -83,7 +113,7 @@ class DesktopDailyForecastModelTest {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
         val state = DesktopDailyForecastModel.build(
             config = config,
-            forecast = ForecastResult(
+            forecast = snapshot(
                 currentTemp = 72.4f,
                 currentCondition = "Sunny",
                 daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
@@ -100,7 +130,7 @@ class DesktopDailyForecastModelTest {
                         DailyForecastSnapshot("2026-06-01", 75f, 57f, "Cloudy", fetchedAt = 1L),
                     ),
                 ),
-            ).toSnapshot(),
+            ),
             dimensions = DesktopDailyForecastModel.dimensions(600, 400),
             now = now,
         )
@@ -116,7 +146,7 @@ class DesktopDailyForecastModelTest {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
         val state = DesktopDailyForecastModel.build(
             config = config,
-            forecast = ForecastResult(
+            forecast = snapshot(
                 currentTemp = 72.4f,
                 currentCondition = "Sunny",
                 daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
@@ -128,7 +158,7 @@ class DesktopDailyForecastModelTest {
                         DailyForecastSnapshot("2026-06-01", 75f, 57f, "Cloudy", fetchedAt = 1L),
                     ),
                 ),
-            ).toSnapshot(),
+            ),
             dimensions = DesktopDailyForecastModel.dimensions(600, 400),
             now = now,
         )
@@ -145,14 +175,14 @@ class DesktopDailyForecastModelTest {
         val now = LocalDateTime.parse("2026-06-03T20:00:00")
         val state = DesktopDailyForecastModel.build(
             config = config,
-            forecast = ForecastResult(
+            forecast = snapshot(
                 currentTemp = 72.4f,
                 currentCondition = "Sunny",
                 daily = listOf(DailyForecast("2026-06-03", 97f, 60f, "Sunny")),
                 dailyActuals = mapOf(
                     "2026-06-03" to extreme("2026-06-03", 97.7f, 60.3f, "Sunny"),
                 ),
-            ).toSnapshot(),
+            ),
             dimensions = DesktopDailyForecastModel.dimensions(600, 400),
             now = now,
         )
@@ -194,10 +224,10 @@ class DesktopDailyForecastModelTest {
     @Test
     fun `zoom-out prepends history days and anchors the right edge`() {
         val now = LocalDateTime.parse("2026-06-10T07:00:00")
-        val forecast = ForecastResult(
+        val forecast = snapshot(
             daily = forecastRange("2026-06-10", 8),       // today..+7
             dailyActuals = actualsRange("2026-06-01", 9), // 06-01..06-09
-        ).toSnapshot()
+        )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 3)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
@@ -215,10 +245,10 @@ class DesktopDailyForecastModelTest {
     @Test
     fun `zoom-out clamps to the earliest available history date`() {
         val now = LocalDateTime.parse("2026-06-10T07:00:00")
-        val forecast = ForecastResult(
+        val forecast = snapshot(
             daily = forecastRange("2026-06-10", 8),
             dailyActuals = actualsRange("2026-06-01", 9), // earliest = 06-01
-        ).toSnapshot()
+        )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 20)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
@@ -232,10 +262,10 @@ class DesktopDailyForecastModelTest {
     @Test
     fun `zoom-out is capped even when more history data exists`() {
         val now = LocalDateTime.parse("2026-06-10T07:00:00")
-        val forecast = ForecastResult(
+        val forecast = snapshot(
             daily = forecastRange("2026-06-10", 8),
             dailyActuals = actualsRange("2026-05-20", 21), // 05-20..06-09, 20 days left of base edge
-        ).toSnapshot()
+        )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 30)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
@@ -249,10 +279,10 @@ class DesktopDailyForecastModelTest {
     @Test
     fun `default view has no extra history but can still zoom out`() {
         val now = LocalDateTime.parse("2026-06-10T07:00:00")
-        val forecast = ForecastResult(
+        val forecast = snapshot(
             daily = forecastRange("2026-06-10", 8),
             dailyActuals = actualsRange("2026-06-01", 9),
-        ).toSnapshot()
+        )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 0)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
@@ -333,7 +363,7 @@ class DesktopDailyForecastModelTest {
                 api = WeatherSource.NWS.id,
                 fetchedAt = LocalDateTime.parse(local).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
             )
-        return ForecastResult(
+        return snapshot(
             daily = forecastRange("2026-08-04", 8),
             // The overlay delta row shows the FORECAST delta (swapped with the header).
             appliedDelta = 0.4f,
@@ -343,17 +373,17 @@ class DesktopDailyForecastModelTest {
                 reading("DOM", "2026-08-04T08:20:00", 62.6f, 0.2f),
                 reading("FAR", "2026-08-04T08:20:00", 70f, 20f),
             ),
-        ).toSnapshot()
+        )
     }
 
     @Test
     fun `zoom reveals history even when skip-yesterday drops it`() {
         // Narrow (5 col) widget after 8am: skip-yesterday normally hides history at offset 0.
         val now = LocalDateTime.parse("2026-06-10T09:00:00")
-        val forecast = ForecastResult(
+        val forecast = snapshot(
             daily = forecastRange("2026-06-10", 5),
             dailyActuals = actualsRange("2026-06-01", 9),
-        ).toSnapshot()
+        )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 2)
         val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(300, 400), now)
 
@@ -367,10 +397,10 @@ class DesktopDailyForecastModelTest {
     @Test
     fun `detects available dates correctly for navigation`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
-        val forecast = ForecastResult(
+        val forecast = snapshot(
             daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
             dailyActuals = mapOf("2026-06-01" to extreme("2026-06-01", 77f, 56f, "Fair"))
-        ).toSnapshot()
+        )
         val state = DesktopDailyForecastModel.build(config, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
         
         assertFalse(state.canNavigateLeft) // Already at the earliest date (June 1st)

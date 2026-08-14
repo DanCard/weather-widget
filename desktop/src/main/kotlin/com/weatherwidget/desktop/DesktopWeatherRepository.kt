@@ -117,6 +117,16 @@ class DesktopWeatherRepository(
         return resolveForForecastResult(raw.hourly, raw.rawObservations, now, resultLogLevel = "VERBOSE")
     }
 
+    /** Null-cache fallback: the provider's own current reading is the best we have to display. */
+    private fun rawFetchToSnapshot(raw: RawFetch): ForecastSnapshot = ForecastSnapshot(
+        raw = raw,
+        resolved = ResolvedView(
+            currentTemp = raw.providerCurrentTemp,
+            currentCondition = raw.providerCurrentCondition,
+            currentObservedAt = raw.providerCurrentObservedAt,
+        ),
+    )
+
     suspend fun loadCached(now: Long = currentTimeMillis()): ForecastSnapshot? = withContext(Dispatchers.IO) {
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
         // Cover the widest zoom-out (6 days back) so the continuous-zoom graph never truncates history.
@@ -309,7 +319,7 @@ class DesktopWeatherRepository(
             )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
-            loadCached(now) ?: result.toSnapshot()
+            loadCached(now) ?: rawFetchToSnapshot(result)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) {
                 // Cancellation is not a pipeline failure, so it stays out of CURRENT_TEMP_STATUS
@@ -495,7 +505,7 @@ class DesktopWeatherRepository(
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
             if (cached == null) {
-                return@withContext result.toSnapshot()
+                return@withContext rawFetchToSnapshot(result)
             }
 
             // Re-resolve the temp/delta fields against the DB-derived snapshot; keep the network's
@@ -507,8 +517,8 @@ class DesktopWeatherRepository(
                 raw = cached.raw,
                 resolved = ResolvedView(
                     currentTemp = resolvedCached.displayTemp,
-                    currentCondition = result.currentCondition ?: cached.resolved.currentCondition,
-                    currentObservedAt = result.currentObservedAt ?: cached.resolved.currentObservedAt,
+                    currentCondition = result.providerCurrentCondition ?: cached.resolved.currentCondition,
+                    currentObservedAt = result.providerCurrentObservedAt ?: cached.resolved.currentObservedAt,
                     appliedDelta = resolvedCached.appliedDelta,
                     deltaFromYesterday = resolvedCached.deltaFromYesterday,
                 ),

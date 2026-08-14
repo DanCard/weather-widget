@@ -1,7 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.DailyForecast
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -95,7 +95,7 @@ class DesktopWeatherService(
      * path honours the number — the other sources return whatever their API provides, and days
      * past a source's real coverage render climate-normal filler by design.
      */
-    suspend fun fetchForecast(): ForecastResult = runCatching {
+    suspend fun fetchForecast(): RawFetch = runCatching {
         when (weatherSource) {
             "NWS" -> fetchNwsForecast()
             WeatherSource.TOMORROW_IO.id -> withHistoricalActuals(tomorrowIo.getForecast(latitude, longitude), WeatherSource.TOMORROW_IO.id)
@@ -149,7 +149,7 @@ class DesktopWeatherService(
      * rows — matching Android, which routes every source through saveHistoricalActuals. NWS is the
      * one exception: it supplies real station readings in fetchNwsForecast and must not be backfilled.
      */
-    private fun withHistoricalActuals(result: ForecastResult, sourceId: String): ForecastResult =
+    private fun withHistoricalActuals(result: RawFetch, sourceId: String): RawFetch =
         result.copy(
             rawObservations = HistoricalActualsBackfill.build(
                 hourly = result.hourly,
@@ -172,17 +172,17 @@ class DesktopWeatherService(
      * source falls back to Open-Meteo. When Open-Meteo is itself the active source the two ids are
      * identical, so this is a no-op there.
      */
-    private suspend fun fetchOpenMeteoForecastWithActuals(): ForecastResult =
+    private suspend fun fetchOpenMeteoForecastWithActuals(): RawFetch =
         withHistoricalActuals(
             openMeteo.getForecast(latitude, longitude, days = ForecastHorizon.MAX_DAYS, historyDays = ACTUALS_HISTORY_DAYS),
             weatherSource,
         )
 
-    suspend fun fetchHistory(historyDays: Int): ForecastResult {
+    suspend fun fetchHistory(historyDays: Int): RawFetch {
         return openMeteo.getForecast(latitude, longitude, days = 1, historyDays = historyDays)
     }
 
-    suspend fun fetchWeatherApiHistory(date: LocalDate): ForecastResult =
+    suspend fun fetchWeatherApiHistory(date: LocalDate): RawFetch =
         withHistoricalActuals(
             weatherApi.getHistory(latitude, longitude, date),
             WeatherSource.WEATHER_API.id,
@@ -252,7 +252,7 @@ class DesktopWeatherService(
         return openMeteo.getHistoricalDailyTemps(latitude, longitude, startDate, endDate)
     }
 
-    private suspend fun fetchNwsForecast(): ForecastResult = coroutineScope {
+    private suspend fun fetchNwsForecast(): RawFetch = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
         val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
         val dailyDeferred = async { nwsApi.getForecast(grid) }
@@ -337,10 +337,10 @@ class DesktopWeatherService(
             rawObservations
         }
 
-        ForecastResult(
-            currentTemp = currentTemp,
-            currentCondition = currentCondition,
-            currentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
+        RawFetch(
+            providerCurrentTemp = currentTemp,
+            providerCurrentCondition = currentCondition,
+            providerCurrentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
             hourly = hourly.map { it.toHourlyForecast() },
             daily = NwsDailyMapper.buildDailyForecasts(dailyRaw, gridpoints.dailyTemperatures, LocalDate.now(), hourly),
             rawObservations = observations,
@@ -549,7 +549,7 @@ class DesktopWeatherService(
         source = "NWS",
     )
 
-    suspend fun fetchObservationsOnly(): ForecastResult = runCatching {
+    suspend fun fetchObservationsOnly(): RawFetch = runCatching {
         when (weatherSource) {
             "NWS" -> fetchNwsObservationsOnly()
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
@@ -559,7 +559,7 @@ class DesktopWeatherService(
             WeatherSource.SILURIAN.id,
             WeatherSource.OPEN_WEATHER_MAP.id -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
-                ForecastResult()
+                RawFetch()
             }
             else -> fetchOpenMeteoObservationsOnly()
         }
@@ -571,7 +571,7 @@ class DesktopWeatherService(
         }
     }
 
-    private suspend fun fetchNwsObservationsOnly(): ForecastResult = coroutineScope {
+    private suspend fun fetchNwsObservationsOnly(): RawFetch = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
         
         // Resolve candidate observation stations once, then try official stations first.
@@ -623,15 +623,15 @@ class DesktopWeatherService(
             rawObservations
         }
 
-        ForecastResult(
-            currentTemp = currentTemp,
-            currentCondition = currentCondition,
-            currentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
+        RawFetch(
+            providerCurrentTemp = currentTemp,
+            providerCurrentCondition = currentCondition,
+            providerCurrentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
             rawObservations = observations
         )
     }
 
-    private suspend fun fetchOpenMeteoObservationsOnly(): ForecastResult = coroutineScope {
+    private suspend fun fetchOpenMeteoObservationsOnly(): RawFetch = coroutineScope {
         val reading = openMeteo.getCurrent(latitude, longitude)
             ?: throw Exception("Open-Meteo current reading is null")
         val condition = reading.weatherCode?.let { openMeteo.weatherCodeToCondition(it) } ?: "Unknown"
@@ -645,10 +645,10 @@ class DesktopWeatherService(
             locationLon = longitude,
             api = WeatherSource.OPEN_METEO.id,
         )
-        ForecastResult(
-            currentTemp = reading.temperature,
-            currentCondition = condition,
-            currentObservedAt = reading.observedAt,
+        RawFetch(
+            providerCurrentTemp = reading.temperature,
+            providerCurrentCondition = condition,
+            providerCurrentObservedAt = reading.observedAt,
             rawObservations = listOf(obsReading)
         )
     }

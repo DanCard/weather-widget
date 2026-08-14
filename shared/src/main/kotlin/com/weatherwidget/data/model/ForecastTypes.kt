@@ -62,7 +62,7 @@ data class DailyActual(
 )
 
 /**
- * A single weather observation, in the pure model layer so [ForecastResult] doesn't depend on the
+ * A single weather observation, in the pure model layer so [ForecastSnapshot] doesn't depend on the
  * desktop persistence package. The persistence layer maps this to its own entity for storage.
  */
 data class ObservationReading(
@@ -86,27 +86,6 @@ data class ObservationReading(
     val qcFailed: Boolean = false,
 )
 
-data class ForecastResult(
-    val currentTemp: Float? = null,
-    val currentCondition: String? = null,
-    val currentObservedAt: Long? = null,
-    val appliedDelta: Float? = null,
-    /** Observed temp minus blended actual at the same clock time 24h earlier; shown in the header. */
-    val deltaFromYesterday: Float? = null,
-    val daily: List<DailyForecast> = emptyList(),
-    val hourly: List<HourlyForecast> = emptyList(),
-    val dailyActuals: Map<String, DailyHistory> = emptyMap(),
-    val dailySnapshots: Map<String, List<DailyForecastSnapshot>> = emptyMap(),
-    val rawObservations: List<ObservationReading> = emptyList(),
-    val nwsDailyExtremes: NwsApi.DailyTemperatureExtremes? = null,
-)
-
-/**
- * Everything the network/DB produced for a location/source. No display decisions — the values here
- * are inputs to resolution, never outputs. The `provider*` trio carries the raw "current
- * conditions" some providers return, deliberately renamed so it can't be mistaken for the resolved
- * value (see [ResolvedView]).
- */
 data class RawFetch(
     val hourly: List<HourlyForecast> = emptyList(),
     val daily: List<DailyForecast> = emptyList(),
@@ -135,30 +114,6 @@ data class ResolvedView(
 data class ForecastSnapshot(
     val raw: RawFetch,
     val resolved: ResolvedView,
-)
-
-/**
- * 5b migration bridge: interprets a [ForecastResult]'s `current*` fields as RESOLVED values (the
- * historical consumer semantics — the UI/daemon read them as the display temperature) and the rest
- * as raw. Only the `refresh()` null-cache fallback uses this; it is deleted in sub-step 5e once the
- * API clients return [RawFetch] directly.
- */
-fun ForecastResult.toSnapshot(): ForecastSnapshot = ForecastSnapshot(
-    raw = RawFetch(
-        hourly = hourly,
-        daily = daily,
-        rawObservations = rawObservations,
-        dailyActuals = dailyActuals,
-        dailySnapshots = dailySnapshots,
-        nwsDailyExtremes = nwsDailyExtremes,
-    ),
-    resolved = ResolvedView(
-        currentTemp = currentTemp,
-        currentCondition = currentCondition,
-        currentObservedAt = currentObservedAt,
-        appliedDelta = appliedDelta,
-        deltaFromYesterday = deltaFromYesterday,
-    ),
 )
 
 sealed class DataStatus {

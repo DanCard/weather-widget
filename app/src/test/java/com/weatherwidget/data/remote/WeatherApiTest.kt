@@ -118,7 +118,7 @@ class WeatherApiTest {
             val api = WeatherApi(createMockClient(responseJson), json) { "test-key" }
             val forecast = api.getForecast(37.42, -122.08)
 
-            assertEquals(67.6f, forecast.currentTemp!!, 0.001f)
+            assertEquals(67.6f, forecast.providerCurrentTemp!!, 0.001f)
             assertEquals(2, forecast.daily.size)
             assertEquals(2, forecast.hourly.size)
 
@@ -181,7 +181,7 @@ class WeatherApiTest {
             val api = WeatherApi(createMockClient(responseJson), json) { "test-key" }
             val forecast = api.getForecast(37.42, -122.08)
 
-            assertNull(forecast.currentTemp)
+            assertNull(forecast.providerCurrentTemp)
             assertEquals(1, forecast.daily.size)
             assertEquals(1, forecast.hourly.size)
             assertNull(forecast.daily[0].precipProbability)
@@ -207,9 +207,9 @@ class WeatherApiTest {
             val api = WeatherApi(createMockClient(responseJson), json) { "test-key" }
             val forecast = api.getForecast(37.42, -122.08)
 
-            assertNotNull(forecast.currentTemp)
-            assertEquals(58.2f, forecast.currentTemp!!, 0.001f)
-            assertEquals("Cloudy", forecast.currentCondition)
+            assertNotNull(forecast.providerCurrentTemp)
+            assertEquals(58.2f, forecast.providerCurrentTemp!!, 0.001f)
+            assertEquals("Cloudy", forecast.providerCurrentCondition)
         }
 
     @Test

@@ -3,7 +3,7 @@ package com.weatherwidget.data.repository
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
-import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
@@ -55,7 +55,7 @@ class WeatherApiHistoryBackfillerTest {
         } returns null
         val hours = historyHours(24)
         coEvery { weatherApi.getHistory(lat, lon, yesterday) } returns
-            ForecastResult(hourly = hours)
+            RawFetch(hourly = hours)
 
         val result = subject().backfillIfNeeded(lat, lon)
 
