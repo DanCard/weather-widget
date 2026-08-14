@@ -33,7 +33,7 @@ class DesktopBackfillIntegrationTest {
     private lateinit var database: DesktopWeatherDatabase
     private lateinit var dao: DesktopWeatherDao
     private lateinit var repository: DesktopWeatherRepository
-    private val weatherService = mockk<DesktopWeatherService>()
+    private val weatherService = mockk<WeatherApiClient>()
 
     private val lat = 37.4220
     private val lon = -122.0841

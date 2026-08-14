@@ -32,7 +32,7 @@ class DesktopWeatherApiHistoryBackfillTest {
     private lateinit var database: DesktopWeatherDatabase
     private lateinit var dao: DesktopWeatherDao
     private lateinit var repository: DesktopWeatherRepository
-    private val service = mockk<DesktopWeatherService>()
+    private val service = mockk<WeatherApiClient>()
     private val lat = 37.417
     private val lon = -122.089
     private val zone = ZoneId.systemDefault()

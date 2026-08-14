@@ -41,13 +41,17 @@ class DesktopWeatherService(
     private val weatherSource: String = "NWS",
     private val apiKeys: Map<String, String> = emptyMap(),
     private val weatherDao: DesktopWeatherDao? = null,
-) {
+    // Injectable seams for tests; null = construct the real production client/apis.
+    private val injectedHttpClient: HttpClient? = null,
+    private val injectedNwsApi: NwsApi? = null,
+    private val injectedSynopticApi: SynopticApi? = null,
+) : WeatherApiClient {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
     }
 
-    private val httpClient = HttpClient(CIO) {
+    private val httpClient: HttpClient = injectedHttpClient ?: HttpClient(CIO) {
         install(ContentNegotiation) { json(json) }
         install(HttpTimeout) {
             requestTimeoutMillis = 30_000
@@ -75,13 +79,13 @@ class DesktopWeatherService(
         DesktopApiKeys.DEFAULTS + apiKeys.filterValues { it.isNotBlank() }
 
     private val openMeteo = OpenMeteoApi(httpClient, json)
-    private val nwsApi = NwsApi(httpClient, json)
+    private val nwsApi = injectedNwsApi ?: NwsApi(httpClient, json)
     private val tomorrowIo = TomorrowIoApi(httpClient, json) { effectiveKeys[WeatherSource.TOMORROW_IO.id] }
     private val weatherApi = WeatherApi(httpClient, json) { effectiveKeys[WeatherSource.WEATHER_API.id] }
     private val visualCrossing = VisualCrossingApi(httpClient, json) { effectiveKeys[WeatherSource.VISUAL_CROSSING.id] }
     private val silurian = SilurianApi(httpClient, json) { effectiveKeys[WeatherSource.SILURIAN.id] }
     private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { effectiveKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
-    private val synopticApi = SynopticApi(httpClient, json)
+    private val synopticApi = injectedSynopticApi ?: SynopticApi(httpClient, json)
 
     constructor(config: DesktopConfig) : this(
         latitude = config.lat,
@@ -95,7 +99,7 @@ class DesktopWeatherService(
      * path honours the number — the other sources return whatever their API provides, and days
      * past a source's real coverage render climate-normal filler by design.
      */
-    suspend fun fetchForecast(): RawFetch = runCatching {
+    override suspend fun fetchForecast(): RawFetch = runCatching {
         when (weatherSource) {
             "NWS" -> fetchNwsForecast()
             WeatherSource.TOMORROW_IO.id -> withHistoricalActuals(tomorrowIo.getForecast(latitude, longitude), WeatherSource.TOMORROW_IO.id)
@@ -178,11 +182,11 @@ class DesktopWeatherService(
             weatherSource,
         )
 
-    suspend fun fetchHistory(historyDays: Int): RawFetch {
+    override suspend fun fetchHistory(historyDays: Int): RawFetch {
         return openMeteo.getForecast(latitude, longitude, days = 1, historyDays = historyDays)
     }
 
-    suspend fun fetchWeatherApiHistory(date: LocalDate): RawFetch =
+    override suspend fun fetchWeatherApiHistory(date: LocalDate): RawFetch =
         withHistoricalActuals(
             weatherApi.getHistory(latitude, longitude, date),
             WeatherSource.WEATHER_API.id,
@@ -197,7 +201,7 @@ class DesktopWeatherService(
      * readings (latest + historical) for persistence. Best-effort: empty list on any failure, so a
      * deep zoom while NWS is down degrades to the Open-Meteo fallback curve rather than crashing.
      */
-    suspend fun fetchObservationHistory(historyDays: Long): List<ObservationReading> = coroutineScope {
+    override suspend fun fetchObservationHistory(historyDays: Long): List<ObservationReading> = coroutineScope {
         val grid = bestEffort("gridpoint for obs history") { nwsApi.getGridPoint(latitude, longitude) }
             ?: return@coroutineScope emptyList<ObservationReading>()
         val stations = bestEffort("observation stations for obs history") {
@@ -219,7 +223,7 @@ class DesktopWeatherService(
      * through to the next one.
      */
     /** Nearest stations including personal ones — the history blend interpolates across all. */
-    suspend fun nearestStationsForDailyActuals(): List<NwsApi.StationInfo> {
+    override suspend fun nearestStationsForDailyActuals(): List<NwsApi.StationInfo> {
         val grid = bestEffort("gridpoint for daily extremes") { nwsApi.getGridPoint(latitude, longitude) }
             ?: return emptyList()
         val stations = bestEffort("observation stations for daily extremes") {
@@ -233,7 +237,7 @@ class DesktopWeatherService(
      * when it answered with nothing — the caller keeps those apart so a network blip cannot
      * masquerade as an incomplete day.
      */
-    suspend fun fetchApiObservationDay(
+    override suspend fun fetchApiObservationDay(
         station: NwsApi.StationInfo,
         startIso: String,
         endIso: String,
@@ -248,7 +252,7 @@ class DesktopWeatherService(
         }
 
     /** Open-Meteo archive (ERA5) daily highs/lows over [startDate, endDate], for climate normals. */
-    suspend fun fetchHistoricalDailyTemps(startDate: String, endDate: String): List<DailyForecast> {
+    override suspend fun fetchHistoricalDailyTemps(startDate: String, endDate: String): List<DailyForecast> {
         return openMeteo.getHistoricalDailyTemps(latitude, longitude, startDate, endDate)
     }
 
@@ -504,7 +508,7 @@ class DesktopWeatherService(
         val historicalIsWeb: Boolean = false,
     )
 
-    private fun parseTimestamp(ts: String): Long {
+    internal fun parseTimestamp(ts: String): Long {
         return try {
             var cleanStr = ts.trim()
             if (cleanStr.length >= 5) {
@@ -549,7 +553,7 @@ class DesktopWeatherService(
         source = "NWS",
     )
 
-    suspend fun fetchObservationsOnly(): RawFetch = runCatching {
+    override suspend fun fetchObservationsOnly(): RawFetch = runCatching {
         when (weatherSource) {
             "NWS" -> fetchNwsObservationsOnly()
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
@@ -653,7 +657,7 @@ class DesktopWeatherService(
         )
     }
 
-    fun close() = httpClient.close()
+    override fun close() = httpClient.close()
 
     companion object {
         // No fallback coordinates. "No location" is the absence of a config, not a stand-in for one;

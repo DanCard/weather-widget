@@ -31,7 +31,7 @@ import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 
 class DesktopWeatherRepository(
-    private val weatherService: DesktopWeatherService,
+    private val weatherService: WeatherApiClient,
     private val weatherDao: DesktopWeatherDao,
     private val latitude: Double,
     private val longitude: Double,
