@@ -28,6 +28,15 @@ object TemperatureExtrema {
     // those scales preserves the visible shape while rejecting station/blend chatter.
     private const val ACTUAL_TURN_REVERSAL_DEGREES = 0.75f
 
+    // How far a calendar day's actual high must sit above its actual low before the day is considered
+    // to HAVE a distinct high and low worth labeling separately. Below this the two labels are one
+    // reading printed twice — visible as a stacked pair at the window edge on partial days, e.g. the
+    // 2026-08-14 emulator slice where 08-13 was covered only 23:00->23:59 and yielded 62.59 / 62.50
+    // (0.098° apart) at the same x. Matched to ACTUAL_TURN_REVERSAL_DEGREES: the series' own chatter
+    // floor is already the scale at which a reversal stops being shape and starts being noise, and a
+    // day whose entire range fits inside that floor has no diurnal swing to describe.
+    private const val DEGENERATE_DAY_SPREAD_DEGREES = ACTUAL_TURN_REVERSAL_DEGREES
+
     data class ExtremaIndices(
         val labelTemps: List<Float>,
         val actualLabelTemps: List<Float>,
@@ -231,14 +240,19 @@ object TemperatureExtrema {
             }
         }
         val shoulderedHighIndices = rawDailyHighIndices.filterNot { it in shoulderDrops }
-        // A partial edge day spanning ~1h can have an actual high and low that round to the same
-        // displayed value (e.g. 63.91 / 63.88 -> both "63.9°"), which stacks two identical labels at
-        // the graph edge. When a day's high and low render identically, keep the high and drop the
-        // redundant low. See per_day_actual_extrema_labels memory.
+        // A partial edge day spanning ~1h can have an actual high and low that are the same reading to
+        // within blend chatter (e.g. 62.59 / 62.50), which stacks two labels at the graph edge that say
+        // the same thing. The test is the SPREAD, not the rendered text: a string comparison is a knife
+        // edge that 62.59 -> "62.6" vs 62.50 -> "62.5" clears by four thousandths of a degree while
+        // still drawing two labels 0.1° apart on top of each other. A day whose whole observed range is
+        // below the turn-reversal noise floor has no diurnal high and low — it has one temperature — so
+        // keep the high and drop the redundant low. The old identical-text case is a subset (spread 0).
+        // See per_day_actual_extrema_labels memory.
         val highIdxByDay = shoulderedHighIndices.associateBy { hours[it].dateTime.toLocalDate() }
         val degenerateLowDrops = rawDailyLowIndices.filter { lowIdx ->
             val hiIdx = highIdxByDay[hours[lowIdx].dateTime.toLocalDate()] ?: return@filter false
-            TemperatureLabelResolver.formatTemp(actualLabelTemps[hiIdx], useCelsius) ==
+            abs(actualLabelTemps[hiIdx] - actualLabelTemps[lowIdx]) < DEGENERATE_DAY_SPREAD_DEGREES ||
+                TemperatureLabelResolver.formatTemp(actualLabelTemps[hiIdx], useCelsius) ==
                 TemperatureLabelResolver.formatTemp(actualLabelTemps[lowIdx], useCelsius)
         }.toSet()
         val actualDailyLowIndices = rawDailyLowIndices.filterNot { it in shoulderDrops || it in degenerateLowDrops }

@@ -21,6 +21,10 @@ class TemperatureExtremaIncompleteDayTest {
     private fun hour(day: Int, h: Int, temp: Float, actual: Float? = null, isActual: Boolean = false) =
         Pt(LocalDateTime.of(2026, 4, day, h, 0), temp, actual, isActual)
 
+    /** Sub-hourly observed sample — the real blend emits every ~5 min, which whole hours can't model. */
+    private fun minutePt(day: Int, h: Int, min: Int, temp: Float) =
+        Pt(LocalDateTime.of(2026, 4, day, h, min), temp, temp, true)
+
     private fun build(points: List<Pt>): List<HourData> =
         points.map { p ->
             HourData(
@@ -130,6 +134,83 @@ class TemperatureExtremaIncompleteDayTest {
             "Apr 9's genuinely distinct low (idx 2) must NOT be over-suppressed. " +
                 "lows=${extrema.actualDailyLowIndices}",
             2 in extrema.actualDailyLowIndices,
+        )
+    }
+
+    // Reproduces the 2026-08-14 emulator WIDE window, where the graph stacked "62.6°" over "62.5°" at
+    // the far-left edge. The window opened at 23:00 so the previous calendar day was covered for one
+    // hour of five-minute blend samples, whose whole range was 0.098°F (62.594 high @23:50 / 62.496 low
+    // @23:40) — one reading, drawn twice at the same x. Both survived because the degenerate-day gate
+    // compared RENDERED TEXT, and "62.6" != "62.5" by four thousandths of a degree.
+    private val flatSliverDayPoints = listOf(
+        minutePt(8, 23, 0, 62.55f),
+        minutePt(8, 23, 10, 62.53f),
+        minutePt(8, 23, 20, 62.52f),
+        minutePt(8, 23, 30, 62.51f),
+        minutePt(8, 23, 40, 62.496f),  // idx4: Apr 8 sliver low  -> "62.5"  (redundant, must DROP)
+        minutePt(8, 23, 50, 62.594f),  // idx5: Apr 8 sliver high -> "62.6"  (keep)
+        minutePt(9, 0, 0, 62.55f),
+        minutePt(9, 3, 0, 60.0f),
+        minutePt(9, 5, 20, 58.4f),     // idx8: Apr 9 genuine overnight low (KEEP)
+        minutePt(9, 8, 0, 62.0f),
+        minutePt(9, 11, 0, 69.0f),     // idx10: "now" — actual end, so Apr 9 gets no actual high
+        Pt(LocalDateTime.of(2026, 4, 9, 14, 0), 74f, null, false),
+        Pt(LocalDateTime.of(2026, 4, 9, 18, 0), 70f, null, false),
+    )
+
+    @Test
+    fun `edge day whose whole observed range is below the noise floor keeps only the high`() {
+        val extrema = TemperatureExtrema.compute(
+            hours = build(flatSliverDayPoints),
+            transitionX = 100f,
+            effectiveActualEndIndex = 10,
+            fetchTime = null,
+            prominenceThreshold = 1.5f, useCelsius = false,
+        )
+
+        assertTrue(
+            "Apr 8 sliver high (idx 5) should be kept. highs=${extrema.actualDailyHighIndices}",
+            5 in extrema.actualDailyHighIndices,
+        )
+        assertFalse(
+            "Apr 8 sliver low (idx 4) must be dropped — the day's entire observed range is 0.098°, so " +
+                "\"62.5\" under \"62.6\" at the same x is one reading labeled twice. " +
+                "lows=${extrema.actualDailyLowIndices}",
+            4 in extrema.actualDailyLowIndices,
+        )
+        assertTrue(
+            "Apr 9's genuine overnight low (idx 8) must NOT be over-suppressed. " +
+                "lows=${extrema.actualDailyLowIndices}",
+            8 in extrema.actualDailyLowIndices,
+        )
+    }
+
+    @Test
+    fun `edge day with a spread above the noise floor keeps both high and low`() {
+        // Same shape, but Apr 8's sliver swings 62.0 -> 63.5 (1.5°, twice the floor). That is a real
+        // reversal, so both labels are retained — pinning the gate as a threshold, not "partial days
+        // never get a low".
+        val separated = flatSliverDayPoints.toMutableList().apply {
+            this[4] = minutePt(8, 23, 40, 62.0f)
+            this[5] = minutePt(8, 23, 50, 63.5f)
+        }
+
+        val extrema = TemperatureExtrema.compute(
+            hours = build(separated),
+            transitionX = 100f,
+            effectiveActualEndIndex = 10,
+            fetchTime = null,
+            prominenceThreshold = 1.5f, useCelsius = false,
+        )
+
+        assertTrue(
+            "A 1.5° sliver swing is a real reversal — Apr 8's low (idx 4) must be kept. " +
+                "lows=${extrema.actualDailyLowIndices}",
+            4 in extrema.actualDailyLowIndices,
+        )
+        assertTrue(
+            "Apr 8's high (idx 5) must be kept. highs=${extrema.actualDailyHighIndices}",
+            5 in extrema.actualDailyHighIndices,
         )
     }
 
