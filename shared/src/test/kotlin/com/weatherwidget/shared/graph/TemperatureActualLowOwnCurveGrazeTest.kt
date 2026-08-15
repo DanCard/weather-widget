@@ -47,6 +47,9 @@ class TemperatureActualLowOwnCurveGrazeTest {
         }
     }
 
+    /** The observed polyline the last [run] built, for after-the-fact collision assertions. */
+    private var lastActualVisiblePoints: List<Pair<Float, Float>> = emptyList()
+
     private fun run(
         forecast: List<Float>,
         actual: List<Float>,
@@ -74,6 +77,7 @@ class TemperatureActualLowOwnCurveGrazeTest {
                 pts.add(insertAt, x to tempToY(temp))
             }
         }
+        lastActualVisiblePoints = actualVisiblePoints
         // Observe through the whole window so the valley is in the visible (past) actual line.
         val observedAt = hours.last().dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val fetchTime = hours.last().dateTime
@@ -137,6 +141,63 @@ class TemperatureActualLowOwnCurveGrazeTest {
             "ACTUAL_LOW must draw no leader line for a shallow forecast graze " +
                 "(reason=${actualLow.reason}, displacementSteps=${actualLow.displacementSteps})",
             actualLow.drawLeaderLine,
+        )
+    }
+
+    /**
+     * Samsung Fold, 2026-08-15: `60.9°` (ACTUAL_LOW) was drawn straight across the pink observed
+     * line. `computeForcedAboveLowIndices` flipped it ABOVE its trough so it would read in
+     * temperature order over the cooler `59°` forecast LOW beside it — but ACTUAL_LOW's carve-out
+     * from actual-curve avoidance was unconditional, so above the trough the whole observed hump
+     * was invisible to the collision test. The carve-out is a below-direction rule; above, the
+     * label must clear its own line like every other role.
+     */
+    @Test
+    fun `actual low flipped above by a cooler neighbour still clears its own observed line`() {
+        // Sharp observed valley (67.4 at idx 6) with steep shoulders, so the observed line's arms
+        // run through the box directly above the trough. A forecast LOW of 65 one index over is
+        // strictly cooler, which is what forces the warmer actual low above.
+        val actual = listOf(80f, 79f, 78f, 77f, 76f, 74f, 67.4f, 74f, 76f, 77f, 78f, 79f, 80f)
+        val forecast = listOf(78f, 77f, 75f, 73f, 71f, 68f, 66f, 65f, 66f, 68f, 71f, 74f, 77f)
+        val placements = run(forecast, actual)
+
+        val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
+        assertNotNull("ACTUAL_LOW (67.4°) should be labeled. placements=$placements", actualLow)
+        assertTrue(
+            "ACTUAL_LOW must flip above the cooler forecast low " +
+                "(reason=${actualLow!!.reason}, placedAbove=${actualLow.placedAbove})",
+            actualLow.placedAbove,
+        )
+        assertObservedLineClear(actualLow)
+    }
+
+    /**
+     * The observed polyline must not run across the label's glyph body. A sharp valley's arms
+     * always clip the bottom corners of a box sitting above it — that is the engine's standard
+     * graze allowance — so the contract asserted here is that the line stays out of the half of
+     * the box the digits occupy, never that it misses the box entirely.
+     */
+    private fun assertObservedLineClear(label: PlacedLabel) {
+        val metrics = TestMetrics()
+        val halfWidth = metrics.width(label.text, label.isFuture) / 2f
+        val bounds = GraphRect(
+            label.x - halfWidth,
+            label.baselineY + metrics.ascent,
+            label.x + halfWidth,
+            label.baselineY + metrics.descent,
+        )
+        val intrusion = curveIntrusionInLabel(lastActualVisiblePoints, bounds)
+        if (intrusion.isEmpty) return
+        val midY = (bounds.top + bounds.bottom) / 2f
+        // Above-placed: the line comes up from below, so its topmost point inside the box (minY)
+        // must stay under the midline. Below-placed: it comes down from above, so its lowest point
+        // inside (maxY) must stay over it.
+        val clear = if (label.placedAbove) intrusion.minY >= midY else intrusion.maxY <= midY
+        assertTrue(
+            "observed line must not cross the ${label.role} glyph body: bounds=$bounds midY=$midY " +
+                "intrusion=(${intrusion.minY}..${intrusion.maxY}) reason=${label.reason} " +
+                "placedAbove=${label.placedAbove}",
+            clear,
         )
     }
 

@@ -42,16 +42,19 @@ internal object ActualExtremePlacers {
         val left = geometry.clampedX - halfWidth
         val right = geometry.clampedX + halfWidth
 
-        // Extreme visible actual point across the label's x-span (fall back to the hourly anchor):
-        // above → highest point (smallest y), below → lowest point (largest y). This clears the
-        // jagged high-resolution observed line rather than the hourly anchor.
+        // Extreme of the visible actual LINE across the label's x-span (fall back to the hourly
+        // anchor): above → highest (smallest y), below → lowest (largest y). This clears the jagged
+        // high-resolution observed line rather than the hourly anchor. Measured by interpolating the
+        // segments crossing the span, not by testing which vertices land inside it: on a sparsely
+        // sampled line the neighbouring vertices sit outside a narrow label, which would leave the
+        // label hugging its anchor while the line runs straight through it.
         var curveExtremeY = geometry.sy
-        for ((px, py) in actualVisiblePoints) {
-            if (px !in left..right) continue
+        val extent = curveYExtentInXSpan(actualVisiblePoints, left, right)
+        if (!extent.isEmpty) {
             if (placeAbove) {
-                if (py < curveExtremeY) curveExtremeY = py
+                if (extent.minY < curveExtremeY) curveExtremeY = extent.minY
             } else {
-                if (py > curveExtremeY) curveExtremeY = py
+                if (extent.maxY > curveExtremeY) curveExtremeY = extent.maxY
             }
         }
 

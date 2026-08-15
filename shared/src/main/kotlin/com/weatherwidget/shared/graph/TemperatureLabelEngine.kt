@@ -278,27 +278,62 @@ object TemperatureLabelEngine {
                 continue
             }
 
+            // A forced-above ACTUAL_LOW is in the same predicament as the observed high: it has been
+            // pushed to the WRONG side of its own trough (so it reads in temperature order above a
+            // cooler neighbouring low), which puts the whole local hump of the observed line between
+            // the label and the sky. The normal loop anchors the box a fixed gap off the trough and
+            // draws it straight across that hump — the Samsung "60.9° on the pink line" report. Use
+            // the same forced placer the observed high uses: it sits above the highest observed
+            // point across the label's own x-span. If it cannot fit, fall through to the normal loop
+            // rather than dropping the label, since below is still a legitimate slot for a low.
+            if (candidate.role == TemperatureRole.ACTUAL_LOW && forceAbove && labelKey !in leftEdgeOrder) {
+                val before = resultPlacements.size
+                ActualExtremePlacers.place(
+                    placeAbove = true,
+                    heightPx = heightPx,
+                    density = density,
+                    actualVisiblePoints = actualVisiblePoints,
+                    candidate = candidate,
+                    geometry = geometry,
+                    labelAscent = labelAscent,
+                    labelDescent = labelDescent,
+                    drawnLabelMetas = drawnLabelMetas,
+                    drawnIconBounds = drawnIconBounds,
+                    reservedHardBounds = reservedHardBounds,
+                    idx = idx,
+                    temps = temps,
+                    resultPlacements = resultPlacements,
+                )
+                if (resultPlacements.size > before) continue
+            }
+
             // The left-edge START/actual pair sits flush against its own line start (color-matched,
             // ordered by value), so skip curve avoidance entirely for it.
             val isCurveAvoidanceExempt = labelKey in leftEdgeOrder
 
-            // Forecast-series labels (and ACTUAL_LOW) avoid only the FORECAST curve, never the actual
-            // curve: a forecast extreme nested under a much taller/deeper actual curve must sit flush
-            // on its own forecast peak/valley rather than being driven off-anchor with a long leader
-            // line. ACTUAL_LOW additionally ignores its own observed line's sub-hourly graze below
-            // the labeled minimum. START/END/ACTUAL_END keep full avoidance.
-            val avoidanceActualPoints =
-                if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role in FORECAST_ONLY_AVOIDANCE_ROLES) {
-                    emptyList()
-                } else {
-                    actualVisiblePoints
-                }
+            // Forecast-series labels avoid only the FORECAST curve, never the actual curve: a
+            // forecast extreme nested under a much taller/deeper actual curve must sit flush on its
+            // own forecast peak/valley rather than being driven off-anchor with a long leader line.
+            // START/END/ACTUAL_END keep full avoidance.
+            //
+            // ACTUAL_LOW's carve-out is DIRECTIONAL. Below its trough it ignores its own observed
+            // line, because the sub-hourly points dip a few px under the labeled hourly minimum and
+            // that graze used to shove the label off-anchor. Above, that reasoning inverts: the
+            // whole diurnal hump of the observed line stands between the label and the sky, so an
+            // ACTUAL_LOW flipped above (value-ordering via forcedAboveLows) must see it or it gets
+            // stamped straight onto the pink line. The cascade-flip case keeps its own graze
+            // exemption via CollisionTester's allowFlippedAboveCurveGraze.
+            val avoidanceActualPointsFor = { placeAbove: Boolean ->
+                val exempt = candidate.role in FORECAST_ONLY_AVOIDANCE_ROLES ||
+                    (candidate.role == TemperatureRole.ACTUAL_LOW && !placeAbove)
+                if (exempt) emptyList() else actualVisiblePoints
+            }
 
             if (candidate.role in CollisionTester.CURVE_AVOIDANCE_ROLES && !isCurveAvoidanceExempt) {
                 placed = CurveFitPlacer.tryExactFit(
                     heightPx = heightPx,
                     density = density,
-                    actualVisiblePoints = avoidanceActualPoints,
+                    avoidanceActualPointsFor = avoidanceActualPointsFor,
                     forecastPoints = forecastPoints,
                     candidate = candidate,
                     geometry = geometry,
@@ -319,7 +354,9 @@ object TemperatureLabelEngine {
 
             val gapAbovePx = gapDp.aboveDp * density
             val gapBelowPx = gapDp.belowDp * density
-            val allowedCurveDipPx = CollisionTester.allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
+            val allowedCurveDipPxFor = { placeAbove: Boolean ->
+                CollisionTester.allowedDipPxFor(candidate.role, density, labelDescent - labelAscent, placeAbove)
+            }
 
             outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
                 for (placeAbove in directions) {
@@ -361,9 +398,9 @@ object TemperatureLabelEngine {
                         role = candidate.role,
                         bounds = bounds,
                         placeAbove = placeAbove,
-                        avoidanceActualPoints = avoidanceActualPoints,
+                        avoidanceActualPoints = avoidanceActualPointsFor(placeAbove),
                         forecastPoints = forecastPoints,
-                        allowedDipPx = allowedCurveDipPx,
+                        allowedDipPx = allowedCurveDipPxFor(placeAbove),
                         isCurveAvoidanceExempt = isCurveAvoidanceExempt,
                         flipDecided = flipDecided,
                     )

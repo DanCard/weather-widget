@@ -77,6 +77,50 @@ internal fun curveIntrusionInLabel(
 }
 
 /**
+ * Y-extent of the polyline [points] across the x-span [left]..[right], interpolating every segment
+ * that crosses the span.
+ *
+ * Distinct from [curveIntrusionInLabel] in two ways that matter: it is not clipped in y, and it
+ * reports a span the line merely *passes over* rather than one it penetrates. Callers use it to ask
+ * "how high/low does the line actually run beneath this label?" — a question that must not be
+ * answered by testing point membership alone, because a sampled line's vertices routinely straddle
+ * a narrow label without landing inside it (the same trap behind the free-floating labels'
+ * single-answer curve sampler).
+ */
+internal fun curveYExtentInXSpan(
+    points: List<Pair<Float, Float>>,
+    left: Float,
+    right: Float,
+): CurveIntrusion {
+    if (points.isEmpty()) return CurveIntrusion.NONE
+    var minY = Float.POSITIVE_INFINITY
+    var maxY = Float.NEGATIVE_INFINITY
+    fun accept(y: Float) {
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+    }
+    for ((px, py) in points) if (px in left..right) accept(py)
+    for (i in 1 until points.size) {
+        val a = points[i - 1]
+        val b = points[i]
+        val segMinX = minOf(a.first, b.first)
+        val segMaxX = maxOf(a.first, b.first)
+        if (segMaxX < left || segMinX > right) continue
+        val span = b.first - a.first
+        if (abs(span) < MIN_INTERPOLATION_SPAN) {
+            accept(a.second)
+            accept(b.second)
+            continue
+        }
+        val tL = ((maxOf(segMinX, left) - a.first) / span).coerceIn(0f, 1f)
+        val tR = ((minOf(segMaxX, right) - a.first) / span).coerceIn(0f, 1f)
+        accept(a.second + (b.second - a.second) * tL)
+        accept(a.second + (b.second - a.second) * tR)
+    }
+    return CurveIntrusion(minY, maxY)
+}
+
+/**
  * Union of the observed and forecast curves' intrusion into [bounds].
  */
 internal fun combinedCurveIntrusion(

@@ -26,7 +26,9 @@ internal object CurveFitPlacer {
     fun tryExactFit(
         heightPx: Int,
         density: Float,
-        actualVisiblePoints: List<Pair<Float, Float>>,
+        // Which observed points this role must clear, per direction: ACTUAL_LOW ignores its own
+        // line below its trough but not above it. See TemperatureLabelEngine's carve-out comment.
+        avoidanceActualPointsFor: (Boolean) -> List<Pair<Float, Float>>,
         forecastPoints: List<Pair<Float, Float>>,
         candidate: TempLabelCandidate,
         geometry: ResolvedLabelGeometry,
@@ -42,12 +44,12 @@ internal object CurveFitPlacer {
         resultPlacements: MutableList<PlacedLabel>,
         allActualVisiblePoints: List<Pair<Float, Float>>,
     ): Boolean {
-        val allowedDipPx = CollisionTester.allowedDipPxFor(candidate.role, density, labelDescent - labelAscent)
         for (placeAbove in directions) {
+            val allowedDipPx = CollisionTester.allowedDipPxFor(candidate.role, density, labelDescent - labelAscent, placeAbove)
             val outcome = tryDirection(
                 heightPx = heightPx,
                 density = density,
-                actualVisiblePoints = actualVisiblePoints,
+                actualVisiblePoints = avoidanceActualPointsFor(placeAbove),
                 forecastPoints = forecastPoints,
                 candidate = candidate,
                 geometry = geometry,
@@ -132,7 +134,7 @@ internal object CurveFitPlacer {
             reservedHardBounds = reservedHardBounds,
             labelHeight = labelHeight,
         )
-        val allowedDip = CollisionTester.allowedDipPxFor(candidate.role, density, labelHeight)
+        val allowedDip = CollisionTester.allowedDipPxFor(candidate.role, density, labelHeight, placeAbove)
         val curveResult = CollisionTester.curve(
             role = candidate.role,
             bounds = baseBounds,
@@ -243,6 +245,11 @@ internal object CurveFitPlacer {
                 }
                 val residual = combinedCurveIntrusion(actualVisiblePoints, forecastPoints, newBounds)
                 if (!residual.isEmpty) {
+                    // NOTE: this measures the NEAR edge of the clipped intrusion, so it scores ~0
+                    // whenever the curve enters from the expected side and this guard rarely fires.
+                    // Switching it to CollisionTester.curve's far-edge convention makes it reject
+                    // almost every anchor-attached peak/valley shift (their own curve necessarily
+                    // enters the box's lower corners), so the tuned behaviour keeps the near edge.
                     val residualDepth = if (placeAbove) newBounds.bottom - residual.maxY else residual.minY - newBounds.top
                     if (residualDepth > allowedDipPx + 1f) {
                         Log.v(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED residualCurveIntrusion depth=${String.format("%.1f", residualDepth)} allowedDip=${String.format("%.1f", allowedDipPx)}")

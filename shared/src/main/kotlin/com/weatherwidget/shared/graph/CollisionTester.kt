@@ -141,6 +141,11 @@ object CollisionTester {
     // its valley, and a shallow forecast dip under that valley is acceptable partial overlap rather
     // than a reason to push the label off-anchor with a long leader line. Expressed as a fraction of
     // label height so the tolerance scales with the glyphs.
+    //
+    // That rationale is direction-specific — it is about what sits under a valley — so it applies
+    // only when the label is placed BELOW. An ACTUAL_LOW flipped ABOVE (value-ordering) has the
+    // observed hump above its trough, and half a label height of tolerance there is half the glyphs
+    // sitting on a drawn line; it falls back to the standard graze.
     private const val ACTUAL_LOW_FORECAST_OVERLAP_RATIO = 0.5f
 
     // LOCAL (forecast midpoints and some interior value labels) get a modest curve graze tolerance.
@@ -153,9 +158,11 @@ object CollisionTester {
     /**
      * How deep (px) a curve may dip into [role]'s label box before it counts as a collision.
      */
-    fun allowedDipPxFor(role: TemperatureRole, density: Float, labelHeight: Float): Float =
+    fun allowedDipPxFor(role: TemperatureRole, density: Float, labelHeight: Float, placeAbove: Boolean): Float =
         when (role) {
-            TemperatureRole.ACTUAL_LOW -> labelHeight * ACTUAL_LOW_FORECAST_OVERLAP_RATIO
+            TemperatureRole.ACTUAL_LOW ->
+                if (placeAbove) CURVE_AVOIDANCE_ALLOWED_DIP_DP * density
+                else labelHeight * ACTUAL_LOW_FORECAST_OVERLAP_RATIO
             TemperatureRole.LOCAL -> LOCAL_CURVE_GRAZE_DP * density
             else -> CURVE_AVOIDANCE_ALLOWED_DIP_DP * density
         }
