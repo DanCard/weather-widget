@@ -35,8 +35,9 @@ object ForecastDeltaLabel {
 
     /**
      * Number of x-anchors tried, in order; the first that yields any clear band wins (center first).
-     * [DominantStationLabel] deliberately mirrors this list so the two labels drift to opposite ends
-     * of an empty plot instead of landing shoulder-to-shoulder.
+     * [DominantStationLabel] deliberately takes the opposite preference (left/right edges first, plus
+     * a left-hugging lead anchor) so the two labels drift to opposite ends of an empty plot instead of
+     * landing shoulder-to-shoulder.
      */
     val X_FRACTIONS = listOf(0.5f, 0.35f, 0.65f, 0.22f, 0.78f)
 

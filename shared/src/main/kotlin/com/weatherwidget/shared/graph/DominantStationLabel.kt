@@ -47,11 +47,15 @@ object DominantStationLabel {
     const val MAX_HOURS_SPAN = 25L
 
     /**
-     * Edge-first, the mirror of [ForecastDeltaLabel.X_FRACTIONS]. The delta label is placed first and
-     * registers itself as an obstacle, so the two can never actually overlap; opposite preferences just
-     * stop them landing shoulder-to-shoulder in the middle of an otherwise empty plot.
+     * Left-hugging first, then edge-first (the mirror of [ForecastDeltaLabel.X_FRACTIONS]). The
+     * delta label is placed first and registers itself as an obstacle, so the two can never actually
+     * overlap; opposite preferences just stop them landing shoulder-to-shoulder in the middle of an
+     * otherwise empty plot. The leading 0.08f anchor is below the horizontal clamp for any realistic
+     * label width, so on a clear plot the label resolves to its minimum 2dp inset against the left
+     * edge instead of floating at 22% — the finder falls through to 0.22f/0.78f only when the left
+     * band is blocked by the observed line.
      */
-    val X_FRACTIONS = listOf(0.22f, 0.78f, 0.35f, 0.65f, 0.5f)
+    val X_FRACTIONS = listOf(0.08f, 0.22f, 0.78f, 0.35f, 0.65f, 0.5f)
 
     /**
      * A placed label, in both coordinate conventions: [centerX] + [baselineY] for a center-aligned

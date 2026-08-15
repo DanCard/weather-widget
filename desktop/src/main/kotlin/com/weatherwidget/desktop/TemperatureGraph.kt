@@ -776,6 +776,7 @@ fun TemperatureGraph(
                 dominantSpanHours > DominantStationLabel.MAX_HOURS_SPAN -> "span_too_wide"
                 else -> null
             }
+        var dominantPlacedBox: GraphRect? = null
         if (dominantLabel != null && dominantReason == null) {
             val dominantStyle = TextStyle(
                 fontSize = (DOMINANT_STATION_LABEL_SP * scale).sp,
@@ -809,7 +810,7 @@ fun TemperatureGraph(
             }
             val measured = textMeasurer.measure(annotated, dominantStyle)
             val dominantPlot = GraphRect(0f, top, w, footer.graphBottom(h, scale))
-            val dominantPadPx = 6f * scale
+            val dominantPadPx = 2f * scale
             val dominantMetrics = GraphEmptySpaceFinder.Metrics(
                 width = measured.size.width.toFloat(),
                 ascent = -measured.size.height.toFloat(),
@@ -825,6 +826,7 @@ fun TemperatureGraph(
                 padPx = dominantPadPx,
             )
             if (placement != null) {
+                dominantPlacedBox = placement.box
                 val topLeft = Offset(placement.box.left, placement.box.top)
                 drawText(measured, topLeft = topLeft)
                 drawnLabels.add(Rect(topLeft, Size(measured.size.width.toFloat(), measured.size.height.toFloat())))
@@ -856,7 +858,11 @@ fun TemperatureGraph(
                     "reason=${dominantReason ?: "unknown"} spanH=$dominantSpanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
                         "contribution=${dominantContribution?.let { "${it.stationId} raw=${it.rawTemp} synthetic=${it.isSynthetic}" } ?: "null"} " +
                         "text=${dominantText ?: "null"} drawnBounds=${drawnLabels.size} " +
-                        "plotW=${w.roundToInt()} plotH=${(footer.graphBottom(h, scale) - top).roundToInt()}",
+                        "plotW=${w.roundToInt()} plotH=${(footer.graphBottom(h, scale) - top).roundToInt()}" +
+                        (dominantPlacedBox?.let {
+                            " boxLeft=${it.left.roundToInt()} boxRight=${it.right.roundToInt()} " +
+                                "boxW=${it.width.roundToInt()} boxTop=${it.top.roundToInt()} boxBottom=${it.bottom.roundToInt()}"
+                        } ?: ""),
                 )
             }
         }

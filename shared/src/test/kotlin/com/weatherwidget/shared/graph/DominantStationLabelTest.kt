@@ -294,13 +294,16 @@ class DominantStationLabelTest {
     // ---- placement ----
 
     @Test
-    fun prefersTheEdgeAnchorOverTheCenter() {
-        // Mirror of ForecastDeltaLabel's center-first list: on an empty plot the two labels drift apart.
+    fun prefersTheLeftHuggingAnchorOverTheCenter() {
+        // Left-hugging first, then the edge-first mirror of ForecastDeltaLabel's center-first list:
+        // on a clear plot the label resolves to its minimum left inset rather than floating at 22%.
         val placement = requireNotNull(place())
-        val expectedCx = (0.22f * 400f).coerceAtLeast(60f / 2f + 4f)
+        // 0.08 * 400 = 32, under the clamp (60/2 + 4 = 34), so the box starts at the 4px pad.
+        val expectedCx = (0.08f * 400f).coerceAtLeast(60f / 2f + 4f)
         assertEquals(expectedCx, placement.centerX, 0.01f)
+        assertEquals(4f, placement.box.left, 0.01f)
         assertEquals(0.5f, ForecastDeltaLabel.X_FRACTIONS.first(), 0.001f)
-        assertEquals(0.22f, DominantStationLabel.X_FRACTIONS.first(), 0.001f)
+        assertEquals(0.08f, DominantStationLabel.X_FRACTIONS.first(), 0.001f)
     }
 
     @Test

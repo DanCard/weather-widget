@@ -28,7 +28,7 @@ internal object TemperatureGraphAnnotationRenderer {
     private const val TAG = "TempGraphRenderer"
     private const val X_COORDINATE_MATCH_TOLERANCE = 0.5f
     private const val FORECAST_DELTA_LABEL_PAD_DP = 6f
-    private const val DOMINANT_STATION_LABEL_PAD_DP = 6f
+    private const val DOMINANT_STATION_LABEL_PAD_DP = 2f
     private const val GHOST_LINE_LABEL_PAD_DP = 4f
     private const val GHOST_LINE_LABEL_GAP_DP = 2.5f
 
@@ -362,6 +362,7 @@ internal object TemperatureGraphAnnotationRenderer {
             } else {
                 0L
             }
+        var dominantPlacement: DominantStationLabel.Placement? = null
         val reason: String
         if (dominantStationLabel == null) {
             reason = "no_text"
@@ -403,6 +404,7 @@ internal object TemperatureGraphAnnotationRenderer {
                     padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
                 )
             if (placement != null) {
+                dominantPlacement = placement
                 var x = placement.box.left
                 dominantStationLabel.segments.forEachIndexed { index, segment ->
                     val paint =
@@ -432,7 +434,11 @@ internal object TemperatureGraphAnnotationRenderer {
                 TAG,
                 "DominantStationDiag: reason=$reason spanH=$spanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
                     "text=${text ?: "null"} drawnBounds=${input.obstacles.bounds().size} " +
-                    "plotW=${input.widthPx} plotH=${(input.graphBottom - input.graphTop).roundToInt()}",
+                    "plotW=${input.widthPx} plotH=${(input.graphBottom - input.graphTop).roundToInt()}" +
+                    (dominantPlacement?.let {
+                        " boxLeft=${it.box.left.roundToInt()} boxRight=${it.box.right.roundToInt()} " +
+                            "centerX=${it.centerX.roundToInt()} baselineY=${it.baselineY.roundToInt()} boxW=${it.box.width.roundToInt()}"
+                    } ?: ""),
             )
         }
     }
