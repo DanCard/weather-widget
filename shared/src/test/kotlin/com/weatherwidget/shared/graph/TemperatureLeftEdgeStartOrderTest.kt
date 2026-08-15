@@ -93,6 +93,16 @@ class TemperatureLeftEdgeStartOrderTest {
         )
     }
 
+    /**
+     * The contract is the READING ORDER: near the left edge a cooler forecast START must not be
+     * drawn above a warmer actual extreme.
+     *
+     * It used to be asserted as "actual above, START below", which is one particular remedy —
+     * opposite sides. As of 2026-08-15 the pair adopts a COMMON side (the actual's natural one)
+     * instead, which preserves the same order while leaving an observed low under its trough rather
+     * than lifting it into the crook of its own curve. So the placedAbove assertions below pin the
+     * low's natural side, and the baselineY assertion pins the order itself.
+     */
     @Test
     fun `left-edge start pair is ordered by temperature - warmer actual above cooler forecast`() {
         // Forecast descends from 64 at the left edge (so START=64 is a local max -> defaults above).
@@ -128,11 +138,13 @@ class TemperatureLeftEdgeStartOrderTest {
         assertNotNull("START label should be placed", start)
         assertNotNull("a left-edge actual label should be placed", leftActual)
         assertTrue(
-            "warmer actual (${leftActual!!.displayTemperature}) should be ABOVE",
-            leftActual.placedAbove,
+            "the observed low (${leftActual!!.displayTemperature}) should keep its natural side, " +
+                "below its own trough",
+            !leftActual.placedAbove,
         )
         assertTrue(
-            "cooler forecast START (${start!!.displayTemperature}) should be BELOW",
+            "cooler forecast START (${start!!.displayTemperature}) should join it below rather " +
+                "than sit above the warmer actual",
             !start.placedAbove,
         )
         assertTrue(

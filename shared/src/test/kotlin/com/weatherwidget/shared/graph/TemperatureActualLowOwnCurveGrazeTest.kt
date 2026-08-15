@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.graph
 
 import com.weatherwidget.test.category.ShortDuration
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -155,10 +156,15 @@ class TemperatureActualLowOwnCurveGrazeTest {
     @Test
     fun `actual low flipped above by a cooler neighbour still clears its own observed line`() {
         // Sharp observed valley (67.4 at idx 6) with steep shoulders, so the observed line's arms
-        // run through the box directly above the trough. A forecast LOW of 65 one index over is
-        // strictly cooler, which is what forces the warmer actual low above.
-        val actual = listOf(80f, 79f, 78f, 77f, 76f, 74f, 67.4f, 74f, 76f, 77f, 78f, 79f, 80f)
-        val forecast = listOf(78f, 77f, 75f, 73f, 71f, 68f, 66f, 65f, 66f, 68f, 71f, 74f, 77f)
+        // run through the box directly above the trough. A forecast LOW of 66.4 one index over is
+        // strictly cooler (67 vs 66 rounded), which is what forces the warmer actual low above.
+        //
+        // The 1° separation matters: the flip is gated on the two lows' below-boxes actually
+        // contending, and the surrounding highs widen the temperature range to ~10px/° so the
+        // anchors land ~10px apart — inside the label-height-plus-gap threshold. Spread the pair
+        // further and the engine (correctly) leaves the low below its own trough.
+        val actual = listOf(88f, 86f, 84f, 80f, 76f, 74f, 67.4f, 74f, 76f, 80f, 84f, 86f, 88f)
+        val forecast = listOf(78f, 77f, 75f, 73f, 71f, 69f, 67f, 66.4f, 67f, 69f, 71f, 74f, 77f)
         val placements = run(forecast, actual)
 
         val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
@@ -201,20 +207,80 @@ class TemperatureActualLowOwnCurveGrazeTest {
         )
     }
 
+    /**
+     * Renamed and re-fixtured 2026-08-15. This was `actual low still flips above when the forecast
+     * curve dips below the valley`, but it asserted a flip the engine does not perform and its
+     * fixture never reached the path it documented:
+     *
+     * - The fixture put the forecast 6-7° under the valley — ~65px below a 12px-tall label box, so
+     *   the forecast curve never touched the below-box at all. It passed on the cooler-neighbour
+     *   ordering rule, duplicating the test above.
+     * - Forecast intrusion does not flip ACTUAL_LOW above. Since 2026-06-14 a blocked below
+     *   direction routes to `ActualExtremePlacers.place(placeAbove = false)` — the tight
+     *   below-trough hug (`reason=belowActualCurve`) — precisely so a low stays under its valley
+     *   instead of being driven above with a long leader. Only the ordering rules flip it.
+     *
+     * So it now pins the behaviour that actually exists, with a forecast that genuinely crosses the
+     * below-box.
+     */
     @Test
-    fun `actual low still flips above when the forecast curve dips below the valley`() {
-        // Forecast dips to 60 around the actual valley (67) — genuinely below it — so the ACTUAL_LOW
-        // below-box is occupied by the forecast curve and the label must flip above (preserved).
-        val forecast = listOf(80f, 78f, 74f, 70f, 66f, 62f, 61f, 60f, 62f, 66f, 72f, 78f, 80f)
+    fun `actual low hugs tight below its trough when the forecast crosses the below-box`() {
+        // Monotonic forecast descending through the valley level right at idx 6 — 68 one index
+        // before (above the box) to 65 at the valley (below it) — so the segment sweeps the whole
+        // box, well past ACTUAL_LOW's 0.5x-label-height forecast tolerance. Monotonic on purpose:
+        // no competing same-index FORECAST_LOW, and no bezier overshoot from a sharp V.
+        val forecast = listOf(72f, 71f, 70f, 69f, 68.5f, 68f, 65f, 63f, 61f, 59f, 57f, 55f, 53f)
         val actual = listOf(82f, 80f, 78f, 75f, 72f, 69f, 67f, 69f, 72f, 75f, 78f, 80f, 82f)
         val placements = run(forecast, actual)
 
         val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
         assertNotNull("ACTUAL_LOW (67°) should be labeled. placements=$placements", actualLow)
-        assertTrue(
-            "ACTUAL_LOW must flip above when the forecast curve dips below its valley " +
+        assertFalse(
+            "ACTUAL_LOW must stay below its trough when the forecast crosses the below-box " +
                 "(reason=${actualLow!!.reason}, placedAbove=${actualLow.placedAbove})",
             actualLow.placedAbove,
         )
+        assertEquals(
+            "a below direction blocked by the forecast must take the tight below-trough hug, " +
+                "not a displaced below slot (reason=${actualLow.reason})",
+            "belowActualCurve",
+            actualLow.reason,
+        )
+        assertFalse(
+            "the tight below-trough hug draws no leader line (reason=${actualLow.reason})",
+            actualLow.drawLeaderLine,
+        )
+    }
+
+    /**
+     * Samsung Fold, 2026-08-15 (follow-up): with the observed `60.9°` clear of its own line, it was
+     * still being lifted into the crook of that line by `computeForcedAboveLowIndices`, because a
+     * `59°` forecast low sat a few indices away. The two anchors were ~40px apart on different
+     * curves, so nothing was contending for the space and below — the low's natural slot under its
+     * own trough — was wide open.
+     *
+     * `tempToY` is monotonic, so both lows sitting below their own curves already read in
+     * temperature order; the flip is only needed when the below-boxes overlap and the de-collision
+     * cascade could invert them.
+     */
+    @Test
+    fun `actual low stays below when the cooler neighbour is too far below to contend`() {
+        // Same shape as the flip case, but the forecast low is 7° below the actual valley rather
+        // than 1°, so the below-boxes cannot overlap. The forecast stays clear of the below-box
+        // itself (it runs far under it), leaving the ordering rule as the only thing that could
+        // lift the label.
+        val actual = listOf(88f, 86f, 84f, 80f, 76f, 74f, 67.4f, 74f, 76f, 80f, 84f, 86f, 88f)
+        val forecast = listOf(72f, 71f, 69f, 67f, 65f, 62f, 61f, 60.4f, 61f, 63f, 66f, 69f, 72f)
+        val placements = run(forecast, actual)
+
+        val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
+        assertNotNull("ACTUAL_LOW (67.4°) should be labeled. placements=$placements", actualLow)
+        assertFalse(
+            "ACTUAL_LOW must stay below its trough when the cooler low is far enough below that " +
+                "their below-boxes cannot contend (reason=${actualLow!!.reason}, " +
+                "placedAbove=${actualLow.placedAbove})",
+            actualLow.placedAbove,
+        )
+        assertObservedLineClear(actualLow)
     }
 }

@@ -58,7 +58,32 @@ object TemperatureLabelEngine {
         return (nearMax - v) < SIGNIFICANT_MAX_GAP
     }
 
-    private fun computeForcedAboveLowIndices(candidates: List<TempLabelCandidate>): Set<Int> {
+    /**
+     * Do two lows' BELOW slots actually contend for space?
+     *
+     * [tempToY] is monotonic, so a cooler low always anchors LOWER on the canvas. When both lows sit
+     * below their own curves the warmer one therefore reads above the cooler one for free — the
+     * ordering the forced-above rule protects is self-enforcing, and can only be inverted when the
+     * two below-boxes overlap and the de-collision cascade shifts one of them. Once the anchors are
+     * a label-height-plus-gap apart the boxes cannot overlap at all, so the flip buys nothing while
+     * costing the low its natural slot under its own trough.
+     *
+     * (Samsung Fold 2026-08-15: `60.9°` on the observed line vs a `59°` forecast low ~40px lower.
+     * Nothing was contending, but the label was lifted into the crook of its own curve anyway.)
+     */
+    private fun belowSlotsContend(
+        warmerAnchorY: Float,
+        coolerAnchorY: Float,
+        labelHeight: Float,
+        belowGapPx: Float,
+    ): Boolean = abs(coolerAnchorY - warmerAnchorY) < labelHeight + belowGapPx
+
+    private fun computeForcedAboveLowIndices(
+        candidates: List<TempLabelCandidate>,
+        tempToY: (Float) -> Float,
+        labelHeight: Float,
+        belowGapPx: Float,
+    ): Set<Int> {
         val lowRoles = setOf(
             TemperatureRole.LOW, TemperatureRole.ACTUAL_LOW,
             TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW,
@@ -70,10 +95,20 @@ object TemperatureLabelEngine {
         for (c in lows) {
             if (c.role != TemperatureRole.ACTUAL_LOW) continue
             val cVal = c.labelTemps[c.index].roundToInt()
+            // Anchor y via tempToY rather than the resolved geometry: this pre-pass runs before any
+            // geometry exists, and both an actual low (on originalPoints) and a forecast low (on
+            // forecastPoints) anchor at exactly tempToY of their own labelled temperature.
+            val cAnchorY = tempToY(c.labelTemps[c.index])
             val hasLowerNeighbor = lows.any { other ->
                 other.index != c.index &&
                     abs(other.index - c.index) <= window &&
-                    other.labelTemps[other.index].roundToInt() < cVal
+                    other.labelTemps[other.index].roundToInt() < cVal &&
+                    belowSlotsContend(
+                        warmerAnchorY = cAnchorY,
+                        coolerAnchorY = tempToY(other.labelTemps[other.index]),
+                        labelHeight = labelHeight,
+                        belowGapPx = belowGapPx,
+                    )
             }
             if (hasLowerNeighbor) forced.add(c.index)
         }
@@ -82,11 +117,18 @@ object TemperatureLabelEngine {
 
     // At the graph's LEFT EDGE the START (forecast) label and the nearest actual extreme label often
     // sit at nearly the same x but on opposite sides of their lines, which can invert their reading
-    // order (cooler forecast above warmer actual). Order this start pair by temperature: warmer
-    // above, cooler below. Scoped to the left edge (the actual label must be within
-    // LEFT_EDGE_START_WINDOW of START) so the rest of the tuned placement logic is untouched.
+    // order (cooler forecast above warmer actual). Scoped to the left edge (the actual label must be
+    // within LEFT_EDGE_START_WINDOW of START) so the rest of the tuned placement logic is untouched.
     // Key by index AND role so a forecast and actual label sharing the same sample can still receive
     // independent directions.
+    //
+    // The remedy is a COMMON side, not opposite sides. Inversion is only possible when the two land
+    // on opposite sides of their own curves; put both on the same side and correct order is free,
+    // because tempToY is monotonic (warmer anchor = smaller y) and both take the same gap. Sending
+    // them to opposite sides also produces correct order, but it buys that order by dragging one
+    // label off its natural side — and for an ACTUAL_LOW that means lifting the low off its trough
+    // into the crook of its own curve, which is exactly what the Samsung `60.9°` report was about.
+    // So the pair adopts the ACTUAL label's natural side and the forecast START moves to meet it.
     private const val LEFT_EDGE_START_WINDOW = 8
 
     private data class LabelKey(
@@ -108,11 +150,18 @@ object TemperatureLabelEngine {
             .minByOrNull { abs(it.index - start.index) } ?: return emptyMap()
         val startVal = start.labelTemps[start.index]
         val actualVal = actual.labelTemps[actual.index]
+        // Identical displayed values have no order to preserve, so leave both to the normal logic.
         if (TemperatureLabelResolver.formatTemp(startVal, useCelsius) == TemperatureLabelResolver.formatTemp(actualVal, useCelsius)) return emptyMap()
-        val startAbove = startVal > actualVal
+        // The ACTUAL label keeps its natural side and START joins it there: an observed low belongs
+        // under its trough and an observed high over its peak, while START has no such attachment.
+        val sharedSide = when (actual.role) {
+            TemperatureRole.ACTUAL_LOW -> false
+            TemperatureRole.ACTUAL_HIGH -> true
+            else -> prefersAbovePlacement(actual)
+        }
         return mapOf(
-            LabelKey(start.index, start.role) to startAbove,
-            LabelKey(actual.index, actual.role) to !startAbove,
+            LabelKey(start.index, start.role) to sharedSide,
+            LabelKey(actual.index, actual.role) to sharedSide,
         )
     }
 
@@ -196,12 +245,6 @@ object TemperatureLabelEngine {
 
         TemperatureLabelResolver.sortLabelCandidates(candidates)
 
-        val forcedAboveLows = computeForcedAboveLowIndices(candidates)
-        // computeLeftEdgeStartOrdering wins on any key collision (its START pairing is the tuned case).
-        val leftEdgeOrder = computeLeftEdgeHighOrdering(candidates, useCelsius) + computeLeftEdgeStartOrdering(candidates, useCelsius)
-        val drawnLabelMetas = mutableListOf<PlacedLabelMeta>()
-        val resultPlacements = mutableListOf<PlacedLabel>()
-
         val labelAscent = metrics.ascent
         val labelDescent = metrics.descent
         val labelHeight = metrics.height
@@ -209,6 +252,19 @@ object TemperatureLabelEngine {
         // Below-gap (lows) is unchanged; precip/cloud %-labels are unaffected (own getLabelGapDp call).
         val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = false)
             .copy(aboveDp = GraphLabelPlacementUtils.TEMP_PREFERRED_ABOVE_GAP_DP)
+
+        // Needs labelHeight/gapDp, hence measured before the placement loop rather than with the
+        // other pre-passes: the flip is gated on whether the two below-boxes could overlap at all.
+        val forcedAboveLows = computeForcedAboveLowIndices(
+            candidates = candidates,
+            tempToY = tempToY,
+            labelHeight = labelHeight,
+            belowGapPx = gapDp.belowDp * density,
+        )
+        // computeLeftEdgeStartOrdering wins on any key collision (its START pairing is the tuned case).
+        val leftEdgeOrder = computeLeftEdgeHighOrdering(candidates, useCelsius) + computeLeftEdgeStartOrdering(candidates, useCelsius)
+        val drawnLabelMetas = mutableListOf<PlacedLabelMeta>()
+        val resultPlacements = mutableListOf<PlacedLabel>()
 
         Log.v(TAG, "EngineInput: heightPx=$heightPx widthPx=$widthPx fetchDotX=${fetchDotX?.let { String.format("%.1f", it) }} transitionX=${transitionX?.let { String.format("%.1f", it) }} labelHeight=${String.format("%.1f", labelHeight)} hardBounds=${reservedHardBounds.map { "(${String.format("%.1f", it.left)},${String.format("%.1f", it.top)},${String.format("%.1f", it.right)},${String.format("%.1f", it.bottom)})" }}")
 
