@@ -112,6 +112,11 @@ object GhostLineLabel {
      * a **running obstacle list** (seeded from [drawnBounds]), so each placed ghost label becomes an
      * obstacle for the next — they never stack on each other. Crowding near the fetch dot is handled
      * by the obstacle list (the fetch-dot / current-temp labels sit in [drawnBounds]), not by a cutoff.
+     *
+     * [metrics] is measured once from the widest candidate and reused for every placement. That is
+     * deliberate: a uniform box width keeps the labels on a shared spacing rhythm and avoids
+     * per-candidate measurement, at the cost of occasionally rejecting a narrow label that would have
+     * fit in a narrower box. Acceptable for these faint, low-priority annotations.
      */
     fun placeAll(
         candidates: List<Candidate>,

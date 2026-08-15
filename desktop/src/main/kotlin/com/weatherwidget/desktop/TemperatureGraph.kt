@@ -168,6 +168,7 @@ fun TemperatureGraph(
     val lastGapLabelDiagKey = remember { mutableStateOf("") }
     val lastGhostLabelDiagKey = remember { mutableStateOf("") }
     val lastDominantDiagKey = remember { mutableStateOf("") }
+    val lastAnchorDiagKey = remember { mutableStateOf("") }
 
     val backHours = DesktopGraphUtils.backHoursFor(zoomFactor)
     val forwardHours = DesktopGraphUtils.forwardHoursFor(zoomFactor)
@@ -539,6 +540,26 @@ fun TemperatureGraph(
             }
         }
 
+        // TEMP DIAGNOSTIC (parity Phase 1): the sub-hour gap between the observation timestamp
+        // (transitionMs) and the newest actual point in the series (lastActualPoint), plus the pixel
+        // offset between the fetch dot and the ghost/observed transition x. Fires once per change.
+        run {
+            val lastActualMs = lastActualPoint?.timeMs
+            val anchorX = transitionMs?.let { xAtTime(it) }
+            val key = listOf(transitionMs, lastActualMs, transitionX, anchorX, ghostLineDrawn, w).joinToString("|")
+            if (key != lastAnchorDiagKey.value) {
+                lastAnchorDiagKey.value = key
+                Log.i(
+                    "AnchorDiag",
+                    "transitionMs=$transitionMs lastActualMs=$lastActualMs offsetMin=" +
+                        "${if (transitionMs != null && lastActualMs != null) (transitionMs - lastActualMs) / 60000L else "null"} " +
+                        "transitionX=${transitionX?.roundToInt()} anchorX=${anchorX?.roundToInt()} " +
+                        "pixelOffset=${if (transitionX != null && anchorX != null) (anchorX - transitionX).roundToInt() else "null"} " +
+                        "fetchDotX=${fetchDotXVal?.roundToInt()} ghostLineDrawn=$ghostLineDrawn w=${w.roundToInt()}",
+                )
+            }
+        }
+
         // Dense point list (hourly forecast anchors + injected sub-hourly observed points) from the
         // shared assembler — identical to what the Android widget builds. The label engine derives the
         // actual high/low from this list, so an off-hour observed peak/trough rides on its own point
@@ -850,6 +871,10 @@ fun TemperatureGraph(
                     w,
                     h,
                     drawnLabels.size,
+                    dominantPlacedBox?.left?.roundToInt(),
+                    dominantPlacedBox?.right?.roundToInt(),
+                    dominantPlacedBox?.top?.roundToInt(),
+                    dominantPlacedBox?.bottom?.roundToInt(),
                 ).joinToString("|")
             if (key != lastDominantDiagKey.value) {
                 lastDominantDiagKey.value = key
