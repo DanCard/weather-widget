@@ -29,7 +29,7 @@ import org.junit.experimental.categories.Category
  * 8 h it rendered 7 h.
  *
  * This is the only stage whose span the user types in, so it is the only one that needs a scan.
- * WIDE and THREE_DAY are fixed, so `forwardHoursFor` anchors its curve to them directly; their
+ * WIDE and TWO_DAY are fixed, so `forwardHoursFor` anchors its curve to them directly; their
  * rendered windows are asserted in `DesktopGraphZoomTest`.
  */
 @Category(ShortDuration::class)
@@ -79,7 +79,7 @@ settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
             DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor),
             config.settings.narrowZoomSpanHours,
         )
-        val next = current.next()
+        val next = current.next(config.settings.multiDayZoomEnabled)
         return config.copy(
             zoomFactor = DesktopGraphUtils.zoomFactorForStage(next, config.settings.narrowZoomSpanHours),
         )
@@ -219,7 +219,8 @@ settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
     @Test
     fun `clicking through the zoom cycle lands on the configured span`() {
         // The real path a user takes: the popup opens at WIDE, and taps cycle
-        // WIDE -> NARROW -> THREE_DAY -> WIDE. Whichever tap lands on NARROW must show the setting.
+        // WIDE -> NARROW -> WIDE (or through TWO_DAY when the setting is on). Whichever tap lands on
+        // NARROW must show the setting.
         configurableSpans.forEach { span ->
             var current = config(narrowZoomSpanHours = span, zoomFactor = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR)
             var sawNarrow = false

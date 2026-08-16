@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">首选 WeatherAPI - 全球覆盖</string>
     <string name="hourly_zoom_title">每小时缩放</string>
     <string name="hourly_zoom_description">放大后的小时图表显示多少小时。点按图表可循环切换缩放级别；此处设置最窄的一级。范围越宽，每次点按滚动越多。</string>
+    <string name="hourly_zoom_two_day_label">包含 2 天视图</string>
+    <string name="hourly_zoom_two_day_description">增加 48 小时级别 — 42 小时之前，6 小时之后。</string>
     <string name="hourly_zoom_value">%1$d 小时</string>
     <string name="hourly_zoom_min">4 小时</string>
     <string name="hourly_zoom_max">8 小时</string>

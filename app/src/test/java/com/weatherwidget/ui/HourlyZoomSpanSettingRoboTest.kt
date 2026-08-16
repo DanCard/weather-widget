@@ -23,6 +23,7 @@ import com.weatherwidget.widget.handlers.buildHourDataList
 import com.weatherwidget.test.category.LongDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -146,6 +147,20 @@ class HourlyZoomSpanSettingRoboTest {
             listOf("8a", "10a", "12p", "2p", "4p"),
             hours.filter { it.showLabel }.map(HourData::label),
         )
+    }
+
+    @Test
+    fun `two day switch persists its setting`() {
+        launchSettings { activity ->
+            val toggle = activity.findViewById<androidx.appcompat.widget.SwitchCompat>(
+                R.id.hourly_zoom_two_day_switch,
+            )
+
+            assertFalse("the 2-day cycle stop must ship off", toggle.isChecked)
+            toggle.performClick()
+
+            assertTrue(WidgetStateManager(context).isMultiDayZoomEnabled())
+        }
     }
 
     @Test

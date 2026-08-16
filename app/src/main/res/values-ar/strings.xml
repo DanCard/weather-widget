@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">تفضيل WeatherAPI - تغطية عالمية</string>
     <string name="hourly_zoom_title">التكبير بالساعة</string>
     <string name="hourly_zoom_description">عدد الساعات التي يعرضها الرسم البياني الساعي المكبَّر. انقر على الرسم البياني للتنقل بين مستويات التكبير؛ هذا يحدد أضيقها. النطاقات الأوسع تتنقل أكثر مع كل نقرة.</string>
+    <string name="hourly_zoom_two_day_label">تضمين عرض اليومين</string>
+    <string name="hourly_zoom_two_day_description">يضيف مستوى 48 ساعة — 42 ساعة للخلف و6 ساعات للأمام.</string>
     <string name="hourly_zoom_value">%1$d ساعات</string>
     <string name="hourly_zoom_min">4 ساعات</string>
     <string name="hourly_zoom_max">8 ساعات</string>

@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">WeatherAPI 선호 - 전 세계 지원</string>
     <string name="hourly_zoom_title">시간별 확대</string>
     <string name="hourly_zoom_description">확대된 시간별 그래프에 표시할 시간 수입니다. 그래프를 탭하면 확대 수준이 전환되며, 여기서 가장 좁은 수준을 설정합니다. 범위가 넓을수록 탭당 더 많이 이동합니다.</string>
+    <string name="hourly_zoom_two_day_label">2일 보기 포함</string>
+    <string name="hourly_zoom_two_day_description">48시간 수준을 추가합니다 — 42시간 이전, 6시간 이후.</string>
     <string name="hourly_zoom_value">%1$d시간</string>
     <string name="hourly_zoom_min">4시간</string>
     <string name="hourly_zoom_max">8시간</string>

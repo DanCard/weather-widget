@@ -2,6 +2,8 @@ package com.weatherwidget.shared.graph
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
@@ -64,7 +66,7 @@ class ZoomWindowTest {
     }
 
     @Test
-    fun `wide and three day are unaffected by the narrow span setting`() {
+    fun `wide and two day are unaffected by the narrow span setting`() {
         for (span in HourlyZoomRules.MIN_NARROW_SPAN_HOURS..HourlyZoomRules.MAX_NARROW_SPAN_HOURS) {
             val wide = ZoomStage.WIDE.window(span)
             // 18h, back-heavy: 12h of history against 6h of forecast (was a symmetric 12/12).
@@ -75,12 +77,12 @@ class ZoomWindowTest {
             assertEquals(4, wide.labelInterval)
             assertEquals(3, wide.smoothIterations)
 
-            val threeDay = ZoomStage.THREE_DAY.window(span)
-            assertEquals(48L, threeDay.backHours)
-            assertEquals(24L, threeDay.forwardHours)
-            assertEquals(12, threeDay.navJump)
-            assertEquals(12, threeDay.labelInterval)
-            assertEquals(3, threeDay.smoothIterations)
+            val twoDay = ZoomStage.TWO_DAY.window(span)
+            assertEquals(42L, twoDay.backHours)
+            assertEquals(6L, twoDay.forwardHours)
+            assertEquals(8, twoDay.navJump)
+            assertEquals(6, twoDay.labelInterval)
+            assertEquals(3, twoDay.smoothIterations)
         }
     }
 
@@ -88,12 +90,12 @@ class ZoomWindowTest {
     fun `nav jump is a sixth of a span above the narrow range`() {
         // Desktop's continuous zoom reaches spans the NARROW setting never produces; those step a
         // sixth of the span. Spans up to 8h step 1h, and so does anything under 12h once the
-        // fraction is applied. The two fixed stages fall out of the same rule: 18h->3h, 72h->12h.
+        // fraction is applied. The two fixed stages fall out of the same rule: 18h->3h, 48h->8h.
         assertEquals(1, HourlyZoomRules.navJumpHours(8))
         assertEquals(1, HourlyZoomRules.navJumpHours(9))
         assertEquals(3, HourlyZoomRules.navJumpHours(18))
         assertEquals(4, HourlyZoomRules.navJumpHours(24))
-        assertEquals(12, HourlyZoomRules.navJumpHours(72))
+        assertEquals(8, HourlyZoomRules.navJumpHours(48))
     }
 
     @Test
@@ -122,5 +124,12 @@ class ZoomWindowTest {
     fun `compact toString keeps zoom logs one token`() {
         assertEquals("NARROW(-3/+2 jump=1)", ZoomStage.NARROW.window(5).toString())
         assertEquals("WIDE(-12/+6 jump=3)", ZoomStage.WIDE.window().toString())
+    }
+
+    @Test
+    fun `date footer mode turns on at exactly 48 hours`() {
+        assertFalse(HourlyZoomRules.isDateMode(47L))
+        assertTrue(HourlyZoomRules.isDateMode(48L))
+        assertTrue(HourlyZoomRules.isDateMode(49L))
     }
 }

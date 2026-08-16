@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">WeatherAPI کو ترجیح - عالمی کوریج</string>
     <string name="hourly_zoom_title">گھنٹہ وار زوم</string>
     <string name="hourly_zoom_description">زوم کیا گیا گھنٹہ وار گراف کتنے گھنٹے دکھاتا ہے۔ زوم کی سطحیں بدلنے کے لیے گراف پر ٹیپ کریں؛ یہ سب سے تنگ سطح مقرر کرتا ہے۔ وسیع دورانیے ہر ٹیپ پر زیادہ سکرول کرتے ہیں۔</string>
+    <string name="hourly_zoom_two_day_label">2 دن کا منظر شامل کریں</string>
+    <string name="hourly_zoom_two_day_description">48 گھنٹے کی سطح شامل کرتا ہے — 42 گھنٹے پیچھے، 6 گھنٹے آگے۔</string>
     <string name="hourly_zoom_value">%1$d گھنٹے</string>
     <string name="hourly_zoom_min">4 گھنٹے</string>
     <string name="hourly_zoom_max">8 گھنٹے</string>

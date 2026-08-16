@@ -136,7 +136,7 @@ internal fun buildHourDataList(
     ).hours
 
 /**
- * Epoch-millis of the per-day "centered" hour used for date footer labels at multi-day (THREE_DAY)
+ * Epoch-millis of the per-day "centered" hour used for date footer labels at multi-day (TWO_DAY)
  * zoom: for each local date in `[start, end]` the local-noon hour, clamped into the window so the
  * partial first/last days still get a label at the nearest visible edge. One entry per visible day,
  * matching the hour grid that [buildHourDataResult] walks (its hours are top-of-hour and these
@@ -265,11 +265,15 @@ internal fun buildHourDataResult(
         else -> zoom.labelInterval
     }
 
-    // At THREE_DAY zoom the window spans multiple days, where bare "12a/12p" footer labels can't
-    // tell you which day a region is. Switch to one date label per day, centered under that day:
-    // for each visible local date pick the in-window hour closest to local noon (clamped to the
-    // window edges so partial first/last days still get a label). Near zooms keep time-of-day.
-    val dateMode = zoom.stage == ZoomStage.THREE_DAY
+    // Once the window spans multiple days, bare "12a/12p" footer labels can't tell you which day a
+    // region is. Switch to one date label per day, centered under that day: for each visible local
+    // date pick the in-window hour closest to local noon (clamped to the window edges so partial
+    // first/last days still get a label). Near zooms keep time-of-day.
+    //
+    // Keyed on the *span*, not on stage identity: desktop has always decided this by span, and the
+    // two rules silently disagreed the moment a stage landed on the threshold. See
+    // HourlyZoomRules.DATE_FOOTER_MIN_SPAN_HOURS.
+    val dateMode = HourlyZoomRules.isDateMode(zoom.totalSpanHours)
     val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
     // Assemble the graph point list from the shared sub-hourly-inclusive series, so the labeled actual
@@ -277,7 +281,7 @@ internal fun buildHourDataResult(
     // instead of collapsing onto the nearest hour). Platform decoration — footer hour label, weather
     // icon, sun/day-night flags, label cadence — is layered on here; the desktop app calls the same
     // assembler with an identity decorator. topHourOrdinal reproduces the old per-top-of-hour index the
-    // WIDE/THREE_DAY label cadence keys off (sub-hourly points don't advance it).
+    // WIDE/TWO_DAY label cadence keys off (sub-hourly points don't advance it).
     var topHourOrdinal = 0
     val finalHours = HourDataAssembler.assembleHourData(actualSeries, zoneId) { base, isTopHour, _ ->
         val time = base.dateTime

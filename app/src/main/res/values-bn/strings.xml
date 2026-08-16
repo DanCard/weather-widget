@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">WeatherAPI পছন্দ - বিশ্বব্যাপী কভারেজ</string>
     <string name="hourly_zoom_title">ঘণ্টাভিত্তিক জুম</string>
     <string name="hourly_zoom_description">জুম করা ঘণ্টাভিত্তিক গ্রাফ কত ঘণ্টা দেখাবে। জুম স্তর বদলাতে গ্রাফে ট্যাপ করুন; এটি সবচেয়ে সংকীর্ণ স্তর নির্ধারণ করে। বড় পরিসর প্রতি ট্যাপে বেশি স্ক্রল করে।</string>
+    <string name="hourly_zoom_two_day_label">২ দিনের দৃশ্য অন্তর্ভুক্ত করুন</string>
+    <string name="hourly_zoom_two_day_description">৪৮ ঘণ্টার একটি স্তর যোগ করে — ৪২ ঘণ্টা পেছনে, ৬ ঘণ্টা সামনে।</string>
     <string name="hourly_zoom_value">%1$d ঘণ্টা</string>
     <string name="hourly_zoom_min">4 ঘণ্টা</string>
     <string name="hourly_zoom_max">8 ঘণ্টা</string>

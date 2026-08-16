@@ -23,13 +23,30 @@ object HourlyZoomRules {
         hours.coerceIn(MIN_NARROW_SPAN_HOURS, MAX_NARROW_SPAN_HOURS)
 
     /**
+     * At or above this visible span the hourly footer stops labelling time-of-day ("12a"/"12p") and
+     * switches to one date per visible day ("Tue 23"), because bare clock labels cannot tell you
+     * which day a region of a multi-day window belongs to.
+     *
+     * Single source of truth for both platforms. It has to be, and the reason is a trap worth
+     * recording: Android used to decide this by stage identity (`stage == THREE_DAY`) while desktop
+     * decided it by span (`> 48`). Those agreed only because the old multi-day stage was 72h. When
+     * [ZoomStage.TWO_DAY] landed on exactly 48h the two rules disagreed about the *same window* —
+     * dates on the phone, clock hours on the desktop. Comparing with `>=` rather than `>` is what
+     * puts a 48h stage inside date mode; the only span whose behaviour changed is exactly 48.
+     */
+    const val DATE_FOOTER_MIN_SPAN_HOURS = 48L
+
+    /** Whether a visible span of [totalSpanHours] labels its footer with dates rather than clock hours. */
+    fun isDateMode(totalSpanHours: Long): Boolean = totalSpanHours >= DATE_FOOTER_MIN_SPAN_HOURS
+
+    /**
      * How many hours a left/right nav press shifts the view. Single source of truth for Android's
      * [ZoomWindow.navJump] and desktop's continuous `DesktopGraphUtils.navJumpHours`.
      *
      * Tight views step 1 hour across the entire configurable NARROW range (up to [MAX_NARROW_SPAN_HOURS]).
      * Above that a press moves a **sixth of the visible span**, so five sixths of what you were
      * looking at is still on screen afterwards. That fraction is not arbitrary: it reproduces both
-     * fixed stages' hand-picked jumps exactly — WIDE's 18h span steps 3h, THREE_DAY's 72h steps 12h —
+     * fixed stages' hand-picked jumps exactly — WIDE's 18h span steps 3h, TWO_DAY's 48h steps 8h —
      * so the continuous desktop zoom interpolates between the same two points the staged Android
      * widget lands on. It was a half-span before, which threw away half the view per press (a 9h jump
      * on the 18h default) and disagreed with both stages.

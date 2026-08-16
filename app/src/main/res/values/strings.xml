@@ -39,7 +39,9 @@
     <string name="api_prefer_openmeteo">Prefer Open-Meteo - Global coverage</string>
     <string name="api_prefer_weatherapi">Prefer WeatherAPI - Global coverage</string>
     <string name="hourly_zoom_title">Hourly Zoom</string>
-    <string name="hourly_zoom_description">How many hours the zoomed-in hourly graph shows. Tap the graph to cycle zoom levels; this sets the tightest one. Wider spans scroll further per arrow tap.</string>
+    <string name="hourly_zoom_description">Tap the hourly graph to cycle zoom levels. These set which levels the cycle includes and how wide the tightest one is. Wider spans scroll further per arrow tap.</string>
+    <string name="hourly_zoom_two_day_label">Include 2-day view</string>
+    <string name="hourly_zoom_two_day_description">Adds a 48-hour level — 42 hours back, 6 hours forward.</string>
     <string name="hourly_zoom_value">%1$d hours</string>
     <string name="hourly_zoom_min">4 hours</string>
     <string name="hourly_zoom_max">8 hours</string>

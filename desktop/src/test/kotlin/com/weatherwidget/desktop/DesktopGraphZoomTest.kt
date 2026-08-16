@@ -286,11 +286,11 @@ class DesktopGraphZoomTest {
 
     @Test
     fun `each stage maps to its canonical zoom factor`() {
-        // WIDE lands on the existing default; THREE_DAY is wide. Canonical factors shifted when
+        // WIDE lands on the existing default; TWO_DAY is wide. Canonical factors shifted when
         // MAX_BACK_HOURS grew to 720 (the curve rescaled): WIDE's 12h back now sits at ~0.304 and
-        // THREE_DAY's 48h back at ~0.540. Neither moves with the narrow-span setting.
+        // TWO_DAY's 42h back at ~0.517. Neither moves with the narrow-span setting.
         assertEquals(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR, DesktopGraphUtils.zoomFactorForStage(ZoomStage.WIDE), 0.02f)
-        assertEquals(0.54f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.THREE_DAY), 0.02f)
+        assertEquals(0.52f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.TWO_DAY), 0.02f)
         // NARROW is only the curve's floor (factor 0) at its minimum 4h span, which is 2h back.
         // Widening the setting walks it up the curve.
         assertEquals(0f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, 4), 0.001f)
@@ -331,7 +331,8 @@ class DesktopGraphZoomTest {
     fun `stage factor reproduces the stage forward-hours too`() {
         // forwardHoursFor is anchored to the stage windows, so a stage's factor renders the whole
         // window and not just its history half. Before the anchors, WIDE's factor drew 8h forward
-        // against the stage's 6h and THREE_DAY's drew 22h against 24h.
+        // against the stage's 6h and the old 72h stage drew 22h against 24h. TWO_DAY shares WIDE's
+        // 6h forward horizon, so both fixed stages sit at the same forward anchor today.
         for (stage in ZoomStage.entries) {
             assertEquals(
                 "forward hours for $stage",
@@ -339,6 +340,12 @@ class DesktopGraphZoomTest {
                 DesktopGraphUtils.forwardHoursFor(DesktopGraphUtils.zoomFactorForStage(stage)),
             )
         }
+    }
+
+    @Test
+    fun `two day factor renders 6 hours forward`() {
+        val factor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.TWO_DAY)
+        assertEquals(6, DesktopGraphUtils.forwardHoursFor(factor))
     }
 
     @Test

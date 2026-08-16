@@ -13,7 +13,7 @@ import org.junit.experimental.categories.Category
 
 /**
  * The dominant-station annotation on the hourly graph: what it says, when it is allowed to say it, and
- * where it lands. The zoom gate (test [threeDayViewGetsNoLabel]) is the user-facing requirement — the
+ * where it lands. The zoom gate (test [twoDayViewGetsNoLabel]) is the user-facing requirement — the
  * label is for near zooms only.
  */
 @Category(ShortDuration::class)
@@ -230,10 +230,10 @@ class DominantStationLabelTest {
     }
 
     @Test
-    fun threeDayViewGetsNoLabel() {
-        // THREE_DAY spans 48h back + 24h forward. "The dominant station right now" says nothing about
-        // most of what is on screen there, so the label retires.
-        assertNull(place(spanHours = 72L))
+    fun twoDayViewGetsNoLabel() {
+        // TWO_DAY spans 42h back + 6h forward (48h). "The dominant station right now" says nothing
+        // about most of what is on screen there, so the label retires.
+        assertNull(place(spanHours = 48L))
     }
 
     @Test

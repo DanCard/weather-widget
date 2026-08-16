@@ -21,10 +21,13 @@ internal data class WidgetPresentationState(
  *
  * [narrowSpanHours] supplies the app-wide NARROW span so navigation can resolve a [ZoomWindow]; it
  * is a lambda rather than a value because the setting can change while widgets are live.
+ * [multiDayZoomEnabled] is a lambda for the same reason, and gates both the tap cycle and the
+ * coercion of already-persisted state — see [decodeZoom].
  */
 internal class WidgetPresentationStateStore(
     private val prefs: SharedPreferences,
     private val narrowSpanHours: () -> Int = { HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS },
+    private val multiDayZoomEnabled: () -> Boolean = { false },
     private val clock: Clock = Clock.systemUTC(),
     private val zoneId: () -> ZoneId = ZoneId::systemDefault,
 ) {
@@ -207,7 +210,7 @@ internal class WidgetPresentationStateStore(
     }
 
     fun cycleZoom(widgetId: Int): ZoomStage {
-        val next = zoom(widgetId).next()
+        val next = zoom(widgetId).next(multiDayZoomEnabled())
         setZoom(widgetId, next)
         return next
     }
@@ -299,12 +302,28 @@ internal class WidgetPresentationStateStore(
             else -> null
         } ?: ViewMode.DAILY
 
-    private fun decodeZoom(raw: Any?): ZoomStage =
-        when (raw) {
+    /**
+     * Decodes a persisted stage, then coerces it against the current 2-day setting so a widget can
+     * never sit on a stage the tap cycle cannot reach (see [ZoomStage.resolve]).
+     *
+     * Two decode notes worth keeping:
+     * - Legacy state written as the string `"THREE_DAY"` no longer matches any entry and falls
+     *   through to WIDE. That is the intended migration, not a gap.
+     * - The *ordinal* branch still maps `2` onto TWO_DAY, which is why [ZoomStage]'s declaration
+     *   order is load-bearing — and why the coercion below matters: without it, very old
+     *   ordinal-encoded state could restore a stage the user has disabled.
+     *
+     * Callers that normalize will persist the coerced value, so disabling the setting and
+     * re-enabling it returns the widget to WIDE rather than its old multi-day position.
+     */
+    private fun decodeZoom(raw: Any?): ZoomStage {
+        val decoded = when (raw) {
             is String -> ZoomStage.entries.find { it.name == raw }
             is Number -> ZoomStage.entries.getOrNull(raw.toInt())
             else -> null
         } ?: ZoomStage.WIDE
+        return ZoomStage.resolve(decoded, multiDayZoomEnabled())
+    }
 
     private fun headerLabelSwapKey(widgetId: Int) = "$KEY_HEADER_LABEL_SWAP_PREFIX$widgetId"
     private fun dateOffsetKey(widgetId: Int) = "$KEY_DATE_OFFSET_PREFIX$widgetId"

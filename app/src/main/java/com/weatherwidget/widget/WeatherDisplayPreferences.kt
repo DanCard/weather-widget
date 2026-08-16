@@ -50,6 +50,17 @@ internal class WeatherDisplayPreferences(
         prefs.edit().putInt(KEY_HOURLY_NARROW_SPAN, HourlyZoomRules.clampNarrowSpan(hours)).apply()
     }
 
+    /**
+     * Whether the tap cycle includes the multi-day [com.weatherwidget.shared.graph.ZoomStage.TWO_DAY]
+     * stage. Off by default: at widget width a 48h window is ~3px/hour, and the daily view already
+     * covers multi-day at a glance.
+     */
+    fun multiDayZoomEnabled(): Boolean = prefs.getBoolean(KEY_MULTI_DAY_ZOOM, false)
+
+    fun setMultiDayZoomEnabled(value: Boolean) {
+        prefs.edit().putBoolean(KEY_MULTI_DAY_ZOOM, value).apply()
+    }
+
     fun showTodayOverlayDelta(): Boolean = prefs.getBoolean(KEY_SHOW_TODAY_OVERLAY_DELTA, false)
 
     fun setShowTodayOverlayDelta(value: Boolean) {
@@ -75,6 +86,7 @@ internal class WeatherDisplayPreferences(
         const val KEY_USE_CELSIUS = "use_celsius"
         const val KEY_PERSONAL_STATION_DISCOUNT = "personal_station_discount"
         const val KEY_HOURLY_NARROW_SPAN = "hourly_narrow_span_hours"
+        const val KEY_MULTI_DAY_ZOOM = "hourly_multi_day_zoom_enabled"
         const val KEY_SHOW_TODAY_OVERLAY_DELTA = "show_today_overlay_delta"
         const val KEY_SHOW_TODAY_OVERLAY_DOMINANT_TEMP = "show_today_overlay_dominant_temp"
         const val KEY_SHOW_TODAY_OVERLAY_DOMINANT_AGE = "show_today_overlay_dominant_age"

@@ -17,20 +17,38 @@ import kotlin.math.abs
  * a compile error.
  *
  * IMPORTANT: declaration order is load-bearing — legacy widget state persisted the selected stage by
- * ordinal (WIDE=0, NARROW=1, THREE_DAY=2) and is still decoded that way, so reordering would
+ * ordinal (WIDE=0, NARROW=1, TWO_DAY=2) and is still decoded that way, so reordering would
  * silently remap saved state.
  */
 enum class ZoomStage {
     WIDE,
     NARROW,
-    THREE_DAY,
+
+    /**
+     * The optional multi-day stage, off by default (Settings → "Hourly Zoom" → include 2-day view).
+     *
+     * Was `THREE_DAY` (72 h) until 2026-08-16. The rename is deliberate on the persistence side too:
+     * Android stores the stage by *name*, so a widget still parked on the old `"THREE_DAY"` string
+     * fails the name lookup in `WidgetPresentationStateStore.decodeZoom` and falls back to [WIDE] —
+     * which is what we want, since the stage now ships disabled.
+     */
+    TWO_DAY,
     ;
 
-    /** The next stage in the tap cycle: WIDE → NARROW → THREE_DAY → WIDE. */
-    fun next(): ZoomStage = when (this) {
+    /**
+     * The next stage in the tap cycle. [multiDayEnabled] is the user's "include 2-day view" setting:
+     * when off the cycle is a two-stop toggle (WIDE ↔ NARROW), when on it is
+     * WIDE → NARROW → TWO_DAY → WIDE.
+     *
+     * The widget's only input verb is a single tap ([com.weatherwidget.shared.graph] has no gesture
+     * vocabulary to spare — RemoteViews gives no long-press, pinch or scroll), so cycle membership
+     * *is* reachability on Android. Desktop's continuous wheel zoom is unaffected and still reaches
+     * multi-day spans with the setting off; the gate applies only to its click-to-cycle.
+     */
+    fun next(multiDayEnabled: Boolean = false): ZoomStage = when (this) {
         WIDE -> NARROW
-        NARROW -> THREE_DAY
-        THREE_DAY -> WIDE
+        NARROW -> if (multiDayEnabled) TWO_DAY else WIDE
+        TWO_DAY -> WIDE
     }
 
     /**
@@ -38,7 +56,7 @@ enum class ZoomStage {
      * span and is ignored by every stage but [NARROW].
      *
      * NARROW splits its span back-heavy — `back = ceil(n/2)`, `forward = floor(n/2)`, so 5h reads 3h
-     * of history against 2h of forecast. That matches [THREE_DAY]'s 48/24 bias and desktop's
+     * of history against 2h of forecast. That matches [TWO_DAY]'s 42/6 bias and desktop's
      * "wider views lean into history" curve.
      *
      * [backHours]/[forwardHours] are [Long] because every Android query-window call site feeds them
@@ -52,10 +70,10 @@ enum class ZoomStage {
             // 18h, deliberately back-heavy: 12h of history against 6h of forecast (2026-08-16; it
             // was a symmetric 12/12 = 24h). The now-line therefore sits two thirds across the graph
             // rather than in its middle — see HourlyTouchZoneMapper, whose zones follow the split.
-            // Same bias as THREE_DAY's 48/24 and desktop's "wider views lean into history" curve.
+            // Same bias as TWO_DAY's 42/6 and desktop's "wider views lean into history" curve.
             backHours = 12,
             forwardHours = 6,
-            // A sixth of the span, like THREE_DAY's 12h of 72h — see HourlyZoomRules.navJumpHours,
+            // A sixth of the span, like TWO_DAY's 8h of 48h — see HourlyZoomRules.navJumpHours,
             // which desktop's continuous zoom reads. 6h (a third of the narrower window) overshot.
             navJump = 3,
             labelInterval = 4,
@@ -74,12 +92,20 @@ enum class ZoomStage {
             )
         }
 
-        THREE_DAY -> ZoomWindow(
-            stage = THREE_DAY,
-            backHours = 48,
-            forwardHours = 24,
-            navJump = 12,
-            labelInterval = 12,
+        TWO_DAY -> ZoomWindow(
+            stage = TWO_DAY,
+            // 48h, split 42 back / 6 forward (2026-08-16; it was THREE_DAY's 48/24 = 72h). The
+            // forward horizon is deliberately identical to WIDE's, so zooming out from the default
+            // buys history only and never moves the right edge. The now-line therefore sits ~87%
+            // across the graph — further right than WIDE's two thirds, not a bug.
+            backHours = 42,
+            forwardHours = 6,
+            // A sixth of the span, matching HourlyZoomRules.navJumpHours(48).
+            navJump = 8,
+            // Only consulted below the date-footer threshold; at 48h the footer is in date mode
+            // (HourlyZoomRules.isDateMode) and labels one date per day instead. Kept aligned with
+            // desktop's labelIntervalFor(48) so the two agree if the threshold ever moves.
+            labelInterval = 6,
             smoothIterations = 3,
         )
     }
@@ -89,11 +115,27 @@ enum class ZoomStage {
         val DEFAULT = WIDE
 
         /**
+         * Coerces a *persisted* stage against the current "include 2-day view" setting.
+         *
+         * Without this, enabling the setting, cycling to [TWO_DAY], then disabling it again strands
+         * the widget on a stage [next] can no longer reach — on Android that is a view with no way
+         * out, since the tap cycle is the only zoom affordance. Applied on read rather than on the
+         * setting's write path so it also covers state restored from backup or written by an older
+         * build.
+         */
+        fun resolve(stage: ZoomStage, multiDayEnabled: Boolean): ZoomStage =
+            if (stage == TWO_DAY && !multiDayEnabled) WIDE else stage
+
+        /**
          * The stage whose resolved span is closest to [totalSpanHours]. Lets desktop map an
          * arbitrary continuous wheel-zoom position back onto a discrete stage before cycling, so a
          * click always advances exactly one stage relative to where the view currently sits.
          * [narrowSpanHours] must be the same configured span used to render, or the snap can land on
          * a different stage than the one on screen.
+         *
+         * Deliberately *not* gated on the 2-day setting: the wheel can park the view at a multi-day
+         * span whether or not the stage is in the cycle, and snapping such a view to [TWO_DAY] is
+         * what lets the following [next] step return it to [WIDE] in one click.
          */
         fun nearestByTotalSpan(
             totalSpanHours: Int,

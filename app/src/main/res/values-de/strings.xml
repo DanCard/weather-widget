@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">WeatherAPI bevorzugen - Weltweite Abdeckung</string>
     <string name="hourly_zoom_title">Stündlicher Zoom</string>
     <string name="hourly_zoom_description">Wie viele Stunden das vergrößerte Stundendiagramm zeigt. Tippen Sie auf das Diagramm, um die Zoomstufen zu wechseln; dies legt die engste fest. Größere Bereiche scrollen pro Tippen weiter.</string>
+    <string name="hourly_zoom_two_day_label">2-Tage-Ansicht einbeziehen</string>
+    <string name="hourly_zoom_two_day_description">Fügt eine 48-Stunden-Stufe hinzu — 42 Stunden zurück, 6 Stunden voraus.</string>
     <string name="hourly_zoom_value">%1$d Stunden</string>
     <string name="hourly_zoom_min">4 Stunden</string>
     <string name="hourly_zoom_max">8 Stunden</string>

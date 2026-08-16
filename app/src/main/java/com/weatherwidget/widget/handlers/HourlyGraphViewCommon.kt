@@ -100,7 +100,7 @@ internal object HourlyGraphViewCommon {
 
     /**
      * The footer-label rule shared by all three hourly graphs (temperature, precip, cloud). At
-     * multi-day ([dateMode], i.e. THREE_DAY zoom) the footer shows one date label per day ("Tue 23")
+     * multi-day ([dateMode], i.e. HourlyZoomRules.isDateMode) the footer shows one date label per day ("Tue 23")
      * at the per-day representative hours in [dateLabelMillis]; otherwise it shows a time-of-day label
      * ("3p") governed by each graph's own cadence ([nonDateShowLabel]). [isDateLabel] downstream
      * drives both the drop-when-clipped and keep-the-last-day-icon behavior in

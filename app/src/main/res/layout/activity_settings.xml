@@ -144,6 +144,54 @@
                         android:textColor="@color/widget_text_secondary"
                         android:textSize="12sp" />
                 </LinearLayout>
+
+                <!--
+                  Grouped into the same card as the span slider on purpose: both controls shape the
+                  same tap cycle (this one sets how many stops it has, the slider sets how wide the
+                  tightest one is). Placed below the slider so the always-applicable control stays
+                  first.
+                -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="16dp"
+                    android:background="@color/widget_text_secondary"
+                    android:alpha="0.2" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/hourly_zoom_two_day_label"
+                            android:textColor="@color/widget_text_primary"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/hourly_zoom_two_day_description"
+                            android:textColor="@color/widget_text_secondary"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/hourly_zoom_two_day_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- Personal Weather Stations Section -->

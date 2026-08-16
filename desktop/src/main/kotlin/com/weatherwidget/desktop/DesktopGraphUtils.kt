@@ -73,9 +73,16 @@ internal object DesktopGraphUtils {
      *
      * A single geometric curve between [MIN_FORWARD_HOURS] and [MAX_FORWARD_HOURS] cannot do that —
      * one factor drives both spans, so the forward half only agreed with a stage's window by luck.
-     * At the default factor it rendered 8h forward against WIDE's 6h, and 22h against THREE_DAY's
-     * 24h. Interpolating between anchors instead makes each stage exact on desktop, while the wheel
-     * keeps moving through the same monotone, order-of-magnitude range in between.
+     * At the default factor it rendered 8h forward against WIDE's 6h. Interpolating between anchors
+     * instead makes each stage exact on desktop, while the wheel keeps moving through the same
+     * monotone, order-of-magnitude range in between.
+     *
+     * Since 2026-08-16 both fixed stages carry the *same* forward span (6h — TWO_DAY deliberately
+     * holds WIDE's forward horizon and buys history only), so the curve is flat at 6h from WIDE's
+     * factor (~0.30) to TWO_DAY's (~0.52) before climbing to [MAX_FORWARD_HOURS]. The anchor list
+     * stays monotone non-decreasing, so this is a deliberate plateau, not a degenerate case:
+     * wheeling out holds the right edge still across that band. Add an interior anchor if that
+     * middle stretch ever needs to open up sooner.
      */
     fun forwardHoursFor(zoomFactor: Float): Int {
         val z = zoomFactor.coerceIn(0f, 1f)
@@ -92,7 +99,7 @@ internal object DesktopGraphUtils {
      * geometric interpolation between neighbours. Held as un-rounded floats: only the rendered
      * result rounds, so a fractional anchor keeps the neighbouring segments continuous.
      *
-     * The endpoints are the curve's range. `WIDE` and `THREE_DAY` sit at the factor
+     * The endpoints are the curve's range. `WIDE` and `TWO_DAY` sit at the factor
      * [zoomFactorForStage] maps them to, which is what makes desktop render those stages' exact
      * forward spans.
      *
@@ -108,7 +115,7 @@ internal object DesktopGraphUtils {
         val narrowCeiling = backHoursInverse(
             ZoomStage.NARROW.window(HourlyZoomRules.MAX_NARROW_SPAN_HOURS).backHours,
         )
-        val stages = listOf(ZoomStage.WIDE, ZoomStage.THREE_DAY)
+        val stages = listOf(ZoomStage.WIDE, ZoomStage.TWO_DAY)
             .map { stage -> backHoursInverse(stage.window().backHours) to stage.window().forwardHours.toFloat() }
             .sortedBy { it.first }
         listOf(
@@ -124,7 +131,7 @@ internal object DesktopGraphUtils {
      * How many hours a left/right nav-arrow press shifts the view. Delegates to the shared
      * [HourlyZoomRules.navJumpHours] so desktop and the Android widget step identically at a given
      * span: 1h through the 8h narrow band, a sixth of the span above it (3h at the 18h default,
-     * 12h at THREE_DAY — both equal to the fixed stages' own navJump).
+     * 8h at TWO_DAY — both equal to the fixed stages' own navJump).
      *
      * A fixed step overshoots badly when zoomed in (a 6h jump on a ~4h tight view skips past
      * everything you were looking at); scaling with the span keeps the prior window in frame.
@@ -149,7 +156,7 @@ internal object DesktopGraphUtils {
      * back-hours [geomInterp]. Lets the desktop click snap onto a shared stage while the wheel keeps
      * driving the factor continuously. We invert against *back* hours only, and [forwardHoursFor]
      * then anchors its own curve to these same factors so the forward half lands on the stage's span
-     * too. WIDE→~0.30 (≈[DEFAULT_ZOOM_FACTOR]), THREE_DAY→~0.54; NARROW moves with
+     * too. WIDE→~0.30 (≈[DEFAULT_ZOOM_FACTOR]), TWO_DAY→~0.52; NARROW moves with
      * [narrowSpanHours] (4h→0.0, the default 5h→~0.07, 8h→~0.12).
      *
      * [narrowSpanHours] must be the configured span, or a click can snap to a factor that renders a
@@ -167,7 +174,7 @@ internal object DesktopGraphUtils {
         // intended split by luck — at the default 5h setting the view rendered 3 back + 3 forward = 6h.
         // Scanning for a factor whose rendered back+forward equals the setting is the same technique
         // dayViewZoomFactor already uses, and it lands on the intended ceil/floor split for 4..8h.
-        // (WIDE/THREE_DAY get their exactness from forwardAnchors instead, which cannot be used for
+        // (WIDE/TWO_DAY get their exactness from forwardAnchors instead, which cannot be used for
         // NARROW: its span moves at runtime, and an anchor per setting value would need this map.)
         if (stage == ZoomStage.NARROW) {
             return narrowZoomFactors.getValue(HourlyZoomRules.clampNarrowSpan(narrowSpanHours))
@@ -212,11 +219,16 @@ internal object DesktopGraphUtils {
     }
 
     /**
-     * Once the visible span crosses ~2 days, the bottom strip switches from time-of-day labels
+     * Once the visible span reaches 2 days, the bottom strip switches from time-of-day labels
      * ("12a/12p") to one date label per day — bare clock labels can't tell you which day a region
-     * belongs to. Tunable; lower = dates kick in sooner.
+     * belongs to.
+     *
+     * Delegates to the shared rule rather than holding its own number. It used to be an independent
+     * `48` compared with `>`, which agreed with Android only because Android's multi-day stage was
+     * 72h; a 48h stage would have drawn dates on the phone and clock hours here. Tune it in
+     * [HourlyZoomRules.DATE_FOOTER_MIN_SPAN_HOURS], which both platforms read.
      */
-    const val DATE_LABEL_SPAN_THRESHOLD_HOURS = 48
+    const val DATE_LABEL_SPAN_THRESHOLD_HOURS = HourlyZoomRules.DATE_FOOTER_MIN_SPAN_HOURS
 
     /** Clock-hour label cadence (must divide 24, since labels gate on `localHour % interval`). */
     fun labelIntervalFor(totalSpanHours: Int): Int = when {
@@ -346,7 +358,8 @@ internal object DesktopGraphUtils {
     }
 
     /** Whether the visible span is wide enough that the footer labels its points with dates. */
-    fun isDateMode(totalSpanHours: Int): Boolean = totalSpanHours > DATE_LABEL_SPAN_THRESHOLD_HOURS
+    fun isDateMode(totalSpanHours: Int): Boolean =
+        HourlyZoomRules.isDateMode(totalSpanHours.toLong())
 
     /** A point that gets a footer label: its index in the point list and the text to draw. */
     data class FooterLabel(val index: Int, val text: String)

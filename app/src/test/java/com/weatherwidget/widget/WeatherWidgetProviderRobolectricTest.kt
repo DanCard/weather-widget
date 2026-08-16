@@ -96,14 +96,14 @@ class WeatherWidgetProviderRobolectricTest {
     }
 
     @Test
-    fun `zoneIndexToOffset maps THREE_DAY asymmetric window`() {
-        // THREE_DAY spans 48h back / 24h forward (72h). The visual-center zone (6) sits at
-        // (24-48)/2 = -12h, and the edges land exactly on the window bounds.
-        assertEquals(-48, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0, ZoomStage.THREE_DAY.window()))
-        assertEquals(-12, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomStage.THREE_DAY.window()))
-        assertEquals(24, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0, ZoomStage.THREE_DAY.window()))
+    fun `zoneIndexToOffset maps TWO_DAY asymmetric window`() {
+        // TWO_DAY spans 42h back / 6h forward (48h). The visual-center zone (6) sits at
+        // (6-42)/2 = -18h, and the edges land exactly on the window bounds.
+        assertEquals(-42, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0, ZoomStage.TWO_DAY.window()))
+        assertEquals(-18, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomStage.TWO_DAY.window()))
+        assertEquals(6, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0, ZoomStage.TWO_DAY.window()))
         // Base offset is added through.
-        assertEquals(-38, HourlyTouchZoneMapper.zoneIndexToOffset(0, 10, ZoomStage.THREE_DAY.window()))
+        assertEquals(-32, HourlyTouchZoneMapper.zoneIndexToOffset(0, 10, ZoomStage.TWO_DAY.window()))
     }
 
     @Test

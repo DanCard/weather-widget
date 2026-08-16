@@ -198,6 +198,10 @@ internal fun SettingsWindow(
                                 onChanged = { newSpan ->
                                     updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(narrowZoomSpanHours = newSpan)))
                                 },
+                                multiDayZoomEnabled = currentConfig.settings.multiDayZoomEnabled,
+                                onMultiDayZoomChanged = { enabled ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(multiDayZoomEnabled = enabled)))
+                                },
                             )
                         }
 
@@ -421,16 +425,22 @@ private fun TodayOverlayToggleRow(
     }
 }
 
-/** Span of the tight NARROW zoom stage (4–8h), mirroring Android's "Hourly Zoom" SeekBar. */
+/**
+ * Span of the tight NARROW zoom stage (4–8h) plus the optional 2-day cycle stop, mirroring
+ * Android's "Hourly Zoom" card (slider first, switch second — same order and copy on both
+ * platforms).
+ */
 @Composable
 private fun HourlyZoomSpan(
     spanHours: Int,
-    onChanged: (Int) -> Unit
+    onChanged: (Int) -> Unit,
+    multiDayZoomEnabled: Boolean,
+    onMultiDayZoomChanged: (Boolean) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            "How many hours the zoomed-in hourly graph shows. Click the graph to cycle zoom " +
-                "levels; this sets the tightest one. Wider spans scroll further per arrow press.",
+            "Tap the hourly graph to cycle zoom levels. These set which levels the cycle includes " +
+                "and how wide the tightest one is. Wider spans scroll further per arrow tap.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -455,6 +465,31 @@ private fun HourlyZoomSpan(
         ) {
             Text("4 hours", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("8 hours", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Include 2-day view",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Adds a 48-hour level — 42 hours back, 6 hours forward.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = multiDayZoomEnabled,
+                onCheckedChange = onMultiDayZoomChanged,
+                modifier = Modifier.testTag("hourly_zoom_two_day_switch"),
+            )
         }
     }
 }

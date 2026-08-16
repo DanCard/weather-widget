@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">Preferir WeatherAPI - Cobertura global</string>
     <string name="hourly_zoom_title">Zoom por horas</string>
     <string name="hourly_zoom_description">Cuántas horas muestra el gráfico horario ampliado. Toca el gráfico para alternar los niveles de zoom; esto define el más estrecho. Los rangos más amplios se desplazan más por toque.</string>
+    <string name="hourly_zoom_two_day_label">Incluir vista de 2 días</string>
+    <string name="hourly_zoom_two_day_description">Añade un nivel de 48 horas: 42 horas atrás y 6 horas adelante.</string>
     <string name="hourly_zoom_value">%1$d horas</string>
     <string name="hourly_zoom_min">4 horas</string>
     <string name="hourly_zoom_max">8 horas</string>

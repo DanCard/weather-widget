@@ -138,7 +138,7 @@ class WidgetFormatUtilsTest {
         assertEquals("Wed 10", formatDateLabel(LocalDate.of(2026, 6, 10)))
     }
 
-    // --- dateLabelMillis (per-day centered footer labels at THREE_DAY zoom) ---
+    // --- dateLabelMillis (per-day centered footer labels at TWO_DAY zoom) ---
 
     @Test
     fun `dateLabelMillis picks local noon for each fully visible day`() {

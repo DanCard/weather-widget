@@ -87,8 +87,9 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
     }
 
     @Test
-    fun bodyZoneTap_onNarrowZoom_cyclesToThreeDay() = runBlocking {
-        // 3-state zoom cycle: WIDE -> NARROW -> THREE_DAY -> WIDE.
+    fun bodyZoneTap_onNarrowZoom_cyclesToTwoDay() = runBlocking {
+        // 3-state zoom cycle: WIDE -> NARROW -> TWO_DAY -> WIDE.
+        stateManager.setMultiDayZoomEnabled(true)
         stateManager.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
         stateManager.setZoomLevel(appWidgetId, ZoomStage.NARROW)
         stateManager.setHourlyOffset(appWidgetId, 0)
@@ -103,11 +104,11 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
         instrumentation.runOnMainSync { bodyZone!!.performClick() }
         instrumentation.waitForIdleSync()
 
-        waitForZoomLevel(ZoomStage.THREE_DAY)
+        waitForZoomLevel(ZoomStage.TWO_DAY)
 
         assertEquals(
-            "Body zone tap should advance NARROW to THREE_DAY",
-            ZoomStage.THREE_DAY,
+            "Body zone tap should advance NARROW to TWO_DAY",
+            ZoomStage.TWO_DAY,
             stateManager.getZoomStage(appWidgetId),
         )
         assertEquals(

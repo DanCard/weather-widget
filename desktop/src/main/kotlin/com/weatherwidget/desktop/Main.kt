@@ -146,7 +146,7 @@ internal fun flushSettingsDraft(
  * span until the next click — the view looked dead. This mirrors the click path: resolve the stage
  * the current factor is nearest to (against the OLD span, exactly as the click handler does) and,
  * if that stage is NARROW, store the factor for the NEW span so the already-open graph re-renders
- * at the configured width. WIDE / THREE_DAY are independent of the setting and left untouched, as
+ * at the configured width. WIDE / TWO_DAY are independent of the setting and left untouched, as
  * is any wheel-zoom position whose nearest stage is not NARROW.
  */
 internal fun resnapNarrowZoomAfterSpanChange(prev: DesktopConfig, next: DesktopConfig): DesktopConfig {
@@ -1162,16 +1162,19 @@ internal fun WidgetPopup(
                                     onUpdateConfig(config.copy(hourlyOffset = newOffset))
                                 }
                             }
-                            // Body-tap zoom toggle, shared by all three hourly graphs: cycle the 3 zoom
-                            // stages (WIDE→NARROW→THREE_DAY→WIDE), matching Android, and re-center on the
-                            // tapped hour. The wheel may have moved us off a stage, so snap to the nearest
-                            // one before advancing.
+                            // Body-tap zoom toggle, shared by all three hourly graphs: advance one zoom
+                            // stage, matching Android, and re-center on the tapped hour. The cycle is
+                            // WIDE↔NARROW, or WIDE→NARROW→TWO_DAY→WIDE when the 2-day setting is on.
+                            //
+                            // The snap is deliberately ungated: the wheel can park the view at a
+                            // multi-day span even with the setting off, and snapping that to TWO_DAY is
+                            // what lets the next() below return it to WIDE in a single click.
                             val handleToggleZoom: (Int) -> Unit = { clickedOffset ->
                                 val current = ZoomStage.nearestByTotalSpan(
                                     DesktopGraphUtils.totalSpanHoursFor(config.zoomFactor),
                                     config.settings.narrowZoomSpanHours,
                                 )
-                                val next = current.next()
+                                val next = current.next(config.settings.multiDayZoomEnabled)
                                 onUpdateConfig(
                                     config.copy(
                                         zoomFactor = DesktopGraphUtils.zoomFactorForStage(

@@ -53,14 +53,16 @@ class ZoomCycleRoboTest {
     }
 
     @Test
-    fun cycleZoom_wideThenNarrowThenThreeDayThenWide() {
+    fun cycleZoom_wideThenNarrowThenTwoDayThenWide_whenEnabled() {
+        stateManager.setMultiDayZoomEnabled(true)
+
         val afterFirst = stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomStage.NARROW, afterFirst)
         assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         val afterSecond = stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomStage.THREE_DAY, afterSecond)
-        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
+        assertEquals(ZoomStage.TWO_DAY, afterSecond)
+        assertEquals(ZoomStage.TWO_DAY, stateManager.getZoomStage(testWidgetId))
 
         val afterThird = stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomStage.WIDE, afterThird)
@@ -68,9 +70,34 @@ class ZoomCycleRoboTest {
     }
 
     @Test
-    fun threeDayZoom_hasHistoryLeaningSpan() {
-        assertEquals(48L, ZoomStage.THREE_DAY.window().backHours)
-        assertEquals(24L, ZoomStage.THREE_DAY.window().forwardHours)
+    fun cycleZoom_isATwoStopToggle_whenDisabled() {
+        stateManager.setMultiDayZoomEnabled(false)
+
+        assertEquals(ZoomStage.NARROW, stateManager.cycleZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.WIDE, stateManager.cycleZoomLevel(testWidgetId))
+        assertEquals(ZoomStage.NARROW, stateManager.cycleZoomLevel(testWidgetId))
+    }
+
+    @Test
+    fun twoDayZoom_hasHistoryLeaningSpan() {
+        assertEquals(42L, ZoomStage.TWO_DAY.window().backHours)
+        assertEquals(6L, ZoomStage.TWO_DAY.window().forwardHours)
+        assertEquals(48L, ZoomStage.TWO_DAY.window().totalSpanHours)
+    }
+
+    @Test
+    fun widgetPersistedOnTwoDay_readsBackAsWide_whenDisabled() {
+        stateManager.setMultiDayZoomEnabled(true)
+        stateManager.setZoomLevel(testWidgetId, ZoomStage.TWO_DAY)
+        assertEquals(ZoomStage.TWO_DAY, stateManager.getZoomStage(testWidgetId))
+
+        stateManager.setMultiDayZoomEnabled(false)
+
+        assertEquals(
+            "disabling the 2-day stage must not strand a widget on an unreachable view",
+            ZoomStage.WIDE,
+            stateManager.getZoomStage(testWidgetId),
+        )
     }
 
     @Test
@@ -120,6 +147,7 @@ class ZoomCycleRoboTest {
 
     @Test
     fun handleCycleZoom_cyclesViaRouter() {
+        stateManager.setMultiDayZoomEnabled(true)
         assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
@@ -134,7 +162,7 @@ class ZoomCycleRoboTest {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
             } catch (_: Exception) {}
         }
-        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
+        assertEquals(ZoomStage.TWO_DAY, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
             try {
@@ -174,6 +202,7 @@ class ZoomCycleRoboTest {
 
     @Test
     fun handleCycleZoom_zoomOut_usesOffset() {
+        stateManager.setMultiDayZoomEnabled(true)
         stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
         stateManager.setHourlyOffset(testWidgetId, 9)
@@ -183,8 +212,8 @@ class ZoomCycleRoboTest {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 0)
             } catch (_: Exception) {}
         }
-        // Cycle from NARROW now advances to THREE_DAY (WIDE -> NARROW -> THREE_DAY -> WIDE).
-        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
+        // Cycle from NARROW now advances to TWO_DAY (WIDE -> NARROW -> TWO_DAY -> WIDE).
+        assertEquals(ZoomStage.TWO_DAY, stateManager.getZoomStage(testWidgetId))
         assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
     }
 
@@ -286,6 +315,7 @@ class ZoomCycleRoboTest {
 
     @Test
     fun zoneIntentRoundTrip_narrowZoomOut_usesOffsetExtra() {
+        stateManager.setMultiDayZoomEnabled(true)
         stateManager.cycleZoomLevel(testWidgetId)
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
@@ -305,9 +335,9 @@ class ZoomCycleRoboTest {
             } catch (_: Exception) {}
         }
 
-        // Cycle from NARROW now advances to THREE_DAY; the NARROW-zone offset extra (-3 at the
+        // Cycle from NARROW now advances to TWO_DAY; the NARROW-zone offset extra (-3 at the
         // default 5h span) is still applied.
-        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
+        assertEquals(ZoomStage.TWO_DAY, stateManager.getZoomStage(testWidgetId))
         assertEquals(-3, stateManager.getHourlyOffset(testWidgetId))
     }
 }

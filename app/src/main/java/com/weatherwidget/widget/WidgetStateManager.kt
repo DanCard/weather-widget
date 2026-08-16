@@ -64,7 +64,11 @@ class WidgetStateManager internal constructor(
         )
     }
     private val presentationStore by lazy {
-        WidgetPresentationStateStore(prefs, narrowSpanHours = { getNarrowZoomSpanHours() })
+        WidgetPresentationStateStore(
+            prefs,
+            narrowSpanHours = { getNarrowZoomSpanHours() },
+            multiDayZoomEnabled = { isMultiDayZoomEnabled() },
+        )
     }
     private val deltaStore by lazy {
         CurrentTemperatureDeltaStore(prefs)
@@ -115,6 +119,13 @@ class WidgetStateManager internal constructor(
 
     fun setNarrowZoomSpanHours(hours: Int) {
         displayPreferences.setHourlyNarrowSpanHours(hours)
+    }
+
+    /** Whether the tap cycle includes the multi-day [ZoomStage.TWO_DAY] stage. Off by default. */
+    fun isMultiDayZoomEnabled(): Boolean = displayPreferences.multiDayZoomEnabled()
+
+    fun setMultiDayZoomEnabled(value: Boolean) {
+        displayPreferences.setMultiDayZoomEnabled(value)
     }
 
     fun showTodayOverlayDelta(): Boolean = displayPreferences.showTodayOverlayDelta()

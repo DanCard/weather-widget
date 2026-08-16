@@ -16,7 +16,7 @@ import org.junit.experimental.categories.Category
  * `narrowZoomSpanHours` setting only shapes the factor a click stores when it lands on NARROW. So
  * changing the setting while viewing NARROW left the graph on the old span. The helper re-derives
  * `zoomFactor` from the new span, but only when the current factor is nearest to the NARROW stage —
- * WIDE and THREE_DAY must not move when the setting changes.
+ * WIDE and TWO_DAY must not move when the setting changes.
  */
 @Category(ShortDuration::class)
 class NarrowSpanResnapTest {
@@ -87,8 +87,8 @@ settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
     }
 
     @Test
-    fun `changing the span while viewing THREE_DAY leaves the zoom factor untouched`() {
-        val prev = config(zoomFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.THREE_DAY))
+    fun `changing the span while viewing TWO_DAY leaves the zoom factor untouched`() {
+        val prev = config(zoomFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.TWO_DAY))
         val next = prev.copy(settings = prev.settings.copy(narrowZoomSpanHours = 8))
 
         val result = resnapNarrowZoomAfterSpanChange(prev, next)
@@ -100,7 +100,7 @@ settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
     @Test
     fun `a wheel-zoom position nearest to NARROW also re-snaps`() {
         // A continuous position that is not exactly the old NARROW factor but whose nearest stage is
-        // NARROW (span 6 is closest to 5, far from WIDE's 24). The click cycle treats this as NARROW,
+        // NARROW (span 6 is closest to 5, far from WIDE's 18). The click cycle treats this as NARROW,
         // so the setting change must re-snap it too.
         val nearNarrowFactor = (0..1000)
             .map { it / 1000f }

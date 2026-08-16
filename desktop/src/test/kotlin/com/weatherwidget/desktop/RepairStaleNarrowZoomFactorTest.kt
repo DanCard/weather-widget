@@ -89,8 +89,8 @@ settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
     }
 
     @Test
-    fun `WIDE and THREE_DAY factors are left untouched`() {
-        listOf(ZoomStage.WIDE, ZoomStage.THREE_DAY).forEach { stage ->
+    fun `WIDE and TWO_DAY factors are left untouched`() {
+        listOf(ZoomStage.WIDE, ZoomStage.TWO_DAY).forEach { stage ->
             val c = config(
                 narrowZoomSpanHours = 8,
                 zoomFactor = DesktopGraphUtils.zoomFactorForStage(stage),

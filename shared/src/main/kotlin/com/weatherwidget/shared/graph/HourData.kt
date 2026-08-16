@@ -15,7 +15,7 @@ data class HourData(
     val isMixed: Boolean = false,
     val isCurrentHour: Boolean = false,
     val showLabel: Boolean = true, // Only at intervals
-    val isDateLabel: Boolean = false, // THREE_DAY date footer ("Tue 23") rather than a time-of-day label
+    val isDateLabel: Boolean = false, // Date-mode footer ("Tue 23") rather than a time-of-day label
     val isActual: Boolean = false,           // True when actualTemperature is available
     val actualTemperature: Float? = null,    // Observed actual temp (past hours only)
     val isObservedActual: Boolean = false,   // Backed by a real blended/observed point, not carry-forward filler

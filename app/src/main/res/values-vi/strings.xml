@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">Ưu tiên WeatherAPI - Phủ sóng toàn cầu</string>
     <string name="hourly_zoom_title">Thu phóng theo giờ</string>
     <string name="hourly_zoom_description">Số giờ mà biểu đồ theo giờ khi phóng to hiển thị. Chạm vào biểu đồ để chuyển mức thu phóng; mục này đặt mức hẹp nhất. Phạm vi rộng hơn sẽ cuộn xa hơn mỗi lần chạm.</string>
+    <string name="hourly_zoom_two_day_label">Bao gồm chế độ xem 2 ngày</string>
+    <string name="hourly_zoom_two_day_description">Thêm mức 48 giờ — 42 giờ trước, 6 giờ sau.</string>
     <string name="hourly_zoom_value">%1$d giờ</string>
     <string name="hourly_zoom_min">4 giờ</string>
     <string name="hourly_zoom_max">8 giờ</string>

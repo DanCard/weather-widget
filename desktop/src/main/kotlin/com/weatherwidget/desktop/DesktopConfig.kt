@@ -27,6 +27,10 @@ data class DesktopSettings(
     val apiKeys: Map<String, String> = emptyMap(),
     // Span (4..8h) of the tight NARROW zoom stage, matching Android's Settings → "Hourly Zoom".
     val narrowZoomSpanHours: Int = HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS,
+    // Whether the click-to-cycle includes the multi-day TWO_DAY stage (48h: 42 back, 6 forward).
+    // Off by default, matching Android. Gates the *cycle* only — the mouse wheel is continuous and
+    // still reaches multi-day spans regardless, which is why this cannot be a render-time gate.
+    val multiDayZoomEnabled: Boolean = false,
     // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
     // IDW blend. 0 = no discount; 100 = personal stations ignored.
     val personalStationDiscount: Int = 95,
@@ -56,6 +60,7 @@ data class DesktopSettings(
         add("visibleSources", visibleSources, other.visibleSources)
         add("apiKeys", apiKeys.keys.sorted(), other.apiKeys.keys.sorted())
         add("narrowZoomSpanHours", narrowZoomSpanHours, other.narrowZoomSpanHours)
+        add("multiDayZoomEnabled", multiDayZoomEnabled, other.multiDayZoomEnabled)
         add("personalStationDiscount", personalStationDiscount, other.personalStationDiscount)
         add("useCelsius", useCelsius, other.useCelsius)
         add("todayOverlayDelta", todayOverlayDelta, other.todayOverlayDelta)
@@ -230,7 +235,7 @@ class DesktopConfigStore(
         if (root.containsKey("settings")) return text
         val settingsKeys = setOf(
             "weatherSource", "visibleSources", "apiKeys", "narrowZoomSpanHours",
-            "personalStationDiscount", "useCelsius",
+            "multiDayZoomEnabled", "personalStationDiscount", "useCelsius",
             "todayOverlayDelta", "todayOverlayDominantTemp", "todayOverlayDominantAge",
         )
         val flatKeys = settingsKeys.filter { root.containsKey(it) }

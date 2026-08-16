@@ -122,16 +122,40 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `cycleZoomLevel advances NARROW to THREE_DAY then back to WIDE`() {
-        // 3-state cycle: WIDE -> NARROW -> THREE_DAY -> WIDE.
+    fun `cycleZoomLevel advances NARROW to TWO_DAY then back to WIDE when enabled`() {
+        stateManager.setMultiDayZoomEnabled(true)
+
+        // 3-state cycle: WIDE -> NARROW -> TWO_DAY -> WIDE.
         stateManager.cycleZoomLevel(testWidgetId) // -> NARROW
 
         val second = stateManager.cycleZoomLevel(testWidgetId)
-        assertEquals(ZoomStage.THREE_DAY, second)
-        assertEquals(ZoomStage.THREE_DAY, stateManager.getZoomStage(testWidgetId))
+        assertEquals(ZoomStage.TWO_DAY, second)
+        assertEquals(ZoomStage.TWO_DAY, stateManager.getZoomStage(testWidgetId))
 
         val third = stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomStage.WIDE, third)
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
+    }
+
+    @Test
+    fun `cycleZoomLevel toggles WIDE and NARROW when the 2-day setting is off`() {
+        stateManager.setMultiDayZoomEnabled(false)
+
+        stateManager.cycleZoomLevel(testWidgetId)
+        assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
+
+        stateManager.cycleZoomLevel(testWidgetId)
+        assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
+    }
+
+    @Test
+    fun `legacy THREE_DAY string decodes to WIDE`() {
+        // Persisted stage names are looked up by name. The old 72h stage no longer exists, so a
+        // widget still parked on that string must fall back to WIDE rather than throw or guess.
+        val prefs = ApplicationProvider.getApplicationContext<Context>()
+            .getSharedPreferences("test_widget_state_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("widget_zoom_level_$testWidgetId", "THREE_DAY").commit()
+
         assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
 
@@ -451,17 +475,18 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `span setting does not affect wide or three day zoom`() {
+    fun `span setting does not affect wide or two day zoom`() {
         val w = 74
         stateManager.setNarrowZoomSpanHours(8)
+        stateManager.setMultiDayZoomEnabled(true)
 
         stateManager.setZoomLevel(w, ZoomStage.WIDE)
         assertEquals(18L, stateManager.getZoomWindow(w).totalSpanHours)
         assertEquals(3, stateManager.getNavJump(w))
 
-        stateManager.setZoomLevel(w, ZoomStage.THREE_DAY)
-        assertEquals(72L, stateManager.getZoomWindow(w).totalSpanHours)
-        assertEquals(12, stateManager.getNavJump(w))
+        stateManager.setZoomLevel(w, ZoomStage.TWO_DAY)
+        assertEquals(48L, stateManager.getZoomWindow(w).totalSpanHours)
+        assertEquals(8, stateManager.getNavJump(w))
     }
 
     @Test

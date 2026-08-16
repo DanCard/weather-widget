@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">WeatherAPI\'yi tercih et - Küresel kapsama</string>
     <string name="hourly_zoom_title">Saatlik Yakınlaştırma</string>
     <string name="hourly_zoom_description">Yakınlaştırılmış saatlik grafiğin kaç saat gösterdiği. Yakınlaştırma düzeyleri arasında geçiş yapmak için grafiğe dokunun; bu, en dar düzeyi belirler. Daha geniş aralıklar her dokunuşta daha fazla kaydırır.</string>
+    <string name="hourly_zoom_two_day_label">2 günlük görünümü dahil et</string>
+    <string name="hourly_zoom_two_day_description">48 saatlik bir seviye ekler — 42 saat geriye, 6 saat ileriye.</string>
     <string name="hourly_zoom_value">%1$d saat</string>
     <string name="hourly_zoom_min">4 saat</string>
     <string name="hourly_zoom_max">8 saat</string>

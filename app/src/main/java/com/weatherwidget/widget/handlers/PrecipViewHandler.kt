@@ -541,9 +541,9 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         var hourIndex = 0
         val zoneId = ZoneId.systemDefault()
 
-        // At THREE_DAY zoom switch the footer to one date label per day ("Tue 23"), matching the
+        // On multi-day windows switch the footer to one date label per day ("Tue 23"), matching the
         // temperature graph (shared rule in HourlyGraphViewCommon.resolveHourLabel).
-        val dateMode = zoom.stage == com.weatherwidget.widget.ZoomStage.THREE_DAY
+        val dateMode = com.weatherwidget.shared.graph.HourlyZoomRules.isDateMode(zoom.totalSpanHours)
         val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
         // End-INCLUSIVE, same as the temperature graph's shared ActualTemperatureSeriesBuilder: an

@@ -421,6 +421,28 @@ class SettingsActivity : AppCompatActivity() {
                 repaintWidgets()
             }
         })
+
+        setupTwoDayZoomToggle()
+    }
+
+    /**
+     * The optional multi-day stop in the tap cycle. Grouped with the span slider because both shape
+     * the same cycle; see the layout comment in activity_settings.xml.
+     *
+     * Turning it off can strand a widget on a stage the cycle can no longer reach, so the repaint
+     * matters: it drives the read path through [ZoomStage.resolve], which coerces those widgets back
+     * to WIDE.
+     */
+    private fun setupTwoDayZoomToggle() {
+        val toggle = findViewById<androidx.appcompat.widget.SwitchCompat>(
+            R.id.hourly_zoom_two_day_switch,
+        )
+        toggle.isChecked = widgetStateManager.isMultiDayZoomEnabled()
+        toggle.setOnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setMultiDayZoomEnabled(isChecked)
+            Log.d("SETTINGS", "Hourly 2-day zoom stage enabled=$isChecked")
+            repaintWidgets()
+        }
     }
 
     private fun setupPersonalStationDiscount() {

@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">WeatherAPI を優先 - 全世界対応</string>
     <string name="hourly_zoom_title">時間別ズーム</string>
     <string name="hourly_zoom_description">拡大した時間別グラフに表示する時間数です。グラフをタップするとズームレベルが切り替わります。ここでは最も狭いレベルを設定します。範囲が広いほど、1タップあたりのスクロール量も大きくなります。</string>
+    <string name="hourly_zoom_two_day_label">2日表示を含める</string>
+    <string name="hourly_zoom_two_day_description">48時間レベルを追加します（42時間前、6時間先）。</string>
     <string name="hourly_zoom_value">%1$d時間</string>
     <string name="hourly_zoom_min">4時間</string>
     <string name="hourly_zoom_max">8時間</string>

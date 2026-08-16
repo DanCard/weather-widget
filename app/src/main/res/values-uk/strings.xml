@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">Перевага WeatherAPI - Глобальне покриття</string>
     <string name="hourly_zoom_title">Погодинний масштаб</string>
     <string name="hourly_zoom_description">Скільки годин показує збільшений погодинний графік. Торкніться графіка, щоб перемикати рівні масштабу; тут задається найвужчий. Ширші діапазони прокручуються далі за одне торкання.</string>
+    <string name="hourly_zoom_two_day_label">Включити вигляд на 2 дні</string>
+    <string name="hourly_zoom_two_day_description">Додає рівень 48 годин — 42 години назад і 6 годин уперед.</string>
     <string name="hourly_zoom_value">%1$d год</string>
     <string name="hourly_zoom_min">4 години</string>
     <string name="hourly_zoom_max">8 годин</string>

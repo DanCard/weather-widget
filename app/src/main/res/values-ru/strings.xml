@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">Предпочитать WeatherAPI - глобальное покрытие</string>
     <string name="hourly_zoom_title">Почасовой масштаб</string>
     <string name="hourly_zoom_description">Сколько часов показывает увеличенный почасовой график. Нажмите на график, чтобы переключить уровни масштаба; здесь задаётся самый узкий. Более широкие диапазоны прокручиваются дальше за одно нажатие.</string>
+    <string name="hourly_zoom_two_day_label">Включить вид на 2 дня</string>
+    <string name="hourly_zoom_two_day_description">Добавляет уровень 48 часов — 42 часа назад и 6 часов вперёд.</string>
     <string name="hourly_zoom_value">%1$d ч</string>
     <string name="hourly_zoom_min">4 часа</string>
     <string name="hourly_zoom_max">8 часов</string>

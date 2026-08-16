@@ -40,6 +40,8 @@
     <string name="api_prefer_weatherapi">Preferuj WeatherAPI - Zasięg globalny</string>
     <string name="hourly_zoom_title">Powiększenie godzinowe</string>
     <string name="hourly_zoom_description">Ile godzin pokazuje powiększony wykres godzinowy. Dotknij wykresu, aby przełączać poziomy powiększenia; to ustawia najwęższy z nich. Szersze zakresy przewijają się dalej przy każdym dotknięciu.</string>
+    <string name="hourly_zoom_two_day_label">Uwzględnij widok 2-dniowy</string>
+    <string name="hourly_zoom_two_day_description">Dodaje poziom 48 godzin — 42 godziny wstecz, 6 godzin naprzód.</string>
     <string name="hourly_zoom_value">%1$d godz.</string>
     <string name="hourly_zoom_min">4 godziny</string>
     <string name="hourly_zoom_max">8 godzin</string>
