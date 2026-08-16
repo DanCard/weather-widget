@@ -22,7 +22,7 @@ class ZoomStageTest {
 
     @Test
     fun `total span is back plus forward`() {
-        assertEquals(24L, ZoomStage.WIDE.window().totalSpanHours)
+        assertEquals(18L, ZoomStage.WIDE.window().totalSpanHours)
         assertEquals(5L, ZoomStage.NARROW.window().totalSpanHours)
         assertEquals(72L, ZoomStage.THREE_DAY.window().totalSpanHours)
     }
@@ -43,12 +43,12 @@ class ZoomStageTest {
 
     @Test
     fun `nearestByTotalSpan follows the configured narrow span`() {
-        // A 14h view sits between NARROW and WIDE(24). At a 4h narrow span WIDE is nearer (10 vs
-        // 14 away); widen NARROW to 8h and the gap flips (6 vs 10), so the same on-screen span now
+        // A 12h view sits between NARROW and WIDE(18). At a 4h narrow span WIDE is nearer (6 vs
+        // 8 away); widen NARROW to 8h and the gap flips (4 vs 6), so the same on-screen span now
         // snaps to a different stage. Desktop must therefore pass its configured span in, or a
         // click can cycle from a stage the user isn't looking at.
-        assertEquals(ZoomStage.WIDE, ZoomStage.nearestByTotalSpan(14, narrowSpanHours = 4))
-        assertEquals(ZoomStage.NARROW, ZoomStage.nearestByTotalSpan(14, narrowSpanHours = 8))
+        assertEquals(ZoomStage.WIDE, ZoomStage.nearestByTotalSpan(12, narrowSpanHours = 4))
+        assertEquals(ZoomStage.NARROW, ZoomStage.nearestByTotalSpan(12, narrowSpanHours = 8))
     }
 
     @Test

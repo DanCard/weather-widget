@@ -35,7 +35,7 @@ import java.util.Locale
 object DominantStationLabel {
 
     /**
-     * Show the label for windows up to this span. 25 h admits the WIDE view (24 h) and every NARROW
+     * Show the label for windows up to this span. 25 h admits the WIDE view (18 h) and every NARROW
      * span, and excludes the 3-day view (72 h) — where the observed line covers days and "the dominant
      * station right now" says nothing about most of what is on screen. Desktop's zoom is continuous
      * rather than staged, and the same span test retires the label there as it widens.

@@ -83,9 +83,10 @@ class HourlyZoomCenteringRoboTest {
             zoom = ZoomStage.WIDE.window(),
         )
 
-        // End hour is INCLUSIVE, so 24 hours of coverage are 25 marks; index 12 is still the center
-        // (offset 0 / 12p).
-        assertEquals(25, hours.size)
+        // End hour is INCLUSIVE, so 18 hours of coverage are 19 marks. WIDE is back-heavy (12 back /
+        // 6 forward), so the selected hour is at index 12 — the offset-0 mark, two thirds across the
+        // graph rather than in the middle of it.
+        assertEquals(19, hours.size)
         assertEquals("12p", hours[12].label)
     }
 

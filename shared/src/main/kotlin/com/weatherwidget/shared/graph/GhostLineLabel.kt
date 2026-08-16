@@ -20,7 +20,7 @@ import kotlin.math.roundToInt
  *   visible hour tick.
  * - **Visibility**: up-to-a-day views only, gated by [LABEL_MAX_SPAN_HOURS] (48 h — the point where
  *   the footer stops showing clock-hour ticks, which these labels read against). This covers the
- *   default WIDE view (24 h) and a day-click; it excludes the multi-day THREE_DAY view (72 h). The
+ *   default WIDE view (18 h) and a day-click; it excludes the multi-day THREE_DAY view (72 h). The
  *   caller additionally gates on the ghost line being drawn at all — the same [GhostLineGate] the
  *   line uses (now-indicator visible, meaningful delta, fetch dot present).
  * - **Placement**: hugs the line (small gap above, else below) and is drawn **only when clear** of
@@ -38,7 +38,7 @@ object GhostLineLabel {
      * footer's clock-hour ticks ("at 6 PM → 69.4°"), so they only read sensibly while the footer shows
      * clock hours rather than per-day date labels — which both platforms switch to around 48 h (desktop
      * `DesktopGraphUtils.DATE_LABEL_SPAN_THRESHOLD_HOURS`; Android's THREE_DAY date footer). This covers
-     * the **default WIDE view (24 h)** and a day-click (24 h) but excludes THREE_DAY (72 h), where a
+     * the **default WIDE view (18 h)** and a day-click (also WIDE) but excludes THREE_DAY (72 h), where a
      * compressed ghost line hour-anchored against dates would just be clutter.
      *
      * Deliberately larger than [MAX_HOURS_SPAN]: the ghost *line* is drawn on any NOW-visible view via

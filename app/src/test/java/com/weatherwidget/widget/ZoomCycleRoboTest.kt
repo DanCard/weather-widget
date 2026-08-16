@@ -227,7 +227,8 @@ class ZoomCycleRoboTest {
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        val expectedOffsets = listOf(-12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12)
+        // WIDE covers -12..+6 around the center across 13 zones, so the zones step 1.5h and round.
+        val expectedOffsets = listOf(-12, -10, -9, -7, -6, -4, -3, -1, 0, 2, 3, 5, 6)
 
         for (zoneIndex in 0 until HourlyTouchZoneMapper.HOUR_ZONE_COUNT) {
             stateManager.clearWidgetState(testWidgetId)

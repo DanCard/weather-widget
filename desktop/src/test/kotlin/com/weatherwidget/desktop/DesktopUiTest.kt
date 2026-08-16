@@ -804,7 +804,7 @@ currentCondition = "Sunny"),
     }
 
     @Test
-    fun testDayClickOpensFullDayWindow() {
+    fun testDayClickOpensWideWindowFromDayMidnight() {
         val now = java.time.LocalDateTime.of(2024, 6, 15, 10, 45)
         val clickedDate = java.time.LocalDate.of(2024, 6, 16)
         val wideZoom = DesktopGraphUtils.zoomFactorForStage(ZoomStage.WIDE)
@@ -830,8 +830,12 @@ currentCondition = "Sunny"),
         val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(
             now.plusHours(fromTightZoom.hourlyOffset.toLong()),
         )
-        assertEquals(clickedDate.atStartOfDay(), alignedCenter.minusHours(ZoomStage.WIDE.window().backHours))
-        assertEquals(clickedDate.plusDays(1).atStartOfDay(), alignedCenter.plusHours(ZoomStage.WIDE.window().forwardHours))
+        // The tap centers the clicked day's noon and keeps the WIDE window's 12-back/6-forward split
+        // (it used to be 12/12, which framed the day midnight->midnight). The left edge is still the
+        // day's midnight; the right edge is now 6pm, and the evening is one nav press away.
+        val wide = ZoomStage.WIDE.window()
+        assertEquals(clickedDate.atStartOfDay(), alignedCenter.minusHours(wide.backHours))
+        assertEquals(clickedDate.atTime(18, 0), alignedCenter.plusHours(wide.forwardHours))
     }
 
     /** Minimal [DesktopDailyDay] for routing tests; only icon + precip carry the decision. */

@@ -49,8 +49,12 @@ enum class ZoomStage {
     ): ZoomWindow = when (this) {
         WIDE -> ZoomWindow(
             stage = WIDE,
+            // 18h, deliberately back-heavy: 12h of history against 6h of forecast (2026-08-16; it
+            // was a symmetric 12/12 = 24h). The now-line therefore sits two thirds across the graph
+            // rather than in its middle — see HourlyTouchZoneMapper, whose zones follow the split.
+            // Same bias as THREE_DAY's 48/24 and desktop's "wider views lean into history" curve.
             backHours = 12,
-            forwardHours = 12,
+            forwardHours = 6,
             navJump = 6,
             labelInterval = 4,
             smoothIterations = 3,

@@ -250,7 +250,7 @@ class TemperatureViewHandlerActualsTest {
     }
 
     @Test
-    fun `WIDE zoom covers 24 hours`() {
+    fun `WIDE zoom covers 18 hours`() {
         val forecasts = wideForecasts()
         val wideHours = buildHourDataList(
             hourlyForecasts = forecasts,
@@ -274,7 +274,7 @@ class TemperatureViewHandlerActualsTest {
         // Marks, not hours: a window covering n hours runs start..start+n and so carries n+1 marks
         // (both edges belong to the view). This test previously asserted n and therefore passed on a
         // graph covering an hour less than its own name claims — see SharedNarrowSpanDisplayedHoursTest.
-        assertEquals("WIDE should cover exactly 24 hours (12h back + 12h forward)", 25, wideHours.size)
+        assertEquals("WIDE should cover exactly 18 hours (12h back + 6h forward)", 19, wideHours.size)
         assertEquals("NARROW should cover the default 5h span (3h back + 2h forward)", 6, narrowHours.size)
     }
 

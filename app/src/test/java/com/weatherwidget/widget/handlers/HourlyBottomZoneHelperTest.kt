@@ -127,7 +127,8 @@ class HourlyBottomZoneHelperTest {
         )
 
         assertEquals(ViewMode.CLOUD_COVER, action.targetView)
-        assertEquals(17, action.zoneCenterOffset)
+        // WIDE spans -12..+6 around the center, so zone 4 of 12 sits 6h before it: 21 - 6.
+        assertEquals(15, action.zoneCenterOffset)
     }
 
     @Test
@@ -141,6 +142,7 @@ class HourlyBottomZoneHelperTest {
         )
 
         assertNull(action.targetView)
-        assertEquals(25, action.zoneCenterOffset)
+        // Zone 8 is where WIDE's back-heavy window puts the center hour itself.
+        assertEquals(21, action.zoneCenterOffset)
     }
 }

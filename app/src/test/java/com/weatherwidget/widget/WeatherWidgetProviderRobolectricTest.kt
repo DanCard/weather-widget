@@ -87,10 +87,12 @@ class WeatherWidgetProviderRobolectricTest {
 
     @Test
     fun `zoneIndexToOffset maps edge zones correctly`() {
+        // WIDE spans -12..+6 around the center hour, so the zones straddle it asymmetrically:
+        // the left edge is the window's oldest hour, the right edge its newest.
         assertEquals(-12, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0))
-        assertEquals(12, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0))
-        assertEquals(0, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0))
-        assertEquals(-2, HourlyTouchZoneMapper.zoneIndexToOffset(5, 0))
+        assertEquals(6, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0))
+        assertEquals(-3, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0))
+        assertEquals(-4, HourlyTouchZoneMapper.zoneIndexToOffset(5, 0))
     }
 
     @Test

@@ -110,7 +110,9 @@ class CloudCoverViewHandlerTest {
             zoom = ZoomStage.WIDE.window(),
         )
 
-        assertEquals(0, offset)
+        // The middle zone is no longer the center hour: WIDE is back-heavy (12 back / 6 forward),
+        // so the center sits two thirds across and the middle zone is 3h behind it.
+        assertEquals(-3, offset)
     }
 
     @Test

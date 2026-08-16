@@ -40,7 +40,7 @@ object HourlyZoomRules {
      * The tight view normally labels every hour, which was fine at its old fixed 4h. A user-widened
      * span would keep that cadence and draw up to 8 `<hour><icon>` groups — roughly double what a
      * narrow widget fits: WIDE already thins itself to
-     * [HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL] there, budgeting ~4 labels across 24h. Every
+     * [HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL] there, budgeting ~4 labels across its span. Every
      * other hour from 6h up keeps this view inside the same budget. Wide widgets are unaffected and
      * keep labelling every hour.
      */

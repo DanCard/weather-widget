@@ -28,8 +28,9 @@ import org.junit.experimental.categories.Category
  * two disagree. At the **default** 5 h setting the graph rendered 3 back + 3 forward = 6 h, and at
  * 8 h it rendered 7 h.
  *
- * The desktop zoom is continuous, so this is the only stage that owes the user an exact number —
- * WIDE and THREE_DAY are just points on the curve and are deliberately not asserted here.
+ * This is the only stage whose span the user types in, so it is the only one that needs a scan.
+ * WIDE and THREE_DAY are fixed, so `forwardHoursFor` anchors its curve to them directly; their
+ * rendered windows are asserted in `DesktopGraphZoomTest`.
  */
 @Category(ShortDuration::class)
 class NarrowZoomSpanDisplayedHoursTest {

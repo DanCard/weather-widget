@@ -59,14 +59,63 @@ internal object DesktopGraphUtils {
     const val MAX_BACK_HOURS = 720   // 30 days of history at full zoom-out
     const val MIN_FORWARD_HOURS = 2
     const val MAX_FORWARD_HOURS = 168 // 7 days forward at full zoom-out
-    // Default lands ~12h back (the legacy WIDE span) so opening the popup feels unchanged. Derived
-    // from the geometric curve: z = ln(12 / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS / MIN_BACK_HOURS).
-    // Must be recomputed whenever MAX_BACK_HOURS changes, since that rescales the whole zoom curve.
+    // The default is the [ZoomStage.WIDE] window: 12h back / 6h forward, the same 18h the Android
+    // widget opens on. Derived from the back-hours curve, which is the one the stage factors invert
+    // against: z = ln(12 / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS / MIN_BACK_HOURS). Must be recomputed
+    // whenever MAX_BACK_HOURS changes, since that rescales the whole zoom curve.
     const val DEFAULT_ZOOM_FACTOR = 0.304f
 
     fun backHoursFor(zoomFactor: Float): Int = geomInterp(MIN_BACK_HOURS, MAX_BACK_HOURS, zoomFactor)
 
-    fun forwardHoursFor(zoomFactor: Float): Int = geomInterp(MIN_FORWARD_HOURS, MAX_FORWARD_HOURS, zoomFactor)
+    /**
+     * Forward hours for a zoom factor: geometric like [backHoursFor], but *piecewise*, pinned to the
+     * shared [ZoomStage] geometry at the stage factors (see [forwardAnchors]).
+     *
+     * A single geometric curve between [MIN_FORWARD_HOURS] and [MAX_FORWARD_HOURS] cannot do that —
+     * one factor drives both spans, so the forward half only agreed with a stage's window by luck.
+     * At the default factor it rendered 8h forward against WIDE's 6h, and 22h against THREE_DAY's
+     * 24h. Interpolating between anchors instead makes each stage exact on desktop, while the wheel
+     * keeps moving through the same monotone, order-of-magnitude range in between.
+     */
+    fun forwardHoursFor(zoomFactor: Float): Int {
+        val z = zoomFactor.coerceIn(0f, 1f)
+        val anchors = forwardAnchors
+        val upper = anchors.indexOfFirst { it.first >= z }.let { if (it <= 0) 1 else it }
+        val (z0, f0) = anchors[upper - 1]
+        val (z1, f1) = anchors[upper]
+        val t = (z - z0) / (z1 - z0)
+        return (f0 * (f1 / f0).pow(t)).roundToInt().coerceIn(MIN_FORWARD_HOURS, MAX_FORWARD_HOURS)
+    }
+
+    /**
+     * Control points `(zoomFactor, forwardHours)` for [forwardHoursFor], ascending in both, with
+     * geometric interpolation between neighbours. Held as un-rounded floats: only the rendered
+     * result rounds, so a fractional anchor keeps the neighbouring segments continuous.
+     *
+     * The endpoints are the curve's range. `WIDE` and `THREE_DAY` sit at the factor
+     * [zoomFactorForStage] maps them to, which is what makes desktop render those stages' exact
+     * forward spans.
+     *
+     * The remaining anchor is the ceiling of the configurable NARROW band (the factor whose back
+     * hours are NARROW-at-[HourlyZoomRules.MAX_NARROW_SPAN_HOURS]'s), and it sits on the *original*
+     * single-curve value rather than on a stage. Below it the curve is therefore unchanged, which
+     * matters: that plain curve already splits every 4–8h narrow span exactly the ceil/floor way
+     * [ZoomStage.window] does, and NARROW cannot be anchored the way the fixed stages are — its span
+     * moves at runtime, and pinning the widest one squeezed the 5h and 7h windows off the curve
+     * entirely. Above the ceiling there is no such constraint, so the bend toward WIDE lives there.
+     */
+    private val forwardAnchors: List<Pair<Float, Float>> by lazy {
+        val narrowCeiling = backHoursInverse(
+            ZoomStage.NARROW.window(HourlyZoomRules.MAX_NARROW_SPAN_HOURS).backHours,
+        )
+        val stages = listOf(ZoomStage.WIDE, ZoomStage.THREE_DAY)
+            .map { stage -> backHoursInverse(stage.window().backHours) to stage.window().forwardHours.toFloat() }
+            .sortedBy { it.first }
+        listOf(
+            0f to MIN_FORWARD_HOURS.toFloat(),
+            narrowCeiling to geomInterpRaw(MIN_FORWARD_HOURS, MAX_FORWARD_HOURS, narrowCeiling),
+        ) + stages + listOf(1f to MAX_FORWARD_HOURS.toFloat())
+    }
 
     /** Total visible span (back + forward) for a zoom factor. */
     fun totalSpanHoursFor(zoomFactor: Float): Int = backHoursFor(zoomFactor) + forwardHoursFor(zoomFactor)
@@ -82,17 +131,24 @@ internal object DesktopGraphUtils {
     fun navJumpHours(zoomFactor: Float): Int =
         HourlyZoomRules.navJumpHours(totalSpanHoursFor(zoomFactor))
 
-    private fun geomInterp(min: Int, max: Int, z: Float): Int {
-        val zc = z.coerceIn(0f, 1f)
-        return (min * (max.toFloat() / min).pow(zc)).roundToInt().coerceIn(min, max)
-    }
+    private fun geomInterp(min: Int, max: Int, z: Float): Int =
+        geomInterpRaw(min, max, z).roundToInt().coerceIn(min, max)
+
+    /** [geomInterp] before rounding, for anchors that must stay continuous with the curve. */
+    private fun geomInterpRaw(min: Int, max: Int, z: Float): Float =
+        min * (max.toFloat() / min).pow(z.coerceIn(0f, 1f))
+
+    /** The zoom factor whose [backHoursFor] is [backHours] — the inverse of the back-hours curve. */
+    private fun backHoursInverse(backHours: Long): Float =
+        (ln(backHours.toFloat() / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS.toFloat() / MIN_BACK_HOURS))
+            .coerceIn(0f, 1f)
 
     /**
      * The continuous [zoomFactor] that best reproduces a discrete [ZoomStage] — the inverse of the
      * back-hours [geomInterp]. Lets the desktop click snap onto a shared stage while the wheel keeps
-     * driving the factor continuously. We invert against *back* hours only: one factor can't satisfy
-     * both spans for the asymmetric THREE_DAY stage, and history-leaning back-span is what the stages
-     * are really about. WIDE→~0.30 (≈[DEFAULT_ZOOM_FACTOR]), THREE_DAY→~0.54; NARROW moves with
+     * driving the factor continuously. We invert against *back* hours only, and [forwardHoursFor]
+     * then anchors its own curve to these same factors so the forward half lands on the stage's span
+     * too. WIDE→~0.30 (≈[DEFAULT_ZOOM_FACTOR]), THREE_DAY→~0.54; NARROW moves with
      * [narrowSpanHours] (4h→0.0, the default 5h→~0.07, 8h→~0.12).
      *
      * [narrowSpanHours] must be the configured span, or a click can snap to a factor that renders a
@@ -110,12 +166,12 @@ internal object DesktopGraphUtils {
         // intended split by luck — at the default 5h setting the view rendered 3 back + 3 forward = 6h.
         // Scanning for a factor whose rendered back+forward equals the setting is the same technique
         // dayViewZoomFactor already uses, and it lands on the intended ceil/floor split for 4..8h.
+        // (WIDE/THREE_DAY get their exactness from forwardAnchors instead, which cannot be used for
+        // NARROW: its span moves at runtime, and an anchor per setting value would need this map.)
         if (stage == ZoomStage.NARROW) {
             return narrowZoomFactors.getValue(HourlyZoomRules.clampNarrowSpan(narrowSpanHours))
         }
-        val backHours = window.backHours.toFloat()
-        return (ln(backHours / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS.toFloat() / MIN_BACK_HOURS))
-            .coerceIn(0f, 1f)
+        return backHoursInverse(window.backHours)
     }
 
     /**
@@ -146,7 +202,7 @@ internal object DesktopGraphUtils {
      * `[start, end]` bounds are visible, so the asymmetric back/forward split is irrelevant: all that
      * matters is back + forward ≈ 24 and anchoring `center = startOfDay + back`. Computed from the
      * current curve (scanning z) rather than hardcoded, so a future rescale of MIN/MAX_BACK_HOURS
-     * keeps it correct. With today's constants this lands at z≈0.34 → back=15, forward=9 (sum 24).
+     * keeps it correct. With today's constants this lands at z≈0.35 → back=16, forward=8 (sum 24).
      */
     val dayViewZoomFactor: Float by lazy {
         (0..1000)

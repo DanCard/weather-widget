@@ -383,7 +383,7 @@ class WidgetStateManagerTest {
     @Test
     fun `ZoomWindow enum has correct parameters`() {
         assertEquals(12L, ZoomStage.WIDE.window().backHours)
-        assertEquals(12L, ZoomStage.WIDE.window().forwardHours)
+        assertEquals(6L, ZoomStage.WIDE.window().forwardHours)
         assertEquals(6, ZoomStage.WIDE.window().navJump)
         assertEquals(4, ZoomStage.WIDE.window().labelInterval)
         assertEquals(3, ZoomStage.WIDE.window().smoothIterations)
@@ -456,7 +456,7 @@ class WidgetStateManagerTest {
         stateManager.setNarrowZoomSpanHours(8)
 
         stateManager.setZoomLevel(w, ZoomStage.WIDE)
-        assertEquals(24L, stateManager.getZoomWindow(w).totalSpanHours)
+        assertEquals(18L, stateManager.getZoomWindow(w).totalSpanHours)
         assertEquals(6, stateManager.getNavJump(w))
 
         stateManager.setZoomLevel(w, ZoomStage.THREE_DAY)

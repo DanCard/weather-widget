@@ -328,6 +328,44 @@ class DesktopGraphZoomTest {
     }
 
     @Test
+    fun `stage factor reproduces the stage forward-hours too`() {
+        // forwardHoursFor is anchored to the stage windows, so a stage's factor renders the whole
+        // window and not just its history half. Before the anchors, WIDE's factor drew 8h forward
+        // against the stage's 6h and THREE_DAY's drew 22h against 24h.
+        for (stage in ZoomStage.entries) {
+            assertEquals(
+                "forward hours for $stage",
+                stage.window().forwardHours.toInt(),
+                DesktopGraphUtils.forwardHoursFor(DesktopGraphUtils.zoomFactorForStage(stage)),
+            )
+        }
+    }
+
+    @Test
+    fun `the default factor renders the WIDE window`() {
+        // What the popup opens on with a fresh config: the shared 18h WIDE window, 12h back / 6h
+        // forward, identical to the Android widget's default.
+        val wide = ZoomStage.WIDE.window()
+        assertEquals(wide.backHours.toInt(), DesktopGraphUtils.backHoursFor(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR))
+        assertEquals(wide.forwardHours.toInt(), DesktopGraphUtils.forwardHoursFor(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR))
+        assertEquals(18, DesktopGraphUtils.totalSpanHoursFor(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR))
+    }
+
+    @Test
+    fun `forward hours stay monotone across every anchor seam`() {
+        // The anchored curve has kinks at the stage factors; a fine sweep catches a seam that steps
+        // backwards (which would make a wheel notch shrink the forecast half of the view).
+        var prev = DesktopGraphUtils.forwardHoursFor(0f)
+        for (step in 0..1000) {
+            val z = step / 1000f
+            val forward = DesktopGraphUtils.forwardHoursFor(z)
+            assertTrue("forward should be non-decreasing at z=$z (was $prev, got $forward)", forward >= prev)
+            prev = forward
+        }
+        assertEquals(DesktopGraphUtils.MAX_FORWARD_HOURS, prev)
+    }
+
+    @Test
     fun `clicking from each stage factor advances exactly one stage`() {
         // Reproduces the Main onToggleZoom snap-then-next: nearest stage to the current span, then next().
         for (stage in ZoomStage.entries) {
