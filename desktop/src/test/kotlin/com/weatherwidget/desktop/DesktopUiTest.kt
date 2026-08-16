@@ -338,7 +338,7 @@ currentCondition = "Sunny"),
             )
         }
 
-        // The arrow shifts by half the visible span (zoom-proportional), not a fixed step.
+        // The arrow shifts by a sixth of the visible span (zoom-proportional), not a fixed step.
         val expectedJump = DesktopGraphUtils.navJumpHours(stubConfig.zoomFactor)
 
         composeTestRule.onNodeWithTag("hourly_nav_right").performClick()

@@ -27,11 +27,16 @@ object HourlyZoomRules {
      * [ZoomWindow.navJump] and desktop's continuous `DesktopGraphUtils.navJumpHours`.
      *
      * Tight views step 1 hour across the entire configurable NARROW range (up to [MAX_NARROW_SPAN_HOURS]).
-     * Above that it falls back to the half-span rule desktop's wide zooms have always used.
+     * Above that a press moves a **sixth of the visible span**, so five sixths of what you were
+     * looking at is still on screen afterwards. That fraction is not arbitrary: it reproduces both
+     * fixed stages' hand-picked jumps exactly — WIDE's 18h span steps 3h, THREE_DAY's 72h steps 12h —
+     * so the continuous desktop zoom interpolates between the same two points the staged Android
+     * widget lands on. It was a half-span before, which threw away half the view per press (a 9h jump
+     * on the 18h default) and disagreed with both stages.
      */
     fun navJumpHours(spanHours: Int): Int = when {
         spanHours <= MAX_NARROW_SPAN_HOURS -> 1
-        else -> (spanHours / 2).coerceAtLeast(1)
+        else -> (spanHours / 6).coerceAtLeast(1)
     }
 
     /**

@@ -137,7 +137,7 @@ class WidgetStateManagerTest {
 
     @Test
     fun `getNavJump returns zoom-appropriate value`() {
-        assertEquals(6, stateManager.getNavJump(testWidgetId))
+        assertEquals(3, stateManager.getNavJump(testWidgetId))
 
         stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(1, stateManager.getNavJump(testWidgetId))
@@ -384,7 +384,7 @@ class WidgetStateManagerTest {
     fun `ZoomWindow enum has correct parameters`() {
         assertEquals(12L, ZoomStage.WIDE.window().backHours)
         assertEquals(6L, ZoomStage.WIDE.window().forwardHours)
-        assertEquals(6, ZoomStage.WIDE.window().navJump)
+        assertEquals(3, ZoomStage.WIDE.window().navJump)
         assertEquals(4, ZoomStage.WIDE.window().labelInterval)
         assertEquals(3, ZoomStage.WIDE.window().smoothIterations)
 
@@ -457,7 +457,7 @@ class WidgetStateManagerTest {
 
         stateManager.setZoomLevel(w, ZoomStage.WIDE)
         assertEquals(18L, stateManager.getZoomWindow(w).totalSpanHours)
-        assertEquals(6, stateManager.getNavJump(w))
+        assertEquals(3, stateManager.getNavJump(w))
 
         stateManager.setZoomLevel(w, ZoomStage.THREE_DAY)
         assertEquals(72L, stateManager.getZoomWindow(w).totalSpanHours)

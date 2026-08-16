@@ -42,6 +42,19 @@ the 12/6 split around the now-line: the left edge is still that day's midnight, 
 `DAY_VIEW_SPAN_HOURS` still compute a 24h factor and remain the seam if a full-day tap is ever wanted
 back; they are used only by tests.
 
+## Follow-up: nav arrow step is 3h
+
+Scrolling back felt like too much at the narrower window. The arrow was stepping 6h on Android (the
+hardcoded `WIDE.navJump`, a third of the new span) and 9h on desktop (`HourlyZoomRules.navJumpHours`
+derived half-a-span). Both are now **3 hours**: `WIDE.navJump = 3`, and the above-the-narrow-band
+rule changed from `span / 2` to `span / 6`.
+
+A sixth is the fraction that makes the continuous desktop rule reproduce both fixed stages' own
+jumps — 18/6 = 3 (WIDE) and 72/6 = 12 (THREE_DAY) — so the platforms genuinely agree at every span
+now, which the desktop doc had been claiming without it being true at WIDE. The band edge stays
+continuous: spans 9–11 land back on 1h, same as the narrow band. Full zoom-out (888h) steps 148h
+instead of 444h.
+
 ## Tests
 
 All green: 1933 Android unit tests, 267 desktop, 826 shared. Twelve tests had 12/12 or 24h baked in;

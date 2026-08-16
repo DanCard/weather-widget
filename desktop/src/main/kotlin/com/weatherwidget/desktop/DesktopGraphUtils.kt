@@ -123,7 +123,8 @@ internal object DesktopGraphUtils {
     /**
      * How many hours a left/right nav-arrow press shifts the view. Delegates to the shared
      * [HourlyZoomRules.navJumpHours] so desktop and the Android widget step identically at a given
-     * span: 1h through 5h, 2h through 8h, half-a-span above that.
+     * span: 1h through the 8h narrow band, a sixth of the span above it (3h at the 18h default,
+     * 12h at THREE_DAY — both equal to the fixed stages' own navJump).
      *
      * A fixed step overshoots badly when zoomed in (a 6h jump on a ~4h tight view skips past
      * everything you were looking at); scaling with the span keeps the prior window in frame.

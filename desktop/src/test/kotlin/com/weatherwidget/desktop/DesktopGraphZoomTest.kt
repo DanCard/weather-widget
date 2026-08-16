@@ -123,13 +123,13 @@ class DesktopGraphZoomTest {
     }
 
     @Test
-    fun `nav jump is half the visible span and scales with zoom`() {
+    fun `nav jump is a sixth of the visible span and scales with zoom`() {
         var z = 0f
         while (z <= 1f) {
             val span = DesktopGraphUtils.totalSpanHoursFor(z)
             // Delegates to the shared rule now, so desktop and the Android widget step identically
-            // at a given span: 1h through 8h (the configurable NARROW band), then
-            // the long-standing half-a-span above that.
+            // at a given span: 1h through 8h (the configurable NARROW band), then a sixth of the
+            // span above that.
             val expected = HourlyZoomRules.navJumpHours(span)
             assertEquals("jump should follow the shared rule at z=$z", expected, DesktopGraphUtils.navJumpHours(z))
             z += 0.1f

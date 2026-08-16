@@ -55,7 +55,9 @@ enum class ZoomStage {
             // Same bias as THREE_DAY's 48/24 and desktop's "wider views lean into history" curve.
             backHours = 12,
             forwardHours = 6,
-            navJump = 6,
+            // A sixth of the span, like THREE_DAY's 12h of 72h — see HourlyZoomRules.navJumpHours,
+            // which desktop's continuous zoom reads. 6h (a third of the narrower window) overshot.
+            navJump = 3,
             labelInterval = 4,
             smoothIterations = 3,
         )

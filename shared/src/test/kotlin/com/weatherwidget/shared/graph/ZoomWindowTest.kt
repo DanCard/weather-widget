@@ -71,7 +71,7 @@ class ZoomWindowTest {
             assertEquals(12L, wide.backHours)
             assertEquals(6L, wide.forwardHours)
             assertEquals(18L, wide.totalSpanHours)
-            assertEquals(6, wide.navJump)
+            assertEquals(3, wide.navJump)
             assertEquals(4, wide.labelInterval)
             assertEquals(3, wide.smoothIterations)
 
@@ -85,18 +85,20 @@ class ZoomWindowTest {
     }
 
     @Test
-    fun `nav jump falls back to half-a-span above the narrow range`() {
-        // Desktop's continuous zoom reaches spans the NARROW setting never produces; those keep the
-        // long-standing half-span rule. Spans up to 8h step 1h; 9h->4 step is half span.
+    fun `nav jump is a sixth of a span above the narrow range`() {
+        // Desktop's continuous zoom reaches spans the NARROW setting never produces; those step a
+        // sixth of the span. Spans up to 8h step 1h, and so does anything under 12h once the
+        // fraction is applied. The two fixed stages fall out of the same rule: 18h->3h, 72h->12h.
         assertEquals(1, HourlyZoomRules.navJumpHours(8))
-        assertEquals(4, HourlyZoomRules.navJumpHours(9))
-        assertEquals(12, HourlyZoomRules.navJumpHours(24))
-        assertEquals(36, HourlyZoomRules.navJumpHours(72))
+        assertEquals(1, HourlyZoomRules.navJumpHours(9))
+        assertEquals(3, HourlyZoomRules.navJumpHours(18))
+        assertEquals(4, HourlyZoomRules.navJumpHours(24))
+        assertEquals(12, HourlyZoomRules.navJumpHours(72))
     }
 
     @Test
     fun `narrow widgets thin the tight-view footer labels once the span passes 6h`() {
-        // A narrow (2-3 column) widget budgets ~4 footer labels: WIDE thins 24h to every 6h there.
+        // A narrow (2-3 column) widget budgets ~4 footer labels: WIDE thins its span to every 6h there.
         // Labelling every hour of a widened tight view would draw up to 8 and crowd them.
         assertEquals(1, HourlyZoomRules.narrowWidgetLabelInterval(4))
         assertEquals(1, HourlyZoomRules.narrowWidgetLabelInterval(5))
@@ -119,6 +121,6 @@ class ZoomWindowTest {
     @Test
     fun `compact toString keeps zoom logs one token`() {
         assertEquals("NARROW(-3/+2 jump=1)", ZoomStage.NARROW.window(5).toString())
-        assertEquals("WIDE(-12/+6 jump=6)", ZoomStage.WIDE.window().toString())
+        assertEquals("WIDE(-12/+6 jump=3)", ZoomStage.WIDE.window().toString())
     }
 }

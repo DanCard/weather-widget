@@ -190,7 +190,7 @@ class ZoomCycleRoboTest {
 
     @Test
     fun navJump_scalesWithZoom() {
-        assertEquals(6, stateManager.getNavJump(testWidgetId))
+        assertEquals(3, stateManager.getNavJump(testWidgetId))
 
         stateManager.cycleZoomLevel(testWidgetId)
 
@@ -202,7 +202,7 @@ class ZoomCycleRoboTest {
         stateManager.setHourlyOffset(testWidgetId, 0)
 
         stateManager.navigateHourlyRight(testWidgetId)
-        assertEquals(6, stateManager.getHourlyOffset(testWidgetId))
+        assertEquals(3, stateManager.getHourlyOffset(testWidgetId))
 
         stateManager.setHourlyOffset(testWidgetId, 0)
         stateManager.cycleZoomLevel(testWidgetId)
