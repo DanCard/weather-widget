@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">Yakındaki istasyonlardan gerçek zamanlı veriler</string>
     <string name="obs_subtitle_none_found">%1$s için yeni gözlem bulunamadı.</string>
     <string name="obs_subtitle_latest_reading">%1$s kaynağından son okuma</string>
+    <string name="obs_subtitle_stale">%1$s için yeni gözlem yok — en son veri gösteriliyor, %2$s önce.</string>
     <string name="obs_no_location_to_refresh">Yenilenecek konum yok</string>
     <string name="obs_refreshed_source">%1$s yenilendi</string>
     <string name="obs_reported_prefix">"Bildirildi "</string>

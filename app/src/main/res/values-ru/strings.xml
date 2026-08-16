@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">Данные ближайших станций в реальном времени</string>
     <string name="obs_subtitle_none_found">Свежих наблюдений для %1$s не найдено.</string>
     <string name="obs_subtitle_latest_reading">Последнее измерение от %1$s</string>
+    <string name="obs_subtitle_stale">Свежих наблюдений для %1$s нет — показано последнее, %2$s назад.</string>
     <string name="obs_no_location_to_refresh">Нет местоположения для обновления</string>
     <string name="obs_refreshed_source">Обновлено: %1$s</string>
     <string name="obs_reported_prefix">"Передано "</string>

@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">주변 관측소의 실시간 데이터</string>
     <string name="obs_subtitle_none_found">%1$s의 최근 관측 데이터를 찾지 못했습니다.</string>
     <string name="obs_subtitle_latest_reading">%1$s의 최신 측정값</string>
+    <string name="obs_subtitle_stale">%1$s의 최근 관측 데이터가 없습니다 — %2$s 전의 최신 데이터를 표시합니다.</string>
     <string name="obs_no_location_to_refresh">새로고침할 위치가 없습니다</string>
     <string name="obs_refreshed_source">%1$s 새로고침됨</string>
     <string name="obs_reported_prefix">"보고 "</string>

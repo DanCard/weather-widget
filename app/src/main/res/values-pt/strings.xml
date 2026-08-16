@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">Dados em tempo real de estações próximas</string>
     <string name="obs_subtitle_none_found">Nenhuma observação recente encontrada para %1$s.</string>
     <string name="obs_subtitle_latest_reading">Última leitura de %1$s</string>
+    <string name="obs_subtitle_stale">Sem observações recentes de %1$s — mostrando a última, há %2$s.</string>
     <string name="obs_no_location_to_refresh">Nenhuma localização disponível para atualizar</string>
     <string name="obs_refreshed_source">%1$s atualizado</string>
     <string name="obs_reported_prefix">"Reportado "</string>

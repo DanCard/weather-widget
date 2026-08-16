@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">بيانات فورية من المحطات القريبة</string>
     <string name="obs_subtitle_none_found">لم يُعثر على أرصاد حديثة لـ %1$s.</string>
     <string name="obs_subtitle_latest_reading">آخر قراءة من %1$s</string>
+    <string name="obs_subtitle_stale">لا توجد أرصاد حديثة لـ %1$s — يتم عرض الأحدث، قبل %2$s.</string>
     <string name="obs_no_location_to_refresh">لا يوجد موقع متاح للتحديث</string>
     <string name="obs_refreshed_source">تم تحديث %1$s</string>
     <string name="obs_reported_prefix">"أُبلغ "</string>

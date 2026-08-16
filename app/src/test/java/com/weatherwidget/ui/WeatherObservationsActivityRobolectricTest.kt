@@ -624,6 +624,123 @@ class WeatherObservationsActivityRobolectricTest {
         }
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Location scoping. Regression guards for the 2026-08-15 Samsung Fold incident: the screen showed
+    // "No recent observations found for NWS" through eleven automatic reloads while five NWS stations
+    // sat in the DB. See plans/260815-observations-empty-list-stale-location-scope-opus.md.
+    // ---------------------------------------------------------------------------------------------
+
+    /** A ~0.8 km GPS excursion from the seeded site: outside sameSite, well inside the query box. */
+    private val excursionLat = lat - 0.006
+    private val excursionLon = lon - 0.006
+
+    @Test
+    fun `an excursion fragment holding only synthetic rows does not empty the stations list`() {
+        // The excursion site received only the `<SOURCE>_MAIN` backfill rows — no NWS station pull
+        // ever ran there — so collapsing onto it purely because it is nearest leaves the NWS filter
+        // with nothing to show.
+        runBlocking {
+            database.observationDao().insertAll(
+                listOf(
+                    observationAt("OPEN_METEO_MAIN", "OM: Current", now, 66.9f, excursionLat, excursionLon),
+                    observationAt("SILURIAN_MAIN", "Silurian: Current", now, 67.7f, excursionLat, excursionLon),
+                    observationAt("TOMORROW_IO_MAIN", "Tmrw: Current", now, 69.1f, excursionLat, excursionLon),
+                ),
+            )
+        }
+        moveWidgetTo(excursionLat, excursionLon)
+
+        launchActivity().onActivity { activity ->
+            assertEquals(
+                "The real site's stations must win over a nearer fragment that has none",
+                listOf("AW020", "KNUQ"),
+                adapterOf(activity).items.map { it.stationId },
+            )
+            assertNotEquals(
+                context.getString(R.string.obs_subtitle_none_found, WeatherSource.NWS.displayName),
+                activity.findViewById<TextView>(R.id.subtitle).text.toString(),
+            )
+        }
+    }
+
+    @Test
+    fun `the list re-scopes when the location changes while the activity is alive`() {
+        // The activity used to resolve its location once in onCreate, so a device that moved mid-session
+        // kept querying the coordinate it had left until the activity was recreated.
+        val movedLat = lat + 0.083 // still inside the ±0.1° query box, a different site
+        val movedLon = lon
+        runBlocking {
+            database.observationDao().insertAll(
+                listOf(observationAt("KHWD", "Hayward Executive", now, 64.0f, movedLat, movedLon)),
+            )
+        }
+
+        val scenario = launchActivity()
+        scenario.onActivity { activity ->
+            assertEquals(listOf("AW020", "KNUQ"), adapterOf(activity).items.map { it.stationId })
+        }
+
+        moveWidgetTo(movedLat, movedLon)
+
+        scenario.onActivity { activity ->
+            activity.loadObservations()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(
+                "A reload after the device moved must query the new coordinate",
+                listOf("KHWD"),
+                adapterOf(activity).items.map { it.stationId },
+            )
+        }
+    }
+
+    @Test
+    fun `an empty 24h window falls back to older rows and says how old they are`() {
+        // Far enough that nothing already seeded is inside the query box: this site's only rows are
+        // three days old, so the recent window is genuinely empty.
+        val remoteLat = 38.0
+        val remoteLon = -122.9
+        val threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000L
+        runBlocking {
+            database.observationDao().insertAll(
+                listOf(observationAt("KAPC", "Napa County", threeDaysAgo, 58.0f, remoteLat, remoteLon)),
+            )
+        }
+        moveWidgetTo(remoteLat, remoteLon)
+
+        launchActivity().onActivity { activity ->
+            assertEquals(
+                "Older rows beat a blank list — reaching further back in the DB is free",
+                listOf("KAPC"),
+                adapterOf(activity).items.map { it.stationId },
+            )
+            assertEquals(
+                context.getString(R.string.obs_subtitle_stale, WeatherSource.NWS.displayName, "3d"),
+                activity.findViewById<TextView>(R.id.subtitle).text.toString(),
+            )
+        }
+    }
+
+    private fun adapterOf(activity: WeatherObservationsActivity) =
+        activity.findViewById<RecyclerView>(R.id.observations_list).adapter
+            as WeatherObservationsActivity.ObservationAdapter
+
+    private fun moveWidgetTo(newLat: Double, newLon: Double) {
+        SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME).edit()
+            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", newLat.toFloat())
+            .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", newLon.toFloat())
+            .commit()
+    }
+
+    private fun observationAt(
+        stationId: String,
+        stationName: String,
+        timestamp: Long,
+        temperature: Float,
+        locationLat: Double,
+        locationLon: Double,
+    ): ObservationEntity = observation(stationId, stationName, timestamp, temperature, 0f)
+        .copy(locationLat = locationLat, locationLon = locationLon)
+
     private fun launchActivity(): ActivityScenario<WeatherObservationsActivity> {
         val intent =
             Intent(context, WeatherObservationsActivity::class.java).apply {

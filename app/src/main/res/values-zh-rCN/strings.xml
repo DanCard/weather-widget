@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">来自附近气象站的实时数据</string>
     <string name="obs_subtitle_none_found">未找到 %1$s 的最新观测数据。</string>
     <string name="obs_subtitle_latest_reading">来自 %1$s 的最新读数</string>
+    <string name="obs_subtitle_stale">没有 %1$s 的最新观测数据 — 显示 %2$s 前的最后一条。</string>
     <string name="obs_no_location_to_refresh">没有可刷新的位置</string>
     <string name="obs_refreshed_source">已刷新 %1$s</string>
     <string name="obs_reported_prefix">"报告于 "</string>

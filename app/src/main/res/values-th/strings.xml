@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">ข้อมูลเรียลไทม์จากสถานีใกล้เคียง</string>
     <string name="obs_subtitle_none_found">ไม่พบการตรวจวัดล่าสุดของ %1$s</string>
     <string name="obs_subtitle_latest_reading">ค่าล่าสุดจาก %1$s</string>
+    <string name="obs_subtitle_stale">ไม่มีการตรวจวัดล่าสุดของ %1$s — แสดงค่าล่าสุดเมื่อ %2$s ที่แล้ว</string>
     <string name="obs_no_location_to_refresh">ไม่มีตำแหน่งให้รีเฟรช</string>
     <string name="obs_refreshed_source">รีเฟรช %1$s แล้ว</string>
     <string name="obs_reported_prefix">"รายงานเมื่อ "</string>

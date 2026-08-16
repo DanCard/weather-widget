@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">قریبی اسٹیشنوں سے حقیقی وقت کا ڈیٹا</string>
     <string name="obs_subtitle_none_found">%1$s کے لیے کوئی حالیہ مشاہدات نہیں ملے۔</string>
     <string name="obs_subtitle_latest_reading">%1$s سے تازہ ترین ریڈنگ</string>
+    <string name="obs_subtitle_stale">%1$s کے لیے کوئی حالیہ مشاہدات نہیں — %2$s پہلے کا تازہ ترین دکھایا جا رہا ہے۔</string>
     <string name="obs_no_location_to_refresh">ریفریش کے لیے کوئی مقام دستیاب نہیں</string>
     <string name="obs_refreshed_source">%1$s ریفریش ہو گیا</string>
     <string name="obs_reported_prefix">"رپورٹ شدہ "</string>

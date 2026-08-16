@@ -92,6 +92,47 @@ object LocationMatch {
     }
 
     /**
+     * [selectNearestSite], except that a site holding nothing the caller can use does not get to win.
+     *
+     * Sites are still ranked purely by distance; this only skips past the ones where every row fails
+     * [isUsable], returning the rows of the nearest site that has at least one. When no site
+     * qualifies the plain [selectNearestSite] result is returned, so a caller with genuinely no
+     * usable data sees its nearest site's rows (or nothing) rather than a distant site's.
+     *
+     * Why the extra rule exists: distance alone once emptied the Current Observations screen for a
+     * whole activity lifetime. A ~0.8 km GPS excursion created a second fragment inside the ±
+     * [TOLERANCE_DEG] box that had only ever received the synthetic `<SOURCE>_MAIN` backfill rows —
+     * no NWS station pull ever ran there — so it won on distance, and the NWS filter downstream
+     * removed every row it returned. The user's real site, five stations and 300+ rows, sat 0.01°
+     * away and was discarded. A fragment that cannot answer the question being asked is not the
+     * better answer for being closer.
+     *
+     * [isUsable] must be the *same* predicate the caller applies after this returns; passing a
+     * looser one re-opens the hole (the site is chosen for rows that then get filtered out).
+     */
+    fun <T> selectNearestSiteWith(
+        rows: List<T>,
+        lat: Double,
+        lon: Double,
+        latOf: (T) -> Double,
+        lonOf: (T) -> Double,
+        isUsable: (T) -> Boolean,
+    ): List<T> {
+        val sitesByDistance = rows.asSequence()
+            .map { latOf(it) to lonOf(it) }
+            .distinct()
+            // Stable sort, so equidistant sites resolve in row order exactly as selectNearestSite's
+            // minByOrNull would have picked them.
+            .sortedBy { (rowLat, rowLon) -> abs(rowLat - lat) + abs(rowLon - lon) }
+
+        sitesByDistance.forEach { (siteLat, siteLon) ->
+            val atSite = rows.filter { sameSite(latOf(it), lonOf(it), siteLat, siteLon) }
+            if (atSite.any(isUsable)) return atSite
+        }
+        return selectNearestSite(rows, lat, lon, latOf, lonOf)
+    }
+
+    /**
      * Decimal places lat/lon are rounded to before being written into a location-keyed table's
      * primary key. 3 dp ≈ 111 m — coarse enough that geocoding/GPS jitter (observed on-device up to
      * ~0.0001°, i.e. the 4th decimal) collapses onto a single key so `INSERT … ON CONFLICT REPLACE`

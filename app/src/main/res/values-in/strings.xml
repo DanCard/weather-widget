@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">Data waktu nyata dari stasiun terdekat</string>
     <string name="obs_subtitle_none_found">Tidak ditemukan observasi terbaru untuk %1$s.</string>
     <string name="obs_subtitle_latest_reading">Pembacaan terbaru dari %1$s</string>
+    <string name="obs_subtitle_stale">Tidak ada observasi terbaru untuk %1$s — menampilkan yang terakhir, %2$s lalu.</string>
     <string name="obs_no_location_to_refresh">Tidak ada lokasi untuk disegarkan</string>
     <string name="obs_refreshed_source">%1$s disegarkan</string>
     <string name="obs_reported_prefix">"Dilaporkan "</string>

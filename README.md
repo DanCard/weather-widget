@@ -2,11 +2,11 @@
 
 [![Get it on Google Play](https://img.shields.io/badge/Google%20Play-Weather%20Analyzer%20Widget-414141?logo=googleplay)](https://play.google.com/store/apps/details?id=com.weatherwidget)
 
-An elegant and functional Android weather widget application.
+Android and Linux weather widget.  Graphs daily , hourly forecast for temperature, cloud cover and rain.
 
 ## Overview
 
-This project is a modern Android weather widget application. It provides real-time weather updates and forecasts right on your device's home screen.
+Provides real-time weather updates and forecasts right on your home screen.
 
 It also includes a **Linux desktop companion** (Compose for Desktop) that shares the same weather layer and adds a system-tray temperature readout, a forecast-accuracy database, and an optional clock-sized panel readout via XFCE's Generic Monitor (genmon). See [Desktop App (Linux)](#desktop-app-linux).
 

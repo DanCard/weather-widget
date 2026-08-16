@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">近くの観測所からのリアルタイムデータ</string>
     <string name="obs_subtitle_none_found">%1$s の最近の観測データは見つかりませんでした。</string>
     <string name="obs_subtitle_latest_reading">%1$s からの最新の測定値</string>
+    <string name="obs_subtitle_stale">%1$s の最近の観測データはありません — %2$s前の最新データを表示しています。</string>
     <string name="obs_no_location_to_refresh">更新できる位置がありません</string>
     <string name="obs_refreshed_source">%1$s を更新しました</string>
     <string name="obs_reported_prefix">"観測 "</string>

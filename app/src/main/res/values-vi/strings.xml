@@ -250,6 +250,7 @@
     <string name="obs_subtitle_nearby_stations">Dữ liệu thời gian thực từ các trạm lân cận</string>
     <string name="obs_subtitle_none_found">Không tìm thấy quan trắc gần đây cho %1$s.</string>
     <string name="obs_subtitle_latest_reading">Số liệu mới nhất từ %1$s</string>
+    <string name="obs_subtitle_stale">Không có quan trắc gần đây cho %1$s — hiển thị số liệu mới nhất, %2$s trước.</string>
     <string name="obs_no_location_to_refresh">Không có vị trí để làm mới</string>
     <string name="obs_refreshed_source">Đã làm mới %1$s</string>
     <string name="obs_reported_prefix">"Báo lúc "</string>
