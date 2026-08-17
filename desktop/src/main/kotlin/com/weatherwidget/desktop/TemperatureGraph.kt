@@ -439,9 +439,11 @@ fun TemperatureGraph(
         val markerX = xAtTime(now)
 
         // NOW Indicator - Line (drawn early so it's behind labels; shared helper).
-        if (now in windowStart..windowEnd) {
+        if (nowInWindow) {
             drawNowLine(markerX, top, graphHeight, scale)
         }
+        // Same line as a collision rect, so the free-floating labels below are not drawn across it.
+        val nowLineVeto = nowLineVetoBounds(markerX.takeIf { nowInWindow }, top, graphHeight, scale)
 
         // Peak labels (Hi / Lo / Now) anchored to forecast extremes
         val highIdx = forecastTemps.indexOf(fMax)
@@ -764,6 +766,7 @@ fun TemperatureGraph(
                 metrics = metrics,
                 padPx = 6f * scale,
                 useCelsius = useCelsius,
+                vetoBounds = nowLineVeto,
             )
             if (placement != null) {
                 val layout = textMeasurer.measure(deltaText, deltaStyle.copy(color = Color(placement.colorArgb)))
@@ -845,6 +848,7 @@ fun TemperatureGraph(
                 curveYsAt = ::visibleCurveYsAt,
                 metrics = dominantMetrics,
                 padPx = dominantPadPx,
+                vetoBounds = nowLineVeto,
             )
             if (placement != null) {
                 dominantPlacedBox = placement.box

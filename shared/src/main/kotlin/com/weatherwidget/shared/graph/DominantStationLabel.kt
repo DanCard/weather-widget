@@ -54,8 +54,15 @@ object DominantStationLabel {
      * label width, so on a clear plot the label resolves to its minimum 2dp inset against the left
      * edge instead of floating at 22% — the finder falls through to 0.22f/0.78f only when the left
      * band is blocked by the observed line.
+     *
+     * The trailing 0.92f is the right-edge mirror of that lead anchor, and like it clamps to the
+     * minimum inset for any realistic width. It exists because the NOW indicator splits the plot: with
+     * NOW two thirds across, 0.78f centres the label ON the line, and clearing it needs a box pushed
+     * hard against the right edge. Deliberately last of the edge anchors — hugging an edge is a
+     * fallback, not a preference — but ahead of the interior anchors, which on a NOW-split plot are
+     * all worse.
      */
-    val X_FRACTIONS = listOf(0.08f, 0.22f, 0.78f, 0.35f, 0.65f, 0.5f)
+    val X_FRACTIONS = listOf(0.08f, 0.22f, 0.78f, 0.92f, 0.35f, 0.65f, 0.5f)
 
     /**
      * A placed label, in both coordinate conventions: [centerX] + [baselineY] for a center-aligned
@@ -202,7 +209,8 @@ object DominantStationLabel {
      * inline. [plot] is the curve-drawing area (exclude the footer). [drawnBounds] are obstacles already
      * on the canvas. [curveYsAt] returns the y of every line drawn at a given x — see
      * [GraphEmptySpaceFinder.find] for why that must be plural. [padPx] is the minimum clearance kept on
-     * all sides.
+     * all sides. [vetoBounds] are draw-over-nothing obstacles that exert no repulsion — the NOW
+     * indicator line; see [GraphEmptySpaceFinder.find].
      */
     fun place(
         text: String?,
@@ -213,6 +221,7 @@ object DominantStationLabel {
         metrics: GraphEmptySpaceFinder.Metrics,
         padPx: Float,
         maxSpanHours: Long = MAX_HOURS_SPAN,
+        vetoBounds: List<GraphRect> = emptyList(),
     ): Placement? {
         if (spanHours > maxSpanHours) return null
         if (text.isNullOrBlank()) return null
@@ -225,6 +234,7 @@ object DominantStationLabel {
                 metrics = metrics,
                 padPx = padPx,
                 xFractions = X_FRACTIONS,
+                vetoBounds = vetoBounds,
             ) ?: return null
 
         return Placement(

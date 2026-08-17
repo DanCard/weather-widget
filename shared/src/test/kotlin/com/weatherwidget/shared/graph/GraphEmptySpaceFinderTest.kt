@@ -19,6 +19,16 @@ class GraphEmptySpaceFinderTest {
     private val plot = GraphRect(0f, 0f, 400f, 200f)
     private val metrics = GraphEmptySpaceFinder.Metrics(width = 60f, ascent = -10f, descent = 3f)
 
+    /**
+     * Height 21 == box height 13 + 2 * pad 4, so exactly one candidate band (top 4, bottom 17) exists
+     * per anchor. Without this the two-pass tests pass for the wrong reason: a tall plot lets a crowded
+     * anchor simply drop to its empty bottom band, and the search never has to move sideways.
+     */
+    private val SINGLE_BAND_PLOT = GraphRect(0f, 0f, 400f, 21f)
+
+    /** Curve 6px under the only band at anchor 0.25 (legal, over the 4px pad) and absent at 0.75. */
+    private val TIGHT_UNDER_THE_FIRST_ANCHOR = { x: Float -> if (x < 200f) listOf(23f) else emptyList() }
+
     private fun find(
         plot: GraphRect = this.plot,
         drawnBounds: List<GraphRect> = emptyList(),
@@ -33,6 +43,21 @@ class GraphEmptySpaceFinderTest {
         metrics = metrics,
         padPx = padPx,
         xFractions = xFractions,
+    )
+
+    /** [find] plus veto bounds — the NOW-line channel, which blocks overlap but never repels. */
+    private fun findWithVeto(
+        vetoBounds: List<GraphRect>,
+        plot: GraphRect = this.plot,
+        curveYsAt: (Float) -> List<Float> = { listOf(190f) },
+    ) = GraphEmptySpaceFinder.find(
+        plot = plot,
+        drawnBounds = emptyList(),
+        curveYsAt = curveYsAt,
+        metrics = metrics,
+        padPx = 4f,
+        xFractions = listOf(0.25f, 0.75f),
+        vetoBounds = vetoBounds,
     )
 
     @Test
@@ -137,6 +162,121 @@ class GraphEmptySpaceFinderTest {
     fun anOffCurveSamplerStillPlaces() {
         // An empty list everywhere (no line drawn under the box) is maximum clearance.
         assertNotNull(find(curveYsAt = { emptyList() }))
+    }
+
+    @Test
+    fun aWideOpenLaterAnchorBeatsATightLegalEarlierOne() {
+        // The shipped bug, in miniature: anchor 0.25 has a legal box (the curve clears it by 6px, over
+        // the 4px pad) so first-fit returned it and never looked at anchor 0.75, where the plot is
+        // empty. Plot height 21 == box height 13 + 2 * pad 4, so there is exactly one candidate band
+        // (4..17) and the left anchor cannot escape the crowding by dropping down it.
+        val placement = requireNotNull(
+            find(plot = SINGLE_BAND_PLOT, curveYsAt = TIGHT_UNDER_THE_FIRST_ANCHOR),
+        )
+        assertEquals(
+            "expected the wide-open right anchor, not the 6px-clearance left one",
+            300f,
+            placement.centerX,
+            0.01f,
+        )
+    }
+
+    @Test
+    fun obstacleProximityNotJustOverlapDisqualifiesTheFirstAnchor() {
+        // Two labels flanking anchor 0.25 without touching its box (70..130): 4px of air on each side.
+        // Curves are metres away, so only the obstacle distance can reject this slot — which is exactly
+        // the corner the dominant-station label wedged itself into beside `62°` and `+0.7 from forecast`.
+        val flanking = listOf(
+            GraphRect(0f, 0f, 66f, 200f),
+            GraphRect(134f, 0f, 200f, 200f),
+        )
+        val placement = requireNotNull(find(drawnBounds = flanking))
+        assertEquals("expected the open right anchor", 300f, placement.centerX, 0.01f)
+    }
+
+    @Test
+    fun aDiagonalNeighbourDoesNotCountAsCrowding() {
+        // Separation distance, not axis overlap: a label off the box's corner leaves it open.
+        val cornerOnly = listOf(GraphRect(0f, 150f, 60f, 200f))
+        assertEquals(100f, requireNotNull(find(drawnBounds = cornerOnly)).centerX, 0.01f)
+    }
+
+    @Test
+    fun fallsBackToTheTightSlotWhenNothingIsWideOpen() {
+        // Same 6px-clearance curve, now across the WHOLE plot: no anchor clears the pass-1 bar, so the
+        // permissive pass must still place the label rather than dropping it.
+        val placement = requireNotNull(find(plot = SINGLE_BAND_PLOT, curveYsAt = { listOf(23f) }))
+        assertEquals(
+            "pass 2 keeps the original earliest-anchor preference",
+            100f,
+            placement.centerX,
+            0.01f,
+        )
+    }
+
+    @Test
+    fun openClearanceScalesWithTheTextHeight() {
+        // The bar is one line height (13px here), not a fixed dp: 12px of air fails, 14px passes.
+        val metrics = this.metrics
+        assertEquals(13f, GraphEmptySpaceFinder.openClearanceFor(metrics, padPx = 4f), 0.001f)
+        // A short label with the same pad is held to the pad multiple instead.
+        val short = GraphEmptySpaceFinder.Metrics(width = 60f, ascent = -6f, descent = 2f)
+        assertEquals(12f, GraphEmptySpaceFinder.openClearanceFor(short, padPx = 4f), 0.001f)
+    }
+
+    @Test
+    fun aZeroOpenClearanceRestoresTheSingleSweep() {
+        // Escape hatch for callers that want pure first-fit: the tight left anchor wins again.
+        val placement = requireNotNull(
+            GraphEmptySpaceFinder.find(
+                plot = SINGLE_BAND_PLOT,
+                drawnBounds = emptyList(),
+                curveYsAt = TIGHT_UNDER_THE_FIRST_ANCHOR,
+                metrics = metrics,
+                padPx = 4f,
+                xFractions = listOf(0.25f, 0.75f),
+                openClearancePx = 0f,
+            ),
+        )
+        assertEquals(100f, placement.centerX, 0.01f)
+    }
+
+    @Test
+    fun aVetoBoundBlocksTheBoxItOverlaps() {
+        // The NOW line's case: a thin vertical through anchor 0.25's only band. Nothing else objects —
+        // the curve is metres away — so only the veto can move the label.
+        val nowLine = listOf(GraphRect(98f, 0f, 102f, 21f))
+        val placement = requireNotNull(
+            findWithVeto(plot = SINGLE_BAND_PLOT, vetoBounds = nowLine),
+        )
+        assertEquals(300f, placement.centerX, 0.01f)
+    }
+
+    @Test
+    fun aVetoBoundRepelsNothing() {
+        // The whole point of the separate list: 3px clear of the veto is fine, where the same gap to a
+        // drawnBound would fail pass 1. Box at anchor 0.25 spans 70..130, so a veto ending at 67 is 3px
+        // away — and must still be chosen over the later anchor.
+        val nowLine = listOf(GraphRect(63f, 0f, 67f, 21f))
+        val placement = requireNotNull(
+            findWithVeto(plot = SINGLE_BAND_PLOT, vetoBounds = nowLine),
+        )
+        assertEquals(
+            "a veto bound must block overlap without pushing the label away",
+            100f,
+            placement.centerX,
+            0.01f,
+        )
+    }
+
+    @Test
+    fun aVetoBoundIsClearedVerticallyNotOnlyHorizontally() {
+        // The NOW line spans 60% of the plot height, centred — a label in the top band clears it at any
+        // x. A full-height veto rect would wrongly evict the label sideways.
+        val centreBand = listOf(GraphRect(98f, 60f, 102f, 140f))
+        val placement = requireNotNull(findWithVeto(vetoBounds = centreBand))
+        assertEquals("the top band clears the centred line", 100f, placement.centerX, 0.01f)
+        assertTrue("expected a band above the line, got top=${placement.box.top}", placement.box.bottom <= 60f)
     }
 
     @Test

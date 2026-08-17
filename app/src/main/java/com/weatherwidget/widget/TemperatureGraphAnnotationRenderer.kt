@@ -12,6 +12,7 @@ import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.LabelPlacementDebug
 import com.weatherwidget.shared.graph.LabelTextMetrics
+import com.weatherwidget.shared.graph.NowIndicatorGeometry
 import com.weatherwidget.shared.graph.TemperatureLabelEngine
 import com.weatherwidget.shared.graph.TemperatureRole
 import com.weatherwidget.shared.graph.ForecastDeltaLabel
@@ -325,6 +326,7 @@ internal object TemperatureGraphAnnotationRenderer {
                     ),
                 padPx = TemperatureGraphStyle.dpToPx(input.context, FORECAST_DELTA_LABEL_PAD_DP),
                 useCelsius = input.useCelsius,
+                vetoBounds = input.nowLineVeto(),
             ) ?: return
         val labelPaint =
             Paint(paint).apply {
@@ -402,6 +404,7 @@ internal object TemperatureGraphAnnotationRenderer {
                             descent = TemperatureGraphStyle.fontDescent(tempPaint),
                         ),
                     padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
+                    vetoBounds = input.nowLineVeto(),
                 )
             if (placement != null) {
                 dominantPlacement = placement
@@ -647,6 +650,23 @@ internal object TemperatureGraphAnnotationRenderer {
 
     private fun Input.graphObstacles(): List<GraphRect> =
         obstacles.bounds().map { GraphRect(it.left, it.top, it.right, it.bottom) }
+
+    /**
+     * The dashed NOW line as a veto rectangle for the free-floating label searches, or empty when the
+     * indicator is off-window. Not in [graphObstacles] on purpose: this must block a label drawn ACROSS
+     * it without repelling one drawn beside it — see [NowIndicatorGeometry.nowLineBounds].
+     */
+    private fun Input.nowLineVeto(): List<GraphRect> {
+        val nowX = series.nowX?.takeIf { series.nowIndicatorVisible } ?: return emptyList()
+        return listOf(
+            NowIndicatorGeometry.nowLineBounds(
+                nowX = nowX,
+                graphTop = graphTop,
+                graphHeight = graphHeight,
+                halfWidthPx = paints.currentTimePaint.strokeWidth.coerceAtLeast(1f),
+            ),
+        )
+    }
 
     private fun GraphRect.toRectF(): RectF = RectF(left, top, right, bottom)
 }

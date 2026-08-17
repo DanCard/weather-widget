@@ -695,6 +695,30 @@ internal fun DrawScope.drawNowLine(markerX: Float, graphTop: Float, graphHeight:
 }
 
 /**
+ * The NOW line as veto bounds for the free-floating label searches, or empty when [markerX] is null
+ * (indicator off-window). Mirrors Android's `nowLineVeto()`; both route through
+ * [NowIndicatorGeometry.nowLineBounds] so a label can never cross the line on one platform and clear
+ * it on the other. Pass as `vetoBounds`, not `drawnBounds` — it blocks overlap without repelling.
+ */
+internal fun DrawScope.nowLineVetoBounds(
+    markerX: Float?,
+    graphTop: Float,
+    graphHeight: Float,
+    scale: Float,
+): List<GraphRect> {
+    if (markerX == null) return emptyList()
+    return listOf(
+        NowIndicatorGeometry.nowLineBounds(
+            nowX = markerX,
+            graphTop = graphTop,
+            graphHeight = graphHeight,
+            halfWidthPx =
+                (HourlyGraphDefaults.CURRENT_TIME_STROKE_DP.dp.toPx() * scale).coerceAtLeast(1f),
+        ),
+    )
+}
+
+/**
  * Draws the full-size "NOW" label (drawn last, on top). Below-first, collision-aware placement
  * against [drawnLabels] via NowIndicatorGeometry; appends its box to [drawnLabels] when placed.
  */

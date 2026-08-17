@@ -82,7 +82,8 @@ object ForecastDeltaLabel {
      * or no empty band fits). [plot] is the curve-drawing area (exclude the footer). [drawnBounds] are
      * obstacles already on the canvas (labels, icons, fetch-dot). [curveYsAt] returns the y of every line
      * drawn at a given x — see [GraphEmptySpaceFinder.find] for why that must be plural. [padPx] is the
-     * minimum clearance kept on all sides.
+     * minimum clearance kept on all sides. [vetoBounds] are draw-over-nothing obstacles that exert no
+     * repulsion — the NOW indicator line; see [GraphEmptySpaceFinder.find].
      */
     fun place(
         delta: Float?,
@@ -95,6 +96,7 @@ object ForecastDeltaLabel {
         padPx: Float,
         useCelsius: Boolean,
         maxSpanHours: Long = DELTA_LABEL_MAX_HOURS_SPAN,
+        vetoBounds: List<GraphRect> = emptyList(),
     ): Placement? {
         if (delta == null || currentTemp == null) return null
         if (spanHours > maxSpanHours) return null
@@ -107,6 +109,7 @@ object ForecastDeltaLabel {
                 metrics = GraphEmptySpaceFinder.Metrics(metrics.width, metrics.ascent, metrics.descent),
                 padPx = padPx,
                 xFractions = X_FRACTIONS,
+                vetoBounds = vetoBounds,
             ) ?: return null
 
         return Placement(

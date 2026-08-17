@@ -31,6 +31,31 @@ object NowIndicatorGeometry {
     }
 
     /**
+     * The dashed NOW line as a collision rectangle, for the free-floating label searches that would
+     * otherwise draw straight across it — `knuq 66.2° @ 8:35 pm` did exactly that on the emulator and
+     * the Samsung Fold (2026-08-16). The line is invisible to
+     * [GraphEmptySpaceFinder]'s `curveYsAt`, which answers "which y is drawn at this x" and so cannot
+     * express a vertical.
+     *
+     * [halfWidthPx] inflates the hairline to the stroke's own width so a label butting against it still
+     * reads as beside rather than touching; keep it small, since the strip of plot to the right of NOW
+     * is often the only room left. Because the line spans only
+     * [HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION] of the plot centred vertically, a label in the top
+     * or bottom band clears it at any x — this rect says so, where a full-height one would not.
+     *
+     * Pass the result as `vetoBounds`, never `drawnBounds`: it must block overlap without repelling.
+     */
+    fun nowLineBounds(
+        nowX: Float,
+        graphTop: Float,
+        graphHeight: Float,
+        halfWidthPx: Float,
+    ): GraphRect {
+        val line = computeNowLine(graphTop, graphHeight)
+        return GraphRect(nowX - halfWidthPx, line.lineTop, nowX + halfWidthPx, line.lineBottom)
+    }
+
+    /**
      * Places the "NOW" label, trying below the line first then above, returning the first
      * collision-free spot against [drawnBounds] — or `null` to suppress the label when both
      * candidates collide. [fontAscent] is negative (font-metrics convention); [fontDescent] is
