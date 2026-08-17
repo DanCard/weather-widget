@@ -333,11 +333,13 @@ fun runDaemon() {
                 runLaunchRefresh(newRepo, config, "startup")
             }
 
-            // 3a. Panel/status refresh loop: re-resolve the published current_status each minute
-            // (single owner keeps the interpolation smooth), then re-render the panel from it.
+            // 3a. Panel/status refresh loop: re-resolve the published current_status each
+            // STATUS_TICK_MS (single owner keeps the interpolation smooth), then re-render the panel
+            // from it. Boundary-aligned and phase-locked with the UI ticker in Main.kt — see
+            // STATUS_TICK_MS.
             launch {
                 while (true) {
-                    delay(60_000L - (System.currentTimeMillis() % 60_000L))
+                    delay(STATUS_TICK_MS - (System.currentTimeMillis() % STATUS_TICK_MS))
                     try {
                         panelPublisher.refreshCurrentStatus()
                         panelPublisher.triggerPanelRefresh()

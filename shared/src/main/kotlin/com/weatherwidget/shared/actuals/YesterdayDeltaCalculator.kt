@@ -47,7 +47,10 @@ object YesterdayDeltaCalculator {
         }
         val targetMs = observedAtMs - YESTERDAY_OFFSET_MS
 
-        val blended = ActualTemperatureSeriesBuilder.blendObservationSeries(
+        // Memoized: this window is keyed on `observedAtMs` — an observation timestamp, not `now` —
+        // so it is identical across every minute tick between observation arrivals. Shares
+        // ActualsAggregator's cache so one bounded memo covers both blends of a status resolve.
+        val blended = ActualsAggregator.blendCache.getOrCompute(
             observations = observations,
             hourlyForecasts = hourlyForecasts,
             displaySourceId = displaySourceId,
@@ -57,7 +60,19 @@ object YesterdayDeltaCalculator {
             endMs = targetMs + toleranceMs,
             personalStationWeight = personalStationWeight,
             zoneId = zoneId,
-        ).observations
+        ) {
+            ActualTemperatureSeriesBuilder.blendObservationSeries(
+                observations = observations,
+                hourlyForecasts = hourlyForecasts,
+                displaySourceId = displaySourceId,
+                userLat = userLat,
+                userLon = userLon,
+                startMs = targetMs - toleranceMs,
+                endMs = targetMs + toleranceMs,
+                personalStationWeight = personalStationWeight,
+                zoneId = zoneId,
+            )
+        }.observations
         if (blended.isEmpty()) {
             Log.d(
                 TAG,

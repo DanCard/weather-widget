@@ -720,13 +720,14 @@ private fun runApp() = application {
             }
         }
 
-        // Time ticker: re-reads the daemon-published current_status each minute. The daemon owns
-        // the resolution (and re-persists it on its own minute cadence), so this process only
-        // re-reads a single row instead of re-running the IDW blend.
+        // Time ticker: re-reads the daemon-published current_status each STATUS_TICK_MS. The daemon
+        // owns the resolution (and re-persists it on the same cadence), so this process only
+        // re-reads a single row instead of re-running the IDW blend. Boundary-aligned and
+        // phase-locked with the daemon loop in DaemonProcess.kt — see STATUS_TICK_MS.
         var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
         LaunchedEffect(Unit) {
             while (true) {
-                kotlinx.coroutines.delay(60_000L - (System.currentTimeMillis() % 60_000L))
+                kotlinx.coroutines.delay(STATUS_TICK_MS - (System.currentTimeMillis() % STATUS_TICK_MS))
                 nowMs = System.currentTimeMillis()
             }
         }

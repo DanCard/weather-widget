@@ -107,7 +107,18 @@ class PanelIpcServer(
         // Re-render before poking the panel, not after: the plugin event makes genmon reconnect
         // almost immediately, and it is served whatever is cached at that instant. Refreshing
         // afterwards would show the previous value and only catch up on the following poll.
-        renderMarkup()
+        val previous = cachedMarkup.get()
+        val current = renderMarkup()
+
+        // Poking the panel costs a fork/exec of `xfce4-panel`, which makes it exec
+        // `genmon-weather-bin`, which opens this socket and reads — a whole process chain to
+        // redisplay a string the panel is already showing. On a status tick the temperature has
+        // usually not moved a whole degree, so the markup is byte-identical and the panel has
+        // nothing to learn. `previous == null` (nothing ever rendered) still pokes.
+        if (previous != null && previous == current) {
+            Log.v(TAG, "Panel markup unchanged — skipping xfce4-panel refresh.")
+            return
+        }
         triggerPanelRefresh()
     }
 

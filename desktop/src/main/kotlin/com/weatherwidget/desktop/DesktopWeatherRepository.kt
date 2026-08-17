@@ -502,6 +502,13 @@ class DesktopWeatherRepository(
                 tag = "OBS_REFRESH",
                 message = "source=$weatherSource obs=${result.rawObservations.size} extremes=$extremesCount",
             )
+            // Once per fetch cycle (~30 min), not per status tick: enough to spot a cache that
+            // stopped hitting, sparse enough not to swamp app_logs. See BlendSeriesCache.stats().
+            weatherDao.log(
+                tag = "BLEND_CACHE",
+                message = ActualsAggregator.blendCache.stats(),
+                level = "DEBUG",
+            )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
             if (cached == null) {

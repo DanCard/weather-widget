@@ -69,6 +69,23 @@ const val UI_FALLBACK_RELOAD_MS = 10 * 60 * 1000L
 const val UI_FALLBACK_TICK_MS = 30 * 1000L
 const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 
+/**
+ * Cadence of the current-status tick: the daemon re-resolves + republishes `current_status`, and the
+ * UI re-reads it to advance the displayed clock/temperature.
+ *
+ * **Both loops must use this constant, and both must stay boundary-aligned**
+ * (`delay(STATUS_TICK_MS - System.currentTimeMillis() % STATUS_TICK_MS)`):
+ *  - Alignment keeps the published value tracking wall-clock time rather than drifting by the
+ *    accumulated cost of each tick.
+ *  - Sharing the constant keeps the two loops *phase-locked*, so they wake the CPU once per period
+ *    together instead of twice at unrelated offsets. Changing only one would double the wakeups.
+ *
+ * 120s rather than 60s: the panel shows a rounded interpolated temperature, which essentially never
+ * moves a whole degree inside two minutes, so the extra resolution bought nothing visible and cost a
+ * wakeup per minute. See `plans/260817-desktop-idle-cpu-blend-memoization.md`.
+ */
+const val STATUS_TICK_MS = 120_000L
+
 // Resume-from-suspend detection. The fetch loops sleep on coroutine `delay()`, which schedules
 // against CLOCK_MONOTONIC and freezes during suspend, so they do NOT fire on wake. We detect resume
 // and kick one catch-up refresh. Two detectors race; [RESUME_DEBOUNCE_MS] collapses them

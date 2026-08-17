@@ -36,6 +36,28 @@ object ActualsAggregator {
 
     data class DailyPrecip(val total: Float?, val day: Float?, val night: Float?)
 
+    /**
+     * Memo for the current-observation blend. Shared with [YesterdayDeltaCalculator] so one bounded
+     * cache covers both windows of a single current-status resolve. See [BlendSeriesCache].
+     */
+    val blendCache = BlendSeriesCache()
+
+    /**
+     * The centre the current-observation blend window is built around: [nowMs] snapped to the
+     * nearest 30-minute boundary.
+     *
+     * Authoritative and public because it is what makes the blend memoizable — the window (and
+     * therefore the entire emitted series) is identical for every [nowMs] in the same half-hour, so
+     * a per-minute caller recomputes the same result ~30 times. [BlendSeriesCache] keys on the
+     * derived start/end; anything that needs to reason about that cadence must use this function
+     * rather than restate the arithmetic.
+     */
+    fun alignedCenterMs(nowMs: Long): Long {
+        val truncatedMs = (nowMs / 3600_000L) * 3600_000L
+        val minute = (nowMs % 3600_000L) / 60_000L
+        return if (minute >= 30) truncatedMs + 3600_000L else truncatedMs
+    }
+
     data class CurrentObservationResolution(
         val temperature: Float,
         val observedAt: Long,
@@ -115,14 +137,12 @@ object ActualsAggregator {
         personalStationWeight: Double,
         includeDominantContribution: Boolean,
     ): CurrentObservationResolution? {
-        val truncatedMs = (nowMs / 3600_000L) * 3600_000L
-        val minute = (nowMs % 3600_000L) / 60_000L
-        val alignedCenterMs = if (minute >= 30) truncatedMs + 3600_000L else truncatedMs
+        val alignedCenterMs = alignedCenterMs(nowMs)
 
         val contextStartMs = alignedCenterMs - (lookbackHours * 3600_000L)
         val contextEndMs = alignedCenterMs + (lookaheadHours * 3600_000L)
 
-        val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
+        fun computeSeries() = ActualTemperatureSeriesBuilder.blendObservationSeries(
             observations = observations,
             hourlyForecasts = hourlyForecasts,
             displaySourceId = displaySourceId,
@@ -135,6 +155,26 @@ object ActualsAggregator {
             onBlendDebug = null,
             captureLatestDominantAtOrBeforeMs = nowMs.takeIf { includeDominantContribution },
         )
+
+        // The memo covers only the hot path. The diagnostics path passes
+        // `captureLatestDominantAtOrBeforeMs = nowMs`, which varies every minute and changes the
+        // retained contribution table, so it is not a function of the cache key and must recompute.
+        val result = if (includeDominantContribution) {
+            computeSeries()
+        } else {
+            blendCache.getOrCompute(
+                observations = observations,
+                hourlyForecasts = hourlyForecasts,
+                displaySourceId = displaySourceId,
+                userLat = userLat,
+                userLon = userLon,
+                startMs = contextStartMs,
+                endMs = contextEndMs,
+                personalStationWeight = personalStationWeight,
+                zoneId = zoneId,
+                compute = ::computeSeries,
+            )
+        }
 
         val pastBlended = result.observations.filter { it.timestamp <= nowMs }
 
