@@ -1,0 +1,1 @@
+Release 26081801: Improved hourly graph layout & navigation, immediate current temp refresh on charging connect, and performance optimizations.
