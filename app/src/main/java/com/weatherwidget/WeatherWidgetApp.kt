@@ -9,6 +9,7 @@ import com.weatherwidget.util.AndroidLogSink
 import com.weatherwidget.util.CrashReporter
 import com.weatherwidget.widget.LegacyDefaultLocationMigration
 import com.weatherwidget.widget.OpportunisticUpdateJobService
+import com.weatherwidget.widget.PowerConnectedJobService
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import dagger.Lazy
@@ -48,6 +49,9 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
         runLegacyDefaultLocationMigration()
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             OpportunisticUpdateJobService.scheduleOpportunisticUpdate(this)
+            // Arms the charging-constraint trigger that stands in for the undelivered
+            // ACTION_POWER_CONNECTED broadcast. No-ops when already armed.
+            PowerConnectedJobService.ensureScheduled(this)
         }
     }
 

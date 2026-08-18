@@ -87,6 +87,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         WidgetWorkScheduler.schedulePeriodicSync(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             OpportunisticUpdateJobService.scheduleOpportunisticUpdate(context)
+            PowerConnectedJobService.ensureScheduled(context)
         }
     }
 

@@ -24,6 +24,19 @@ import com.weatherwidget.di.RepositoryEntryPoint
  * are all `currentTempOnly`/`uiOnly` kinds — precisely the ones that gate excludes. So without the
  * calls below, plugging in and unlocking never notice that the device has moved, and a stale saved
  * location persists until the next full sync (60 min plugged, up to 480 min on low battery).
+ *
+ * **This receiver does not fire.** All three actions it is registered for in the manifest are
+ * *implicit* broadcasts, and an app targeting API 26+ is not delivered those through a
+ * manifest-declared receiver unless the action is on the framework exemption list — none of these
+ * are. Verified 2026-08-18: three days of `app_logs` across a Pixel 7 Pro and a Samsung fold hold
+ * zero `POWER_CONNECTED_EVENT` and zero `UNLOCK_REFRESH_POLICY` rows, and a genuine system-
+ * dispatched `ACTION_POWER_CONNECTED` reached neither device's receiver with the process alive.
+ * `exported="true"` (tried in 260413) was never the gate. The class is kept because it costs
+ * nothing and still works wherever the broadcast *is* delivered.
+ *
+ * The plug-in path is now carried by [PowerConnectedJobService], a JobScheduler charging
+ * constraint. **`ACTION_USER_PRESENT` has no replacement yet** — the screen-unlock refresh below
+ * is dead code in practice. See `plans/260818-power-connected-broadcast-never-delivered.md`.
  */
 class ScreenOnReceiver : BroadcastReceiver() {
     /**
@@ -58,50 +71,16 @@ class ScreenOnReceiver : BroadcastReceiver() {
     }
 
     private fun handlePowerConnected(context: Context) {
-        // Re-enqueue the periodic forecast worker with the charging-cadence interval (60 min).
-        WidgetWorkScheduler.schedulePeriodicSync(context)
-        OpportunisticUpdateJobService.scheduleOpportunisticUpdate(context)
+        // Shared with PowerConnectedJobService, which is the entry point that actually fires on
+        // this device family; see PowerConnectedRefresh for why this receiver does not.
+        val outcome = PowerConnectedRefresh.run(context)
+        Log.d(TAG, "Power connected - plug-in refresh result=${outcome.result} elapsed=${outcome.elapsedMs}ms")
 
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-        if (powerManager.isInteractive) {
-            NonPrimaryObservationScheduler.scheduleNextUpdate(context, isScreenInteractive = true)
-        }
-
-        // Independent of the current-temp debounce below: putting the phone on the charger is the
-        // moment it has most likely just finished moving.
+        // Independent of the current-temp debounce inside run(): putting the phone on the charger
+        // is the moment it has most likely just finished moving.
         resampleLocationAsync(context, trigger = "power_connected")
 
-        val now = System.currentTimeMillis()
-        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
-        val lastRefreshMs = prefs.getLong(KEY_LAST_POWER_CONNECTED_REFRESH_MS, 0L)
-        val elapsedMs = now - lastRefreshMs
-
-        if (!PowerConnectedRefreshPolicy.shouldEnqueueRefresh(now, lastRefreshMs)) {
-            Log.d(TAG, "Power connected - skipping lazy refresh (debounced, elapsed=${elapsedMs}ms)")
-            logPowerConnectedEvent(
-                context = context,
-                result = "debounced_skip",
-                nowMs = now,
-                lastRefreshMs = lastRefreshMs,
-                elapsedMs = elapsedMs,
-            )
-            return
-        }
-
-        prefs.edit().putLong(KEY_LAST_POWER_CONNECTED_REFRESH_MS, now).apply()
-        Log.d(TAG, "Power connected - enqueueing lazy current-temp refresh")
-        CurrentTempUpdateScheduler.enqueueImmediateUpdate(
-            context = context,
-            reason = "power_connected_lazy",
-            opportunistic = true,
-        )
-        logPowerConnectedEvent(
-            context = context,
-            result = "enqueued",
-            nowMs = now,
-            lastRefreshMs = lastRefreshMs,
-            elapsedMs = elapsedMs,
-        )
+        logPowerConnectedEvent(context, outcome)
     }
 
     private fun handlePowerDisconnected(context: Context) {
@@ -206,18 +185,12 @@ class ScreenOnReceiver : BroadcastReceiver() {
 
     private fun logPowerConnectedEvent(
         context: Context,
-        result: String,
-        nowMs: Long,
-        lastRefreshMs: Long,
-        elapsedMs: Long,
+        outcome: PowerConnectedRefresh.Outcome,
     ) {
         val pendingResult = goAsync()
         CoroutineScope(ioDispatcher).launch {
             try {
-                WeatherDatabase.getDatabase(context).appLogDao().log(
-                    "POWER_CONNECTED_EVENT",
-                    "result=$result nowMs=$nowMs lastRefreshMs=$lastRefreshMs elapsedMs=$elapsedMs debounceMs=${PowerConnectedRefreshPolicy.DEBOUNCE_MS}",
-                )
+                PowerConnectedRefresh.writeLog(context, outcome, source = "broadcast")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to persist POWER_CONNECTED_EVENT log", e)
             } finally {
@@ -231,8 +204,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "ScreenOnReceiver"
-        private const val PREFS_NAME = "screen_on_receiver_prefs"
-        private const val KEY_LAST_POWER_CONNECTED_REFRESH_MS = "last_power_connected_refresh_ms"
+        private const val PREFS_NAME = PowerConnectedRefresh.PREFS_NAME
 
         @VisibleForTesting
         internal const val KEY_LAST_RESAMPLE_MS = "last_gps_resample_ms"
