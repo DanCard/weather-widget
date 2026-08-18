@@ -52,6 +52,13 @@ class OpportunisticUpdateJobService : JobService() {
             TAG,
             "Opportunistic update job started charging=${powerState.isCharging} battery=${powerState.batteryLevel}%",
         )
+
+        // Re-arm the plug-in trigger from here rather than from the trigger's own run. It only arms
+        // while discharging, and this job is the most reliable recurring execution the app gets on
+        // battery. Doing it from PowerConnectedJobService's own path would re-schedule that job's
+        // JOB_ID while it is still running, which JobScheduler treats as a replacement and answers
+        // with onStopJob.
+        PowerConnectedJobService.ensureScheduled(applicationContext)
         val processAgeMs = WeatherWidgetApp.processAgeMs(SystemClock.elapsedRealtime())
         if (processAgeMs < STARTUP_GRACE_PERIOD_MS) {
             Log.d(TAG, "Skipping opportunistic startup churn; processAgeMs=$processAgeMs")

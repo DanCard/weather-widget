@@ -16,9 +16,20 @@ internal object BatterySnapshotProvider {
         val status: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val rawLevel = status?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = status?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val batteryLevel = BatteryStatePolicy.batteryLevelPercent(rawLevel, scale)
+        val platformCharging = BatteryStatePolicy.isEffectivelyCharging(status)
+
+        // Some devices report `plug=none status=discharging` while holding a charge cap, so the
+        // platform answer is a floor, not the whole truth. See BatteryChargeTrend.
+        //
+        // The trend is folded in on every read, including reads the platform already calls
+        // charging: skipping those would leave a stale `previousLevel` from before the charge to
+        // compare against once the platform signal goes dark again.
+        val trendCharging = BatteryChargeTrend.inferCharging(context, batteryLevel)
+
         return BatterySnapshot(
-            isCharging = BatteryStatePolicy.isEffectivelyCharging(status),
-            batteryLevel = BatteryStatePolicy.batteryLevelPercent(rawLevel, scale),
+            isCharging = platformCharging || trendCharging,
+            batteryLevel = batteryLevel,
         )
     }
 }

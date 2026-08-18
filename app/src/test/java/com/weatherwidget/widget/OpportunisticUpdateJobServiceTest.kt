@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.test.category.LongDuration
 import io.mockk.every
 import io.mockk.mockk
@@ -82,9 +83,17 @@ class OpportunisticUpdateJobServiceTest {
                     if (charging) BatteryManager.BATTERY_PLUGGED_AC else 0,
                 )
 
+        // The battery read now folds the level into a persisted trend (BatteryChargeTrend), so the
+        // mocked Context needs real preferences behind it. A distinct store per fixture keeps the
+        // trend's deliberate stickiness from leaking a verdict between tests.
+        val trendPrefs =
+            ApplicationProvider.getApplicationContext<Context>()
+                .getSharedPreferences("trend_${System.nanoTime()}", Context.MODE_PRIVATE)
+
         every { context.packageName } returns "com.weatherwidget"
         every { context.getSystemService(Context.JOB_SCHEDULER_SERVICE) } returns jobScheduler
         every { context.registerReceiver(null, any<IntentFilter>()) } returns batteryStatus
+        every { context.getSharedPreferences(any(), any()) } returns trendPrefs
 
         return Fixture(context, jobScheduler)
     }

@@ -16,7 +16,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 
 /**
  * Detects "the device was just plugged in" with a JobScheduler charging constraint, because the
@@ -65,7 +64,7 @@ class PowerConnectedJobService : JobService() {
                     // JobStore and call onStopJob — which cancelled this coroutine mid-flight and
                     // lost the log row and the resample. Finish first, then re-arm.
                     jobFinished(params, false)
-                    rearm(applicationContext)
+                    ensureScheduled(applicationContext)
                 }
             }
         return true // Job is running asynchronously
@@ -87,19 +86,26 @@ class PowerConnectedJobService : JobService() {
         internal const val JOB_ID = 1003
 
         /**
-         * Delay applied when the job re-arms itself. Matched to the charging loop so a device left
-         * on the charger produces at most one of these per loop iteration.
-         */
-        @VisibleForTesting
-        internal val REARM_LATENCY_MS: Long =
-            TimeUnit.MINUTES.toMillis(CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES)
-
-        /**
-         * Arms the trigger if it is not already armed. Deliberately a no-op when a job is pending:
-         * callers include widget lifecycle paths that fire often, and re-scheduling would reset a
-         * trigger that is already waiting for the charger.
+         * Arms the trigger if it is not already armed, and only while the device is discharging.
          *
-         * The first arm has no latency, so a plug-in that happens seconds later is caught at once.
+         * Both guards matter:
+         *  - **Already pending**: callers include widget lifecycle paths that fire often, and
+         *    re-scheduling would reset a trigger that is already waiting for the charger.
+         *  - **Already charging**: a plug-in trigger has nothing to wait for on a device that is
+         *    already on the charger. Arming anyway finds the charging constraint satisfied at once
+         *    and fires immediately; the first version of this class re-armed unconditionally with a
+         *    10-minute delay and so re-fired every 10 minutes for as long as the phone
+         *    stayed plugged in — a plug-in trigger degenerating into a second charging loop,
+         *    duplicating the one in CurrentTempUpdateScheduler. Observed on SM-F936U1 as
+         *    POWER_CONNECTED_EVENT rows at 14:45/14:55/15:05/15:15 with elapsedMs ~600000.
+         *
+         * Not arming while charging is safe because the trigger is only needed for the
+         * discharging -> charging edge: while the device is discharging, OpportunisticUpdateJobService
+         * re-arms it on its own recurring run, well before the next plug-in. That job is the seam
+         * rather than anything on this job's own path, because re-scheduling [JOB_ID] from inside a
+         * run of [JOB_ID] is a replacement, not an arm, and gets answered with onStopJob.
+         *
+         * The arm has no latency, so a plug-in seconds later is caught at once.
          */
         fun ensureScheduled(context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
@@ -110,15 +116,11 @@ class PowerConnectedJobService : JobService() {
                 Log.d(TAG, "Plug-in trigger already armed")
                 return
             }
-            schedule(context, jobScheduler, minimumLatencyMs = 0L)
-        }
-
-        private fun rearm(context: Context) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            if (BatterySnapshotProvider.snapshot(context).isCharging) {
+                Log.d(TAG, "Already charging - plug-in trigger not needed")
                 return
             }
-            val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
-            schedule(context, jobScheduler, minimumLatencyMs = REARM_LATENCY_MS)
+            schedule(context, jobScheduler, minimumLatencyMs = 0L)
         }
 
         private fun schedule(

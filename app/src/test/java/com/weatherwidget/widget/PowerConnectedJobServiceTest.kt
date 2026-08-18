@@ -3,12 +3,15 @@ package com.weatherwidget.widget
 import android.app.job.JobInfo
 import android.app.job.JobScheduler
 import android.content.Context
+import android.content.Intent
+import android.os.BatteryManager
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.test.category.LongDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -36,6 +39,30 @@ class PowerConnectedJobServiceTest {
         context = ApplicationProvider.getApplicationContext()
         jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
         jobScheduler.cancel(PowerConnectedJobService.JOB_ID)
+        // ensureScheduled now consults the battery, and the trend behind it is persisted, so both
+        // have to be reset or a verdict latched by one test leaks into the next.
+        clearTrendState()
+        setStickyBattery(status = BatteryManager.BATTERY_STATUS_DISCHARGING, plugged = 0, level = 50)
+    }
+
+    private fun clearTrendState() {
+        com.weatherwidget.util.SharedPreferencesUtil
+            .getPrefs(context, "battery_charge_trend_prefs")
+            .edit()
+            .clear()
+            .commit()
+    }
+
+    private fun setStickyBattery(status: Int, plugged: Int, level: Int) {
+        @Suppress("DEPRECATION")
+        context.sendStickyBroadcast(
+            Intent(Intent.ACTION_BATTERY_CHANGED).apply {
+                putExtra(BatteryManager.EXTRA_STATUS, status)
+                putExtra(BatteryManager.EXTRA_PLUGGED, plugged)
+                putExtra(BatteryManager.EXTRA_LEVEL, level)
+                putExtra(BatteryManager.EXTRA_SCALE, 100)
+            },
+        )
     }
 
     @After
@@ -69,17 +96,36 @@ class PowerConnectedJobServiceTest {
     }
 
     @Test
-    fun `re-arm carries latency so staying plugged in cannot spin`() {
-        // Without this the re-armed job would find its charging constraint already satisfied and
-        // re-fire immediately, forever.
-        val info =
-            PowerConnectedJobService.buildJobInfo(
-                context,
-                minimumLatencyMs = PowerConnectedJobService.REARM_LATENCY_MS,
-            )
+    fun `arming is skipped while already charging so the trigger cannot spin`() {
+        // The regression this pins: the job used to re-arm unconditionally after every run. On a
+        // device left plugged in, the charging constraint was already satisfied when the re-arm
+        // landed, so it fired again, re-armed again, and became a permanent 10-minute loop
+        // duplicating the charging loop. A plug-in trigger has nothing to wait for while charging.
+        setStickyBattery(status = BatteryManager.BATTERY_STATUS_CHARGING, plugged = BatteryManager.BATTERY_PLUGGED_AC, level = 80)
 
-        assertEquals(PowerConnectedJobService.REARM_LATENCY_MS, info.minLatencyMillis)
-        assertTrue("Re-arm latency must be positive", PowerConnectedJobService.REARM_LATENCY_MS > 0L)
+        PowerConnectedJobService.ensureScheduled(context)
+
+        assertNull(
+            "A charging device must not arm a plug-in trigger",
+            jobScheduler.getPendingJob(PowerConnectedJobService.JOB_ID),
+        )
+    }
+
+    @Test
+    fun `arming happens once the device is discharging again`() {
+        setStickyBattery(status = BatteryManager.BATTERY_STATUS_CHARGING, plugged = BatteryManager.BATTERY_PLUGGED_AC, level = 80)
+        PowerConnectedJobService.ensureScheduled(context)
+        assertNull(jobScheduler.getPendingJob(PowerConnectedJobService.JOB_ID))
+
+        // Unplugged and falling: the trend must not keep reporting charging, or the trigger would
+        // never re-arm and the next genuine plug-in would go unnoticed.
+        setStickyBattery(status = BatteryManager.BATTERY_STATUS_DISCHARGING, plugged = 0, level = 79)
+        PowerConnectedJobService.ensureScheduled(context)
+
+        assertNotNull(
+            "Expected the trigger to re-arm once discharging",
+            jobScheduler.getPendingJob(PowerConnectedJobService.JOB_ID),
+        )
     }
 
     @Test
@@ -96,13 +142,11 @@ class PowerConnectedJobServiceTest {
     fun `ensureScheduled leaves an already-armed trigger untouched`() {
         // Widget lifecycle paths call this often. Overwriting a job that is already waiting on the
         // charger would reset its latency clock, so the arm has to be a genuine no-op. Stand the
-        // pending job up as a re-armed one (latency-carrying) — an overwrite would flatten that
-        // latency back to zero, which is exactly what must not happen.
+        // pending job up carrying a distinctive latency — ensureScheduled arms with zero latency,
+        // so an overwrite would flatten this to 0, which is exactly what must not happen.
+        val sentinelLatencyMs = 987_000L
         jobScheduler.schedule(
-            PowerConnectedJobService.buildJobInfo(
-                context,
-                minimumLatencyMs = PowerConnectedJobService.REARM_LATENCY_MS,
-            ),
+            PowerConnectedJobService.buildJobInfo(context, minimumLatencyMs = sentinelLatencyMs),
         )
 
         PowerConnectedJobService.ensureScheduled(context)
@@ -111,7 +155,7 @@ class PowerConnectedJobServiceTest {
         assertNotNull("Expected the pending trigger to survive", pending)
         assertEquals(
             "ensureScheduled must not overwrite an already-armed trigger",
-            PowerConnectedJobService.REARM_LATENCY_MS,
+            sentinelLatencyMs,
             pending!!.minLatencyMillis,
         )
     }
