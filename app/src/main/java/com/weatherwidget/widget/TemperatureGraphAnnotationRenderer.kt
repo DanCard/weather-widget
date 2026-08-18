@@ -9,6 +9,7 @@ import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.graph.GhostLineLabel
 import com.weatherwidget.shared.graph.GraphEmptySpaceFinder
 import com.weatherwidget.shared.graph.GraphRect
+import com.weatherwidget.shared.graph.NavArrowGeometry
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.LabelPlacementDebug
 import com.weatherwidget.shared.graph.LabelTextMetrics
@@ -51,6 +52,13 @@ internal object TemperatureGraphAnnotationRenderer {
         val widthPx: Int,
         val heightPx: Int,
         val density: Float,
+        /**
+         * Bitmap px per view px (see `WidgetSizeCalculator`). The nav arrows are sized in dp against
+         * the *view*, so converting them into this bitmap's coordinates needs `density * bitmapScale`
+         * — same correction the error watermark already applies. Without it a downscaled bitmap
+         * over-reserves the edge band.
+         */
+        val bitmapScale: Float,
         val labelScale: Float,
         val graphTop: Float,
         val graphBottom: Float,
@@ -67,6 +75,12 @@ internal object TemperatureGraphAnnotationRenderer {
         val useCelsius: Boolean,
         val onLabelPlaced: ((LabelPlacementDebug) -> Unit)?,
         val onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)?,
+        /**
+         * Which nav arrows the launcher is compositing over this bitmap. They are not on this
+         * canvas, so nothing the renderer draws reveals them — see [NavArrowGeometry].
+         */
+        val navArrowVisibility: NavArrowGeometry.Visibility = NavArrowGeometry.Visibility.NONE,
+        val onDominantStationPlaced: ((DominantStationDebug) -> Unit)? = null,
     ) {
         fun tempToY(temp: Float): Float =
             TemperatureGraphStyle.tempToY(
@@ -326,7 +340,7 @@ internal object TemperatureGraphAnnotationRenderer {
                     ),
                 padPx = TemperatureGraphStyle.dpToPx(input.context, FORECAST_DELTA_LABEL_PAD_DP),
                 useCelsius = input.useCelsius,
-                vetoBounds = input.nowLineVeto(),
+                vetoBounds = input.labelVetoBounds(),
             ) ?: return
         val labelPaint =
             Paint(paint).apply {
@@ -404,7 +418,7 @@ internal object TemperatureGraphAnnotationRenderer {
                             descent = TemperatureGraphStyle.fontDescent(tempPaint),
                         ),
                     padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
-                    vetoBounds = input.nowLineVeto(),
+                    vetoBounds = input.labelVetoBounds(),
                 )
             if (placement != null) {
                 dominantPlacement = placement
@@ -430,6 +444,16 @@ internal object TemperatureGraphAnnotationRenderer {
                 reason = "no_empty_band"
             }
         }
+        input.onDominantStationPlaced?.invoke(
+            DominantStationDebug(
+                reason = reason,
+                text = text,
+                box = dominantPlacement?.box?.toRectF(),
+                centerX = dominantPlacement?.centerX,
+                baselineY = dominantPlacement?.baselineY,
+                navArrowBounds = input.navArrowVeto().map { it.toRectF() },
+            ),
+        )
         // Mirrors the desktop DominantStationDiag. Placement-side reasons only: the upstream
         // no_contribution/synthetic/format_null gate lives in TemperatureStateResolver.
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
@@ -650,6 +674,22 @@ internal object TemperatureGraphAnnotationRenderer {
 
     private fun Input.graphObstacles(): List<GraphRect> =
         obstacles.bounds().map { GraphRect(it.left, it.top, it.right, it.bottom) }
+
+    /**
+     * Every obstacle a free-floating label must not be drawn *across* but need not keep clear of:
+     * the NOW line plus the nav arrows. Both are invisible to [graphObstacles] — NOW because it is a
+     * vertical that `curveYsAt` cannot express, the arrows because they are RemoteViews children
+     * composited over this bitmap rather than ink on it.
+     */
+    private fun Input.labelVetoBounds(): List<GraphRect> = nowLineVeto() + navArrowVeto()
+
+    /** The arrows as veto rects, also surfaced on [DominantStationDebug] so tests need not guess. */
+    private fun Input.navArrowVeto(): List<GraphRect> =
+        NavArrowGeometry.arrowBounds(
+            plot = GraphRect(0f, graphTop, widthPx.toFloat(), graphBottom),
+            density = density * bitmapScale,
+            visibility = navArrowVisibility,
+        )
 
     /**
      * The dashed NOW line as a veto rectangle for the free-floating label searches, or empty when the

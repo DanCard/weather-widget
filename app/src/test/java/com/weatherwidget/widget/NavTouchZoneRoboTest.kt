@@ -8,6 +8,7 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
+import com.weatherwidget.shared.graph.NavArrowGeometry
 import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -77,5 +78,55 @@ class NavTouchZoneRoboTest {
             if (parent.getChildAt(i).id == childId) return i
         }
         return -1
+    }
+
+    /**
+     * [NavArrowGeometry] reserves space for the arrows in the graph bitmap, where they are not drawn
+     * and cannot be measured. Its dp constants are therefore a hand-copy of this layout, and a silent
+     * drift would leave free-floating labels dodging a rectangle that is no longer the chevron —
+     * green tests, label back on the arrow. These assertions are the only thing tying the two together.
+     */
+    @Test
+    fun `NavArrowGeometry ARROW_WIDTH_DP matches the real nav button width`() {
+        listOf(R.id.nav_left, R.id.nav_right).forEach { id ->
+            val button = rootView.findViewById<ImageButton>(id)
+            assertEquals(
+                "NavArrowGeometry.ARROW_WIDTH_DP is out of sync with widget_weather.xml",
+                dpToPx(NavArrowGeometry.ARROW_WIDTH_DP.toInt()),
+                button.layoutParams.width,
+            )
+        }
+    }
+
+    @Test
+    fun `NavArrowGeometry ARROW_HEIGHT_DP matches the real nav button minHeight`() {
+        listOf(R.id.nav_left, R.id.nav_right).forEach { id ->
+            val button = rootView.findViewById<ImageButton>(id)
+            assertEquals(
+                "NavArrowGeometry.ARROW_HEIGHT_DP is out of sync with widget_weather.xml",
+                dpToPx(NavArrowGeometry.ARROW_HEIGHT_DP.toInt()),
+                button.minimumHeight,
+            )
+        }
+    }
+
+    /**
+     * Only `ARROW_WIDTH_DP - GRAPH_INSET_DP` of the arrow overlaps the bitmap, because graph_view is
+     * inset from the widget edge. Drop this term and every reservation is 4dp too wide.
+     */
+    @Test
+    fun `NavArrowGeometry GRAPH_INSET_DP matches graph_view's horizontal margin`() {
+        val graphView = rootView.findViewById<View>(R.id.graph_view)
+        val params = graphView.layoutParams as ViewGroup.MarginLayoutParams
+        assertEquals(
+            "NavArrowGeometry.GRAPH_INSET_DP is out of sync with graph_view's layout_marginStart",
+            dpToPx(NavArrowGeometry.GRAPH_INSET_DP.toInt()),
+            params.marginStart,
+        )
+        assertEquals(
+            "graph_view's start and end margins must match for the mirrored arrow reservation",
+            params.marginStart,
+            params.marginEnd,
+        )
     }
 }

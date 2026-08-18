@@ -287,4 +287,43 @@ class GraphEmptySpaceFinderTest {
         assertEquals(metrics.height, slot.box.bottom - slot.box.top, 0.001f)
         assertEquals((slot.box.left + slot.box.right) / 2f, slot.centerX, 0.001f)
     }
+
+    /**
+     * The nav-arrow case (2026-08-18): a veto band at the left edge, mid-height. The label must step
+     * out of the band **without abandoning the left edge** — the arrow costs it a vertical slot, not
+     * the anchor. If this ever asserts only "no overlap", it stops distinguishing the fix from
+     * registering the arrow as a repelling `drawnBounds`, which would drive the label to the far side.
+     */
+    @Test
+    fun aNavArrowVetoMovesTheLabelVerticallyNotToTheOppositeEdge() {
+        val tallPlot = GraphRect(0f, 0f, 400f, 200f)
+        // 36dp-ish of arrow at the left edge, centred vertically like the real chevron.
+        val leftArrow = GraphRect(0f, 80f, 60f, 120f)
+
+        val placement =
+            requireNotNull(
+                GraphEmptySpaceFinder.find(
+                    plot = tallPlot,
+                    drawnBounds = emptyList(),
+                    curveYsAt = { emptyList() },
+                    metrics = metrics,
+                    padPx = 4f,
+                    xFractions = listOf(0.08f, 0.92f),
+                    vetoBounds = listOf(leftArrow),
+                ),
+            ) { "expected a slot somewhere on an otherwise empty plot" }
+
+        assertTrue(
+            "label must not be drawn across the arrow. box=${placement.box} arrow=$leftArrow",
+            placement.box.right <= leftArrow.left ||
+                placement.box.left >= leftArrow.right ||
+                placement.box.bottom <= leftArrow.top ||
+                placement.box.top >= leftArrow.bottom,
+        )
+        assertTrue(
+            "veto must not repel: the label should still hug the left anchor, got centerX=" +
+                "${placement.centerX} on a ${tallPlot.width}px plot",
+            placement.centerX < tallPlot.width / 2f,
+        )
+    }
 }

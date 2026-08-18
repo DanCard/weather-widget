@@ -66,6 +66,30 @@ data class ActualLineDebug(
     val anchoredToFetchDot: Boolean,
 )
 
+/**
+ * Where the dominant-station label ("knuq 73.4° @ 5:15 pm") ended up, or why it was suppressed.
+ *
+ * Exists because that placement was previously observable only through a VERBOSE log line, so no
+ * test could assert it — and none did. [reason] is load-bearing in assertions: a label that failed
+ * to place at all trivially "does not overlap the nav arrow", so a placement test must require
+ * `reason == "drawn"` before believing its own geometry check.
+ */
+data class DominantStationDebug(
+    /** "drawn", "no_text", "too_few_hours", "span_too_wide", or "no_empty_band". */
+    val reason: String,
+    val text: String?,
+    val box: RectF?,
+    val centerX: Float?,
+    val baselineY: Float?,
+    /**
+     * The nav-arrow rectangles this render actually reserved. Reported rather than left for the
+     * caller to reconstruct: the plot the renderer vetoes against is
+     * `(0, graphTop, widthPx, graphBottom)`, and a test that rebuilds it from the bitmap size
+     * instead would assert against a band the renderer never used.
+     */
+    val navArrowBounds: List<RectF> = emptyList(),
+)
+
 data class DayLabelPlacementDebug(
     val side: String,       // "LEFT" or "RIGHT"
     val dayText: String,

@@ -444,6 +444,10 @@ fun TemperatureGraph(
         }
         // Same line as a collision rect, so the free-floating labels below are not drawn across it.
         val nowLineVeto = nowLineVetoBounds(markerX.takeIf { nowInWindow }, top, graphHeight, scale)
+        // The nav arrows are overlaid on this plot but drawn by a sibling composable, so nothing here
+        // reveals them; without this the dominant-station label lands on the left chevron.
+        val labelVeto =
+            nowLineVeto + navArrowVetoBounds(GraphRect(0f, top, w, footer.graphBottom(h, scale)), scale)
 
         // Peak labels (Hi / Lo / Now) anchored to forecast extremes
         val highIdx = forecastTemps.indexOf(fMax)
@@ -766,7 +770,7 @@ fun TemperatureGraph(
                 metrics = metrics,
                 padPx = 6f * scale,
                 useCelsius = useCelsius,
-                vetoBounds = nowLineVeto,
+                vetoBounds = labelVeto,
             )
             if (placement != null) {
                 val layout = textMeasurer.measure(deltaText, deltaStyle.copy(color = Color(placement.colorArgb)))
@@ -848,7 +852,7 @@ fun TemperatureGraph(
                 curveYsAt = ::visibleCurveYsAt,
                 metrics = dominantMetrics,
                 padPx = dominantPadPx,
-                vetoBounds = nowLineVeto,
+                vetoBounds = labelVeto,
             )
             if (placement != null) {
                 dominantPlacedBox = placement.box

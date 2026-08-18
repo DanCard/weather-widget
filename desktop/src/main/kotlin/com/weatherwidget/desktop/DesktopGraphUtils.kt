@@ -26,6 +26,7 @@ import com.weatherwidget.shared.graph.ForecastEvolutionStyle
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.HourlyZoomRules
+import com.weatherwidget.shared.graph.NavArrowGeometry
 import com.weatherwidget.shared.graph.NowIndicatorGeometry
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.util.SunPhase
@@ -717,6 +718,38 @@ internal fun DrawScope.nowLineVetoBounds(
         ),
     )
 }
+
+/**
+ * The nav arrows as veto bounds for the free-floating label searches. Desktop's `NavArrow` is a
+ * Compose `IconButton` overlaid on the graph as a sibling of the plot in the same full-size `Box`,
+ * so it shares this coordinate space but is invisible to everything the graph draws — see
+ * [NavArrowGeometry].
+ *
+ * Both arrows are always rendered on desktop (a disabled one is drawn at alpha 0.18, not removed),
+ * so there is no visibility gate here.
+ *
+ * The button is [NAV_ARROW_WIDTH_DP] wide and `fillMaxHeight()`, but only the centred
+ * [NAV_ARROW_ICON_DP] chevron is inked. Veto the icon's band, not the button's: a full-height veto
+ * column at both edges would evict every edge anchor the finder has and be worse than the overlap it
+ * is meant to prevent.
+ */
+internal fun DrawScope.navArrowVetoBounds(
+    plot: GraphRect,
+    scale: Float,
+): List<GraphRect> =
+    NavArrowGeometry.arrowBounds(
+        plot = plot,
+        density = 1f, // unused: both dimensions are supplied explicitly below
+        visibility = NavArrowGeometry.Visibility.BOTH,
+        widthPx = NAV_ARROW_WIDTH_DP.dp.toPx() * scale,
+        heightPx = NAV_ARROW_ICON_DP.dp.toPx() * scale,
+    )
+
+/** Mirrors `NavArrow`'s `Modifier.width(28.dp)` in Main.kt. */
+internal const val NAV_ARROW_WIDTH_DP = 28f
+
+/** Compose `Icon`'s default size — the actual inked height of the chevron inside the button. */
+internal const val NAV_ARROW_ICON_DP = 24f
 
 /**
  * Draws the full-size "NOW" label (drawn last, on top). Below-first, collision-aware placement

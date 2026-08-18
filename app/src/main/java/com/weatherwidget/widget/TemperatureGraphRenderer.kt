@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.RectF
 import android.util.Log
 import com.weatherwidget.shared.graph.DominantStationLabel
+import com.weatherwidget.shared.graph.NavArrowGeometry
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.LabelPlacementDebug
 import kotlinx.coroutines.Job
@@ -112,6 +113,14 @@ object TemperatureGraphRenderer {
         useCelsius: Boolean,
         /** Pre-formatted `knuq 73.4° @ 5:15 pm` (with segments for mixed sizing); null suppresses the annotation entirely. */
         dominantStationLabel: DominantStationLabel.LabelText? = null,
+        /**
+         * Which nav arrows the launcher composites over this bitmap, so free-floating labels are not
+         * drawn underneath them. Defaults to BOTH: the hourly path shows both unconditionally
+         * (`TemperatureTouchTargets.setupNavigationButtons`), and over-reserving a 36dp edge band is
+         * a far cheaper mistake than printing a label under a chevron.
+         */
+        navArrowVisibility: NavArrowGeometry.Visibility = NavArrowGeometry.Visibility.BOTH,
+        onDominantStationPlaced: ((DominantStationDebug) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -233,6 +242,7 @@ object TemperatureGraphRenderer {
                 widthPx = widthPx,
                 heightPx = heightPx,
                 density = density,
+                bitmapScale = bitmapScale,
                 labelScale = labelScale,
                 graphTop = layout.graphTop,
                 graphBottom = layout.graphBottom,
@@ -249,6 +259,8 @@ object TemperatureGraphRenderer {
                 useCelsius = useCelsius,
                 onLabelPlaced = onLabelPlaced,
                 onDayLabelPlaced = onDayLabelPlaced,
+                navArrowVisibility = navArrowVisibility,
+                onDominantStationPlaced = onDominantStationPlaced,
             )
         val fetchDotInput =
             TemperatureFetchDotRenderer.Input(
