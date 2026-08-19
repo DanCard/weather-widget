@@ -20,6 +20,7 @@ import com.weatherwidget.shared.graph.ForecastDeltaLabel
 import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.WeatherIconMapper
+import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -416,8 +417,23 @@ internal object DailyGraphRenderer {
                     lon,
                 )
                 ?: ctx.currentTemps
-        val sharedObservations = observations.map { it.toReading() }
-        val sharedHourlyForecasts = ctx.hourlyForecasts.map { it.toHourlyForecast() }
+        // `observedAt` above was derived by WidgetRenderer over the current-temp resolution window.
+        // The resolver below re-derives it and keeps the dominant station only on an exact match, so
+        // it has to see the SAME rows: the header's load is deliberately 36h wide (the yesterday
+        // delta must reach across midnight), and feeding that straight in changed which timestamps
+        // the blend emitted — the lone-station rule depends on the whole input set — so the two
+        // landed on readings up to an hour apart and the station rows vanished. Narrowing here
+        // reuses the single query instead of issuing a second one.
+        val resolutionWindow = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(ctx.now)
+        val zone = ZoneId.systemDefault()
+        val windowStartMs = resolutionWindow.start.atZone(zone).toInstant().toEpochMilli()
+        val windowEndMs = resolutionWindow.end.atZone(zone).toInstant().toEpochMilli()
+        val sharedObservations =
+            observations.filter { it.timestamp in windowStartMs..windowEndMs }.map { it.toReading() }
+        val sharedHourlyForecasts =
+            ctx.hourlyForecasts
+                .filter { it.dateTime in windowStartMs..windowEndMs }
+                .map { it.toHourlyForecast() }
         val personalStationWeight = ctx.stateManager.getPersonalStationWeight()
 
         val content =
@@ -437,6 +453,9 @@ internal object DailyGraphRenderer {
                 forecastDelta = headerState.appliedDelta,
                 showForecastDelta = showDelta,
                 showDominantStationTemp = showDominantTemp,
+                // Must match the producer of `observedAt` (CurrentTempResolver), or the two blends
+                // disagree on which reading is latest and the station rows are dropped.
+                lookaheadHours = CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
                 showDominantReadingAge = showDominantAge,
             ) ?: return null
         val dominant = content.dominantContribution?.contribution
@@ -446,6 +465,7 @@ internal object DailyGraphRenderer {
                 "delta=${content.deltaValueText} dominantTemp=${content.dominantTempText} " +
                 "dominantAge=${content.dominantAgeText} " +
                 "flags=delta:${onOff(showDelta)},temp:${onOff(showDominantTemp)},age:${onOff(showDominantAge)} " +
+                "dominantNullReason=${content.dominantNullReason} obsRows=${sharedObservations.size} " +
                 "stationId=${dominant?.stationId} dominantWeight=${dominant?.weightShare} " +
                 "rawTemp=${dominant?.rawTemp} resolvedTemp=${dominant?.resolvedTemp}",
             "DEBUG",

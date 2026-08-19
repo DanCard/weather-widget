@@ -47,12 +47,23 @@ object CurrentTemperatureResolver {
         val end: LocalDateTime,
     )
 
+    /**
+     * Hours of lookback and lookahead defining "current". Public and authoritative because more than
+     * one surface has to resolve the SAME current observation: the widget header derives `observedAt`
+     * here, and the daily today-column overlay re-derives it to name the dominant station. When the
+     * two used different windows they disagreed on which reading was latest — the overlay requires
+     * exact equality, so the station rows silently vanished while the delta row kept rendering.
+     * See plans/260819-today-overlay-station-drop-and-dead-opportunistic-loop.md.
+     */
+    const val RESOLUTION_LOOKBACK_HOURS = 12L
+    const val RESOLUTION_LOOKAHEAD_HOURS = 3L
+
     fun buildCurrentTempResolutionWindow(now: LocalDateTime): CurrentTempResolutionWindow {
         val truncatedNow = now.truncatedTo(ChronoUnit.HOURS)
         val roundedNow = if (now.minute >= 30) truncatedNow.plusHours(1) else truncatedNow
         return CurrentTempResolutionWindow(
-            start = roundedNow.minusHours(12L),
-            end = roundedNow.plusHours(3L),
+            start = roundedNow.minusHours(RESOLUTION_LOOKBACK_HOURS),
+            end = roundedNow.plusHours(RESOLUTION_LOOKAHEAD_HOURS),
         )
     }
 

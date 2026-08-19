@@ -166,6 +166,8 @@ internal object TemperatureStateResolver {
         val buildHourDataMs: Long
         var deltaFromYesterday: Float? = null
         var dominantStation: DominantBlend? = null
+        var newestObservationMs: Long? = null
+        var observationRowCount = 0
         when (graphLoadResult) {
             is GraphLoadOutcome.Empty -> {
                 // HOURLY_PAINT_TRACE: an empty hour list yields a blank graph state. The widget still
@@ -186,6 +188,8 @@ internal object TemperatureStateResolver {
                 buildHourDataMs = graphLoadResult.buildHourDataMs
                 deltaFromYesterday = graphLoadResult.deltaFromYesterday
                 dominantStation = graphLoadResult.dominantStation
+                newestObservationMs = graphLoadResult.newestObservationMs
+                observationRowCount = graphLoadResult.observationRowCount
             }
         }
 
@@ -345,6 +349,27 @@ internal object TemperatureStateResolver {
                     "contribution=${dominantContribution?.let { "${it.stationId} raw=${it.rawTemp} synthetic=${it.isSynthetic}" } ?: "null"} " +
                     "text=${dominantStationLabel?.fullText ?: "null"}",
             )
+            // Persisted counterpart of the line above. The VERBOSE one is logcat-only (see the
+            // AppLogDao level gate), so a report of "the label showed a stale temperature an hour
+            // ago" had no evidence left to check. What makes this answerable is the pairing of
+            // readingAgeMin (how old the NAMED station's raw reading is) with newestObsAgeMin (how
+            // old the freshest row the render actually loaded is): both large means the fetch
+            // pipeline stalled, readingAge large while newestObsAge is small means the blend named
+            // a lagging station while fresher data was on hand.
+            val nowEpochMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            fun ageMin(ms: Long?): String =
+                ms?.let { ((nowEpochMs - it).coerceAtLeast(0L) / 60_000L).toString() } ?: "na"
+            effectiveAppLogDao.log(
+                "DOMINANT_STATION",
+                "widget=$appWidgetId source=${displaySource.id} reason=$dominantTextReason " +
+                    "station=${dominantContribution?.stationId ?: "null"} " +
+                    "rawTemp=${dominantContribution?.rawTemp} " +
+                    "weightShare=${dominantContribution?.weightShare} " +
+                    "readingAgeMin=${ageMin(dominantContribution?.lastReadingMs)} " +
+                    "newestObsAgeMin=${ageMin(newestObservationMs)} obsRows=$observationRowCount " +
+                    "text=${dominantStationLabel?.fullText ?: "null"}",
+                "DEBUG",
+            )
 
             val renderStartMs = System.currentTimeMillis()
             bitmap = try {
@@ -426,6 +451,14 @@ internal object TemperatureStateResolver {
             val buildHourDataMs: Long,
             val deltaFromYesterday: Float? = null,
             val dominantStation: DominantBlend? = null,
+            /**
+             * Newest observation timestamp in the rows this render actually queried, and how many
+             * rows there were. Carried purely so the dominant-station breadcrumb can distinguish
+             * "the label is old because the app has nothing newer" from "the app HAD a newer
+             * reading and the label named an older one" — the two look identical on screen.
+             */
+            val newestObservationMs: Long? = null,
+            val observationRowCount: Int = 0,
         ) : GraphLoadOutcome()
     }
 
@@ -662,6 +695,8 @@ internal object TemperatureStateResolver {
             buildHourDataMs = buildHourDataMs,
             deltaFromYesterday = deltaFromYesterday,
             dominantStation = hourDataResult.dominantStation,
+            newestObservationMs = observations.maxOfOrNull { it.timestamp },
+            observationRowCount = observations.size,
         )
     }
 

@@ -63,8 +63,10 @@ object CurrentTempResolver {
             userLat = lat,
             userLon = lon,
             nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-            lookbackHours = 12L,
-            lookaheadHours = 3L,
+            // Single-sourced: the today-column overlay re-derives this same observation and must use
+            // the identical window (see CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS).
+            lookbackHours = com.weatherwidget.widget.CurrentTemperatureResolver.RESOLUTION_LOOKBACK_HOURS,
+            lookaheadHours = com.weatherwidget.widget.CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
             personalStationWeight = personalStationWeight,
         )
 
