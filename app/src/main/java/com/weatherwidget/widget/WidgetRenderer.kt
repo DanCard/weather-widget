@@ -223,6 +223,9 @@ object WidgetRenderer {
         // (in-place patch, no launcher re-inflate flash). See WidgetViewHandler.
         partialPush: Boolean = false,
         origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.UNSPECIFIED,
+        // A repaint fell due while the screen was off and was skipped outright, so the bitmap on
+        // screen may predate any number of fetches. Forces a full rebuild past GraphRepaintGate.
+        paintOwed: Boolean = false,
     ) {
         val renderStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -289,9 +292,15 @@ object WidgetRenderer {
             row.dateTime in nowMinEpoch..nowMaxEpoch
         }
 
+        // The rows the render actually draws from, for ObservationWatermark below. When a repository
+        // is present (every worker/UI path) `currentTemps` is empty and the observations come from
+        // the query inside the branch, so the watermark has to follow the same fork — measuring
+        // `currentTemps` unconditionally pins it at NONE and the gate never sees new data.
+        var watermarkRows: List<ObservationEntity> = currentTemps
         val graphStyleObs =
             if (repository != null) {
                 val observations = repository.getObservationsInRange(nowMinEpoch, nowMaxEpoch, locationLat, locationLon)
+                watermarkRows = observations
                 CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
                     observations = observations,
                     hourlyForecasts = nowCenteredHourlyForecasts,
@@ -325,6 +334,9 @@ object WidgetRenderer {
             }
         val fallbackObservation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
         val observation = graphStyleObs ?: fallbackObservation
+        // Computed from the same rows the display selects from, so the graph handlers can tell "new
+        // reading arrived" from "same data, one minute later" — see ObservationWatermark.
+        val dataWatermarkMs = ObservationWatermark.of(watermarkRows, displaySource.id)
         val observationSource =
             when {
                 graphStyleObs != null -> "graph_style"
@@ -392,6 +404,8 @@ object WidgetRenderer {
                     partialPush = partialPush,
                     origin = origin,
                     sourceMissingFromLoad = sourceMissingFromLoad,
+                    dataWatermarkMs = dataWatermarkMs,
+                    paintOwed = paintOwed,
                 )
             }
             ViewMode.PRECIPITATION -> {
@@ -410,6 +424,8 @@ object WidgetRenderer {
                     partialPush = partialPush,
                     origin = origin,
                     sourceMissingFromLoad = sourceMissingFromLoad,
+                    dataWatermarkMs = dataWatermarkMs,
+                    paintOwed = paintOwed,
                 )
             }
             ViewMode.CLOUD_COVER -> {
@@ -429,6 +445,8 @@ object WidgetRenderer {
                     partialPush = partialPush,
                     origin = origin,
                     sourceMissingFromLoad = sourceMissingFromLoad,
+                    dataWatermarkMs = dataWatermarkMs,
+                    paintOwed = paintOwed,
                 )
             }
             ViewMode.DAILY -> {

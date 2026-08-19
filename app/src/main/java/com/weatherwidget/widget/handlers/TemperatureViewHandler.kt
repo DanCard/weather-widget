@@ -16,6 +16,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.GraphRepaintGate
+import com.weatherwidget.widget.ObservationWatermark
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.widget.WidgetActions
@@ -64,6 +65,17 @@ object TemperatureViewHandler {
         origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.UNSPECIFIED,
         // See CloudCoverViewHandler: a stale source snapshot in the loader, not a real data gap.
         sourceMissingFromLoad: Boolean = false,
+        // Newest observation time among the rows this source draws; drives GraphRepaintGate's
+        // data-changed check. See ObservationWatermark.
+        //
+        // Null means "this caller did not measure it" — the interaction path (nav taps, refresh)
+        // renders unconditionally and never consults the gate, so it has no watermark to offer.
+        // Such a render must PRESERVE the stored value rather than stamp NONE over it: the stored
+        // one was measured by the same query the next gated pass will use, and overwriting it with
+        // a value from a different query makes the two incomparable.
+        dataWatermarkMs: Long? = null,
+        // A repaint was skipped outright for screen-off; force a full rebuild. See WidgetPaintCoordinator.
+        paintOwed: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -130,6 +142,9 @@ object TemperatureViewHandler {
                 nowMs = SystemClock.elapsedRealtime(),
                 windowSpanMinutes = windowSpanMinutes,
                 bitmapWidthPx = bitmapDims.widthPx,
+                lastWatermarkMs = lastRender?.dataWatermarkMs,
+                currentWatermarkMs = dataWatermarkMs ?: ObservationWatermark.NONE,
+                paintOwed = paintOwed,
             )
             gateReason = gateDecision.reason
             if (!gateDecision.shouldRebuild) {
@@ -203,6 +218,8 @@ object TemperatureViewHandler {
             WidgetStateManager.LastGraphRenderState(
                 renderMs = SystemClock.elapsedRealtime(),
                 displayedTemp = renderedFormattedTemp,
+                dataWatermarkMs = dataWatermarkMs
+                    ?: stateManager.getLastGraphRender(appWidgetId)?.dataWatermarkMs,
             ),
         )
 

@@ -353,6 +353,24 @@ class WidgetStateManager internal constructor(
         presentationStore.setLastGraphRender(widgetId, state)
     }
 
+    /**
+     * True when a repaint fell due while the screen was off and `WidgetPaintCoordinator` skipped it
+     * outright. The bitmap on screen may predate an arbitrary number of fetches, so the next paint
+     * that does run must rebuild rather than trust [GraphRepaintGate]'s cheaper signals.
+     *
+     * Deliberately global, not per-widget: the skip happens before widget ids are enumerated, so
+     * there is no widget to attribute it to.
+     */
+    fun isPaintOwed(): Boolean = prefs.getBoolean(KEY_PAINT_OWED, false)
+
+    fun setPaintOwed(owed: Boolean) {
+        if (owed) {
+            prefs.edit().putBoolean(KEY_PAINT_OWED, true).apply()
+        } else {
+            prefs.edit().remove(KEY_PAINT_OWED).apply()
+        }
+    }
+
     fun getSourceFailureCount(source: WeatherSource): Int =
         fetchStateStore.sourceFailureCount(source)
 
@@ -383,9 +401,18 @@ class WidgetStateManager internal constructor(
         locationStore.clearWidget(widgetId)
     }
 
+    /**
+     * What the last full graph-bitmap render drew, for [GraphRepaintGate] to compare against.
+     *
+     * [dataWatermarkMs] is null for a render recorded before watermark tracking existed — an app
+     * upgrade with prefs already on disk. That is deliberately distinct from
+     * [ObservationWatermark.NONE] (rendered with no observations to measure): the former must force
+     * one rebuild, the latter must not.
+     */
     data class LastGraphRenderState(
         val renderMs: Long,
         val displayedTemp: String?,
+        val dataWatermarkMs: Long? = null,
     )
 
     companion object {
@@ -394,6 +421,9 @@ class WidgetStateManager internal constructor(
 
         @Volatile
         private var prefsNameOverride: String? = null
+
+        /** Global (not per-widget) flag: a paint was skipped for screen-off and is still owed. */
+        const val KEY_PAINT_OWED = "widget_paint_owed"
 
         const val SOURCE_FAILURE_WATERMARK_THRESHOLD = 3
         const val DEFAULT_PERSONAL_STATION_DISCOUNT = 95

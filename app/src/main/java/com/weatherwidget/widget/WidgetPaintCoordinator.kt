@@ -77,9 +77,17 @@ internal class WidgetPaintCoordinator(
         hourlyLon: Double? = null,
     ) = coroutineScope {
         if (!isScreenInteractive()) {
+            // Record the debt. Nothing repaints on unlock — ACTION_USER_PRESENT is manifest-declared
+            // and undeliverable at targetSdk 26+ (see ScreenOnReceiver) — so without this the next
+            // paint to run would consult GraphRepaintGate's temp-string signal against a render that
+            // predates this fetch and could legitimately decide nothing changed, stranding a stale
+            // station label on screen. See plans/260818-widget-repaint-gate-data-watermark.md.
+            widgetStateManager.setPaintOwed(true)
             appLogDao.log("WIDGET_PAINT_SKIP", "reason=screen_off", "INFO")
             return@coroutineScope
         }
+
+        val paintOwed = widgetStateManager.isPaintOwed()
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
@@ -104,6 +112,7 @@ internal class WidgetPaintCoordinator(
         )
 
         val effectiveOrigin = if (uiOnly) WidgetPushDispatcher.Origin.UI_ONLY else origin
+        var rendered = false
         for (appWidgetId in appWidgetIds) {
             if (shouldSkipWidgetRender(appWidgetId)) {
                 Log.v(TAG, "Skipping render for widget $appWidgetId (throttled)")
@@ -123,10 +132,20 @@ internal class WidgetPaintCoordinator(
                     uiOnly = uiOnly,
                     partialPush = true,
                     origin = effectiveOrigin,
+                    paintOwed = paintOwed,
                 )
             }
             WidgetUpdateTracker.trackJob(appWidgetId, job, jobType)
             lastRenderMs[appWidgetId] = SystemClock.elapsedRealtime()
+            rendered = true
+        }
+
+        // Cleared only once a render actually launched. Clearing it up front would let the 30s
+        // per-widget throttle swallow the debt outright: every widget skipped, flag gone, and the
+        // stale bitmap left standing until some later signal happens to fire.
+        if (paintOwed && rendered) {
+            widgetStateManager.setPaintOwed(false)
+            appLogDao.log("WIDGET_PAINT_OWED", "action=force_rebuild widgets=${appWidgetIds.size}", "INFO")
         }
     }
 

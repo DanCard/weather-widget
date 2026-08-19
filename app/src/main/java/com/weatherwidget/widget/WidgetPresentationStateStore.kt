@@ -253,17 +253,27 @@ internal class WidgetPresentationStateStore(
     fun lastGraphRender(widgetId: Int): WidgetStateManager.LastGraphRenderState? {
         val msKey = lastGraphRenderKey(widgetId)
         if (!prefs.contains(msKey)) return null
+        val watermarkKey = lastDataWatermarkKey(widgetId)
         return WidgetStateManager.LastGraphRenderState(
             renderMs = prefs.getLong(msKey, 0L),
             displayedTemp = prefs.getString(lastDisplayedTempKey(widgetId), null),
+            // contains(), not a 0L default: a render that predates watermark tracking must read back
+            // as null (force one rebuild), not as ObservationWatermark.NONE (never rebuild).
+            dataWatermarkMs = if (prefs.contains(watermarkKey)) prefs.getLong(watermarkKey, 0L) else null,
         )
     }
 
     fun setLastGraphRender(widgetId: Int, state: WidgetStateManager.LastGraphRenderState) {
-        prefs.edit()
+        val editor = prefs.edit()
             .putLong(lastGraphRenderKey(widgetId), state.renderMs)
             .putString(lastDisplayedTempKey(widgetId), state.displayedTemp)
-            .apply()
+        val watermarkKey = lastDataWatermarkKey(widgetId)
+        if (state.dataWatermarkMs != null) {
+            editor.putLong(watermarkKey, state.dataWatermarkMs)
+        } else {
+            editor.remove(watermarkKey)
+        }
+        editor.apply()
     }
 
     fun clearWidget(widgetId: Int, editor: SharedPreferences.Editor) {
@@ -278,6 +288,7 @@ internal class WidgetPresentationStateStore(
             .remove(transientExpiresKey(widgetId))
             .remove(lastGraphRenderKey(widgetId))
             .remove(lastDisplayedTempKey(widgetId))
+            .remove(lastDataWatermarkKey(widgetId))
             .remove("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId")
             .remove("widget_single_day_epoch_$widgetId")
     }
@@ -336,6 +347,7 @@ internal class WidgetPresentationStateStore(
     private fun transientExpiresKey(widgetId: Int) = "$KEY_TRANSIENT_MESSAGE_EXPIRES_PREFIX$widgetId"
     private fun lastGraphRenderKey(widgetId: Int) = "$KEY_LAST_GRAPH_RENDER_MS_PREFIX$widgetId"
     private fun lastDisplayedTempKey(widgetId: Int) = "$KEY_LAST_DISPLAYED_TEMP_PREFIX$widgetId"
+    private fun lastDataWatermarkKey(widgetId: Int) = "$KEY_LAST_DATA_WATERMARK_PREFIX$widgetId"
 
     private companion object {
         const val TAG = "WidgetStateManager"
@@ -351,5 +363,6 @@ internal class WidgetPresentationStateStore(
         const val KEY_DAILY_COLUMN_COUNT_PREFIX = "widget_daily_col_count_"
         const val KEY_LAST_GRAPH_RENDER_MS_PREFIX = "widget_last_graph_render_ms_"
         const val KEY_LAST_DISPLAYED_TEMP_PREFIX = "widget_last_displayed_temp_"
+        const val KEY_LAST_DATA_WATERMARK_PREFIX = "widget_last_data_watermark_"
     }
 }

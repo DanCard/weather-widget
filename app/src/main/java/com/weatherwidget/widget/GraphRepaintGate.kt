@@ -9,6 +9,11 @@ package com.weatherwidget.widget
  * moves ~1–2 px and the displayed temp string rarely crosses its formatted boundary. This gate
  * skips the rebuild when nothing perceptible would change, falling back to a cheap header-only
  * partial update.
+ *
+ * The displayed temp string alone is not a sufficient change signal: the bitmap also carries the
+ * dominant-station label and its reading time, which move independently of it. [ObservationWatermark]
+ * supplies the data-changed answer directly — see that class for why it keys on observation
+ * `timestamp` rather than `fetchedAt`.
  */
 object GraphRepaintGate {
     const val NOW_DRIFT_PX = 4f
@@ -24,6 +29,14 @@ object GraphRepaintGate {
      * @param nowMs current elapsed-realtime ms
      * @param windowSpanMinutes total span of the visible hourly window in minutes
      * @param bitmapWidthPx width of the graph bitmap in pixels
+     * @param lastWatermarkMs [ObservationWatermark] recorded by the last full render. Null means the
+     *   render predates watermark tracking (an app upgrade), which forces one rebuild rather than
+     *   silently reading as "unchanged".
+     * @param currentWatermarkMs [ObservationWatermark] of the rows about to be drawn.
+     *   [ObservationWatermark.NONE] means "nothing to measure" and never forces a rebuild.
+     * @param paintOwed a repaint fell due while the screen was off and was skipped entirely; the
+     *   bitmap on screen may predate an arbitrary number of fetches, so no cheaper signal is
+     *   trustworthy. See `WidgetPaintCoordinator`.
      */
     fun shouldRebuildBitmap(
         displayedTemp: String?,
@@ -32,8 +45,21 @@ object GraphRepaintGate {
         nowMs: Long,
         windowSpanMinutes: Long,
         bitmapWidthPx: Int,
+        lastWatermarkMs: Long? = null,
+        currentWatermarkMs: Long = ObservationWatermark.NONE,
+        paintOwed: Boolean = false,
     ): Decision {
+        // Ahead of every other check: the other signals compare against the last *render*, and a
+        // screen-off skip means no render happened to compare against.
+        if (paintOwed) return Decision(true, "paint_owed")
+
         if (lastRenderMs <= 0L) return Decision(true, "no_prior_render")
+
+        if (lastWatermarkMs == null) return Decision(true, "watermark_absent")
+
+        // Strictly greater: a watermark that goes backwards (retention cleanup dropping the newest
+        // row, a source toggle narrowing the scope) is not new data and must not trigger a rebuild.
+        if (currentWatermarkMs > lastWatermarkMs) return Decision(true, "data_changed")
 
         if (displayedTemp != currentDisplayedTemp) return Decision(true, "temp_changed")
 

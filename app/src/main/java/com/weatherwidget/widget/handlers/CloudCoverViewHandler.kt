@@ -27,6 +27,7 @@ import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.GraphRepaintGate
+import com.weatherwidget.widget.ObservationWatermark
 import kotlinx.coroutines.Job
 import kotlin.coroutines.coroutineContext
 import java.time.Instant
@@ -118,6 +119,17 @@ object CloudCoverViewHandler {
         // then reads as 100% missing, so the gap detector must NOT spend an API round-trip on it;
         // the API has nothing we don't already hold and the next paint heals it.
         sourceMissingFromLoad: Boolean = false,
+        // Newest observation time among the rows this source draws; drives GraphRepaintGate's
+        // data-changed check. See ObservationWatermark.
+        //
+        // Null means "this caller did not measure it" — the interaction path (nav taps, refresh)
+        // renders unconditionally and never consults the gate, so it has no watermark to offer.
+        // Such a render must PRESERVE the stored value rather than stamp NONE over it: the stored
+        // one was measured by the same query the next gated pass will use, and overwriting it with
+        // a value from a different query makes the two incomparable.
+        dataWatermarkMs: Long? = null,
+        // A repaint was skipped outright for screen-off; force a full rebuild. See WidgetPaintCoordinator.
+        paintOwed: Boolean = false,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -142,6 +154,9 @@ object CloudCoverViewHandler {
                 nowMs = SystemClock.elapsedRealtime(),
                 windowSpanMinutes = windowSpanMinutes,
                 bitmapWidthPx = bitmapDims.widthPx,
+                lastWatermarkMs = lastRender?.dataWatermarkMs,
+                currentWatermarkMs = dataWatermarkMs ?: ObservationWatermark.NONE,
+                paintOwed = paintOwed,
             )
             if (!gateDecision.shouldRebuild) {
                 appLogDao.log(
@@ -501,6 +516,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             com.weatherwidget.widget.WidgetStateManager.LastGraphRenderState(
                 renderMs = SystemClock.elapsedRealtime(),
                 displayedTemp = null,
+                dataWatermarkMs = dataWatermarkMs
+                    ?: stateManager.getLastGraphRender(appWidgetId)?.dataWatermarkMs,
             ),
         )
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
