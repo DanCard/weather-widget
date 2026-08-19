@@ -326,4 +326,280 @@ class GraphEmptySpaceFinderTest {
             placement.centerX < tallPlot.width / 2f,
         )
     }
+
+    /**
+     * The Pixel case (2026-08-18): `knuq 64.4° @ 7:50 pm` shoulder-to-shoulder with the `Tue` day
+     * label while the right half of the plot stood open.
+     *
+     * Neither anchor is wide open (13px bar), so the old two-pass search fell off its cliff: pass 2
+     * stopped measuring obstacle distance entirely and handed the slot to the earliest anchor with any
+     * legal box — the one 2px from its neighbour. The intermediate rung sees that the right anchor has
+     * 9px, which is not roomy but is a whole bucket better, and takes it.
+     *
+     * Curves are absent so *only* obstacle distance can decide, and the single-band plot stops the left
+     * anchor escaping vertically instead of sideways.
+     */
+    @Test
+    fun aRoomierLaterAnchorBeatsACrampedEarlierOneEvenWhenNothingIsWideOpen() {
+        val crowdingTheLeftAnchor = GraphRect(0f, 0f, 68f, 21f) // 2px off the box at 70..130
+        val wellClearOfTheRightAnchor = GraphRect(339f, 0f, 400f, 21f) // 9px off the box at 270..330
+
+        val placement = requireNotNull(
+            find(
+                plot = SINGLE_BAND_PLOT,
+                drawnBounds = listOf(crowdingTheLeftAnchor, wellClearOfTheRightAnchor),
+                curveYsAt = { emptyList() },
+            ),
+        )
+
+        assertEquals(
+            "expected the 9px anchor, not the 2px one the permissive pass used to return",
+            300f,
+            placement.centerX,
+            0.01f,
+        )
+    }
+
+    /**
+     * The rungs are buckets, not a continuous score. Both anchors clear the top rung here — 14px and
+     * 30px of air against a 13px bar — so the [xFractions] preference decides and the earlier anchor
+     * keeps the slot despite being less roomy. Without this, a global "most clearance wins" search
+     * would look like a reasonable simplification of the ladder and would quietly break the mirrored
+     * anchor lists that keep the delta and station labels at opposite ends of the plot.
+     */
+    @Test
+    fun withinOneRungTheEarlierAnchorStillWinsEvenWhenTheLaterOneIsRoomier() {
+        val nearTheLeftAnchor = GraphRect(0f, 0f, 56f, 21f) // 14px off the box at 70..130
+        val farFromTheRightAnchor = GraphRect(360f, 0f, 400f, 21f) // 30px off the box at 270..330
+
+        val placement = requireNotNull(
+            find(
+                plot = SINGLE_BAND_PLOT,
+                drawnBounds = listOf(nearTheLeftAnchor, farFromTheRightAnchor),
+                curveYsAt = { emptyList() },
+            ),
+        )
+
+        assertEquals(
+            "anchor preference must survive inside a rung",
+            100f,
+            placement.centerX,
+            0.01f,
+        )
+    }
+
+    /**
+     * Even the last, permissive rung ranks candidates with obstacle distance folded in. Both bands are
+     * too close to the obstacle for any ladder rung (1px and 2px against a 4px pad floor), so the
+     * search reaches the final sweep — which used to rank on curve clearance alone and, with no curve
+     * drawn, therefore returned the first band it tried. A label that must be cramped should at least
+     * be cramped in the roomier direction.
+     *
+     * `verticalSteps = 1` pins the candidates to exactly two bands so the assertion names a specific
+     * one rather than whichever of seven happened to score highest.
+     */
+    @Test
+    fun theLastRungStillPrefersTheBandFurtherFromItsNeighbour() {
+        val betweenTheTwoBands = GraphRect(70f, 18f, 130f, 21f) // 1px under band A, 2px over band B
+
+        val placement = requireNotNull(
+            GraphEmptySpaceFinder.find(
+                plot = GraphRect(0f, 0f, 400f, 40f),
+                drawnBounds = listOf(betweenTheTwoBands),
+                curveYsAt = { emptyList() },
+                metrics = metrics,
+                padPx = 4f,
+                xFractions = listOf(0.25f),
+                verticalSteps = 1,
+            ),
+        )
+
+        assertEquals(
+            "expected the lower band (2px of air), not the first-tried upper one (1px)",
+            23f,
+            placement.box.top,
+            0.01f,
+        )
+    }
+
+    /** The ladder must descend and must start at the full open-clearance bar. */
+    @Test
+    fun theClearanceLadderDescendsFromTheOpenBar() {
+        assertEquals(1f, GraphEmptySpaceFinder.CLEARANCE_LADDER.first(), 0.001f)
+        assertEquals(
+            "rungs must strictly descend, else a later sweep re-tests the same candidates",
+            GraphEmptySpaceFinder.CLEARANCE_LADDER.sortedDescending(),
+            GraphEmptySpaceFinder.CLEARANCE_LADDER,
+        )
+        assertTrue(
+            "every rung must be a fraction of the open bar, in (0, 1]",
+            GraphEmptySpaceFinder.CLEARANCE_LADDER.all { it > 0f && it <= 1f },
+        )
+    }
+
+    /**
+     * The emulator case (2026-08-18): `knuq 62.6° @ 8:10 pm` drawn straight across the observed line.
+     *
+     * A steep limb is above the box at one sample and below it at the next, so the point test never
+     * sees it inside and — because the gap ignores which side it fell on — both flanking samples score
+     * the slot as wide open. Here the cliff is vertical, which no amount of extra sampling would catch;
+     * only the crossing test can. Three candidate bands at the left anchor are all traversed, and the
+     * right half of the plot has no line drawn at all, which is the room the user could see.
+     */
+    @Test
+    fun aCurveCrossingBetweenTwoSamplesIsNotOpenAir() {
+        val cliffUnderTheFirstAnchor = { x: Float ->
+            when {
+                x >= 200f -> emptyList() // right half: nothing drawn
+                x < 100f -> listOf(0f) // above every band
+                else -> listOf(200f) // below every band
+            }
+        }
+
+        val placement = requireNotNull(
+            GraphEmptySpaceFinder.find(
+                plot = plot,
+                drawnBounds = emptyList(),
+                curveYsAt = cliffUnderTheFirstAnchor,
+                metrics = metrics,
+                padPx = 4f,
+                xFractions = listOf(0.25f, 0.75f),
+                verticalSteps = 2,
+            ),
+        )
+
+        assertEquals(
+            "the left anchor's bands are all traversed by the cliff; expected the empty right half",
+            300f,
+            placement.centerX,
+            0.01f,
+        )
+    }
+
+    /**
+     * The crossing test counts curves above the box, so it must not fire for the ordinary case it most
+     * resembles: a label sitting in the gap between two lines, one above and one below for the box's
+     * whole width. That is the single most common good slot on the hourly graph — forecast dashes over,
+     * observed line under — and vetoing it would cost far more than the bug being fixed.
+     */
+    @Test
+    fun aBoxRidingBetweenTwoParallelCurvesIsStillOpenAir() {
+        val above = 0f
+        val below = 200f
+        val placement = requireNotNull(
+            GraphEmptySpaceFinder.find(
+                plot = plot,
+                drawnBounds = emptyList(),
+                curveYsAt = { listOf(above, below) },
+                metrics = metrics,
+                padPx = 4f,
+                xFractions = listOf(0.25f, 0.75f),
+                verticalSteps = 2,
+            ),
+        )
+        assertEquals(100f, placement.centerX, 0.01f)
+    }
+
+    /**
+     * A line that starts partway through the box's x-range changes the count without anything having
+     * crossed — the ghost line appearing at the fetch dot does exactly this. The count is therefore
+     * only compared between samples reporting the same number of curves. Without that guard this slot
+     * is rejected and the label is pushed off a perfectly good band.
+     */
+    @Test
+    fun aCurveAppearingMidBoxIsNotMistakenForOneCrossingIt() {
+        val ghostStartsHalfway = { x: Float ->
+            if (x < 100f) listOf(200f) else listOf(200f, 0f)
+        }
+        val placement = requireNotNull(
+            GraphEmptySpaceFinder.find(
+                plot = plot,
+                drawnBounds = emptyList(),
+                curveYsAt = ghostStartsHalfway,
+                metrics = metrics,
+                padPx = 4f,
+                xFractions = listOf(0.25f, 0.75f),
+                verticalSteps = 2,
+            ),
+        )
+        assertEquals(100f, placement.centerX, 0.01f)
+    }
+
+    /**
+     * The other half of the sampling fix: a dip into the box and back out again leaves the above-count
+     * unchanged, so only sample density can catch it. The station label is wide — 240px here, and
+     * wider than that on a real widget — and six flat samples probed it every 48px, straight past a
+     * 12px spike. Spacing now scales with the box.
+     */
+    @Test
+    fun aNarrowSpikeIntoAWideBoxIsSampled() {
+        val wideMetrics = GraphEmptySpaceFinder.Metrics(width = 240f, ascent = -10f, descent = 3f)
+        // Box spans 80..320. The old sample positions were 80/128/176/224/272/320 — this sits between.
+        val spikeBetweenTheOldSamples = { x: Float ->
+            if (x >= 146f && x <= 158f) listOf(10f) else listOf(0f)
+        }
+
+        assertNull(
+            "a spike through the box must veto it, not be sampled around",
+            GraphEmptySpaceFinder.find(
+                plot = SINGLE_BAND_PLOT,
+                drawnBounds = emptyList(),
+                curveYsAt = spikeBetweenTheOldSamples,
+                metrics = wideMetrics,
+                padPx = 4f,
+                xFractions = listOf(0.5f),
+            ),
+        )
+    }
+
+
+    /**
+     * The other emulator symptom (2026-08-18): `no_empty_band` on a plot whose right half looked empty.
+     *
+     * The station label is wider than the gap to the right of the NOW veto, so its only slot was a
+     * narrow horizontal strip — under the `Wed` day label, above the NOW band. Six flat vertical steps
+     * spanned 63 units each and stepped straight over a 17-unit window. Resolution now scales with the
+     * label's own height, so a gap that barely fits it is still found.
+     *
+     * The obstacles here leave a legal top only in 44..50, which the 6-step grid (4, 33.8, 63.7, …)
+     * cannot hit.
+     */
+    @Test
+    fun aStripBarelyTallerThanTheLabelIsStillFound() {
+        val above = GraphRect(0f, 0f, 400f, 44f)
+        val below = GraphRect(0f, 63f, 400f, 200f)
+
+        val placement = requireNotNull(
+            find(drawnBounds = listOf(above, below), curveYsAt = { emptyList() }),
+        ) { "expected the strip between the two obstacles" }
+
+        assertTrue(
+            "box must sit inside the 44..63 strip, got ${placement.box}",
+            placement.box.top >= above.bottom && placement.box.bottom <= below.top,
+        )
+    }
+
+    /**
+     * Resolution scales with the label, not with the plot: a fixed step count gets coarser as the plot
+     * grows, which is backwards. Bounded at both ends so a tiny label cannot turn the sweep into a
+     * per-pixel scan and a short plot still gets a usable number of tries.
+     */
+    @Test
+    fun verticalResolutionScalesWithTheLabelHeight() {
+        assertEquals(
+            "a band 30 line-heights tall should be stepped at about a third of a line height",
+            28,
+            GraphEmptySpaceFinder.verticalStepsFor(bandPx = 390f, boxHeightPx = 13f),
+        )
+        assertEquals(
+            "a band with barely room for the label still gets the floor",
+            GraphEmptySpaceFinder.VERTICAL_STEPS,
+            GraphEmptySpaceFinder.verticalStepsFor(bandPx = 13f, boxHeightPx = 13f),
+        )
+        assertEquals(
+            "degenerate height falls back to the floor rather than dividing by zero",
+            GraphEmptySpaceFinder.VERTICAL_STEPS,
+            GraphEmptySpaceFinder.verticalStepsFor(bandPx = 390f, boxHeightPx = 0f),
+        )
+    }
 }
