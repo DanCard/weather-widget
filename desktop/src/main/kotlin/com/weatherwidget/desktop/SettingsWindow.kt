@@ -207,18 +207,18 @@ internal fun SettingsWindow(
                             )
                         }
 
-                        // Personal Weather Stations
-                        SettingsCard(title = "Personal Weather Stations") {
-                            PersonalStationDiscount(
-                                discountPercent = currentConfig.settings.personalStationDiscount,
-                                onChanged = { newPercent ->
-                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(personalStationDiscount = newPercent)))
-                                }
-                            )
+                        // Notifications — the one-shot dominant-station temperature watch.
+                        //
+                        // Bound to DominantTempWatchStore, NOT to the config draft: the daemon
+                        // clears this flag when the notification fires, and this process does not
+                        // watch config.json for external edits, so a draft-backed toggle would
+                        // re-arm the spent watch on the next auto-save. See DominantTempWatchStore.
+                        SettingsCard(title = "Notifications") {
+                            DominantTempNotifyToggle(watchStore = watchStore)
                         }
 
                         // Units — Android keeps this high-use display preference directly below
-                        // the Personal Weather Stations discount slider.
+                        // the Notifications card.
                         SettingsCard(title = "Units") {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -259,14 +259,14 @@ internal fun SettingsWindow(
                             ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantAge = it))) }
                         }
 
-                        // Notifications — the one-shot dominant-station temperature watch.
-                        //
-                        // Bound to DominantTempWatchStore, NOT to the config draft: the daemon
-                        // clears this flag when the notification fires, and this process does not
-                        // watch config.json for external edits, so a draft-backed toggle would
-                        // re-arm the spent watch on the next auto-save. See DominantTempWatchStore.
-                        SettingsCard(title = "Notifications") {
-                            DominantTempNotifyToggle(watchStore = watchStore)
+                        // Personal Weather Stations
+                        SettingsCard(title = "Personal Weather Stations") {
+                            PersonalStationDiscount(
+                                discountPercent = currentConfig.settings.personalStationDiscount,
+                                onChanged = { newPercent ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(personalStationDiscount = newPercent)))
+                                }
+                            )
                         }
 
                         // Weather Data Sources -- title matches Android's

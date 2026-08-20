@@ -45,12 +45,12 @@ label = "Test Location",
         }
         composeTestRule.waitForIdle()
 
-        // The 9 sections that became SettingsCard titles. Each must render exactly once.
+        // The 10 sections that became SettingsCard titles. Each must render exactly once.
         // Phase 5: "API Sources" was renamed to "Weather Data Sources" to match Android's
         // strings.xml R.string.api_sources_title = "Weather Data Sources".
         // "Daily View — Today Column" (overlay toggles) matches Android's
         // R.string.today_overlay_title and sits between Units and Weather Data Sources.
-        listOf("Units", "Daily View — Today Column", "Weather Data Sources", "Personal Weather Stations", "API Keys", "Icon Gallery", "Location", "Diagnostics", "Feedback").forEach { title ->
+        listOf("Units", "Daily View — Today Column", "Weather Data Sources", "Personal Weather Stations", "Notifications", "API Keys", "Icon Gallery", "Location", "Diagnostics", "Feedback").forEach { title ->
             composeTestRule.onAllNodesWithText(title).assertCountEquals(1)
         }
     }
@@ -72,17 +72,20 @@ label = "Test Location",
         // the form grows. Ordering is what's under test, not visibility.
         val order = listOf(
             "Hourly Zoom",
-            "Personal Weather Stations",
+            "Notifications",
             "Units",
             "Daily View — Today Column",
+            "Personal Weather Stations",
             "Weather Data Sources",
         )
         val tops = order.associateWith { title ->
             composeTestRule.onNodeWithText(title).fetchSemanticsNode().positionInRoot.y
         }
 
-        // Pin the first-five-section order to match Android's activity_settings.xml reorder
-        // (Hourly Zoom, Personal Weather Stations, Units, Daily View, Weather Data Sources).
+        // Pin the leading section order to match Android's activity_settings.xml (Hourly Zoom,
+        // Notifications, Units, Daily View, Personal Weather Stations, Weather Data Sources).
+        // Notifications and Personal Weather Stations were swapped on both platforms together;
+        // this assertion is what keeps them from drifting apart again.
         order.zipWithNext().forEach { (upper, lower) ->
             assertTrue(
                 "\"$upper\" should precede \"$lower\", matching Android",
