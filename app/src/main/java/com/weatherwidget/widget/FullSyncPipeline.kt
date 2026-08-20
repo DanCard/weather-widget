@@ -206,6 +206,25 @@ internal class FullSyncPipeline(
                         weatherRepository.repairFrozenRainChanceIfNeeded(location.first, location.second)
                     }
 
+                    // One-shot dominant-station temperature watch. Costs a single boolean read when
+                    // the user has not armed it, and must never fail a sync — it is an optional
+                    // notification, not part of producing the widget.
+                    try {
+                        com.weatherwidget.notify.DominantTempChangeNotifier.check(
+                            context = context,
+                            repository = weatherRepository,
+                            stateManager = widgetStateManager,
+                            appLogDao = appLogDao,
+                            lat = location.first,
+                            lon = location.second,
+                            origin = "full_sync",
+                        )
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        appLogDao.logException("DOMINANT_TEMP_WATCH", "check failed (full_sync)", e)
+                    }
+
                     appLogDao.log(
                         "WIDGET_LIFECYCLE",
                         "phase=worker_paint_start uiOnly=${input.uiOnlyRefresh} thread=${Thread.currentThread().name}",
@@ -321,6 +340,7 @@ internal class FullSyncPipeline(
             .setInputData(
                 Data.Builder()
                     .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                    .tagTestModeEnqueue()
                     .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "debug_fast_refresh")
                     .build(),
             )

@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">対 %1$s</string>
     <string name="stats_baseline_blend_fallback">合成値（観測所なし）</string>
     <string name="forecast_history_actual_from_cache">保存済みの観測値から</string>
+    <string name="notifications_title">通知</string>
+    <string name="notify_dominant_temp_change_label">主力観測所の値が変わったら一度だけ通知</string>
+    <string name="notify_dominant_temp_change_description">主要ソースの主力観測所が異なる気温を報告したとき、または別の観測所が主力になったとき、一度だけ通知します（例: \"KNUQ 69.9°, was 68°\"）。通知後は自動的に解除されます。</string>
+    <string name="notify_dominant_temp_permission_denied">このアプリの通知はブロックされているため、何も届きません。</string>
+    <string name="notify_dominant_temp_channel_name">観測所の気温変化</string>
+    <string name="notify_dominant_temp_channel_description">主力の気象観測所が新しい気温を報告したときの一度限りの通知。</string>
+    <string name="notify_dominant_temp_title">主力観測所の値が変わりました</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s（前回 %3$s）</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s（前回 %3$s %4$s）</string>
 </resources>

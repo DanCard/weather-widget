@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">بمقابلہ %1$s</string>
     <string name="stats_baseline_blend_fallback">مخلوط (کوئی اسٹیشن نہیں)</string>
     <string name="forecast_history_actual_from_cache">محفوظ ریڈنگز سے</string>
+    <string name="notifications_title">اطلاعات</string>
+    <string name="notify_dominant_temp_change_label">غالب اسٹیشن کی ریڈنگ بدلنے پر ایک بار اطلاع دیں</string>
+    <string name="notify_dominant_temp_change_description">جب آپ کے بنیادی ماخذ کا غالب اسٹیشن مختلف درجہ حرارت بتائے گا، یا کوئی دوسرا اسٹیشن اس کی جگہ لے گا، تو ایک اطلاع بھیجی جائے گی — مثلاً \"KNUQ 69.9°, was 68°\"۔ اطلاع کے بعد یہ خود بند ہو جاتی ہے۔</string>
+    <string name="notify_dominant_temp_permission_denied">اس ایپ کے لیے اطلاعات مسدود ہیں، اس لیے کچھ موصول نہیں ہوگا۔</string>
+    <string name="notify_dominant_temp_channel_name">اسٹیشن کے درجہ حرارت کی تبدیلیاں</string>
+    <string name="notify_dominant_temp_channel_description">جب غالب موسمی اسٹیشن نیا درجہ حرارت بتائے تو ایک بار کی اطلاع۔</string>
+    <string name="notify_dominant_temp_title">غالب اسٹیشن کی ریڈنگ بدل گئی</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s، پہلے %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s، پہلے %3$s %4$s</string>
 </resources>

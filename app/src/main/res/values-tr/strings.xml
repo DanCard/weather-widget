@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">%1$s ile</string>
     <string name="stats_baseline_blend_fallback">karma (istasyon yok)</string>
     <string name="forecast_history_actual_from_cache">kayıtlı ölçümlerden</string>
+    <string name="notifications_title">Bildirimler</string>
+    <string name="notify_dominant_temp_change_label">Baskın istasyonun ölçümü değiştiğinde bir kez bildir</string>
+    <string name="notify_dominant_temp_change_description">Birincil kaynağınızın baskın istasyonu farklı bir sıcaklık bildirdiğinde ya da yerini başka bir istasyon aldığında tek bir bildirim gönderir — örneğin \"KNUQ 69.9°, was 68°\". Bildirimden sonra kendini kapatır.</string>
+    <string name="notify_dominant_temp_permission_denied">Bu uygulama için bildirimler engellenmiş, bu yüzden hiçbir şey iletilmez.</string>
+    <string name="notify_dominant_temp_channel_name">İstasyon sıcaklığı değişiklikleri</string>
+    <string name="notify_dominant_temp_channel_description">Baskın hava istasyonu yeni bir sıcaklık bildirdiğinde tek seferlik uyarılar.</string>
+    <string name="notify_dominant_temp_title">Baskın istasyonun ölçümü değişti</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, önceki %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, önceki %3$s %4$s</string>
 </resources>

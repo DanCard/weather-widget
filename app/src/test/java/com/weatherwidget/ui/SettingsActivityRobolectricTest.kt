@@ -177,4 +177,56 @@ class SettingsActivityRobolectricTest {
             }
         }
     }
+
+    @Test
+    fun `dominant temp notification switch defaults to unchecked`() {
+        val intent = Intent(context, SettingsActivity::class.java)
+        ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->
+            val switch = activity.findViewById<androidx.appcompat.widget.SwitchCompat>(
+                R.id.notify_dominant_temp_change_switch,
+            )
+            assertNotNull(switch)
+            assertFalse("the one-shot notification must default to off", switch.isChecked)
+        }
+    }
+
+    @Test
+    fun `dominant temp notification switch arms and disarms the watch`() {
+        val intent = Intent(context, SettingsActivity::class.java)
+        ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->
+            val switch = activity.findViewById<androidx.appcompat.widget.SwitchCompat>(
+                R.id.notify_dominant_temp_change_switch,
+            )
+            switch.performClick()
+            assertTrue(
+                "enabling the switch must arm the watch",
+                WidgetStateManager(activity).notifyOnDominantTempChange(),
+            )
+            switch.performClick()
+            assertFalse(
+                "disabling the switch must disarm the watch",
+                WidgetStateManager(activity).notifyOnDominantTempChange(),
+            )
+        }
+    }
+
+    @Test
+    fun `the switch un-checks itself when the watch fires under an open settings screen`() {
+        val intent = Intent(context, SettingsActivity::class.java)
+        ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->
+            val switch = activity.findViewById<androidx.appcompat.widget.SwitchCompat>(
+                R.id.notify_dominant_temp_change_switch,
+            )
+            switch.performClick()
+            assertTrue(switch.isChecked)
+
+            // What the sync worker does after posting the notification. Settings is in the
+            // foreground here, so a stale checked box would invite the user to "turn it off"
+            // and instead re-arm a watch that already fired.
+            WidgetStateManager(activity).setNotifyOnDominantTempChange(false)
+
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            assertFalse("the switch must follow the watch clearing itself", switch.isChecked)
+        }
+    }
 }

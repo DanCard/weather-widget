@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">대 %1$s</string>
     <string name="stats_baseline_blend_fallback">혼합값(관측소 없음)</string>
     <string name="forecast_history_actual_from_cache">저장된 관측값 기준</string>
+    <string name="notifications_title">알림</string>
+    <string name="notify_dominant_temp_change_label">주요 관측소 값이 바뀌면 한 번 알림</string>
+    <string name="notify_dominant_temp_change_description">기본 소스의 주요 관측소가 다른 기온을 보고하거나 다른 관측소가 주도권을 넘겨받으면 알림을 한 번 보냅니다 — 예: \"KNUQ 69.9°, was 68°\". 알림 후 자동으로 해제됩니다.</string>
+    <string name="notify_dominant_temp_permission_denied">이 앱의 알림이 차단되어 있어 아무것도 전달되지 않습니다.</string>
+    <string name="notify_dominant_temp_channel_name">관측소 기온 변화</string>
+    <string name="notify_dominant_temp_channel_description">주요 기상 관측소가 새로운 기온을 보고할 때 보내는 일회성 알림입니다.</string>
+    <string name="notify_dominant_temp_title">주요 관측소 값이 변경됨</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, 이전 %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, 이전 %3$s %4$s</string>
 </resources>

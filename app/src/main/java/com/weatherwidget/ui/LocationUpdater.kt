@@ -19,6 +19,7 @@ import com.weatherwidget.widget.HandoffLocation
 import com.weatherwidget.widget.LocationHandoffStore
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.tagTestModeEnqueue
 import com.weatherwidget.widget.WidgetStateManager
 
 /**
@@ -235,6 +236,7 @@ object LocationUpdater {
             .setInputData(
                 Data.Builder()
                     .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                    .tagTestModeEnqueue()
                     .build(),
             )
             .build()
@@ -247,6 +249,7 @@ object LocationUpdater {
                 Data.Builder()
                     .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
                     .putBoolean(WeatherWidgetWorker.KEY_LOCATION_CANDIDATE_REFRESH, true)
+                    .tagTestModeEnqueue()
                     .build(),
             )
             .build()

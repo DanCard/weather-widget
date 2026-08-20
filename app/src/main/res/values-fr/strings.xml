@@ -302,4 +302,13 @@
     <string name="stats_baseline_vs_source">vs %1$s</string>
     <string name="stats_baseline_blend_fallback">combiné (aucune station)</string>
     <string name="forecast_history_actual_from_cache">d\'après les relevés enregistrés</string>
+    <string name="notifications_title">Notifications</string>
+    <string name="notify_dominant_temp_change_label">M\'avertir une fois lorsque le relevé de la station dominante change</string>
+    <string name="notify_dominant_temp_change_description">Envoie une notification la prochaine fois que la station dominante de votre source principale signale une température différente, ou qu\'une autre station prend le relais — par exemple \"KNUQ 69.9°, was 68°\". L\'option se désactive ensuite d\'elle-même.</string>
+    <string name="notify_dominant_temp_permission_denied">Les notifications sont bloquées pour cette application ; rien ne serait remis.</string>
+    <string name="notify_dominant_temp_channel_name">Changements de température de la station</string>
+    <string name="notify_dominant_temp_channel_description">Alertes uniques lorsque la station météo dominante signale une nouvelle température.</string>
+    <string name="notify_dominant_temp_title">Relevé de la station dominante modifié</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, avant %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, avant %3$s %4$s</string>
 </resources>

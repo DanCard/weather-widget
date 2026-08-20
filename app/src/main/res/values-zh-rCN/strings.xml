@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">对比 %1$s</string>
     <string name="stats_baseline_blend_fallback">混合值（无气象站）</string>
     <string name="forecast_history_actual_from_cache">来自已存观测数据</string>
+    <string name="notifications_title">通知</string>
+    <string name="notify_dominant_temp_change_label">主导站点读数变化时通知一次</string>
+    <string name="notify_dominant_temp_change_description">当主数据源的主导站点报告不同温度，或换成另一个站点主导时，发送一条通知 — 例如 \"KNUQ 69.9°, was 68°\"。通知发出后该选项会自动清除。</string>
+    <string name="notify_dominant_temp_permission_denied">此应用的通知已被屏蔽，因此不会收到任何内容。</string>
+    <string name="notify_dominant_temp_channel_name">站点温度变化</string>
+    <string name="notify_dominant_temp_channel_description">主导气象站报告新温度时的一次性提醒。</string>
+    <string name="notify_dominant_temp_title">主导站点读数已变化</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s，此前 %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s，此前 %3$s %4$s</string>
 </resources>

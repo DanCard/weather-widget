@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">बनाम %1$s</string>
     <string name="stats_baseline_blend_fallback">मिश्रित (कोई स्टेशन नहीं)</string>
     <string name="forecast_history_actual_from_cache">संग्रहीत रीडिंग से</string>
+    <string name="notifications_title">सूचनाएँ</string>
+    <string name="notify_dominant_temp_change_label">प्रमुख स्टेशन की रीडिंग बदलने पर एक बार सूचित करें</string>
+    <string name="notify_dominant_temp_change_description">आपके प्राथमिक स्रोत के प्रमुख स्टेशन द्वारा अलग तापमान बताए जाने पर, या कोई दूसरा स्टेशन प्रमुख बनने पर एक सूचना भेजी जाएगी — जैसे \"KNUQ 69.9°, was 68°\"। भेजने के बाद यह स्वयं बंद हो जाती है।</string>
+    <string name="notify_dominant_temp_permission_denied">इस ऐप के लिए सूचनाएँ अवरुद्ध हैं, इसलिए कुछ भी नहीं पहुँचेगा।</string>
+    <string name="notify_dominant_temp_channel_name">स्टेशन तापमान परिवर्तन</string>
+    <string name="notify_dominant_temp_channel_description">जब प्रमुख मौसम स्टेशन नया तापमान बताए तो एक-बार की सूचना।</string>
+    <string name="notify_dominant_temp_title">प्रमुख स्टेशन की रीडिंग बदली</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, पहले %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, पहले %3$s %4$s</string>
 </resources>

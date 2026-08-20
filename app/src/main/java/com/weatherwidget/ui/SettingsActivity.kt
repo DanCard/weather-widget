@@ -38,6 +38,12 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.WeatherSourceOrdering
+import android.Manifest
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.weatherwidget.widget.DominantTempWatchPreferences
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -53,6 +59,44 @@ class SettingsActivity : AppCompatActivity() {
 
     @Inject
     lateinit var sharedLocationResolver: com.weatherwidget.data.repository.SharedLocationResolver
+
+    private lateinit var notifyDominantTempSwitch: androidx.appcompat.widget.SwitchCompat
+
+    /**
+     * Keeps the switch honest while Settings is open: the watch is armed here but *disarmed* by the
+     * sync worker when it fires, and without this the screen would keep showing a checked box for a
+     * watch that is already spent.
+     */
+    private val watchPrefsListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key != DominantTempWatchPreferences.KEY_ARMED) return@OnSharedPreferenceChangeListener
+            val armed = widgetStateManager.notifyOnDominantTempChange()
+            if (notifyDominantTempSwitch.isChecked != armed) {
+                // setChecked would re-enter the listener below and re-arm what just fired.
+                notifyDominantTempSwitch.setOnCheckedChangeListener(null)
+                notifyDominantTempSwitch.isChecked = armed
+                notifyDominantTempSwitch.setOnCheckedChangeListener(notifyDominantTempCheckedListener)
+            }
+        }
+
+    private val notifyDominantTempCheckedListener =
+        android.widget.CompoundButton.OnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setNotifyOnDominantTempChange(isChecked)
+            if (isChecked) requestNotificationPermissionIfNeeded()
+        }
+
+    private val requestNotificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) {
+                // The watch stays armed on purpose — the user can grant the permission later from
+                // system settings and it will still be waiting. Only say that nothing will arrive.
+                Toast.makeText(
+                    this,
+                    getString(R.string.notify_dominant_temp_permission_denied),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -190,6 +234,11 @@ class SettingsActivity : AppCompatActivity() {
             widgetStateManager.setShowTodayOverlayDominantAge(isChecked)
             repaintWidgets()
         }
+
+        // Notifications — one-shot dominant-station temperature watch.
+        notifyDominantTempSwitch = findViewById(R.id.notify_dominant_temp_change_switch)
+        notifyDominantTempSwitch.isChecked = widgetStateManager.notifyOnDominantTempChange()
+        notifyDominantTempSwitch.setOnCheckedChangeListener(notifyDominantTempCheckedListener)
 
         // App language: ACTION_APP_LOCALE_SETTINGS exists only on API 33+; older versions
         // have no per-app locale override, so the section stays gone there.
@@ -488,6 +537,27 @@ class SettingsActivity : AppCompatActivity() {
         super.onResume()
         // Refresh after returning from the location setup screen.
         refreshLocationLabel()
+        widgetStateManager.registerPreferenceListener(watchPrefsListener)
+        // Catch a fire that landed while this screen was in the background — the listener only
+        // covers writes that happen while it is registered.
+        notifyDominantTempSwitch.setOnCheckedChangeListener(null)
+        notifyDominantTempSwitch.isChecked = widgetStateManager.notifyOnDominantTempChange()
+        notifyDominantTempSwitch.setOnCheckedChangeListener(notifyDominantTempCheckedListener)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        widgetStateManager.unregisterPreferenceListener(watchPrefsListener)
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun refreshLocationLabel() {

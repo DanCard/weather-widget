@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">vs %1$s</string>
     <string name="stats_baseline_blend_fallback">gabungan (tanpa stasiun)</string>
     <string name="forecast_history_actual_from_cache">dari pembacaan tersimpan</string>
+    <string name="notifications_title">Notifikasi</string>
+    <string name="notify_dominant_temp_change_label">Beri tahu sekali saat bacaan stasiun dominan berubah</string>
+    <string name="notify_dominant_temp_change_description">Mengirim satu notifikasi saat stasiun dominan dari sumber utama Anda melaporkan suhu yang berbeda, atau saat stasiun lain mengambil alih — misalnya \"KNUQ 69.9°, was 68°\". Otomatis nonaktif setelah terkirim.</string>
+    <string name="notify_dominant_temp_permission_denied">Notifikasi diblokir untuk aplikasi ini, jadi tidak ada yang akan diterima.</string>
+    <string name="notify_dominant_temp_channel_name">Perubahan suhu stasiun</string>
+    <string name="notify_dominant_temp_channel_description">Peringatan sekali jalan saat stasiun cuaca dominan melaporkan suhu baru.</string>
+    <string name="notify_dominant_temp_title">Bacaan stasiun dominan berubah</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, sebelumnya %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, sebelumnya %3$s %4$s</string>
 </resources>

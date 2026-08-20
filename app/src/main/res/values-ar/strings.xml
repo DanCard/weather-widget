@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">مقابل %1$s</string>
     <string name="stats_baseline_blend_fallback">مُدمج (بلا محطة)</string>
     <string name="forecast_history_actual_from_cache">من القراءات المخزّنة</string>
+    <string name="notifications_title">الإشعارات</string>
+    <string name="notify_dominant_temp_change_label">إشعار لمرة واحدة عند تغيّر قراءة المحطة المهيمنة</string>
+    <string name="notify_dominant_temp_change_description">يرسل إشعارًا واحدًا عندما تُبلّغ المحطة المهيمنة لمصدرك الأساسي عن درجة حرارة مختلفة، أو عندما تحلّ محطة أخرى محلّها — مثل \"KNUQ 69.9°, was 68°\". يُلغى تلقائيًا بعد إرساله.</string>
+    <string name="notify_dominant_temp_permission_denied">الإشعارات محظورة لهذا التطبيق، لذا لن يصل أي شيء.</string>
+    <string name="notify_dominant_temp_channel_name">تغيّرات درجة حرارة المحطة</string>
+    <string name="notify_dominant_temp_channel_description">تنبيهات لمرة واحدة عندما تُبلّغ محطة الطقس المهيمنة عن درجة حرارة جديدة.</string>
+    <string name="notify_dominant_temp_title">تغيّرت قراءة المحطة المهيمنة</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s، كانت %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s، كانت %3$s %4$s</string>
 </resources>

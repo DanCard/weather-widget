@@ -302,4 +302,13 @@
     <string name="stats_baseline_vs_source">проти %1$s</string>
     <string name="stats_baseline_blend_fallback">змішані (немає станції)</string>
     <string name="forecast_history_actual_from_cache">із збережених вимірювань</string>
+    <string name="notifications_title">Сповіщення</string>
+    <string name="notify_dominant_temp_change_label">Сповістити один раз, коли зміняться показання домінуючої станції</string>
+    <string name="notify_dominant_temp_change_description">Надішле одне сповіщення, коли домінуюча станція вашого основного джерела повідомить іншу температуру або коли її замінить інша станція — наприклад \"KNUQ 69.9°, was 68°\". Після спрацювання налаштування вимикається саме.</string>
+    <string name="notify_dominant_temp_permission_denied">Сповіщення для цього застосунку заблоковані, тож нічого не надійде.</string>
+    <string name="notify_dominant_temp_channel_name">Зміни температури станції</string>
+    <string name="notify_dominant_temp_channel_description">Одноразові сповіщення, коли домінуюча метеостанція повідомляє нову температуру.</string>
+    <string name="notify_dominant_temp_title">Показання домінуючої станції змінилися</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, було %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, було %3$s %4$s</string>
 </resources>

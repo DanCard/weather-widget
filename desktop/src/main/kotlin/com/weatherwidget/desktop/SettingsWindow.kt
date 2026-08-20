@@ -76,6 +76,8 @@ internal fun SettingsWindow(
     // Keeps the owning Window aware of the latest draft so title-bar close and Escape can flush
     // changes made less than [autoSaveDelayMs] ago.
     onDraftChanged: (DesktopConfig) -> Unit = {},
+    // The one-shot dominant-station temperature watch, deliberately outside the config draft.
+    watchStore: DominantTempWatchStore = DominantTempWatchStore(),
 ) {
     // NOT keyed on `config`. It used to be — `remember(config) { mutableStateOf(config) }` — which
     // made Compose discard the in-progress draft and re-seed from the baseline every time anything
@@ -257,6 +259,16 @@ internal fun SettingsWindow(
                             ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantAge = it))) }
                         }
 
+                        // Notifications — the one-shot dominant-station temperature watch.
+                        //
+                        // Bound to DominantTempWatchStore, NOT to the config draft: the daemon
+                        // clears this flag when the notification fires, and this process does not
+                        // watch config.json for external edits, so a draft-backed toggle would
+                        // re-arm the spent watch on the next auto-save. See DominantTempWatchStore.
+                        SettingsCard(title = "Notifications") {
+                            DominantTempNotifyToggle(watchStore = watchStore)
+                        }
+
                         // Weather Data Sources -- title matches Android's
                         // R.string.api_sources_title = "Weather Data Sources".
                         SettingsCard(title = "Weather Data Sources") {
@@ -403,6 +415,48 @@ internal fun SettingsWindow(
 }
 
 private fun formatCoord(value: Double): String = "%.4f".format(value)
+
+/**
+ * The arm switch for the one-shot dominant-station temperature notification.
+ *
+ * Reads its state when the window composes rather than observing the file: the daemon only ever
+ * clears it, and it does so at a moment the user is almost certainly not staring at this screen.
+ * Reopening Settings shows the truth.
+ */
+@Composable
+private fun DominantTempNotifyToggle(watchStore: DominantTempWatchStore) {
+    var armed by remember { mutableStateOf(watchStore.isArmed()) }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "Notify once when the dominant station reading changes",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Sends one notification the next time the dominant station behind your primary " +
+                    "source reports a different temperature, or a different station takes over — " +
+                    "for example \"KNUQ 69.9°, was 68°\". Clears itself after it fires.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(
+            checked = armed,
+            onCheckedChange = {
+                armed = it
+                watchStore.setArmed(it)
+                Log.i(TAG, "Dominant-temp change notification ${if (it) "armed" else "cleared"}.")
+            },
+            modifier = Modifier.testTag("notify_dominant_temp_change_switch"),
+        )
+    }
+}
 
 @Composable
 private fun TodayOverlayToggleRow(

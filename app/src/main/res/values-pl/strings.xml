@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">vs %1$s</string>
     <string name="stats_baseline_blend_fallback">mieszany (brak stacji)</string>
     <string name="forecast_history_actual_from_cache">z zapisanych odczytów</string>
+    <string name="notifications_title">Powiadomienia</string>
+    <string name="notify_dominant_temp_change_label">Powiadom raz, gdy zmieni się odczyt dominującej stacji</string>
+    <string name="notify_dominant_temp_change_description">Wyśle jedno powiadomienie, gdy dominująca stacja Twojego głównego źródła zgłosi inną temperaturę lub gdy przejmie ją inna stacja — na przykład \"KNUQ 69.9°, was 68°\". Po wysłaniu opcja sama się wyłącza.</string>
+    <string name="notify_dominant_temp_permission_denied">Powiadomienia dla tej aplikacji są zablokowane, więc nic nie dotrze.</string>
+    <string name="notify_dominant_temp_channel_name">Zmiany temperatury stacji</string>
+    <string name="notify_dominant_temp_channel_description">Jednorazowe alerty, gdy dominująca stacja pogodowa zgłosi nową temperaturę.</string>
+    <string name="notify_dominant_temp_title">Odczyt dominującej stacji się zmienił</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, poprzednio %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, poprzednio %3$s %4$s</string>
 </resources>

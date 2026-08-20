@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">so với %1$s</string>
     <string name="stats_baseline_blend_fallback">kết hợp (không có trạm)</string>
     <string name="forecast_history_actual_from_cache">từ số đo đã lưu</string>
+    <string name="notifications_title">Thông báo</string>
+    <string name="notify_dominant_temp_change_label">Báo một lần khi số đo của trạm chủ đạo thay đổi</string>
+    <string name="notify_dominant_temp_change_description">Gửi một thông báo vào lần tới khi trạm chủ đạo của nguồn chính báo một nhiệt độ khác, hoặc khi một trạm khác thay thế nó — ví dụ \"KNUQ 69.9°, was 68°\". Tùy chọn tự tắt sau khi báo.</string>
+    <string name="notify_dominant_temp_permission_denied">Thông báo của ứng dụng này đang bị chặn nên sẽ không có gì được gửi đến.</string>
+    <string name="notify_dominant_temp_channel_name">Thay đổi nhiệt độ trạm</string>
+    <string name="notify_dominant_temp_channel_description">Cảnh báo một lần khi trạm thời tiết chủ đạo báo nhiệt độ mới.</string>
+    <string name="notify_dominant_temp_title">Số đo của trạm chủ đạo đã thay đổi</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, trước đó %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, trước đó %3$s %4$s</string>
 </resources>

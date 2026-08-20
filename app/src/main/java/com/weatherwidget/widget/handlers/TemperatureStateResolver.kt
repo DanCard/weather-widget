@@ -533,6 +533,8 @@ internal object TemperatureStateResolver {
                 graphEnd = alignedCenter.plusHours(WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS),
                 observations = loaded,
                 repositoryPresent = repository != null,
+                observationsLat = lat,
+                observationsLon = lon,
             )
             loaded
         }

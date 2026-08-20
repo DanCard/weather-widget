@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">เทียบกับ %1$s</string>
     <string name="stats_baseline_blend_fallback">ค่าผสม (ไม่มีสถานี)</string>
     <string name="forecast_history_actual_from_cache">จากค่าที่บันทึกไว้</string>
+    <string name="notifications_title">การแจ้งเตือน</string>
+    <string name="notify_dominant_temp_change_label">แจ้งเตือนครั้งเดียวเมื่อค่าจากสถานีหลักเปลี่ยน</string>
+    <string name="notify_dominant_temp_change_description">ส่งการแจ้งเตือนหนึ่งครั้งเมื่อสถานีหลักของแหล่งข้อมูลหลักของคุณรายงานอุณหภูมิที่ต่างออกไป หรือเมื่อมีสถานีอื่นเข้ามาแทน — เช่น \"KNUQ 69.9°, was 68°\" และจะปิดตัวเองหลังจากแจ้งเตือนแล้ว</string>
+    <string name="notify_dominant_temp_permission_denied">การแจ้งเตือนของแอปนี้ถูกบล็อกไว้ จึงจะไม่มีอะไรส่งถึงคุณ</string>
+    <string name="notify_dominant_temp_channel_name">การเปลี่ยนแปลงอุณหภูมิของสถานี</string>
+    <string name="notify_dominant_temp_channel_description">การแจ้งเตือนครั้งเดียวเมื่อสถานีตรวจอากาศหลักรายงานอุณหภูมิใหม่</string>
+    <string name="notify_dominant_temp_title">ค่าจากสถานีหลักเปลี่ยนแปลง</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, ก่อนหน้า %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, ก่อนหน้า %3$s %4$s</string>
 </resources>

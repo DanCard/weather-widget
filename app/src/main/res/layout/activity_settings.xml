@@ -194,24 +194,16 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Personal Weather Stations Section -->
+            <!-- Notifications -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="8dp"
-                android:text="@string/personal_stations_title"
+                android:text="@string/notifications_title"
                 android:textColor="@color/widget_text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:text="@string/personal_stations_description"
-                android:textColor="@color/widget_text_secondary"
-                android:textSize="14sp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -220,44 +212,33 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <TextView
-                    android:id="@+id/personal_station_discount_value"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="4dp"
-                    android:textColor="@color/widget_text_primary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    tools:text="0% — no discount" />
-
-                <SeekBar
-                    android:id="@+id/personal_station_discount_seekbar"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:max="100" />
-
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
                     <TextView
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/personal_stations_no_discount"
-                        android:textColor="@color/widget_text_secondary"
-                        android:textSize="12sp" />
+                        android:layout_height="wrap_content"
+                        android:text="@string/notify_dominant_temp_change_label"
+                        android:textColor="@color/widget_text_primary"
+                        android:textSize="15sp" />
 
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="end"
-                        android:text="@string/personal_stations_ignored"
-                        android:textColor="@color/widget_text_secondary"
-                        android:textSize="12sp" />
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/notify_dominant_temp_change_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
                 </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/notify_dominant_temp_change_description"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
             </LinearLayout>
 
             <!-- Units Section -->
@@ -373,6 +354,73 @@
                         android:id="@+id/today_overlay_dominant_age_switch"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Personal Weather Stations Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/personal_stations_title"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="@string/personal_stations_description"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/bg_surface_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/personal_station_discount_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="4dp"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    tools:text="0% — no discount" />
+
+                <SeekBar
+                    android:id="@+id/personal_station_discount_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/personal_stations_no_discount"
+                        android:textColor="@color/widget_text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="@string/personal_stations_ignored"
+                        android:textColor="@color/widget_text_secondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
             </LinearLayout>
 

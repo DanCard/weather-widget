@@ -9,6 +9,7 @@ import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.shared.actuals.BlendContribution
 import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
@@ -108,6 +109,36 @@ class DesktopWeatherRepository(
             zoneId = zoneId,
         )
         return ResolvedCurrentTemp(resolution.displayTemp, resolution.appliedDelta, deltaFromYesterday)
+    }
+
+    /**
+     * The station holding the largest blend weight behind the temperature currently on screen, or
+     * null when the blend produced none.
+     *
+     * Deliberately reuses [CurrentTemperatureResolver.buildCurrentTempResolutionWindow] and the same
+     * lookback/lookahead as [resolveForForecastResult]: a different window selects a different
+     * "latest" reading, and a notification derived from one window while the popup shows another
+     * would name a station the user cannot find on their own graph.
+     */
+    fun resolveDominantContribution(raw: RawFetch, now: Long): BlendContribution? {
+        val displaySource = WeatherSource.fromDisplaySource(weatherSource)
+        val nowLocal = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault())
+        val window = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(nowLocal)
+        val zoneId = ZoneId.systemDefault()
+        val minEpoch = window.start.atZone(zoneId).toInstant().toEpochMilli()
+        val maxEpoch = window.end.atZone(zoneId).toInstant().toEpochMilli()
+
+        return ActualsAggregator.resolveCurrentObservationDetails(
+            observations = raw.rawObservations.filter { it.timestamp in minEpoch..maxEpoch },
+            hourlyForecasts = raw.hourly.filter { it.dateTime in minEpoch..maxEpoch },
+            displaySourceId = displaySource.id,
+            userLat = latitude,
+            userLon = longitude,
+            nowMs = now,
+            lookbackHours = 12L,
+            lookaheadHours = 3L,
+            personalStationWeight = personalStationWeight,
+        )?.dominantContribution?.contribution
     }
 
     fun resolveCurrentTempInMemory(raw: RawFetch, now: Long): ResolvedCurrentTemp {

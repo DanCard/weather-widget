@@ -53,6 +53,7 @@ object CurrentTempUpdateScheduler {
                             .putBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_OPPORTUNISTIC, opportunistic)
                             .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
                             .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, force)
+                            .tagTestModeEnqueue()
                             .putBoolean(WeatherWidgetWorker.KEY_USER_INTERACTION, userInteraction)
                             .apply {
                                 if (targetSourceId != null) {

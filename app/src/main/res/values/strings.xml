@@ -228,6 +228,21 @@
     <string name="today_overlay_dominant_temp_label">Show dominant station temperature</string>
     <string name="today_overlay_dominant_age_label">Show reading age</string>
 
+    <!-- Notifications section: the one-shot dominant-station temperature watch. -->
+    <string name="notifications_title">Notifications</string>
+    <string name="notify_dominant_temp_change_label">Notify once when the dominant station reading changes</string>
+    <string name="notify_dominant_temp_change_description">Sends one notification the next time the dominant station behind your primary source reports a different temperature, or a different station takes over — for example \"KNUQ 69.9°, was 68°\". Clears itself after it fires.</string>
+    <string name="notify_dominant_temp_permission_denied">Notifications are blocked for this app, so nothing would be delivered.</string>
+    <string name="notify_dominant_temp_channel_name">Station temperature changes</string>
+    <string name="notify_dominant_temp_channel_description">One-shot alerts when the dominant weather station reports a new temperature.</string>
+    <string name="notify_dominant_temp_title">Dominant station reading changed</string>
+    <!-- Same station, new reading. %1$s = station id, %2$s = the new reading, %3$s = the previous
+         one. e.g. "KNUQ 69.9°, was 68°" -->
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, was %3$s</string>
+    <!-- A different station took over. %1$s = new station id, %2$s = its reading, %3$s = the
+         previous station id, %4$s = its reading. e.g. "KSJC 72°, was KNUQ 68°" -->
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, was %3$s %4$s</string>
+
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Language</string>
     <string name="app_language_description">Choose the language used by this app. Opens Android\'s per-app language setting.</string>

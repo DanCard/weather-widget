@@ -90,8 +90,16 @@ class WidgetWorkSchedulerCollisionTest {
         assertTrue(updatedOneTimeIds.contains(urgent.id))
     }
 
+    /**
+     * The backfill is the one carve-out from this class's APPEND_OR_REPLACE rule (plan 260820).
+     *
+     * It used to append, which makes a pending backfill a *prerequisite* of the next one: a burst
+     * became a serial queue of identical 5-station, 72-hour fetches, and the actuals the user was
+     * waiting on sat behind the lot. Six stacked up in five minutes on the emulator. The work is
+     * idempotent and carries no callback, so a second request buys nothing.
+     */
     @Test
-    fun `new observation history repair survives an older active repair`() {
+    fun `a second observation backfill collapses into the pending one`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val older =
             WidgetWorkScheduler.enqueueRequiredObservationBackfill(
@@ -102,15 +110,14 @@ class WidgetWorkSchedulerCollisionTest {
                 reason = "older_window",
                 initialDelayMs = 60_000,
             )
-        val newer =
-            WidgetWorkScheduler.enqueueRequiredObservationBackfill(
-                context = context,
-                latitude = 37.417,
-                longitude = -122.089,
-                lookbackHours = 72,
-                reason = "newer_window",
-                initialDelayMs = 60_000,
-            )
+        WidgetWorkScheduler.enqueueRequiredObservationBackfill(
+            context = context,
+            latitude = 37.417,
+            longitude = -122.089,
+            lookbackHours = 72,
+            reason = "newer_window",
+            initialDelayMs = 60_000,
+        )
 
         val retainedIds =
             WorkManager.getInstance(context)
@@ -118,8 +125,8 @@ class WidgetWorkSchedulerCollisionTest {
                 .get(5, TimeUnit.SECONDS)
                 .map { it.id }
 
-        assertTrue(retainedIds.contains(older.id))
-        assertTrue(retainedIds.contains(newer.id))
-        assertEquals(2, retainedIds.size)
+        assertEquals("the burst must not chain", 1, retainedIds.size)
+        assertTrue("the pending request is the one that survives", retainedIds.contains(older.id))
     }
+
 }

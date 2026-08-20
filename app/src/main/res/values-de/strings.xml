@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">vs. %1$s</string>
     <string name="stats_baseline_blend_fallback">Mischwert (keine Station)</string>
     <string name="forecast_history_actual_from_cache">aus gespeicherten Messwerten</string>
+    <string name="notifications_title">Benachrichtigungen</string>
+    <string name="notify_dominant_temp_change_label">Einmalig benachrichtigen, wenn sich der Wert der dominanten Station ändert</string>
+    <string name="notify_dominant_temp_change_description">Sendet eine Benachrichtigung, sobald die dominante Station deiner primären Quelle eine andere Temperatur meldet oder eine andere Station übernimmt — zum Beispiel \"KNUQ 69.9°, was 68°\". Danach schaltet sich die Option selbst ab.</string>
+    <string name="notify_dominant_temp_permission_denied">Benachrichtigungen sind für diese App blockiert, es käme also nichts an.</string>
+    <string name="notify_dominant_temp_channel_name">Änderungen der Stationstemperatur</string>
+    <string name="notify_dominant_temp_channel_description">Einmalige Hinweise, wenn die dominante Wetterstation eine neue Temperatur meldet.</string>
+    <string name="notify_dominant_temp_title">Wert der dominanten Station geändert</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, vorher %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, vorher %3$s %4$s</string>
 </resources>

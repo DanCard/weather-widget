@@ -160,8 +160,17 @@ class WeatherWidgetProviderEnqueuePolicyTest {
         assertEquals(0L, requestSlot.captured.workSpec.initialDelay)
     }
 
+    /**
+     * The one carve-out from this file's APPEND_OR_REPLACE rule for required work (plan 260820).
+     *
+     * Appending made a pending backfill a *prerequisite* of the next, so a burst became a serial
+     * queue of identical 5-station, 72-hour fetches. The work is idempotent and carries no callback,
+     * so KEEP loses nothing: the request is dropped only when an equivalent one is already pending.
+     * `required immediate full-fetch update remains ordinary and appended` above pins the scope of
+     * the carve-out — the other required lanes still append.
+     */
     @Test
-    fun `required observation history repair is appended instead of discarded`() {
+    fun `required observation history repair collapses into a pending one`() {
         val requestSlot = slot<OneTimeWorkRequest>()
 
         WidgetWorkScheduler.enqueueRequiredObservationBackfill(
@@ -176,7 +185,7 @@ class WeatherWidgetProviderEnqueuePolicyTest {
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
                 eq(WidgetWorkScheduler.WORK_NAME_OBSERVATION_BACKFILL),
-                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                eq(ExistingWorkPolicy.KEEP),
                 capture(requestSlot),
             )
         }

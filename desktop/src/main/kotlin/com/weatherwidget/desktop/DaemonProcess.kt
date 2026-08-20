@@ -10,6 +10,8 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
 import com.weatherwidget.data.local.desktop.WakeEventLog
+import com.weatherwidget.shared.notify.DominantTempWatch
+import com.weatherwidget.shared.notify.DominantTempWatchDecision
 import com.weatherwidget.shared.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +23,7 @@ import java.nio.file.StandardWatchEventKinds
 import kotlin.system.exitProcess
 
 private const val TAG = "DaemonProcess"
+private const val DOMINANT_TEMP_WATCH_TAG = "DOMINANT_TEMP_WATCH"
 
 fun runDaemon() {
     // As the very first statement: java.awt.headless = true
@@ -134,6 +137,50 @@ fun runDaemon() {
         }.collect {}
     }
 
+    // One-shot dominant-station temperature watch (Settings → Notifications). Evaluated after every
+    // successful observation pull, since that is when a new station reading actually arrives. Costs
+    // one small file read when disarmed, and never propagates: an optional notification must not be
+    // able to break a fetch loop.
+    val dominantTempWatchStore = DominantTempWatchStore()
+    fun checkDominantTempWatch(
+        activeRepo: DesktopWeatherRepository,
+        snapshot: ForecastSnapshot?,
+        origin: String,
+    ) {
+        if (snapshot == null) return
+        val state = dominantTempWatchStore.load()
+        if (!state.armed) return
+        val useCelsius = currentConfig?.settings?.useCelsius ?: return
+        runCatching {
+            val dominant = activeRepo.resolveDominantContribution(snapshot.raw, System.currentTimeMillis())
+            when (val decision = DominantTempWatch.evaluate(state, dominant, useCelsius)) {
+                is DominantTempWatchDecision.Idle -> Unit
+                is DominantTempWatchDecision.Hold ->
+                    weatherDao.log(DOMINANT_TEMP_WATCH_TAG, "hold reason=${decision.reason} origin=$origin", "DEBUG")
+                is DominantTempWatchDecision.Capture -> {
+                    dominantTempWatchStore.save(decision.state)
+                    weatherDao.log(
+                        DOMINANT_TEMP_WATCH_TAG,
+                        "baseline station=${decision.state.baselineStationId} tempF=${decision.state.baselineTempF} origin=$origin",
+                        "INFO",
+                    )
+                }
+                is DominantTempWatchDecision.Fire -> {
+                    // Disarm BEFORE notifying: notify-send is fire-and-forget and may not be
+                    // installed at all, and a watch that stayed armed on a failed delivery would
+                    // re-fire on every poll — the opposite of what "one time" promises.
+                    dominantTempWatchStore.save(decision.state)
+                    notifyDesktop(decision.title, decision.body)
+                    weatherDao.log(
+                        DOMINANT_TEMP_WATCH_TAG,
+                        "fired body=\"${decision.body}\" origin=$origin",
+                        "INFO",
+                    )
+                }
+            }
+        }.onFailure { Log.w(TAG, "Dominant-temp watch check failed ($origin): ${it.message}") }
+    }
+
     // Shared by daemon startup and resume-from-suspend: load the cache, then fetch exactly what is
     // stale per determineLaunchRefreshAction (full forecast > 1h old, observations > 10m old, else
     // nothing). [reason] is for log provenance only.
@@ -185,6 +232,7 @@ fun runDaemon() {
                             LaunchRefreshAction.NONE -> forecastState.value
                         }
                         panelPublisher.publishForecastState(result)
+                        checkDominantTempWatch(activeRepo, result, "launch:$reason")
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                         notifyDataUpdated()
                         Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
@@ -342,6 +390,7 @@ fun runDaemon() {
             try {
                 val result = activeRepo.refreshObservations()
                 panelPublisher.publishForecastState(result)
+                checkDominantTempWatch(activeRepo, result, "catchup:$reason")
                 dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(activeConfig.settings.weatherSource) ?: System.currentTimeMillis())
                 weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
                 notifyDataUpdated()
@@ -418,6 +467,7 @@ fun runDaemon() {
                         Log.i(TAG, "Temp actuals loop refresh starting for ${config.settings.weatherSource} (charging=$isCharging, level=$level%)...")
                         val result = newRepo.refreshObservations()
                         panelPublisher.publishForecastState(result)
+                        checkDominantTempWatch(newRepo, result, "obs_loop")
                         dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.settings.weatherSource) ?: System.currentTimeMillis())
                         weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
                         notifyDataUpdated()

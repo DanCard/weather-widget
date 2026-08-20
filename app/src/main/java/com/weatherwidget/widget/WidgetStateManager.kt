@@ -55,6 +55,9 @@ class WidgetStateManager internal constructor(
     private val displayPreferences by lazy {
         WeatherDisplayPreferences(context, prefs)
     }
+    internal val dominantTempWatchPreferences by lazy {
+        DominantTempWatchPreferences(prefs)
+    }
     private val sourcePreferences by lazy {
         WeatherSourcePreferences(
             context = context,
@@ -144,6 +147,33 @@ class WidgetStateManager internal constructor(
 
     fun setShowTodayOverlayDominantAge(value: Boolean) {
         displayPreferences.setShowTodayOverlayDominantAge(value)
+    }
+
+    /**
+     * One-shot watch: notify once when the dominant station behind the primary source reports a
+     * different temperature, then clear itself. See
+     * [com.weatherwidget.shared.notify.DominantTempWatch].
+     */
+    fun notifyOnDominantTempChange(): Boolean = dominantTempWatchPreferences.isArmed()
+
+    /** Arming always drops any previous baseline — see [DominantTempWatchPreferences.setArmed]. */
+    fun setNotifyOnDominantTempChange(value: Boolean) {
+        dominantTempWatchPreferences.setArmed(value)
+    }
+
+    /**
+     * Observe raw preference writes. Used by Settings to notice the dominant-temp watch disarming
+     * itself under an open screen — the worker that fires it lives in this same process.
+     *
+     * Callers must hold a strong reference to the listener: `SharedPreferences` keeps only a weak
+     * one, so a listener created inline is collected and silently stops firing.
+     */
+    fun registerPreferenceListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+    }
+
+    fun unregisterPreferenceListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
     }
 
     fun getPersonalStationWeight(): Double =

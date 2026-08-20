@@ -317,4 +317,13 @@
     <string name="stats_baseline_vs_source">বনাম %1$s</string>
     <string name="stats_baseline_blend_fallback">মিশ্র (স্টেশন নেই)</string>
     <string name="forecast_history_actual_from_cache">সংরক্ষিত পাঠ থেকে</string>
+    <string name="notifications_title">বিজ্ঞপ্তি</string>
+    <string name="notify_dominant_temp_change_label">প্রভাবশালী স্টেশনের রিডিং বদলালে একবার জানান</string>
+    <string name="notify_dominant_temp_change_description">আপনার প্রধান উৎসের প্রভাবশালী স্টেশন ভিন্ন তাপমাত্রা জানালে, বা অন্য কোনো স্টেশন দায়িত্ব নিলে একটি বিজ্ঞপ্তি পাঠানো হবে — যেমন \"KNUQ 69.9°, was 68°\"। পাঠানোর পর এটি নিজেই বন্ধ হয়ে যায়।</string>
+    <string name="notify_dominant_temp_permission_denied">এই অ্যাপের জন্য বিজ্ঞপ্তি বন্ধ আছে, তাই কিছুই পৌঁছাবে না।</string>
+    <string name="notify_dominant_temp_channel_name">স্টেশনের তাপমাত্রার পরিবর্তন</string>
+    <string name="notify_dominant_temp_channel_description">প্রভাবশালী আবহাওয়া স্টেশন নতুন তাপমাত্রা জানালে একবারের সতর্কতা।</string>
+    <string name="notify_dominant_temp_title">প্রভাবশালী স্টেশনের রিডিং বদলেছে</string>
+    <string name="notify_dominant_temp_body_format">%1$s %2$s, আগে ছিল %3$s</string>
+    <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, আগে ছিল %3$s %4$s</string>
 </resources>

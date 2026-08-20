@@ -600,6 +600,8 @@ object DailyViewHandler : WidgetViewHandler {
             graphEnd = now,
             observations = observations,
             repositoryPresent = true,
+            observationsLat = lat,
+            observationsLon = lon,
         )
     }
 

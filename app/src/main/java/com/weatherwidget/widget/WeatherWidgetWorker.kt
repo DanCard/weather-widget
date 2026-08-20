@@ -45,6 +45,22 @@ class WeatherWidgetWorker
                 return Result.success()
             }
 
+            // Enqueued by a test process that has since exited. The check above cannot catch this:
+            // the flag it reads belongs to THIS process, which is a normal one. See
+            // KEY_ENQUEUED_IN_TESTING.
+            if (inputData.getBoolean(KEY_ENQUEUED_IN_TESTING, false)) {
+                appLogDao.log(
+                    "SYNC_SKIP_TEST_ENQUEUED",
+                    "Dropped work enqueued under testing mode. " +
+                        "reason=${inputData.getString(KEY_OBSERVATION_BACKFILL_REASON) ?: inputData.getString(KEY_CURRENT_TEMP_REASON) ?: "unspecified"} " +
+                        "backfill=${inputData.getBoolean(KEY_OBSERVATION_BACKFILL_ONLY, false)} " +
+                        "lat=${inputData.getDouble(KEY_BACKFILL_LAT, Double.NaN)} " +
+                        "lon=${inputData.getDouble(KEY_BACKFILL_LON, Double.NaN)}",
+                    "WARN",
+                )
+                return Result.success()
+            }
+
             ProcessExitLogger.logRecentExitsOnce(context, appLogDao)
 
             val input = WorkInput.from(inputData)
@@ -171,6 +187,9 @@ class WeatherWidgetWorker
                 var resultMessage = "success"
                 var fetchDurationMs = 0L
                 var attemptedSourceCount = 0
+                // Hoisted out of the fetch branch below so the dominant-temp watch can reuse the
+                // location this run actually fetched for; null means no fetch happened.
+                var fetchedLocation: Pair<Double, Double>? = null
 
                 if (!CurrentTempFetchPolicy.shouldFetchNow(
                         isCharging = device.isCharging,
@@ -191,6 +210,7 @@ class WeatherWidgetWorker
                 } else {
                     val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
                         ?: return painter.renderNoLocationAndFinish("current_temp_only")
+                    fetchedLocation = location
                     val fetchStartMs = SystemClock.elapsedRealtime()
                     val refreshResult = weatherRepository.refreshCurrentTemperature(
                         latitude = location.first,
@@ -211,6 +231,28 @@ class WeatherWidgetWorker
                             resultMessage = "fetch_failure:${e.message}"
                         },
                     )
+                }
+
+                // The current-temp loop is where fresh observations actually land, so the watch is
+                // evaluated here too — waiting for the next full sync could delay the alert by hours.
+                // `location` is scoped to the fetch branch above; a policy-blocked run had no fetch
+                // and so has nothing new to compare.
+                fetchedLocation?.let { (lat, lon) ->
+                    try {
+                        com.weatherwidget.notify.DominantTempChangeNotifier.check(
+                            context = context,
+                            repository = weatherRepository,
+                            stateManager = widgetStateManager,
+                            appLogDao = appLogDao,
+                            lat = lat,
+                            lon = lon,
+                            origin = "current_temp_only",
+                        )
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        appLogDao.logException("DOMINANT_TEMP_WATCH", "check failed (current_temp_only)", e)
+                    }
                 }
 
                 val skipRepaint = CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
@@ -396,6 +438,23 @@ class WeatherWidgetWorker
             const val KEY_NO_HOURLY_DATE = "no_hourly_date"
             const val KEY_NO_HOURLY_LAT = "no_hourly_lat"
             const val KEY_NO_HOURLY_LON = "no_hourly_lon"
+
+            /**
+             * Set at ENQUEUE time when [com.weatherwidget.data.local.WeatherDatabase.isTestingMode]
+             * is true, and honoured at RUN time regardless of the flag's state then.
+             *
+             * Testing mode redirects the database and the preference files, but NOT WorkManager,
+             * which is process-wide and persists to `no_backup/androidx.work.workdb`. A job enqueued
+             * by an instrumented test therefore outlives the test process — and by the time it runs
+             * the flag is off, so [doWork]'s own testing-mode guard waves it through and it fetches
+             * for real against the production database. That is how a test fixture's location
+             * (Austin, TX) came to own 4,744 NWS observation rows on the emulator; see
+             * plans/260820-backfill-test-leak-and-selfsustaining-loop.md.
+             *
+             * The taint has to ride in the WorkSpec because there is no other durable link between
+             * "a test enqueued this" and the later process that executes it.
+             */
+            const val KEY_ENQUEUED_IN_TESTING = "enqueued_in_testing"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
         }

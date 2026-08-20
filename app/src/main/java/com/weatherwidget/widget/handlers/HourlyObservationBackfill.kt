@@ -16,6 +16,9 @@ import java.time.ZoneId
 
 private const val HOURLY_BACKFILL_COOLDOWN_MS = 30 * 60 * 1000L
 
+/** Half of one [LocationMatch.WRITE_QUANTIZE_DECIMALS] step — see [backfillSiteMismatchReason]. */
+private val QUANTIZE_SLACK_DEG = 0.5 * Math.pow(10.0, -LocationMatch.WRITE_QUANTIZE_DECIMALS.toDouble())
+
 @androidx.annotation.VisibleForTesting
 internal data class HourlyBackfillDecision(
     val shouldRequest: Boolean,
@@ -62,6 +65,51 @@ internal fun resolveBackfillLocation(widgetLocation: Pair<Double, Double>?): Bac
         return BackfillLocation.Unanchored("unanchored_non_finite_location")
     }
     return BackfillLocation.Anchored(LocationMatch.quantize(lat), LocationMatch.quantize(lon))
+}
+
+/**
+ * Non-null when the site we are about to fetch is NOT the site the observations being judged were
+ * loaded from — i.e. when the coverage decision cannot say anything about the fetch site.
+ *
+ * [evaluateHourlyBackfillNeed] reads the list the *renderer* loaded (scoped to the render location),
+ * while the fetch goes to the widget's stored location. When those disagree the two halves talk past
+ * each other: the rows land at site B, the check keeps reading site A, `no_nws_observations` never
+ * becomes false, and the request repeats on every paint. That loop is what filed 4,744 observation
+ * rows for a test fixture's location on the emulator — rows the renderer will never read, because
+ * its own query is boxed around a site 1,500 miles away.
+ *
+ * The box is [LocationMatch.TOLERANCE_DEG] because that is exactly the box the observation query
+ * used (`ROOM_WHERE`): inside it, the loaded rows *could* contain the fetch site's observations, so
+ * the decision is meaningful; outside it, they provably cannot.
+ *
+ * Skipping is safe when the disagreement is legitimate — say the user just re-pinned the location
+ * and this paint still holds the old rows. The next paint loads at the new site, the two agree, and
+ * the backfill proceeds one cycle later.
+ */
+@androidx.annotation.VisibleForTesting
+internal fun backfillSiteMismatchReason(
+    fetch: BackfillLocation.Anchored,
+    observationsLat: Double,
+    observationsLon: Double,
+): String? {
+    // Non-finite means the caller could not say where it loaded from. Treat that as a mismatch
+    // rather than assuming agreement: a wrong fetch here is a permanent mis-keyed row.
+    if (!observationsLat.isFinite() || !observationsLon.isFinite()) {
+        return "location_mismatch_obs_location_unknown"
+    }
+    // Half a write-quantum of slack. `fetch` is quantized to WRITE_QUANTIZE_DECIMALS while the
+    // observation coordinate is raw, so a genuine boundary case can land a rounding step outside the
+    // box (37.417 + 0.1 quantizes to 37.517, a delta of 0.1000000000000014) and be rejected for a
+    // difference far below the precision either value carries. The slack errs toward "same site",
+    // which is the safe direction: this guard exists to catch another *town*, not another metre.
+    val boundary = LocationMatch.TOLERANCE_DEG + QUANTIZE_SLACK_DEG
+    val latDelta = kotlin.math.abs(fetch.lat - observationsLat)
+    val lonDelta = kotlin.math.abs(fetch.lon - observationsLon)
+    if (latDelta <= boundary && lonDelta <= boundary) {
+        return null
+    }
+    return "location_mismatch fetch=${fetch.lat},${fetch.lon} " +
+        "observations=$observationsLat,$observationsLon"
 }
 
 @androidx.annotation.VisibleForTesting
@@ -153,6 +201,12 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     graphEnd: LocalDateTime,
     observations: List<ObservationEntity>,
     repositoryPresent: Boolean,
+    /**
+     * Where [observations] were loaded from. Required so the coverage decision and the fetch cannot
+     * be about two different places — see [backfillSiteMismatchReason].
+     */
+    observationsLat: Double,
+    observationsLon: Double,
 ) {
     if (!repositoryPresent) return
 
@@ -175,6 +229,16 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     }
     val lat = fetchLocation.lat
     val lon = fetchLocation.lon
+
+    // Before trusting the coverage decision, check it is even about this site.
+    backfillSiteMismatchReason(fetchLocation, observationsLat, observationsLon)?.let { reason ->
+        database.appLogDao().log(
+            "OBS_HOURLY_BACKFILL_SKIP",
+            "widget=$appWidgetId source=${displaySource.id} reason=$reason",
+            "WARN",
+        )
+        return
+    }
 
     val decision = evaluateHourlyBackfillNeed(displaySource, graphStart, graphEnd, observations)
     if (!decision.shouldRequest) {

@@ -5,6 +5,8 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -202,4 +204,59 @@ class HourlyObservationBackfillLocationTest {
 
     private fun nwsObservationAt(timestamp: Long) =
         observationAt(37.417, -122.089).copy(timestamp = timestamp)
+
+    // ---- site-agreement guard (plan 260820) ----
+    //
+    // The coverage decision reads the observations the RENDERER loaded; the fetch goes to the
+    // widget's stored location. When those are different places the decision says nothing about the
+    // fetch site, the fetched rows land where the renderer will never read them, and the request
+    // repeats on every paint. These lock the guard that breaks that loop.
+
+    private fun anchored(lat: Double, lon: Double) =
+        BackfillLocation.Anchored(LocationMatch.quantize(lat), LocationMatch.quantize(lon))
+
+    @Test
+    fun `same site is not a mismatch`() {
+        assertNull(backfillSiteMismatchReason(anchored(37.417, -122.089), 37.417, -122.089))
+    }
+
+    @Test
+    fun `a few blocks away is not a mismatch`() {
+        // Inside the same box the observation query itself used, so the loaded rows could contain
+        // the fetch site's observations and the decision is meaningful.
+        assertNull(backfillSiteMismatchReason(anchored(37.4225, -122.0955), 37.4167, -122.089))
+    }
+
+    @Test
+    fun `exactly at the tolerance boundary is not a mismatch`() {
+        // ROOM_WHERE uses BETWEEN, which is inclusive; the guard must agree or it would reject rows
+        // the query would have returned.
+        val obsLat = 37.417
+        val obsLon = -122.089
+        val fetch = anchored(obsLat + LocationMatch.TOLERANCE_DEG, obsLon)
+        assertNull(backfillSiteMismatchReason(fetch, obsLat, obsLon))
+    }
+
+    @Test
+    fun `another state is a mismatch`() {
+        // The emulator case: widget rendering Mountain View rows, backfill aimed at the Austin test
+        // fixture. Fetching here filed 4,744 orphan rows and re-requested forever.
+        val reason = backfillSiteMismatchReason(anchored(30.267, -97.743), 37.417, -122.089)
+        assertNotNull(reason)
+        assertTrue("reason should name the guard: $reason", reason!!.startsWith("location_mismatch"))
+        assertTrue("reason should carry both sites: $reason", reason.contains("30.267"))
+        assertTrue("reason should carry both sites: $reason", reason.contains("37.417"))
+    }
+
+    @Test
+    fun `unknown observation location is a mismatch rather than an assumed match`() {
+        assertEquals(
+            "location_mismatch_obs_location_unknown",
+            backfillSiteMismatchReason(anchored(37.417, -122.089), Double.NaN, -122.089),
+        )
+        assertEquals(
+            "location_mismatch_obs_location_unknown",
+            backfillSiteMismatchReason(anchored(37.417, -122.089), 37.417, Double.NaN),
+        )
+    }
 }

@@ -19,6 +19,12 @@ import java.util.concurrent.TimeUnit
  *
  * Running-capable requests never use REPLACE. KEEP is reserved for redundant work; required
  * follow-ups use APPEND_OR_REPLACE so their input/callback contract cannot be discarded.
+ *
+ * **One carve-out:** the observation backfill uses KEEP. That rule assumes a required follow-up
+ * carries a contract worth queueing behind its predecessor; a backfill carries no callback and its
+ * input fully describes idempotent work ("pull N hours of observations for this site"). Appending a
+ * second one therefore buys nothing and costs a serial repeat of a 5-station, 72-hour fetch — see
+ * [enqueueRequiredObservationBackfill].
  */
 object WidgetWorkScheduler {
     const val WORK_NAME_PERIODIC = "weather_widget_update"
@@ -40,6 +46,7 @@ object WidgetWorkScheduler {
                             WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON,
                             "periodic_${tickMinutes}m",
                         )
+                        .tagTestModeEnqueue()
                         .build(),
                 )
                 .setConstraints(
@@ -176,6 +183,7 @@ object WidgetWorkScheduler {
                         .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, longitude)
                         .putLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, lookbackHours)
                         .putString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON, reason)
+                        .tagTestModeEnqueue()
                         .build(),
                 )
                 .setConstraints(
@@ -186,14 +194,20 @@ object WidgetWorkScheduler {
                 .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
                 .build()
 
+        // KEEP, not APPEND_OR_REPLACE. APPEND makes a pending backfill a *prerequisite* of the next
+        // one, so a burst becomes a serial queue of identical 5-station x 72-hour fetches — six of
+        // them stacked up in five minutes on the emulator, and the actuals the user was waiting for
+        // sat behind the lot. KEEP is safe for the caller's 30-minute cooldown precisely because the
+        // request is dropped only when an equivalent one is already pending: the work still happens,
+        // it is just not done twice.
         WorkManager.getInstance(context).enqueueUniqueWork(
             WORK_NAME_OBSERVATION_BACKFILL,
-            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            ExistingWorkPolicy.KEEP,
             request,
         )
         Log.d(
             TAG,
-            "Observation backfill enqueued policy=APPEND_OR_REPLACE reason=$reason " +
+            "Observation backfill enqueued policy=KEEP reason=$reason " +
                 "delayMs=$initialDelayMs id=${request.id}",
         )
         return request
@@ -264,6 +278,7 @@ object WidgetWorkScheduler {
                     }
                     extraInput?.invoke(this)
                 }
+                .tagTestModeEnqueue()
                 .build()
         val request =
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
@@ -292,6 +307,7 @@ object WidgetWorkScheduler {
                 Data.Builder()
                     .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
                     .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
+                    .tagTestModeEnqueue()
                     .build(),
             )
             .apply {
