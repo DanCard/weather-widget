@@ -12,6 +12,27 @@ import org.junit.experimental.categories.Category
 class FetchMetadataRoboTest : RobolectricTest() {
 
     @Test
+    fun `current temp fetch time is isolated by quantized site`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val fetchedAt = 1_800_000_000_000L
+        val siteA = 37.4219 to -122.0840
+        val siteB = 37.4242 to -122.0884 // ~800 m away; a different quantized site
+
+        FetchMetadata.setLastCurrentTempFetchTime(context, siteA.first, siteA.second, fetchedAt)
+
+        // Same site (sub-quantization jitter) reads back the stored time.
+        assertEquals(
+            fetchedAt,
+            FetchMetadata.getLastCurrentTempFetchTime(context, siteA.first + 0.00001, siteA.second - 0.00001),
+        )
+        // A different site has its own, independent freshness.
+        assertEquals(
+            0L,
+            FetchMetadata.getLastCurrentTempFetchTime(context, siteB.first, siteB.second),
+        )
+    }
+
+    @Test
     fun `forecast source success is isolated by source and quantized site`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val fetchedAt = 1_800_000_000_000L

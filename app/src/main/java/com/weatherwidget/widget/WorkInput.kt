@@ -12,6 +12,7 @@ internal data class WorkInput(
     val opportunisticCurrentTemp: Boolean,
     val currentTempReason: String,
     val targetSourceId: String?,
+    val userInteraction: Boolean,
     val observationBackfillMode: Boolean,
     val backfillLat: Double,
     val backfillLon: Double,
@@ -46,6 +47,7 @@ internal data class WorkInput(
                 opportunisticCurrentTemp = data.getBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_OPPORTUNISTIC, false),
                 currentTempReason = data.getString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON) ?: "unspecified",
                 targetSourceId = data.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE),
+                userInteraction = data.getBoolean(WeatherWidgetWorker.KEY_USER_INTERACTION, false),
                 observationBackfillMode = observationBackfillMode,
                 // NaN, not a coordinate: a backfill enqueued without an explicit location has no
                 // location, and must skip rather than pull observations for somewhere else.

@@ -164,7 +164,10 @@ class WeatherWidgetWorker
 
             val targetSource = input.targetSourceId?.let(WeatherSource::fromId)
             return try {
-                val isManual = input.currentTempReason.contains("manual") || input.currentTempReason.contains("force") || input.forceRefresh
+                val isManual = input.forceRefresh ||
+                    input.userInteraction ||
+                    input.currentTempReason.contains("manual") ||
+                    input.currentTempReason.contains("force")
                 var resultMessage = "success"
                 var fetchDurationMs = 0L
                 var attemptedSourceCount = 0
@@ -382,6 +385,7 @@ class WeatherWidgetWorker
             const val KEY_NONPRIMARY_CURRENT_TEMP_ONLY = "nonprimary_current_temp_only"
             const val KEY_CURRENT_TEMP_OPPORTUNISTIC = "current_temp_opportunistic"
             const val KEY_CURRENT_TEMP_REASON = "current_temp_reason"
+            const val KEY_USER_INTERACTION = "current_temp_user_interaction"
             const val KEY_TARGET_SOURCE = "target_source"
             const val KEY_OBSERVATION_BACKFILL_ONLY = "observation_backfill_only"
             const val KEY_OBSERVATION_BACKFILL_HOURS = "observation_backfill_hours"

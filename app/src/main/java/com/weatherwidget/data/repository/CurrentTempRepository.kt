@@ -107,10 +107,6 @@ class CurrentTempRepository
                     }
         }
         
-        private var lastFetchTime: Long
-            get() = FetchMetadata.getLastCurrentTempFetchTime(context)
-            set(value) = FetchMetadata.setLastCurrentTempFetchTime(context, value)
-            
         private val prefs by lazy { com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs") }
 
         suspend fun refreshCurrentTemperature(
@@ -132,6 +128,10 @@ class CurrentTempRepository
                     }
 
                     val currentTime = System.currentTimeMillis()
+                    // Location-scoped: a location handoff must not inherit the previous site's
+                    // cooldown. The same source fetched 2 minutes ago at an old site is still stale
+                    // for the new one, so gate on this location's last fetch, not the global one.
+                    val lastFetchTime = FetchMetadata.getLastCurrentTempFetchTime(context, latitude, longitude)
                     if (!forceRefresh && currentTime - lastFetchTime < CURRENT_TEMP_FRESHNESS_MS) {
                         appLogDao.log(
                             "CURR_FETCH_FRESH_SKIP",
@@ -207,7 +207,7 @@ class CurrentTempRepository
                         }
                     }
                     
-                    lastFetchTime = System.currentTimeMillis()
+                    FetchMetadata.setLastCurrentTempFetchTime(context, latitude, longitude, System.currentTimeMillis())
                     val totalDurationMs = System.currentTimeMillis() - startMs
                     val targetIds = targetSources.joinToString(",") { it.id }
                     appLogDao.log("CURR_FETCH_COMPLETE", "reason=$reason successCount=$successfulSourceCount totalMs=$totalDurationMs targets=$targetIds attempted=${targetSources.size}")

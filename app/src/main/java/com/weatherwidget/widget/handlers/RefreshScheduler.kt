@@ -7,6 +7,7 @@ import androidx.work.ExistingWorkPolicy
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.BatteryFetchStrategy
+import com.weatherwidget.widget.CurrentTempUpdateScheduler
 import com.weatherwidget.widget.WidgetWorkScheduler
 
 object RefreshScheduler {
@@ -145,6 +146,15 @@ object RefreshScheduler {
         val ageMin = (nowMs - (latestSuccessfulOrContentAtMs ?: 0L)) / 1000 / 60
         prefs.edit().putLong("last_enqueue_${decision.reason}", nowMs).apply()
         enqueueForcedRefresh(context, reason = decision.reason, policy = decision.policy)
+        // The full sync above fetches weather/hourly, not current observations. The user is looking
+        // at the widget, so also refresh the current temperature immediately and bypass the battery
+        // gate — a stale location/observation is exactly what this interaction surfaced.
+        CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+            context = context,
+            reason = decision.reason,
+            opportunistic = false,
+            userInteraction = true,
+        )
         appLogDao?.let {
             it.log(
                 "STALE_REFRESH_ENQUEUE",

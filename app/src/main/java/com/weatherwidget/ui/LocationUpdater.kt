@@ -203,6 +203,16 @@ object LocationUpdater {
         // Promotion clears the candidate immediately afterward. Persist active coordinates first
         // so a process death cannot leave neither durable active nor candidate state.
         stateManager.setWidgetLocations(ids, lat, lon)
+        // The newly-written location's current observations were last fetched when the device was
+        // previously there (if ever), so they are stale for this site. Refresh them now — location-
+        // scoped freshness (FetchMetadata) lets this run immediately instead of inheriting the
+        // previous site's cooldown. Battery-gated: this is a background location change, not a user
+        // interaction (the interaction path uses userInteraction=true to bypass the battery gate).
+        com.weatherwidget.widget.CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+            context = context,
+            reason = "location_changed",
+            opportunistic = true,
+        )
     }
 
     private fun recordHistoricalPoi(context: Context, lat: Double, lon: Double, label: String) {

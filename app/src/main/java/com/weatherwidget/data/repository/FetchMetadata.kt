@@ -35,6 +35,37 @@ object FetchMetadata {
     }
 
     /**
+     * Last current-temperature fetch for one physical site, quantized the same way the forecast
+     * source success key is. The global [getLastCurrentTempFetchTime] is deliberately NOT used as
+     * the freshness gate: it is location-agnostic, so a location handoff ~800 m away would inherit
+     * the previous site's 5-minute cooldown and skip the refetch the new site needs.
+     */
+    fun getLastCurrentTempFetchTime(
+        context: Context,
+        latitude: Double,
+        longitude: Double,
+    ): Long = getPrefs(context).getLong(currentTempFetchKey(latitude, longitude), 0L)
+
+    fun setLastCurrentTempFetchTime(
+        context: Context,
+        latitude: Double,
+        longitude: Double,
+        time: Long,
+    ) {
+        getPrefs(context).edit()
+            .putLong(currentTempFetchKey(latitude, longitude), time)
+            .apply()
+        // Keep the legacy global marker current for [getLastSuccessfulCheckTimeMs].
+        setLastCurrentTempFetchTime(context, time)
+    }
+
+    private fun currentTempFetchKey(latitude: Double, longitude: Double): String {
+        val lat = LocationMatch.quantize(latitude)
+        val lon = LocationMatch.quantize(longitude)
+        return "${KEY_LAST_CURRENT_TEMP_FETCH}_${lat}_$lon"
+    }
+
+    /**
      * Last non-empty successful forecast response for one provider at one physical site.
      *
      * This is deliberately separate from forecast-row `fetchedAt`: unchanged responses do not rewrite

@@ -200,11 +200,24 @@ object DailyViewHandler : WidgetViewHandler {
         val database = WeatherDatabase.getDatabase(context)
         val appLogDao = database.appLogDao()
 
+        // Resolve the widget's location the SAME way WidgetRenderer does when it derives the current
+        // observation (observedAt/lastObservedTemp): configured widget location first, then the fetched
+        // data location. The today-column overlay re-derives the dominant station against this location
+        // and requires it to match the producer's exactly — using only the data location here left the
+        // two resolving against different observation sites after a location handoff, which dropped the
+        // station rows with observed_at_skew. See
+        // plans/260819-today-overlay-location-mismatch-after-handoff.md.
+        //
         // NaN, never a hardcoded coordinate. Used for the cached climate-normals lookup below and for
         // sun position; a NaN key simply misses the cache, which leaves PARTIAL future rows partial
         // rather than completing them from another city's normals.
-        val lat = weatherList.firstOrNull()?.locationLat ?: Double.NaN
-        val lon = weatherList.firstOrNull()?.locationLon ?: Double.NaN
+        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
+        val lat = configuredLocation?.first
+            ?: weatherList.firstOrNull()?.locationLat
+            ?: Double.NaN
+        val lon = configuredLocation?.second
+            ?: weatherList.firstOrNull()?.locationLon
+            ?: Double.NaN
         // Cache-only read. The repository's getHistoricalNormalsByMonthDay does an HTTP fetch on a
         // cache miss, which has no business on a widget render path; ClimateNormalsRepository
         // .warmBestEffort already warms this cache on every network fetch. Used solely to complete a

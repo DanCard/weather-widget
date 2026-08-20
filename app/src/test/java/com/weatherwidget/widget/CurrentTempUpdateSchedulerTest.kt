@@ -209,6 +209,30 @@ class CurrentTempUpdateSchedulerTest {
     }
 
     @Test
+    fun `immediate current temp update passes user interaction flag to worker`() {
+        val requestSlot = slot<OneTimeWorkRequest>()
+
+        CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+            context = context,
+            reason = "stale_on_set_view",
+            opportunistic = false,
+            userInteraction = true,
+        )
+
+        verify {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP),
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                capture(requestSlot),
+            )
+        }
+        assertEquals(
+            true,
+            requestSlot.captured.workSpec.input.getBoolean(WeatherWidgetWorker.KEY_USER_INTERACTION, false),
+        )
+    }
+
+    @Test
     fun `scheduleNextChargingUpdate uses APPEND_OR_REPLACE when enqueuing successor from running worker`() {
         // Use a real WorkInfo if possible, but it's easier to mock it
         val activeId = UUID.randomUUID()
