@@ -159,6 +159,36 @@ class TemperatureGraphRendererForecastDeltaTest {
     }
 
     @Test
+    fun `does not draw forecast delta label when delta is zero`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 3, 21, 10, 0)
+        val hours = (0..4).map { offset ->
+            HourData(
+                dateTime = start.plusHours(offset.toLong()),
+                temperature = 60f,
+                label = "${(10 + offset) % 24}h",
+                showLabel = true,
+                isCurrentHour = offset == 2,
+            )
+        }
+        val observedAtMs = start.plusHours(2).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 900,
+            heightPx = 300,
+            currentTime = start.plusHours(2).plusMinutes(25),
+            bitmapScale = 0.92f, // distinct scale from the null-delta test
+            observedAt = observedAtMs,
+            lastObservedTemp = 60f,
+            appliedDelta = 0f, useCelsius = false,
+        )
+
+        verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from forecast") }, any(), any(), any()) }
+    }
+
+    @Test
     fun `does not draw forecast delta label when fetch dot is outside the visible hours`() {
         val context = mockContext()
         val start = LocalDateTime.of(2026, 3, 21, 10, 0)

@@ -2,6 +2,7 @@ package com.weatherwidget.shared.graph
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -85,6 +86,36 @@ class ForecastDeltaLabelTest {
         assertNull(
             ForecastDeltaLabel.place(
                 delta = null, currentTemp = 72f, spanHours = 6,
+                plot = plot, drawnBounds = emptyList(), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `isZero detects deltas that format to zero`() {
+        assertTrue(ForecastDeltaLabel.isZero(0f, useCelsius = false))
+        assertTrue(ForecastDeltaLabel.isZero(-0.04f, useCelsius = false)) // rounds to 0, no "-0.0"
+        assertTrue(ForecastDeltaLabel.isZero(0.04f, useCelsius = false))
+        assertFalse(ForecastDeltaLabel.isZero(0.1f, useCelsius = false))
+        // 0.04°F = 0.022°C: still zero after the scale-only conversion.
+        assertTrue(ForecastDeltaLabel.isZero(0.04f, useCelsius = true))
+    }
+
+    @Test
+    fun `suppressed when delta rounds to zero`() {
+        val zeroDeltas = listOf(0f, 0.04f, -0.04f)
+        for (delta in zeroDeltas) {
+            assertNull(
+                ForecastDeltaLabel.place(
+                    delta = delta, currentTemp = 72f, spanHours = 6,
+                    plot = plot, drawnBounds = emptyList(), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
+                ),
+            )
+        }
+        // A non-zero delta in the same window still places.
+        assertNotNull(
+            ForecastDeltaLabel.place(
+                delta = 0.1f, currentTemp = 72f, spanHours = 6,
                 plot = plot, drawnBounds = emptyList(), curveYsAt = lowCurve, metrics = metrics, padPx = 4f, useCelsius = false,
             ),
         )

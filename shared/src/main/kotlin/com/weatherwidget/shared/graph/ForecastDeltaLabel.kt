@@ -10,7 +10,8 @@ import kotlin.math.round
  * reads, what color it is, when it shows, and where it sits — so Android and desktop stay
  * pixel-consistent.
  *
- * - **Text**: signed, one decimal, e.g. `+0.4 from forecast`, `-1.2 from forecast`, `+0.0 from forecast`.
+ * - **Text**: signed, one decimal, e.g. `+0.4 from forecast`, `-1.2 from forecast`. A delta that
+ *   rounds to zero (e.g. `+0.0 from forecast`) is never shown — see [isZero].
  * - **Color**: the thermostat gradient ([TemperatureColorModel]) evaluated at the *current* temperature,
  *   so the label harmonizes with the curve color at "now".
  * - **Visibility**: the narrow AND the 24 h view, gated by [DELTA_LABEL_MAX_HOURS_SPAN] (25 h — admits a
@@ -46,6 +47,15 @@ object ForecastDeltaLabel {
 
     fun format(delta: Float, useCelsius: Boolean): String {
         return formatValue(delta, useCelsius) + SUFFIX
+    }
+
+    /**
+     * True when the delta formats to zero (e.g. `+0.0 from forecast` / `-0.0 from forecast`).
+     * A zero delta carries no comparison information, so the on-graph label is suppressed.
+     */
+    fun isZero(delta: Float, useCelsius: Boolean): Boolean {
+        val displayDelta = if (useCelsius) delta / 1.8f else delta
+        return round(displayDelta * 10f).toInt() == 0
     }
 
     /** Signed numeric portion, shared by the one-line hourly label and multi-line daily overlay. */
@@ -99,6 +109,7 @@ object ForecastDeltaLabel {
         vetoBounds: List<GraphRect> = emptyList(),
     ): Placement? {
         if (delta == null || currentTemp == null) return null
+        if (isZero(delta, useCelsius)) return null
         if (spanHours > maxSpanHours) return null
 
         val slot =
