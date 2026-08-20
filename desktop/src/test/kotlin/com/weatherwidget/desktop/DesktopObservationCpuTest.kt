@@ -60,7 +60,7 @@ class DesktopObservationCpuTest {
         // The service returns the ~5 latest readings the latest-only fetch produces (one per
         // station); the network/parse half is mocked out so this test isolates the processing
         // pipeline. The fetch-size invariant itself is pinned by DesktopObservationLatestOnlyTest.
-        coEvery { weatherService.fetchObservationsOnly(latestOnly = true) } returns RawFetch(
+        coEvery { weatherService.fetchObservationsOnly(recentOnly = true) } returns RawFetch(
             rawObservations = (0 until 5).map { latestReading(it, now) },
         )
     }

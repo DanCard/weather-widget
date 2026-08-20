@@ -384,34 +384,41 @@ class DesktopWeatherService(
     private suspend fun fetchObservationBundles(
         stations: List<NwsApi.StationInfo>,
         historyDays: Long = HISTORY_DAYS,
-        latestOnly: Boolean = false,
+        recentOnly: Boolean = false,
     ): List<ObservationBundle> = coroutineScope {
         val end = Instant.now().truncatedTo(ChronoUnit.SECONDS)
-        val start = end.minus(historyDays, ChronoUnit.DAYS)
+        // recentOnly narrows the window; it never collapses it to a single reading. A station that
+        // publishes faster than the poll interval (KSJC: ~5 min) would otherwise have its
+        // intermediate observations discarded — see the dropped 10:30 row in
+        // plans/260820-observation-loop-recent-window-not-latest-row.md.
+        val start = if (recentOnly) {
+            end.minus(RECENT_OBSERVATION_WINDOW_MINUTES, ChronoUnit.MINUTES)
+        } else {
+            end.minus(historyDays, ChronoUnit.DAYS)
+        }
         
         val deferreds = stations.take(MAX_OBSERVATION_STATIONS).mapIndexed { index, station ->
             async {
-                // Tri-state, not bestEffort: an empty history (station definitively silent) and a
+                // Tri-state, not bestEffort: an empty window (station definitively silent) and a
                 // failed request (nothing learned) demand opposite fetchedAt handling below.
-                // latestOnly skips the history window entirely — the 7-day series is re-fetched
-                // identically by the full forecast pull, so a current-temp-only cycle should not
-                // re-download ~500 rows/station. See plans/260820-desktop-observation-loop-latest-only.md.
-                val historicalOutcome: FetchOutcome<List<NwsApi.Observation>>? =
-                    if (latestOnly) null else try {
-                        val obs = nwsApi.getObservations(station.id, start.toString(), end.toString())
-                        Log.i(TAG, "historical observations: station=${station.id} type=${station.type} count=${obs.size}")
-                        if (obs.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(obs)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.w(TAG, "historical observations ${station.id} fetch failed: $e")
-                        FetchOutcome.failed(e)
-                    }
-                val historical = historicalOutcome?.valueOrNull().orEmpty()
+                // recentOnly shortens the window to RECENT_OBSERVATION_WINDOW_MINUTES — the 7-day
+                // series is re-fetched identically by the full forecast pull, so a current-temp
+                // cycle should not re-download ~500 rows/station.
+                val historicalOutcome: FetchOutcome<List<NwsApi.Observation>> = try {
+                    val obs = nwsApi.getObservations(station.id, start.toString(), end.toString())
+                    Log.i(TAG, "observations window: station=${station.id} type=${station.type} recentOnly=$recentOnly count=${obs.size}")
+                    if (obs.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(obs)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "observations window ${station.id} fetch failed: $e")
+                    FetchOutcome.failed(e)
+                }
+                val historical = historicalOutcome.valueOrNull().orEmpty()
 
-                // Latest is fetched regardless of whether the history window returned anything
-                // (previously gated on historical.isNotEmpty()); current temp only needs this one
-                // reading, and in latestOnly mode there is no history window at all.
+                // Latest is fetched regardless of whether the window returned anything (previously
+                // gated on historical.isNotEmpty()). It anchors current temp and can be fresher than
+                // the window's newest row.
                 val latestOutcome = nwsApi.getLatestObservationDetailedResult(station.id)
                 val latest = latestOutcome.valueOrNull()
 
@@ -467,25 +474,7 @@ class DesktopWeatherService(
                     }
                 }
 
-                if (latestOnly) {
-                    // Latest-only cycle: no history window is fetched or stored. The bundle carries
-                    // just the newest reading (API or web prefer-newest) so the IDW blend sees it;
-                    // historical is empty. See plans/260820-desktop-observation-loop-latest-only.md.
-                    if (bundleLatest != null) {
-                        ObservationBundle(station, bundleLatest, emptyList(), latestIsWeb = latestIsWeb, historicalIsWeb = false)
-                    } else if (shouldTouchObservationFetchedAt(latestOutcome, synopticOutcome)) {
-                        // Latest lookup definitively yielded nothing usable — record the attempt.
-                        weatherDao?.touchLatestObservationFetchedAt(station.id, System.currentTimeMillis())
-                        weatherDao?.log("OBS_ATTEMPT_TOUCH", "station=${station.id} reason=no_valid_observation", "INFO")
-                        null
-                    } else {
-                        // Latest lookup failed outright — leave fetchedAt frozen and report it.
-                        val nwsReason = (latestOutcome as? FetchOutcome.Failed)?.reason ?: "unknown"
-                        val synopticReason = (synopticOutcome as? FetchOutcome.Failed)?.reason ?: "not_tried"
-                        weatherDao?.log("NWS_STATION_FAIL", "station=${station.id} latest=$nwsReason synoptic=$synopticReason", "WARN")
-                        null
-                    }
-                } else if (historical.isNotEmpty()) {
+                if (historical.isNotEmpty()) {
                     ObservationBundle(station, bundleLatest, historical, latestIsWeb = latestIsWeb, historicalIsWeb = false)
                 } else if (fetchWebForUse && webReadings.isNotEmpty()) {
                     // NWS returned no historical window; surface the web readings we already fetched so
@@ -499,7 +488,15 @@ class DesktopWeatherService(
                         latestIsWeb = latestIsWeb,
                         historicalIsWeb = true,
                     )
-                } else if (shouldTouchObservationFetchedAt(historicalOutcome!!, synopticOutcome)) {
+                } else if (recentOnly && bundleLatest != null) {
+                    // Recent-window cycle against a slow station (KPAO can go ~90 min between
+                    // reports): an empty window is legitimate, but the latest lookup still holds a
+                    // usable reading for the current-temp blend. Emit it rather than dropping the
+                    // station for the cycle. Deliberately scoped to recentOnly — on the full 7-day
+                    // pull an empty window means a genuinely silent station, which must keep taking
+                    // the touch/fail path below.
+                    ObservationBundle(station, bundleLatest, emptyList(), latestIsWeb = latestIsWeb, historicalIsWeb = false)
+                } else if (shouldTouchObservationFetchedAt(historicalOutcome, synopticOutcome)) {
                     // Attempt completed but the station definitively yielded nothing storable
                     // (e.g. publishing only null-temperature reports). Record the attempt on the
                     // newest stored row so the stations list shows a fresh "Fetched" against an
@@ -576,9 +573,9 @@ class DesktopWeatherService(
         source = "NWS",
     )
 
-    override suspend fun fetchObservationsOnly(latestOnly: Boolean): RawFetch = runCatching {
+    override suspend fun fetchObservationsOnly(recentOnly: Boolean): RawFetch = runCatching {
         when (weatherSource) {
-            "NWS" -> fetchNwsObservationsOnly(latestOnly)
+            "NWS" -> fetchNwsObservationsOnly(recentOnly)
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
             WeatherSource.TOMORROW_IO.id,
             WeatherSource.WEATHER_API.id,
@@ -598,7 +595,7 @@ class DesktopWeatherService(
         }
     }
 
-    private suspend fun fetchNwsObservationsOnly(latestOnly: Boolean): RawFetch = coroutineScope {
+    private suspend fun fetchNwsObservationsOnly(recentOnly: Boolean): RawFetch = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
         
         // Resolve candidate observation stations once, then try official stations first.
@@ -606,7 +603,7 @@ class DesktopWeatherService(
             grid.observationStationsUrl?.let { url -> getCachedOrFetchStations(url) }
         } ?: emptyList()
 
-        val bundles = fetchObservationBundles(stations, latestOnly = latestOnly)
+        val bundles = fetchObservationBundles(stations, recentOnly = recentOnly)
         
         val allLatestReadings = bundles.mapNotNull { bundle ->
             bundle.latest?.toReading(bundle.station, bundle.latestIsWeb)
@@ -693,6 +690,14 @@ class DesktopWeatherService(
         // past_days window for the Open-Meteo actuals backfill — matches the graph's 6-day
         // full zoom-out so the actual line spans the same range as the forecast line.
         const val ACTUALS_HISTORY_DAYS = 7
+
+        // Window for the current-temperature observation cycle. Must cover the poll interval plus
+        // the endpoint's own publish lag plus one missed cycle: the loop polls every 10 min today
+        // (30 min under the proposed screen-off tier), and /observations/latest was measured ~25 min
+        // behind the list endpoint. At ~18 rows for a 5-minute station across 5 stations that is
+        // ~90 rows/cycle, against ~2500 for the 7-day window — the reduction from 2befc157 survives
+        // without discarding readings.
+        internal const val RECENT_OBSERVATION_WINDOW_MINUTES = 90L
 
         private const val TAG = "DesktopWeatherService"
         private const val MAX_OBSERVATION_STATIONS = 5

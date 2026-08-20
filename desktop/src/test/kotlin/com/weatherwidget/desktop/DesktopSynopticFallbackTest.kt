@@ -100,7 +100,7 @@ class DesktopSynopticFallbackTest {
         )
 
         // 4. The Synoptic fallback must be triggered and return the fresh data (in Fahrenheit).
-        val result = service.fetchObservationsOnly(latestOnly = false)
+        val result = service.fetchObservationsOnly(recentOnly = false)
 
         assertNotNull(result.providerCurrentTemp)
         val expectedF = (21.5f * 1.8f) + 32f
