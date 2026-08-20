@@ -485,7 +485,12 @@ class DesktopWeatherRepository(
     suspend fun refreshObservations(): ForecastSnapshot = withContext(Dispatchers.IO) {
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
         try {
-            val result = weatherService.fetchObservationsOnly()
+            // Latest-only: this path (the 10-min "current temp" loop + launch OBSERVATIONS action)
+            // only needs the newest reading per station for the current-temperature blend. The 7-day
+            // history window is re-fetched identically by refresh()'s full pull, so re-downloading
+            // ~500 rows/station here was pure redundancy. See
+            // plans/260820-desktop-observation-loop-latest-only.md.
+            val result = weatherService.fetchObservationsOnly(latestOnly = true)
             val now = currentTimeMillis()
 
             if (result.rawObservations.isNotEmpty()) {

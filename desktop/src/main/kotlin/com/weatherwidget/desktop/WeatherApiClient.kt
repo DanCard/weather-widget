@@ -21,7 +21,13 @@ interface WeatherApiClient {
 
     suspend fun fetchObservationHistory(historyDays: Long): List<ObservationReading>
 
-    suspend fun fetchObservationsOnly(): RawFetch
+    /**
+     * Current-observations fetch. [latestOnly] skips the multi-day station-history window and
+     * fetches only each station's newest reading (the current-temperature blend's only input);
+     * history is then served by [fetchForecast]'s full pull. See
+     * plans/260820-desktop-observation-loop-latest-only.md.
+     */
+    suspend fun fetchObservationsOnly(latestOnly: Boolean = false): RawFetch
 
     suspend fun nearestStationsForDailyActuals(): List<NwsApi.StationInfo>
 
