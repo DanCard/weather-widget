@@ -67,6 +67,7 @@ fun runDaemon() {
     var uiProcess: Process? = null
     var logindMonitor: Process? = null
     var networkMonitor: Process? = null
+    var screensaverMonitor: Process? = null
 
     val daemonScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -75,6 +76,7 @@ fun runDaemon() {
     var repo: DesktopWeatherRepository? = null
     var lastResumeKickMs = 0L
     var lastNetworkKickMs = 0L
+    var lastObservationCatchUpKickMs = 0L
     // One catch-up refresh at a time, last-wins: a new kick (resume or network-restored) cancels a
     // predecessor that may still be sleeping in its offline retry backoff.
     var catchUpRefreshJob: Job? = null
@@ -107,6 +109,7 @@ fun runDaemon() {
         // Unblock the gdbus readers (coroutine cancellation can't interrupt their blocking reads).
         runCatching { logindMonitor?.destroy() }
         runCatching { networkMonitor?.destroy() }
+        runCatching { screensaverMonitor?.destroy() }
         daemonScope.cancel()
 
         kotlin.concurrent.thread(isDaemon = true, name = "quit-hard-exit") {
@@ -311,6 +314,50 @@ fun runDaemon() {
         }
     }
 
+    fun kickObservationCatchUp(reason: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastObservationCatchUpKickMs < OBSERVATION_CATCH_UP_DEBOUNCE_MS) {
+            Log.d(TAG, "kickObservationCatchUp ($reason) debounced (${now - lastObservationCatchUpKickMs}ms since last kick)")
+            return
+        }
+        val activeRepo = repo
+        val activeConfig = currentConfig
+        if (activeRepo == null || activeConfig == null) {
+            weatherDao.log("OBSERVATION_CATCHUP", "kick ($reason) skipped: no active repo/config yet", "WARN")
+            return
+        }
+
+        val lastFetch = weatherDao.getLastSuccessfulFetch(activeConfig.settings.weatherSource)
+        if (!DesktopFetchStrategy.shouldCatchUpObservations(lastFetch, now)) {
+            Log.d(TAG, "kickObservationCatchUp ($reason) skipped: observations are fresh (lastFetch=${lastFetch?.let { (now - it) / 1000 } ?: "none"}s ago)")
+            return
+        }
+
+        lastObservationCatchUpKickMs = now
+        weatherDao.log("OBSERVATION_CATCHUP", "kick ($reason) triggered — fetching fresh observations", "INFO")
+        Log.i(TAG, "kickObservationCatchUp ($reason) triggered — refreshing observations...")
+
+        daemonScope.launch {
+            val src = WeatherSource.fromDisplaySource(activeConfig.settings.weatherSource).id
+            try {
+                val result = activeRepo.refreshObservations()
+                panelPublisher.publishForecastState(result)
+                dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(activeConfig.settings.weatherSource) ?: System.currentTimeMillis())
+                weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
+                notifyDataUpdated()
+                Log.i(TAG, "kickObservationCatchUp ($reason) successful.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.i(TAG, "kickObservationCatchUp ($reason) failed: ${e.message}")
+                val isOffline = isOfflineException(e)
+                val failReason = if (isOffline) "offline" else "source_error"
+                weatherDao.log("REFRESH_FAIL", "catchup $reason: $failReason ${e.message}", "WARN")
+                weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(src, e), "WARN")
+            }
+        }
+    }
+
     fun startFetchLoops() {
         fetchJob?.cancel()
         runCatching { weatherService?.close() }
@@ -355,7 +402,8 @@ fun runDaemon() {
             launch {
                 while (true) {
                     val (isCharging, level) = PowerDetector.getPowerState()
-                    val delayMs = DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging, level)
+                    val screenOn = ScreenStateDetector.isScreenOn()
+                    val delayMs = DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging, level, screenOn)
 
                     if (delayMs == null) {
                         Log.i(TAG, "Observation loop: background fetch suspended due to low battery ($level%). Re-checking in 5 min.")
@@ -578,6 +626,7 @@ fun runDaemon() {
                         when (name) {
                             SHOW_TRIGGER -> {
                                 Log.i(TAG, "WatchService: .show trigger detected.")
+                                kickObservationCatchUp("genmon:click")
                                 runCatching { Files.deleteIfExists(appDir.resolve(SHOW_TRIGGER)) }
                                 if (uiProcess?.isAlive == true) {
                                     Log.i(TAG, "UI process is already alive. Bumping UI via .ui-show...")
@@ -747,6 +796,29 @@ fun runDaemon() {
             throw e
         } catch (e: Exception) {
             weatherDao.log("NETWORK_DETECT", "gdbus NetworkManager monitor unavailable (${e.message}) — retry backoff fallback only", "WARN")
+        }
+    }
+
+    // Screensaver wake (unblank/unlock) detector (interrupt-driven):
+    daemonScope.launch(Dispatchers.IO) {
+        try {
+            val proc = ProcessBuilder(
+                "gdbus", "monitor", "--session",
+                "--dest", "org.freedesktop.ScreenSaver",
+                "--object-path", "/org/freedesktop/ScreenSaver",
+            ).redirectErrorStream(true).start()
+            screensaverMonitor = proc
+            weatherDao.log("SCREEN_DETECT", "gdbus ScreenSaver monitor started (pid=${proc.pid()})", "INFO")
+            proc.inputStream.bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    if (isScreenWakeSignalLine(line)) kickObservationCatchUp("screensaver:wake")
+                }
+            }
+            weatherDao.log("SCREEN_DETECT", "gdbus ScreenSaver monitor stream ended", "WARN")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            weatherDao.log("SCREEN_DETECT", "gdbus ScreenSaver monitor unavailable (${e.message})", "WARN")
         }
     }
 

@@ -12,22 +12,40 @@ object DesktopFetchStrategy {
     private const val MS_PER_MINUTE = 60 * 1000L
 
     // AC Power Intervals
-    private const val AC_OBSERVATION_MINUTES = 10L
-    private const val AC_ACTIVE_FORECAST_MINUTES = 60L
-    private const val AC_INACTIVE_FORECAST_MINUTES = 120L
+    const val AC_OBSERVATION_SCREEN_ON_MINUTES = 10L
+    const val AC_OBSERVATION_SCREEN_OFF_MINUTES = 30L
+    const val AC_ACTIVE_FORECAST_MINUTES = 60L
+    const val AC_INACTIVE_FORECAST_MINUTES = 120L
+
+    const val CATCH_UP_STALENESS_THRESHOLD_MINUTES = 10L
 
     /**
      * Returns the delay in MS for the next observation fetch.
      * Returns null if fetches should be suspended.
      */
-    fun getObservationRefreshDelayMs(isCharging: Boolean, batteryLevel: Int): Long? {
-        if (isCharging) return AC_OBSERVATION_MINUTES * MS_PER_MINUTE
+    fun getObservationRefreshDelayMs(isCharging: Boolean, batteryLevel: Int, screenOn: Boolean = true): Long? {
+        if (isCharging) {
+            val minutes = if (screenOn) AC_OBSERVATION_SCREEN_ON_MINUTES else AC_OBSERVATION_SCREEN_OFF_MINUTES
+            return minutes * MS_PER_MINUTE
+        }
 
         return when {
             batteryLevel > BatteryTier.TIER_HIGH_THRESHOLD -> BatteryTier.INTERVAL_HIGH_MINUTES * MS_PER_MINUTE
             batteryLevel > BatteryTier.TIER_MEDIUM_THRESHOLD -> BatteryTier.INTERVAL_MEDIUM_MINUTES * MS_PER_MINUTE
             else -> null
         }
+    }
+
+    /**
+     * Returns true if an immediate catch-up observation fetch should run upon screen wake or user interaction.
+     */
+    fun shouldCatchUpObservations(
+        lastFetchMs: Long?,
+        nowMs: Long,
+        stalenessThresholdMs: Long = CATCH_UP_STALENESS_THRESHOLD_MINUTES * MS_PER_MINUTE
+    ): Boolean {
+        if (lastFetchMs == null) return true
+        return (nowMs - lastFetchMs) >= stalenessThresholdMs
     }
 
     /**

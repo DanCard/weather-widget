@@ -14,9 +14,36 @@ class DesktopFetchStrategyTest {
     }
 
     @Test
-    fun `getObservationRefreshDelayMs returns 10 min when charging`() {
-        assertEquals(10 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 20))
-        assertEquals(10 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90))
+    fun `getObservationRefreshDelayMs returns 10 min when charging and screen on`() {
+        assertEquals(10 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 20, screenOn = true))
+        assertEquals(10 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90, screenOn = true))
+    }
+
+    @Test
+    fun `getObservationRefreshDelayMs returns 30 min when charging and screen off`() {
+        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 20, screenOn = false))
+        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90, screenOn = false))
+    }
+
+    @Test
+    fun `shouldCatchUpObservations returns true when no prior fetch`() {
+        assertEquals(true, DesktopFetchStrategy.shouldCatchUpObservations(lastFetchMs = null, nowMs = 1_000_000L))
+    }
+
+    @Test
+    fun `shouldCatchUpObservations returns false when fetch is recent`() {
+        val now = 1_000_000L
+        val recentFetch = now - (5 * MS_PER_MINUTE)
+        assertEquals(false, DesktopFetchStrategy.shouldCatchUpObservations(lastFetchMs = recentFetch, nowMs = now))
+    }
+
+    @Test
+    fun `shouldCatchUpObservations returns true when fetch is older than threshold`() {
+        val now = 1_000_000L
+        val staleFetch = now - (10 * MS_PER_MINUTE)
+        val veryStaleFetch = now - (25 * MS_PER_MINUTE)
+        assertEquals(true, DesktopFetchStrategy.shouldCatchUpObservations(lastFetchMs = staleFetch, nowMs = now))
+        assertEquals(true, DesktopFetchStrategy.shouldCatchUpObservations(lastFetchMs = veryStaleFetch, nowMs = now))
     }
 
     @Test

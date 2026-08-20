@@ -139,6 +139,14 @@ fun isResumeSignalLine(line: String): Boolean =
     line.contains("PrepareForSleep") && line.contains("false")
 
 /**
+ * True when a D-Bus ScreenSaver `ActiveChanged` signal line indicates the screen has *woken up* / unblanked
+ * (`false` = unblanked/unlocked; `true` = screen blanked/locked). Matches `gdbus monitor` output lines such as
+ * `/org/freedesktop/ScreenSaver: org.freedesktop.ScreenSaver.ActiveChanged (false)`.
+ */
+fun isScreenWakeSignalLine(line: String): Boolean =
+    line.contains("ActiveChanged") && line.contains("false")
+
+/**
  * True when a heartbeat tick's wall-clock gap is far larger than the scheduled interval, which only
  * happens when the process was frozen by a system suspend (coroutine `delay()` runs on the monotonic
  * clock and cannot itself produce such a jump).
@@ -154,6 +162,8 @@ fun isSuspendJump(expectedElapsedMs: Long, actualElapsedMs: Long, slackMs: Long)
 // reporting connected before DNS actually resolves.
 const val NETWORK_RESTORE_DEBOUNCE_MS = 30_000L
 val OFFLINE_RETRY_DELAYS_MS = listOf(5_000L, 15_000L)
+
+const val OBSERVATION_CATCH_UP_DEBOUNCE_MS = 15_000L
 
 // Deliberate pause before the network-restored kick's first fetch: a weather refresh is low
 // priority, so don't join the thundering herd of every client re-fetching the instant the link

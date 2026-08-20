@@ -150,6 +150,29 @@ class RefreshDelayTest {
     }
 
     @Test
+    fun `screen wake signal line recognizes screensaver active false`() {
+        assertTrue(
+            isScreenWakeSignalLine(
+                "/org/freedesktop/ScreenSaver: org.freedesktop.ScreenSaver.ActiveChanged (false)"
+            )
+        )
+    }
+
+    @Test
+    fun `screen wake signal line ignores screensaver active true`() {
+        assertFalse(
+            isScreenWakeSignalLine(
+                "/org/freedesktop/ScreenSaver: org.freedesktop.ScreenSaver.ActiveChanged (true)"
+            )
+        )
+    }
+
+    @Test
+    fun `screen wake signal line ignores unrelated dbus signals`() {
+        assertFalse(isScreenWakeSignalLine("/org/freedesktop/ScreenSaver: some.other.Signal (false)"))
+    }
+
+    @Test
     fun `network restored line recognizes StateChanged to connected global`() {
         assertTrue(
             isNetworkRestoredSignalLine(
