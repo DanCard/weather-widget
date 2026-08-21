@@ -24,15 +24,23 @@ internal data class LatestStationObservation(
     val chosen: ObservationEntity?,
     val qcFlagged: List<ObservationEntity>,
     /**
-     * The NWS API observation, kept ONLY for its sky condition, when the Synoptic web reading won
-     * [LatestObservationMerge.preferNewest] on freshness.
+     * The full NWS API observation, stored *alongside* the chosen Synoptic row when the web reading
+     * won [LatestObservationMerge.preferNewest] on temperature freshness.
      *
-     * Synoptic carries no sky condition at all, so a whole-row swap decided on TEMPERATURE
-     * freshness silently discards the station's cloud. Measured 2026-08-21: KNUQ (Moffett, 3.8 km,
-     * the nearest official station) stored 23 consecutive cloud-less rows while its own METARs read
-     * `OVC 400` throughout, leaving the entire cloud blend to KSJC 15.9 km away. Storing this row
-     * alongside the chosen one costs a row per fetch and keeps both answers honest: the newest
-     * temperature, and the nearest station's real sky.
+     * The merge is a TEMPERATURE decision, but it swaps the whole row: Synoptic republishes 20-60
+     * minutes ahead of the API yet carries no sky condition, no 24h extremes, and no precipitation
+     * (see `SynopticApi` — all three are null/empty). A plain swap therefore discards everything
+     * the API row knew. Measured 2026-08-21: KNUQ (Moffett, 3.8 km, the nearest official station)
+     * stored 23 consecutive cloud-less rows while its own METARs read `OVC 400` throughout, leaving
+     * the entire cloud blend to KSJC 15.9 km away.
+     *
+     * This is a real observation row, not a cloud-only stub, deliberately: it keeps the API row's
+     * own timestamp (the cloud value must bucket to the API observation hour, not the web row's
+     * newer time) and its temperature / 24h extremes / precipitation, all of which the web swap was
+     * discarding just as surely as the sky. The temperature never wins a "latest" read (the web row
+     * is strictly newer), and the row's own primary key — `(stationId, timestamp, locationLat,
+     * locationLon)` — means a historical backfill that files the same report REPLACEs rather than
+     * duplicates it, so nothing is double-counted.
      *
      * Null when the API row was chosen anyway, when there is no API row, or when it carried no
      * sky condition to preserve.
@@ -190,9 +198,11 @@ class NwsObservationSource(
                     .filter { it.qcFailed }
                     .map { toEntity(it, stationInfo, latitude, longitude, isWebFallback = true) }
                 chosenIsWeb = merge.chosenIsWeb
-                // A web win is a TEMPERATURE decision; the sky condition it displaces is not
-                // Synoptic's to replace, because Synoptic reports none. Keep the API row for its
-                // cloud alone (its own timestamp keeps it a distinct row).
+                // A web win is a TEMPERATURE decision, but the swap throws away the whole API row
+                // — sky condition, 24h extremes, and precipitation alike, none of which Synoptic
+                // carries. Keep the API row as a second observation (its own timestamp keeps it a
+                // distinct primary key) so those fields survive; only the temperature stays with the
+                // fresher web row.
                 if (merge.chosenIsWeb && apiObservation != null &&
                     MetarSkyCover.lowPercent(apiObservation.cloudLayers) != null
                 ) {

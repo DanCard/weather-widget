@@ -31,57 +31,6 @@ class NwsApiTest {
             }
     }
 
-    /**
-     * `getLatestObservation` is a hand-rolled partial copy of `parseObservationProperties`, and it
-     * omitted `cloudLayers` entirely. Every station reached by the live "latest" path therefore
-     * stored NO sky condition — measured 2026-08-21, KNUQ (3.8 km, the nearest official station)
-     * held 23 consecutive cloud-less rows while publishing `OVC 400` on every report, so the cloud
-     * blend fell back to KSJC 15.9 km away. This is KNUQ's real payload from that morning.
-     */
-    @Test
-    fun `getLatestObservation carries the METAR sky condition`() =
-        runTest {
-            val latestResponse =
-                """
-                {
-                    "properties": {
-                        "timestamp": "2026-08-21T15:15:00+00:00",
-                        "textDescription": "Cloudy",
-                        "temperature": { "unitCode": "wmoUnit:degC", "value": 16.0, "qualityControl": "V" },
-                        "cloudLayers": [
-                            { "base": { "unitCode": "wmoUnit:m", "value": 400 }, "amount": "OVC" }
-                        ]
-                    }
-                }
-                """.trimIndent()
-
-            val client =
-                HttpClient(MockEngine) {
-                    engine {
-                        addHandler {
-                            respond(
-                                content = latestResponse,
-                                status = HttpStatusCode.OK,
-                                headers = headersOf(HttpHeaders.ContentType, "application/geo+json"),
-                            )
-                        }
-                    }
-                    install(ContentNegotiation) { json(json) }
-                }
-
-            val observation = NwsApi(client, json).getLatestObservation("KNUQ")
-
-            assertNotNull(observation)
-            assertEquals(1, observation!!.cloudLayers.size)
-            assertEquals("OVC", observation.cloudLayers.first().amount)
-            assertEquals(400.0, observation.cloudLayers.first().baseMeters!!, 0.001)
-            // The whole point: this must reach the blend as 100% low cloud, not as "not reported".
-            assertEquals(
-                100,
-                com.weatherwidget.shared.observations.MetarSkyCover.lowPercent(observation.cloudLayers),
-            )
-        }
-
     @Test
     fun `getGridPoint parses response correctly`() =
         runTest {

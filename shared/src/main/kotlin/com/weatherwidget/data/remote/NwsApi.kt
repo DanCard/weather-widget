@@ -305,51 +305,6 @@ class NwsApi
             val type: StationType = StationType.UNKNOWN
         )
 
-        suspend fun getLatestObservation(stationId: String): Observation? {
-            val response: String =
-                httpClient.get("$BASE_URL/stations/$stationId/observations/latest") {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/geo+json")
-                }.body()
-
-            val jsonObj = json.parseToJsonElement(response).jsonObject
-            val props = jsonObj["properties"]?.jsonObject ?: return null
-            val timestamp = props["timestamp"]?.jsonPrimitive?.content ?: return null
-
-            // Temperature is in a value object with unitCode
-            val tempObj = props["temperature"]?.jsonObject
-            val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull()
-
-            val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
-
-            // `/observations/latest` carries the SAME `cloudLayers` array as the `?start=&end=`
-            // series, and omitting it here left every station reached by this path storing no sky
-            // condition at all. Measured 2026-08-21: KNUQ (3.8 km, the nearest official station)
-            // published `OVC 400` on every report while the DB held 23 consecutive cloud-less rows,
-            // so the cloud blend fell back to KSJC 15.9 km away.
-            //
-            // NOTE: this function is a partial hand-rolled copy of parseObservationProperties above,
-            // which is what let the two drift. Unifying them would also start populating precip and
-            // 24h min/max on this path, so it is deliberately left alone here.
-            val cloudLayers = parseCloudLayers(props["cloudLayers"])
-
-            return if (tempValue != null) {
-                Observation(
-                    timestamp = timestamp,
-                    temperatureCelsius = tempValue.toFloat(),
-                    textDescription = textDescription,
-                    qcFailed = NwsQualityControl.isFailed(
-                        tempObj["qualityControl"]?.jsonPrimitive?.contentOrNull,
-                    ),
-                    cloudLayers = cloudLayers,
-                    isMetar = !props["rawMessage"]?.jsonPrimitive?.contentOrNull.isNullOrBlank(),
-                )
-            } else {
-                Log.d("NwsApi", "getLatestObservation: station=$stationId has null temperature value")
-                null
-            }
-        }
-
         suspend fun getObservations(
             stationId: String,
             start: String,
