@@ -16,6 +16,15 @@ data class HourlyForecast(
     // consumers that don't read from the location-keyed tables.
     val locationLat: Double? = null,
     val locationLon: Double? = null,
+    /**
+     * Cloud cover in the low layer only (roughly below 3 km), where Open-Meteo reports it.
+     *
+     * Kept separate from [cloudCover] rather than replacing it because the two answer different
+     * questions and both have consumers: [cloudCover] is the total column, which is what dims the
+     * sun and what the daily condition icon is derived from, while this is what someone standing
+     * outside would call the cloudiness, and what the cloud graph draws on every curve.
+     */
+    val cloudCoverLow: Int? = null,
 )
 
 data class DailyForecast(
@@ -121,6 +130,8 @@ data class ForecastSnapshot(
      * map degrades the display rather than breaking it.
      */
     val priorDayCloudForecast: Map<Long, Int> = emptyMap(),
+    /** Settled low-cloud actuals by top-of-hour epoch ms; see [com.weatherwidget.shared.graph.RetroCloudActual]. */
+    val retroCloudActual: Map<Long, Int> = emptyMap(),
 )
 
 sealed class DataStatus {

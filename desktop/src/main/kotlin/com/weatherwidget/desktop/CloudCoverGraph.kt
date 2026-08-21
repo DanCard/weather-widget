@@ -31,7 +31,7 @@ import kotlin.math.roundToInt
 // distinction — the curves overlap exactly whenever the forecast was right, and the forecast's
 // lightness is tuned to hold a 2.0 luminance ratio there. Must match CloudCoverGraphStyle.
 private val COLOR_CLOUD_CURVE = Color(0xFFB5BAB9)   // light neutral grey (hsl 163, 4%, 72%)
-private val COLOR_CLOUD_ACTUAL = Color(0xFFF1E4E8)  // pale pink-white    (hsl 343, 32%, 92%)
+private val COLOR_CLOUD_ACTUAL = Color(0xFFF5DBE3)  // pale pink        (hsl 343, 55%, 91%)
 
 // Labels take their curve's hue at the ACTUAL's lightness — a mid-tone mint numeral on the dark
 // plot reads far worse than the line it annotates. Must match CloudCoverGraphStyle.
@@ -57,6 +57,7 @@ fun CloudCoverGraph(
      * absent, both collapse to the live value and no accuracy claim is implied.
      */
     priorDayCloudForecast: Map<Long, Int> = emptyMap(),
+    retroCloudActual: Map<Long, Int> = emptyMap(),
     displaySourceId: String = "NWS",
     latitude: Double = 0.0,
     longitude: Double = 0.0,
@@ -108,10 +109,9 @@ fun CloudCoverGraph(
         // dashed forecast comes from the day-ago prediction. Hours with no prediction keep the live
         // value on both curves, which draws as a single line — honest, since there is nothing to
         // compare. The actual is deliberately NOT smoothed: smoothing a truth series invents values.
-        val series = CloudSeriesBuilder.build(points, priorDayCloudForecast, now)
+        val series = CloudSeriesBuilder.build(points, priorDayCloudForecast, retroCloudActual, now)
         val actualByTime = series.filter { it.actualCover != null }.associate { it.timeMs to it.actualCover!! }
         val frozenByTime = series.filter { it.isFrozen }.associate { it.timeMs to it.forecastCover!! }
-        val hasFrozen = frozenByTime.isNotEmpty()
 
         // The forecast curve swaps in the frozen prediction wherever one exists.
         val forecastValues = points.mapIndexed { i, p ->
@@ -169,8 +169,9 @@ fun CloudCoverGraph(
             drawNowLine(markerX, graphTop, graphHeight, scale)
         }
 
-        // Draw Curve Line. Dashed only when there is a real frozen forecast to distinguish from the
-        // actual — with nothing to compare, a dashed line would imply an accuracy claim we cannot make.
+        // Draw Curve Line. ALWAYS dashed: the dashes mean "this is a forecast", not "there is an
+        // actual to compare it against". Gating them on data availability left the Android widget
+        // with no dash at all, since its actual series was structurally empty (see RetroCloudActual).
         val curveStroke = if (totalSpanHours <= 8) 2.dp.toPx() * scale else 3.dp.toPx() * scale
         drawPath(
             path = buildCurve(coords),
@@ -179,13 +180,9 @@ fun CloudCoverGraph(
                 width = curveStroke,
                 cap = StrokeCap.Round,
                 join = StrokeJoin.Round,
-                pathEffect = if (hasFrozen) {
-                    androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                        floatArrayOf(6f * scale, 5f * scale),
-                    )
-                } else {
-                    null
-                },
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                    floatArrayOf(6f * scale, 5f * scale),
+                ),
             )
         )
 
@@ -233,7 +230,7 @@ fun CloudCoverGraph(
         // forecast's LABELS, but not the forecast LINE itself. Acceptable while the frozen curve
         // sits near the top of the plot and the actual's extrema sit well below it; revisit if the
         // engine grows a multi-curve collision input.
-        if (actualCoords.size >= 2 && hasFrozen) {
+        if (actualCoords.size >= 2) {
             val actualIndices = points.indices.filter { actualByTime.containsKey(points[it].dateTime) }
             val actualSignal = actualIndices.map { actualByTime[points[it].dateTime]!!.coerceIn(0, 100) }
             val actualPoints = actualIndices.map { i ->

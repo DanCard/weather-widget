@@ -25,7 +25,7 @@ object CloudCoverGraphStyle {
     // here; if the tint ever needs to be more obvious, raise saturation rather than reaching for a
     // different hue, and expect to give back some lightness to do it.
     private const val COLOR_CLOUD_CURVE = "#B5BAB9"   // light neutral grey (hsl 163, 4%, 72%)
-    private const val COLOR_CLOUD_ACTUAL = "#F1E4E8"  // pale pink-white    (hsl 343, 32%, 92%)
+    private const val COLOR_CLOUD_ACTUAL = "#F5DBE3"  // pale pink        (hsl 343, 55%, 91%)
 
     // Labels sit lighter than their curves so they stay readable on the dark plot, while keeping
     // enough of the hue to tie each number to the line it describes.

@@ -10,7 +10,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * Parsing of `cloud_cover_previous_day1` from the Previous Runs API. The fixture mirrors a real
+ * Parsing of `cloud_cover_low_previous_day1` from the Previous Runs API. The fixture mirrors a real
  * response, including the two shapes that matter: a null hour, and hours padded past "now".
  */
 @Category(ShortDuration::class)
@@ -26,7 +26,7 @@ class PreviousRunsCloudParseTest {
           "hourly": {
             "time": ["2026-08-20T09:00","2026-08-20T10:00","2026-08-20T11:00",
                      "2026-08-20T12:00","2026-08-20T13:00"],
-            "cloud_cover_previous_day1": [100, null, 100, 55, 120]
+            "cloud_cover_low_previous_day1": [100, null, 100, 55, 120]
           }
         }
     """.trimIndent()

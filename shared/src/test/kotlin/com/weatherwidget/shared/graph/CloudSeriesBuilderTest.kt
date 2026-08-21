@@ -14,7 +14,6 @@ class CloudSeriesBuilderTest {
     private val hour = 3_600_000L
     private val now = 1_755_720_000_000L // top of an hour, for readable arithmetic
 
-    /** Default [fetchedAt] is "now", which postdates every past hour used here. */
     private fun live(offsetHours: Long, cover: Int?, fetchedAt: Long = now) = HourlyForecast(
         dateTime = now + offsetHours * hour,
         temperature = 60f,
@@ -30,25 +29,28 @@ class CloudSeriesBuilderTest {
      * prediction and the actual curve the correction — not the same number twice.
      */
     @Test
-    fun `past hour splits the retro-corrected value from the day-ago prediction`() {
+    fun `past hour splits the stored actual from the day-ago prediction`() {
         val target = now - 5 * hour
         val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-5, 50)),
+            liveHours = listOf(live(-5, 99)),
             priorForecast = mapOf(target to 100),
+            retroActual = mapOf(target to 50),
             nowMs = now,
         )
 
-        assertEquals(1, points.size.toLong().toInt())
+        assertEquals(1, points.size)
         assertEquals("forecast curve draws the day-ago prediction", 100, points[0].forecastCover)
-        assertEquals("actual curve draws the retro-corrected value", 50, points[0].actualCover)
+        assertEquals("actual curve draws the stored actual", 50, points[0].actualCover)
         assertTrue(points[0].isFrozen)
     }
 
     @Test
     fun `missing prior forecast falls back to live and says so`() {
+        val target = now - 5 * hour
         val points = CloudSeriesBuilder.build(
             liveHours = listOf(live(-5, 50)),
             priorForecast = emptyMap(),
+            retroActual = mapOf(target to 50),
             nowMs = now,
         )
 
@@ -57,12 +59,47 @@ class CloudSeriesBuilderTest {
         assertTrue("a hindcast must never be labelled a frozen forecast", !points[0].isFrozen)
     }
 
+    /**
+     * The Android bug, as a test. Every stored row is a pre-hour forecast, so the old `fetchedAt`
+     * inference yielded no actuals at all — and with `hasActual` false the renderer drew neither the
+     * actual curve nor the dashed forecast. An explicitly filed actual must survive that.
+     */
+    @Test
+    fun `a stored actual is drawn even when every live row predates its own hour`() {
+        val target = now - 5 * hour
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(live(-5, 99, fetchedAt = target - hour)),
+            priorForecast = mapOf(target to 100),
+            retroActual = mapOf(target to 8),
+            nowMs = now,
+        )
+
+        assertEquals("the actual comes from the filed series, not the live row", 8, points[0].actualCover)
+        assertEquals(100, points[0].forecastCover)
+    }
+
+    /** The converse: `fetchedAt` no longer manufactures an actual on its own. */
+    @Test
+    fun `a past hour with no filed actual draws no actual`() {
+        val target = now - 5 * hour
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(live(-5, 50, fetchedAt = target + 2 * hour)),
+            priorForecast = mapOf(target to 100),
+            retroActual = emptyMap(),
+            nowMs = now,
+        )
+
+        assertNull("a missing actual is honest; an inferred one is not", points[0].actualCover)
+        assertEquals(100, points[0].forecastCover)
+    }
+
     @Test
     fun `current and future hours carry no actual`() {
         val points = CloudSeriesBuilder.build(
             liveHours = listOf(live(0, 40), live(3, 70)),
-            // A stray prior-run value for a future hour must not resurrect an actual.
+            // Stray values for a future hour must not resurrect an actual.
             priorForecast = mapOf(now to 90, now + 3 * hour to 90),
+            retroActual = mapOf(now to 11, now + 3 * hour to 11),
             nowMs = now,
         )
 
@@ -78,6 +115,7 @@ class CloudSeriesBuilderTest {
         val points = CloudSeriesBuilder.build(
             liveHours = listOf(live(0, 40)),
             priorForecast = mapOf(now to 90),
+            retroActual = mapOf(now to 12),
             nowMs = now + 42 * 60_000L, // 42 minutes into the hour
         )
 
@@ -91,6 +129,7 @@ class CloudSeriesBuilderTest {
         val points = CloudSeriesBuilder.build(
             liveHours = listOf(live(-3, 80), live(-2, null), live(-1, 20)),
             priorForecast = emptyMap(),
+            retroActual = mapOf(now - 3 * hour to 80, now - 2 * hour to 55, now - 1 * hour to 20),
             nowMs = now,
         )
 
@@ -98,58 +137,17 @@ class CloudSeriesBuilderTest {
         assertEquals(listOf(80, 20), points.map { it.actualCover })
     }
 
-    /**
-     * The Samsung-vs-desktop divergence, as a test. A device that has not refetched since the hour
-     * elapsed holds a row that is still a prediction; it must not be drawn as the actual.
-     */
     @Test
-    fun `a row written before its hour ended is not an actual`() {
-        val target = now - 5 * hour
+    fun `out-of-range stored values are clamped`() {
+        val target = now - 2 * hour
         val points = CloudSeriesBuilder.build(
-            // Written an hour before the target hour even started.
-            liveHours = listOf(live(-5, 99, fetchedAt = target - hour)),
-            priorForecast = mapOf(target to 100),
-            nowMs = now,
-        )
-
-        assertNull("a forecast must never land on the truth curve", points[0].actualCover)
-        assertEquals(100, points[0].forecastCover)
-    }
-
-    @Test
-    fun `a row written after its hour ended is an actual`() {
-        val target = now - 5 * hour
-        val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-5, 50, fetchedAt = target + 2 * hour)),
-            priorForecast = mapOf(target to 100),
-            nowMs = now,
-        )
-
-        assertEquals(50, points[0].actualCover)
-    }
-
-    /** Mid-hour is not enough: the hour was still in progress when the value was written. */
-    @Test
-    fun `a row written during its own hour is not an actual`() {
-        val target = now - 5 * hour
-        val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-5, 76, fetchedAt = target + 4 * 60_000L)),
+            liveHours = listOf(live(-2, 50)),
             priorForecast = emptyMap(),
+            retroActual = mapOf(target to 140),
             nowMs = now,
         )
 
-        assertNull(points[0].actualCover)
-    }
-
-    @Test
-    fun `an unpopulated fetchedAt is treated as not corrected`() {
-        val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-5, 50, fetchedAt = 0L)),
-            priorForecast = emptyMap(),
-            nowMs = now,
-        )
-
-        assertNull("a missing actual is honest; a fabricated one is not", points[0].actualCover)
+        assertEquals(100, points[0].actualCover)
     }
 
     @Test
@@ -157,6 +155,7 @@ class CloudSeriesBuilderTest {
         val points = CloudSeriesBuilder.build(
             liveHours = listOf(live(-4, 10), live(-3, 20), live(-2, 30), live(-1, 40)),
             priorForecast = mapOf(now - 4 * hour to 90, now - 3 * hour to 90),
+            retroActual = (1..4).associate { now - it * hour to 10 * it },
             nowMs = now,
         )
 
@@ -168,6 +167,7 @@ class CloudSeriesBuilderTest {
         val points = CloudSeriesBuilder.build(
             liveHours = listOf(live(-1, 40), live(-3, 20), live(-2, 30)),
             priorForecast = emptyMap(),
+            retroActual = emptyMap(),
             nowMs = now,
         )
 

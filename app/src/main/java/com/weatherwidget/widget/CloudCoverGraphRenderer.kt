@@ -208,7 +208,6 @@ object CloudCoverGraphRenderer {
         // The actual curve is NOT smoothed: smoothing a truth series invents values it never had.
         val actualValues = hours.map { it.actualCloudCover?.coerceIn(0, 100)?.toFloat() }
         val hasActual = actualValues.count { it != null } >= 2
-        val hasFrozen = hours.any { it.isFrozenForecast }
         // Scale over BOTH curves, or the taller one draws off the top of the plot.
         val verticalScale = computeVerticalScale(smoothedValues + actualValues.filterNotNull())
         Log.d(
@@ -257,14 +256,15 @@ object CloudCoverGraphRenderer {
         )
 
         canvas.drawPath(fillPath, paints.gradientPaint)
-        // Dash the forecast only when there is a real frozen prediction to distinguish it from the
-        // actual; with nothing to compare, a dashed line would imply a claim we cannot make.
+
+        // The forecast curve is ALWAYS dashed — dashes mean "this is a forecast", not "there is an
+        // actual to compare it against". They used to be gated on `hasFrozen && hasActual`, which
+        // made them a signal about data availability: with the Android actual series structurally
+        // empty (see RetroCloudActual) the gate never opened and no device ever drew a dash.
         val previousDashEffect = paints.curvePaint.pathEffect
-        if (hasFrozen && hasActual) {
-            paints.curvePaint.pathEffect = DashPathEffect(
-                floatArrayOf(dpToPx(context, 3f), dpToPx(context, 2.5f)), 0f,
-            )
-        }
+        paints.curvePaint.pathEffect = DashPathEffect(
+            floatArrayOf(dpToPx(context, 3f), dpToPx(context, 2.5f)), 0f,
+        )
         canvas.drawPath(curvePath, paints.curvePaint)
         paints.curvePaint.pathEffect = previousDashEffect
 
@@ -471,7 +471,7 @@ object CloudCoverGraphRenderer {
         //
         // Known gap (matches the desktop renderer): the engine takes one curve, so this avoids the
         // actual curve and the forecast's LABELS, but not the forecast LINE.
-        if (actualPoints.size >= 2 && hasFrozen) {
+        if (actualPoints.size >= 2) {
             val actualIndices = hours.indices.filter { actualValues[it] != null }
             val actualSignal = actualIndices.map { actualValues[it]!!.roundToInt().coerceIn(0, 100) }
             val actualGraphPoints = actualIndices.mapIndexed { position, _ ->

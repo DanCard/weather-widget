@@ -16,9 +16,11 @@ data class HourlyForecastEntity(
     val condition: String, // Weather condition (e.g., "Cloudy", "Rain")
     val source: String, // Database storage: "NWS", "OPEN_METEO", or "Generic". Use WeatherSource.fromId() to convert.
     val precipProbability: Int? = null, // Precipitation probability percentage (0-100)
-    val cloudCover: Int? = null, // Cloud cover percentage (0-100)
+    val cloudCover: Int? = null, // Total-column cloud cover percentage (0-100)
     val precipAmountMm: Float? = null, // Hourly precipitation amount in millimeters
     val fetchedAt: Long, // When this data was fetched
+    // Appended, not slotted next to cloudCover: this entity is built positionally in ~50 test files.
+    val cloudCoverLow: Int? = null, // Low-layer only (0-100); what the cloud graph draws
 )
 
 fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.HourlyForecast(
@@ -27,6 +29,7 @@ fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.Hourl
     condition = condition,
     precipProbability = precipProbability,
     cloudCover = cloudCover,
+    cloudCoverLow = cloudCoverLow,
     precipAmountMm = precipAmountMm,
     source = source,
     fetchedAt = fetchedAt,

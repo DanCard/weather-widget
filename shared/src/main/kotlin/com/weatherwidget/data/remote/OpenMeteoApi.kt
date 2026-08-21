@@ -36,6 +36,15 @@ class OpenMeteoApi
             /** Verified: `past_days=31` returns the full span with `_previous_day1` fully populated. */
             const val MAX_PREVIOUS_RUNS_PAST_DAYS = 31
 
+            /**
+             * The **low**-layer variable, matching what the actual curve stores. Using the total
+             * column here would compare a forecast of "any cloud anywhere in the column" against an
+             * actual of "cloud you can see", and the two diverge hard: on 2026-08-20 total ran
+             * 83-99% all afternoon on thin cirrus while the low layer — and every surface station —
+             * read 4-13%.
+             */
+            const val PREVIOUS_RUNS_VARIABLE = "cloud_cover_low_previous_day1"
+
                 /**
                  * Pure seam: the whole of this endpoint's parsing, reachable without an HTTP engine.
                  */
@@ -43,7 +52,7 @@ class OpenMeteoApi
                 val jsonObj = Json.parseToJsonElement(response).jsonObject
                 val hourly = jsonObj["hourly"]?.jsonObject ?: return emptyMap()
                 val times = hourly["time"]?.jsonArray ?: return emptyMap()
-                val covers = hourly["cloud_cover_previous_day1"]?.jsonArray ?: return emptyMap()
+                val covers = hourly[PREVIOUS_RUNS_VARIABLE]?.jsonArray ?: return emptyMap()
                 // The response carries its own timezone; parse in it rather than the device default so
                 // a phone travelling across zones keeps filing hours under the same keys.
                 val zone = jsonObj["timezone"]?.jsonPrimitive?.contentOrNull
@@ -77,7 +86,7 @@ class OpenMeteoApi
                     parameter("latitude", lat)
                     parameter("longitude", lon)
                     parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum")
-                    parameter("hourly", "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover")
+                    parameter("hourly", "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low")
                     parameter("current", "temperature_2m,weather_code")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
@@ -159,6 +168,10 @@ precipAmountMm = dailyPrecipAmountsMm.getOrNull(index),
                 hourly?.get("cloud_cover")?.jsonArray?.map {
                     it.jsonPrimitive.content.toIntOrNull()
                 } ?: emptyList()
+            val hourlyCloudCoverLow =
+                hourly?.get("cloud_cover_low")?.jsonArray?.map {
+                    it.jsonPrimitive.content.toIntOrNull()
+                } ?: emptyList()
 
             val zone = timezone?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.systemDefault()
             val hourlyForecasts =
@@ -179,6 +192,7 @@ condition = weatherCodeToCondition(code),
 precipProbability = hourlyPrecipProbs.getOrNull(index),
 precipAmountMm = hourlyPrecipAmountsMm.getOrNull(index),
 cloudCover = hourlyCloudCover.getOrNull(index),
+cloudCoverLow = hourlyCloudCoverLow.getOrNull(index),
 )
 } else {
                         null
@@ -274,7 +288,7 @@ hourly = hourlyForecasts,
                 httpClient.get("$PREVIOUS_RUNS_URL/forecast") {
                     parameter("latitude", lat)
                     parameter("longitude", lon)
-                    parameter("hourly", "cloud_cover_previous_day1")
+                    parameter("hourly", PREVIOUS_RUNS_VARIABLE)
                     parameter("past_days", pastDays.coerceIn(1, MAX_PREVIOUS_RUNS_PAST_DAYS))
                     parameter("forecast_days", 1)
                     parameter("timezone", "auto")

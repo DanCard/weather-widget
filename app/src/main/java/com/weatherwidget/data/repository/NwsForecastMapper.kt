@@ -217,8 +217,18 @@ class NwsForecastMapper @Inject constructor(
                 appLogDao.log("NWS_HOURLY_STALE", "time=${Instant.ofEpochMilli(period.startTime).atZone(ZoneId.systemDefault()).toLocalDateTime()} temp=${period.temperature} ageMin=${periodAgeMs / 60000}")
             }
             HourlyForecastEntity(
-                period.startTime, latitude, longitude, period.temperature,
-                period.shortForecast, WeatherSource.NWS.id, period.precipProbability, period.cloudCover, period.precipAmountMm, nowMs
+                dateTime = period.startTime,
+                locationLat = latitude,
+                locationLon = longitude,
+                temperature = period.temperature,
+                condition = period.shortForecast,
+                source = WeatherSource.NWS.id,
+                precipProbability = period.precipProbability,
+                cloudCover = period.cloudCover,
+                // NWS reports a single sky-cover value, not a layer breakdown; the graph's fallback
+                // draws the total for this source.
+                precipAmountMm = period.precipAmountMm,
+                fetchedAt = nowMs,
             )
         }
 

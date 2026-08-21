@@ -1209,6 +1209,7 @@ internal fun WidgetPopup(
                                 CloudCoverGraph(
                                     hourly = snapshot.raw.hourly,
                                     priorDayCloudForecast = snapshot.priorDayCloudForecast,
+                                    retroCloudActual = snapshot.retroCloudActual,
                                     displaySourceId = config.settings.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,

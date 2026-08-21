@@ -154,8 +154,35 @@ interface HourlyForecastHistoryDao {
         endDateTime: Long,
         lat: Double,
         lon: Double,
+    ): Map<Long, Int> = getSyntheticCloudSeries(
+        startDateTime, endDateTime, lat, lon,
+        com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID,
+    )
+
+    /**
+     * The settled low-cloud actuals for the window, filed by
+     * [com.weatherwidget.data.repository.HourlyForecastStore] under
+     * [com.weatherwidget.shared.graph.RetroCloudActual.SOURCE_ID]. Same shape and same site-collapse
+     * as the frozen forecast, so the two maps can be zipped hour-for-hour.
+     */
+    suspend fun getRetroCloudActuals(
+        startDateTime: Long,
+        endDateTime: Long,
+        lat: Double,
+        lon: Double,
+    ): Map<Long, Int> = getSyntheticCloudSeries(
+        startDateTime, endDateTime, lat, lon,
+        com.weatherwidget.shared.graph.RetroCloudActual.SOURCE_ID,
+    )
+
+    private suspend fun getSyntheticCloudSeries(
+        startDateTime: Long,
+        endDateTime: Long,
+        lat: Double,
+        lon: Double,
+        source: String,
     ): Map<Long, Int> =
-        getPriorDayCloudCandidates(startDateTime, endDateTime, lat, lon)
+        getPriorDayCloudCandidates(startDateTime, endDateTime, lat, lon, source)
             .filter { LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon) }
             .mapNotNull { row -> row.cloudCover?.let { row.dateTime to it } }
             .toMap()

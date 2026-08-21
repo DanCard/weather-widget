@@ -400,25 +400,44 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             // Day-ago predictions for the visible window: the forecast curve's frozen half. Scoped
             // to the same site the rows being drawn came from, and empty for every source without a
             // previous-runs product — which collapses both curves onto the live value.
-            val priorCloud = if (effectiveDisplaySource == WeatherSource.OPEN_METEO) {
-                val zoneId = ZoneId.systemDefault()
-                val windowKeys = windowHourKeys
-                val siteLat = hourlyForecasts.firstOrNull()?.locationLat
-                val siteLon = hourlyForecasts.firstOrNull()?.locationLon
-                if (siteLat != null && siteLon != null && windowKeys.isNotEmpty()) {
-                    runCatching {
-                        WeatherDatabase.getDatabase(context).hourlyForecastHistoryDao()
-                            .getPriorDayCloudForecast(
-                                startDateTime = windowKeys.min(),
-                                endDateTime = windowKeys.max() + 1,
-                                lat = siteLat,
-                                lon = siteLon,
-                            )
-                    }.getOrElse {
-                        Log.w(TAG, "prior-day cloud read failed; falling back to live values", it)
-                        emptyMap()
-                    }
-                } else {
+            val siteLat = hourlyForecasts.firstOrNull()?.locationLat
+            val siteLon = hourlyForecasts.firstOrNull()?.locationLon
+            val cloudSeriesAvailable = effectiveDisplaySource == WeatherSource.OPEN_METEO &&
+                siteLat != null && siteLon != null && windowHourKeys.isNotEmpty()
+            // Both synthetic series share the window and the site, so they are read together: a
+            // mismatch between them would misalign the two curves hour-for-hour.
+            val cloudHistoryDao = if (cloudSeriesAvailable) {
+                WeatherDatabase.getDatabase(context).hourlyForecastHistoryDao()
+            } else {
+                null
+            }
+            val windowStart = windowHourKeys.minOrNull() ?: 0L
+            val windowEnd = (windowHourKeys.maxOrNull() ?: 0L) + 1
+            val priorCloud = if (cloudHistoryDao != null) {
+                runCatching {
+                    cloudHistoryDao.getPriorDayCloudForecast(
+                        startDateTime = windowStart,
+                        endDateTime = windowEnd,
+                        lat = siteLat!!,
+                        lon = siteLon!!,
+                    )
+                }.getOrElse {
+                    Log.w(TAG, "prior-day cloud read failed; falling back to live values", it)
+                    emptyMap()
+                }
+            } else {
+                emptyMap()
+            }
+            val retroActual = if (cloudHistoryDao != null) {
+                runCatching {
+                    cloudHistoryDao.getRetroCloudActuals(
+                        startDateTime = windowStart,
+                        endDateTime = windowEnd,
+                        lat = siteLat!!,
+                        lon = siteLon!!,
+                    )
+                }.getOrElse {
+                    Log.w(TAG, "retro cloud actual read failed; graph shows forecast only", it)
                     emptyMap()
                 }
             } else {
@@ -428,6 +447,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val hours = buildCloudHourDataList(
                 hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom,
                 priorDayCloudForecast = priorCloud,
+                retroCloudActual = retroActual,
             )
             buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
 
@@ -583,6 +603,9 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         // Day-ago predictions by top-of-hour epoch ms. Empty for every source without a
         // previous-runs product, which collapses both curves onto the live value.
         priorDayCloudForecast: Map<Long, Int> = emptyMap(),
+        // Settled low-cloud actuals by the same key. Authoritative — a past hour draws an actual if
+        // and only if it appears here.
+        retroCloudActual: Map<Long, Int> = emptyMap(),
     ): List<CloudCoverGraphRenderer.CloudHourData> {
         val hours = mutableListOf<CloudCoverGraphRenderer.CloudHourData>()
         val now = LocalDateTime.now()
@@ -636,16 +659,13 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val forecast = forecastsByTime[hourMs]
 
             if (forecast?.cloudCover != null) {
-                // Past hours: the stored row has been retro-corrected by later runs, so it is the
-                // ACTUAL; the forecast curve takes the day-ago prediction where one exists.
+                // Past hours carry two independent values: the actual, filed at fetch time by
+                // RetroCloudActual once the hour had settled, and the forecast, which takes the
+                // day-ago prediction where one exists. Neither is inferred from the live row's
+                // fetchedAt — that inference was structurally false on Android and drew nothing.
                 val isPast = currentHour.isBefore(now.truncatedTo(java.time.temporal.ChronoUnit.HOURS))
                 val frozen = if (isPast) priorDayCloudForecast[hourMs] else null
-                // A row written before its own hour ended is still a prediction, whatever the clock
-                // says now. Drawing it as the actual puts a forecast on the truth curve — which is
-                // exactly what a device that has not refetched since the morning would show.
-                val isActual = isPast &&
-                    com.weatherwidget.shared.graph.CloudSeriesBuilder
-                        .isRetroCorrected(hourMs, forecast.fetchedAt)
+                val actual = if (isPast) retroCloudActual[hourMs] else null
                 val p = HourlyGraphViewCommon.resolveHourPresentation(
                     currentHour, forecast, now, lat, lon, labelInterval, hourIndex,
                     hourMs = hourMs, dateMode = dateMode, dateLabelMillis = dateLabelMillis,
@@ -654,7 +674,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     CloudCoverGraphRenderer.CloudHourData(
                         dateTime = currentHour,
                         cloudCover = frozen ?: forecast.cloudCover,
-                        actualCloudCover = if (isActual) forecast.cloudCover else null,
+                        actualCloudCover = actual,
                         isFrozenForecast = frozen != null,
                         label = p.label,
                         iconRes = p.iconRes,

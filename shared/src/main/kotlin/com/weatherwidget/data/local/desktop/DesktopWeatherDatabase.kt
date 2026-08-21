@@ -64,6 +64,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         source TEXT NOT NULL,
                         precipProbability INTEGER,
                         cloudCover INTEGER,
+                        cloudCoverLow INTEGER,
                         precipAmountMm REAL,
                         fetchedAt INTEGER NOT NULL,
                         PRIMARY KEY (dateTime, source, locationLat, locationLon)
@@ -83,6 +84,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         timestampToGroupPredictions INTEGER NOT NULL,
                         precipProbability INTEGER,
                         cloudCover INTEGER,
+                        cloudCoverLow INTEGER,
                         precipAmountMm REAL,
                         fetchedAt INTEGER NOT NULL,
                         PRIMARY KEY (dateTime, source, locationLat, locationLon, timestampToGroupPredictions)
@@ -408,6 +410,13 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 15) {
                 addColumnIfMissing(stmt, "daily_history", "lastWriter", "TEXT")
             }
+            // v16: low-layer cloud cover on the hourly rows, alongside the existing total column.
+            // The cloud graph draws the low layer — it is what someone outside would call
+            // cloudiness — while the total still drives sun dimming and the condition icon.
+            if (from < 16) {
+                addColumnIfMissing(stmt, "hourly_forecasts", "cloudCoverLow", "INTEGER")
+                addColumnIfMissing(stmt, "hourly_forecast_history", "cloudCoverLow", "INTEGER")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -453,6 +462,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 15
+        private const val SCHEMA_VERSION = 16
     }
 }

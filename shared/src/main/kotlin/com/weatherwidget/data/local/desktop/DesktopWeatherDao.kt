@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.shared.graph.PriorDayCloudForecast
+import com.weatherwidget.shared.graph.RetroCloudActual
 import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.remote.NwsApi
@@ -24,6 +25,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     companion object {
         /** Marker in the NOT NULL `condition` column of prior-run cloud rows; never displayed. */
         private const val PRIOR_CLOUD_CONDITION = "prior-run cloud"
+        private const val RETRO_CLOUD_CONDITION = "retro cloud actual"
     }
 
 
@@ -33,8 +35,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO hourly_forecasts 
-                    (dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, cloudCover, precipAmountMm, fetchedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, cloudCover, cloudCoverLow, precipAmountMm, fetchedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
@@ -51,8 +53,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setString(6, source)
                         stmt.setNullableInt(7, h.precipProbability)
                         stmt.setNullableInt(8, h.cloudCover)
-                        stmt.setNullableFloat(9, h.precipAmountMm)
-                        stmt.setLong(10, now)
+                        stmt.setNullableInt(9, h.cloudCoverLow)
+                        stmt.setNullableFloat(10, h.precipAmountMm)
+                        stmt.setLong(11, now)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -76,7 +79,39 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * filled with a neutral marker and must never be read. Only `cloudCover` carries meaning here,
      * and only [com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID] rows are ever read back.
      */
-    fun upsertPriorDayCloudForecast(locationLat: Double, locationLon: Double, coverByHour: Map<Long, Int>) {
+    fun upsertPriorDayCloudForecast(locationLat: Double, locationLon: Double, coverByHour: Map<Long, Int>) =
+        upsertSyntheticCloudSeries(
+            locationLat, locationLon, coverByHour,
+            source = PriorDayCloudForecast.SOURCE_ID,
+            condition = PRIOR_CLOUD_CONDITION,
+            bucketFor = PriorDayCloudForecast::predictionBucketFor,
+        )
+
+    /**
+     * Settled low-cloud actuals, filed under [RetroCloudActual.SOURCE_ID].
+     *
+     * Desktop used to infer these at render time from whether a live `hourly_forecasts` row had
+     * been rewritten after its own hour ended. That worked here — desktop upserts past hours in
+     * place — and silently never fired on Android, whose write path drops them. Storing the actual
+     * explicitly, on both platforms, is what stops the two from disagreeing about which value sits
+     * on which curve.
+     */
+    fun upsertRetroCloudActuals(locationLat: Double, locationLon: Double, coverByHour: Map<Long, Int>) =
+        upsertSyntheticCloudSeries(
+            locationLat, locationLon, coverByHour,
+            source = RetroCloudActual.SOURCE_ID,
+            condition = RETRO_CLOUD_CONDITION,
+            bucketFor = RetroCloudActual::bucketFor,
+        )
+
+    private fun upsertSyntheticCloudSeries(
+        locationLat: Double,
+        locationLon: Double,
+        coverByHour: Map<Long, Int>,
+        source: String,
+        condition: String,
+        bucketFor: (Long) -> Long,
+    ) {
         if (coverByHour.isEmpty()) return
         db.getConnection().use { conn ->
             conn.autoCommit = false
@@ -95,9 +130,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setDouble(2, keyLat)
                         stmt.setDouble(3, keyLon)
                         stmt.setFloat(4, 0f)
-                        stmt.setString(5, PRIOR_CLOUD_CONDITION)
-                        stmt.setString(6, PriorDayCloudForecast.SOURCE_ID)
-                        stmt.setLong(7, PriorDayCloudForecast.predictionBucketFor(hourMs))
+                        stmt.setString(5, condition)
+                        stmt.setString(6, source)
+                        stmt.setLong(7, bucketFor(hourMs))
                         stmt.setNull(8, java.sql.Types.INTEGER)
                         stmt.setInt(9, cover)
                         stmt.setNull(10, java.sql.Types.REAL)
@@ -116,7 +151,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     /** Day-ago cloud predictions for the window, as hour -> percent. */
     fun getPriorDayCloudForecast(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long): Map<Long, Int> =
-        getHourlyHistory(locationLat, locationLon, PriorDayCloudForecast.SOURCE_ID, startMs, endMs)
+        getSyntheticCloudSeries(locationLat, locationLon, PriorDayCloudForecast.SOURCE_ID, startMs, endMs)
+
+    /** Settled low-cloud actuals for the window, as hour -> percent. */
+    fun getRetroCloudActuals(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long): Map<Long, Int> =
+        getSyntheticCloudSeries(locationLat, locationLon, RetroCloudActual.SOURCE_ID, startMs, endMs)
+
+    private fun getSyntheticCloudSeries(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Map<Long, Int> =
+        getHourlyHistory(locationLat, locationLon, source, startMs, endMs)
             .mapNotNull { row -> row.cloudCover?.let { row.dateTime to it } }
             .toMap()
 
@@ -126,8 +168,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO hourly_forecast_history 
-                    (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, precipAmountMm, fetchedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, cloudCoverLow, precipAmountMm, fetchedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
@@ -144,8 +186,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setLong(7, timestampToGroupPredictions)
                         stmt.setNullableInt(8, h.precipProbability)
                         stmt.setNullableInt(9, h.cloudCover)
-                        stmt.setNullableFloat(10, h.precipAmountMm)
-                        stmt.setLong(11, now)
+                        stmt.setNullableInt(10, h.cloudCoverLow)
+                        stmt.setNullableFloat(11, h.precipAmountMm)
+                        stmt.setLong(12, now)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -678,6 +721,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         condition = rs.getString("condition"),
                         precipProbability = rs.getNullableInt("precipProbability"),
                         cloudCover = rs.getNullableInt("cloudCover"),
+                        cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = source,
                         fetchedAt = rs.getLong("fetchedAt"),
@@ -713,6 +757,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         condition = rs.getString("condition"),
                         precipProbability = rs.getNullableInt("precipProbability"),
                         cloudCover = rs.getNullableInt("cloudCover"),
+                        cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = source,
                         fetchedAt = rs.getLong("fetchedAt"),
@@ -734,7 +779,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             // or invent a forecast for hours we never actually forecast). So only admit Generic rows
             // for future timestamps; the real source supplies all past/near hours.
             val sql = """
-                SELECT dateTime, temperature, condition, precipProbability, cloudCover, precipAmountMm, fetchedAt, source, locationLat, locationLon
+                SELECT dateTime, temperature, condition, precipProbability, cloudCover, cloudCoverLow, precipAmountMm, fetchedAt, source, locationLat, locationLon
                 FROM hourly_forecast_history
                 WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR (source = 'Generic' AND dateTime > ?)) AND dateTime >= ? AND dateTime <= ?
                 ORDER BY dateTime ASC, (source = ?) DESC, timestampToGroupPredictions DESC
@@ -766,6 +811,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         condition = rs.getString("condition"),
                         precipProbability = rs.getNullableInt("precipProbability"),
                         cloudCover = rs.getNullableInt("cloudCover"),
+                        cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = rowSource,
                         fetchedAt = rs.getLong("fetchedAt"),
@@ -776,10 +822,13 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     val existing = merged[key]
                     if (existing == null) {
                         merged[key] = row
-                    } else if (existing.cloudCover == null || existing.precipProbability == null || existing.precipAmountMm == null) {
+                    } else if (existing.cloudCover == null || existing.cloudCoverLow == null ||
+                        existing.precipProbability == null || existing.precipAmountMm == null
+                    ) {
                         merged[key] = existing.copy(
                             precipProbability = existing.precipProbability ?: row.precipProbability,
                             cloudCover = existing.cloudCover ?: row.cloudCover,
+                            cloudCoverLow = existing.cloudCoverLow ?: row.cloudCoverLow,
                             precipAmountMm = existing.precipAmountMm ?: row.precipAmountMm,
                         )
                     }
