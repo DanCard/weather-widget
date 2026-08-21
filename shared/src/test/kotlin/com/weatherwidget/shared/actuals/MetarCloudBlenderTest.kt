@@ -25,6 +25,7 @@ class MetarCloudBlenderTest {
         qcFailed: Boolean = false,
         lat: Double = 37.0,
         lon: Double = -122.0,
+        isMetar: Boolean = false,
     ) = ObservationReading(
         stationId = stationId,
         stationName = stationId,
@@ -37,6 +38,7 @@ class MetarCloudBlenderTest {
         api = api,
         qcFailed = qcFailed,
         cloudCoverLow = cloudLow,
+        isMetar = isMetar,
     )
 
     @Test
@@ -149,6 +151,81 @@ class MetarCloudBlenderTest {
         assertEquals(mapOf(hour to 20), result.hours)
         assertEquals(2, result.stats.blendWidthByHour[hour])
         assertEquals(1, result.stats.shadowedBuckets)
+    }
+
+    @Test
+    fun `the official METAR beats a 5-minute sample sitting exactly on the hour mark`() {
+        // The real shape at KSJC: `/stations/{id}/observations` interleaves the METAR (:53) with
+        // ASOS 5-minute rows, one of which lands EXACTLY on the hour mark. Nearest-to-mark alone
+        // hands the hour to the 5-minute row every time — distance 0 vs 7 minutes — so the
+        // station's own 30-minute assessment could never be selected.
+        val readings = listOf(
+            reading("KSJC", hour, cloudLow = 0, distanceKm = 16f),                       // 5-min, on the mark
+            reading("KSJC", hour - 7 * min, cloudLow = 44, distanceKm = 16f, isMetar = true), // the METAR
+        )
+
+        val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
+
+        assertEquals(mapOf(hour to 44), result.hours)
+        assertEquals(1, result.stats.metarPreferredBuckets)
+    }
+
+    @Test
+    fun `nearest-to-the-hour still decides among several METARs`() {
+        // The preference selects a CLASS, not a row. Within the METARs, the existing rule stands.
+        val readings = listOf(
+            reading("KSJC", hour - 25 * min, cloudLow = 19, distanceKm = 16f, isMetar = true),
+            reading("KSJC", hour - 7 * min, cloudLow = 75, distanceKm = 16f, isMetar = true),
+            reading("KSJC", hour, cloudLow = 0, distanceKm = 16f),
+        )
+
+        val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
+
+        assertEquals(mapOf(hour to 75), result.hours)
+    }
+
+    @Test
+    fun `a station with no METAR in the bucket still contributes its 5-minute sample`() {
+        // Gaps stay gaps, but a station is never dropped merely for lacking a METAR this hour —
+        // and every row written before the isMetar column existed reads false, so this is also the
+        // pre-migration path.
+        val readings = listOf(reading("KSJC", hour + 2 * min, cloudLow = 100, distanceKm = 16f))
+
+        val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
+
+        assertEquals(mapOf(hour to 100), result.hours)
+        assertEquals(0, result.stats.metarPreferredBuckets)
+    }
+
+    @Test
+    fun `the METAR preference is per-station, not global`() {
+        // One station having a METAR must not suppress another station that only has 5-minute rows;
+        // the blend width has to stay 2.
+        val readings = listOf(
+            reading("KNUQ", hour - 5 * min, cloudLow = 100, distanceKm = 4f, isMetar = true),
+            reading("KNUQ", hour, cloudLow = 0, distanceKm = 4f),
+            reading("KSJC", hour, cloudLow = 100, distanceKm = 16f),
+        )
+
+        val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
+
+        assertEquals(mapOf(hour to 100), result.hours)
+        assertEquals(2, result.stats.blendWidthByHour[hour])
+    }
+
+    @Test
+    fun `a partial METAR yields to a cloud-carrying 5-minute row rather than blanking the hour`() {
+        // A METAR that omitted sky condition carries nothing to prefer. The carrier filter runs
+        // first, so the station still contributes instead of dropping out of the blend.
+        val readings = listOf(
+            reading("KSJC", hour - 7 * min, cloudLow = null, distanceKm = 16f, isMetar = true),
+            reading("KSJC", hour + 3 * min, cloudLow = 100, distanceKm = 16f),
+        )
+
+        val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
+
+        assertEquals(mapOf(hour to 100), result.hours)
+        assertEquals(0, result.stats.metarPreferredBuckets)
     }
 
     @Test

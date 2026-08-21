@@ -64,11 +64,13 @@ class NwsCloudActualsRoundTripTest {
         timestamp: String,
         layers: List<NwsApi.CloudLayer>,
         tempC: Double = 20.0,
+        isMetar: Boolean = false,
     ) = NwsApi.Observation(
         timestamp = timestamp,
         temperatureCelsius = tempC.toFloat(),
         textDescription = "Clear",
         cloudLayers = layers,
+        isMetar = isMetar,
     )
 
     @Test
@@ -227,6 +229,50 @@ class NwsCloudActualsRoundTripTest {
 
         assertEquals(75, result.hours[windowStart])
         assertEquals(100, result.hours[windowStart + 3_600_000L])
+    }
+
+    @Test
+    fun `the METAR wins the hour over a 5-minute sample sitting on the mark`() = runBlocking {
+        val dao = db.observationDao()
+        // The KSJC shape, written through the real mapper and Room rather than hand-built readings:
+        // the ASOS 5-minute row lands EXACTLY on the hour mark and the METAR sits 7 minutes before
+        // it, so nearest-to-mark alone would hand the hour to the instantaneous sample every time.
+        val hourMs = 1_787_263_200_000L // 2026-08-20T22:00:00Z, hour-aligned
+        dao.insertAll(
+            listOf(
+                source.toEntity(
+                    observation(
+                        "2026-08-20T21:53:00+00:00",
+                        listOf(NwsApi.CloudLayer("BKN", 500.0)),
+                        isMetar = true,
+                    ),
+                    station("KSJC", 37.36, -121.93, official = true),
+                    userLat, userLon,
+                ),
+                source.toEntity(
+                    observation(
+                        "2026-08-20T22:00:00+00:00",
+                        // CLR at the ceilometer's detection ceiling: "nothing overhead right now",
+                        // which is exactly the reading that must NOT win the hour.
+                        listOf(NwsApi.CloudLayer("CLR", 3810.0)),
+                    ),
+                    station("KSJC", 37.36, -121.93, official = true),
+                    userLat, userLon,
+                ),
+            ),
+        )
+
+        val result = dao.getCloudActuals(
+            startTs = hourMs,
+            endTs = hourMs + 3_600_000L,
+            lat = userLat,
+            lon = userLon,
+            sourceId = WeatherSource.NWS.id,
+        )
+
+        // 75 (BKN, the METAR) — not 0 (CLR, the sample on the mark).
+        assertEquals(75, result.hours[hourMs])
+        assertEquals(1, result.stats.metarPreferredBuckets)
     }
 
     @Test

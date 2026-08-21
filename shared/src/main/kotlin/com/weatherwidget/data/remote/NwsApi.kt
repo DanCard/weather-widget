@@ -122,6 +122,12 @@ class NwsApi
                 // stations list can show the failure, exactly as Synoptic-flagged readings are.
                 val qualityControl = tempObj.get("qualityControl")?.jsonPrimitive?.contentOrNull
 
+                // A populated rawMessage is the ONLY reliable way to tell an actual METAR from the
+                // ASOS 5-minute rows this endpoint interleaves. Minute-of-hour cannot do it: KSJC
+                // and KPAO report at :53/:47, but KNUQ's METARs land on :15/:35/:55 — all multiples
+                // of five, indistinguishable from 5-minute rows by timestamp alone.
+                val isMetar = !props["rawMessage"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()
+
                 return Observation(
                     timestamp = timestamp,
                     temperatureCelsius = tempValue.toFloat(),
@@ -132,6 +138,7 @@ class NwsApi
                     precipLastHourMm = precipLastHourMm,
                     qcFailed = NwsQualityControl.isFailed(qualityControl),
                     cloudLayers = cloudLayers,
+                    isMetar = isMetar,
                 )
             }
 
@@ -335,6 +342,7 @@ class NwsApi
                         tempObj["qualityControl"]?.jsonPrimitive?.contentOrNull,
                     ),
                     cloudLayers = cloudLayers,
+                    isMetar = !props["rawMessage"]?.jsonPrimitive?.contentOrNull.isNullOrBlank(),
                 )
             } else {
                 Log.d("NwsApi", "getLatestObservation: station=$stationId has null temperature value")
@@ -681,6 +689,12 @@ class NwsApi
             val qcFailed: Boolean = false,
             // METAR sky condition. Empty = "not reported"; personal stations always return empty.
             val cloudLayers: List<CloudLayer> = emptyList(),
+            /**
+             * True when the report carried a `rawMessage`, i.e. it is an actual METAR rather than
+             * one of the ASOS 5-minute rows the same endpoint interleaves. Only the METAR's sky
+             * condition is a 30-minute assessment; see MetarCloudBlender for why that matters.
+             */
+            val isMetar: Boolean = false,
         )
 
         /** One METAR sky-condition layer. Percent is derived from [amount] alone (see MetarSkyCover). */

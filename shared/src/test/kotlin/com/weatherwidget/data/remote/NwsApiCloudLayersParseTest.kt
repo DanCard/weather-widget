@@ -5,6 +5,7 @@ import com.weatherwidget.test.category.ShortDuration
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,6 +25,53 @@ class NwsApiCloudLayersParseTest {
     private fun parseObservation(propertiesJson: String): NwsApi.Observation? {
         val props = json.parseToJsonElement(propertiesJson).jsonObject
         return NwsApi.parseObservationProperties(props, defaultStationName = "TEST")
+    }
+
+    @Test
+    fun `rawMessage marks the METAR and its absence marks the interleaved 5-minute row`() {
+        // `/stations/{id}/observations` returns two instruments in one array. rawMessage is the
+        // ONLY reliable discriminator: minute-of-hour cannot do it, because KSJC and KPAO report at
+        // :53/:47 but KNUQ's METARs land on :15/:35/:55 — multiples of five, identical in shape to
+        // the 5-minute rows. Both payloads captured 2026-08-21.
+        val metar = parseObservation(
+            """
+            {
+              "timestamp": "2026-08-21T03:53:00+00:00",
+              "temperature": {"unitCode": "wmoUnit:degC", "value": 17.2, "qualityControl": "V"},
+              "textDescription": "Partly Cloudy",
+              "rawMessage": "KSJC 210353Z 32010KT 10SM SCT040 SCT075 17/14 A3000 RMK AO2",
+              "cloudLayers": [{"base": {"unitCode": "wmoUnit:m", "value": 1220}, "amount": "SCT"}]
+            }
+            """.trimIndent(),
+        )
+        // The 5-minute row: same station, same endpoint, rawMessage present but empty, and a CLR
+        // whose base is the ceilometer's detection ceiling rather than a cloud.
+        val fiveMinute = parseObservation(
+            """
+            {
+              "timestamp": "2026-08-21T04:00:00+00:00",
+              "temperature": {"unitCode": "wmoUnit:degC", "value": 17.0, "qualityControl": "V"},
+              "textDescription": "Clear",
+              "rawMessage": "",
+              "cloudLayers": [{"base": {"unitCode": "wmoUnit:m", "value": 3810}, "amount": "CLR"}]
+            }
+            """.trimIndent(),
+        )
+        // An older row that predates the field entirely must not be mistaken for a METAR.
+        val absent = parseObservation(
+            """
+            {
+              "timestamp": "2026-08-21T04:05:00+00:00",
+              "temperature": {"unitCode": "wmoUnit:degC", "value": 17.0, "qualityControl": "V"},
+              "textDescription": "Clear",
+              "cloudLayers": []
+            }
+            """.trimIndent(),
+        )
+
+        assertTrue(metar!!.isMetar)
+        assertFalse(fiveMinute!!.isMetar)
+        assertFalse(absent!!.isMetar)
     }
 
     @Test

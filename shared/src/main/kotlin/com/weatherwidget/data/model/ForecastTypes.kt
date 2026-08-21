@@ -94,6 +94,19 @@ data class ObservationReading(
     // in the stations UI for transparency, but excluded from blends and extrema.
     val qcFailed: Boolean = false,
     /**
+     * True when this reading came from an actual METAR rather than the ASOS 5-minute feed.
+     *
+     * `/stations/{id}/observations` interleaves both, distinguishable only by a populated
+     * `rawMessage`. The METAR's sky condition is a 30-minute rolling ceilometer assessment; the
+     * 5-minute rows are instantaneous single-point samples that flip CLR<->SCT as the beam passes
+     * in and out of scattered cloud. They answer different questions, and only the METAR answers
+     * "how cloudy is it". See [com.weatherwidget.shared.actuals.MetarCloudBlender].
+     *
+     * False for every non-NWS row and for rows written before the column existed; those keep
+     * resolving by nearest-to-the-hour exactly as before.
+     */
+    val isMetar: Boolean = false,
+    /**
      * Total-column and low-layer cloud cover, 0-100.
      *
      * Nullable because most rows have neither: NWS station observations carry a layer list rather

@@ -42,6 +42,13 @@ object MetarCloudBlender {
          * whose sky-condition reporting has mostly died.
          */
         val shadowedBuckets: Int = 0,
+        /**
+         * Station-hours where an actual METAR was available and preferred over the ASOS 5-minute
+         * sample that would otherwise have won on nearest-to-the-hour. A value near zero at an
+         * airport station means `rawMessage` is not arriving (or the rows predate the column) and
+         * the curve has quietly reverted to instantaneous ceilometer samples.
+         */
+        val metarPreferredBuckets: Int = 0,
     ) {
         /**
          * Compact single-line form for CLOUD_SERIES / BACKFILL_CLOUD. The width histogram separates
@@ -54,6 +61,7 @@ object MetarCloudBlender {
                 .entries.joinToString(" ") { "w${it.key}=${it.value}h" }
             return "stationsWithLayers=$stationsWithLayers stationsSkipped=$stationsSkipped" +
                 (if (shadowedBuckets == 0) "" else " shadowed=$shadowedBuckets") +
+                (if (metarPreferredBuckets == 0) "" else " metarPreferred=$metarPreferredBuckets") +
                 (if (widthHistogram.isEmpty()) "" else " blendWidth=[$widthHistogram]")
         }
     }
@@ -173,6 +181,7 @@ object MetarCloudBlender {
         val hourValues = LinkedHashMap<Long, Int>()
         val widthByHour = mutableMapOf<Long, Int>()
         var shadowedBuckets = 0
+        var metarPreferredBuckets = 0
         for ((hourMs, bucketReadings) in byBucket) {
             val byStation = bucketReadings.groupBy { it.stationId }
             // Each station contributes ONE value: the reading nearest the top of the hour. The bucket
@@ -182,15 +191,30 @@ object MetarCloudBlender {
             // one instead of dropping the station's hour — the fallback stays inside the same
             // ±30-minute bucketing tolerance the round-to-hour rule already accepts.
             val contributions = byStation.mapNotNull { (_, rows) ->
-                val nearest = rows.minByOrNull { abs(it.timestamp - hourMs) } ?: return@mapNotNull null
-                if ((nearest.cloudCoverLow ?: nearest.cloudCover) != null) {
-                    return@mapNotNull nearest to (nearest.cloudCoverLow ?: nearest.cloudCover)
+                val carriers = rows.filter { (it.cloudCoverLow ?: it.cloudCover) != null }
+                if (carriers.isEmpty()) return@mapNotNull null
+                // METAR first. `/stations/{id}/observations` interleaves the official METAR with
+                // ASOS 5-minute rows, and the 5-minute feed publishes EXACTLY on the hour mark
+                // while the METAR sits at :53 — so a pure nearest-to-mark pick can never select the
+                // METAR at a station that publishes both. That is backwards: the 5-minute row is an
+                // instantaneous single-point sample that flips CLR<->SCT as the beam passes in and
+                // out of scattered cloud, while the METAR is a 30-minute assessment. Measured at
+                // KSJC 2026-08-21 00:00-05:05, 60 of 66 samples read OVC and the isolated BKN dips
+                // at 00:30 and 03:50 were the values the graph drew as real hourly dips.
+                val metars = carriers.filter { it.isMetar }
+                if (metars.isNotEmpty()) metarPreferredBuckets++
+                // Nearest-to-mark still decides WITHIN the preferred class, and the bucket input is
+                // total-ordered, so a tie resolves deterministically to the first row.
+                val preferred = (if (metars.isNotEmpty()) metars else carriers)
+                    .minByOrNull { abs(it.timestamp - hourMs) } ?: return@mapNotNull null
+                // Shadowing is now measured against the row this station would otherwise have
+                // contributed: the nearest report overall omitted sky condition, and a different
+                // report in the bucket rescued the station's hour.
+                val nearestOverall = rows.minByOrNull { abs(it.timestamp - hourMs) }
+                if (nearestOverall != null && (nearestOverall.cloudCoverLow ?: nearestOverall.cloudCover) == null) {
+                    shadowedBuckets++
                 }
-                val fallback = rows
-                    .filter { (it.cloudCoverLow ?: it.cloudCover) != null }
-                    .minByOrNull { abs(it.timestamp - hourMs) }
-                if (fallback != null) shadowedBuckets++
-                fallback?.let { it to (it.cloudCoverLow ?: it.cloudCover) }
+                preferred to (preferred.cloudCoverLow ?: preferred.cloudCover)
             }
             val valueByDistance = contributions.mapNotNull { (reading, cloud) ->
                 cloud?.let { reading.distanceKm.toFloat() to it.toFloat() }
@@ -212,7 +236,13 @@ object MetarCloudBlender {
 
         return Result(
             hours = hourValues,
-            stats = Stats(stationsWithLayers, stationsSkipped, widthByHour, shadowedBuckets),
+            stats = Stats(
+                stationsWithLayers,
+                stationsSkipped,
+                widthByHour,
+                shadowedBuckets,
+                metarPreferredBuckets,
+            ),
             isMetarBlend = true,
         )
     }

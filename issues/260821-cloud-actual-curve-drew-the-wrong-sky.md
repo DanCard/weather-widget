@@ -2,8 +2,8 @@
 
 **Date:** 2026-08-21
 **Reported from:** Samsung Galaxy Fold (`SM-F936U1`), CLOUD_COVER view, source NWS, Mountain View
-**Fixed in:** `ce8eb4a2` — *Fix three silent losses in the NWS cloud actual pipeline*
-**Status:** 3 of 4 defects fixed. [Defect 4](#defect-4-the-official-metar-is-never-selected-open) is open.
+**Fixed in:** `5400e3f3` (defects 1–3), plus a follow-up commit for defect 4
+**Status:** all 4 defects fixed.
 
 ## Symptom
 
@@ -155,7 +155,7 @@ away.
 
 ---
 
-## Defect 4 — the official METAR is never selected (OPEN)
+## Defect 4 — the official METAR was never selected (FIXED)
 
 ### Cause
 
@@ -184,15 +184,41 @@ Measured at KSJC over the 00:00–05:05 window: **60 of 66 samples were `OVC`**,
 dips at 00:30 and 03:50. Those two momentary dips are exactly what the graph drew as real hourly
 dips at 1a and 4a.
 
-### Suggested fix
+### Fix
 
-Prefer the METAR when both fall in a bucket. `rawMessage` non-empty is the clean discriminator, but
-**`NwsApi.Observation` does not currently parse that field** — it would need adding.
+The METAR is now preferred whenever one falls in the bucket. Three pieces:
 
-An alternative (or complement) is to aggregate within the bucket — median or modal cover across a
-station's samples — rather than picking nearest-to-mark. That would blunt the flicker even where no
-METAR exists, but it trades away the "instantaneous reading plotted at an hour mark" premise the
-code currently documents, so it deserves a deliberate decision rather than a drive-by change.
+1. **`NwsApi` parses `rawMessage`** into `Observation.isMetar` in *both* parsers. `rawMessage`
+   non-empty is the only reliable discriminator — minute-of-hour cannot do it, because KSJC and
+   KPAO report at `:53`/`:47` but **KNUQ's METARs land on `:15`/`:35`/`:55`**, multiples of five and
+   indistinguishable by timestamp from 5-minute rows.
+2. **`observations.isMetar` persists it** — Room `MIGRATION_63_64` (v64) and desktop
+   `SCHEMA_VERSION = 18`, both `INTEGER NOT NULL DEFAULT 0`.
+3. **`MetarCloudBlender` prefers it per station.** Cloud-carrying rows are filtered first, then the
+   METAR class wins if non-empty, then nearest-to-the-hour decides *within* the chosen class. The
+   preference selects a class, not a row.
+
+Deliberate properties of the rule:
+
+- **Per-station, not global.** One station having a METAR must not suppress another that only has
+  5-minute rows; blend width is unaffected.
+- **A partial METAR does not blank the hour.** The carrier filter runs before the preference, so a
+  METAR that omitted sky condition yields to a cloud-carrying 5-minute row rather than dropping the
+  station.
+- **Existing rows read `false` and behave exactly as before.** The column is backfilled as 0 rather
+  than guessed at: minute-of-hour cannot re-derive it and the raw payloads are long gone. The
+  preference fades in as fresh rows arrive instead of writing a wrong guess into history.
+- **New `metarPreferred=` counter** in the `CLOUD_SERIES` stats line. Near zero at an airport
+  station means `rawMessage` is not arriving and the curve has quietly reverted to instantaneous
+  samples.
+
+### Considered and rejected
+
+Aggregating within the bucket (median or modal cover across a station's samples) would blunt the
+flicker even where no METAR exists, but it trades away the "instantaneous reading plotted at an hour
+mark" premise the code documents. Preferring the METAR keeps that premise and simply picks the
+*right* instantaneous-ish reading. Worth revisiting only if a station is found that publishes
+5-minute rows and no METAR.
 
 ---
 
@@ -203,9 +229,13 @@ code currently documents, so it deserves a deliberate decision rather than a dri
   must be at least as wide as the rounding reaches. Flooring hides this; switching to
   round-to-nearest silently created a requirement nobody propagated. Same family as the existing
   note in `blend_window_gates_emission_not_math`.
-- **A partial copy of a parser will drift, and the drift is silent.** Both Defect 1 (two DAOs) and
-  Defect 2 (two parsers) were duplication held together by a comment. Defect 2 cost the nearest
-  station's cloud for as long as the feature has existed.
+- **A hand-written copy will drift, and the drift is silent.** This bit three times in one
+  investigation: Defect 1 (two DAOs), Defect 2 (two parsers), and — while fixing Defect 4 — a
+  field-by-field `ObservationReading` → `ObservationEntity` conversion in
+  `NwsObservationSource.toEntity` that quietly dropped the new `isMetar` field. Every one of them
+  was duplication held together by a comment, and every one failed by *omission*, which no compiler
+  catches. The third was caught only because the round-trip test asserted a value rather than a
+  code path — see [Regression tests](#regression-tests-added).
 - **Check what else rides on the row.** `preferNewest` compares timestamps to answer a question
   about temperature, then swaps everything else along with it.
 - **"Not reported" must never be spelled `0`.** `MetarSkyCover` gets this right, and it is why
@@ -214,13 +244,11 @@ code currently documents, so it deserves a deliberate decision rather than a dri
 
 ## Follow-ups
 
-1. **[Defect 4](#defect-4-the-official-metar-is-never-selected-open)** — parse `rawMessage` and
-   prefer the METAR over the 5-minute sample within a bucket.
-2. **Unify `getLatestObservation` with `parseObservationProperties`.** It would remove the class of
+1. **Unify `getLatestObservation` with `parseObservationProperties`.** It would remove the class of
    bug behind Defect 2 outright, but it also starts populating `precipLastHourMm` and 24h min/max on
    the live path. `DailyActualsStore` sums precip across observations, so this needs its own
    assessment of rain-total impact.
-3. **Investigate the live path's row density.** The live path stores ~1 row per station per fetch
+2. **Investigate the live path's row density.** The live path stores ~1 row per station per fetch
    while the history backfill stores dense 5-minute rows. With 60 `OVC` samples available, an hourly
    value should not be decided by whichever single flicker happened to be persisted.
 
@@ -232,5 +260,12 @@ code currently documents, so it deserves a deliberate decision rather than a dri
 | `NwsCloudActualsRoundTripTest` — half-hour-before case | The same through real Room — the blender always bucketed correctly; it was the *query* that dropped the row |
 | `CloudHourBucketTest` | The pad equals the tolerance and never spans another hour mark |
 | `NwsApiTest` — latest-observation cloud | KNUQ's real `/observations/latest` payload reaches the blend as 100% low cloud |
+| `NwsApiCloudLayersParseTest` — rawMessage | METAR / 5-minute / field-absent payloads map to the right `isMetar` |
+| `MetarCloudBlenderTest` — 5 METAR-preference cases | METAR beats an on-the-mark sample; nearest-to-mark still decides among METARs; no-METAR and partial-METAR buckets still contribute; the preference stays per-station |
 
 Each was confirmed to **fail with its fix reverted**, not merely to pass with it.
+
+The Room round-trip test earned its keep during defect 4: it failed with `expected:<75> but was:<0>`
+because `NwsObservationSource.toEntity` was silently dropping `isMetar` on the way to the database.
+Every unit test around it passed — the parser set the field, the blender preferred it — and only a
+test that wrote through the real entity conversion and read back a *value* could see the gap.

@@ -113,6 +113,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         qcFailed INTEGER NOT NULL DEFAULT 0,
                         cloudCover INTEGER,
                         cloudCoverLow INTEGER,
+                        isMetar INTEGER NOT NULL DEFAULT 0,
                         PRIMARY KEY (stationId, timestamp)
                     )
                 """.trimIndent())
@@ -427,6 +428,13 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 addColumnIfMissing(stmt, "observations", "cloudCoverLow", "INTEGER")
                 stmt.execute("DELETE FROM hourly_forecast_history WHERE source = 'OPEN_METEO_RETRO'")
             }
+            // v18: isMetar on observations, so the cloud blend can prefer an actual METAR over the
+            // ASOS 5-minute row that would otherwise win on nearest-to-the-hour. Backfilled as 0 —
+            // minute-of-hour cannot re-derive it (KNUQ's METARs land on :15/:35/:55). Moves with
+            // the Room MIGRATION_63_64.
+            if (from < 18) {
+                addColumnIfMissing(stmt, "observations", "isMetar", "INTEGER NOT NULL DEFAULT 0")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -472,6 +480,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 17
+        private const val SCHEMA_VERSION = 18
     }
 }

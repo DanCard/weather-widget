@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 63,
+    version = 64,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -462,6 +462,26 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * `observations.isMetar` — true for an actual METAR, false for the ASOS 5-minute rows
+         * `/stations/{id}/observations` interleaves with them.
+         *
+         * The cloud blend picks each station's contribution by nearest-to-the-hour, and the
+         * 5-minute feed publishes EXACTLY on the hour mark while the METAR sits at :53 — so the
+         * official 30-minute sky assessment could never be selected at a station publishing both,
+         * losing to an instantaneous single-point sample every time.
+         *
+         * Backfilled as 0, not re-derived: minute-of-hour cannot distinguish the two feeds (KNUQ's
+         * METARs land on :15/:35/:55) and the raw payload is long gone. Existing rows therefore
+         * keep resolving by nearest-to-the-hour, and the preference takes effect as fresh rows
+         * arrive — a graceful fade-in rather than a wrong guess written into history.
+         */
+        val MIGRATION_63_64 = object : Migration(63, 64) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "observations", "isMetar", "INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -524,7 +544,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

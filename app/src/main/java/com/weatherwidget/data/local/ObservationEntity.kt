@@ -36,6 +36,10 @@ data class ObservationEntity(
     val qcFailed: Boolean = false, // Rejected by upstream QC; shown in stations UI, excluded from blends
     val cloudCover: Int? = null, // Total-column cloud cover 0-100; null for rows that carry none
     val cloudCoverLow: Int? = null, // Low-layer only 0-100; what the cloud graph draws
+    // True for an actual METAR, false for the ASOS 5-minute rows the same endpoint interleaves.
+    // The cloud blend prefers METARs; see MetarCloudBlender. Pre-migration rows read false and keep
+    // resolving by nearest-to-the-hour, exactly as they did before the column existed.
+    val isMetar: Boolean = false,
 )
 
 /**
@@ -91,4 +95,5 @@ fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationRead
     qcFailed = qcFailed,
     cloudCover = cloudCover,
     cloudCoverLow = cloudCoverLow,
+    isMetar = isMetar,
 )

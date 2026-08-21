@@ -21,6 +21,8 @@ data class DesktopObservationEntity(
     val qcFailed: Boolean = false,
     val cloudCover: Int? = null,
     val cloudCoverLow: Int? = null,
+    // Actual METAR vs the interleaved ASOS 5-minute row; the cloud blend prefers METARs.
+    val isMetar: Boolean = false,
 ) {
     companion object {
         /**
@@ -51,6 +53,7 @@ fun DesktopObservationEntity.toReading() = ObservationReading(
     qcFailed = qcFailed,
     cloudCover = cloudCover,
     cloudCoverLow = cloudCoverLow,
+    isMetar = isMetar,
 )
 
 fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
@@ -72,6 +75,7 @@ fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
     qcFailed = qcFailed,
     cloudCover = cloudCover,
     cloudCoverLow = cloudCoverLow,
+    isMetar = isMetar,
 )
 
 /** A persistent app-log row (desktop analogue of the Android app_logs table). */
