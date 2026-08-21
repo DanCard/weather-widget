@@ -3,10 +3,9 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.graph.CloudActualSettling
 
 /**
- * Re-files the past slice of a source's hourly list as observation rows that drive the
+ * Re-files the past slice of a source's timestamped history as observation rows that drive the
  * "actuals" (observed temperature) line for forecast-only sources — APIs like Open-Meteo
  * that have no station-observation product of their own. NWS supplies real station readings
  * and does NOT need this; this is the fallback that lets every other source still render an
@@ -26,7 +25,7 @@ object HistoricalActualsBackfill {
     fun syntheticStationId(sourceId: String): String = "${sourceId}_MAIN"
 
     /**
-     * @param hourly the source's hourly list, typically fetched with a `past_days` window so it
+     * @param hourly the source's history list, typically fetched with a `past_days` window so it
      *   spans both history and forecast. Only entries at or before [nowMs] are kept.
      * @param sourceId the [WeatherSource] id these hours belong to; becomes the observation `api`.
      *
@@ -35,11 +34,9 @@ object HistoricalActualsBackfill {
      * otherwise they are nulled so an ordinary forecast sliced into the past is not presented as
      * historical weather.
      *
-     * [hourly] need not be hourly. `observations` is keyed on `(stationId, timestamp)`, so a denser
-     * series would land without collision and without the hour-indexed pipeline seeing it — which is
-     * why cloud actuals live here rather than in `hourly_forecast_history`. No caller passes one
-     * today: sub-hourly cloud was measured and rejected, see
-     * `plans/260820-15min-subhourly-cloud-actuals.md` §8.
+     * [hourly] need not be hourly. `observations` is keyed on `(stationId, timestamp)`, so Open-Meteo
+     * 15-minute temperature and cloud rows land without collision and without being forced through
+     * the hour-indexed forecast-history pipeline.
      */
     fun build(
         hourly: List<HourlyForecast>,
@@ -68,26 +65,12 @@ object HistoricalActualsBackfill {
                     api = sourceId,
                     fetchedAt = fetchedAt,
                     precipAmountMm = if (keepHistoricalPrecip) hour.precipAmountMm else null,
-                    // Cloud carries TWO gates, not one.
-                    //
-                    // The provenance gate (as precip): an ordinary forecast sliced into the past is
-                    // not an observation of the sky, so sources whose past values are never revised
-                    // carry null rather than a restated forecast.
-                    //
-                    // The settling gate: even for a source that does revise, an hour that has merely
-                    // ENDED still holds the pre-hour forecast for a while. Temperature does not need
-                    // this and must not get it — it would blank the newest two hours of the actual
-                    // temperature line for every forecast-only source. See [CloudActualSettling].
-                    cloudCover = if (keepCloud && CloudActualSettling.hasSettled(hour.dateTime, nowMs)) {
-                        hour.cloudCover
-                    } else {
-                        null
-                    },
-                    cloudCoverLow = if (keepCloud && CloudActualSettling.hasSettled(hour.dateTime, nowMs)) {
-                        hour.cloudCoverLow
-                    } else {
-                        null
-                    },
+                    // Provenance is the only cloud gate. A timestamped provider-history value is
+                    // usable immediately; waiting for the enclosing hour to end made an
+                    // instantaneous 12:15 sample disappear until 13:00. Sources whose past values
+                    // are ordinary forecasts still carry null via preservesHistoricalCloud.
+                    cloudCover = if (keepCloud) hour.cloudCover else null,
+                    cloudCoverLow = if (keepCloud) hour.cloudCoverLow else null,
                 )
             }
     }

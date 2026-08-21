@@ -396,4 +396,34 @@ class MetarCloudBlenderTest {
         )
         assertFalse(result.isMetarBlend)
     }
+
+    @Test
+    fun `fromSiteRows rejects rows carrying another api even when station id matches`() = runBlocking {
+        val readings = listOf(
+            reading(
+                "OPEN_METEO_MAIN",
+                hour,
+                cloudLow = 56,
+                distanceKm = 0f,
+                api = WeatherSource.OPEN_METEO.id,
+            ),
+            reading(
+                "OPEN_METEO_MAIN",
+                hour + 15 * min,
+                cloudLow = 100,
+                distanceKm = 0f,
+                api = WeatherSource.NWS.id,
+            ),
+        )
+
+        val result = MetarCloudBlender.fromSiteRows(
+            hour,
+            hour + 3_600_000L,
+            WeatherSource.OPEN_METEO.id,
+            FakeSiteReader(readings)::read,
+        )
+
+        assertEquals(mapOf(hour to 56), result.hours)
+        assertFalse(result.isMetarBlend)
+    }
 }

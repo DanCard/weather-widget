@@ -1,12 +1,14 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.shared.graph.CloudCoverGraphPalette
+import com.weatherwidget.shared.graph.CloudActualSeries
 import com.weatherwidget.shared.graph.CloudWatermarkPlacement
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.ValueLabelEngine
 import com.weatherwidget.shared.graph.HourlyTimelineGeometry
 import com.weatherwidget.shared.graph.SeriesSmoothing
+import com.weatherwidget.shared.graph.TimedCloudCover
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context
@@ -15,6 +17,8 @@ import android.util.Log
 import com.weatherwidget.R
 import java.time.LocalDateTime
 import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneId
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -114,6 +118,8 @@ object CloudCoverGraphRenderer {
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
         smoothIterations: Int = 1,
+        /** Native-timestamp actual/history points; may be denser than [hours]. */
+        actualSeries: List<TimedCloudCover> = emptyList(),
         hourLabelSpacingDp: Float = HourlyGraphDefaults.DEFAULT_HOUR_LABEL_SPACING_DP,
         // Total number of hours in the visible window and how many lack cloud cover data.
         // Used to render an in-graph "data missing" diagnostic when the upstream feed has
@@ -198,11 +204,22 @@ object CloudCoverGraphRenderer {
         val points = mutableListOf<Pair<Float, Float>>()
         val rawValues = hours.map { it.cloudCover.coerceIn(0, 100).toFloat() }
         val smoothedValues = SeriesSmoothing.smoothValuesPreservingAllExtrema(rawValues, iterations = smoothIterations)
-        // The actual curve is NOT smoothed: smoothing a truth series invents values it never had.
-        val actualValues = hours.map { it.actualCloudCover?.coerceIn(0, 100)?.toFloat() }
-        val hasActual = actualValues.count { it != null } >= 2
+        // Backward-compatible fallback for callers/tests that still attach actuals to hourly rows.
+        // Production passes [actualSeries], whose timestamps may land on quarter hours.
+        val zoneId = ZoneId.systemDefault()
+        val timedActual = if (actualSeries.isNotEmpty()) {
+            actualSeries.sortedBy { it.timeMs }
+        } else {
+            hours.mapNotNull { hour ->
+                hour.actualCloudCover?.let {
+                    TimedCloudCover(hour.dateTime.atZone(zoneId).toInstant().toEpochMilli(), it)
+                }
+            }
+        }
+        val actualSegments = CloudActualSeries.segments(timedActual)
+        val hasActual = actualSegments.any { it.size >= 2 }
         // Scale over BOTH curves, or the taller one draws off the top of the plot.
-        val verticalScale = computeVerticalScale(smoothedValues + actualValues.filterNotNull())
+        val verticalScale = computeVerticalScale(smoothedValues + timedActual.map { it.cover.toFloat() })
         Log.d(
             TAG,
             "verticalScale: visibleMax=${verticalScale.visibleMax} topScale=${verticalScale.topScale} " +
@@ -252,8 +269,8 @@ object CloudCoverGraphRenderer {
 
         // The forecast curve is ALWAYS dashed — dashes mean "this is a forecast", not "there is an
         // actual to compare it against". They used to be gated on `hasFrozen && hasActual`, which
-        // made them a signal about data availability: with the Android actual series structurally
-        // empty (see CloudActualSettling) the gate never opened and no device ever drew a dash.
+        // made them a signal about data availability: when the Android actual series was empty the
+        // gate never opened and no device ever drew a dash.
         val previousDashEffect = paints.curvePaint.pathEffect
         paints.curvePaint.pathEffect = DashPathEffect(
             floatArrayOf(dpToPx(context, 3f), dpToPx(context, 2.5f)), 0f,
@@ -261,26 +278,36 @@ object CloudCoverGraphRenderer {
         canvas.drawPath(curvePath, paints.curvePaint)
         paints.curvePaint.pathEffect = previousDashEffect
 
-        // The actual, on top: solid, brighter, straight segments through the real hourly values.
+        // The actual, on top: solid, brighter, independently timestamped, and gap-split.
         val actualPoints = mutableListOf<Pair<Float, Float>>()
+        val actualValues = mutableListOf<Float>()
         if (hasActual) {
-            hours.forEachIndexed { index, _ ->
-                val v = actualValues[index] ?: return@forEachIndexed
-                actualPoints.add(
-                    hourWidth * index to mapCloudCoverToY(
-                        cloudCover = v,
+            actualSegments.filter { it.size >= 2 }.forEach { segment ->
+                val segmentPoints = segment.mapNotNull { actual ->
+                    val localTime = Instant.ofEpochMilli(actual.timeMs).atZone(zoneId).toLocalDateTime()
+                    val x = HourlyTimelineGeometry.computeXForTime(
+                        targetTime = localTime,
+                        items = hours,
+                        points = points,
+                        hourWidth = hourWidth,
+                        dateTimeOf = { it.dateTime },
+                    ) ?: return@mapNotNull null
+                    val value = actual.cover.coerceIn(0, 100).toFloat()
+                    (x to mapCloudCoverToY(
+                        cloudCover = value,
                         graphBottom = graphBottom,
                         graphHeight = graphHeight,
                         topScale = verticalScale.topScale,
-                    ),
-                )
-            }
-            if (actualPoints.size >= 2) {
+                    )) to value
+                }
+                if (segmentPoints.size < 2) return@forEach
                 val actualPath = Path().apply {
-                    moveTo(actualPoints.first().first, actualPoints.first().second)
-                    actualPoints.drop(1).forEach { lineTo(it.first, it.second) }
+                    moveTo(segmentPoints.first().first.first, segmentPoints.first().first.second)
+                    segmentPoints.drop(1).forEach { lineTo(it.first.first, it.first.second) }
                 }
                 canvas.drawPath(actualPath, paints.actualCurvePaint)
+                actualPoints += segmentPoints.map { it.first }
+                actualValues += segmentPoints.map { it.second }
             }
         }
 
@@ -456,10 +483,9 @@ object CloudCoverGraphRenderer {
         // Known gap (matches the desktop renderer): the engine takes one curve, so this avoids the
         // actual curve and the forecast's LABELS, but not the forecast LINE.
         if (actualPoints.size >= 2) {
-            val actualIndices = hours.indices.filter { actualValues[it] != null }
-            val actualSignal = actualIndices.map { actualValues[it]!!.roundToInt().coerceIn(0, 100) }
-            val actualGraphPoints = actualIndices.mapIndexed { position, _ ->
-                ValueLabelEngine.GraphPoint(actualPoints[position].first, actualPoints[position].second)
+            val actualSignal = actualValues.map { it.roundToInt().coerceIn(0, 100) }
+            val actualGraphPoints = actualPoints.map {
+                ValueLabelEngine.GraphPoint(it.first, it.second)
             }
             ValueLabelEngine.computePlacements(
                 labelSignal = actualSignal,
@@ -478,8 +504,13 @@ object CloudCoverGraphRenderer {
                 // Where the two curves agree they are drawn on top of each other, so a second label
                 // is the same number twice — that is what put four "100%"s across the top of a flat
                 // morning. Label the actual only where it actually says something different.
-                val hourIdx = actualIndices[p.index]
-                val forecastValue = smoothedValues[hourIdx].roundToInt()
+                val fractionalIndex = (actualPoints[p.index].first / hourWidth)
+                    .coerceIn(0f, smoothedValues.lastIndex.toFloat())
+                val left = fractionalIndex.toInt().coerceIn(smoothedValues.indices)
+                val right = (left + 1).coerceAtMost(smoothedValues.lastIndex)
+                val fraction = fractionalIndex - left
+                val forecastValue = (smoothedValues[left] +
+                    (smoothedValues[right] - smoothedValues[left]) * fraction).roundToInt()
                 abs(actualSignal[p.index] - forecastValue) >=
                     CloudCoverGraphPalette.ACTUAL_LABEL_MIN_DIVERGENCE
             }.forEach { p ->

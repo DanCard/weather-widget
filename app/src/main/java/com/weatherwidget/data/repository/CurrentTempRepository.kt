@@ -343,6 +343,8 @@ class CurrentTempRepository
                             calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
                             "OFFICIAL",
                             api = WeatherSource.OPEN_METEO.id,
+                            cloudCover = reading.cloudCover,
+                            cloudCoverLow = reading.cloudCoverLow,
                         )
                         insertCurrentObservation(obsEntity)
                     }

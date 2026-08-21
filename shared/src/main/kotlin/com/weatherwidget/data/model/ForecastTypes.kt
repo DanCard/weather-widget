@@ -119,6 +119,12 @@ data class ObservationReading(
 
 data class RawFetch(
     val hourly: List<HourlyForecast> = emptyList(),
+    /**
+     * Provider history at its native sub-hour cadence. Open-Meteo supplies complete 15-minute
+     * temperature/condition/precip/cloud rows, so these can be persisted as observations without
+     * inventing a temperature or introducing a cloud-only store.
+     */
+    val subHourly: List<HourlyForecast> = emptyList(),
     val daily: List<DailyForecast> = emptyList(),
     val rawObservations: List<ObservationReading> = emptyList(),
     val dailyActuals: Map<String, DailyHistory> = emptyMap(),
@@ -152,7 +158,7 @@ data class ForecastSnapshot(
      * map degrades the display rather than breaking it.
      */
     val priorDayCloudForecast: Map<Long, Int> = emptyMap(),
-    /** Settled low-cloud actuals by top-of-hour epoch ms; see [com.weatherwidget.shared.graph.CloudActualSettling]. */
+    /** Source-isolated low-cloud history by its native timestamps (hourly or sub-hourly). */
     val retroCloudActual: Map<Long, Int> = emptyMap(),
 )
 

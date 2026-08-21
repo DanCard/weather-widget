@@ -2,7 +2,6 @@ package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.graph.CloudActualSettling
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -14,9 +13,8 @@ import org.junit.Assert.assertTrue
 /**
  * Cloud actuals reaching `observations` through the same backfill that carries temperature.
  *
- * Cloud has a gate temperature must not get, so these two must be asserted together: a change that
- * blanks the newest cloud is correct, and the same change applied to temperature would silently
- * truncate the actual temperature line for every forecast-only source.
+ * Cloud and temperature share the same provider timestamp. Neither is delayed after the provider
+ * has published it, so the current 15-minute row can extend both actual curves together.
  */
 @Category(ShortDuration::class)
 class BackfillCloudActualsTest {
@@ -37,7 +35,7 @@ class BackfillCloudActualsTest {
         HistoricalActualsBackfill.build(hours, 37.417, -122.089, source, now)
 
     @Test
-    fun `settled hours carry cloud`() {
+    fun `historical rows carry cloud`() {
         val rows = build(listOf(hourly(-5, 8), hourly(-4, 13)))
 
         assertEquals(2, rows.size)
@@ -45,30 +43,24 @@ class BackfillCloudActualsTest {
         assertEquals(listOf(100, 100), rows.map { it.cloudCover })
     }
 
-    /**
-     * The hour still in progress has no actual yet — it is the one gate cloud keeps. It must still
-     * reach `observations` as a temperature reading, because temperature is deliberately ungated:
-     * gating it would truncate the actual temperature line for every forecast-only source.
-     */
     @Test
-    fun `an in-progress hour is filed without cloud but keeps its temperature`() {
+    fun `a provider-published in-progress timestamp keeps cloud and temperature`() {
         val midHour = now + 20 * 60_000L
         val rows = HistoricalActualsBackfill.build(
             listOf(hourly(0, 6)), 37.417, -122.089, source, midHour,
         )
 
         assertEquals(1, rows.size)
-        assertNull("the hour has not ended", rows[0].cloudCoverLow)
-        assertNull(rows[0].cloudCover)
-        assertEquals("temperature is NOT gated", 60f, rows[0].temperature, 0.001f)
+        assertEquals(6, rows[0].cloudCoverLow)
+        assertEquals(100, rows[0].cloudCover)
+        assertEquals(60f, rows[0].temperature, 0.001f)
     }
 
     /**
      * The 6-vs-86 case, now deliberately accepted. An hour carries cloud the moment it ends, even
      * though Open-Meteo may revise it ~40 minutes later. The revision is picked up because
      * `observations` is keyed on `(stationId, timestamp)` and the next fetch REPLACEs in place;
-     * withholding it instead left the curve permanently undrawable at the widget's zoom. See
-     * [CloudActualSettling].
+     * withholding it instead left the curve permanently undrawable at the widget's zoom.
      */
     @Test
     fun `an hour carries cloud as soon as it ends`() {

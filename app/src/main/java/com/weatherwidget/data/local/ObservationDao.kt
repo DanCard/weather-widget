@@ -82,7 +82,7 @@ interface ObservationDao {
         )
 
     /**
-     * Cloud actuals for the window, as top-of-hour epoch ms -> visible-layer percent
+     * Cloud actuals for the window, as native observation epoch ms -> visible-layer percent
      * (`cloudCoverLow ?: cloudCover`, the same expression the forecast curve draws).
      *
      * Delegates the source-aware branch selection to the shared

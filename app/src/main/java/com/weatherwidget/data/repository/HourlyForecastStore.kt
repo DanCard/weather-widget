@@ -89,6 +89,7 @@ internal class HourlyForecastStore(
         latitude: Double,
         longitude: Double,
         sourceId: String,
+        historicalData: List<HourlyForecast> = hourlyData,
     ) {
         val now = System.currentTimeMillis()
         // Deliberately drops elapsed hours: `hourly_forecasts` is a forecast archive, and letting a
@@ -113,7 +114,7 @@ internal class HourlyForecastStore(
                 )
             },
         )
-        saveHistoricalActuals(hourlyData, latitude, longitude, sourceId)
+        saveHistoricalActuals(historicalData, latitude, longitude, sourceId)
     }
 
     private suspend fun saveHistoricalActuals(

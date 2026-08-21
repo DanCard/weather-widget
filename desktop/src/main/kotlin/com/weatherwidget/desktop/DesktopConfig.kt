@@ -10,6 +10,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import java.nio.file.Path
+import java.util.Locale
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
 import kotlin.io.path.readText
@@ -34,11 +35,9 @@ data class DesktopSettings(
     // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
     // IDW blend. 0 = no discount; 100 = personal stations ignored.
     val personalStationDiscount: Int = 95,
-    // Locale-derived until the user touches the toggle. encodeDefaults=false means a value
-    // equal to the locale default stays unwritten in config.json and keeps following the
-    // locale; an explicit differing choice is persisted and wins.
-    val useCelsius: Boolean =
-        com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(java.util.Locale.getDefault()),
+    // Locale-derived for a legacy/first-run config, then materialized by DesktopConfigStore on
+    // every save so the daemon and UI cannot derive different defaults from their environments.
+    val useCelsius: Boolean = desktopDefaultUseCelsius(),
     // Daily-view large-Today-column overlay texts. All opt-in (default off).
     val todayOverlayDelta: Boolean = false,
     val todayOverlayDominantTemp: Boolean = false,
@@ -67,6 +66,30 @@ data class DesktopSettings(
         add("todayOverlayDominantTemp", todayOverlayDominantTemp, other.todayOverlayDominantTemp)
         add("todayOverlayDominantAge", todayOverlayDominantAge, other.todayOverlayDominantAge)
     }
+}
+
+/**
+ * Stable desktop unit default across the daemon and its deliberately minimal-environment UI child.
+ * A region-bearing measurement/locale environment wins; `C`/`C.UTF-8` has no region and is skipped
+ * rather than being interpreted as an instruction to use Celsius. The JVM locale is the fallback.
+ */
+internal fun desktopDefaultUseCelsius(
+    environment: Map<String, String> = System.getenv(),
+    fallbackLocale: Locale = Locale.getDefault(),
+): Boolean {
+    val country = listOf("LC_MEASUREMENT", "LC_ALL", "LANG")
+        .asSequence()
+        .mapNotNull { environment[it] }
+        .mapNotNull(::localeCountry)
+        .firstOrNull()
+        ?: fallbackLocale.country.takeIf { it.isNotBlank() }
+    return com.weatherwidget.shared.util.UnitDefaults.defaultUseCelsius(country)
+}
+
+private fun localeCountry(raw: String): String? {
+    val base = raw.substringBefore('.').substringBefore('@')
+    if (base.equals("C", ignoreCase = true) || base.equals("POSIX", ignoreCase = true)) return null
+    return Locale.forLanguageTag(base.replace('_', '-')).country.takeIf { it.isNotBlank() }
 }
 
 @Serializable
@@ -186,13 +209,22 @@ class DesktopConfigStore(
         ignoreUnknownKeys = true
         prettyPrint = true
     },
+    private val missingUnitDefault: () -> Boolean = { desktopDefaultUseCelsius() },
 ) {
     fun load(): DesktopConfig? {
         if (!configPath.exists()) return null
         return runCatching {
             val text = configPath.readText()
             val migrated = migrateFlatSettingsToNested(text)
-            val decoded = json.decodeFromString<DesktopConfig>(migrated)
+            val migratedRoot = json.parseToJsonElement(migrated).jsonObject
+            val unitWasExplicit = migratedRoot["settings"]?.jsonObject
+                ?.containsKey("useCelsius") == true
+            val decodedRaw = json.decodeFromString<DesktopConfig>(migrated)
+            val decoded = if (unitWasExplicit) {
+                decodedRaw
+            } else {
+                decodedRaw.copy(settings = decodedRaw.settings.copy(useCelsius = missingUnitDefault()))
+            }
             val normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(decoded.settings.visibleSources)
             val normalizedSource = decoded.settings.weatherSource.takeIf { it in normalizedVisible }
                 ?: normalizedVisible.first()
@@ -207,7 +239,7 @@ class DesktopConfigStore(
             normalized = repairStaleNarrowZoomFactor(normalized)
             // Re-save when the values changed OR the format was migrated flat → nested, so the
             // file converges to the nested schema instead of re-migrating on every launch.
-            if (normalized != decoded || migrated != text) save(normalized)
+            if (normalized != decoded || migrated != text || !unitWasExplicit) save(normalized)
             normalized
         }.getOrNull()
     }
@@ -222,7 +254,20 @@ class DesktopConfigStore(
             ),
         )
         configPath.parent?.createDirectories()
-        configPath.writeText(json.encodeToString(DesktopConfig.serializer(), normalized))
+        // `Json.encodeDefaults=false` is useful for the rest of this human-edited file, but unit
+        // choice is process-shared state, not a safe default: the daemon and UI can have different
+        // locales. Always materialize this one field so both processes decode the same boolean.
+        val encoded = json.encodeToJsonElement(DesktopConfig.serializer(), normalized).jsonObject
+        val encodedSettings = encoded["settings"]?.jsonObject
+        val explicitSettings = buildJsonObject {
+            encodedSettings?.forEach { (key, value) -> put(key, value) }
+            put("useCelsius", normalized.settings.useCelsius)
+        }
+        val explicitConfig = buildJsonObject {
+            encoded.forEach { (key, value) -> if (key != "settings") put(key, value) }
+            put("settings", explicitSettings)
+        }
+        configPath.writeText(json.encodeToString(JsonElement.serializer(), explicitConfig))
     }
 
     /**

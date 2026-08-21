@@ -82,6 +82,7 @@ class OpenMeteoApiTest {
             // Literal "16" (not just the constant) so an accidental MAX_DAYS change trips this too.
             assertEquals("16", request.url.parameters["forecast_days"])
             assertEquals(ForecastHorizon.MAX_DAYS.toString(), request.url.parameters["forecast_days"])
+            assertEquals(OpenMeteoApi.MINUTELY_15_VARIABLES, request.url.parameters["minutely_15"])
         }
 
     @Test
@@ -178,9 +179,13 @@ class OpenMeteoApiTest {
             val responseJson =
                 """
                 {
+                    "timezone": "America/Los_Angeles",
                     "current": {
+                        "time": "2026-08-21T12:15",
                         "temperature_2m": 64.3,
-                        "weather_code": 2
+                        "weather_code": 2,
+                        "cloud_cover": 63,
+                        "cloud_cover_low": 56
                     }
                 }
                 """.trimIndent()
@@ -192,7 +197,15 @@ class OpenMeteoApiTest {
 
             assertNotNull(current)
             assertEquals(64.3f, current!!.temperature, 0.001f)
-            assertEquals(2, current?.weatherCode)
+            assertEquals(2, current.weatherCode)
+            assertEquals(63, current.cloudCover)
+            assertEquals(56, current.cloudCoverLow)
+            assertEquals(
+                java.time.LocalDateTime.of(2026, 8, 21, 12, 15)
+                    .atZone(java.time.ZoneId.of("America/Los_Angeles"))
+                    .toInstant().toEpochMilli(),
+                current.observedAt,
+            )
         }
 
     @Test

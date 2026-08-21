@@ -380,6 +380,11 @@ internal class ForecastFetchCoordinator(
                 latitude,
                 longitude,
                 source.id,
+                historicalData = if (source == WeatherSource.OPEN_METEO) {
+                    result.subHourly.ifEmpty { result.hourly }
+                } else {
+                    result.hourly
+                },
             )
         }
         if (source == WeatherSource.OPEN_METEO) {

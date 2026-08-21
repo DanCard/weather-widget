@@ -42,6 +42,14 @@ private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionR
     return Color(argb)
 }
 
+/** The exact x-axis domain the cloud Canvas draws, bounded at NOW for actual history. */
+internal fun cloudActualPlotRange(points: List<HourlyForecast>, nowMs: Long): LongRange? {
+    if (points.isEmpty()) return null
+    val startMs = points.first().dateTime
+    val endMs = minOf(points.last().dateTime, nowMs)
+    return if (startMs <= endMs) startMs..endMs else null
+}
+
 
 @Composable
 fun CloudCoverGraph(
@@ -104,13 +112,22 @@ fun CloudCoverGraph(
         val rawCloudValues = points.map { (it.cloudCoverLow ?: it.cloudCover)?.toFloat() ?: 0f }
         val smoothedClouds = com.weatherwidget.shared.graph.SeriesSmoothing.smoothValuesPreservingAllExtrema(rawCloudValues, smoothIterations)
         
-        // Past hours: the live row has been retro-corrected by later runs and is the ACTUAL; the
-        // dashed forecast comes from the day-ago prediction. Hours with no prediction keep the live
-        // value on both curves, which draws as a single line — honest, since there is nothing to
-        // compare. The actual is deliberately NOT smoothed: smoothing a truth series invents values.
+        // The forecast stays hourly because Open-Meteo Previous Runs is hourly-only. The actual is
+        // independent and may be 15-minute: never zip it to these forecast vertices or the newest
+        // three quarters disappear and the graph looks an hour stale.
         val series = CloudSeriesBuilder.build(points, priorDayCloudForecast, retroCloudActual, now)
-        val actualByTime = series.filter { it.actualCover != null }.associate { it.timeMs to it.actualCover!! }
         val frozenByTime = series.filter { it.isFrozen }.associate { it.timeMs to it.forecastCover!! }
+        // `rememberHourlyGraphSetup` includes one pre-roll hour and the x geometry maps that first
+        // point to the left edge. Clip to that plotted domain, not the minute-bearing nominal start
+        // (e.g. 09:50), or valid 09:00–09:45 quarter-hour actuals disappear while 09:00 is visible.
+        val actualRange = cloudActualPlotRange(points, now)
+        val actualPoints = actualRange?.let { range ->
+            CloudActualSeries.points(
+                values = retroCloudActual,
+                startMs = range.first,
+                endMs = range.last,
+            )
+        }.orEmpty()
 
         // The forecast curve swaps in the frozen prediction wherever one exists.
         val forecastValues = points.mapIndexed { i, p ->
@@ -120,7 +137,7 @@ fun CloudCoverGraph(
             .smoothValuesPreservingAllExtrema(forecastValues, smoothIterations)
 
         // Scale must clear BOTH curves or the taller one draws off the top of the plot.
-        val visibleMax = (smoothedForecast + actualByTime.values.map { it.toFloat() })
+        val visibleMax = (smoothedForecast + actualPoints.map { it.cover.toFloat() })
             .maxOrNull()?.coerceIn(0f, 100f) ?: 0f
         val topScale = (visibleMax + 12f).coerceIn(85f, 100f)
 
@@ -140,9 +157,10 @@ fun CloudCoverGraph(
         }
 
         val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(smoothedForecast[i])) }
-        // Straight segments through the real hourly values — no smoothing on the truth curve.
-        val actualCoords = points.mapIndexedNotNull { i, p ->
-            actualByTime[p.dateTime]?.let { Offset(xAt(i), yAt(it.toFloat())) }
+        // Straight, timestamp-positioned segments through the provider history. No smoothing: it
+        // would invent values, and no bridging across missing intervals.
+        val actualCoordSegments = CloudActualSeries.segments(actualPoints).map { segment ->
+            segment.map { Offset(xAtTime(it.timeMs), yAt(it.cover.toFloat())) }
         }
 
         // Draw Fill Path
@@ -169,8 +187,8 @@ fun CloudCoverGraph(
         }
 
         // Draw Curve Line. ALWAYS dashed: the dashes mean "this is a forecast", not "there is an
-        // actual to compare it against". Gating them on data availability left the Android widget
-        // with no dash at all, since its actual series was structurally empty (see CloudActualSettling).
+        // actual to compare it against". Gating them on data availability previously left the
+        // Android widget with no dash whenever its actual series was empty.
         val curveStroke = if (totalSpanHours <= 8) 2.dp.toPx() * scale else 3.dp.toPx() * scale
         drawPath(
             path = buildCurve(coords),
@@ -186,7 +204,7 @@ fun CloudCoverGraph(
         )
 
         // The actual, on top: solid, brighter, unsmoothed.
-        if (actualCoords.size >= 2) {
+        actualCoordSegments.filter { it.size >= 2 }.forEach { actualCoords ->
             val actualPath = Path().apply {
                 moveTo(actualCoords.first().x, actualCoords.first().y)
                 actualCoords.drop(1).forEach { lineTo(it.x, it.y) }
@@ -229,16 +247,15 @@ fun CloudCoverGraph(
         // forecast's LABELS, but not the forecast LINE itself. Acceptable while the frozen curve
         // sits near the top of the plot and the actual's extrema sit well below it; revisit if the
         // engine grows a multi-curve collision input.
-        if (actualCoords.size >= 2) {
-            val actualIndices = points.indices.filter { actualByTime.containsKey(points[it].dateTime) }
-            val actualSignal = actualIndices.map { actualByTime[points[it].dateTime]!!.coerceIn(0, 100) }
-            val actualPoints = actualIndices.map { i ->
-                ValueLabelEngine.GraphPoint(xAt(i), yAt(actualByTime[points[i].dateTime]!!.toFloat()))
+        if (actualCoordSegments.any { it.size >= 2 }) {
+            val actualSignal = actualPoints.map { it.cover }
+            val actualGraphPoints = actualPoints.map {
+                ValueLabelEngine.GraphPoint(xAtTime(it.timeMs), yAt(it.cover.toFloat()))
             }
             val actualStyle = TextStyle(fontSize = (11 * scale).sp, color = COLOR_CLOUD_ACTUAL)
             ValueLabelEngine.computePlacements(
                 labelSignal = actualSignal,
-                points = actualPoints,
+                points = actualGraphPoints,
                 geometry = ValueLabelEngine.Geometry(graphTop, graphBottom, graphHeight, w, h),
                 config = ValueLabelEngine.Config.cloud(),
                 measureText = { textMeasurer.measure(it, actualStyle).size.width.toFloat() },
@@ -249,8 +266,16 @@ fun CloudCoverGraph(
             ).filter { p ->
                 // Same rule as the Android renderer: where the curves agree they overlap on screen,
                 // so a second label just prints the same number twice.
-                val hourIdx = actualIndices[p.index]
-                kotlin.math.abs(actualSignal[p.index] - smoothedForecast[hourIdx].roundToInt()) >=
+                val actualTime = actualPoints[p.index].timeMs
+                val left = points.indices.indexOfLast { points[it].dateTime <= actualTime }
+                    .coerceAtLeast(0)
+                val right = (left + 1).coerceAtMost(points.lastIndex)
+                val span = (points[right].dateTime - points[left].dateTime).coerceAtLeast(1L)
+                val fraction = ((actualTime - points[left].dateTime).toFloat() / span)
+                    .coerceIn(0f, 1f)
+                val forecastAtTime = smoothedForecast[left] +
+                    (smoothedForecast[right] - smoothedForecast[left]) * fraction
+                kotlin.math.abs(actualSignal[p.index] - forecastAtTime.roundToInt()) >=
                     CloudCoverGraphPalette.ACTUAL_LABEL_MIN_DIVERGENCE
             }.forEach { p ->
                 val r = Rect(p.box.left, p.box.top, p.box.right, p.box.bottom)

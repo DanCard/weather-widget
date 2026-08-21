@@ -93,7 +93,7 @@ enum class WeatherSource(
     /**
      * The ONE rule for whether the cloud graph draws an actual curve for this source. NWS derives
      * actuals at read time from METAR sky condition; every source whose past values are revised
-     * ([HistoricalDataKind.preservesHistoricalCloud]) files settled actuals via the synthetic
+     * ([HistoricalDataKind.preservesHistoricalCloud]) files timestamped actuals via the synthetic
      * backfill row. Both platforms gate on this — the write side
      * (`HistoricalActualsBackfill`) and both read sides (`getCloudActuals`) already follow it.
      */

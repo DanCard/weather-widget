@@ -44,10 +44,10 @@ object CloudSeriesBuilder {
      * @param liveHours the source's hourly rows for the visible window, site-collapsed, one per hour.
      * @param priorForecast day-ago predictions keyed by top-of-hour epoch ms, from
      *   [PriorDayCloudForecast].
-     * @param retroActual low-cloud actuals keyed the same way, read from `observations`.
+     * @param retroActual low-cloud actuals keyed by their native observation timestamps, read from
+     *   `observations`. Renderers draw this map independently from the hourly [CloudPoint] list.
      *   Authoritative and ungated: an hour draws an actual if and only if it appears here. Nothing
-     *   is inferred from `fetchedAt` any more — that inference silently evaluated to "never" on
-     *   Android, see [CloudActualSettling].
+     *   is inferred from `fetchedAt` any more.
      * @param nowMs "now". Used **only** to decide which hours get the frozen day-ago forecast; it
      *   has no say over the actual curve.
      */
@@ -102,22 +102,6 @@ object CloudSeriesBuilder {
      */
     private fun HourlyForecast.visibleCloudCover(): Int? =
         (cloudCoverLow ?: cloudCover)?.coerceIn(0, 100)
-
-    /**
-     * True when [fetchedAt] postdates the end of the hour starting at [hourStartMs] — the only
-     * condition under which a fetched value has been revised in light of what happened.
-     *
-     * **Write-side predicate.** [CloudActualSettling.hasSettled] applies it (plus a lag) as the
-     * payload is filed, where the fetch time genuinely settles the question. It used to be applied
-     * at render time to a stored row's `fetchedAt` instead, which asked a different and much weaker
-     * question — "has this device refetched since the hour ended?" — whose answer is structurally
-     * "no" on Android. See [CloudActualSettling] for the measurements.
-     *
-     * `fetchedAt <= 0` means the caller did not populate it; treated as not corrected, because a
-     * missing actual is honest and a fabricated one is not.
-     */
-    fun isRetroCorrected(hourStartMs: Long, fetchedAt: Long): Boolean =
-        fetchedAt > 0L && fetchedAt >= hourStartMs + 3_600_000L
 
     /**
      * Fraction of past points whose forecast is genuinely frozen, for the render-time diagnostic.

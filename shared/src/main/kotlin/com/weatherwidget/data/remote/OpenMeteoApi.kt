@@ -14,6 +14,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -44,6 +45,79 @@ class OpenMeteoApi
              * read 4-13%.
              */
             const val PREVIOUS_RUNS_VARIABLE = "cloud_cover_low_previous_day1"
+
+            const val MINUTELY_15_VARIABLES =
+                "temperature_2m,weather_code,precipitation,cloud_cover,cloud_cover_low"
+
+            /**
+             * Parses complete 15-minute Open-Meteo history rows through the provider's current
+             * timestamp. Future quarters are deliberately excluded: storing them as observations
+             * would let a forecast become an "actual" merely because wall-clock time advanced.
+             */
+            internal fun parseSubHourlyHistory(response: String): List<HourlyForecast> {
+                val root = Json.parseToJsonElement(response).jsonObject
+                val timezone = root["timezone"]?.jsonPrimitive?.contentOrNull
+                val zone = timezone?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+                    ?: ZoneId.systemDefault()
+                val currentTime = root["current"]?.jsonObject
+                    ?.get("time")?.jsonPrimitive?.contentOrNull
+                    ?.let { parseEpochMillis(it, zone) }
+                    ?: return emptyList()
+                val minutely = root["minutely_15"]?.jsonObject ?: return emptyList()
+                val times = minutely["time"]?.jsonArray ?: return emptyList()
+                val temperatures = minutely["temperature_2m"]?.jsonArray ?: return emptyList()
+                val codes = minutely["weather_code"]?.jsonArray
+                val precipitation = minutely["precipitation"]?.jsonArray
+                val totalCloud = minutely["cloud_cover"]?.jsonArray
+                val lowCloud = minutely["cloud_cover_low"]?.jsonArray
+
+                return times.mapIndexedNotNull { index, timeElement ->
+                    val timeMs = timeElement.jsonPrimitive.contentOrNull
+                        ?.let { parseEpochMillis(it, zone) }
+                        ?: return@mapIndexedNotNull null
+                    if (timeMs > currentTime) return@mapIndexedNotNull null
+                    val temperature = temperatures.getOrNull(index)?.jsonPrimitive?.floatOrNull
+                        ?.takeIf { it.isFinite() }
+                        ?: return@mapIndexedNotNull null
+                    val code = codes?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                    HourlyForecast(
+                        dateTime = timeMs,
+                        temperature = temperature,
+                        condition = conditionForCode(code),
+                        precipAmountMm = precipitation?.getOrNull(index)?.jsonPrimitive?.floatOrNull,
+                        cloudCover = totalCloud?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                            ?.coerceIn(0, 100),
+                        cloudCoverLow = lowCloud?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                            ?.coerceIn(0, 100),
+                        source = WeatherSource.OPEN_METEO.id,
+                    )
+                }
+            }
+
+            private fun parseEpochMillis(value: String, zone: ZoneId): Long? =
+                runCatching { ZonedDateTime.parse(value).toInstant().toEpochMilli() }
+                    .getOrElse {
+                        runCatching { LocalDateTime.parse(value).atZone(zone).toInstant().toEpochMilli() }
+                            .getOrNull()
+                    }
+
+            private fun conditionForCode(code: Int?): String = when (code) {
+                0 -> "Clear"
+                1 -> "Mostly Clear"
+                2 -> "Partly Cloudy"
+                3 -> "Overcast"
+                45 -> "Light Fog"
+                48 -> "Dense Fog"
+                51, 53, 55 -> "Drizzle"
+                61, 63, 65 -> "Rain"
+                66, 67 -> "Freezing Rain"
+                71, 73, 75 -> "Snow"
+                77 -> "Snow Grains"
+                80, 81, 82 -> "Rain Showers"
+                85, 86 -> "Snow Showers"
+                95, 96, 99 -> "Thunderstorm"
+                else -> "Unknown"
+            }
 
                 /**
                  * Pure seam: the whole of this endpoint's parsing, reachable without an HTTP engine.
@@ -88,6 +162,7 @@ class OpenMeteoApi
                     parameter("longitude", lon)
                     parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum")
                     parameter("hourly", "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low")
+                    parameter("minutely_15", MINUTELY_15_VARIABLES)
                     parameter("current", "temperature_2m,weather_code")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
@@ -212,6 +287,7 @@ timezone = timezone,
 ),
 daily = dailyForecasts,
 hourly = hourlyForecasts,
+subHourly = parseSubHourlyHistory(response),
 )
 }
 
@@ -223,7 +299,7 @@ hourly = hourlyForecasts,
                 httpClient.get("$BASE_URL/forecast") {
                     parameter("latitude", lat)
                     parameter("longitude", lon)
-                    parameter("current", "temperature_2m,weather_code")
+                    parameter("current", "temperature_2m,weather_code,cloud_cover,cloud_cover_low")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
                     parameter("forecast_days", 1)
@@ -239,6 +315,8 @@ hourly = hourlyForecasts,
                 temperature = temp,
                 weatherCode = weatherCode,
                 observedAt = parseCurrentObservedAt(current["time"]?.jsonPrimitive?.content, timezone),
+                cloudCover = current["cloud_cover"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
+                cloudCoverLow = current["cloud_cover_low"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
             )
         }
 
@@ -349,28 +427,13 @@ condition = weatherCodeToCondition(0),
 }
         }
 
-        fun weatherCodeToCondition(code: Int): String =
-            when (code) {
-                0 -> "Clear"
-                1 -> "Mostly Clear"
-                2 -> "Partly Cloudy"
-                3 -> "Overcast"
-                45 -> "Light Fog"
-                48 -> "Dense Fog"
-                51, 53, 55 -> "Drizzle"
-                61, 63, 65 -> "Rain"
-                66, 67 -> "Freezing Rain"
-                71, 73, 75 -> "Snow"
-                77 -> "Snow Grains"
-                80, 81, 82 -> "Rain Showers"
-                85, 86 -> "Snow Showers"
-                95, 96, 99 -> "Thunderstorm"
-                else -> "Unknown"
-            }
+        fun weatherCodeToCondition(code: Int): String = conditionForCode(code)
 
 data class CurrentReading(
     val temperature: Float,
     val weatherCode: Int?,
     val observedAt: Long? = null,
+    val cloudCover: Int? = null,
+    val cloudCoverLow: Int? = null,
   )
 }

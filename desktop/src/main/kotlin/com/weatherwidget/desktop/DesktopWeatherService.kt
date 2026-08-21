@@ -108,7 +108,8 @@ class DesktopWeatherService(
             WeatherSource.VISUAL_CROSSING.id -> withHistoricalActuals(visualCrossing.getForecast(latitude, longitude), WeatherSource.VISUAL_CROSSING.id)
             WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
             WeatherSource.OPEN_WEATHER_MAP.id -> withHistoricalActuals(openWeatherMap.getForecast(latitude, longitude), WeatherSource.OPEN_WEATHER_MAP.id)
-            else -> fetchOpenMeteoForecastWithActuals()
+            WeatherSource.OPEN_METEO.id -> fetchOpenMeteoForecastWithActuals()
+            else -> throw IllegalArgumentException("Unsupported weather source: $weatherSource")
         }
     }.getOrElse { e ->
         if (e is CancellationException) throw e
@@ -156,8 +157,10 @@ class DesktopWeatherService(
      */
     private fun withHistoricalActuals(result: RawFetch, sourceId: String): RawFetch =
         result.copy(
-            rawObservations = HistoricalActualsBackfill.build(
-                hourly = result.hourly,
+            rawObservations = result.rawObservations + HistoricalActualsBackfill.build(
+                // Open-Meteo supplies complete 15-minute temperature/cloud rows. Prefer them over
+                // the hourly subsample so the history curve reaches the provider's current stamp.
+                hourly = result.subHourly.ifEmpty { result.hourly },
                 latitude = latitude,
                 longitude = longitude,
                 sourceId = sourceId,
@@ -170,17 +173,13 @@ class DesktopWeatherService(
      * [ACTUALS_HISTORY_DAYS] of `past_days` so its hourly list actually contains the past hours the
      * backfill re-files (other sources return their recent past inline).
      *
-     * The backfill is labeled with the service's display [weatherSource], not OPEN_METEO: this method
-     * is also the failure fallback for every other source (see fetchForecast's getOrElse), and
-     * refresh() stores the fetched forecast under the display source. Labeling the actuals the same
-     * way keeps them matched to the (display-labeled) forecast so the actual line still renders when a
-     * source falls back to Open-Meteo. When Open-Meteo is itself the active source the two ids are
-     * identical, so this is a no-op there.
+     * This method is called only when Open-Meteo is the selected source. Keeping that explicit is a
+     * source-isolation invariant: no other provider may be relabelled or replaced by Meteo data.
      */
     private suspend fun fetchOpenMeteoForecastWithActuals(): RawFetch =
         withHistoricalActuals(
             openMeteo.getForecast(latitude, longitude, days = ForecastHorizon.MAX_DAYS, historyDays = ACTUALS_HISTORY_DAYS),
-            weatherSource,
+            WeatherSource.OPEN_METEO.id,
         )
 
     /**
@@ -564,7 +563,7 @@ class DesktopWeatherService(
         source = "NWS",
     )
 
-    override suspend fun fetchObservationsOnly(recentOnly: Boolean): RawFetch = runCatching {
+    override suspend fun fetchObservationsOnly(recentOnly: Boolean): RawFetch =
         when (weatherSource) {
             "NWS" -> fetchNwsObservationsOnly(recentOnly)
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
@@ -576,15 +575,8 @@ class DesktopWeatherService(
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
                 RawFetch()
             }
-            else -> fetchOpenMeteoObservationsOnly()
+            else -> RawFetch()
         }
-    }.getOrElse { e ->
-        if (weatherSource == "NWS") {
-            fetchOpenMeteoObservationsOnly()
-        } else {
-            throw e
-        }
-    }
 
     private suspend fun fetchNwsObservationsOnly(recentOnly: Boolean): RawFetch = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
@@ -659,6 +651,8 @@ class DesktopWeatherService(
             locationLat = latitude,
             locationLon = longitude,
             api = WeatherSource.OPEN_METEO.id,
+            cloudCover = reading.cloudCover,
+            cloudCoverLow = reading.cloudCoverLow,
         )
         RawFetch(
             providerCurrentTemp = reading.temperature,

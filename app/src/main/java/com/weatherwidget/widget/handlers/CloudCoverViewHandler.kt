@@ -23,6 +23,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.shared.actuals.MetarCloudBlender
+import com.weatherwidget.shared.graph.CloudActualSeries
 import com.weatherwidget.shared.graph.CloudSeriesBuilder
 import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
 import com.weatherwidget.widget.WidgetActionReceiver
@@ -571,6 +572,11 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 currentTime = now,
                 bitmapScale = bitmapDims.bitmapScale,
                 smoothIterations = zoom.smoothIterations,
+                actualSeries = CloudActualSeries.points(
+                    values = retroActual.hours,
+                    startMs = windowStart,
+                    endMs = minOf(windowEnd, System.currentTimeMillis()),
+                ),
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 missingHours = missingHours,
                 totalHours = totalWindowHours,
@@ -712,8 +718,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         // Day-ago predictions by top-of-hour epoch ms. Empty for every source without a
         // previous-runs product, which collapses both curves onto the live value.
         priorDayCloudForecast: Map<Long, Int> = emptyMap(),
-        // Settled low-cloud actuals by the same key. Authoritative — a past hour draws an actual if
-        // and only if it appears here.
+        // Low-cloud actuals by native provider timestamp. Authoritative — a timestamp draws an
+        // actual if and only if it appears here.
         retroCloudActual: Map<Long, Int> = emptyMap(),
     ): List<CloudCoverGraphRenderer.CloudHourData> {
         val now = LocalDateTime.now()
