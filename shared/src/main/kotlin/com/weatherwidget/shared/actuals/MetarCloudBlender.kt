@@ -82,20 +82,39 @@ object MetarCloudBlender {
      *    to that station: a future real-station cloud source cannot silently join the series
      *    without a deliberate change here.
      *
-     * Callers pass ONE physical site's readings (their DAO collapses the location box first).
+     * Owns the READ RANGE as well as the branch, because the two are one decision. Bucketing rounds
+     * to the nearest hour, so a report in the half-hour before [startMs] belongs to the first
+     * visible hour; reading the bare window drops it and the actual curve begins an hour late. That
+     * shipped — the Samsung fold's 1a-5a cloud graph started its actual at 2a because KSJC's 00:30
+     * METAR, which buckets to 01:00, was never fetched. Leaving the pad in the DAOs would re-open
+     * exactly the Android/desktop divergence this function exists to close, so the pad lives here
+     * and the DAOs supply only [readSiteRows].
+     *
+     * @param readSiteRows reads ONE physical site's observations for a raw-timestamp range,
+     *   `start` inclusive to `end` exclusive (the DAO collapses the location box first). Called
+     *   with the padded range; the emitted hours stay bounded by the unpadded [startMs]/[endMs].
      */
-    fun fromSiteRows(
-        readings: List<ObservationReading>,
+    suspend fun fromSiteRows(
         startMs: Long,
         endMs: Long,
         sourceId: String,
+        readSiteRows: suspend (start: Long, end: Long) -> List<ObservationReading>,
     ): Result {
+        val readings = readSiteRows(
+            CloudHourBucket.readStartMs(startMs),
+            CloudHourBucket.readEndMs(endMs),
+        )
         if (WeatherSource.fromId(sourceId) == WeatherSource.NWS) {
             return blend(readings, startMs, endMs)
         }
         val station = HistoricalActualsBackfill.syntheticStationId(sourceId)
         val hours = readings.asSequence()
             .filter { it.stationId == station }
+            // Re-bound to the unpadded window: the read above is widened by the bucketing
+            // tolerance for the NWS branch's sake, but synthetic rows sit ON hour marks and need no
+            // such reach. Without this, a caller whose endMs is mid-hour silently gains an actual
+            // for the hour after it.
+            .filter { it.timestamp in startMs until endMs }
             .mapNotNull { row -> row.visibleCloud()?.let { row.timestamp to it } }
             .toMap()
         return synthetic(hours)

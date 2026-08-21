@@ -3,6 +3,7 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -204,8 +205,79 @@ class MetarCloudBlenderTest {
         assertEquals(mapOf(hour to 100), result.hours)
     }
 
+    /**
+     * A reader that behaves like the DAOs do: a raw-timestamp range filter, `start` inclusive and
+     * `end` exclusive. It reports the range it was asked for so a test can assert the padding.
+     */
+    private class FakeSiteReader(private val rows: List<ObservationReading>) {
+        var requestedStart: Long? = null
+        var requestedEnd: Long? = null
+
+        fun read(start: Long, end: Long): List<ObservationReading> {
+            requestedStart = start
+            requestedEnd = end
+            return rows.filter { it.timestamp in start until end }
+        }
+    }
+
     @Test
-    fun `fromSiteRows delegates NWS to the station blend`() {
+    fun `a report in the half-hour before the window still fills the first visible hour`() = runBlocking {
+        // The Samsung regression, end to end. The 1a-5a cloud graph's actual curve began at 2a
+        // because KSJC's 00:30 METAR — which rounds INTO 01:00, the first visible hour — fell
+        // outside a bare `timestamp >= 01:00` read. The blend was always willing to bucket it; the
+        // READ had to hand it over, which is why fromSiteRows now owns the range. Drive it through
+        // a range-filtering reader so shrinking that range back to the bare window fails here.
+        val windowStart = hour
+        val windowEnd = hour + 4 * 3_600_000L
+        val reader = FakeSiteReader(
+            listOf(
+                reading("KSJC", windowStart - 30 * min, cloudLow = 75, distanceKm = 16f),
+                reading("KSJC", windowStart + 65 * min, cloudLow = 100, distanceKm = 16f),
+                reading("KSJC", windowStart + 130 * min, cloudLow = 100, distanceKm = 16f),
+            ),
+        )
+
+        val result = MetarCloudBlender.fromSiteRows(
+            windowStart, windowEnd, WeatherSource.NWS.id, reader::read,
+        )
+
+        assertEquals(
+            mapOf(
+                windowStart to 75,
+                (windowStart + 3_600_000L) to 100,
+                (windowStart + 2 * 3_600_000L) to 100,
+            ),
+            result.hours,
+        )
+        // The pad is the bucketing tolerance, no wider: a full hour would drag whole extra hour
+        // marks — and the synthetic rows sitting on them — into the read.
+        assertEquals(windowStart - 30 * min, reader.requestedStart)
+        assertEquals(windowEnd + 30 * min, reader.requestedEnd)
+    }
+
+    @Test
+    fun `fromSiteRows bounds the synthetic series to the window even when the read was padded`() = runBlocking {
+        // The non-NWS branch reads synthetic rows that sit ON hour marks, so it needs none of the
+        // rounding tolerance the padded read grants the NWS branch. A caller whose endMs is
+        // mid-hour must not gain an actual for the hour after it.
+        val readings = listOf(
+            reading("OPEN_METEO_MAIN", hour - 3_600_000L, cloudLow = 10, distanceKm = 0f,
+                api = WeatherSource.OPEN_METEO.id),
+            reading("OPEN_METEO_MAIN", hour, cloudLow = 30, distanceKm = 0f,
+                api = WeatherSource.OPEN_METEO.id),
+            reading("OPEN_METEO_MAIN", hour + 3_600_000L, cloudLow = 60, distanceKm = 0f,
+                api = WeatherSource.OPEN_METEO.id),
+        )
+
+        val result = MetarCloudBlender.fromSiteRows(
+            hour, hour + 45 * min, WeatherSource.OPEN_METEO.id, FakeSiteReader(readings)::read,
+        )
+
+        assertEquals(mapOf(hour to 30), result.hours)
+    }
+
+    @Test
+    fun `fromSiteRows delegates NWS to the station blend`() = runBlocking {
         val readings = listOf(
             reading("KNUQ", hour + 3 * min, cloudLow = 40, distanceKm = 2f),
             reading("KPAO", hour + 5 * min, cloudLow = 80, distanceKm = 4f),
@@ -215,7 +287,7 @@ class MetarCloudBlenderTest {
         )
 
         val result = MetarCloudBlender.fromSiteRows(
-            readings, hour, hour + 3_600_000L, WeatherSource.NWS.id,
+            hour, hour + 3_600_000L, WeatherSource.NWS.id, FakeSiteReader(readings)::read,
         )
 
         // (40 * 1/4 + 80 * 1/16) / (1/4 + 1/16) = 48 — the blend, not a synthetic pin.
@@ -224,7 +296,7 @@ class MetarCloudBlenderTest {
     }
 
     @Test
-    fun `fromSiteRows pins non-NWS sources to their synthetic backfill row and prefers the low layer`() {
+    fun `fromSiteRows pins non-NWS sources to their synthetic backfill row and prefers the low layer`() = runBlocking {
         val readings = listOf(
             reading("OPEN_METEO_MAIN", hour, cloudLow = 30, distanceKm = 0f,
                 api = WeatherSource.OPEN_METEO.id),
@@ -238,7 +310,7 @@ class MetarCloudBlenderTest {
         )
 
         val result = MetarCloudBlender.fromSiteRows(
-            readings, hour, hour + 2 * 3_600_000L, WeatherSource.OPEN_METEO.id,
+            hour, hour + 2 * 3_600_000L, WeatherSource.OPEN_METEO.id, FakeSiteReader(readings)::read,
         )
 
         assertEquals(

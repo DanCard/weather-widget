@@ -190,6 +190,46 @@ class NwsCloudActualsRoundTripTest {
     }
 
     @Test
+    fun `a report in the half-hour before the window still fills the first visible hour`() = runBlocking {
+        val dao = db.observationDao()
+        // The Samsung fold, 2026-08-21: the 1a-5a cloud graph drew its actual curve from 2a. KSJC
+        // reported at 00:30, which ROUNDS INTO the 01:00 bucket — the window's first visible hour —
+        // but the row read was `timestamp >= 01:00`, so the blend never saw it. Proving this
+        // through Room, not just the blender, is the point: the blender always bucketed the report
+        // correctly; it was the query range that dropped it.
+        val windowStart = 1_787_263_200_000L // 22:00Z, hour-aligned
+        val windowEnd = windowStart + 4 * 3_600_000L
+        dao.insertAll(
+            listOf(
+                // 21:30Z: half an hour BEFORE the window, buckets into its first hour.
+                source.toEntity(
+                    observation("2026-08-20T21:30:00+00:00", listOf(NwsApi.CloudLayer("BKN", 500.0))),
+                    station("KSJC", 37.36, -121.93, official = true),
+                    userLat, userLon,
+                ),
+                // 23:05Z: comfortably inside the window, so a truncated read still returns this one
+                // and the failure is specifically a missing FIRST hour, not an empty series.
+                source.toEntity(
+                    observation("2026-08-20T23:05:00+00:00", listOf(NwsApi.CloudLayer("OVC", 300.0))),
+                    station("KSJC", 37.36, -121.93, official = true),
+                    userLat, userLon,
+                ),
+            ),
+        )
+
+        val result = dao.getCloudActuals(
+            startTs = windowStart,
+            endTs = windowEnd,
+            lat = userLat,
+            lon = userLon,
+            sourceId = WeatherSource.NWS.id,
+        )
+
+        assertEquals(75, result.hours[windowStart])
+        assertEquals(100, result.hours[windowStart + 3_600_000L])
+    }
+
+    @Test
     fun `non-nws sources keep reading the synthetic backfill row`() = runBlocking {
         val dao = db.observationDao()
         val synthetic = com.weatherwidget.data.local.ObservationEntity(

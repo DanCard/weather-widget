@@ -97,11 +97,12 @@ interface ObservationDao {
         sourceId: String,
     ): MetarCloudBlender.Result =
         MetarCloudBlender.fromSiteRows(
-            readings = getObservationsInRange(startTs, endTs, lat, lon).map { it.toReading() },
             startMs = startTs,
             endMs = endTs,
             sourceId = sourceId,
-        )
+        ) { readStart, readEnd ->
+            getObservationsInRange(readStart, readEnd, lat, lon).map { it.toReading() }
+        }
 
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")
     suspend fun deleteOldObservations(cutoffMs: Long)

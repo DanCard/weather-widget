@@ -133,6 +133,18 @@ class NwsCurrentObservationUpdater @Inject constructor(
             )
         }
 
+        // Stored before the chosen row and independently of it: this is the nearest station's real
+        // sky condition, which the freshness-based web swap would otherwise discard entirely.
+        result.cloudCarrier?.let { carrier ->
+            observationDao.insertAll(listOf(carrier))
+            appLogDao.log(
+                "OBS_CLOUD_CARRIER",
+                "station=${station.id} timestamp=${carrier.timestamp} cloudLow=${carrier.cloudCoverLow} " +
+                    "reason=web_won_on_freshness_but_carries_no_sky",
+                "INFO",
+            )
+        }
+
         val chosen = result.chosen
         if (chosen == null) {
             if (result.shouldTouchFetchedAt) {

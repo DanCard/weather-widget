@@ -144,13 +144,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * [MetarCloudBlender.fromSiteRows]; this DAO contributes only the site-collapsed read. Mirrors
      * Android's `ObservationDao.getCloudActuals` by construction — same shared code.
      */
-    fun getCloudActuals(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long, sourceId: String): MetarCloudBlender.Result =
+    suspend fun getCloudActuals(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long, sourceId: String): MetarCloudBlender.Result =
         MetarCloudBlender.fromSiteRows(
-            readings = getObservationsInRange(startMs, endMs, locationLat, locationLon).map { it.toReading() },
             startMs = startMs,
             endMs = endMs,
             sourceId = sourceId,
-        )
+        ) { readStart, readEnd ->
+            getObservationsInRange(readStart, readEnd, locationLat, locationLon).map { it.toReading() }
+        }
 
     /** Day-ago cloud predictions for the window, as hour -> percent. */
     fun getPriorDayCloudForecast(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long): Map<Long, Int> =

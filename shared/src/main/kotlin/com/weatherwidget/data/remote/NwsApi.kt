@@ -315,6 +315,17 @@ class NwsApi
 
             val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
 
+            // `/observations/latest` carries the SAME `cloudLayers` array as the `?start=&end=`
+            // series, and omitting it here left every station reached by this path storing no sky
+            // condition at all. Measured 2026-08-21: KNUQ (3.8 km, the nearest official station)
+            // published `OVC 400` on every report while the DB held 23 consecutive cloud-less rows,
+            // so the cloud blend fell back to KSJC 15.9 km away.
+            //
+            // NOTE: this function is a partial hand-rolled copy of parseObservationProperties above,
+            // which is what let the two drift. Unifying them would also start populating precip and
+            // 24h min/max on this path, so it is deliberately left alone here.
+            val cloudLayers = parseCloudLayers(props["cloudLayers"])
+
             return if (tempValue != null) {
                 Observation(
                     timestamp = timestamp,
@@ -323,6 +334,7 @@ class NwsApi
                     qcFailed = NwsQualityControl.isFailed(
                         tempObj["qualityControl"]?.jsonPrimitive?.contentOrNull,
                     ),
+                    cloudLayers = cloudLayers,
                 )
             } else {
                 Log.d("NwsApi", "getLatestObservation: station=$stationId has null temperature value")

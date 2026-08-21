@@ -10,6 +10,7 @@ import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
 import com.weatherwidget.data.remote.shouldTouchObservationFetchedAt
+import com.weatherwidget.shared.observations.MetarSkyCover
 import com.weatherwidget.shared.observations.LatestObservationMerge
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -22,6 +23,21 @@ private const val STATION_CACHE_MAX_AGE_MS = 86_400_000L
 internal data class LatestStationObservation(
     val chosen: ObservationEntity?,
     val qcFlagged: List<ObservationEntity>,
+    /**
+     * The NWS API observation, kept ONLY for its sky condition, when the Synoptic web reading won
+     * [LatestObservationMerge.preferNewest] on freshness.
+     *
+     * Synoptic carries no sky condition at all, so a whole-row swap decided on TEMPERATURE
+     * freshness silently discards the station's cloud. Measured 2026-08-21: KNUQ (Moffett, 3.8 km,
+     * the nearest official station) stored 23 consecutive cloud-less rows while its own METARs read
+     * `OVC 400` throughout, leaving the entire cloud blend to KSJC 15.9 km away. Storing this row
+     * alongside the chosen one costs a row per fetch and keeps both answers honest: the newest
+     * temperature, and the nearest station's real sky.
+     *
+     * Null when the API row was chosen anyway, when there is no API row, or when it carried no
+     * sky condition to preserve.
+     */
+    val cloudCarrier: ObservationEntity?,
     val shouldTouchFetchedAt: Boolean,
     val nwsFailureReason: String?,
     val synopticFailureReason: String?,
@@ -131,6 +147,7 @@ class NwsObservationSource(
         var chosenIsWeb = false
         var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
         var flaggedEntities = emptyList<ObservationEntity>()
+        var cloudCarrierEntity: ObservationEntity? = null
         val chosen = if (synopticApi != null && (fetchWebForUse || logWebMetrics)) {
             val windowMinutes = if (fetchWebForUse) {
                 ObservationFallbackPolicy.webFallbackWindowMinutes(apiObservedAtMs, nowMs)
@@ -173,6 +190,15 @@ class NwsObservationSource(
                     .filter { it.qcFailed }
                     .map { toEntity(it, stationInfo, latitude, longitude, isWebFallback = true) }
                 chosenIsWeb = merge.chosenIsWeb
+                // A web win is a TEMPERATURE decision; the sky condition it displaces is not
+                // Synoptic's to replace, because Synoptic reports none. Keep the API row for its
+                // cloud alone (its own timestamp keeps it a distinct row).
+                if (merge.chosenIsWeb && apiObservation != null &&
+                    MetarSkyCover.lowPercent(apiObservation.cloudLayers) != null
+                ) {
+                    cloudCarrierEntity =
+                        toEntity(apiObservation, stationInfo, latitude, longitude, isWebFallback = false)
+                }
                 merge.chosen
             } else {
                 apiObservation
@@ -186,6 +212,7 @@ class NwsObservationSource(
                 toEntity(it, stationInfo, latitude, longitude, isWebFallback = chosenIsWeb)
             },
             qcFlagged = flaggedEntities,
+            cloudCarrier = cloudCarrierEntity,
             shouldTouchFetchedAt = chosen == null && shouldTouchObservationFetchedAt(
                 nwsOutcome,
                 synopticOutcome,
