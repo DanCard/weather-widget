@@ -93,25 +93,33 @@ class CloudSeriesBuilderTest {
         assertEquals(100, points[0].forecastCover)
     }
 
+    /**
+     * The forecast curve, and only the forecast curve, is gated on "now": neither the current hour
+     * nor a future one gets a frozen day-ago prediction, so both fall back to the live row.
+     */
     @Test
-    fun `current and future hours carry no actual`() {
+    fun `current and future hours take the live forecast, never a frozen one`() {
         val points = CloudSeriesBuilder.build(
             liveHours = listOf(live(0, 40), live(3, 70)),
-            // Stray values for a future hour must not resurrect an actual.
             priorForecast = mapOf(now to 90, now + 3 * hour to 90),
-            retroActual = mapOf(now to 11, now + 3 * hour to 11),
+            retroActual = emptyMap(),
             nowMs = now,
         )
 
         assertEquals(2, points.size)
-        points.forEach { assertNull("nothing has happened yet at ${it.timeMs}", it.actualCover) }
         assertEquals(listOf(40, 70), points.map { it.forecastCover })
-        points.forEach { assertTrue(!it.isFrozen) }
+        points.forEach { assertTrue("a day-ago prediction is not a comparison yet", !it.isFrozen) }
     }
 
-    /** An hour in progress is not yet past: no settled actual, no useful comparison. */
+    /**
+     * The regression this gate caused, measured on-device 2026-08-21 11:16: the NWS METAR blend had
+     * the 11:00 hour at 65% ready from KNUQ@10:55 and KPAO@10:47, and the graph discarded it and
+     * drew 10:00's 100% as its latest actual while the marine layer was visibly breaking up. An
+     * observation is a measurement that already happened; the hour containing it being unfinished
+     * says nothing about it.
+     */
     @Test
-    fun `the in-progress hour is treated as present, not past`() {
+    fun `the in-progress hour draws its actual`() {
         val points = CloudSeriesBuilder.build(
             liveHours = listOf(live(0, 40)),
             priorForecast = mapOf(now to 90),
@@ -119,8 +127,27 @@ class CloudSeriesBuilderTest {
             nowMs = now + 42 * 60_000L, // 42 minutes into the hour
         )
 
+        assertEquals("the latest observation is drawn, not withheld", 12, points[0].actualCover)
+        assertEquals("but it gets no frozen comparison", 40, points[0].forecastCover)
+        assertTrue(!points[0].isFrozen)
+    }
+
+    /**
+     * Future hours carry no actual because none is ever filed for them — both platforms' reads stop
+     * at `now`. The builder trusts that rather than re-deriving it: if a value for a future hour
+     * ever DOES arrive, drawing it is the honest response, not silently hiding it.
+     */
+    @Test
+    fun `a future hour with no filed actual draws none`() {
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(live(3, 70)),
+            priorForecast = emptyMap(),
+            retroActual = emptyMap(),
+            nowMs = now,
+        )
+
         assertNull(points[0].actualCover)
-        assertEquals(40, points[0].forecastCover)
+        assertEquals(70, points[0].forecastCover)
     }
 
     /** Gaps stay gaps: an hour with no cloud value must not be drawn as a clear sky. */

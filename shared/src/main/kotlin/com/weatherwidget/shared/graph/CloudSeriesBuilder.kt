@@ -14,9 +14,10 @@ data class CloudPoint(
     /** Frozen day-ago prediction for past hours; the live row for the current and future hours. */
     val forecastCover: Int?,
     /**
-     * The settled low-cloud actual for a past hour, read from `observations`. Null for
-     * the current and future hours — nothing has happened yet — and for any past hour no actual was
-     * ever filed for.
+     * The low-cloud actual for this hour, read from `observations`. Drawn for **every** hour one was
+     * filed for, the hour in progress included: a METAR is an instantaneous reading of the sky, so
+     * the current hour's blend is measurement, not projection. Null only where nothing was filed —
+     * which covers every future hour, because the read window stops at `now`.
      */
     val actualCover: Int?,
     /**
@@ -43,11 +44,12 @@ object CloudSeriesBuilder {
      * @param liveHours the source's hourly rows for the visible window, site-collapsed, one per hour.
      * @param priorForecast day-ago predictions keyed by top-of-hour epoch ms, from
      *   [PriorDayCloudForecast].
-     * @param retroActual settled low-cloud actuals keyed the same way, read from `observations`.
-     *   Authoritative: a past hour draws an actual if and only if it appears here. Nothing is
-     *   inferred from `fetchedAt` any more — that inference silently evaluated to "never" on
+     * @param retroActual low-cloud actuals keyed the same way, read from `observations`.
+     *   Authoritative and ungated: an hour draws an actual if and only if it appears here. Nothing
+     *   is inferred from `fetchedAt` any more — that inference silently evaluated to "never" on
      *   Android, see [CloudActualSettling].
-     * @param nowMs "now"; hours strictly before the hour containing it are treated as past.
+     * @param nowMs "now". Used **only** to decide which hours get the frozen day-ago forecast; it
+     *   has no say over the actual curve.
      */
     fun build(
         liveHours: List<HourlyForecast>,
@@ -55,8 +57,16 @@ object CloudSeriesBuilder {
         retroActual: Map<Long, Int>,
         nowMs: Long,
     ): List<CloudPoint> {
-        // The hour containing nowMs is still in progress: it has no settled actual and no useful
-        // day-ago comparison yet, so it renders as a plain forecast point like the future ones.
+        // Only the FORECAST curve cares where "now" falls. A day-ago prediction is a comparison for
+        // an hour that has already happened; the current and future hours want the live row instead.
+        //
+        // The ACTUAL curve gets no such gate. This used to null the actual for the hour containing
+        // nowMs on the grounds that it was "still in progress", which cost the graph its rightmost
+        // 1-2 hours: measured 2026-08-21 11:16, the NWS METAR blend had 11:00 = 65% ready from
+        // KNUQ@10:55/KPAO@10:47, and the graph drew 10:00's 100% as its latest actual while the
+        // marine layer was visibly breaking up. An observation is not "in progress" — it is a
+        // measurement that already happened. Future hours need no gate either: observations cannot
+        // exist for them, and both platforms' read windows stop at `now`.
         val currentHourStart = nowMs - Math.floorMod(nowMs, 3_600_000L)
 
         return liveHours
@@ -65,16 +75,7 @@ object CloudSeriesBuilder {
             .sortedBy { it.dateTime }
             .map { hour ->
                 val live = hour.visibleCloudCover()
-                val isPast = hour.dateTime < currentHourStart
-                if (!isPast) {
-                    return@map CloudPoint(
-                        timeMs = hour.dateTime,
-                        forecastCover = live,
-                        actualCover = null,
-                        isFrozen = false,
-                    )
-                }
-                val frozen = priorForecast[hour.dateTime]
+                val frozen = if (hour.dateTime < currentHourStart) priorForecast[hour.dateTime] else null
                 CloudPoint(
                     timeMs = hour.dateTime,
                     // No day-ago prediction for this hour: fall back to the live value so the curve

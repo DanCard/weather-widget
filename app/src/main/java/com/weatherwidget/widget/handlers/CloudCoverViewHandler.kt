@@ -433,7 +433,11 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 runCatching {
                     WeatherDatabase.getDatabase(context).observationDao().getCloudActuals(
                         startTs = windowStart,
-                        endTs = windowEnd,
+                        // Bounded at "now", matching DesktopWeatherRepository. Cloud buckets round to
+                        // the NEAREST hour, so a reading at 11:35 buckets to 12:00 — and with the
+                        // window end alone, the actual curve would draw a real observation to the
+                        // RIGHT of the NOW marker. A past-day window keeps its own end.
+                        endTs = minOf(windowEnd, System.currentTimeMillis()),
                         lat = siteLat!!,
                         lon = siteLon!!,
                         sourceId = effectiveDisplaySource.id,
