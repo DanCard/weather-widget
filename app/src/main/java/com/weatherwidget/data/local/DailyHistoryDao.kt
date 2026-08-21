@@ -72,4 +72,7 @@ interface DailyHistoryDao {
 
     @Query("DELETE FROM daily_history WHERE source = 'TOMORROW_IO'")
     suspend fun deleteTomorrowIoHistory(): Int
+
+    @Query("DELETE FROM daily_history WHERE source = 'OPEN_METEO'")
+    suspend fun deleteOpenMeteoHistory(): Int
 }

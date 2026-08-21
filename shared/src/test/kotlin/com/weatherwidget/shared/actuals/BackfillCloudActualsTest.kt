@@ -13,15 +13,15 @@ import org.junit.Assert.assertTrue
 /**
  * Cloud actuals reaching `observations` through the same backfill that carries temperature.
  *
- * Cloud and temperature share the same provider timestamp. Neither is delayed after the provider
- * has published it, so the current 15-minute row can extend both actual curves together.
+ * Cloud and temperature share the same provider timestamp for sources whose history provenance is
+ * explicitly accepted as actuals.
  */
 @Category(ShortDuration::class)
 class BackfillCloudActualsTest {
 
     private val hour = 3_600_000L
     private val now = 1_755_720_000_000L
-    private val source = WeatherSource.OPEN_METEO.id
+    private val source = WeatherSource.WEATHER_API.id
 
     private fun hourly(offsetHours: Long, low: Int?, total: Int? = 100) = HourlyForecast(
         dateTime = now + offsetHours * hour,
@@ -58,7 +58,7 @@ class BackfillCloudActualsTest {
 
     /**
      * The 6-vs-86 case, now deliberately accepted. An hour carries cloud the moment it ends, even
-     * though Open-Meteo may revise it ~40 minutes later. The revision is picked up because
+     * though the provider may revise it later. The revision is picked up because
      * `observations` is keyed on `(stationId, timestamp)` and the next fetch REPLACEs in place;
      * withholding it instead left the curve permanently undrawable at the widget's zoom.
      */
@@ -129,6 +129,19 @@ class BackfillCloudActualsTest {
             latitude = 37.417,
             longitude = -122.089,
             sourceId = WeatherSource.SILURIAN.id,
+            nowMs = now,
+        )
+
+        assertTrue(rows.isEmpty())
+    }
+
+    @Test
+    fun `open meteo model cloud never becomes an observation row`() {
+        val rows = HistoricalActualsBackfill.build(
+            hourly = listOf(hourly(-1, low = 28, total = 56)),
+            latitude = 37.417,
+            longitude = -122.089,
+            sourceId = WeatherSource.OPEN_METEO.id,
             nowMs = now,
         )
 

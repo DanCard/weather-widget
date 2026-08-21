@@ -114,6 +114,9 @@ interface ObservationDao {
     )
     suspend fun deleteLegacyTomorrowIoObservations(): Int
 
+    @Query("DELETE FROM observations WHERE api = 'OPEN_METEO'")
+    suspend fun deleteOpenMeteoModelObservations(): Int
+
     @Query(
         """
         SELECT * FROM observations

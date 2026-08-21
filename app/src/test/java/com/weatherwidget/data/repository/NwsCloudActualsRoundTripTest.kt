@@ -276,11 +276,11 @@ class NwsCloudActualsRoundTripTest {
     }
 
     @Test
-    fun `non-nws sources keep reading the synthetic backfill row`() = runBlocking {
+    fun `actual-capable non-NWS sources keep reading the synthetic backfill row`() = runBlocking {
         val dao = db.observationDao()
         val synthetic = com.weatherwidget.data.local.ObservationEntity(
-            stationId = "OPEN_METEO_MAIN",
-            stationName = "Open-Meteo: History Backfill",
+            stationId = "WEATHER_API_MAIN",
+            stationName = "WeatherAPI: History Backfill",
             timestamp = 1_787_263_200_000L,
             temperature = 68f,
             condition = "Clear",
@@ -288,7 +288,7 @@ class NwsCloudActualsRoundTripTest {
             locationLon = com.weatherwidget.data.local.LocationMatch.quantize(userLon),
             distanceKm = 0f,
             stationType = "OFFICIAL",
-            api = WeatherSource.OPEN_METEO.id,
+            api = WeatherSource.WEATHER_API.id,
             cloudCoverLow = 61,
         )
         dao.insertAll(listOf(synthetic))
@@ -297,7 +297,7 @@ class NwsCloudActualsRoundTripTest {
             endTs = 1_787_274_000_000L,
             lat = userLat,
             lon = userLon,
-            sourceId = WeatherSource.OPEN_METEO.id,
+            sourceId = WeatherSource.WEATHER_API.id,
         )
         assertEquals(mapOf(1_787_263_200_000L to 61), result.hours)
         assertTrue(!result.isMetarBlend)

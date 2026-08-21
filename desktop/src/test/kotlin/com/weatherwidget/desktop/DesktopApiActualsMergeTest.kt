@@ -3,7 +3,6 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.toEntity
-import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -44,7 +43,6 @@ class DesktopApiActualsMergeTest {
     private val source = WeatherSource.NWS.id
     private val zone: ZoneId = ZoneId.systemDefault()
     private val yesterday: LocalDate = LocalDate.now().minusDays(1)
-    private val yesterdayStr = yesterday.toString()
     private val yesterdayEpoch = yesterday.toEpochDay() * 86_400_000L
 
     @Before
@@ -193,34 +191,4 @@ class DesktopApiActualsMergeTest {
         assertEquals("KNUQ", stored.apiStationId)
     }
 
-    @Test
-    fun `open-meteo persist sets both api values and preserves existing columns`() {
-        dao.upsertDailyHistory(
-            listOf(
-                DailyHistory(
-                    date = yesterdayEpoch,
-                    source = WeatherSource.OPEN_METEO.id,
-                    locationLat = lat,
-                    locationLon = lon,
-                    computedHighTemp = 75.5f,
-                    computedLowTemp = 58.4f,
-                    condition = "Clear",
-                    updatedAt = System.currentTimeMillis(),
-                    forecastHighTemp = 76f,
-                    forecastLowTemp = 57f,
-                ),
-            ),
-        )
-
-        repository.persistOpenMeteoApiActuals(
-            listOf(DailyForecast(date = yesterdayStr, highTemp = 75.5f, lowTemp = 59.1f, condition = "Clear")),
-        )
-
-        val stored = dao.getExtremesInRange(yesterdayEpoch, yesterdayEpoch, lat, lon)
-            .single { it.source == WeatherSource.OPEN_METEO.id }
-        assertEquals(75.5f, stored.apiHighTemp)
-        assertEquals(59.1f, stored.apiLowTemp)
-        assertEquals(75.5f, stored.computedHighTemp)
-        assertEquals(76f, stored.forecastHighTemp)
-    }
 }

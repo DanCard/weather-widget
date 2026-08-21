@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
@@ -112,18 +113,20 @@ class ObservationsWindowRowsTest {
         assertEquals(listOf("KPAO"), rows.map { it.stationId })
     }
 
-    /**
-     * Non-NWS sources have no real stations, so their `<SOURCE>_MAIN` backfill row is the only entry
-     * available and must be kept — the inverse of the NWS case above.
-     */
     @Test
-    fun `keeps the backfill row for a non-NWS source`() {
+    fun `keeps approved provider history and hides forecast-only model rows`() {
         val rows = visibleStationRows(
-            listOf(obs("OPEN_METEO_MAIN", timestamp = 3000, api = WeatherSource.OPEN_METEO.id)),
-            WeatherSource.OPEN_METEO,
+            listOf(obs("WEATHER_API_MAIN", timestamp = 3000, api = WeatherSource.WEATHER_API.id)),
+            WeatherSource.WEATHER_API,
         )
 
-        assertEquals(listOf("OPEN_METEO_MAIN"), rows.map { it.stationId })
+        assertEquals(listOf("WEATHER_API_MAIN"), rows.map { it.stationId })
+        assertTrue(
+            visibleStationRows(
+                listOf(obs("OPEN_METEO_MAIN", timestamp = 3000, api = WeatherSource.OPEN_METEO.id)),
+                WeatherSource.OPEN_METEO,
+            ).isEmpty(),
+        )
     }
 
     @Test

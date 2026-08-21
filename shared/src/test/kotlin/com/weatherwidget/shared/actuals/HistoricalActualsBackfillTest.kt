@@ -36,7 +36,7 @@ class HistoricalActualsBackfillTest {
         )
 
         val result = HistoricalActualsBackfill.build(
-            hourly, lat, lon, WeatherSource.OPEN_METEO.id, now,
+            hourly, lat, lon, WeatherSource.TOMORROW_IO.id, now,
         )
 
         assertEquals(listOf(60f, 62f, 64f), result.map { it.temperature })
@@ -46,13 +46,13 @@ class HistoricalActualsBackfillTest {
     @Test
     fun `maps source id, station id, condition and location`() {
         val result = HistoricalActualsBackfill.build(
-            listOf(hour(-1, 62f)), lat, lon, WeatherSource.OPEN_METEO.id, now,
+            listOf(hour(-1, 62f)), lat, lon, WeatherSource.WEATHER_API.id, now,
         )
 
         val obs = result.single()
-        assertEquals(WeatherSource.OPEN_METEO.id, obs.api)
-        assertEquals("OPEN_METEO_MAIN", obs.stationId)
-        assertEquals(HistoricalActualsBackfill.syntheticStationId(WeatherSource.OPEN_METEO.id), obs.stationId)
+        assertEquals(WeatherSource.WEATHER_API.id, obs.api)
+        assertEquals("WEATHER_API_MAIN", obs.stationId)
+        assertEquals(HistoricalActualsBackfill.syntheticStationId(WeatherSource.WEATHER_API.id), obs.stationId)
         assertEquals("Clear", obs.condition)
         assertEquals(lat, obs.locationLat, 0.0)
         assertEquals(lon, obs.locationLon, 0.0)
@@ -62,7 +62,7 @@ class HistoricalActualsBackfillTest {
     @Test
     fun `keeps measured precip for sources that provide historical actuals`() {
         val result = HistoricalActualsBackfill.build(
-            listOf(hour(-1, 62f, precipMm = 1.5f)), lat, lon, WeatherSource.OPEN_METEO.id, now,
+            listOf(hour(-1, 62f, precipMm = 1.5f)), lat, lon, WeatherSource.TOMORROW_IO.id, now,
         )
         assertEquals(1.5f, result.single().precipAmountMm)
     }
@@ -80,6 +80,15 @@ class HistoricalActualsBackfillTest {
     fun `silurian forecast history produces no synthetic actual rows`() {
         val result = HistoricalActualsBackfill.build(
             listOf(hour(-1, 62f, precipMm = 1.5f)), lat, lon, WeatherSource.SILURIAN.id, now,
+        )
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `open meteo forecast api history produces no synthetic actual rows`() {
+        val result = HistoricalActualsBackfill.build(
+            listOf(hour(-1, 62f, precipMm = 1.5f)), lat, lon, WeatherSource.OPEN_METEO.id, now,
         )
 
         assertTrue(result.isEmpty())

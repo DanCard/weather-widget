@@ -56,7 +56,6 @@ class ForecastRoundingTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao())
         )
     }
 

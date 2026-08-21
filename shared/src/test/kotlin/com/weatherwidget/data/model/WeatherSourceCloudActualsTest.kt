@@ -18,7 +18,6 @@ class WeatherSourceCloudActualsTest {
     fun `only sources with verified observation or analysis cloud products support actuals`() {
         val expected = setOf(
             WeatherSource.NWS,
-            WeatherSource.OPEN_METEO,
             WeatherSource.WEATHER_API,
             WeatherSource.TOMORROW_IO,
         )
@@ -32,6 +31,7 @@ class WeatherSourceCloudActualsTest {
             WeatherSource.OPEN_WEATHER_MAP,
             WeatherSource.GENERIC_GAP,
             WeatherSource.SILURIAN,
+            WeatherSource.OPEN_METEO,
         )
         assertEquals(expected, WeatherSource.entries.filterNot { it.supportsCloudActuals }.toSet())
     }
@@ -49,5 +49,11 @@ class WeatherSourceCloudActualsTest {
     fun `silurian forecast history is not a cloud actual product`() {
         assertEquals(HistoricalDataKind.NONE, WeatherSource.SILURIAN.historicalDataKind)
         assertEquals(false, WeatherSource.SILURIAN.supportsCloudActuals)
+    }
+
+    @Test
+    fun `open meteo forecast api model history is not a cloud actual product`() {
+        assertEquals(HistoricalDataKind.NONE, WeatherSource.OPEN_METEO.historicalDataKind)
+        assertEquals(false, WeatherSource.OPEN_METEO.supportsCloudActuals)
     }
 }

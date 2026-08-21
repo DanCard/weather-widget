@@ -355,22 +355,24 @@ class RefreshDelayTest {
     }
 
     @Test
-    fun `observations only refresh skips unsupported current-only sources`() = runTest {
-        val service = DesktopWeatherService(
-            latitude = 37.4220,
-            longitude = -122.0841,
-            weatherSource = WeatherSource.SILURIAN.id,
-        )
+    fun `observations only refresh skips forecast-only sources`() = runTest {
+        listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN).forEach { source ->
+            val service = DesktopWeatherService(
+                latitude = 37.4220,
+                longitude = -122.0841,
+                weatherSource = source.id,
+            )
 
-        try {
-            val result = service.fetchObservationsOnly(recentOnly = false)
+            try {
+                val result = service.fetchObservationsOnly(recentOnly = false)
 
-            assertNull(result.providerCurrentTemp)
-            assertTrue(result.daily.isEmpty())
-            assertTrue(result.hourly.isEmpty())
-            assertTrue(result.rawObservations.isEmpty())
-        } finally {
-            service.close()
+                assertNull("${source.id} must not update the header", result.providerCurrentTemp)
+                assertTrue(result.daily.isEmpty())
+                assertTrue(result.hourly.isEmpty())
+                assertTrue(result.rawObservations.isEmpty())
+            } finally {
+                service.close()
+            }
         }
     }
 }

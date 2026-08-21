@@ -96,7 +96,6 @@ class ForecastRepositoryClimateWarmTest {
             tomorrowIoApi = mockk(relaxed = true),
             openWeatherMapApi = mockk(relaxed = true),
             nwsForecastMapper = mockk(relaxed = true),
-            openMeteoPastDayActualsWriter = OpenMeteoPastDayActualsWriter(mockk(relaxed = true), mockk(relaxed = true)),
         )
     }
 

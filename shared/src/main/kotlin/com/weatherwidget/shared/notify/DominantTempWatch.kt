@@ -92,8 +92,8 @@ object DominantTempWatch {
         if (!state.armed) return DominantTempWatchDecision.Idle
         if (dominant == null) return DominantTempWatchDecision.Hold("no_dominant")
         // A synthetic row is the source's own hourly forecast re-filed as observations at
-        // distanceKm=0, not a thermometer. Firing "OPEN_METEO_MAIN 71.2°" would attribute a forecast
-        // to a station — the same misattribution DominantStationLabel.format refuses to print. Under
+        // distanceKm=0, not a thermometer. Firing "WEATHER_API_MAIN 71.2°" could attribute provider
+        // history to a station — the same misattribution DominantStationLabel.format refuses to print. Under
         // a forecast-only source it is the ONLY candidate, so the watch simply never fires there.
         if (dominant.isSynthetic) return DominantTempWatchDecision.Hold("synthetic")
 

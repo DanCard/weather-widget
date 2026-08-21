@@ -388,8 +388,8 @@ abstract class WeatherDatabase : RoomDatabase() {
          * writer refills whatever the retained observations cover (~10 days). Older dates stay
          * null and drop out of the statistics, which is correct — we have no measurement for them.
          *
-         * Deliberately scoped to `source = 'NWS'`: Open-Meteo's own api actuals genuinely are its
-         * ERA5 product and are untouched.
+         * Deliberately scoped to `source = 'NWS'`: this historical migration predates the later
+         * Open-Meteo Forecast API provenance correction and its one-time data cleanup.
          */
         val MIGRATION_58_59 = object : Migration(58, 59) {
             override fun migrate(db: SupportSQLiteDatabase) {

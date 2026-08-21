@@ -191,20 +191,32 @@ class PrecipViewHandlerTest {
     }
 
     @Test
-    fun `buildActualPrecipByHour uses main rows for non NWS sources`() {
+    fun `buildActualPrecipByHour uses main rows for approved non NWS history`() {
         val observations = listOf(
-            observation("OPEN_METEO", "OPEN_METEO_MAIN", "2026-03-14T18:10", 1.25f),
-            observation("OPEN_METEO", "OPEN_METEO_STATION", "2026-03-14T18:45", 4.0f),
+            observation("WEATHER_API", "WEATHER_API_MAIN", "2026-03-14T18:10", 1.25f),
+            observation("WEATHER_API", "WEATHER_API_STATION", "2026-03-14T18:45", 4.0f),
             observation("NWS", "KNUQ", "2026-03-14T18:30", 7.0f),
         )
 
         val result = PrecipViewHandler.buildActualPrecipByHour(
             observations = observations,
-            displaySource = WeatherSource.OPEN_METEO,
+            displaySource = WeatherSource.WEATHER_API,
         )
 
         assertEquals(1, result.size)
         assertEquals(1.25f, result[LocalDateTime.of(2026, 3, 14, 18, 0)] ?: -1f, 0.001f)
+    }
+
+    @Test
+    fun `buildActualPrecipByHour rejects cached Open Meteo model rows`() {
+        val result = PrecipViewHandler.buildActualPrecipByHour(
+            observations = listOf(
+                observation("OPEN_METEO", "OPEN_METEO_MAIN", "2026-03-14T18:10", 1.25f),
+            ),
+            displaySource = WeatherSource.OPEN_METEO,
+        )
+
+        assertTrue(result.isEmpty())
     }
 
     private fun hourly(

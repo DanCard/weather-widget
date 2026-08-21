@@ -91,7 +91,6 @@ class OpenMeteoIntegrationTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao())
         )
     }
 
@@ -122,7 +121,6 @@ class OpenMeteoIntegrationTest {
             mockk(relaxed = true), widgetStateManager, db.climateNormalDao(), db.observationDao(),
             mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
             mockk(relaxed = true),
-            OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao()),
         )
     }
 

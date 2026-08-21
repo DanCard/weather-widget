@@ -46,7 +46,13 @@ enum class WeatherSource(
         id = "OPEN_METEO",
         displayName = "Open-Meteo",
         shortDisplayName = "Meteo",
-        historicalDataKind = HistoricalDataKind.REANALYSIS_ARCHIVE,
+        // The endpoints used by this app are the Forecast API's model-current, minutely_15, and
+        // past_days products. They are model output, not station observations. Open-Meteo's
+        // separate Historical Weather API is reanalysis, but it is not called here.
+        historicalDataKind = HistoricalDataKind.NONE,
+        supportsTemperatureActuals = false,
+        supportsCloudActuals = false,
+        supportsHistoricalActualsBackfill = false,
     ),
     VISUAL_CROSSING(
         id = "VISUAL_CROSSING",

@@ -175,18 +175,18 @@ class CurrentTemperatureIntegrationTest {
         val now = LocalDateTime.of(2026, 2, 25, 10, 0)
         val nowMs = toEpochMs(now)
 
-        insertObservation(stationId = "OPEN_METEO_MAIN", timestamp = nowMs, temperature = 68f, fetchedAt = nowMs, api = WeatherSource.OPEN_METEO.id)
+        insertObservation(stationId = "WEATHER_API_MAIN", timestamp = nowMs, temperature = 68f, fetchedAt = nowMs, api = WeatherSource.WEATHER_API.id)
         insertObservation(stationId = "AW020", timestamp = nowMs - 10_000, temperature = 65f, fetchedAt = nowMs - 10_000, api = WeatherSource.NWS.id)
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
 
         val nwsObs = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
-        val meteoObs = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.OPEN_METEO)
+        val weatherApiObs = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.WEATHER_API)
 
         assertNotNull("Should resolve NWS observation", nwsObs)
-        assertNotNull("Should resolve Open-Meteo observation", meteoObs)
+        assertNotNull("Should resolve WeatherAPI observation", weatherApiObs)
         assertEquals(65f, nwsObs!!.temperature, 0.01f)
-        assertEquals(68f, meteoObs!!.temperature, 0.01f)
+        assertEquals(68f, weatherApiObs!!.temperature, 0.01f)
     }
 
     @Test

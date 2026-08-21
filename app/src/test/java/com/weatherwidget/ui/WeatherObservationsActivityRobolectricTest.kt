@@ -499,19 +499,19 @@ class WeatherObservationsActivityRobolectricTest {
 
     @Test
     fun `clicking a non-NWS station opens nothing`() {
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.SILURIAN))
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.WEATHER_API))
         stateManager.setCurrentDisplaySource(widgetId, WeatherSource.NWS)
         val scenario = launchActivity()
 
         scenario.onActivity { activity ->
-            // Cycle NWS -> Silurian so the active source has no per-station web page.
+            // Cycle NWS -> WeatherAPI so the active source has no per-station web page.
             activity.findViewById<TextView>(R.id.api_source_button).performClick()
             shadowOf(Looper.getMainLooper()).idle()
         }
 
         scenario.onActivity { activity ->
             val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
-            adapter.onItemClick(adapter.items.first { it.stationId == "SILURIAN_MAIN" })
+            adapter.onItemClick(adapter.items.first { it.stationId == "WEATHER_API_MAIN" })
             shadowOf(Looper.getMainLooper()).idle()
 
             assertNull("Non-NWS rows have no link and must not start an activity", shadowOf(activity).nextStartedActivity)
@@ -519,7 +519,7 @@ class WeatherObservationsActivityRobolectricTest {
     }
 
     @Test
-    fun `cycling to silurian shows only silurian observations and source error logs`() {
+    fun `cycling to silurian hides cached model rows but keeps source error logs`() {
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.WEATHER_API))
         stateManager.setCurrentDisplaySource(widgetId, WeatherSource.NWS)
         val scenario = launchActivity()
@@ -539,9 +539,8 @@ class WeatherObservationsActivityRobolectricTest {
             val sourceButton = activity.findViewById<TextView>(R.id.api_source_button).text.toString()
 
             assertEquals("Silur", sourceButton)
-            assertEquals(listOf("SILURIAN_MAIN", "SILURIAN_1"), stationIds)
-            assertEquals("Latest reading from Silurian", subtitle)
-            assertEquals("UNKNOWN", adapter.items[0].stationType)
+            assertTrue(stationIds.isEmpty())
+            assertEquals("No recent observations found for Silurian.", subtitle)
             assertTrue(logs.contains("error error=timeout"))
         }
     }

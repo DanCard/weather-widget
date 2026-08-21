@@ -17,7 +17,7 @@ class WeatherSourceHistoricalActualsTest {
     fun `every source has the expected historical data provenance`() {
         val expected = mapOf(
             WeatherSource.NWS to HistoricalDataKind.STATION_OBSERVATION,
-            WeatherSource.OPEN_METEO to HistoricalDataKind.REANALYSIS_ARCHIVE,
+            WeatherSource.OPEN_METEO to HistoricalDataKind.NONE,
             WeatherSource.WEATHER_API to HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
             WeatherSource.SILURIAN to HistoricalDataKind.NONE,
             WeatherSource.TOMORROW_IO to HistoricalDataKind.RECENT_ANALYSIS,
@@ -46,6 +46,7 @@ class WeatherSourceHistoricalActualsTest {
             false,
             WeatherSource.SILURIAN.historicalDataKind.preservesHistoricalPrecipitation,
         )
+        assertEquals(false, WeatherSource.OPEN_METEO.supportsHistoricalActualsBackfill)
         assertEquals(true, WeatherSource.TOMORROW_IO.supportsHistoricalActualsBackfill)
     }
 }

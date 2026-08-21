@@ -64,18 +64,18 @@ class ActualsBaselineResolverTest {
     }
 
     @Test
-    fun `reanalysis archive outranks provider history`() {
+    fun `provider history is selected when forecast-only sources have no actuals`() {
         val result = ActualsBaselineResolver.resolveBaselineSource(
             gradedSource = WeatherSource.VISUAL_CROSSING,
             orderedVisibleSources = listOf(
                 WeatherSource.VISUAL_CROSSING,
                 WeatherSource.SILURIAN,
-                WeatherSource.OPEN_METEO,
+                WeatherSource.WEATHER_API,
             ),
             hasRowForDate = all,
         )
 
-        assertEquals(WeatherSource.OPEN_METEO, result)
+        assertEquals(WeatherSource.WEATHER_API, result)
     }
 
     @Test
@@ -100,23 +100,23 @@ class ActualsBaselineResolverTest {
             orderedVisibleSources = listOf(
                 WeatherSource.VISUAL_CROSSING,
                 WeatherSource.NWS,
-                WeatherSource.OPEN_METEO,
+                WeatherSource.WEATHER_API,
             ),
             hasRowForDate = { it != WeatherSource.NWS },
         )
 
-        assertEquals(WeatherSource.OPEN_METEO, result)
+        assertEquals(WeatherSource.WEATHER_API, result)
     }
 
     @Test
     fun `source with native actuals but no row for the date falls back to another source`() {
         val result = ActualsBaselineResolver.resolveBaselineSource(
             gradedSource = WeatherSource.NWS,
-            orderedVisibleSources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO),
-            hasRowForDate = { it == WeatherSource.OPEN_METEO },
+            orderedVisibleSources = listOf(WeatherSource.NWS, WeatherSource.WEATHER_API),
+            hasRowForDate = { it == WeatherSource.WEATHER_API },
         )
 
-        assertEquals(WeatherSource.OPEN_METEO, result)
+        assertEquals(WeatherSource.WEATHER_API, result)
     }
 
     @Test
@@ -142,7 +142,7 @@ class ActualsBaselineResolverTest {
     @Test
     fun `hasNativeActuals matches the declared HistoricalDataKind`() {
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.NWS))
-        assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.OPEN_METEO))
+        assertEquals(false, ActualsBaselineResolver.hasNativeActuals(WeatherSource.OPEN_METEO))
         assertEquals(false, ActualsBaselineResolver.hasNativeActuals(WeatherSource.SILURIAN))
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.WEATHER_API))
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.TOMORROW_IO))

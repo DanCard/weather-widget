@@ -6,9 +6,9 @@ import com.weatherwidget.data.model.WeatherSource
 
 /**
  * Re-files the past slice of a source's timestamped history as observation rows that drive the
- * "actuals" (observed temperature) line for sources with an approved historical product — APIs
- * like Open-Meteo that have no station-observation product of their own. NWS supplies real station
- * readings and does NOT need this. Forecast-only sources must return no rows here.
+ * "actuals" (observed temperature) line for sources with an approved historical product.
+ * NWS supplies real station readings and does NOT need this. Forecast-only sources such as
+ * Open-Meteo must return no rows here.
  *
  * Shared by Android ([ForecastRepository.saveHistoricalActuals]) and the desktop service so
  * the mapping (and its precip provenance gate) cannot drift between platforms.
@@ -17,7 +17,7 @@ object HistoricalActualsBackfill {
 
     /**
      * The synthetic `stationId` stamped on every backfill observation row for [sourceId] (e.g.
-     * `"NWS_MAIN"`, `"OPEN_METEO_MAIN"`). These rows are not real station observations — they exist
+     * `"NWS_MAIN"`, `"WEATHER_API_MAIN"`). These rows are not real station observations — they exist
      * only to drive the actual line — so the observations/stations UI uses this to recognise and
      * filter them (see `ObservationSourceMatcher`).
      */

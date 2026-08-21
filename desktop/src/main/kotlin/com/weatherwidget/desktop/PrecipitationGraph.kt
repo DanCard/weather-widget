@@ -197,7 +197,10 @@ fun PrecipitationGraph(
         // Resolving rain periods & drawing rain amount labels
         val forecastRainPeriods = selectDayNightSegments(points, emptyList())
             .mapNotNull { it.toRainPeriod(points, stepWidth) { f -> f.precipAmountMm } }
-        val actualRainPeriods = selectDayNightSegments(points, observations)
+        val actualRainPeriods = selectDayNightSegments(
+            points,
+            actualPrecipRowsForSource(observations, displaySourceId),
+        )
             .mapNotNull { it.toRainPeriod(points, stepWidth) { f -> f.precipAmountMm } }
 
         val rainPlacements = calculateRainAmountPlacements(
@@ -308,6 +311,27 @@ private data class DayNightSegment(
     val endIndex: Int,
     val isDay: Boolean,
 )
+
+internal fun actualPrecipRowsForSource(
+    observations: List<ObservationReading>,
+    displaySourceId: String,
+): List<ObservationReading> {
+    val source = com.weatherwidget.data.model.WeatherSource.fromId(displaySourceId)
+    if (!source.historicalDataKind.preservesHistoricalPrecipitation) return emptyList()
+    return observations.filter { observation ->
+        when (source) {
+            com.weatherwidget.data.model.WeatherSource.NWS ->
+                observation.api == source.id && observation.stationId != "NWS_BLEND"
+            com.weatherwidget.data.model.WeatherSource.TOMORROW_IO ->
+                observation.api == source.id &&
+                    com.weatherwidget.shared.actuals.TomorrowIoActuals.isAllowedStation(observation.stationId)
+            else ->
+                observation.api == source.id &&
+                    observation.stationId ==
+                    com.weatherwidget.shared.actuals.HistoricalActualsBackfill.syntheticStationId(source.id)
+        }
+    }
+}
 
 private fun dayNightRuns(hours: List<HourlyForecast>): List<DayNightSegment> {
     if (hours.isEmpty()) return emptyList()

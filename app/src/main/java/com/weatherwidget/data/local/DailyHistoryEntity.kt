@@ -44,7 +44,7 @@ data class DailyHistoryEntity(
     val apiLowTemp: Float? = null,   // °F — API-reported observed low; null when source provides no native actuals
     // Which station produced apiHighTemp/apiLowTemp, when they came from station observations
     // (NWS via StationDailyExtremes). Null for sources whose api actuals are a gridded product
-    // (Open-Meteo ERA5) and for rows written before v59.
+    // and for rows written before v59. Legacy Open-Meteo model rows are removed by cleanup.
     val apiStationId: String? = null,
     val apiStationDistanceKm: Float? = null,
     // Where the NWS actuals on this row came from — see DailyActualsSource. Doubles as the marker

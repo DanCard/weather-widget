@@ -11,8 +11,9 @@ package com.weatherwidget.shared.stats
 enum class AccuracyBaselineField(val prefValue: String) {
     /**
      * `apiHighTemp`/`apiLowTemp` — the source's own past-weather product. For NWS that is the
-     * nearest official station's raw daily max/min ([com.weatherwidget.shared.actuals.StationDailyExtremes]);
-     * for Open-Meteo, ERA5. Default: no interpolation and no forecast-derived component.
+     * nearest official station's raw daily max/min ([com.weatherwidget.shared.actuals.StationDailyExtremes]).
+     * Forecast-only sources such as Open-Meteo are ineligible. Default: no interpolation and no
+     * forecast-derived component.
      */
     NATIVE_ACTUAL("native_actual"),
 

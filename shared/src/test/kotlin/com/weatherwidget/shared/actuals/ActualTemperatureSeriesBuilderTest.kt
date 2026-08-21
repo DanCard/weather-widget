@@ -99,18 +99,18 @@ class ActualTemperatureSeriesBuilderTest {
 
     @Test
     fun `non NWS source selects the station with best coverage before building actuals`() {
-        val forecasts = forecasts("2026-06-03T08:00:00", 8, source = WeatherSource.OPEN_METEO.id)
+        val forecasts = forecasts("2026-06-03T08:00:00", 8, source = WeatherSource.WEATHER_API.id)
         val observations = listOf(
-            observation("ONE", "2026-06-03T10:00:00", 60f, api = WeatherSource.OPEN_METEO.id, distanceKm = 1f),
-            observation("TWO", "2026-06-03T10:00:00", 80f, api = WeatherSource.OPEN_METEO.id, distanceKm = 2f),
-            observation("TWO", "2026-06-03T11:00:00", 82f, api = WeatherSource.OPEN_METEO.id, distanceKm = 2f),
+            observation("ONE", "2026-06-03T10:00:00", 60f, api = WeatherSource.WEATHER_API.id, distanceKm = 1f),
+            observation("TWO", "2026-06-03T10:00:00", 80f, api = WeatherSource.WEATHER_API.id, distanceKm = 2f),
+            observation("TWO", "2026-06-03T11:00:00", 82f, api = WeatherSource.WEATHER_API.id, distanceKm = 2f),
         )
 
         val result = ActualTemperatureSeriesBuilder.build(
             hourlyForecasts = forecasts,
             observations = observations,
             centerTime = center,
-            displaySourceId = WeatherSource.OPEN_METEO.id,
+            displaySourceId = WeatherSource.WEATHER_API.id,
             userLat = LAT,
             userLon = LON,
             backHours = 4,

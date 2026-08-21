@@ -91,7 +91,6 @@ class OpenMeteoDayNightPrecipIntegrationTest {
             tomorrowIoApi = mockk(relaxed = true),
             openWeatherMapApi = mockk(relaxed = true),
             nwsForecastMapper = mockk(relaxed = true),
-            openMeteoPastDayActualsWriter = OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao())
         )
     }
 

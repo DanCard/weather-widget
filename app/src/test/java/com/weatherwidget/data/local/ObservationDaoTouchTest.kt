@@ -123,6 +123,20 @@ class ObservationDaoTouchTest {
     }
 
     @Test
+    fun openMeteoCleanup_deletesOnlyMeteoModelRows() = runTest {
+        dao.insertAll(
+            listOf(
+                obs("OPEN_METEO_MAIN", 1_000L, 1_000L, api = "OPEN_METEO"),
+                obs("OPEN_METEO_1", 2_000L, 2_000L, api = "OPEN_METEO"),
+                obs("KNUQ", 3_000L, 3_000L),
+            ),
+        )
+
+        assertEquals(2, dao.deleteOpenMeteoModelObservations())
+        assertEquals(listOf("KNUQ"), dao.getRecentObservations(0L).map { it.stationId })
+    }
+
+    @Test
     fun sameStationTimestamp_isStoredAndTouchedIndependentlyPerSite() = runTest {
         dao.insertAll(
             listOf(

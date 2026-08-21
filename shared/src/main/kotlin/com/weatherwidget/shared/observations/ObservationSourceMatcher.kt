@@ -14,7 +14,7 @@ import com.weatherwidget.shared.actuals.TomorrowIoActuals
  * station under NWS:
  *  - the internal IDW blend (`"NWS_BLEND"`), and
  *  - the historical-actuals backfill ([HistoricalActualsBackfill.syntheticStationId], e.g.
- *    `"NWS_MAIN"`) that the NWS->Open-Meteo fallback mints so the actual line still renders.
+ *    `"NWS_MAIN"`) retained for explicitly approved history products.
  *
  * For non-NWS sources the backfill row (`"<SOURCE>_MAIN"`) is intentionally kept: those sources have
  * no real stations of their own, so it is the only entry available.
@@ -63,8 +63,9 @@ object ObservationSourceMatcher {
      * written together at insert time (`api = source.id`, stationId = `<SOURCE>_…`); they can only
      * drift if a new writer sets one without the other.
      */
-    fun matchesObservationSource(stationId: String, source: WeatherSource): Boolean =
-        when (source) {
+    fun matchesObservationSource(stationId: String, source: WeatherSource): Boolean {
+        if (!source.supportsTemperatureActuals) return false
+        return when (source) {
             WeatherSource.NWS ->
                 stationId != "NWS_BLEND" &&
                     stationId != HistoricalActualsBackfill.syntheticStationId(WeatherSource.NWS.id) &&
@@ -72,6 +73,7 @@ object ObservationSourceMatcher {
             WeatherSource.TOMORROW_IO -> TomorrowIoActuals.isAllowedStation(stationId)
             else -> stationId.startsWith(sourcePrefixes[source] ?: return false)
         }
+    }
 
     /** True when a row may drive the selected source's temperature/cloud actuals. */
     fun matchesActualSource(

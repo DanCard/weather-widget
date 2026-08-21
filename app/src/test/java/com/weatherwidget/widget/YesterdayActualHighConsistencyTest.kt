@@ -102,7 +102,6 @@ class YesterdayActualHighConsistencyTest {
             tomorrowIoApi,
             openWeatherMapApi,
             nwsForecastMapper,
-            OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao()),
         )
         
         repository = WeatherRepository(

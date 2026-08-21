@@ -82,7 +82,8 @@ class OpenMeteoApiTest {
             // Literal "16" (not just the constant) so an accidental MAX_DAYS change trips this too.
             assertEquals("16", request.url.parameters["forecast_days"])
             assertEquals(ForecastHorizon.MAX_DAYS.toString(), request.url.parameters["forecast_days"])
-            assertEquals(OpenMeteoApi.MINUTELY_15_VARIABLES, request.url.parameters["minutely_15"])
+            assertNull("Forecast-only Open-Meteo must not request model-current", request.url.parameters["current"])
+            assertNull("Unused 15-minute model rows must not be requested", request.url.parameters["minutely_15"])
         }
 
     @Test
@@ -110,7 +111,7 @@ class OpenMeteoApiTest {
             val forecast = api.getForecast(37.42, -122.08)
 
             assertEquals(3, forecast.daily.size)
-            assertEquals(65.5f, forecast.providerCurrentTemp!!, 0.001f)
+            assertNull(forecast.providerCurrentTemp)
 
             assertEquals("2026-01-27", forecast.daily[0].date)
             assertEquals(70f, forecast.daily[0].highTemp, 0.001f)
@@ -171,41 +172,6 @@ class OpenMeteoApiTest {
 
             assertNull(forecast.providerCurrentTemp)
             assertEquals(1, forecast.daily.size)
-        }
-
-    @Test
-    fun `getCurrent parses lightweight current response`() =
-        runTest {
-            val responseJson =
-                """
-                {
-                    "timezone": "America/Los_Angeles",
-                    "current": {
-                        "time": "2026-08-21T12:15",
-                        "temperature_2m": 64.3,
-                        "weather_code": 2,
-                        "cloud_cover": 63,
-                        "cloud_cover_low": 56
-                    }
-                }
-                """.trimIndent()
-
-            val client = createMockClient(responseJson)
-            val api = OpenMeteoApi(client, json)
-
-            val current = api.getCurrent(37.42, -122.08)
-
-            assertNotNull(current)
-            assertEquals(64.3f, current!!.temperature, 0.001f)
-            assertEquals(2, current.weatherCode)
-            assertEquals(63, current.cloudCover)
-            assertEquals(56, current.cloudCoverLow)
-            assertEquals(
-                java.time.LocalDateTime.of(2026, 8, 21, 12, 15)
-                    .atZone(java.time.ZoneId.of("America/Los_Angeles"))
-                    .toInstant().toEpochMilli(),
-                current.observedAt,
-            )
         }
 
     @Test

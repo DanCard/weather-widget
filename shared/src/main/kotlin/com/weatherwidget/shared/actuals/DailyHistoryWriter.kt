@@ -22,9 +22,6 @@ enum class DailyHistoryWriter(val storedValue: String) {
     /** `persistCachedStationActuals` — station extreme derived from retained observations. */
     CACHED_STATION_FALLBACK("cached_station_fallback"),
 
-    /** `persistOpenMeteoPastDayActuals` — Open-Meteo's own ERA5 past-day values. */
-    OPEN_METEO_PAST_DAYS("open_meteo_past_days"),
-
     /** `DailyHistorySnapshotter` — frozen forecast overlay, rain chance, noon cloud. */
     FORECAST_FREEZE("forecast_freeze"),
     ;

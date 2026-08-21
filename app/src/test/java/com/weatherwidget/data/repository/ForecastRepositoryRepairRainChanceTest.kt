@@ -60,7 +60,6 @@ class ForecastRepositoryRepairRainChanceTest {
             dailyHistoryDao = db.dailyHistoryDao(),
             observationRepository = mockk(relaxed = true),
             nwsForecastMapper = mockk(relaxed = true),
-            openMeteoPastDayActualsWriter = OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao()),
         )
     }
 

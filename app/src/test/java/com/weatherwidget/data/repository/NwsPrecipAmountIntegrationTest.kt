@@ -60,7 +60,6 @@ class NwsPrecipAmountIntegrationTest {
             tomorrowIoApi = mockk(relaxed = true),
             openWeatherMapApi = mockk(relaxed = true),
             nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao()),
-            openMeteoPastDayActualsWriter = OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao()),
         )
     }
 

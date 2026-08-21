@@ -79,17 +79,17 @@ class WeatherObservationsSupportTest {
     }
 
     @Test
-    fun `matchesObservationSource matches source prefixes for non-NWS sources`() {
-        assertTrue(
+    fun `matchesObservationSource accepts actual providers and rejects forecast-only providers`() {
+        assertFalse(
             WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(
                 stationId = "SILURIAN_2",
                 source = WeatherSource.SILURIAN,
             ),
         )
-        assertFalse(
+        assertTrue(
             WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(
                 stationId = "WEATHER_API_MAIN",
-                source = WeatherSource.SILURIAN,
+                source = WeatherSource.WEATHER_API,
             ),
         )
     }

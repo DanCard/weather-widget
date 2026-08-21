@@ -42,7 +42,6 @@ internal class ForecastFetchCoordinator(
     private val snapshotStore: ForecastSnapshotStore,
     private val hourlyStore: HourlyForecastStore,
     private val weatherApiHistoryBackfiller: WeatherApiHistoryBackfiller,
-    private val openMeteoPastDayActualsWriter: OpenMeteoPastDayActualsWriter,
     private val nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher?,
     private val hourlyForecastHistoryDao: com.weatherwidget.data.local.HourlyForecastHistoryDao? = null,
 ) {
@@ -201,7 +200,6 @@ internal class ForecastFetchCoordinator(
                         openMeteoApi.getForecast(
                             latitude,
                             longitude,
-                            historyDays = WeatherConfig.ACTUALS_HISTORY_DAYS,
                         )
                     }.also {
                         // Only Open-Meteo has a previous-runs product, and this rides its fetch so
@@ -380,15 +378,8 @@ internal class ForecastFetchCoordinator(
                 latitude,
                 longitude,
                 source.id,
-                historicalData = if (source == WeatherSource.OPEN_METEO) {
-                    result.subHourly.ifEmpty { result.hourly }
-                } else {
-                    result.hourly
-                },
+                historicalData = result.hourly,
             )
-        }
-        if (source == WeatherSource.OPEN_METEO) {
-            openMeteoPastDayActualsWriter.persistOpenMeteoPastDayActuals(latitude, longitude, result.daily)
         }
         return result.daily.map { day ->
             snapshotStore.mapDailyForecast(

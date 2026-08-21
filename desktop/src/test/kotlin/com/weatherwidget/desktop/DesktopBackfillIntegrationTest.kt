@@ -69,6 +69,31 @@ class DesktopBackfillIntegrationTest {
     }
 
     @Test
+    fun `Open-Meteo provider current does not update the header`() = runTest {
+        val baseHour = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
+        val now = baseHour + 30 * 60_000L
+        val meteoRepository = DesktopWeatherRepository(
+            weatherService,
+            dao,
+            lat,
+            lon,
+            WeatherSource.OPEN_METEO.id,
+            currentTimeMillis = { now },
+        )
+        coEvery { weatherService.fetchForecast() } returns RawFetch(
+            providerCurrentTemp = 99f,
+            hourly = listOf(
+                HourlyForecast(baseHour, 60f, "Clear", source = WeatherSource.OPEN_METEO.id),
+                HourlyForecast(baseHour + 3_600_000L, 70f, "Clear", source = WeatherSource.OPEN_METEO.id),
+            ),
+        )
+
+        val result = meteoRepository.refresh(now)
+
+        assertEquals(65f, result.resolved.currentTemp!!, 0.01f)
+    }
+
+    @Test
     fun `Tomorrow refresh does not rewrite elapsed forecast storage with recent history`() = runTest {
         val now = (System.currentTimeMillis() / 60_000L) * 60_000L
         val oldTimelineHour = now - 2 * 3_600_000L

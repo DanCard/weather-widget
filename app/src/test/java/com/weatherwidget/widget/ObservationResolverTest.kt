@@ -134,7 +134,7 @@ class ObservationResolverTest {
     }
 
     @Test
-    fun `resolveObservedCurrentTemp ignores NWS_BLEND when display source is Open-Meteo`() {
+    fun `resolveObservedCurrentTemp rejects cached Open-Meteo rows and ignores NWS blend`() {
         val nowMs = 1_000_000L
         val observations = listOf(
             currentTempObservation(stationId = "OPEN_METEO_MAIN", temperature = 74.0f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.OPEN_METEO.id),
@@ -143,8 +143,7 @@ class ObservationResolverTest {
 
         val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.OPEN_METEO)
 
-        assertNotNull(resolved)
-        assertEquals("NWS_BLEND must not bleed into Open-Meteo source", 74.0f, resolved!!.temperature)
+        assertNull("Forecast-only Open-Meteo must not resolve an observation", resolved)
     }
 
     @Test
@@ -234,21 +233,21 @@ class ObservationResolverTest {
     }
 
     @Test
-    fun `computeDailyExtremes groups NWS and Open-Meteo observations into separate entities`() {
+    fun `computeDailyExtremes groups NWS and WeatherAPI observations into separate entities`() {
         val dayMillis = 1_700_000_000_000L
         val obs = listOf(
             observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 70f, minTempLast24h = 40f, stationId = "KTEST", api = WeatherSource.NWS.id),
-            observation(timestamp = dayMillis + 1_800_000, temperature = 60f, maxTempLast24h = 68f, minTempLast24h = 42f, stationId = "OPEN_METEO_MAIN", api = WeatherSource.OPEN_METEO.id),
+            observation(timestamp = dayMillis + 1_800_000, temperature = 60f, maxTempLast24h = 68f, minTempLast24h = 42f, stationId = "WEATHER_API_MAIN", api = WeatherSource.WEATHER_API.id),
         )
 
         val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(2, result.size)
         val nwsEntity = result.first { it.source == WeatherSource.NWS.id }
-        val meteoEntity = result.first { it.source == WeatherSource.OPEN_METEO.id }
+        val weatherApiEntity = result.first { it.source == WeatherSource.WEATHER_API.id }
         // Time-aligned: each source's high = max over its own per-timestamp series, using spot temps
         assertEquals(55f, nwsEntity.computedHighTemp, 0.01f)
-        assertEquals(60f, meteoEntity.computedHighTemp, 0.01f)
+        assertEquals(60f, weatherApiEntity.computedHighTemp, 0.01f)
     }
 
     private fun extreme(date: java.time.LocalDate, high: Float, low: Float) = com.weatherwidget.data.model.DailyHistory(

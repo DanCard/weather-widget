@@ -10,15 +10,15 @@ import org.junit.experimental.categories.Category
 class WeatherSourceTemperatureActualsTest {
 
     @Test
-    fun `silurian forecast endpoint does not support temperature actuals`() {
+    fun `forecast model endpoints do not support temperature actuals`() {
         assertFalse(WeatherSource.SILURIAN.supportsTemperatureActuals)
+        assertFalse(WeatherSource.OPEN_METEO.supportsTemperatureActuals)
         assertFalse(WeatherSource.GENERIC_GAP.supportsTemperatureActuals)
     }
 
     @Test
     fun `verified actual sources remain enabled`() {
         assertTrue(WeatherSource.NWS.supportsTemperatureActuals)
-        assertTrue(WeatherSource.OPEN_METEO.supportsTemperatureActuals)
         assertTrue(WeatherSource.WEATHER_API.supportsTemperatureActuals)
         assertTrue(WeatherSource.TOMORROW_IO.supportsTemperatureActuals)
     }

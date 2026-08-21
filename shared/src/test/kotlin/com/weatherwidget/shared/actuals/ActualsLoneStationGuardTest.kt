@@ -163,14 +163,14 @@ class ActualsLoneStationGuardTest {
     fun `single station source still yields daily extremes`() {
         val obs = (6..20).map { hour ->
             observation(
-                "OPEN_METEO_MAIN",
+                "WEATHER_API_MAIN",
                 "2026-06-03T%02d:00:00".format(hour),
                 50f + hour,
-                api = WeatherSource.OPEN_METEO.id,
+                api = WeatherSource.WEATHER_API.id,
                 distanceKm = 0f,
             )
         }
-        val forecasts = forecasts("2026-06-03T00:00:00", 24, source = WeatherSource.OPEN_METEO.id)
+        val forecasts = forecasts("2026-06-03T00:00:00", 24, source = WeatherSource.WEATHER_API.id)
 
         val daily = ActualsAggregator.aggregate(
             observations = obs,
@@ -178,7 +178,7 @@ class ActualsLoneStationGuardTest {
             locationLat = LAT,
             locationLon = LON,
             zoneId = zone,
-        ).single { it.source == WeatherSource.OPEN_METEO.id }
+        ).single { it.source == WeatherSource.WEATHER_API.id }
 
         assertEquals(56f, daily.computedLowTemp, 0.001f)
         assertEquals(70f, daily.computedHighTemp, 0.001f)

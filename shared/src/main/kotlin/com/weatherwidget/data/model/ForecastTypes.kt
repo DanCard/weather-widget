@@ -119,11 +119,7 @@ data class ObservationReading(
 
 data class RawFetch(
     val hourly: List<HourlyForecast> = emptyList(),
-    /**
-     * Provider history at its native sub-hour cadence. Open-Meteo supplies complete 15-minute
-     * temperature/condition/precip/cloud rows, so these can be persisted as observations without
-     * inventing a temperature or introducing a cloud-only store.
-     */
+    /** Optional provider history at its native sub-hour cadence, when provenance permits actuals. */
     val subHourly: List<HourlyForecast> = emptyList(),
     val daily: List<DailyForecast> = emptyList(),
     val rawObservations: List<ObservationReading> = emptyList(),

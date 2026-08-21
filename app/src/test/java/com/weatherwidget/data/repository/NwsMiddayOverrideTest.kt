@@ -86,7 +86,6 @@ class NwsMiddayOverrideTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             nwsForecastMapper,
-            OpenMeteoPastDayActualsWriter(mockk(relaxed = true), appLogDao)
         )
         currentTempRepository = CurrentTempRepository(
             context,

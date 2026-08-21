@@ -64,14 +64,14 @@ class ObservationRepositoryTodayPrecipTest {
     private fun dtString(hour: Int): String = today.atTime(hour, 0).toString()
 
     /**
-     * Measured branch: when observations carry precipAmountMm (Open-Meteo / Tomorrow.io /
-     * Silurian pattern via their _MAIN pseudo-actuals), today's DailyHistory must expose all
+     * Measured branch: when an actual-capable provider's observations carry precipAmountMm,
+     * today's DailyHistory must expose all
      * three precip values summed from those observations — and the measured precip must win
      * over forecast precip (we seed conflicting hourly forecasts to prove it).
      */
     @Test
     fun `today live DailyHistory carries measured precip total day and night`() = runTest {
-        val sourceId = WeatherSource.OPEN_METEO.id
+        val sourceId = WeatherSource.WEATHER_API.id
 
         val dayObs = TestData.observation(
             stationId = "${sourceId}_MAIN",

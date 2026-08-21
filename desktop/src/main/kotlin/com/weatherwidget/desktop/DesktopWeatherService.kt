@@ -109,7 +109,7 @@ class DesktopWeatherService(
             WeatherSource.VISUAL_CROSSING.id -> withHistoricalActuals(visualCrossing.getForecast(latitude, longitude), WeatherSource.VISUAL_CROSSING.id)
             WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
             WeatherSource.OPEN_WEATHER_MAP.id -> withHistoricalActuals(openWeatherMap.getForecast(latitude, longitude), WeatherSource.OPEN_WEATHER_MAP.id)
-            WeatherSource.OPEN_METEO.id -> fetchOpenMeteoForecastWithActuals()
+            WeatherSource.OPEN_METEO.id -> fetchOpenMeteoForecast()
             else -> throw IllegalArgumentException("Unsupported weather source: $weatherSource")
         }
     }.getOrElse { e ->
@@ -159,8 +159,8 @@ class DesktopWeatherService(
     private fun withHistoricalActuals(result: RawFetch, sourceId: String): RawFetch =
         result.copy(
             rawObservations = result.rawObservations + HistoricalActualsBackfill.build(
-                // Open-Meteo supplies complete 15-minute temperature/cloud rows. Prefer them over
-                // the hourly subsample so the history curve reaches the provider's current stamp.
+                // Prefer a provider's native sub-hour actual product when its source contract
+                // permits historical actuals; forecast-only sources are rejected by the builder.
                 hourly = result.subHourly.ifEmpty { result.hourly },
                 latitude = latitude,
                 longitude = longitude,
@@ -198,19 +198,9 @@ class DesktopWeatherService(
         }
     }
 
-    /**
-     * Open-Meteo forecast plus the historical-actuals backfill. Open-Meteo additionally needs
-     * [ACTUALS_HISTORY_DAYS] of `past_days` so its hourly list actually contains the past hours the
-     * backfill re-files (other sources return their recent past inline).
-     *
-     * This method is called only when Open-Meteo is the selected source. Keeping that explicit is a
-     * source-isolation invariant: no other provider may be relabelled or replaced by Meteo data.
-     */
-    private suspend fun fetchOpenMeteoForecastWithActuals(): RawFetch =
-        withHistoricalActuals(
-            openMeteo.getForecast(latitude, longitude, days = ForecastHorizon.MAX_DAYS, historyDays = ACTUALS_HISTORY_DAYS),
-            WeatherSource.OPEN_METEO.id,
-        )
+    /** Open-Meteo Forecast API model output; never promoted to observations or daily actuals. */
+    private suspend fun fetchOpenMeteoForecast(): RawFetch =
+        openMeteo.getForecast(latitude, longitude, days = ForecastHorizon.MAX_DAYS)
 
     /**
      * Open-Meteo's Previous Runs API: what each elapsed hour was forecast to be ~24h beforehand.
@@ -596,8 +586,8 @@ class DesktopWeatherService(
     override suspend fun fetchObservationsOnly(recentOnly: Boolean): RawFetch =
         when (weatherSource) {
             "NWS" -> fetchNwsObservationsOnly(recentOnly)
-            WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
+            WeatherSource.OPEN_METEO.id,
             WeatherSource.WEATHER_API.id,
             WeatherSource.VISUAL_CROSSING.id,
             WeatherSource.SILURIAN.id,
@@ -678,30 +668,6 @@ class DesktopWeatherService(
         )
     }
 
-    private suspend fun fetchOpenMeteoObservationsOnly(): RawFetch = coroutineScope {
-        val reading = openMeteo.getCurrent(latitude, longitude)
-            ?: throw Exception("Open-Meteo current reading is null")
-        val condition = reading.weatherCode?.let { openMeteo.weatherCodeToCondition(it) } ?: "Unknown"
-        val obsReading = ObservationReading(
-            stationId = "OPEN_METEO_MAIN",
-            stationName = "Meteo: Current",
-            timestamp = reading.observedAt ?: System.currentTimeMillis(),
-            temperature = reading.temperature,
-            condition = condition,
-            locationLat = latitude,
-            locationLon = longitude,
-            api = WeatherSource.OPEN_METEO.id,
-            cloudCover = reading.cloudCover,
-            cloudCoverLow = reading.cloudCoverLow,
-        )
-        RawFetch(
-            providerCurrentTemp = reading.temperature,
-            providerCurrentCondition = condition,
-            providerCurrentObservedAt = reading.observedAt,
-            rawObservations = listOf(obsReading)
-        )
-    }
-
     override fun close() = httpClient.close()
 
     companion object {
@@ -711,10 +677,6 @@ class DesktopWeatherService(
 
         // How far back to pull observations for the actuals / accuracy pipeline.
         const val HISTORY_DAYS = 7L
-
-        // past_days window for the Open-Meteo actuals backfill — matches the graph's 6-day
-        // full zoom-out so the actual line spans the same range as the forecast line.
-        const val ACTUALS_HISTORY_DAYS = 7
 
         // Window for the current-temperature observation cycle. Must cover the poll interval plus
         // the endpoint's own publish lag plus one missed cycle: the loop polls every 10 min today

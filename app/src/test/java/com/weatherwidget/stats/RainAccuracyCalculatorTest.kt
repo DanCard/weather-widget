@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
@@ -101,13 +102,23 @@ class RainAccuracyCalculatorTest {
     }
 
     @Test
-    fun `actualPrecipByHour for non-NWS source keeps only MAIN rows`() {
+    fun `actualPrecipByHour for approved non-NWS history keeps only MAIN rows`() {
+        val hour = day.atTime(9, 0)
+        val observations = listOf(
+            observation(hour, precipAmountMm = 5f, api = WeatherSource.WEATHER_API.id, stationId = "WEATHER_API_MAIN"),
+            observation(hour, precipAmountMm = 7f, api = WeatherSource.WEATHER_API.id, stationId = "WEATHER_API_ALT"),
+        )
+        val byHour = RainAccuracyCalculator.actualPrecipByHour(observations, WeatherSource.WEATHER_API, zone)
+        assertEquals(mapOf(hour to 5f), byHour)
+    }
+
+    @Test
+    fun `actualPrecipByHour rejects cached Open Meteo model rows`() {
         val hour = day.atTime(9, 0)
         val observations = listOf(
             observation(hour, precipAmountMm = 5f, api = WeatherSource.OPEN_METEO.id, stationId = "OPEN_METEO_MAIN"),
-            observation(hour, precipAmountMm = 7f, api = WeatherSource.OPEN_METEO.id, stationId = "OPEN_METEO_ALT"),
         )
-        val byHour = RainAccuracyCalculator.actualPrecipByHour(observations, WeatherSource.OPEN_METEO, zone)
-        assertEquals(mapOf(hour to 5f), byHour)
+
+        assertTrue(RainAccuracyCalculator.actualPrecipByHour(observations, WeatherSource.OPEN_METEO, zone).isEmpty())
     }
 }

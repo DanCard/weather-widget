@@ -79,7 +79,7 @@ class DailyLiveTodayWindowConsistencyTest {
             context, db.forecastDao(), db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), db.appLogDao(),
             nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager,
             db.climateNormalDao(), db.observationDao(), db.dailyHistoryDao(), observationRepository,
-            tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, OpenMeteoPastDayActualsWriter(db.dailyHistoryDao(), db.appLogDao()),
+            tomorrowIoApi, openWeatherMapApi, nwsForecastMapper,
         )
         repository = WeatherRepository(
             context, forecastRepository, currentTempRepository, db.forecastDao(), db.appLogDao(), observationRepository,

@@ -73,7 +73,6 @@ class ClimateNormalsTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            OpenMeteoPastDayActualsWriter(mockk(relaxed = true), mockk(relaxed = true)),
         )
     }
 

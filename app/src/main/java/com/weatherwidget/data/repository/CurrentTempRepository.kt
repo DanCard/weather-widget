@@ -134,6 +134,12 @@ class CurrentTempRepository
                         dailyHistoryDao = dailyHistoryDao,
                         appLogDao = appLogDao,
                     )
+                    OpenMeteoLegacyActualsCleanup.runIfNeeded(
+                        context = context,
+                        observationDao = observationDao,
+                        dailyHistoryDao = dailyHistoryDao,
+                        appLogDao = appLogDao,
+                    )
 
                     val currentTime = System.currentTimeMillis()
                     // Location-scoped: a location handoff must not inherit the previous site's
@@ -159,7 +165,10 @@ class CurrentTempRepository
                     val candidateSources = (source?.let { requested ->
                         if (requested in enabledSources) listOf(requested) else emptyList()
                     } ?: enabledSources)
-                        .filter { it != WeatherSource.GENERIC_GAP }
+                        // This loop is specifically for observations that may correct the header.
+                        // Forecast-only providers (Open-Meteo and Silurian) are refreshed by the
+                        // normal forecast cycle and must never drive an observation correction.
+                        .filter { it.supportsTemperatureActuals }
                         .distinct()
 
                     // Sources currently displayed on a widget are never throttled — "priority" means
@@ -232,7 +241,6 @@ class CurrentTempRepository
             when (source) {
                 WeatherSource.OPEN_WEATHER_MAP -> fetchOpenWeatherMapCurrent(latitude, longitude)
                 WeatherSource.VISUAL_CROSSING -> fetchVisualCrossingCurrent(latitude, longitude)
-                WeatherSource.OPEN_METEO -> fetchOpenMeteoCurrent(latitude, longitude)
                 WeatherSource.WEATHER_API -> fetchWeatherApiCurrent(latitude, longitude)
                 WeatherSource.NWS -> observationRepository.fetchNwsCurrent(latitude, longitude)
                 WeatherSource.SILURIAN -> fetchSilurianCurrent(latitude, longitude)
@@ -326,50 +334,6 @@ class CurrentTempRepository
                 longitude = longitude,
             ) { lat, lon -> silurianApi.getForecast(lat, lon) }
         }
-        private suspend fun fetchOpenMeteoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
-            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
-                async {
-                    val reading = try {
-                        openMeteoApi.getCurrent(point.first, point.second)
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        null
-                    }
-                    if (reading != null) {
-                        val condition = reading.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) } ?: "Unknown"
-                        val stationId = if (point.third == "Current") "OPEN_METEO_MAIN" else "OPEN_METEO_$index"
-                        val obsEntity = ObservationEntity(
-                            stationId,
-                            "Meteo: ${point.third}",
-                            reading.observedAt ?: System.currentTimeMillis(),
-                            reading.temperature,
-                            condition,
-                            point.first,
-                            point.second,
-                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            "OFFICIAL",
-                            api = WeatherSource.OPEN_METEO.id,
-                            cloudCover = reading.cloudCover,
-                            cloudCoverLow = reading.cloudCoverLow,
-                        )
-                        insertCurrentObservation(obsEntity)
-                    }
-                    reading
-                }
-            }.map { it.await() }
-
-            deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
-                CurrentReadingPayload(
-                    WeatherSource.OPEN_METEO, 
-                    reading.temperature, 
-                    reading.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) }, 
-                    reading.observedAt
-                ) 
-            }
-        }
-
         private suspend fun fetchWeatherApiCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
             fetchForecastCurrent(
                 source = WeatherSource.WEATHER_API,

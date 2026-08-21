@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.CurrentTempStatus
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyHistory
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -119,6 +120,65 @@ class DesktopWeatherDaoTest {
         )
         assertTrue(dao.getExtremesInRange(now - 1L, now + 1L, lat, lon).isEmpty())
         assertNull(dao.cleanupLegacyTomorrowIoActuals())
+    }
+
+    @Test
+    fun `Open Meteo cleanup removes model observations and daily actual rows once`() {
+        val now = System.currentTimeMillis()
+        val lat = 37.42
+        val lon = -122.08
+        dao.upsertObservations(
+            listOf(
+                DesktopObservationEntity(
+                    stationId = "OPEN_METEO_MAIN",
+                    stationName = "Meteo model current",
+                    timestamp = now,
+                    temperature = 65f,
+                    condition = "Clear",
+                    locationLat = lat,
+                    locationLon = lon,
+                    fetchedAt = now,
+                    api = WeatherSource.OPEN_METEO.id,
+                ),
+                DesktopObservationEntity(
+                    stationId = "KNUQ",
+                    stationName = "KNUQ",
+                    timestamp = now,
+                    temperature = 64f,
+                    condition = "Clear",
+                    locationLat = lat,
+                    locationLon = lon,
+                    fetchedAt = now,
+                    api = WeatherSource.NWS.id,
+                ),
+            ),
+        )
+        dao.upsertDailyHistory(
+            listOf(
+                DailyHistory(
+                    date = now,
+                    source = WeatherSource.OPEN_METEO.id,
+                    locationLat = lat,
+                    locationLon = lon,
+                    computedHighTemp = 65f,
+                    computedLowTemp = 60f,
+                    condition = "Clear",
+                    updatedAt = now,
+                ),
+            ),
+        )
+
+        val result = dao.cleanupLegacyOpenMeteoActuals()
+
+        assertNotNull(result)
+        assertEquals(1, result!!.observationsDeleted)
+        assertEquals(1, result.dailyRowsDeleted)
+        assertEquals(
+            listOf("KNUQ"),
+            dao.getObservationsInRange(now - 1L, now + 1L, lat, lon).map { it.stationId },
+        )
+        assertTrue(dao.getExtremesInRange(now - 1L, now + 1L, lat, lon).isEmpty())
+        assertNull(dao.cleanupLegacyOpenMeteoActuals())
     }
 
     @Test

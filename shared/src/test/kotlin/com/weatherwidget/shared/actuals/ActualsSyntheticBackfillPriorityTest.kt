@@ -73,18 +73,18 @@ class ActualsSyntheticBackfillPriorityTest {
     }
 
     @Test
-    fun `forecast-only source still uses its backfill when it is the only candidate`() {
-        // Open-Meteo has no stations of its own; OPEN_METEO_MAIN is all there is and must be used.
+    fun `non NWS actual source still uses its backfill when it is the only candidate`() {
+        // WeatherAPI has no stations of its own; WEATHER_API_MAIN is all there is and must be used.
         val obs = listOf(
             observation(
-                "OPEN_METEO_MAIN",
+                "WEATHER_API_MAIN",
                 "2026-08-02T18:00:00",
                 83.2f,
-                api = WeatherSource.OPEN_METEO.id,
+                api = WeatherSource.WEATHER_API.id,
                 distanceKm = 0f,
             ),
         )
-        val result = blend(obs, WeatherSource.OPEN_METEO.id, forecastSource = WeatherSource.OPEN_METEO.id)
+        val result = blend(obs, WeatherSource.WEATHER_API.id, forecastSource = WeatherSource.WEATHER_API.id)
 
         val point = result.observations.single { it.timestamp == epoch("2026-08-02T18:00:00") }
         assertEquals(83.2f, point.temperature, 0.001f)
@@ -108,28 +108,28 @@ class ActualsSyntheticBackfillPriorityTest {
     // backfill carries stationType = OFFICIAL and resolves as "observed".
 
     @Test
-    fun `dominant contribution is flagged synthetic for a forecast-only source`() {
-        // The everyday case, not an edge case: Open-Meteo has no stations, so OPEN_METEO_MAIN is the
+    fun `dominant contribution is flagged synthetic for a non NWS history source`() {
+        // WeatherAPI has no stations, so WEATHER_API_MAIN is the
         // only candidate and is therefore ALWAYS the dominant one.
         val at = epoch("2026-08-02T18:00:00")
         val obs = listOf(
             observation(
-                "OPEN_METEO_MAIN",
+                "WEATHER_API_MAIN",
                 "2026-08-02T18:00:00",
                 83.2f,
-                api = WeatherSource.OPEN_METEO.id,
+                api = WeatherSource.WEATHER_API.id,
                 distanceKm = 0f,
             ),
         )
         val dominant =
             blend(
                 obs,
-                WeatherSource.OPEN_METEO.id,
-                forecastSource = WeatherSource.OPEN_METEO.id,
+                WeatherSource.WEATHER_API.id,
+                forecastSource = WeatherSource.WEATHER_API.id,
                 captureLatestDominantAtOrBeforeMs = at,
             ).latestDominantContribution!!
 
-        assertEquals("OPEN_METEO_MAIN", dominant.contribution.stationId)
+        assertEquals("WEATHER_API_MAIN", dominant.contribution.stationId)
         assertTrue("the backfill row must be flagged synthetic", dominant.contribution.isSynthetic)
         // The fields that would otherwise pass it off as a station reading, pinned so the flag stays
         // the only way to tell.

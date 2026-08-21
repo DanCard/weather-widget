@@ -91,7 +91,6 @@ class WeatherRepositoryTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             nwsForecastMapper,
-            OpenMeteoPastDayActualsWriter(dailyHistoryDao, appLogDao),
         )
         currentTempRepository = CurrentTempRepository(
             context,
@@ -195,34 +194,31 @@ class WeatherRepositoryTest {
         }
 
     @Test
-    fun `refreshCurrentTemperature updates only current temp on existing today row`() =
+    fun `refreshCurrentTemperature does not fetch Open-Meteo model current as an observation`() =
         runTest {
             val editor = mockk<SharedPreferences.Editor>(relaxed = true)
             every { sharedPrefs.edit() } returns editor
             every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
-            coEvery { openMeteoApi.getCurrent(any(), any()) } returns OpenMeteoApi.CurrentReading(61.2f, 1)
-            every { openMeteoApi.weatherCodeToCondition(any()) } returns "Mostly Clear"
             val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName, source = WeatherSource.OPEN_METEO)
             assertTrue(result.isSuccess)
-            coVerify { observationDao.insertAll(match { it.any { obs -> obs.stationId.startsWith("OPEN_METEO") && obs.temperature == 61.2f } }) }
+            assertEquals(0, result.getOrNull())
+            verify { openMeteoApi wasNot Called }
+            coVerify(exactly = 0) { observationDao.insertAll(any()) }
         }
 
     @Test
-    fun `refreshCurrentTemperature fetches enabled Open-Meteo when selected by settings`() =
+    fun `refreshCurrentTemperature skips enabled Open-Meteo because it has no actuals`() =
         runTest {
             val editor = mockk<SharedPreferences.Editor>(relaxed = true)
             every { sharedPrefs.edit() } returns editor
             every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
             every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
-            coEvery { openMeteoApi.getCurrent(any(), any()) } returns OpenMeteoApi.CurrentReading(61.2f, 1)
-            every { openMeteoApi.weatherCodeToCondition(any()) } returns "Mostly Clear"
-
             val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName)
 
             assertTrue(result.isSuccess)
-            assertEquals(1, result.getOrNull())
-            coVerify(atLeast = 1) { openMeteoApi.getCurrent(any(), any()) }
-            coVerify { observationDao.insertAll(match { it.any { obs -> obs.stationId.startsWith("OPEN_METEO") } }) }
+            assertEquals(0, result.getOrNull())
+            verify { openMeteoApi wasNot Called }
+            coVerify(exactly = 0) { observationDao.insertAll(any()) }
         }
 
     @Test
@@ -242,7 +238,7 @@ class WeatherRepositoryTest {
 
             assertTrue(result.isSuccess)
             assertEquals(0, result.getOrNull())
-            coVerify(exactly = 0) { openMeteoApi.getCurrent(any(), any()) }
+            verify { openMeteoApi wasNot Called }
             coVerify(exactly = 0) { observationDao.insertAll(any()) }
         }
 

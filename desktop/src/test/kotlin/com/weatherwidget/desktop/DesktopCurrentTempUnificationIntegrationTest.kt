@@ -38,8 +38,8 @@ class DesktopCurrentTempUnificationIntegrationTest {
         database = DesktopWeatherDatabase(tempDbPath).apply { initialize() }
         dao = DesktopWeatherDao(database)
         
-        val dummyService = DesktopWeatherService(testLat, testLon, WeatherSource.OPEN_METEO.id)
-        repository = DesktopWeatherRepository(dummyService, dao, testLat, testLon, WeatherSource.OPEN_METEO.id)
+        val dummyService = DesktopWeatherService(testLat, testLon, WeatherSource.WEATHER_API.id)
+        repository = DesktopWeatherRepository(dummyService, dao, testLat, testLon, WeatherSource.WEATHER_API.id)
     }
 
     @After
@@ -63,12 +63,12 @@ class DesktopCurrentTempUnificationIntegrationTest {
                     dateTime = dt.atZone(zoneId).toInstant().toEpochMilli(),
                     temperature = 70f + (i * 0.5f), // Gradual curve
                     condition = "Sunny",
-                    source = WeatherSource.OPEN_METEO.id,
+                    source = WeatherSource.WEATHER_API.id,
                     fetchedAt = nowMs
                 )
             )
         }
-        dao.upsertHourlyForecasts(testLat, testLon, WeatherSource.OPEN_METEO.id, largeWindow)
+        dao.upsertHourlyForecasts(testLat, testLon, WeatherSource.WEATHER_API.id, largeWindow)
 
         // 2. Setup a recent observation 15 minutes ago
         val observationTimeMs = nowMs - (15 * 60 * 1000L)
@@ -84,7 +84,7 @@ class DesktopCurrentTempUnificationIntegrationTest {
                 distanceKm = 0f,
                 stationType = "VIRTUAL",
                 fetchedAt = nowMs,
-                api = WeatherSource.OPEN_METEO.id
+                api = WeatherSource.WEATHER_API.id
             )
         )
         dao.upsertObservations(obs)
@@ -98,7 +98,7 @@ class DesktopCurrentTempUnificationIntegrationTest {
                 condition = "Sunny"
             )
         )
-        dao.upsertForecasts(testLat, testLon, WeatherSource.OPEN_METEO.id, daily)
+        dao.upsertForecasts(testLat, testLon, WeatherSource.WEATHER_API.id, daily)
 
         // 4. Perform resolution via repository
         val result = repository.loadCached(nowMs)
@@ -115,7 +115,7 @@ class DesktopCurrentTempUnificationIntegrationTest {
         val resolvedObs = ActualsAggregator.resolveCurrentObservation(
             observations = narrowObs,
             hourlyForecasts = narrowHourly,
-            displaySourceId = WeatherSource.OPEN_METEO.id,
+            displaySourceId = WeatherSource.WEATHER_API.id,
             userLat = testLat,
             userLon = testLon,
             nowMs = nowMs,
@@ -127,12 +127,12 @@ class DesktopCurrentTempUnificationIntegrationTest {
         val (resolvedTemp, resolvedObsAt, _) = resolvedObs!!
 
         val smoothedForecasts = CurrentTemperatureResolver.computeSmoothedForecasts(
-            narrowHourly, WeatherSource.OPEN_METEO.id
+            narrowHourly, WeatherSource.WEATHER_API.id
         )
 
         val expectedResolution = CurrentTemperatureResolver.resolve(
             now = now,
-            displaySource = WeatherSource.OPEN_METEO,
+            displaySource = WeatherSource.WEATHER_API,
             hourlyForecasts = narrowHourly,
             lastObservedTemp = resolvedTemp,
             observedAt = resolvedObsAt,

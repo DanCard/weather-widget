@@ -338,16 +338,16 @@ class MetarCloudBlenderTest {
         // rounding tolerance the padded read grants the NWS branch. A caller whose endMs is
         // mid-hour must not gain an actual for the hour after it.
         val readings = listOf(
-            reading("OPEN_METEO_MAIN", hour - 3_600_000L, cloudLow = 10, distanceKm = 0f,
-                api = WeatherSource.OPEN_METEO.id),
-            reading("OPEN_METEO_MAIN", hour, cloudLow = 30, distanceKm = 0f,
-                api = WeatherSource.OPEN_METEO.id),
-            reading("OPEN_METEO_MAIN", hour + 3_600_000L, cloudLow = 60, distanceKm = 0f,
-                api = WeatherSource.OPEN_METEO.id),
+            reading("WEATHER_API_MAIN", hour - 3_600_000L, cloudLow = 10, distanceKm = 0f,
+                api = WeatherSource.WEATHER_API.id),
+            reading("WEATHER_API_MAIN", hour, cloudLow = 30, distanceKm = 0f,
+                api = WeatherSource.WEATHER_API.id),
+            reading("WEATHER_API_MAIN", hour + 3_600_000L, cloudLow = 60, distanceKm = 0f,
+                api = WeatherSource.WEATHER_API.id),
         )
 
         val result = MetarCloudBlender.fromSiteRows(
-            hour, hour + 45 * min, WeatherSource.OPEN_METEO.id, FakeSiteReader(readings)::read,
+            hour, hour + 45 * min, WeatherSource.WEATHER_API.id, FakeSiteReader(readings)::read,
         )
 
         assertEquals(mapOf(hour to 30), result.hours)
@@ -375,11 +375,11 @@ class MetarCloudBlenderTest {
     @Test
     fun `fromSiteRows pins non-NWS sources to their synthetic backfill row and prefers the low layer`() = runBlocking {
         val readings = listOf(
-            reading("OPEN_METEO_MAIN", hour, cloudLow = 30, distanceKm = 0f,
-                api = WeatherSource.OPEN_METEO.id),
+            reading("WEATHER_API_MAIN", hour, cloudLow = 30, distanceKm = 0f,
+                api = WeatherSource.WEATHER_API.id),
             // A row whose low is missing falls back to the total column.
-            reading("OPEN_METEO_MAIN", hour + 3_600_000L, cloudLow = null, distanceKm = 0f,
-                api = WeatherSource.OPEN_METEO.id)
+            reading("WEATHER_API_MAIN", hour + 3_600_000L, cloudLow = null, distanceKm = 0f,
+                api = WeatherSource.WEATHER_API.id)
                 .copy(cloudCover = 55),
             // A real station's row (or another source's synthetic row) must never join the series.
             reading("KNUQ", hour, cloudLow = 90, distanceKm = 2f),
@@ -387,7 +387,7 @@ class MetarCloudBlenderTest {
         )
 
         val result = MetarCloudBlender.fromSiteRows(
-            hour, hour + 2 * 3_600_000L, WeatherSource.OPEN_METEO.id, FakeSiteReader(readings)::read,
+            hour, hour + 2 * 3_600_000L, WeatherSource.WEATHER_API.id, FakeSiteReader(readings)::read,
         )
 
         assertEquals(
@@ -401,14 +401,14 @@ class MetarCloudBlenderTest {
     fun `fromSiteRows rejects rows carrying another api even when station id matches`() = runBlocking {
         val readings = listOf(
             reading(
-                "OPEN_METEO_MAIN",
+                "WEATHER_API_MAIN",
                 hour,
                 cloudLow = 56,
                 distanceKm = 0f,
-                api = WeatherSource.OPEN_METEO.id,
+                api = WeatherSource.WEATHER_API.id,
             ),
             reading(
-                "OPEN_METEO_MAIN",
+                "WEATHER_API_MAIN",
                 hour + 15 * min,
                 cloudLow = 100,
                 distanceKm = 0f,
@@ -419,7 +419,7 @@ class MetarCloudBlenderTest {
         val result = MetarCloudBlender.fromSiteRows(
             hour,
             hour + 3_600_000L,
-            WeatherSource.OPEN_METEO.id,
+            WeatherSource.WEATHER_API.id,
             FakeSiteReader(readings)::read,
         )
 

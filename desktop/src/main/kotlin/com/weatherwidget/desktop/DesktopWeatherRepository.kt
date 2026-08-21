@@ -50,6 +50,12 @@ class DesktopWeatherRepository(
                 "Tomorrow.io actuals cleanup: observations=${result.observationsDeleted} daily=${result.dailyRowsDeleted}",
             )
         }
+        weatherDao.cleanupLegacyOpenMeteoActuals()?.let { result ->
+            Log.i(
+                "DesktopWeatherRepository",
+                "Open-Meteo model-actual cleanup: observations=${result.observationsDeleted} daily=${result.dailyRowsDeleted}",
+            )
+        }
     }
 
     /** Result of the current-temperature resolution: display temp, forecast delta, yesterday delta. */
@@ -160,15 +166,28 @@ class DesktopWeatherRepository(
         return resolveForForecastResult(raw.hourly, raw.rawObservations, now, resultLogLevel = "VERBOSE")
     }
 
-    /** Null-cache fallback: the provider's own current reading is the best we have to display. */
-    private fun rawFetchToSnapshot(raw: RawFetch): ForecastSnapshot = ForecastSnapshot(
-        raw = raw,
-        resolved = ResolvedView(
-            currentTemp = raw.providerCurrentTemp,
-            currentCondition = raw.providerCurrentCondition,
-            currentObservedAt = raw.providerCurrentObservedAt,
-        ),
-    )
+    /** Null-cache fallback while the just-fetched rows are becoming visible to the cache read. */
+    private fun rawFetchToSnapshot(raw: RawFetch): ForecastSnapshot {
+        val source = WeatherSource.fromDisplaySource(weatherSource)
+        val forecastOnlyTemp = if (!source.supportsTemperatureActuals) {
+            resolveForForecastResult(raw.hourly, emptyList(), currentTimeMillis()).displayTemp
+        } else {
+            null
+        }
+        return ForecastSnapshot(
+            raw = raw,
+            resolved = ResolvedView(
+                // A provider-current field is an observation anchor only for sources whose
+                // contract says it is actual data. Open-Meteo instead resolves from its forecast
+                // timeline, exactly like the normal cached path.
+                currentTemp = forecastOnlyTemp ?: raw.providerCurrentTemp,
+                currentCondition = raw.providerCurrentCondition,
+                currentObservedAt = raw.providerCurrentObservedAt.takeIf {
+                    source.supportsTemperatureActuals
+                },
+            ),
+        )
+    }
 
     suspend fun loadCached(now: Long = currentTimeMillis()): ForecastSnapshot? = withContext(Dispatchers.IO) {
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
@@ -366,13 +385,6 @@ class DesktopWeatherRepository(
             // became that day's forecast — see plans/260808-nws-actuals-forecast-contamination.md.
             // NWS actuals now come from station observations, derived below alongside the blend.
             //
-            // Open-Meteo's past_days values ARE genuine ERA5, but `result.daily` belongs to
-            // whichever source is active, so writing it into OPEN_METEO rows unconditionally would
-            // file the active source's forecast as Open-Meteo's actual.
-            if (displaySource == WeatherSource.OPEN_METEO) {
-                persistOpenMeteoApiActuals(result.daily)
-            }
-
             if (result.rawObservations.isNotEmpty()) {
                 // Permanent diagnostic: separates "the backfill produced no cloud" from "the write
                 // dropped it". Both failed silently once, because the columns are nullable.
@@ -637,7 +649,9 @@ class DesktopWeatherRepository(
                 resolved = ResolvedView(
                     currentTemp = resolvedCached.displayTemp,
                     currentCondition = result.providerCurrentCondition ?: cached.resolved.currentCondition,
-                    currentObservedAt = result.providerCurrentObservedAt ?: cached.resolved.currentObservedAt,
+                    currentObservedAt = result.providerCurrentObservedAt
+                        .takeIf { displaySource.supportsTemperatureActuals }
+                        ?: cached.resolved.currentObservedAt,
                     appliedDelta = resolvedCached.appliedDelta,
                     deltaFromYesterday = resolvedCached.deltaFromYesterday,
                 ),
@@ -1032,52 +1046,6 @@ class DesktopWeatherRepository(
         private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
         private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = "FROZEN_DISPLAY_BACKFILL_DONE"
     }
-
-    internal fun persistOpenMeteoApiActuals(daily: List<DailyForecast>) {
-        val today = LocalDate.now()
-        val pastDays = daily.filter { day ->
-            runCatching { LocalDate.parse(day.date) }.getOrNull()?.isBefore(today) == true
-        }
-        Log.i(TAG, "persistOpenMeteoApiActuals: daily=${daily.size} pastDays=${pastDays.size}")
-        if (pastDays.isEmpty()) return
-        val now = System.currentTimeMillis()
-        val minEpoch = pastDays.minOf { LocalDate.parse(it.date) }.toEpochDay() * 86400000L
-        val maxEpoch = pastDays.maxOf { LocalDate.parse(it.date) }.toEpochDay() * 86400000L
-        val existingByDate = weatherDao.getExtremesInRange(minEpoch, maxEpoch, latitude, longitude)
-            .filter { it.source == WeatherSource.OPEN_METEO.id }
-            .associateBy { it.date }
-        val toUpsert = pastDays.map { day ->
-            val dateEpoch = LocalDate.parse(day.date).toEpochDay() * 86400000L
-            val existing = existingByDate[dateEpoch]
-            DailyHistory(
-                date = dateEpoch,
-                source = WeatherSource.OPEN_METEO.id,
-                locationLat = latitude,
-                locationLon = longitude,
-                computedHighTemp = existing?.computedHighTemp ?: day.highTemp,
-                computedLowTemp = existing?.computedLowTemp ?: day.lowTemp,
-                condition = existing?.condition ?: day.condition,
-                updatedAt = now,
-                precipAmountMm = existing?.precipAmountMm,
-                precipDayMm = existing?.precipDayMm,
-                precipNightMm = existing?.precipNightMm,
-                forecastDayPrecipChance = existing?.forecastDayPrecipChance,
-                forecastNightPrecipChance = existing?.forecastNightPrecipChance,
-                forecastHighTemp = existing?.forecastHighTemp,
-                forecastLowTemp = existing?.forecastLowTemp,
-                forecastPrecipAmountMm = existing?.forecastPrecipAmountMm,
-                noonCloudPercent = existing?.noonCloudPercent,
-                apiHighTemp = day.highTemp,
-                apiLowTemp = day.lowTemp,
-                lastWriter = DailyHistoryWriter.OPEN_METEO_PAST_DAYS.storedValue,
-            )
-        }
-        if (toUpsert.isNotEmpty()) {
-            weatherDao.upsertDailyHistory(toUpsert)
-            Log.i(TAG, "persistOpenMeteoApiActuals: upserted ${toUpsert.size} rows")
-        }
-    }
-
 
     /**
      * Fills NWS apiHighTemp/apiLowTemp from a dedicated complete pull of

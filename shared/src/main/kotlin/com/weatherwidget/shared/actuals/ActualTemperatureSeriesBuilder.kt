@@ -70,7 +70,7 @@ data class BlendContribution(
     val weightShare: Double,
     /**
      * True when this row is the historical-actuals backfill ([HistoricalActualsBackfill.syntheticStationId],
-     * e.g. `OPEN_METEO_MAIN`) rather than a thermometer — the source's own hourly forecast re-filed as
+     * e.g. `WEATHER_API_MAIN`) rather than a thermometer — the source's own history re-filed as
      * observations at `distanceKm = 0`.
      *
      * Nothing in the other fields gives this away: the row carries `stationType = "OFFICIAL"` and resolves
@@ -448,7 +448,7 @@ object ActualTemperatureSeriesBuilder {
             // 3h interpolation reach covers set a daily low 5°F below every official station. Only
             // the day's dominant station (best coverage) may stand alone; sparse stragglers must be
             // corroborated. A single-station day is trivially dominant, so sources with one station
-            // (OPEN_METEO_MAIN, SILURIAN_MAIN) and full-day solo coverage are unaffected.
+            // (for example WEATHER_API_MAIN) and full-day solo coverage are unaffected.
             if (candidates.size == 1 && byStation.size > 1) {
                 val sole = soleContributorId
                 val dominant = dominantByDay[Instant.ofEpochMilli(targetTs).atZone(zoneId).toLocalDate()]
