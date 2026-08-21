@@ -168,7 +168,9 @@ interface HourlyForecastHistoryDao {
     ): Map<Long, Int> =
         getPriorDayCloudCandidates(startDateTime, endDateTime, lat, lon, source)
             .filter { LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon) }
-            .mapNotNull { row -> row.cloudCover?.let { row.dateTime to it } }
+            // Low-preferred: the previous-runs variable is the LOW layer, and rows written before
+            // the column switch still carry it on cloudCover.
+            .mapNotNull { row -> (row.cloudCoverLow ?: row.cloudCover)?.let { row.dateTime to it } }
             .toMap()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

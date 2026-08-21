@@ -26,20 +26,15 @@ import com.weatherwidget.shared.graph.*
 import com.weatherwidget.shared.graph.CloudSeriesBuilder
 import kotlin.math.roundToInt
 
-// Complementary tints of the same neutral: pink and mint sit 180 deg apart (hsl 343 vs 163), so
-// they read as opposites without either becoming a saturated colour. Lightness still carries the
-// distinction — the curves overlap exactly whenever the forecast was right, and the forecast's
-// lightness is tuned to hold a 2.0 luminance ratio there. Must match CloudCoverGraphStyle.
-private val COLOR_CLOUD_CURVE = Color(0xFFB5BAB9)   // light neutral grey (hsl 163, 4%, 72%)
-private val COLOR_CLOUD_ACTUAL = Color(0xFFF5DBE3)  // pale pink        (hsl 343, 55%, 91%)
+// Shared palette (CloudCoverGraphPalette) — the Android renderer draws the identical ARGBs. The
+// colour-design rationale (complementary 343/163 hues, asymmetric saturation vs lightness) is
+// documented there. Local vals keep the Compose Color typing.
+private val COLOR_CLOUD_CURVE = Color(CloudCoverGraphPalette.CURVE_FORECAST)
+private val COLOR_CLOUD_ACTUAL = Color(CloudCoverGraphPalette.CURVE_ACTUAL)
 
-// Labels take their curve's hue at the ACTUAL's lightness — a mid-tone mint numeral on the dark
-// plot reads far worse than the line it annotates. Must match CloudCoverGraphStyle.
-private val COLOR_CLOUD_LABEL_FORECAST = Color(0xFFE9ECEB)
+private val COLOR_CLOUD_LABEL_FORECAST = Color(CloudCoverGraphPalette.LABEL_FORECAST)
 
-/** Minimum forecast-vs-actual gap worth a second label; matches CloudCoverGraphRenderer. */
-private const val ACTUAL_LABEL_MIN_DIVERGENCE = 8
-private val COLOR_CLOUD_FILL_START = Color(0xFFB5BAB9).copy(alpha = 0.22f)
+private val COLOR_CLOUD_FILL_START = Color(CloudCoverGraphPalette.CURVE_FORECAST).copy(alpha = 0.22f)
 private val COLOR_CLOUD_FILL_END = Color.Transparent
 
 private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
@@ -102,7 +97,11 @@ fun CloudCoverGraph(
         val windowStart = start
         val windowEnd = cutoff
 
-        val rawCloudValues = points.map { it.cloudCover?.toFloat() ?: 0f }
+        // The LIVE/FUTURE curve draws the visible layer — low where the row has it, else the total —
+        // matching what the frozen forecast and actual curves carry. Drawing the total here instead
+        // put a cliff exactly at "now" under thin cirrus (measured 2026-08-20: total 83-99% all
+        // afternoon while the low layer and every surface station read 4-13%).
+        val rawCloudValues = points.map { (it.cloudCoverLow ?: it.cloudCover)?.toFloat() ?: 0f }
         val smoothedClouds = com.weatherwidget.shared.graph.SeriesSmoothing.smoothValuesPreservingAllExtrema(rawCloudValues, smoothIterations)
         
         // Past hours: the live row has been retro-corrected by later runs and is the ACTUAL; the
@@ -252,7 +251,7 @@ fun CloudCoverGraph(
                 // so a second label just prints the same number twice.
                 val hourIdx = actualIndices[p.index]
                 kotlin.math.abs(actualSignal[p.index] - smoothedForecast[hourIdx].roundToInt()) >=
-                    ACTUAL_LABEL_MIN_DIVERGENCE
+                    CloudCoverGraphPalette.ACTUAL_LABEL_MIN_DIVERGENCE
             }.forEach { p ->
                 val r = Rect(p.box.left, p.box.top, p.box.right, p.box.bottom)
                 drawText(textMeasurer.measure(p.text, actualStyle), topLeft = r.topLeft)
@@ -260,18 +259,8 @@ fun CloudCoverGraph(
             }
         }
 
-        // Draw Cloud Watermark in emptiest region
-        val windowSize = (points.size / 5).coerceIn(3, 6)
-        val candidateCenters = (0..points.size - windowSize)
-            .map { start ->
-                val avg = (start until start + windowSize).map { smoothedClouds[it] }.average().toFloat()
-                val center = start + windowSize / 2
-                val edgeDistance = minOf(center, points.lastIndex - center)
-                Triple(center, avg, edgeDistance)
-            }
-            .sortedWith(compareBy<Triple<Int, Float, Int>> { it.second }.thenByDescending { it.third })
-            .map { it.first }
-            .distinct()
+        // Draw Cloud Watermark in emptiest region — shared candidate search, local placement.
+        val candidateCenters = CloudWatermarkPlacement.candidateCenters(smoothedClouds)
 
         var watermarkPlaced = false
         val watermarkIconSize = 48.dp.toPx()

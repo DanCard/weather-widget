@@ -7,29 +7,13 @@ import com.weatherwidget.shared.graph.HourlyGraphDefaults
 
 object CloudCoverGraphStyle {
 
-    // Complementary hues 180 deg apart (343 pink / 163 mint), but deliberately ASYMMETRIC in how
-    // far each is pushed. The forecast is the background quantity and stays essentially grey; the
-    // actual is the thing worth looking at and carries real pink.
-    //
-    // Saturation has to fight lightness here: at 94% lightness even 35% saturation is invisible,
-    // which is why an earlier attempt at a "slight pink tint" read as plain white. Showing the hue
-    // at all means coming down in lightness, so the actual sits at 85% lightness — which is what
-    // lets 32% saturation register as pink rather than disappear.
-    //
-    // Both are deliberately restrained: the hues identify the curves, they are not the subject.
-    // Value still carries the distinction (ratio 1.6) where the two curves lie exactly on top of
-    // each other, which is most of a clear or overcast day.
-    //
-    // Both sit high on the lightness scale, which costs hue perception — the gamut narrows toward
-    // white, so the pink reads as a warm cast rather than a colour. That is the intended balance
-    // here; if the tint ever needs to be more obvious, raise saturation rather than reaching for a
-    // different hue, and expect to give back some lightness to do it.
-    private const val COLOR_CLOUD_CURVE = "#B5BAB9"   // light neutral grey (hsl 163, 4%, 72%)
-    private const val COLOR_CLOUD_ACTUAL = "#F5DBE3"  // pale pink        (hsl 343, 55%, 91%)
-
-    // Labels sit lighter than their curves so they stay readable on the dark plot, while keeping
-    // enough of the hue to tie each number to the line it describes.
-    private const val COLOR_CLOUD_LABEL_FORECAST = "#E9ECEB" // pale neutral white
+    // ARGB values come from the shared palette so the desktop composable draws the identical
+    // colours; the colour-design rationale (complementary 343/163 hues, asymmetric saturation vs
+    // lightness trade-off) is documented there.
+    private const val COLOR_CLOUD_CURVE_ARGB = com.weatherwidget.shared.graph.CloudCoverGraphPalette.CURVE_FORECAST
+    private const val COLOR_CLOUD_ACTUAL_ARGB = com.weatherwidget.shared.graph.CloudCoverGraphPalette.CURVE_ACTUAL
+    private const val COLOR_CLOUD_LABEL_FORECAST_ARGB =
+        com.weatherwidget.shared.graph.CloudCoverGraphPalette.LABEL_FORECAST
 
     internal data class PaintSet(
         val density: Float,
@@ -58,7 +42,7 @@ object CloudCoverGraphStyle {
 
         val curveStrokeDp = if (tallGraph) HourlyGraphDefaults.CURVE_STROKE_TALL_DP else HourlyGraphDefaults.CURVE_STROKE_SHORT_DP
         val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(COLOR_CLOUD_CURVE)
+            color = COLOR_CLOUD_CURVE_ARGB
             strokeWidth = dpToPx(context, curveStrokeDp * labelScale)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
@@ -66,7 +50,7 @@ object CloudCoverGraphStyle {
         }
 
         val actualCurvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(COLOR_CLOUD_ACTUAL)
+            color = COLOR_CLOUD_ACTUAL_ARGB
             strokeWidth = dpToPx(context, curveStrokeDp * labelScale)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
@@ -78,12 +62,12 @@ object CloudCoverGraphStyle {
         val currentTimePaint = HourlyGraphPaints.currentTime(context, labelScale)
         val hourLabelTextPaint = HourlyGraphPaints.hourLabel(context, labelScale)
         val percentLabelPaint = HourlyGraphPaints.percentLabel(context, labelScale).apply {
-            color = Color.parseColor(COLOR_CLOUD_LABEL_FORECAST)
+            color = COLOR_CLOUD_LABEL_FORECAST_ARGB
         }
         // Same metrics as the forecast label so both passes measure identically; only the colour
         // differs, tying each number to its curve.
         val actualPercentLabelPaint = Paint(percentLabelPaint).apply {
-            color = Color.parseColor(COLOR_CLOUD_ACTUAL)
+            color = COLOR_CLOUD_ACTUAL_ARGB
         }
         val nowLabelTextPaint = HourlyGraphPaints.nowLabel(context, labelScale)
         val dayLabelTextPaint = HourlyGraphPaints.dayLabel(context, labelScale)

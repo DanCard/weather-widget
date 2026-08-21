@@ -203,4 +203,48 @@ class MetarCloudBlenderTest {
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
         assertEquals(mapOf(hour to 100), result.hours)
     }
+
+    @Test
+    fun `fromSiteRows delegates NWS to the station blend`() {
+        val readings = listOf(
+            reading("KNUQ", hour + 3 * min, cloudLow = 40, distanceKm = 2f),
+            reading("KPAO", hour + 5 * min, cloudLow = 80, distanceKm = 4f),
+            // Synthetic rows must not masquerade as stations, exactly as in blend().
+            reading("NWS_BLEND", hour + 3 * min, cloudLow = 100, distanceKm = 0f),
+            reading("NWS_MAIN", hour + 3 * min, cloudLow = 100, distanceKm = 0f),
+        )
+
+        val result = MetarCloudBlender.fromSiteRows(
+            readings, hour, hour + 3_600_000L, WeatherSource.NWS.id,
+        )
+
+        // (40 * 1/4 + 80 * 1/16) / (1/4 + 1/16) = 48 — the blend, not a synthetic pin.
+        assertEquals(mapOf(hour to 48), result.hours)
+        assertTrue(result.isMetarBlend)
+    }
+
+    @Test
+    fun `fromSiteRows pins non-NWS sources to their synthetic backfill row and prefers the low layer`() {
+        val readings = listOf(
+            reading("OPEN_METEO_MAIN", hour, cloudLow = 30, distanceKm = 0f,
+                api = WeatherSource.OPEN_METEO.id),
+            // A row whose low is missing falls back to the total column.
+            reading("OPEN_METEO_MAIN", hour + 3_600_000L, cloudLow = null, distanceKm = 0f,
+                api = WeatherSource.OPEN_METEO.id)
+                .copy(cloudCover = 55),
+            // A real station's row (or another source's synthetic row) must never join the series.
+            reading("KNUQ", hour, cloudLow = 90, distanceKm = 2f),
+            reading("NWS_MAIN", hour, cloudLow = 90, distanceKm = 0f),
+        )
+
+        val result = MetarCloudBlender.fromSiteRows(
+            readings, hour, hour + 2 * 3_600_000L, WeatherSource.OPEN_METEO.id,
+        )
+
+        assertEquals(
+            mapOf(hour to 30, (hour + 3_600_000L) to 55),
+            result.hours,
+        )
+        assertFalse(result.isMetarBlend)
+    }
 }

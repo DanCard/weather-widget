@@ -9,6 +9,7 @@ package com.weatherwidget.data.model
  */
 enum class HistoricalDataKind(
     val preservesHistoricalPrecipitation: Boolean,
+    val preservesHistoricalCloud: Boolean = preservesHistoricalPrecipitation,
 ) {
     STATION_OBSERVATION(true),
     REANALYSIS_ARCHIVE(true),
@@ -88,6 +89,16 @@ enum class WeatherSource(
             VISUAL_CROSSING, OPEN_WEATHER_MAP, WEATHER_API, SILURIAN, TOMORROW_IO -> true
             NWS, OPEN_METEO, GENERIC_GAP -> false
         }
+
+    /**
+     * The ONE rule for whether the cloud graph draws an actual curve for this source. NWS derives
+     * actuals at read time from METAR sky condition; every source whose past values are revised
+     * ([HistoricalDataKind.preservesHistoricalCloud]) files settled actuals via the synthetic
+     * backfill row. Both platforms gate on this — the write side
+     * (`HistoricalActualsBackfill`) and both read sides (`getCloudActuals`) already follow it.
+     */
+    val supportsCloudActuals: Boolean
+        get() = this == NWS || historicalDataKind.preservesHistoricalCloud
 
     companion object {
         /**

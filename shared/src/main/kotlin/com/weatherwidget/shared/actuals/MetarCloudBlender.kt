@@ -2,6 +2,7 @@ package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.CloudHourBucket
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.SpatialInterpolator
@@ -25,7 +26,6 @@ import kotlin.math.roundToInt
 object MetarCloudBlender {
 
     private const val TAG = "MetarCloudBlender"
-    private const val HOUR_MS = 3_600_000L
 
     /** Blend diagnostics for the permanent cloud-series log lines. */
     data class Stats(
@@ -74,6 +74,37 @@ object MetarCloudBlender {
     fun synthetic(hours: Map<Long, Int>) = Result(hours, Stats(0, 0, emptyMap()), isMetarBlend = false)
 
     /**
+     * The shared source-aware half of the cloud-actuals read, so the Android and desktop DAOs
+     * cannot disagree about which rows back an hour:
+     *  - **NWS** blends its real METAR stations' own rows at read time ([blend]); nothing is ever
+     *    written to a synthetic NWS station, so a `distanceKm=0` synthetic row cannot hijack it.
+     *  - **every other source** reads the [HistoricalActualsBackfill] synthetic row only, pinned
+     *    to that station: a future real-station cloud source cannot silently join the series
+     *    without a deliberate change here.
+     *
+     * Callers pass ONE physical site's readings (their DAO collapses the location box first).
+     */
+    fun fromSiteRows(
+        readings: List<ObservationReading>,
+        startMs: Long,
+        endMs: Long,
+        sourceId: String,
+    ): Result {
+        if (WeatherSource.fromId(sourceId) == WeatherSource.NWS) {
+            return blend(readings, startMs, endMs)
+        }
+        val station = HistoricalActualsBackfill.syntheticStationId(sourceId)
+        val hours = readings.asSequence()
+            .filter { it.stationId == station }
+            .mapNotNull { row -> row.visibleCloud()?.let { row.timestamp to it } }
+            .toMap()
+        return synthetic(hours)
+    }
+
+    /** What the actual curve draws for a row: the low layer where present, else the total. */
+    private fun ObservationReading.visibleCloud(): Int? = cloudCoverLow ?: cloudCover
+
+    /**
      * @param readings already site- and source-scoped real NWS station rows (the DAO collapses the
      *   location box to one physical site first). Synthetic `NWS_BLEND` and `<SOURCE>_MAIN` rows are
      *   excluded here too, so a blended or backfilled row can never masquerade as a station.
@@ -117,7 +148,7 @@ object MetarCloudBlender {
         // from 14:00 and 47 from 13:00, and the graph plots instantaneous values at hour marks.
         // Flooring to the hour instead dropped KPAO (which reports at :47) almost entirely.
         val byBucket = usable
-            .groupBy { Math.round(it.timestamp / HOUR_MS.toDouble()).toLong() * HOUR_MS }
+            .groupBy { CloudHourBucket.startMsOf(it.timestamp) }
             .filterKeys { it in startMs until endMs }
 
         val hourValues = LinkedHashMap<Long, Int>()
@@ -182,7 +213,7 @@ object MetarCloudBlender {
         val cloudRows = real.filter { (it.cloudCoverLow ?: it.cloudCover) != null }
             .take(6)
             .joinToString(" ") {
-                val bucket = Math.round(it.timestamp / HOUR_MS.toDouble()).toLong() * HOUR_MS
+                val bucket = CloudHourBucket.startMsOf(it.timestamp)
                 "${it.stationId}@${it.timestamp}->bucket=$bucket" +
                     "(inWindow=${bucket in startMs until endMs},qc=${it.qcFailed},d=${it.distanceKm})"
             }

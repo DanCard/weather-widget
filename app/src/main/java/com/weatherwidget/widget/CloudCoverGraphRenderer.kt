@@ -1,5 +1,7 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.graph.CloudCoverGraphPalette
+import com.weatherwidget.shared.graph.CloudWatermarkPlacement
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.ValueLabelEngine
@@ -23,26 +25,17 @@ object CloudCoverGraphRenderer {
     // the shared ValueLabelEngine.Config.cloud().
     private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 55
 
-    /**
-     * Minimum forecast-vs-actual gap, in percentage points, worth a second label. Below this the
-     * curves overlap on screen and the extra number is pure clutter.
-     */
-    private const val ACTUAL_LABEL_MIN_DIVERGENCE = 8
-
     private const val GRAPH_TOP_PADDING_DP = 38f
     private const val GRAPH_BOTTOM_PADDING_DP = 3f
     private const val TOP_SCALE_HEADROOM_PERCENT = 12f
     private const val MIN_DYNAMIC_TOP_SCALE_PERCENT = 85f
     private const val MAX_DYNAMIC_TOP_SCALE_PERCENT = 100f
-    private const val WATERMARK_WINDOW_DIVISOR = 5
-    private const val WATERMARK_WINDOW_MIN = 3
-    private const val WATERMARK_WINDOW_MAX = 6
     private val WATERMARK_VERT_FRACTIONS = listOf(0.5f, 0.65f, 0.35f)
     private const val WATERMARK_ICON_CURVE_GAP_DP = 2f
 
-    // Fill is anchored to the forecast curve, so it carries the same mint tint.
-    private const val COLOR_CLOUD_GRADIENT_START = "#44B5BAB9"
-    private const val COLOR_CLOUD_GRADIENT_END = "#00B5BAB9"
+    // Shared palette (CloudCoverGraphPalette) — the desktop composable draws the same ARGBs.
+    private val COLOR_CLOUD_GRADIENT_START = CloudCoverGraphPalette.FILL_START
+    private val COLOR_CLOUD_GRADIENT_END = CloudCoverGraphPalette.FILL_END
     private const val COLOR_MISSING_DIAG_TEXT = "#DDC8CFD8"
     private const val COLOR_MISSING_DIAG_SHADOW = "#CC000000"
     private const val COLOR_MISSING_DIAG_REASON_TEXT = "#AAB0B6BE"
@@ -196,8 +189,8 @@ object CloudCoverGraphRenderer {
         val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
         paints.gradientPaint.shader = LinearGradient(
             0f, graphTop, 0f, graphBottom,
-            Color.parseColor(COLOR_CLOUD_GRADIENT_START),
-            Color.parseColor(COLOR_CLOUD_GRADIENT_END),
+            COLOR_CLOUD_GRADIENT_START,
+            COLOR_CLOUD_GRADIENT_END,
             Shader.TileMode.CLAMP,
         )
 
@@ -404,19 +397,10 @@ object CloudCoverGraphRenderer {
         val cloudDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_mostly_cloudy)
         if (cloudDrawable != null && points.size >= 3) {
             val iconSizePx = dpToPx(context, HourlyGraphDefaults.WATERMARK_ICON_SIZE_DP).toInt()
-            val windowSize = (points.size / WATERMARK_WINDOW_DIVISOR).coerceIn(WATERMARK_WINDOW_MIN, WATERMARK_WINDOW_MAX)
             val iconGap = dpToPx(context, WATERMARK_ICON_CURVE_GAP_DP)
-            val candidateCenters =
-                (0..points.size - windowSize)
-                    .map { start ->
-                        val avg = (start until start + windowSize).map { smoothedValues[it] }.average().toFloat()
-                        val center = start + windowSize / 2
-                        val edgeDistance = minOf(center, points.lastIndex - center)
-                        Triple(center, avg, edgeDistance)
-                    }
-                    .sortedWith(compareBy<Triple<Int, Float, Int>> { it.second }.thenByDescending { it.third })
-                    .map { it.first }
-                    .distinct()
+            // Shared emptiest-region search (CloudWatermarkPlacement); only the bounds/overlap
+            // placement and drawing stay platform-specific below.
+            val candidateCenters = CloudWatermarkPlacement.candidateCenters(smoothedValues)
 
             var placed = false
             var placedCandidateIndex: Int? = null
@@ -496,7 +480,8 @@ object CloudCoverGraphRenderer {
                 // morning. Label the actual only where it actually says something different.
                 val hourIdx = actualIndices[p.index]
                 val forecastValue = smoothedValues[hourIdx].roundToInt()
-                abs(actualSignal[p.index] - forecastValue) >= ACTUAL_LABEL_MIN_DIVERGENCE
+                abs(actualSignal[p.index] - forecastValue) >=
+                    CloudCoverGraphPalette.ACTUAL_LABEL_MIN_DIVERGENCE
             }.forEach { p ->
                 canvas.drawText(p.text, p.centerX, p.baselineY, paints.actualPercentLabelPaint)
                 drawnLabelBounds.add(RectF(p.box.left, p.box.top, p.box.right, p.box.bottom))

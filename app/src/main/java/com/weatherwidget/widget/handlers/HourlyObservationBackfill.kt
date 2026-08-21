@@ -211,7 +211,9 @@ internal fun metarCloudGapReason(sourceObservations: List<ObservationEntity>): S
     val officialApiRows = sourceObservations
         .filter { it.stationType == "OFFICIAL" && !it.qcFailed && !it.isWebFallback }
     if (officialApiRows.isEmpty()) return null
-    fun bucketOf(ts: Long) = Math.round(ts / 3_600_000.0).toLong()
+    // The blender's shared round-to-nearest-hour rule — the buckets this check counts must be the
+    // same buckets the blend emits, or "cloud sparse here" says nothing about the curve.
+    fun bucketOf(ts: Long) = com.weatherwidget.shared.observations.CloudHourBucket.indexOf(ts)
     val officialBuckets = officialApiRows.map { bucketOf(it.timestamp) }.distinct().size
     val cloudBuckets = officialApiRows
         .filter { (it.cloudCoverLow ?: it.cloudCover) != null }

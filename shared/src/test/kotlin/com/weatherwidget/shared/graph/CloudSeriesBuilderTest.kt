@@ -173,4 +173,33 @@ class CloudSeriesBuilderTest {
 
         assertEquals(points.map { it.timeMs }.sorted(), points.map { it.timeMs })
     }
+
+    /** The graph draws the visible layer: a row with only a low value is data, not a gap. */
+    @Test
+    fun `a future hour with only a low value draws the low layer`() {
+        val row = live(+2, null).copy(cloudCoverLow = 12)
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(row),
+            priorForecast = emptyMap(),
+            retroActual = emptyMap(),
+            nowMs = now,
+        )
+
+        assertEquals(1, points.size)
+        assertEquals(12, points[0].forecastCover)
+        assertNull(points[0].actualCover)
+    }
+
+    /** Low wins over total on the live curve, or the curve steps at "now" under thin cirrus. */
+    @Test
+    fun `the live curve prefers the low layer over the total column`() {
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(live(+2, 95).copy(cloudCoverLow = 8)),
+            priorForecast = emptyMap(),
+            retroActual = emptyMap(),
+            nowMs = now,
+        )
+
+        assertEquals(8, points[0].forecastCover)
+    }
 }

@@ -49,14 +49,9 @@ object HistoricalActualsBackfill {
         nowMs: Long,
         fetchedAt: Long = nowMs,
     ): List<ObservationReading> {
-        val keepCloud =
-            WeatherSource.fromId(sourceId)
-                .historicalDataKind
-                .preservesHistoricalPrecipitation
-        val keepHistoricalPrecip =
-            WeatherSource.fromId(sourceId)
-                .historicalDataKind
-                .preservesHistoricalPrecipitation
+        val kind = WeatherSource.fromId(sourceId).historicalDataKind
+        val keepHistoricalPrecip = kind.preservesHistoricalPrecipitation
+        val keepCloud = kind.preservesHistoricalCloud
         return hourly
             .filter { it.dateTime <= nowMs }
             .map { hour ->

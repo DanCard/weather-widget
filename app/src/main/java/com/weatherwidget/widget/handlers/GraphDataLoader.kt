@@ -142,6 +142,7 @@ object GraphDataLoader {
                 source = it.source,
                 precipProbability = it.precipProbability,
                 cloudCover = it.cloudCover,
+                cloudCoverLow = it.cloudCoverLow,
                 precipAmountMm = it.precipAmountMm,
                 fetchedAt = it.fetchedAt,
             )

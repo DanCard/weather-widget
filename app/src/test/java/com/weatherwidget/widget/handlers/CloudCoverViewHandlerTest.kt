@@ -19,16 +19,6 @@ import java.time.ZoneId
 class CloudCoverViewHandlerTest {
 
     @Test
-    fun `wide zoom uses three cloud cover smoothing iterations`() {
-        assertEquals(3, CloudCoverViewHandler.smoothingIterationsFor(ZoomStage.WIDE.window()))
-    }
-
-    @Test
-    fun `narrow zoom reduces cloud cover smoothing to zero iterations`() {
-        assertEquals(0, CloudCoverViewHandler.smoothingIterationsFor(ZoomStage.NARROW.window()))
-    }
-
-    @Test
     fun `buildWindowHourKeys spans backHours through forwardHours`() {
         val center = LocalDateTime.of(2026, 3, 14, 12, 0)
         val keys = CloudCoverViewHandler.buildWindowHourKeys(center, ZoomStage.WIDE.window())
@@ -81,6 +71,47 @@ class CloudCoverViewHandlerTest {
         )
 
         assertEquals("non-empty input but null cloud cover should yield empty output", 0, result.size)
+    }
+
+    @Test
+    fun `buildCloudHourDataList draws a row with only a low-layer value`() {
+        // The graph draws the visible layer (low ?: total): a low-only row is data, not a gap.
+        val now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val hours = listOf(
+            hourly(now.plusHours(1).toString(), WeatherSource.OPEN_METEO, null).copy(cloudCoverLow = 12),
+            hourly(now.plusHours(2).toString(), WeatherSource.OPEN_METEO, null).copy(cloudCoverLow = 18),
+        )
+
+        val result = CloudCoverViewHandler.buildCloudHourDataList(
+            hourlyForecasts = hours,
+            centerTime = now,
+            numColumns = 5,
+            displaySource = WeatherSource.OPEN_METEO,
+            zoom = ZoomStage.WIDE.window(),
+        )
+
+        assertEquals(2, result.size)
+        assertEquals(listOf(12, 18), result.map { it.cloudCover })
+    }
+
+    @Test
+    fun `buildCloudHourDataList prefers the low layer on the live curve`() {
+        // Drawing the total here instead put a cliff exactly at "now" under thin cirrus.
+        val now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val hours = listOf(
+            hourly(now.plusHours(1).toString(), WeatherSource.OPEN_METEO, 95).copy(cloudCoverLow = 8),
+        )
+
+        val result = CloudCoverViewHandler.buildCloudHourDataList(
+            hourlyForecasts = hours,
+            centerTime = now,
+            numColumns = 5,
+            displaySource = WeatherSource.OPEN_METEO,
+            zoom = ZoomStage.WIDE.window(),
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(8, result[0].cloudCover)
     }
 
     @Test

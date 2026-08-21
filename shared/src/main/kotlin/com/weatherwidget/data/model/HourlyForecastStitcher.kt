@@ -64,6 +64,7 @@ object HourlyForecastStitcher {
             // nullable fields the live row is missing.
             live?.copy(
                 cloudCover = live.cloudCover ?: fallback?.cloudCover,
+                cloudCoverLow = live.cloudCoverLow ?: fallback?.cloudCoverLow,
                 precipProbability = live.precipProbability ?: fallback?.precipProbability,
                 precipAmountMm = live.precipAmountMm ?: fallback?.precipAmountMm,
             ) ?: fallback
@@ -126,6 +127,7 @@ object HourlyForecastStitcher {
                 val base = pick(sameSite) ?: return@mapNotNull null
                 time to base.copy(
                     cloudCover = base.cloudCover ?: sameSite.firstNotNullOfOrNull { it.cloudCover },
+                    cloudCoverLow = base.cloudCoverLow ?: sameSite.firstNotNullOfOrNull { it.cloudCoverLow },
                     precipProbability = base.precipProbability ?: sameSite.firstNotNullOfOrNull { it.precipProbability },
                     precipAmountMm = base.precipAmountMm ?: sameSite.firstNotNullOfOrNull { it.precipAmountMm },
                 )

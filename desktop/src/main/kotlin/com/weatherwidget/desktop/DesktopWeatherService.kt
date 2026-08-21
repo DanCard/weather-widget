@@ -9,6 +9,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.observations.LatestObservationMerge
+import com.weatherwidget.shared.observations.NwsObservationMapper
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
@@ -322,7 +323,7 @@ class DesktopWeatherService(
             ?: TemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
             ?: hourlyRaw.firstOrNull()?.temperature
 
-        val closestBundle = bundles.minByOrNull { distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
+        val closestBundle = bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
         val currentCondition = closestBundle?.latest?.textDescription
             ?: hourlyRaw.firstOrNull()?.shortForecast
 
@@ -543,44 +544,15 @@ class DesktopWeatherService(
         val historicalIsWeb: Boolean = false,
     )
 
-    internal fun parseTimestamp(ts: String): Long {
-        return try {
-            var cleanStr = ts.trim()
-            if (cleanStr.length >= 5) {
-                val lastFour = cleanStr.takeLast(4)
-                val sign = cleanStr[cleanStr.length - 5]
-                if ((sign == '+' || sign == '-') && lastFour.all { it.isDigit() }) {
-                    cleanStr = cleanStr.substring(0, cleanStr.length - 2) + ":" + cleanStr.substring(cleanStr.length - 2)
-                }
-            }
-            ZonedDateTime.parse(cleanStr).toInstant().toEpochMilli()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse timestamp '$ts': ${e.message}", e)
-            System.currentTimeMillis()
-        }
-    }
+    /** Shared hardened parse (see [NwsObservationMapper]); retained as a seam for tests. */
+    internal fun parseTimestamp(ts: String): Long = NwsObservationMapper.parseTimestamp(ts)
 
-    private fun NwsApi.Observation.toReading(station: NwsApi.StationInfo, isWebFallback: Boolean = false) = ObservationReading(
-        stationId = station.id,
-        stationName = this.stationName.ifBlank { station.name },
-        timestamp = parseTimestamp(timestamp),
-        temperature = (temperatureCelsius * 1.8f) + 32f,
-        condition = textDescription,
-        locationLat = latitude,
-        locationLon = longitude,
-        distanceKm = distanceKm(latitude, longitude, station.lat, station.lon).toFloat(),
-        stationType = station.type.name,
-        api = "NWS",
-        precipAmountMm = precipLastHourMm,
-        maxTempLast24h = maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-        minTempLast24h = minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-        isWebFallback = isWebFallback,
-        qcFailed = qcFailed,
-        // METAR sky condition is a below-~12,000 ft measurement, so it is filed as the LOW layer
-        // and the total column stays null — same rule as NwsObservationSource.toEntity (§3).
-        cloudCover = null,
-        cloudCoverLow = com.weatherwidget.shared.observations.MetarSkyCover.lowPercent(cloudLayers),
-    )
+    private fun NwsApi.Observation.toReading(station: NwsApi.StationInfo, isWebFallback: Boolean = false): ObservationReading =
+        // Shared mapping (units, name fallback, hardened timestamp parse, METAR→low cloud rule) —
+        // the same rows Android's NwsObservationSource stores.
+        com.weatherwidget.shared.observations.NwsObservationMapper.toReading(
+            this, station, latitude, longitude, isWebFallback,
+        )
 
     private fun NwsApi.HourlyForecastPeriod.toHourlyForecast() = HourlyForecast(
         dateTime = startTime,
@@ -632,11 +604,11 @@ class DesktopWeatherService(
         }
 
         val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, allLatestReadings)
-            ?: bundles.minByOrNull { distanceKm(latitude, longitude, it.station.lat, it.station.lon) }?.latest?.let {
+            ?: bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }?.latest?.let {
                 (it.temperatureCelsius * 1.8f) + 32f
             }
 
-        val closestBundle = bundles.minByOrNull { distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
+        val closestBundle = bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
         val currentCondition = closestBundle?.latest?.textDescription
 
         // All readings (latest + historical) from all successful stations
@@ -731,13 +703,4 @@ private fun NwsApi.Observation.isFreshObservation(nowMs: Long = System.currentTi
     val observedAt = runCatching { ZonedDateTime.parse(timestamp).toInstant().toEpochMilli() }.getOrNull()
         ?: return false
     return nowMs - observedAt <= DesktopWeatherService.FRESH_OBSERVATION_MS
-}
-
-private fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-    val earthRadiusKm = 6371.0
-    val dLat = Math.toRadians(lat2 - lat1)
-    val dLon = Math.toRadians(lon2 - lon1)
-    val a = sin(dLat / 2).pow(2.0) +
-        cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2.0)
-    return earthRadiusKm * 2 * atan2(sqrt(a), sqrt(1 - a))
 }

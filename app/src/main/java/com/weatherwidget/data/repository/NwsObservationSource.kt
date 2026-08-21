@@ -1,13 +1,11 @@
 package com.weatherwidget.data.repository
 
 import android.content.Context
-import android.location.Location
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
@@ -279,35 +277,30 @@ class NwsObservationSource(
         longitude: Double,
         isWebFallback: Boolean = false,
     ): ObservationEntity {
-        val distanceMeters = FloatArray(1)
-        Location.distanceBetween(
-            latitude,
-            longitude,
-            stationInfo.lat,
-            stationInfo.lon,
-            distanceMeters,
+        // Shared mapping (units, name fallback, hardened timestamp parse, METAR→low cloud rule);
+        // Android adds only its storage-keying concern — the fetch site snapped to the shared
+        // write grid, so one physical site is keyed identically regardless of who resolved it.
+        val reading = com.weatherwidget.shared.observations.NwsObservationMapper.toReading(
+            observation, stationInfo, latitude, longitude, isWebFallback,
         )
         return ObservationEntity(
-            stationId = stationInfo.id,
-            stationName = observation.stationName.ifEmpty { stationInfo.name },
-            timestamp = OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli(),
-            temperature = (observation.temperatureCelsius * 1.8f) + 32f,
-            condition = observation.textDescription,
-            locationLat = LocationMatch.quantize(latitude),
-            locationLon = LocationMatch.quantize(longitude),
-            distanceKm = distanceMeters[0] / 1000f,
-            stationType = stationInfo.type.name,
-            maxTempLast24h = observation.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-            minTempLast24h = observation.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-            api = WeatherSource.NWS.id,
-            precipAmountMm = observation.precipLastHourMm,
-            isWebFallback = isWebFallback,
-            qcFailed = observation.qcFailed,
-            // METAR sky condition is a below-~12,000 ft measurement, so it is filed as the LOW
-            // layer and the total column stays null — populating cloudCover from it would file a
-            // 12,000-ft-limited measurement as a total column (§3).
-            cloudCover = null,
-            cloudCoverLow = com.weatherwidget.shared.observations.MetarSkyCover.lowPercent(observation.cloudLayers),
+            stationId = reading.stationId,
+            stationName = reading.stationName,
+            timestamp = reading.timestamp,
+            temperature = reading.temperature,
+            condition = reading.condition,
+            locationLat = LocationMatch.quantize(reading.locationLat),
+            locationLon = LocationMatch.quantize(reading.locationLon),
+            distanceKm = reading.distanceKm,
+            stationType = reading.stationType,
+            maxTempLast24h = reading.maxTempLast24h,
+            minTempLast24h = reading.minTempLast24h,
+            api = reading.api,
+            precipAmountMm = reading.precipAmountMm,
+            isWebFallback = reading.isWebFallback,
+            qcFailed = reading.qcFailed,
+            cloudCover = reading.cloudCover,
+            cloudCoverLow = reading.cloudCoverLow,
         )
     }
 

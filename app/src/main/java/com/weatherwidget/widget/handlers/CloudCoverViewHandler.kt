@@ -10,6 +10,7 @@ import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.HeaderFormatter
 import com.weatherwidget.util.HeaderPrecipCalculator
@@ -22,6 +23,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.shared.actuals.MetarCloudBlender
+import com.weatherwidget.shared.graph.CloudSeriesBuilder
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -45,23 +47,6 @@ import java.util.Locale
 object CloudCoverViewHandler {
     private const val TAG = "CloudCoverViewHandler"
     private const val CELL_HEIGHT_DP = 90
-
-    /**
-     * Whether this source has an actual cloud curve at all. Open-Meteo files settled actuals via the
-     * historical backfill; NWS derives them at read time from METAR sky condition
-     * (`ObservationDao.getCloudActuals`). Every other source has neither, so its cloud graph stays
-     * forecast-only.
-     */
-    private fun cloudActualsSupported(source: WeatherSource): Boolean =
-        source == WeatherSource.OPEN_METEO || source == WeatherSource.NWS
-
-    @androidx.annotation.VisibleForTesting
-    internal fun smoothingIterationsFor(zoom: com.weatherwidget.widget.ZoomWindow): Int =
-        when (zoom.stage) {
-            com.weatherwidget.widget.ZoomStage.WIDE -> zoom.smoothIterations
-            com.weatherwidget.widget.ZoomStage.TWO_DAY -> zoom.smoothIterations
-            com.weatherwidget.widget.ZoomStage.NARROW -> (zoom.smoothIterations - 1).coerceAtLeast(0)
-        }
 
     /**
      * Look up the most likely upstream reason for missing cloud cover data by checking
@@ -413,12 +398,13 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val siteLat = hourlyForecasts.firstOrNull()?.locationLat
             val siteLon = hourlyForecasts.firstOrNull()?.locationLon
             val siteResolved = siteLat != null && siteLon != null && windowHourKeys.isNotEmpty()
-            // The actual curve exists wherever a cloud product exists: Open-Meteo's synthetic
-            // backfill row or NWS's read-time METAR station blend. The frozen forecast curve stays
-            // Open-Meteo-only — it is the one source with a previous-runs product, so under NWS the
-            // forecast falls back to the live value with isFrozen = false, which the builder and
-            // renderer already handle.
-            val cloudSeriesAvailable = siteResolved && cloudActualsSupported(effectiveDisplaySource)
+            // The actual curve exists wherever a cloud product exists — the shared rule
+            // (WeatherSource.supportsCloudActuals): Open-Meteo and the other provider-history
+            // sources via the synthetic backfill row, NWS via the read-time METAR station blend.
+            // The frozen forecast curve stays Open-Meteo-only — it is the one source with a
+            // previous-runs product, so under every other source the forecast falls back to the
+            // live value with isFrozen = false, which the builder and renderer already handle.
+            val cloudSeriesAvailable = siteResolved && effectiveDisplaySource.supportsCloudActuals
             val priorCloudAvailable = siteResolved && effectiveDisplaySource == WeatherSource.OPEN_METEO
             val cloudHistoryDao = if (priorCloudAvailable) {
                 WeatherDatabase.getDatabase(context).hourlyForecastHistoryDao()
@@ -668,17 +654,18 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         // and only if it appears here.
         retroCloudActual: Map<Long, Int> = emptyMap(),
     ): List<CloudCoverGraphRenderer.CloudHourData> {
-        val hours = mutableListOf<CloudCoverGraphRenderer.CloudHourData>()
         val now = LocalDateTime.now()
         // NaN, never a hardcoded coordinate: derived from the rows about to be drawn, so it only
         // fires when there are none. Sun shading degrades to UNKNOWN_LOCATION downstream.
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
 
-        val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
-            .mapValues { entry ->
-                entry.value.find { it.source == displaySource.id }
-            }
+        // One row per hour for the display source (first matching row per hour, as before), then
+        // the SHARED pairing below — Android and desktop must not disagree about which value lands
+        // on which curve: forecast = day-ago prediction for past hours where stored (live value
+        // otherwise, low layer preferred), actual = filed observations only.
+        val entityByTime = hourlyForecasts.groupBy { it.dateTime }
+            .mapValues { entry -> entry.value.find { it.source == displaySource.id } }
 
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
@@ -688,6 +675,21 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             TAG,
             "buildCloudHourDataList: centerTime=$centerTime alignedCenter=$alignedCenter " +
                 "startHour=$startHour endHour=$endHour zoom=$zoom source=$displaySource",
+        )
+
+        val zoneId = ZoneId.systemDefault()
+        // End-INCLUSIVE window, same as the temperature graph's shared ActualTemperatureSeriesBuilder: an
+        // n-hour window spans start..start+n and needs n+1 marks, or the drawn axis is an hour
+        // narrower than the Hourly Zoom setting promises.
+        val windowStartMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
+        val windowEndMs = endHour.atZone(zoneId).toInstant().toEpochMilli()
+        val series = CloudSeriesBuilder.build(
+            liveHours = entityByTime.values.filterNotNull()
+                .filter { it.dateTime in windowStartMs..windowEndMs }
+                .map { it.toHourlyForecast() },
+            priorForecast = priorDayCloudForecast,
+            retroActual = retroCloudActual,
+            nowMs = now.atZone(zoneId).toInstant().toEpochMilli(),
         )
 
         // Narrow widgets widen the marker cadence to fit the inline footer groups: WIDE 6h vs 4h,
@@ -703,57 +705,42 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     .narrowWidgetLabelInterval(zoom.totalSpanHours.toInt())
             else -> zoom.labelInterval
         }
-        var currentHour = startHour
-        var hourIndex = 0
-        val zoneId = ZoneId.systemDefault()
 
         // On multi-day windows switch the footer to one date label per day ("Tue 23"), matching the
         // temperature graph (shared rule in HourlyGraphViewCommon.resolveHourLabel).
         val dateMode = com.weatherwidget.shared.graph.HourlyZoomRules.isDateMode(zoom.totalSpanHours)
         val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
-        // End-INCLUSIVE, same as the temperature graph's shared ActualTemperatureSeriesBuilder: an
-        // n-hour window spans start..start+n and needs n+1 marks, or the drawn axis is an hour
-        // narrower than the Hourly Zoom setting promises.
-        while (!currentHour.isAfter(endHour)) {
-            val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
-            val forecast = forecastsByTime[hourMs]
-
-            if (forecast?.cloudCover != null) {
-                // Past hours carry two independent values: the actual, filed at fetch time by
-                // HistoricalActualsBackfill once the hour had settled, and the forecast, which takes the
-                // day-ago prediction where one exists. Neither is inferred from the live row's
-                // fetchedAt — that inference was structurally false on Android and drew nothing.
-                val isPast = currentHour.isBefore(now.truncatedTo(java.time.temporal.ChronoUnit.HOURS))
-                val frozen = if (isPast) priorDayCloudForecast[hourMs] else null
-                val actual = if (isPast) retroCloudActual[hourMs] else null
-                val p = HourlyGraphViewCommon.resolveHourPresentation(
-                    currentHour, forecast, now, lat, lon, labelInterval, hourIndex,
-                    hourMs = hourMs, dateMode = dateMode, dateLabelMillis = dateLabelMillis,
-                )
-                hours.add(
-                    CloudCoverGraphRenderer.CloudHourData(
-                        dateTime = currentHour,
-                        cloudCover = frozen ?: forecast.cloudCover,
-                        actualCloudCover = actual,
-                        isFrozenForecast = frozen != null,
-                        label = p.label,
-                        iconRes = p.iconRes,
-                        isNight = p.isNight,
-                        isTwilight = p.isTwilight,
-                        isSunBoundary = p.isSunBoundary,
-                        isSunny = p.isSunny,
-                        isRainy = p.isRainy,
-                        isMixed = p.isMixed,
-                        isCurrentHour = p.isCurrentHour,
-                        showLabel = p.showLabel,
-                        isDateLabel = p.isDateLabel,
-                    ),
-                )
-                hourIndex++
-            }
-
-            currentHour = currentHour.plusHours(1)
+        val hours = mutableListOf<CloudCoverGraphRenderer.CloudHourData>()
+        var hourIndex = 0
+        for (point in series) {
+            val entity = entityByTime[point.timeMs] ?: continue
+            val cover = point.forecastCover ?: continue
+            val currentHour = Instant.ofEpochMilli(point.timeMs).atZone(zoneId).toLocalDateTime()
+            val p = HourlyGraphViewCommon.resolveHourPresentation(
+                currentHour, entity, now, lat, lon, labelInterval, hourIndex,
+                hourMs = point.timeMs, dateMode = dateMode, dateLabelMillis = dateLabelMillis,
+            )
+            hours.add(
+                CloudCoverGraphRenderer.CloudHourData(
+                    dateTime = currentHour,
+                    cloudCover = cover,
+                    actualCloudCover = point.actualCover,
+                    isFrozenForecast = point.isFrozen,
+                    label = p.label,
+                    iconRes = p.iconRes,
+                    isNight = p.isNight,
+                    isTwilight = p.isTwilight,
+                    isSunBoundary = p.isSunBoundary,
+                    isSunny = p.isSunny,
+                    isRainy = p.isRainy,
+                    isMixed = p.isMixed,
+                    isCurrentHour = p.isCurrentHour,
+                    showLabel = p.showLabel,
+                    isDateLabel = p.isDateLabel,
+                ),
+            )
+            hourIndex++
         }
 
         return hours
@@ -768,6 +755,6 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
     ) {
         HourlyGraphViewCommon.bindHourlyTextMode(
             views, hourlyForecasts, centerTime, numColumns, displaySource,
-        ) { forecast -> forecast?.cloudCover?.let { "$it%" } ?: "--%" }
+        ) { forecast -> (forecast?.cloudCoverLow ?: forecast?.cloudCover)?.let { "$it%" } ?: "--%" }
     }
 }

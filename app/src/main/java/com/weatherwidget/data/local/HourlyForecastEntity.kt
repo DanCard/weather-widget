@@ -60,6 +60,7 @@ fun com.weatherwidget.data.model.HourlyForecast.toEntity(
         source = source ?: com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
         precipProbability = precipProbability,
         cloudCover = cloudCover,
+        cloudCoverLow = cloudCoverLow,
         precipAmountMm = precipAmountMm,
         fetchedAt = fetchedAt,
     )

@@ -9,10 +9,8 @@ import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.shared.graph.PriorDayCloudForecast
 import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.local.LocationMatch
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.orNullIfImplausibleTempF
-import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.shared.util.Log
@@ -102,8 +100,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO hourly_forecast_history
-                    (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, precipAmountMm, fetchedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, cloudCoverLow, precipAmountMm, fetchedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
@@ -118,9 +116,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setString(6, source)
                         stmt.setLong(7, bucketFor(hourMs))
                         stmt.setNull(8, java.sql.Types.INTEGER)
-                        stmt.setInt(9, cover)
-                        stmt.setNull(10, java.sql.Types.REAL)
-                        stmt.setLong(11, now)
+                        // The previous-runs variable is cloud_cover_LOW_previous_day1, so the value
+                        // is filed on the low-layer column where it belongs — everywhere else in the
+                        // schema `cloudCover` means the total column. Readers prefer low, so rows
+                        // written before this switch keep reading until the REPLACE-upsert rewrites.
+                        stmt.setNull(9, java.sql.Types.INTEGER)
+                        stmt.setInt(10, cover)
+                        stmt.setNull(11, java.sql.Types.REAL)
+                        stmt.setLong(12, now)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -137,24 +140,17 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * Cloud actuals for the window, as timestamp -> visible-layer percent
      * (`cloudCoverLow ?: cloudCover`, the same expression the forecast curve draws).
      *
-     * Two source-aware branches over one site-collapsed read: NWS blends its real METAR stations' own
-     * rows at read time ([MetarCloudBlender]) — nothing is ever written to a synthetic NWS station,
-     * so a `distanceKm=0` synthetic row cannot hijack the blend — while every other source files its
-     * cloud on the [HistoricalActualsBackfill] synthetic row, which stays pinned here. Mirrors
-     * Android's `ObservationDao.getCloudActuals`.
+     * Delegates the source-aware branch selection to the shared
+     * [MetarCloudBlender.fromSiteRows]; this DAO contributes only the site-collapsed read. Mirrors
+     * Android's `ObservationDao.getCloudActuals` by construction — same shared code.
      */
-    fun getCloudActuals(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long, sourceId: String): MetarCloudBlender.Result {
-        val rows = getObservationsInRange(startMs, endMs, locationLat, locationLon)
-        if (sourceId == WeatherSource.NWS.id) {
-            return MetarCloudBlender.blend(rows.map { it.toReading() }, startMs, endMs)
-        }
-        val station = HistoricalActualsBackfill.syntheticStationId(sourceId)
-        val hours = rows.asSequence()
-            .filter { it.stationId == station }
-            .mapNotNull { row -> (row.cloudCoverLow ?: row.cloudCover)?.let { row.timestamp to it } }
-            .toMap()
-        return MetarCloudBlender.synthetic(hours)
-    }
+    fun getCloudActuals(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long, sourceId: String): MetarCloudBlender.Result =
+        MetarCloudBlender.fromSiteRows(
+            readings = getObservationsInRange(startMs, endMs, locationLat, locationLon).map { it.toReading() },
+            startMs = startMs,
+            endMs = endMs,
+            sourceId = sourceId,
+        )
 
     /** Day-ago cloud predictions for the window, as hour -> percent. */
     fun getPriorDayCloudForecast(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long): Map<Long, Int> =
@@ -162,7 +158,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     private fun getSyntheticCloudSeries(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Map<Long, Int> =
         getHourlyHistory(locationLat, locationLon, source, startMs, endMs)
-            .mapNotNull { row -> row.cloudCover?.let { row.dateTime to it } }
+            // Low-preferred: the previous-runs variable is the LOW layer, and rows written before
+            // the column switch still carry it on cloudCover.
+            .mapNotNull { row -> (row.cloudCoverLow ?: row.cloudCover)?.let { row.dateTime to it } }
             .toMap()
 
     fun upsertHourlyForecastHistory(locationLat: Double, locationLon: Double, source: String, timestampToGroupPredictions: Long, hourly: List<HourlyForecast>) {

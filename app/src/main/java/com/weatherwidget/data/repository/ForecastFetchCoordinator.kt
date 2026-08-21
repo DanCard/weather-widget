@@ -71,13 +71,18 @@ internal class ForecastFetchCoordinator(
                         // Quantized so GPS jitter overwrites instead of fragmenting the site.
                         locationLat = com.weatherwidget.data.local.LocationMatch.quantize(latitude),
                         locationLon = com.weatherwidget.data.local.LocationMatch.quantize(longitude),
-                        // NOT NULL in the schema but meaningless here; only cloudCover is read back.
+                        // NOT NULL in the schema but meaningless here; only cloud is read back.
                         temperature = 0f,
                         condition = "prior-run cloud",
                         source = com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID,
                         timestampToGroupPredictions =
                             com.weatherwidget.shared.graph.PriorDayCloudForecast.predictionBucketFor(hourMs),
-                        cloudCover = cover,
+                        // The previous-runs variable is cloud_cover_LOW_previous_day1, so the value
+                        // is filed on the low-layer column where it belongs — everywhere else in the
+                        // schema `cloudCover` means the total column. Readers prefer low, so rows
+                        // written before this switch keep reading until the REPLACE-upsert rewrites.
+                        cloudCover = null,
+                        cloudCoverLow = cover,
                         fetchedAt = now,
                     )
                 },
