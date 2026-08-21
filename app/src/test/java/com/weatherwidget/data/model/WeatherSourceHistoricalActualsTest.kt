@@ -19,7 +19,7 @@ class WeatherSourceHistoricalActualsTest {
             WeatherSource.NWS to HistoricalDataKind.STATION_OBSERVATION,
             WeatherSource.OPEN_METEO to HistoricalDataKind.REANALYSIS_ARCHIVE,
             WeatherSource.WEATHER_API to HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
-            WeatherSource.SILURIAN to HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
+            WeatherSource.SILURIAN to HistoricalDataKind.NONE,
             WeatherSource.TOMORROW_IO to HistoricalDataKind.RECENT_ANALYSIS,
             WeatherSource.VISUAL_CROSSING to HistoricalDataKind.NONE,
             WeatherSource.OPEN_WEATHER_MAP to HistoricalDataKind.NONE,
@@ -41,6 +41,10 @@ class WeatherSourceHistoricalActualsTest {
         assertEquals(
             false,
             WeatherSource.OPEN_WEATHER_MAP.historicalDataKind.preservesHistoricalPrecipitation,
+        )
+        assertEquals(
+            false,
+            WeatherSource.SILURIAN.historicalDataKind.preservesHistoricalPrecipitation,
         )
     }
 }

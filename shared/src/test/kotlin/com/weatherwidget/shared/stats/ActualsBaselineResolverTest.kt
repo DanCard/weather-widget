@@ -79,29 +79,18 @@ class ActualsBaselineResolverTest {
     }
 
     @Test
-    fun `display order breaks ties within one kind`() {
-        // Silurian and WeatherAPI are both ARCHIVED_PROVIDER_HISTORY.
-        val silurianFirst = ActualsBaselineResolver.resolveBaselineSource(
+    fun `forecast-only silurian cannot become an accuracy baseline`() {
+        val result = ActualsBaselineResolver.resolveBaselineSource(
             gradedSource = WeatherSource.VISUAL_CROSSING,
             orderedVisibleSources = listOf(
                 WeatherSource.VISUAL_CROSSING,
                 WeatherSource.SILURIAN,
                 WeatherSource.WEATHER_API,
-            ),
-            hasRowForDate = all,
-        )
-        val weatherApiFirst = ActualsBaselineResolver.resolveBaselineSource(
-            gradedSource = WeatherSource.VISUAL_CROSSING,
-            orderedVisibleSources = listOf(
-                WeatherSource.VISUAL_CROSSING,
-                WeatherSource.WEATHER_API,
-                WeatherSource.SILURIAN,
             ),
             hasRowForDate = all,
         )
 
-        assertEquals(WeatherSource.SILURIAN, silurianFirst)
-        assertEquals(WeatherSource.WEATHER_API, weatherApiFirst)
+        assertEquals(WeatherSource.WEATHER_API, result)
     }
 
     @Test
@@ -154,7 +143,7 @@ class ActualsBaselineResolverTest {
     fun `hasNativeActuals matches the declared HistoricalDataKind`() {
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.NWS))
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.OPEN_METEO))
-        assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.SILURIAN))
+        assertEquals(false, ActualsBaselineResolver.hasNativeActuals(WeatherSource.SILURIAN))
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.WEATHER_API))
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.TOMORROW_IO))
         assertEquals(false, ActualsBaselineResolver.hasNativeActuals(WeatherSource.VISUAL_CROSSING))

@@ -77,6 +77,15 @@ class HistoricalActualsBackfillTest {
     }
 
     @Test
+    fun `silurian forecast history produces no synthetic actual rows`() {
+        val result = HistoricalActualsBackfill.build(
+            listOf(hour(-1, 62f, precipMm = 1.5f)), lat, lon, WeatherSource.SILURIAN.id, now,
+        )
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
     fun `syntheticStationId appends _MAIN to the source id`() {
         assertEquals("NWS_MAIN", HistoricalActualsBackfill.syntheticStationId(WeatherSource.NWS.id))
         assertEquals("SILURIAN_MAIN", HistoricalActualsBackfill.syntheticStationId(WeatherSource.SILURIAN.id))

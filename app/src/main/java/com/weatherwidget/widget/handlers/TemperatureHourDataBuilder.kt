@@ -387,5 +387,6 @@ internal fun matchesObservationSource(
     observation: ObservationEntity,
     displaySource: WeatherSource,
 ): Boolean {
-    return observation.api == displaySource.id || observation.api == WeatherSource.GENERIC_GAP.id
+    return displaySource.supportsTemperatureActuals &&
+        (observation.api == displaySource.id || observation.api == WeatherSource.GENERIC_GAP.id)
 }

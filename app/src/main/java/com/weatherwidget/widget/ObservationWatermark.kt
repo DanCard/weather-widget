@@ -47,9 +47,11 @@ object ObservationWatermark {
      * [ObservationResolver.resolveObservedCurrentTemp] exactly, so the watermark measures the same
      * rows the display selects from; if that filter changes, this must change with it.
      */
-    fun of(rows: List<ObservationEntity>, displaySourceId: String): Long =
-        rows.asSequence()
+    fun of(rows: List<ObservationEntity>, displaySourceId: String): Long {
+        if (!WeatherSource.fromId(displaySourceId).supportsTemperatureActuals) return NONE
+        return rows.asSequence()
             .filter { it.api == displaySourceId || it.api == WeatherSource.GENERIC_GAP.id }
             .maxOfOrNull { it.timestamp }
             ?: NONE
+    }
 }

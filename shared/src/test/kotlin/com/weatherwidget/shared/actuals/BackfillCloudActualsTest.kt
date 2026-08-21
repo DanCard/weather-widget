@@ -121,6 +121,19 @@ class BackfillCloudActualsTest {
         assertEquals(0f, row.distanceKm, 0.001f)
         assertNotNull(row.cloudCoverLow)
     }
+
+    @Test
+    fun `silurian past forecast never becomes an observation row`() {
+        val rows = HistoricalActualsBackfill.build(
+            hourly = listOf(hourly(-1, low = 28, total = 56)),
+            latitude = 37.417,
+            longitude = -122.089,
+            sourceId = WeatherSource.SILURIAN.id,
+            nowMs = now,
+        )
+
+        assertTrue(rows.isEmpty())
+    }
 }
 
 private object ObservationSourceMatcherAccess {

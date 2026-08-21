@@ -108,11 +108,16 @@ object MetarCloudBlender {
         sourceId: String,
         readSiteRows: suspend (start: Long, end: Long) -> List<ObservationReading>,
     ): Result {
+        val source = WeatherSource.fromId(sourceId)
+        // Gate before the database read so stale rows from an older build cannot resurrect an
+        // unsupported curve. In particular, Silurian's include_past payload is documented as
+        // forecast output, not observations or analysis.
+        if (!source.supportsCloudActuals) return empty(isMetarBlend = false)
         val readings = readSiteRows(
             CloudHourBucket.readStartMs(startMs),
             CloudHourBucket.readEndMs(endMs),
         )
-        if (WeatherSource.fromId(sourceId) == WeatherSource.NWS) {
+        if (source == WeatherSource.NWS) {
             return blend(readings, startMs, endMs)
         }
         val station = HistoricalActualsBackfill.syntheticStationId(sourceId)

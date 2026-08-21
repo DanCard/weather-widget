@@ -26,8 +26,9 @@ private const val TAG = "SilurianApi"
  * Replaces the retired `api.silurian.ai/v1/forecast` single-endpoint API. The current API splits
  * forecast into separate hourly and daily endpoints, authenticates via the `X-API-KEY` header, and
  * returns numbers in the requested unit system. We request `units=imperial` (°F, matching the rest
- * of the app) and `include_past=true` so the hourly response reaches back to the latest model-run
- * time, giving the graph's actual line its recent past hours. See `/api/v1/openapi.json`.
+ * of the app) and `include_past=true` so the forecast curve can retain the latest model run's
+ * elapsed hours. Those values remain forecasts and must not drive an actual line. See
+ * `/api/v1/openapi.json`.
  *
  * Note: the public docs name `beta.weather.silurian.ai`, but production API keys authenticate against
  * `earth.weather.silurian.ai` (beta rejects them as "Invalid or inactive api key").
@@ -97,9 +98,9 @@ class SilurianApi(
             )
         }
 
-        // API² has no separate "current observation" endpoint; current temp is interpolated from the
-        // hourly series upstream (CurrentTemperatureResolver), and the actual line is driven by the
-        // include_past hours re-filed as observations. So we deliberately leave current* unset.
+        // API² has no separate current-observation or analysis endpoint. Current temp is therefore
+        // interpolated from the forecast upstream (CurrentTemperatureResolver), while include_past
+        // remains forecast context and is never re-filed as an observation.
         logCloudCoverSummary(hourlyRoot["hourly"]?.jsonArray, "hourly")
         logCloudCoverSummary(dailyRoot["daily"]?.jsonArray, "daily")
         RawFetch(

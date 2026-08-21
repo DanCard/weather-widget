@@ -426,4 +426,30 @@ class MetarCloudBlenderTest {
         assertEquals(mapOf(hour to 56), result.hours)
         assertFalse(result.isMetarBlend)
     }
+
+    @Test
+    fun `fromSiteRows rejects cached silurian forecast rows without reading storage`() = runBlocking {
+        var readCalled = false
+
+        val result = MetarCloudBlender.fromSiteRows(
+            hour,
+            hour + 3_600_000L,
+            WeatherSource.SILURIAN.id,
+        ) { _, _ ->
+            readCalled = true
+            listOf(
+                reading(
+                    "SILURIAN_MAIN",
+                    hour,
+                    cloudLow = null,
+                    distanceKm = 0f,
+                    api = WeatherSource.SILURIAN.id,
+                ).copy(cloudCover = 100),
+            )
+        }
+
+        assertTrue(result.hours.isEmpty())
+        assertFalse(result.isMetarBlend)
+        assertFalse(readCalled)
+    }
 }

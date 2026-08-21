@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
@@ -16,6 +17,51 @@ import org.junit.experimental.categories.Category
 class ActualTemperatureSeriesBuilderTest {
     private val zone = ZoneId.of("America/Los_Angeles")
     private val center = LocalDateTime.parse("2026-06-03T12:00:00")
+
+    @Test
+    fun `cached silurian synthetic rows never become temperature actuals`() {
+        val observations = listOf(
+            observation(
+                "SILURIAN_MAIN",
+                "2026-06-03T11:00:00",
+                91f,
+                api = WeatherSource.SILURIAN.id,
+                distanceKm = 0f,
+            ),
+        )
+        val forecasts = forecasts(
+            "2026-06-03T08:00:00",
+            8,
+            source = WeatherSource.SILURIAN.id,
+        )
+
+        val result = ActualTemperatureSeriesBuilder.build(
+            hourlyForecasts = forecasts,
+            observations = observations,
+            centerTime = center,
+            displaySourceId = WeatherSource.SILURIAN.id,
+            userLat = LAT,
+            userLon = LON,
+            backHours = 4,
+            forwardHours = 4,
+            contextLookbackHours = 72,
+            contextLookaheadHours = 60,
+            now = LocalDateTime.parse("2026-06-03T12:30:00"),
+            zoneId = zone,
+        )
+
+        assertNull(result.selectedStationId)
+        assertTrue(result.points.none { it.isActual || it.actualTemp != null })
+        assertTrue(
+            ActualsAggregator.aggregate(
+                observations = observations,
+                hourlyForecasts = forecasts,
+                locationLat = LAT,
+                locationLon = LON,
+                zoneId = zone,
+            ).isEmpty(),
+        )
+    }
 
     @Test
     fun `build injects blended actuals and carries latest actual across past hours`() {

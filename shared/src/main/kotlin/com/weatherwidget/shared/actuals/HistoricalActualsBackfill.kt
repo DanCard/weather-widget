@@ -6,10 +6,9 @@ import com.weatherwidget.data.model.WeatherSource
 
 /**
  * Re-files the past slice of a source's timestamped history as observation rows that drive the
- * "actuals" (observed temperature) line for forecast-only sources — APIs like Open-Meteo
- * that have no station-observation product of their own. NWS supplies real station readings
- * and does NOT need this; this is the fallback that lets every other source still render an
- * actual line.
+ * "actuals" (observed temperature) line for sources with an approved historical product — APIs
+ * like Open-Meteo that have no station-observation product of their own. NWS supplies real station
+ * readings and does NOT need this. Forecast-only sources must return no rows here.
  *
  * Shared by Android ([ForecastRepository.saveHistoricalActuals]) and the desktop service so
  * the mapping (and its precip provenance gate) cannot drift between platforms.
@@ -29,10 +28,9 @@ object HistoricalActualsBackfill {
      *   spans both history and forecast. Only entries at or before [nowMs] are kept.
      * @param sourceId the [WeatherSource] id these hours belong to; becomes the observation `api`.
      *
-     * Temperature is always carried over. Precipitation and cloud cover are kept only when the
-     * source's explicit [WeatherSource.historicalDataKind] permits provider-history values;
-     * otherwise they are nulled so an ordinary forecast sliced into the past is not presented as
-     * historical weather.
+     * Temperature is carried over only when [WeatherSource.supportsTemperatureActuals] permits it.
+     * Precipitation and cloud cover are then kept only when the source's explicit provenance
+     * permits those fields. A forecast-only source returns no observation rows at all.
      *
      * [hourly] need not be hourly. `observations` is keyed on `(stationId, timestamp)`, so Open-Meteo
      * 15-minute temperature and cloud rows land without collision and without being forced through
@@ -46,9 +44,11 @@ object HistoricalActualsBackfill {
         nowMs: Long,
         fetchedAt: Long = nowMs,
     ): List<ObservationReading> {
-        val kind = WeatherSource.fromId(sourceId).historicalDataKind
+        val source = WeatherSource.fromId(sourceId)
+        if (!source.supportsTemperatureActuals) return emptyList()
+        val kind = source.historicalDataKind
         val keepHistoricalPrecip = kind.preservesHistoricalPrecipitation
-        val keepCloud = kind.preservesHistoricalCloud
+        val keepCloud = source.supportsCloudActuals
         return hourly
             .filter { it.dateTime <= nowMs }
             .map { hour ->
@@ -68,7 +68,7 @@ object HistoricalActualsBackfill {
                     // Provenance is the only cloud gate. A timestamped provider-history value is
                     // usable immediately; waiting for the enclosing hour to end made an
                     // instantaneous 12:15 sample disappear until 13:00. Sources whose past values
-                    // are ordinary forecasts still carry null via preservesHistoricalCloud.
+                    // are ordinary forecasts still carry null via supportsCloudActuals.
                     cloudCover = if (keepCloud) hour.cloudCover else null,
                     cloudCoverLow = if (keepCloud) hour.cloudCoverLow else null,
                 )

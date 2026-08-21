@@ -874,8 +874,9 @@ object ActualTemperatureSeriesBuilder {
      * stationId are written together at insert time.
      */
     private fun matchesObservationSource(observation: ObservationReading, displaySourceId: String): Boolean =
-        (observation.api == displaySourceId || observation.api == GENERIC_GAP_SOURCE) && 
-        observation.stationId != "NWS_BLEND"
+        WeatherSource.fromId(displaySourceId).supportsTemperatureActuals &&
+            (observation.api == displaySourceId || observation.api == GENERIC_GAP_SOURCE) &&
+            observation.stationId != "NWS_BLEND"
 
     private fun observationHour(observation: ObservationReading, zoneId: ZoneId): LocalDateTime =
         Instant.ofEpochMilli(observation.timestamp).atZone(zoneId).toLocalDateTime().truncatedTo(ChronoUnit.HOURS)

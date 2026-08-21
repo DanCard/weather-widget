@@ -29,6 +29,10 @@ enum class WeatherSource(
     val shortDisplayName: String,
     val supportsHourly: Boolean = true,
     val historicalDataKind: HistoricalDataKind = HistoricalDataKind.NONE,
+    /** Whether observation/analysis rows may drive temperature actuals for this source. */
+    val supportsTemperatureActuals: Boolean = true,
+    /** Whether this source exposes a documented observation/analysis cloud product. */
+    val supportsCloudActuals: Boolean = historicalDataKind.preservesHistoricalCloud,
 ) {
     NWS(
         id = "NWS",
@@ -63,12 +67,18 @@ enum class WeatherSource(
         displayName = "Climate Avg",
         shortDisplayName = "C",
         supportsHourly = false,
+        supportsTemperatureActuals = false,
     ),
     SILURIAN(
         id = "SILURIAN",
         displayName = "Silurian",
         shortDisplayName = "Silur",
-        historicalDataKind = HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
+        historicalDataKind = HistoricalDataKind.NONE,
+        // Silurian documents `include_past` on /forecast/hourly as forecast output, not an
+        // observation or analysis product. Keep its forecast curves, but never relabel the
+        // elapsed portion of that response as temperature or cloud actuals.
+        supportsTemperatureActuals = false,
+        supportsCloudActuals = false,
     ),
     TOMORROW_IO(
         id = "TOMORROW_IO",
@@ -89,16 +99,6 @@ enum class WeatherSource(
             VISUAL_CROSSING, OPEN_WEATHER_MAP, WEATHER_API, SILURIAN, TOMORROW_IO -> true
             NWS, OPEN_METEO, GENERIC_GAP -> false
         }
-
-    /**
-     * The ONE rule for whether the cloud graph draws an actual curve for this source. NWS derives
-     * actuals at read time from METAR sky condition; every source whose past values are revised
-     * ([HistoricalDataKind.preservesHistoricalCloud]) files timestamped actuals via the synthetic
-     * backfill row. Both platforms gate on this — the write side
-     * (`HistoricalActualsBackfill`) and both read sides (`getCloudActuals`) already follow it.
-     */
-    val supportsCloudActuals: Boolean
-        get() = this == NWS || historicalDataKind.preservesHistoricalCloud
 
     companion object {
         /**

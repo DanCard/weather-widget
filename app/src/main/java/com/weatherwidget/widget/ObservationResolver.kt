@@ -40,6 +40,7 @@ object ObservationResolver {
         observations: List<ObservationEntity>,
         displaySource: WeatherSource,
     ): ObservedCurrentTemperature? {
+        if (!displaySource.supportsTemperatureActuals) return null
         val filtered = observations.filter {
             it.api == displaySource.id || it.api == WeatherSource.GENERIC_GAP.id
         }

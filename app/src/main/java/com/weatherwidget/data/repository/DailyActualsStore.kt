@@ -59,7 +59,11 @@ class DailyActualsStore @Inject constructor(
         hourlyForecasts: List<HourlyForecastEntity>,
         activeSourceList: List<String>,
     ): DailyActualsBySource {
-        val activeSources = activeSourceList.toSet()
+        val activeSources = activeSourceList
+            .map(WeatherSource::fromId)
+            .filter { it.supportsTemperatureActuals }
+            .map { it.id }
+            .toSet()
         if (activeSources.isEmpty()) return emptyMap()
 
         val zone = ZoneId.systemDefault()

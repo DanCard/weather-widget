@@ -184,7 +184,9 @@ class DesktopWeatherRepository(
         // correctly included for NWS and excluded for Open-Meteo/Silurian). Without this filter a
         // non-NWS view would show an NWS blend timestamp/condition.
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
-        val sourceObs = observations.filter { it.api == displaySource.id }
+        val sourceObs = observations.filter {
+            displaySource.supportsTemperatureActuals && it.api == displaySource.id
+        }
 
         // Prefer the most-recent NWS_BLEND synthetic row — it represents the IDW-weighted truth
         // across all stations. Raw station rows can have newer timestamps (from historical fetches)
@@ -914,6 +916,7 @@ class DesktopWeatherRepository(
 
     private fun loadDailyActuals(daily: List<DailyForecast>): Map<String, DailyHistory> {
         if (daily.isEmpty()) return emptyMap()
+        if (!WeatherSource.fromDisplaySource(weatherSource).supportsTemperatureActuals) return emptyMap()
         val dates = daily.map { LocalDate.parse(it.date) }
         val start = dates.min().minusDays(ACTUALS_HISTORY_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         val end = dates.max().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()

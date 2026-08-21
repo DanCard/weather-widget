@@ -79,6 +79,16 @@ class ObservationWatermarkTest {
         assertEquals(ObservationWatermark.NONE, ObservationWatermark.of(rows, WeatherSource.NWS.id))
     }
 
+    @Test
+    fun `cached silurian rows do not advance the temperature watermark`() {
+        val rows = listOf(obs("SILURIAN_MAIN", base, api = WeatherSource.SILURIAN.id))
+
+        assertEquals(
+            ObservationWatermark.NONE,
+            ObservationWatermark.of(rows, WeatherSource.SILURIAN.id),
+        )
+    }
+
     /**
      * The load-bearing one. `fetchedAt` carries *attempt* semantics — `INSERT OR REPLACE` refreshes
      * it for a byte-identical repeat, and `touchLatestFetchedAt` bumps it on an empty attempt — so a

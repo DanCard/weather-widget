@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.test.runTest
@@ -12,6 +13,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -97,6 +99,56 @@ class DesktopWeatherRepositoryTest {
             e.printStackTrace()
             throw e
         }
+    }
+
+    @Test
+    fun `loadCached ignores cached silurian temperature actuals`() = runTest {
+        val now = (System.currentTimeMillis() / 3600_000L) * 3600_000L
+        val silurianService = DesktopWeatherService(37.4220, -122.0841, "SILURIAN")
+        val silurianRepository = DesktopWeatherRepository(
+            silurianService,
+            dao,
+            37.4220,
+            -122.0841,
+            "SILURIAN",
+            currentTimeMillis = { now },
+        )
+        dao.upsertHourlyForecasts(
+            37.4220,
+            -122.0841,
+            "SILURIAN",
+            listOf(
+                HourlyForecast(now, 64f, "Forecast clear", source = WeatherSource.SILURIAN.id),
+                HourlyForecast(now + 3600_000L, 66f, "Forecast clear", source = WeatherSource.SILURIAN.id),
+            ),
+        )
+        dao.upsertObservations(
+            listOf(
+                DesktopObservationEntity(
+                    stationId = "SILURIAN_MAIN",
+                    stationName = "Silurian history backfill",
+                    timestamp = now,
+                    temperature = 91f,
+                    condition = "Synthetic observed condition",
+                    locationLat = 37.4220,
+                    locationLon = -122.0841,
+                    distanceKm = 0f,
+                    stationType = "OFFICIAL",
+                    fetchedAt = now,
+                    api = WeatherSource.SILURIAN.id,
+                ),
+            ),
+        )
+
+        val result = silurianRepository.loadCached(now)
+
+        assertNotNull(result)
+        assertEquals(64f, result!!.resolved.currentTemp!!, 0.01f)
+        assertNull(result.resolved.appliedDelta)
+        assertNull(result.resolved.currentObservedAt)
+        assertEquals("Forecast clear", result.resolved.currentCondition)
+        assertTrue(result.raw.dailyActuals.isEmpty())
+        silurianService.close()
     }
 
     @Test
@@ -261,5 +313,3 @@ class DesktopWeatherRepositoryTest {
         assertEquals(cachedResult.resolved.deltaFromYesterday, inMemoryResult.deltaFromYesterday)
     }
 }
-
-

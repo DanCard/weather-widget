@@ -162,6 +162,24 @@ class ObservationResolverTest {
         assertEquals(72.5f, resolved.temperature)
     }
 
+    @Test
+    fun `resolveObservedCurrentTemp ignores cached silurian synthetic rows`() {
+        val nowMs = 1_000_000L
+        val observations = listOf(
+            currentTempObservation(
+                stationId = "SILURIAN_MAIN",
+                temperature = 91f,
+                fetchedAt = nowMs,
+                timestamp = nowMs,
+                api = WeatherSource.SILURIAN.id,
+            ),
+        )
+
+        assertNull(
+            ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.SILURIAN),
+        )
+    }
+
     // --- computeDailyExtremes tests (time-aligned IDW algorithm) ---
 
     @Test
