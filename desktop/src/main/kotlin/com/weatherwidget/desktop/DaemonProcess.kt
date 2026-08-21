@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
 import com.weatherwidget.data.local.desktop.WakeEventLog
 import com.weatherwidget.shared.notify.DominantTempWatch
 import com.weatherwidget.shared.notify.DominantTempWatchDecision
+import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
 import com.weatherwidget.shared.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -461,6 +462,25 @@ fun runDaemon() {
                     }
 
                     delay(delayMs)
+
+                    // Cloud-while-viewing: the screen is on, so the user is looking at the app. If the
+                    // active source's forecast (which carries the cloud graph) is stale beyond the
+                    // viewing threshold, refresh it now instead of waiting for the 60-min forecast loop.
+                    if (screenOn) {
+                        val lastForecast = weatherDao.getLastSuccessfulFetch(config.settings.weatherSource)
+                        if (CloudViewingRefreshPolicy.isStale(lastForecast, System.currentTimeMillis())) {
+                            try {
+                                Log.i(TAG, "Cloud-while-viewing: forecast stale for ${config.settings.weatherSource}; refreshing now.")
+                                val result = newRepo.refresh()
+                                panelPublisher.publishForecastState(result)
+                                notifyDataUpdated()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.i(TAG, "Cloud-while-viewing refresh failed: ${e.message}")
+                            }
+                        }
+                    }
 
                     val src = WeatherSource.fromDisplaySource(config.settings.weatherSource).id
                     try {

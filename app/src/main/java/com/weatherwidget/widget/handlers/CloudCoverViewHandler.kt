@@ -24,6 +24,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.graph.CloudSeriesBuilder
+import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -457,6 +458,18 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     "inWindow=${retroActual.hours.keys.count { it in windowStart until windowEnd }}$metarStats",
             )
 
+            // Cloud-while-viewing watchdog: this view is literally being drawn, so if the active
+            // source's cloud data is stale, fetch it now instead of waiting for the slow full-forecast
+            // loop. Debounced per widget/source so a repaint storm can't stampede the network.
+            maybeRefreshCloudWhileViewing(
+                context = context,
+                stateManager = stateManager,
+                appWidgetId = appWidgetId,
+                displaySource = effectiveDisplaySource,
+                repository = repository,
+                hourlyForecasts = hourlyForecasts,
+            )
+
             // Repair probe for the actual cloud series. The coverage decision lives in the
             // temperature/daily views, but a widget parked in CLOUD view never renders those —
             // and the missing curve above is THIS view's data, so it must be able to heal itself.
@@ -637,6 +650,51 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 "totalMs" to totalMs,
             ),
             debugTag = TAG,
+        )
+    }
+
+    /**
+     * Cloud-while-viewing watchdog. The CLOUD view is rendering right now, so "the user is looking
+     * at the cloud graph" is true by construction. If the active source's hourly forecast is stale
+     * beyond [CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS], enqueue a targeted refresh of
+     * that source (which also re-files its cloud actuals) instead of waiting for the slow
+     * full-forecast loop. Debounced per widget + source with the same store the backfill probe uses.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal suspend fun maybeRefreshCloudWhileViewing(
+        context: Context,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        repository: com.weatherwidget.data.repository.WeatherRepository?,
+        hourlyForecasts: List<HourlyForecastEntity>,
+    ) {
+        if (repository == null) return
+        val latestFetchedAt = hourlyForecasts
+            .filter { it.source == displaySource.id }
+            .maxOfOrNull { it.fetchedAt }
+            ?: return
+        val nowMs = System.currentTimeMillis()
+        if (!CloudViewingRefreshPolicy.isStale(latestFetchedAt, nowMs)) return
+        if (!stateManager.shouldRefreshMissingData(
+                appWidgetId,
+                displaySource.id,
+                "cloud_viewing",
+                CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS,
+            )
+        ) {
+            return
+        }
+        stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "cloud_viewing")
+        Log.i(
+            TAG,
+            "CLOUD_VIEWING_STALE source=${displaySource.id} ageMin=${(nowMs - latestFetchedAt) / 60_000L} " +
+                "enqueueing targeted cloud refresh",
+        )
+        RefreshScheduler.enqueueForcedRefresh(
+            context = context,
+            reason = "cloud_while_viewing",
+            targetSourceId = displaySource.id,
         )
     }
 
