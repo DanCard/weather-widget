@@ -26,14 +26,20 @@ import com.weatherwidget.shared.graph.*
 import com.weatherwidget.shared.graph.CloudSeriesBuilder
 import kotlin.math.roundToInt
 
-private val COLOR_CLOUD_CURVE = Color(0xFFAAAAAA)
-// The actual curve must separate from the forecast in a monochrome view, so it separates by value
-// (near-white over mid-grey) rather than by hue. See the Android renderer for the matching pair.
-private val COLOR_CLOUD_ACTUAL = Color(0xFFE8EEF5)
+// Complementary tints of the same neutral: pink and mint sit 180 deg apart (hsl 343 vs 163), so
+// they read as opposites without either becoming a saturated colour. Lightness still carries the
+// distinction — the curves overlap exactly whenever the forecast was right, and the forecast's
+// lightness is tuned to hold a 2.0 luminance ratio there. Must match CloudCoverGraphStyle.
+private val COLOR_CLOUD_CURVE = Color(0xFF96A6A1)   // barely-mint grey (hsl 163, 8%)
+private val COLOR_CLOUD_ACTUAL = Color(0xFFF2C0CE)  // clearly pink     (hsl 343, 65%)
+
+// Labels take their curve's hue at the ACTUAL's lightness — a mid-tone mint numeral on the dark
+// plot reads far worse than the line it annotates. Must match CloudCoverGraphStyle.
+private val COLOR_CLOUD_LABEL_FORECAST = Color(0xFFDDE8E4)
 
 /** Minimum forecast-vs-actual gap worth a second label; matches CloudCoverGraphRenderer. */
 private const val ACTUAL_LABEL_MIN_DIVERGENCE = 8
-private val COLOR_CLOUD_FILL_START = Color(0xFF8E99A4).copy(alpha = 0.22f)
+private val COLOR_CLOUD_FILL_START = Color(0xFF96A6A1).copy(alpha = 0.22f)
 private val COLOR_CLOUD_FILL_END = Color.Transparent
 
 private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
@@ -200,7 +206,7 @@ fun CloudCoverGraph(
         // engine used by the precip graph and the Android renderers. Compose draws top-left anchored,
         // so we treat the measured box bottom as the baseline (ascent = -height, descent = 0).
         val labelSignal = smoothedForecast.map { it.roundToInt().coerceIn(0, 100) }
-        val labelStyle = TextStyle(fontSize = (11 * scale).sp, color = Color.White)
+        val labelStyle = TextStyle(fontSize = (11 * scale).sp, color = COLOR_CLOUD_LABEL_FORECAST)
         val labelHeight = textMeasurer.measure("0%", labelStyle).size.height.toFloat()
         val placements = ValueLabelEngine.computePlacements(
             labelSignal = labelSignal,

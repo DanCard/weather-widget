@@ -7,10 +7,20 @@ import com.weatherwidget.shared.graph.HourlyGraphDefaults
 
 object CloudCoverGraphStyle {
 
-    private const val COLOR_CLOUD_CURVE = "#AAAAAA"
-    // The actual separates from the forecast by VALUE, not hue — this is a monochrome view, and a
-    // coloured truth line would read as a different quantity rather than the same one, measured.
-    private const val COLOR_CLOUD_ACTUAL = "#E8EEF5"
+    // Complementary hues 180 deg apart (343 pink / 163 mint), but deliberately ASYMMETRIC in how
+    // far each is pushed. The forecast is the background quantity and stays essentially grey; the
+    // actual is the thing worth looking at and carries real pink.
+    //
+    // Saturation has to fight lightness here: at 94% lightness even 35% saturation is invisible,
+    // which is why the first attempt at a "slight pink tint" read as plain white. Showing the hue
+    // at all means coming down in lightness, so the actual sits at 85% and 65% saturation.
+    // The pair still separates by value (ratio 1.6) for where the curves overlap exactly.
+    private const val COLOR_CLOUD_CURVE = "#96A6A1"   // barely-mint grey (hsl 163, 8%)
+    private const val COLOR_CLOUD_ACTUAL = "#F2C0CE"  // clearly pink     (hsl 343, 65%)
+
+    // Labels sit lighter than their curves so they stay readable on the dark plot, while keeping
+    // enough of the hue to tie each number to the line it describes.
+    private const val COLOR_CLOUD_LABEL_FORECAST = "#DDE8E4" // barely-mint white
 
     internal data class PaintSet(
         val density: Float,
@@ -58,7 +68,9 @@ object CloudCoverGraphStyle {
         val gradientPaint = HourlyGraphPaints.gradientFill()
         val currentTimePaint = HourlyGraphPaints.currentTime(context, labelScale)
         val hourLabelTextPaint = HourlyGraphPaints.hourLabel(context, labelScale)
-        val percentLabelPaint = HourlyGraphPaints.percentLabel(context, labelScale)
+        val percentLabelPaint = HourlyGraphPaints.percentLabel(context, labelScale).apply {
+            color = Color.parseColor(COLOR_CLOUD_LABEL_FORECAST)
+        }
         // Same metrics as the forecast label so both passes measure identically; only the colour
         // differs, tying each number to its curve.
         val actualPercentLabelPaint = Paint(percentLabelPaint).apply {

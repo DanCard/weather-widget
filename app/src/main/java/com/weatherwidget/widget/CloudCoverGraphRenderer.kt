@@ -40,8 +40,9 @@ object CloudCoverGraphRenderer {
     private val WATERMARK_VERT_FRACTIONS = listOf(0.5f, 0.65f, 0.35f)
     private const val WATERMARK_ICON_CURVE_GAP_DP = 2f
 
-    private const val COLOR_CLOUD_GRADIENT_START = "#44AAAAAA"
-    private const val COLOR_CLOUD_GRADIENT_END = "#00AAAAAA"
+    // Fill is anchored to the forecast curve, so it carries the same mint tint.
+    private const val COLOR_CLOUD_GRADIENT_START = "#4496A6A1"
+    private const val COLOR_CLOUD_GRADIENT_END = "#0096A6A1"
     private const val COLOR_MISSING_DIAG_TEXT = "#DDC8CFD8"
     private const val COLOR_MISSING_DIAG_SHADOW = "#CC000000"
     private const val COLOR_MISSING_DIAG_REASON_TEXT = "#AAB0B6BE"
