@@ -428,21 +428,32 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             } else {
                 emptyMap()
             }
-            val retroActual = if (cloudHistoryDao != null) {
+            val retroActual = if (cloudSeriesAvailable) {
                 runCatching {
-                    cloudHistoryDao.getRetroCloudActuals(
-                        startDateTime = windowStart,
-                        endDateTime = windowEnd,
+                    WeatherDatabase.getDatabase(context).observationDao().getCloudActuals(
+                        startTs = windowStart,
+                        endTs = windowEnd,
                         lat = siteLat!!,
                         lon = siteLon!!,
+                        sourceId = effectiveDisplaySource.id,
                     )
                 }.getOrElse {
-                    Log.w(TAG, "retro cloud actual read failed; graph shows forecast only", it)
+                    Log.w(TAG, "cloud actual read failed; graph shows forecast only", it)
                     emptyMap()
                 }
             } else {
                 emptyMap()
             }
+
+            // Permanent diagnostic: the cloud actual has now failed silently twice — once because the
+            // write dropped it, once because nothing was stored at all — and both looked identical
+            // on screen (a single solid curve). This pins which leg is empty without a DB pull.
+            Log.i(
+                TAG,
+                "CLOUD_SERIES src=${effectiveDisplaySource.id} site=$siteLat,$siteLon " +
+                    "window=${windowStart}..${windowEnd} prior=${priorCloud.size} actual=${retroActual.size} " +
+                    "inWindow=${retroActual.keys.count { it in windowStart until windowEnd }}",
+            )
 
             val hours = buildCloudHourDataList(
                 hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom,
@@ -660,7 +671,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
             if (forecast?.cloudCover != null) {
                 // Past hours carry two independent values: the actual, filed at fetch time by
-                // RetroCloudActual once the hour had settled, and the forecast, which takes the
+                // HistoricalActualsBackfill once the hour had settled, and the forecast, which takes the
                 // day-ago prediction where one exists. Neither is inferred from the live row's
                 // fetchedAt — that inference was structurally false on Android and drew nothing.
                 val isPast = currentHour.isBefore(now.truncatedTo(java.time.temporal.ChronoUnit.HOURS))

@@ -3,6 +3,7 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.CloudActualSettling
 
 /**
  * Re-files the past slice of a source's hourly list as observation rows that drive the
@@ -29,9 +30,13 @@ object HistoricalActualsBackfill {
      *   spans both history and forecast. Only entries at or before [nowMs] are kept.
      * @param sourceId the [WeatherSource] id these hours belong to; becomes the observation `api`.
      *
-     * Temperature is always carried over. Precipitation is kept only when the source's explicit
-     * [WeatherSource.historicalDataKind] permits provider-history precipitation; otherwise it is
-     * nulled so an ordinary forecast sliced into the past is not presented as historical weather.
+     * Temperature is always carried over. Precipitation and cloud cover are kept only when the
+     * source's explicit [WeatherSource.historicalDataKind] permits provider-history values;
+     * otherwise they are nulled so an ordinary forecast sliced into the past is not presented as
+     * historical weather.
+     *
+     * [hourly] may be sub-hourly. `observations` is keyed on `(stationId, timestamp)`, so a
+     * 15-minute series lands without collision and without the hour-indexed pipeline seeing it.
      */
     fun build(
         hourly: List<HourlyForecast>,
@@ -41,6 +46,10 @@ object HistoricalActualsBackfill {
         nowMs: Long,
         fetchedAt: Long = nowMs,
     ): List<ObservationReading> {
+        val keepCloud =
+            WeatherSource.fromId(sourceId)
+                .historicalDataKind
+                .preservesHistoricalPrecipitation
         val keepHistoricalPrecip =
             WeatherSource.fromId(sourceId)
                 .historicalDataKind
@@ -61,6 +70,26 @@ object HistoricalActualsBackfill {
                     api = sourceId,
                     fetchedAt = fetchedAt,
                     precipAmountMm = if (keepHistoricalPrecip) hour.precipAmountMm else null,
+                    // Cloud carries TWO gates, not one.
+                    //
+                    // The provenance gate (as precip): an ordinary forecast sliced into the past is
+                    // not an observation of the sky, so sources whose past values are never revised
+                    // carry null rather than a restated forecast.
+                    //
+                    // The settling gate: even for a source that does revise, an hour that has merely
+                    // ENDED still holds the pre-hour forecast for a while. Temperature does not need
+                    // this and must not get it — it would blank the newest two hours of the actual
+                    // temperature line for every forecast-only source. See [CloudActualSettling].
+                    cloudCover = if (keepCloud && CloudActualSettling.hasSettled(hour.dateTime, nowMs)) {
+                        hour.cloudCover
+                    } else {
+                        null
+                    },
+                    cloudCoverLow = if (keepCloud && CloudActualSettling.hasSettled(hour.dateTime, nowMs)) {
+                        hour.cloudCoverLow
+                    } else {
+                        null
+                    },
                 )
             }
     }

@@ -111,6 +111,8 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         precipAmountMm REAL,
                         isWebFallback INTEGER NOT NULL DEFAULT 0,
                         qcFailed INTEGER NOT NULL DEFAULT 0,
+                        cloudCover INTEGER,
+                        cloudCoverLow INTEGER,
                         PRIMARY KEY (stationId, timestamp)
                     )
                 """.trimIndent())
@@ -417,6 +419,14 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 addColumnIfMissing(stmt, "hourly_forecasts", "cloudCoverLow", "INTEGER")
                 addColumnIfMissing(stmt, "hourly_forecast_history", "cloudCoverLow", "INTEGER")
             }
+            // v17: cloud cover on observations, retiring the parallel OPEN_METEO_RETRO series that
+            // v16 added. See the Room MIGRATION_62_63 comment for the reasoning; the two schemas
+            // move together.
+            if (from < 17) {
+                addColumnIfMissing(stmt, "observations", "cloudCover", "INTEGER")
+                addColumnIfMissing(stmt, "observations", "cloudCoverLow", "INTEGER")
+                stmt.execute("DELETE FROM hourly_forecast_history WHERE source = 'OPEN_METEO_RETRO'")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -462,6 +472,6 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 16
+        private const val SCHEMA_VERSION = 17
     }
 }

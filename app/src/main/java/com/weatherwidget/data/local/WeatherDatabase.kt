@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 62,
+    version = 63,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -441,6 +441,27 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Cloud cover on `observations`, and the retirement of the parallel `OPEN_METEO_RETRO`
+         * series that v62 introduced.
+         *
+         * v62 filed cloud actuals as synthetic rows in `hourly_forecast_history` because
+         * `observations` had no cloud column — a second mechanism for a job
+         * `HistoricalActualsBackfill` already did for temperature, precip and condition. With the
+         * columns present the backfill carries cloud too, so the parallel path goes away and the
+         * cloud actual becomes timestamp-keyed like every other actual (which is also what lets it
+         * hold sub-hourly readings).
+         */
+        val MIGRATION_62_63 = object : Migration(62, 63) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "observations", "cloudCover", "INTEGER")
+                addColumnIfMissing(db, "observations", "cloudCoverLow", "INTEGER")
+                // Superseded by the observations rows. Safe to drop rather than migrate: they are
+                // re-derivable from the next Open-Meteo fetch, which carries 31 past days.
+                db.execSQL("DELETE FROM hourly_forecast_history WHERE source = 'OPEN_METEO_RETRO'")
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -503,7 +524,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

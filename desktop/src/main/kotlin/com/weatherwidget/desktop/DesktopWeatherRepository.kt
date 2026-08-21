@@ -31,7 +31,6 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 
-import com.weatherwidget.shared.graph.RetroCloudActual
 
 class DesktopWeatherRepository(
     private val weatherService: WeatherApiClient,
@@ -170,7 +169,7 @@ class DesktopWeatherRepository(
         // curve it annotates; empty for every source but Open-Meteo, which is the only one with a
         // previous-runs product.
         val priorCloud = weatherDao.getPriorDayCloudForecast(latitude, longitude, stitchedStart, now)
-        val retroCloud = weatherDao.getRetroCloudActuals(latitude, longitude, stitchedStart, now)
+        val retroCloud = weatherDao.getCloudActuals(latitude, longitude, stitchedStart, now, weatherSource)
         
         // Cover the widest zoom-out (6 days back) so the actual line spans the whole window,
         // matching the hourly read above. Observations exist ~7-14 days back (NWS HISTORY_DAYS=7,
@@ -334,18 +333,6 @@ class DesktopWeatherRepository(
 
             // Persist
             weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, result.hourly)
-            // The cloud graph's actual curve. Only Open-Meteo's elapsed hours are rewritten by later
-            // runs after assimilating observations, so only its past values are actuals; the other
-            // sources return their past hours unchanged. Written explicitly rather than inferred at
-            // render time from whether a row postdates its own hour — that inference held here and
-            // never fired on Android, which is how the two platforms came to disagree.
-            if (displaySource == WeatherSource.OPEN_METEO) {
-                weatherDao.upsertRetroCloudActuals(
-                    latitude,
-                    longitude,
-                    RetroCloudActual.qualifyingActuals(result.hourly, now),
-                )
-            }
             weatherDao.upsertForecasts(latitude, longitude, weatherSource, result.daily)
 
             // NWS api actuals are NOT written here. The gridpoint maxTemperature/minTemperature
@@ -361,6 +348,15 @@ class DesktopWeatherRepository(
             }
 
             if (result.rawObservations.isNotEmpty()) {
+                // Permanent diagnostic: separates "the backfill produced no cloud" from "the write
+                // dropped it". Both failed silently once, because the columns are nullable.
+                Log.i(
+                    TAG,
+                    "BACKFILL_CLOUD src=$weatherSource rows=${result.rawObservations.size} " +
+                        "withLow=${result.rawObservations.count { it.cloudCoverLow != null }} " +
+                        "hourlyWithLow=${result.hourly.count { it.cloudCoverLow != null }} " +
+                        "hourlyTotal=${result.hourly.size}",
+                )
                 weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
             }
             val historyObsCount = backfillWeatherApiHistoryIfNeeded(now)

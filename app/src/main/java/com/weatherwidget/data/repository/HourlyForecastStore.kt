@@ -11,7 +11,6 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
-import com.weatherwidget.shared.graph.RetroCloudActual
 import com.weatherwidget.widget.WidgetStateManager
 
 /**
@@ -94,8 +93,8 @@ internal class HourlyForecastStore(
         val now = System.currentTimeMillis()
         // Deliberately drops elapsed hours: `hourly_forecasts` is a forecast archive, and letting a
         // `past_days` payload rewrite past rows would destroy the record of what was predicted.
-        // The retro-corrected values those rows carry are not thrown away — saveRetroCloudActuals
-        // files them separately, as actuals, which is what they are.
+        // The retro-corrected values those rows carry are not thrown away — saveHistoricalActuals
+        // re-files them into `observations`, as actuals, which is what they are.
         val futureData = hourlyData.filter { it.dateTime >= now - 3_600_000L }
         saveHourlyEntities(
             futureData.map {
@@ -115,49 +114,6 @@ internal class HourlyForecastStore(
             },
         )
         saveHistoricalActuals(hourlyData, latitude, longitude, sourceId)
-        saveRetroCloudActuals(hourlyData, latitude, longitude, sourceId, now)
-    }
-
-    /**
-     * Files the settled low-cloud actuals from a `past_days` payload under
-     * [RetroCloudActual.SOURCE_ID].
-     *
-     * Open-Meteo only: it is the one source whose elapsed hours are rewritten by later runs after
-     * those runs assimilated observations, which is what makes a past value an actual rather than a
-     * stale prediction. The other sources return their past hours unchanged, so filing them here
-     * would put forecasts on the truth curve.
-     *
-     * This is the leg that was missing on Android. [saveHistoricalActuals] already routes elapsed
-     * hours to `observations`, but [ObservationEntity] has no cloud field, so the retro-corrected
-     * cover was parsed and then dropped on the floor — reaching neither table.
-     */
-    private suspend fun saveRetroCloudActuals(
-        hourlyData: List<HourlyForecast>,
-        latitude: Double,
-        longitude: Double,
-        sourceId: String,
-        nowMs: Long,
-    ) {
-        if (sourceId != com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id) return
-        val actuals = RetroCloudActual.qualifyingActuals(hourlyData, nowMs)
-        if (actuals.isEmpty()) return
-        hourlyForecastHistoryDao.insertAll(
-            actuals.map { (hourMs, cover) ->
-                HourlyForecastHistoryEntity(
-                    dateTime = hourMs,
-                    // Quantized so GPS jitter overwrites instead of fragmenting the site.
-                    locationLat = LocationMatch.quantize(latitude),
-                    locationLon = LocationMatch.quantize(longitude),
-                    // NOT NULL in the schema but meaningless here; only cloudCover is read back.
-                    temperature = 0f,
-                    condition = RETRO_CLOUD_CONDITION,
-                    source = RetroCloudActual.SOURCE_ID,
-                    timestampToGroupPredictions = RetroCloudActual.bucketFor(hourMs),
-                    cloudCover = cover,
-                    fetchedAt = nowMs,
-                )
-            },
-        )
     }
 
     private suspend fun saveHistoricalActuals(
@@ -186,6 +142,8 @@ internal class HourlyForecastStore(
                 fetchedAt = reading.fetchedAt,
                 api = reading.api,
                 precipAmountMm = reading.precipAmountMm,
+                cloudCover = reading.cloudCover,
+                cloudCoverLow = reading.cloudCoverLow,
             ).withQuantizedLocation()
         }
         if (historicalObs.isNotEmpty()) {
@@ -194,9 +152,6 @@ internal class HourlyForecastStore(
     }
 
     companion object {
-        /** Marks [RetroCloudActual] rows in the shared table; never displayed. */
-        private const val RETRO_CLOUD_CONDITION = "retro cloud actual"
-
         @VisibleForTesting
         internal fun hasMeaningfulHourlyChange(
             existing: HourlyForecastEntity?,

@@ -34,6 +34,8 @@ data class ObservationEntity(
     val precipAmountMm: Float? = null, // Observed precipitation amount in mm
     val isWebFallback: Boolean = false, // <-- Added
     val qcFailed: Boolean = false, // Rejected by upstream QC; shown in stations UI, excluded from blends
+    val cloudCover: Int? = null, // Total-column cloud cover 0-100; null for rows that carry none
+    val cloudCoverLow: Int? = null, // Low-layer only 0-100; what the cloud graph draws
 )
 
 /**

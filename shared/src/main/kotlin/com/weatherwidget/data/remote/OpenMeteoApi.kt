@@ -73,6 +73,37 @@ class OpenMeteoApi
                 Log.d(TAG, "getPriorDayCloudForecast: hours=${times.size} kept=${out.size} zone=$zone")
                 return out
             }
+
+            /**
+             * The `minutely_15` block as bare cloud readings.
+             *
+             * Steps with no cloud value are dropped, not zeroed. Expected to be empty outside CONUS,
+             * where the 15-minute product has no model behind it — an empty list, never zeros.
+             */
+            internal fun parseSubHourlyCloud(
+                minutely: kotlinx.serialization.json.JsonObject?,
+                zone: java.time.ZoneId,
+            ): List<com.weatherwidget.data.model.SubHourlyCloud> {
+                val times = minutely?.get("time")?.jsonArray ?: return emptyList()
+                val total = minutely["cloud_cover"]?.jsonArray
+                val low = minutely["cloud_cover_low"]?.jsonArray
+                if (total == null && low == null) return emptyList()
+
+                return times.mapIndexedNotNull { index, timeElement ->
+                    val t = total?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                    val l = low?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                    if (t == null && l == null) return@mapIndexedNotNull null
+                    val ms = runCatching {
+                        java.time.LocalDateTime.parse(timeElement.jsonPrimitive.content)
+                            .atZone(zone).toInstant().toEpochMilli()
+                    }.getOrNull() ?: return@mapIndexedNotNull null
+                    com.weatherwidget.data.model.SubHourlyCloud(
+                        timeMs = ms,
+                        cloudCover = t?.coerceIn(0, 100),
+                        cloudCoverLow = l?.coerceIn(0, 100),
+                    )
+                }
+            }
         }
 
         suspend fun getForecast(
@@ -87,6 +118,11 @@ class OpenMeteoApi
                     parameter("longitude", lon)
                     parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum")
                     parameter("hourly", "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low")
+                    // Sub-hourly cloud, on the same request. The hourly series is a top-of-hour
+                    // SUBSAMPLE of this one (verified: `:00` values match exactly), so an hour whose
+                    // cloud moves is misrepresented by its own label — 2026-08-20 19:00 stored 10%
+                    // for an hour that ran 10 -> 27 -> 51 -> 74 as the marine layer arrived.
+                    parameter("minutely_15", "cloud_cover,cloud_cover_low")
                     parameter("current", "temperature_2m,weather_code")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
@@ -201,6 +237,9 @@ cloudCoverLow = hourlyCloudCoverLow.getOrNull(index),
 
             Log.d(TAG, "getForecast: parsed ${hourlyForecasts.size} hourly forecasts")
 
+            val subHourly = parseSubHourlyCloud(jsonObj["minutely_15"]?.jsonObject, zone)
+            Log.d(TAG, "getForecast: parsed ${subHourly.size} sub-hourly cloud steps")
+
 val currentCondition = current?.get("weather_code")?.jsonPrimitive?.content?.toIntOrNull()?.let { weatherCodeToCondition(it) }
 return RawFetch(
 providerCurrentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toFloatOrNull(),
@@ -211,6 +250,7 @@ timezone = timezone,
 ),
 daily = dailyForecasts,
 hourly = hourlyForecasts,
+subHourlyCloud = subHourly,
 )
 }
 

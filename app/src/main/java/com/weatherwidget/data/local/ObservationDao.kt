@@ -80,6 +80,31 @@ interface ObservationDao {
             lon,
         )
 
+    /**
+     * Cloud actuals for the window, as top-of-hour epoch ms to low-layer percent.
+     *
+     * Scoped to the synthetic backfill station rather than the whole site: those rows are the only
+     * ones carrying a cloud percent today (a real METAR station reports a layer list, not a number),
+     * and pinning the id here means a future real-station cloud source cannot silently join this
+     * series without a deliberate change. Site collapse still applies — the coarse box can gather a
+     * jitter fragment or a neighbouring town.
+     */
+    suspend fun getCloudActuals(
+        startTs: Long,
+        endTs: Long,
+        lat: Double,
+        lon: Double,
+        sourceId: String,
+    ): Map<Long, Int> {
+        val station = com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+            .syntheticStationId(sourceId)
+        return getObservationsInRange(startTs, endTs, lat, lon)
+            .asSequence()
+            .filter { it.stationId == station }
+            .mapNotNull { row -> row.cloudCoverLow?.let { row.timestamp to it } }
+            .toMap()
+    }
+
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")
     suspend fun deleteOldObservations(cutoffMs: Long)
 

@@ -14,7 +14,7 @@ data class CloudPoint(
     /** Frozen day-ago prediction for past hours; the live row for the current and future hours. */
     val forecastCover: Int?,
     /**
-     * The retro-corrected low-cloud actual for a past hour, read from [RetroCloudActual]. Null for
+     * The settled low-cloud actual for a past hour, read from `observations`. Null for
      * the current and future hours — nothing has happened yet — and for any past hour no actual was
      * ever filed for.
      */
@@ -43,10 +43,10 @@ object CloudSeriesBuilder {
      * @param liveHours the source's hourly rows for the visible window, site-collapsed, one per hour.
      * @param priorForecast day-ago predictions keyed by top-of-hour epoch ms, from
      *   [PriorDayCloudForecast].
-     * @param retroActual settled low-cloud actuals keyed the same way, from [RetroCloudActual].
+     * @param retroActual settled low-cloud actuals keyed the same way, read from `observations`.
      *   Authoritative: a past hour draws an actual if and only if it appears here. Nothing is
      *   inferred from `fetchedAt` any more — that inference silently evaluated to "never" on
-     *   Android, see [RetroCloudActual].
+     *   Android, see [CloudActualSettling].
      * @param nowMs "now"; hours strictly before the hour containing it are treated as past.
      */
     fun build(
@@ -106,11 +106,11 @@ object CloudSeriesBuilder {
      * True when [fetchedAt] postdates the end of the hour starting at [hourStartMs] — the only
      * condition under which a fetched value has been revised in light of what happened.
      *
-     * **Write-side predicate.** [RetroCloudActual.qualifyingActuals] applies it to a payload the
-     * moment it arrives, where the fetch time genuinely settles the question. It used to be applied
+     * **Write-side predicate.** [CloudActualSettling.hasSettled] applies it (plus a lag) as the
+     * payload is filed, where the fetch time genuinely settles the question. It used to be applied
      * at render time to a stored row's `fetchedAt` instead, which asked a different and much weaker
      * question — "has this device refetched since the hour ended?" — whose answer is structurally
-     * "no" on Android. See [RetroCloudActual] for the measurements.
+     * "no" on Android. See [CloudActualSettling] for the measurements.
      *
      * `fetchedAt <= 0` means the caller did not populate it; treated as not corrected, because a
      * missing actual is honest and a fabricated one is not.

@@ -260,7 +260,7 @@ object CloudCoverGraphRenderer {
         // The forecast curve is ALWAYS dashed — dashes mean "this is a forecast", not "there is an
         // actual to compare it against". They used to be gated on `hasFrozen && hasActual`, which
         // made them a signal about data availability: with the Android actual series structurally
-        // empty (see RetroCloudActual) the gate never opened and no device ever drew a dash.
+        // empty (see CloudActualSettling) the gate never opened and no device ever drew a dash.
         val previousDashEffect = paints.curvePaint.pathEffect
         paints.curvePaint.pathEffect = DashPathEffect(
             floatArrayOf(dpToPx(context, 3f), dpToPx(context, 2.5f)), 0f,

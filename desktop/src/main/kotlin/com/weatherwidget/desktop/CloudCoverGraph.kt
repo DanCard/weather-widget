@@ -171,7 +171,7 @@ fun CloudCoverGraph(
 
         // Draw Curve Line. ALWAYS dashed: the dashes mean "this is a forecast", not "there is an
         // actual to compare it against". Gating them on data availability left the Android widget
-        // with no dash at all, since its actual series was structurally empty (see RetroCloudActual).
+        // with no dash at all, since its actual series was structurally empty (see CloudActualSettling).
         val curveStroke = if (totalSpanHours <= 8) 2.dp.toPx() * scale else 3.dp.toPx() * scale
         drawPath(
             path = buildCurve(coords),
