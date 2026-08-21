@@ -35,8 +35,11 @@ object HistoricalActualsBackfill {
      * otherwise they are nulled so an ordinary forecast sliced into the past is not presented as
      * historical weather.
      *
-     * [hourly] may be sub-hourly. `observations` is keyed on `(stationId, timestamp)`, so a
-     * 15-minute series lands without collision and without the hour-indexed pipeline seeing it.
+     * [hourly] need not be hourly. `observations` is keyed on `(stationId, timestamp)`, so a denser
+     * series would land without collision and without the hour-indexed pipeline seeing it — which is
+     * why cloud actuals live here rather than in `hourly_forecast_history`. No caller passes one
+     * today: sub-hourly cloud was measured and rejected, see
+     * `plans/260820-15min-subhourly-cloud-actuals.md` §8.
      */
     fun build(
         hourly: List<HourlyForecast>,

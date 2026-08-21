@@ -104,26 +104,6 @@ data class ObservationReading(
     val cloudCoverLow: Int? = null,
 )
 
-/**
- * One sub-hourly (15-minute) cloud reading.
- *
- * Deliberately NOT a [HourlyForecast]. That type carries a non-null `temperature`, and anything
- * shaped like it is one call away from [com.weatherwidget.shared.actuals.HistoricalActualsBackfill],
- * which would write these into `observations` — whose `temperature` column is NOT NULL and whose PK
- * is `(stationId, timestamp)`, so a placeholder temperature would both store a fiction and collide
- * with the real hourly backfill row at every `:00`. A type that cannot express a temperature cannot
- * make that mistake.
- *
- * Why it exists: the hourly cloud series is a top-of-hour SUBSAMPLE of this one, not an average of
- * it (verified — `:00` values match exactly), so an hour whose cloud moves is misrepresented by its
- * own stored value. 2026-08-20 19:00 stored 10% for an hour that ran 10 -> 27 -> 51 -> 74.
- */
-data class SubHourlyCloud(
-    val timeMs: Long,
-    val cloudCover: Int? = null,
-    val cloudCoverLow: Int? = null,
-)
-
 data class RawFetch(
     val hourly: List<HourlyForecast> = emptyList(),
     val daily: List<DailyForecast> = emptyList(),
@@ -134,7 +114,6 @@ data class RawFetch(
     val providerCurrentTemp: Float? = null,
     val providerCurrentCondition: String? = null,
     val providerCurrentObservedAt: Long? = null,
-    val subHourlyCloud: List<SubHourlyCloud> = emptyList(),
 )
 
 /**
