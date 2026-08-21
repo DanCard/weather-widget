@@ -288,12 +288,6 @@ internal object TemperatureStateResolver {
         )
         val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
 
-        val fetchFailureMessage = FetchFailureIndicatorHelper.resolveFetchError(
-            displaySourceId = displaySource.id,
-            appLogDao = effectiveAppLogDao,
-            lastGoodObsMs = observedAt,
-        )
-
         val useCelsius = stateManager.useCelsius()
         val headerState = TemperatureWidgetState.HeaderState(
             sourceIndicator = sourceIndicator,
@@ -319,7 +313,6 @@ internal object TemperatureStateResolver {
             isCurrentTempVisible = currentTemp != null,
             isDeltaVisible = deltaVisible,
             isStaleEstimate = currentTempResolution.isStaleEstimate,
-            fetchFailureMessage = fetchFailureMessage
         )
 
         // 6. Graph Rendering
@@ -807,7 +800,6 @@ internal object TemperatureStateResolver {
         isCurrentTempVisible = false,
         isDeltaVisible = false,
         isStaleEstimate = false,
-        fetchFailureMessage = null
     )
 
     private fun emptyGraphState() = TemperatureWidgetState.GraphState(false, null, emptyList(), false)

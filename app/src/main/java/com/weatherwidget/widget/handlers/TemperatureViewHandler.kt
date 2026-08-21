@@ -363,18 +363,6 @@ object TemperatureViewHandler {
         // (the yesterday delta needs the observation window, which only full renders load).
 
         val db = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
-        val errorMsg = FetchFailureIndicatorHelper.resolveFetchError(
-            displaySourceId = displaySource.id,
-            appLogDao = db.appLogDao(),
-            lastGoodObsMs = observedAt,
-        )
-        FetchFailureIndicatorHelper.bind(
-            context = context,
-            views = partial,
-            appWidgetId = appWidgetId,
-            errorMessage = errorMsg,
-        )
-
         com.weatherwidget.widget.WidgetPushDispatcher.push(
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,

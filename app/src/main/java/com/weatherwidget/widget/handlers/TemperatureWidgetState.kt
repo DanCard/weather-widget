@@ -29,7 +29,6 @@ internal data class TemperatureWidgetState(
         val isCurrentTempVisible: Boolean,
         val isDeltaVisible: Boolean,
         val isStaleEstimate: Boolean,
-        val fetchFailureMessage: String?,
     )
 
     data class GraphState(
