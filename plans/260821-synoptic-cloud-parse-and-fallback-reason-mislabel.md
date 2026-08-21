@@ -248,7 +248,27 @@ All three fixes shipped.
 
 ### Still outstanding
 
-Live confirmation that a Synoptic-sourced row lands with `cloudCoverLow` populated on device. The
-fetch cooldown (60 min plugged in, last fetch 09:59) had not elapsed by the end of the session, so no
-new observation rows were written under the fixed build. The parse itself is covered by tests and by
-a direct Synoptic query; what remains unproven on device is only the wiring.
+**Fix 2 confirmed live 2026-08-21 10:56** on `emulator-5556`. The first fetch under the fixed build
+wrote Synoptic rows carrying sky condition — the thing that was structurally impossible before:
+
+```
+stationId  web  isMetar  low   obs
+KNUQ         1        1   75   10:35     <- web-fallback row WITH cloud
+KPAO         1        1   44   10:47     <- web-fallback row WITH cloud
+AW020        1        0  ---   10:50     <- mesonet, no METAR, correctly no cloud
+LOAC1        0        0  ---   09:10     <- mesonet, correctly no cloud
+```
+
+The mesonet rows are the negative control: no `metar_set_1`, so no cloud is invented and `isMetar`
+stays honestly false.
+
+Two residues:
+
+- **The 198 historical KNUQ web rows are still cloud-less.** Fix 2 only affects rows written from now
+  on; the old ones need a 72 h re-fetch to be re-parsed under REPLACE. Nothing will request that on
+  its own, because the cloud check reads healthy (bucket-level masking, see Deviations) — the next
+  temperature-driven backfill will repair them incidentally. Until then the past-72h cloud curve
+  still leans on KSJC.
+- **Fix 1's label has not been seen in the wild.** No station timed out in this window, so
+  `fetch_failed` is proven by test but not yet observed on device. It will appear the next time the
+  30 s timeout trips.
