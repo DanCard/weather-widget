@@ -27,6 +27,51 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         private const val PRIOR_CLOUD_CONDITION = "prior-run cloud"
     }
 
+    data class TomorrowCleanupResult(
+        val observationsDeleted: Int,
+        val dailyRowsDeleted: Int,
+    )
+
+    /** One-time removal of generic Tomorrow.io actuals written by older builds. */
+    fun cleanupLegacyTomorrowIoActuals(): TomorrowCleanupResult? {
+        db.getConnection().use { conn ->
+            conn.autoCommit = false
+            try {
+                val alreadyDone = conn.prepareStatement(
+                    "SELECT 1 FROM app_logs WHERE tag = 'TMRW_ACTUALS_CLEANUP_V2' LIMIT 1",
+                ).use { it.executeQuery().next() }
+                if (alreadyDone) {
+                    conn.rollback()
+                    return null
+                }
+
+                val observationsDeleted = conn.createStatement().use { stmt ->
+                    stmt.executeUpdate(
+                        "DELETE FROM observations WHERE api = 'TOMORROW_IO' " +
+                            "AND stationId NOT IN ('TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME')",
+                    )
+                }
+                // The actual columns are non-null, so contaminated debug-only rows are removed as
+                // a unit. Current/future forecast state lives in the forecast tables.
+                val dailyRowsDeleted = conn.createStatement().use { stmt ->
+                    stmt.executeUpdate("DELETE FROM daily_history WHERE source = 'TOMORROW_IO'")
+                }
+                conn.prepareStatement(
+                    "INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, 'INFO', 'TMRW_ACTUALS_CLEANUP_V2', ?)",
+                ).use { stmt ->
+                    stmt.setLong(1, System.currentTimeMillis())
+                    stmt.setString(2, "legacyObservations=$observationsDeleted dailyRows=$dailyRowsDeleted")
+                    stmt.executeUpdate()
+                }
+                conn.commit()
+                return TomorrowCleanupResult(observationsDeleted, dailyRowsDeleted)
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            }
+        }
+    }
+
 
     fun upsertHourlyForecasts(locationLat: Double, locationLon: Double, source: String, hourly: List<HourlyForecast>) {
         db.getConnection().use { conn ->

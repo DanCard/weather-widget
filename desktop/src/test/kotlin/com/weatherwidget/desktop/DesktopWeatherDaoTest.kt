@@ -2,8 +2,10 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.CurrentTempStatus
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -66,6 +68,57 @@ class DesktopWeatherDaoTest {
     fun `getLastSuccessfulFetch returns null when no logs exist`() {
         assertNull(dao.getLastSuccessfulFetch())
         assertNull(dao.getLastSuccessfulFetch("NWS"))
+    }
+
+    @Test
+    fun `Tomorrow cleanup keeps recent history and realtime and deletes generic legacy rows`() {
+        val now = System.currentTimeMillis()
+        val lat = 37.42
+        val lon = -122.08
+        fun observation(stationId: String, timestamp: Long) = DesktopObservationEntity(
+            stationId = stationId,
+            stationName = stationId,
+            timestamp = timestamp,
+            temperature = 65f,
+            condition = "Clear",
+            locationLat = lat,
+            locationLon = lon,
+            fetchedAt = now,
+            api = "TOMORROW_IO",
+        )
+        dao.upsertObservations(
+            listOf(
+                observation("TOMORROW_IO_MAIN", now - 3_000L),
+                observation("TOMORROW_IO_RECENT_HISTORY", now - 2_000L),
+                observation("TOMORROW_IO_REALTIME", now - 1_000L),
+            ),
+        )
+        dao.upsertDailyHistory(
+            listOf(
+                DailyHistory(
+                    date = now,
+                    source = "TOMORROW_IO",
+                    locationLat = lat,
+                    locationLon = lon,
+                    computedHighTemp = 65f,
+                    computedLowTemp = 60f,
+                    condition = "Clear",
+                    updatedAt = now,
+                ),
+            ),
+        )
+
+        val result = dao.cleanupLegacyTomorrowIoActuals()
+
+        assertNotNull(result)
+        assertEquals(1, result!!.observationsDeleted)
+        assertEquals(1, result.dailyRowsDeleted)
+        assertEquals(
+            setOf("TOMORROW_IO_RECENT_HISTORY", "TOMORROW_IO_REALTIME"),
+            dao.getObservationsInRange(now - 10_000L, now + 1L, lat, lon).map { it.stationId }.toSet(),
+        )
+        assertTrue(dao.getExtremesInRange(now - 1L, now + 1L, lat, lon).isEmpty())
+        assertNull(dao.cleanupLegacyTomorrowIoActuals())
     }
 
     @Test

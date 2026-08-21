@@ -61,7 +61,7 @@ class ForecastRepository
         private val widgetStateManager: WidgetStateManager,
         private val climateNormalDao: ClimateNormalDao,
         private val observationDao: ObservationDao,
-        dailyHistoryDao: DailyHistoryDao,
+        private val dailyHistoryDao: DailyHistoryDao,
         observationRepository: ObservationRepository,
         tomorrowIoApi: TomorrowIoApi? = null,
         openWeatherMapApi: OpenWeatherMapApi? = null,
@@ -146,6 +146,12 @@ class ForecastRepository
         ): Result<List<ForecastEntity>> {
             val fetchStartTime = System.currentTimeMillis()
             try {
+                TomorrowIoLegacyActualsCleanup.runIfNeeded(
+                    context = context,
+                    observationDao = observationDao,
+                    dailyHistoryDao = dailyHistoryDao,
+                    appLogDao = appLogDao,
+                )
                 var cachedForecasts = getCachedData(latitude, longitude)
                 if (
                     !forceRefresh &&

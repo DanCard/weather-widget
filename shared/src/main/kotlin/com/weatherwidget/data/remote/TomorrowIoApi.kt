@@ -11,7 +11,6 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.*
 import java.time.OffsetDateTime
-import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
 
 private const val TAG = "TomorrowIoApi"
@@ -22,7 +21,8 @@ class TomorrowIoApi(
     private val apiKeyProvider: () -> String?,
 ) {
     companion object {
-        private const val BASE_URL = "https://api.tomorrow.io/v4/timelines"
+        private const val TIMELINES_URL = "https://api.tomorrow.io/v4/timelines"
+        private const val REALTIME_URL = "https://api.tomorrow.io/v4/weather/realtime"
     }
 
     suspend fun getForecast(
@@ -34,15 +34,15 @@ class TomorrowIoApi(
             throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
         }
 
-        val startTime = OffsetDateTime.now().minusHours(23).truncatedTo(ChronoUnit.HOURS).toString()
-
-        val hourlyHttpResponse = httpClient.get(BASE_URL) {
+        val hourlyHttpResponse = httpClient.get(TIMELINES_URL) {
             parameter("location", "$lat,$lon")
             parameter("fields", "temperature,weatherCode,precipitationProbability,precipitationAccumulation,cloudCover")
             parameter("timesteps", "1h")
             parameter("units", "imperial")
             parameter("apikey", apiKey)
-            parameter("startTime", startTime)
+            // Core temperature/cloud fields are available six hours into the past on the free
+            // plan. Callers persist the elapsed slice with distinct RECENT_HISTORY provenance.
+            parameter("startTime", "nowMinus6h")
         }
         if (hourlyHttpResponse.status.value !in 200..299) {
             val errorBody = runCatching { hourlyHttpResponse.bodyAsText() }.getOrDefault("No error body")
@@ -55,7 +55,7 @@ class TomorrowIoApi(
         }
         val hourlyResponse: String = hourlyHttpResponse.body()
 
-        val dailyHttpResponse = httpClient.get(BASE_URL) {
+        val dailyHttpResponse = httpClient.get(TIMELINES_URL) {
             parameter("location", "$lat,$lon")
             parameter("fields", "temperatureMax,temperatureMin,weatherCode,precipitationProbability,precipitationAccumulation")
             parameter("timesteps", "1d")
@@ -123,26 +123,52 @@ class TomorrowIoApi(
             )
         }
 
-        val nowMs = System.currentTimeMillis()
-        val currentInterval = hourlyIntervals.minByOrNull { element ->
-            val startTimeStr = element.jsonObject["startTime"]?.jsonPrimitive?.content ?: ""
-            val epochMs = runCatching { OffsetDateTime.parse(startTimeStr).toInstant().toEpochMilli() }.getOrDefault(0L)
-            kotlin.math.abs(epochMs - nowMs)
-        }?.jsonObject
-        val currentValues = currentInterval?.get("values")?.jsonObject
-        val currentTemp = currentValues?.get("temperature")?.jsonPrimitive?.floatOrNull
-        val currentWeatherCode = currentValues?.get("weatherCode")?.jsonPrimitive?.intOrNull
-        val currentCondition = currentWeatherCode?.let { weatherCodeToCondition(it) }
-        val currentObservedAt = currentInterval?.get("startTime")?.jsonPrimitive?.content?.let {
-            OffsetDateTime.parse(it).toInstant().toEpochMilli()
-        }
-
         return RawFetch(
-            providerCurrentTemp = currentTemp,
-            providerCurrentCondition = currentCondition,
-            providerCurrentObservedAt = currentObservedAt,
             daily = dailyForecasts,
             hourly = hourlyForecasts
+        )
+    }
+
+    /** Current source-native conditions. Callers accumulate these samples as honest actuals. */
+    suspend fun getRealtime(lat: Double, lon: Double): TomorrowIoRealtimeReading? {
+        val apiKey = apiKeyProvider()
+        if (apiKey.isNullOrBlank()) {
+            throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
+        }
+
+        val response = httpClient.get(REALTIME_URL) {
+            parameter("location", "$lat,$lon")
+            parameter("units", "imperial")
+            parameter("apikey", apiKey)
+        }
+        if (response.status.value !in 200..299) {
+            val errorBody = runCatching { response.bodyAsText() }.getOrDefault("No error body")
+            throw ApiAccessException(
+                source = WeatherSource.TOMORROW_IO,
+                statusCode = response.status.value,
+                detail = errorBody,
+                message = "Tomorrow.io realtime fetch failed: status ${response.status.value}. Detail: $errorBody",
+            )
+        }
+
+        val root = json.parseToJsonElement(response.body<String>()).jsonObject
+        val data = root["data"]?.jsonObject ?: return null
+        val values = data["values"]?.jsonObject ?: return null
+        val temperature = values["temperature"]?.jsonPrimitive?.floatOrNull
+            ?.takeIf { it.isFinite() }
+            ?: return null
+        val observedAt = data["time"]?.jsonPrimitive?.contentOrNull
+            ?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
+            ?: return null
+        val weatherCode = values["weatherCode"]?.jsonPrimitive?.intOrNull
+
+        return TomorrowIoRealtimeReading(
+            temperature = temperature,
+            condition = weatherCode?.let(::weatherCodeToCondition) ?: "Unknown",
+            observedAt = observedAt,
+            cloudCover = values["cloudCover"]?.jsonPrimitive?.floatOrNull
+                ?.roundToInt()
+                ?.coerceIn(0, 100),
         )
     }
 
@@ -164,3 +190,10 @@ class TomorrowIoApi(
             else -> "Unknown"
         }
 }
+
+data class TomorrowIoRealtimeReading(
+    val temperature: Float,
+    val condition: String,
+    val observedAt: Long,
+    val cloudCover: Int?,
+)

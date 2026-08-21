@@ -86,6 +86,19 @@ class HistoricalActualsBackfillTest {
     }
 
     @Test
+    fun `tomorrow timeline history uses deletable recent-history provenance`() {
+        val result = HistoricalActualsBackfill.build(
+            listOf(hour(-1, 62f, precipMm = 1.5f)), lat, lon, WeatherSource.TOMORROW_IO.id, now,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(TomorrowIoActuals.RECENT_HISTORY_STATION_ID, result.single().stationId)
+        assertEquals(TomorrowIoActuals.RECENT_HISTORY_STATION_NAME, result.single().stationName)
+        assertEquals(WeatherSource.TOMORROW_IO.id, result.single().api)
+        assertEquals(1.5f, result.single().precipAmountMm)
+    }
+
+    @Test
     fun `syntheticStationId appends _MAIN to the source id`() {
         assertEquals("NWS_MAIN", HistoricalActualsBackfill.syntheticStationId(WeatherSource.NWS.id))
         assertEquals("SILURIAN_MAIN", HistoricalActualsBackfill.syntheticStationId(WeatherSource.SILURIAN.id))

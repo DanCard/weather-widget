@@ -359,7 +359,7 @@ class RefreshDelayTest {
         val service = DesktopWeatherService(
             latitude = 37.4220,
             longitude = -122.0841,
-            weatherSource = WeatherSource.TOMORROW_IO.id,
+            weatherSource = WeatherSource.SILURIAN.id,
         )
 
         try {

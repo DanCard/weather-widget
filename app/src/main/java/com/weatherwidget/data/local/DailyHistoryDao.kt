@@ -69,4 +69,7 @@ interface DailyHistoryDao {
 
     @Query("DELETE FROM daily_history WHERE updatedAt < :cutoffMs")
     suspend fun deleteOldExtremes(cutoffMs: Long)
+
+    @Query("DELETE FROM daily_history WHERE source = 'TOMORROW_IO'")
+    suspend fun deleteTomorrowIoHistory(): Int
 }

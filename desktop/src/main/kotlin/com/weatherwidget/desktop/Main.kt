@@ -562,7 +562,7 @@ private fun runApp() = application {
                     val msg = status.message
                     val className = CurrentTempStatusLog.parseFailureClassName(msg)
                     val detail = CurrentTempStatusLog.parseFailureDetail(msg)
-                    val displayName = WeatherSource.fromId(src).displayName.uppercase().replace("-", "_")
+                    val displayName = WeatherSource.fromId(src).displayName
 
                     graceJob?.cancel()
 
@@ -574,7 +574,7 @@ private fun runApp() = application {
                     if (isOfflineExceptionName(className) &&
                         isNetworkWarmupWindow(wakeEventMs, now)
                     ) {
-                        currentTempFetchError = "$displayName current temp\nWaiting for network to warm up…"
+                        currentTempFetchError = "${displayName.uppercase()} WEATHER UPDATE\nWaiting for network to warm up…"
                         currentTempFetchIsWarmup = true
                         currentTempFetchTimestamp = status.timestamp
                         
@@ -590,43 +590,25 @@ private fun runApp() = application {
                     }
                     currentTempFetchIsWarmup = false
 
-                    val host = when {
-                        detail.contains("open-meteo.com") -> "api.open-meteo.com"
-                        detail.contains("weather.gov") -> "api.weather.gov"
-                        detail.contains("tomorrow.io") -> "api.tomorrow.io"
-                        detail.contains("weatherapi.com") -> "api.weatherapi.com"
-                        detail.contains("visualcrossing.com") -> "weather.visualcrossing.com"
-                        detail.contains("openweathermap.org") -> "api.openweathermap.org"
-                        detail.contains("silurian") -> "silurian API"
-                        else -> ""
-                    }
-                    
-                    val friendlyError = when (className) {
-                        "ConnectTimeoutException" -> "Connect timeout (10s)"
-                        "SocketTimeoutException" -> "Socket timeout"
-                        "UnknownHostException" -> "Unknown host (DNS lookup failed)"
-                        else -> detail.substringBefore(" [").take(40)
-                    }
-                    val errorLine = if (host.isNotEmpty()) "$friendlyError · $host" else friendlyError
-                    
-                    val lastGoodObsMs = forecast?.resolved?.currentObservedAt
-                    val lastGoodLine = if (lastGoodObsMs != null) {
-                        val timeStr = timeFmt.format(Instant.ofEpochMilli(lastGoodObsMs))
-                        val ageStr = formatAge(now - lastGoodObsMs)
-                        "Last good obs: $timeStr ($ageStr ago)"
+                    val presentation = desktopFetchErrorPresentation(displayName, className, detail)
+                    val lastSuccessfulUpdateMs = weatherDao.getLastSuccessfulFetch(src)
+                    val lastSuccessfulLine = if (lastSuccessfulUpdateMs != null) {
+                        val timeStr = timeFmt.format(Instant.ofEpochMilli(lastSuccessfulUpdateMs))
+                        val ageStr = formatAge(now - lastSuccessfulUpdateMs)
+                        "Last successful update: $timeStr ($ageStr ago)"
                     } else {
-                        "Last good obs: None"
+                        "Last successful update: None"
                     }
-                    
+
                     val attemptTimeStr = attemptFmt.format(Instant.ofEpochMilli(status.timestamp))
-                    val attemptLine = "Last attempt: $attemptTimeStr · 2 retries failed"
-                    
-                    currentTempFetchError = """
-                        $displayName current temp not updating
-                        $errorLine
-                        $lastGoodLine
-                        $attemptLine
-                    """.trimIndent()
+                    currentTempFetchError = buildList {
+                        add(presentation.title)
+                        addAll(presentation.bodyLines)
+                        add("")
+                        add(lastSuccessfulLine)
+                        add("Last attempt: $attemptTimeStr")
+                        add(presentation.retryLine)
+                    }.joinToString("\n")
                     currentTempFetchTimestamp = status.timestamp
                 } else {
                     currentTempFetchError = null
@@ -1289,7 +1271,10 @@ internal fun WidgetPopup(
                             // briefly on failure). Drawn last so it floats over the graph + arrows.
                             historyFetchToast?.let { msg ->
                                 Surface(
-                                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp),
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .fillMaxWidth(0.94f)
+                                        .padding(top = 6.dp),
                                     shape = RoundedCornerShape(12.dp),
                                     color = Color.Black.copy(alpha = 0.72f),
                                 ) {
@@ -1317,23 +1302,23 @@ internal fun WidgetPopup(
                                     border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.Top,
                                     ) {
-                                        Column {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             val lines = msg.split("\n")
                                             if (lines.isNotEmpty()) {
                                                 Text(
                                                     text = lines[0],
                                                     color = titleColor,
-                                                    fontSize = (13f * uiScale).sp,
+                                                    fontSize = (14f * uiScale).sp,
                                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                                                 )
                                                 lines.drop(1).forEach { line ->
                                                     Text(
                                                         text = line,
                                                         color = bodyColor,
-                                                        fontSize = (11f * uiScale).sp,
+                                                        fontSize = (12f * uiScale).sp,
                                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                                         modifier = Modifier.padding(top = 2.dp)
                                                     )

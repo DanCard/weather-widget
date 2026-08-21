@@ -120,6 +120,29 @@ object MetarCloudBlender {
         if (source == WeatherSource.NWS) {
             return blend(readings, startMs, endMs)
         }
+        if (source == WeatherSource.TOMORROW_IO) {
+            val hours = readings.asSequence()
+                .filter {
+                    ObservationSourceMatcher.matchesActualSource(
+                        stationId = it.stationId,
+                        api = it.api,
+                        source = source,
+                        allowGenericGap = false,
+                    )
+                }
+                .filter { it.timestamp in CloudHourBucket.readStartMs(startMs) until CloudHourBucket.readEndMs(endMs) }
+                .mapNotNull { row -> row.visibleCloud()?.let { row to it } }
+                .groupBy { (row, _) -> CloudHourBucket.startMsOf(row.timestamp) }
+                .filterKeys { it in startMs until endMs }
+                .mapValues { (hourMs, samples) ->
+                    val realtime = samples.filter { (row, _) -> TomorrowIoActuals.isRealtime(row.stationId) }
+                    (realtime.ifEmpty { samples })
+                        .minBy { (row, _) -> abs(row.timestamp - hourMs) }
+                        .second
+                }
+            return synthetic(hours)
+        }
+
         val station = HistoricalActualsBackfill.syntheticStationId(sourceId)
         val hours = readings.asSequence()
             // Both dimensions are required. A station id is not a provider namespace, and source

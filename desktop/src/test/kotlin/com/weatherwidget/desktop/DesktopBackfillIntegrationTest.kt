@@ -69,6 +69,49 @@ class DesktopBackfillIntegrationTest {
     }
 
     @Test
+    fun `Tomorrow refresh does not rewrite elapsed forecast storage with recent history`() = runTest {
+        val now = (System.currentTimeMillis() / 60_000L) * 60_000L
+        val oldTimelineHour = now - 2 * 3_600_000L
+        val currentTimelineHour = now - 30 * 60_000L
+        val futureHour = now + 3_600_000L
+        val tomorrowRepository = DesktopWeatherRepository(
+            weatherService,
+            dao,
+            lat,
+            lon,
+            WeatherSource.TOMORROW_IO.id,
+            currentTimeMillis = { now },
+        )
+        coEvery { weatherService.fetchForecast() } returns RawFetch(
+            hourly = listOf(
+                HourlyForecast(oldTimelineHour, 60f, "Past analysis", source = WeatherSource.TOMORROW_IO.id),
+                HourlyForecast(currentTimelineHour, 64f, "Current", source = WeatherSource.TOMORROW_IO.id),
+                HourlyForecast(futureHour, 68f, "Forecast", source = WeatherSource.TOMORROW_IO.id),
+            ),
+        )
+
+        tomorrowRepository.refresh(now)
+
+        val live = dao.getHourlyForecasts(
+            lat,
+            lon,
+            WeatherSource.TOMORROW_IO.id,
+            oldTimelineHour - 1L,
+            futureHour + 1L,
+        )
+        assertEquals(listOf(currentTimelineHour, futureHour), live.map { it.dateTime })
+        val archived = dao.getHourlyHistory(
+            lat,
+            lon,
+            WeatherSource.TOMORROW_IO.id,
+            oldTimelineHour - 1L,
+            futureHour + 1L,
+            nowMs = now,
+        )
+        assertEquals(false, archived.any { it.dateTime == oldTimelineHour })
+    }
+
+    @Test
     fun `getHourlyHistory excludes past Generic rows`() {
         val now = System.currentTimeMillis()
         val baseHour = (now / 3600_000L) * 3600_000L

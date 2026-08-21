@@ -89,6 +89,17 @@ class ObservationWatermarkTest {
         )
     }
 
+    @Test
+    fun `Tomorrow watermark accepts both products and rejects newer legacy timeline row`() {
+        val rows = listOf(
+            obs("TOMORROW_IO_REALTIME", base, api = WeatherSource.TOMORROW_IO.id),
+            obs("TOMORROW_IO_RECENT_HISTORY", base + 60_000L, api = WeatherSource.TOMORROW_IO.id),
+            obs("TOMORROW_IO_MAIN", base + 120_000L, api = WeatherSource.TOMORROW_IO.id),
+        )
+
+        assertEquals(base + 60_000L, ObservationWatermark.of(rows, WeatherSource.TOMORROW_IO.id))
+    }
+
     /**
      * The load-bearing one. `fetchedAt` carries *attempt* semantics — `INSERT OR REPLACE` refreshes
      * it for a byte-identical repeat, and `touchLatestFetchedAt` bumps it on an empty attempt — so a

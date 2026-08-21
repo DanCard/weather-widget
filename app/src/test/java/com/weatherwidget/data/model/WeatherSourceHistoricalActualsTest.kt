@@ -46,5 +46,6 @@ class WeatherSourceHistoricalActualsTest {
             false,
             WeatherSource.SILURIAN.historicalDataKind.preservesHistoricalPrecipitation,
         )
+        assertEquals(true, WeatherSource.TOMORROW_IO.supportsHistoricalActualsBackfill)
     }
 }

@@ -126,7 +126,6 @@ data class ActualTemperatureSeriesResult(
 
 object ActualTemperatureSeriesBuilder {
     private const val TAG = "ActualTempSeries"
-    private const val GENERIC_GAP_SOURCE = "Generic"
     // The stations list badges a station "Stale" at exactly this age, so the two must not drift apart.
     private const val TIME_DECAY_MAX_AGE_MS = ObservationOrigin.BLEND_MAX_AGE_MS
     private const val NEAR_ZERO_KM = 0.1f
@@ -173,7 +172,10 @@ object ActualTemperatureSeriesBuilder {
 
         val sourceActuals = observations.filter { matchesObservationSource(it, displaySourceId) }
         val selectedStationId =
-            if (displaySourceId != WeatherSource.NWS.id) {
+            if (
+                displaySourceId != WeatherSource.NWS.id &&
+                displaySourceId != WeatherSource.TOMORROW_IO.id
+            ) {
                 selectObservationSeries(
                     observations = sourceActuals,
                     displaySourceId = displaySourceId,
@@ -330,8 +332,15 @@ object ActualTemperatureSeriesBuilder {
         // survives the read-path site collapse.
         // Sorting HERE keeps every caller deterministic — Android, desktop, and ActualsAggregator all
         // reach this function with their own queries. See ActualsRowOrderDeterminismTest.
-        val filtered = observations
+        val sourceFiltered = observations
             .filter { !it.qcFailed && matchesObservationSource(it, displaySourceId) }
+        val filtered = (
+            if (displaySourceId == WeatherSource.TOMORROW_IO.id) {
+                TomorrowIoActuals.forTemperatureSeries(sourceFiltered)
+            } else {
+                sourceFiltered
+            }
+        )
             .sortedWith(
                 compareBy(
                     { it.timestamp },
@@ -874,8 +883,11 @@ object ActualTemperatureSeriesBuilder {
      * stationId are written together at insert time.
      */
     private fun matchesObservationSource(observation: ObservationReading, displaySourceId: String): Boolean =
-        WeatherSource.fromId(displaySourceId).supportsTemperatureActuals &&
-            (observation.api == displaySourceId || observation.api == GENERIC_GAP_SOURCE) &&
+        ObservationSourceMatcher.matchesActualSource(
+            stationId = observation.stationId,
+            api = observation.api,
+            source = WeatherSource.fromId(displaySourceId),
+        ) &&
             observation.stationId != "NWS_BLEND"
 
     private fun observationHour(observation: ObservationReading, zoneId: ZoneId): LocalDateTime =

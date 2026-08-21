@@ -11,6 +11,9 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
+import com.weatherwidget.shared.observations.CloudHourBucket
+import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -40,13 +43,29 @@ object ObservationResolver {
         observations: List<ObservationEntity>,
         displaySource: WeatherSource,
     ): ObservedCurrentTemperature? {
-        if (!displaySource.supportsTemperatureActuals) return null
         val filtered = observations.filter {
-            it.api == displaySource.id || it.api == WeatherSource.GENERIC_GAP.id
+            ObservationSourceMatcher.matchesActualSource(
+                stationId = it.stationId,
+                api = it.api,
+                source = displaySource,
+            )
         }
-        val maxTs = filtered.maxOfOrNull { it.timestamp }
+        val selectionPool =
+            if (displaySource == WeatherSource.TOMORROW_IO) {
+                val realtimeBuckets = filtered.asSequence()
+                    .filter { TomorrowIoActuals.isRealtime(it.stationId) }
+                    .map { CloudHourBucket.startMsOf(it.timestamp) }
+                    .toSet()
+                filtered.filter {
+                    TomorrowIoActuals.isRealtime(it.stationId) ||
+                        CloudHourBucket.startMsOf(it.timestamp) !in realtimeBuckets
+                }
+            } else {
+                filtered
+            }
+        val maxTs = selectionPool.maxOfOrNull { it.timestamp }
         val selected = if (maxTs != null) {
-            val candidates = filtered.filter { it.timestamp == maxTs }
+            val candidates = selectionPool.filter { it.timestamp == maxTs }
             candidates.find { it.stationId == "NWS_BLEND" } ?: candidates.first()
         } else null
         Log.d("ObsResolver", "resolveObservedCurrentTemp: stationId=${selected?.stationId} temp=${selected?.temperature} source=${displaySource.id}")

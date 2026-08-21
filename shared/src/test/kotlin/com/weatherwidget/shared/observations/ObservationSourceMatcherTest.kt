@@ -37,4 +37,54 @@ class ObservationSourceMatcherTest {
         assertTrue(ObservationSourceMatcher.matchesObservationSource("SILURIAN_2", WeatherSource.SILURIAN))
         assertFalse(ObservationSourceMatcher.matchesObservationSource("WEATHER_API_MAIN", WeatherSource.SILURIAN))
     }
+
+    @Test
+    fun `Tomorrow stations list and actuals accept recent history and realtime provenance`() {
+        assertTrue(
+            ObservationSourceMatcher.matchesObservationSource(
+                "TOMORROW_IO_RECENT_HISTORY",
+                WeatherSource.TOMORROW_IO,
+            ),
+        )
+        assertTrue(
+            ObservationSourceMatcher.matchesObservationSource(
+                "TOMORROW_IO_REALTIME",
+                WeatherSource.TOMORROW_IO,
+            ),
+        )
+        assertFalse(
+            ObservationSourceMatcher.matchesObservationSource(
+                "TOMORROW_IO_MAIN",
+                WeatherSource.TOMORROW_IO,
+            ),
+        )
+        assertTrue(
+            ObservationSourceMatcher.matchesActualSource(
+                stationId = "TOMORROW_IO_RECENT_HISTORY",
+                api = WeatherSource.TOMORROW_IO.id,
+                source = WeatherSource.TOMORROW_IO,
+            ),
+        )
+        assertTrue(
+            ObservationSourceMatcher.matchesActualSource(
+                stationId = "TOMORROW_IO_REALTIME",
+                api = WeatherSource.TOMORROW_IO.id,
+                source = WeatherSource.TOMORROW_IO,
+            ),
+        )
+        assertFalse(
+            ObservationSourceMatcher.matchesActualSource(
+                stationId = "TOMORROW_IO_MAIN",
+                api = WeatherSource.TOMORROW_IO.id,
+                source = WeatherSource.TOMORROW_IO,
+            ),
+        )
+        assertFalse(
+            ObservationSourceMatcher.matchesActualSource(
+                stationId = "GAP",
+                api = WeatherSource.GENERIC_GAP.id,
+                source = WeatherSource.TOMORROW_IO,
+            ),
+        )
+    }
 }

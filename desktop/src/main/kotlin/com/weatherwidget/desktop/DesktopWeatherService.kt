@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.observations.LatestObservationMerge
 import com.weatherwidget.shared.observations.NwsObservationMapper
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
@@ -103,7 +104,7 @@ class DesktopWeatherService(
     override suspend fun fetchForecast(): RawFetch = runCatching {
         when (weatherSource) {
             "NWS" -> fetchNwsForecast()
-            WeatherSource.TOMORROW_IO.id -> withHistoricalActuals(tomorrowIo.getForecast(latitude, longitude), WeatherSource.TOMORROW_IO.id)
+            WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoForecastWithRealtime()
             WeatherSource.WEATHER_API.id -> withHistoricalActuals(weatherApi.getForecast(latitude, longitude), WeatherSource.WEATHER_API.id)
             WeatherSource.VISUAL_CROSSING.id -> withHistoricalActuals(visualCrossing.getForecast(latitude, longitude), WeatherSource.VISUAL_CROSSING.id)
             WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
@@ -167,6 +168,35 @@ class DesktopWeatherService(
                 nowMs = System.currentTimeMillis(),
             ),
         )
+
+    private suspend fun fetchTomorrowIoForecastWithRealtime(): RawFetch = coroutineScope {
+        val forecastDeferred = async { tomorrowIo.getForecast(latitude, longitude) }
+        val realtimeDeferred = async {
+            try {
+                tomorrowIo.getRealtime(latitude, longitude)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Tomorrow.io realtime fetch failed during full refresh: $e")
+                null
+            }
+        }
+        val forecast = forecastDeferred.await()
+        val realtime = realtimeDeferred.await()
+        val withHistory = withHistoricalActuals(forecast, WeatherSource.TOMORROW_IO.id)
+        if (realtime == null) {
+            withHistory
+        } else {
+            withHistory.copy(
+                rawObservations = withHistory.rawObservations + listOf(
+                    TomorrowIoActuals.toObservation(realtime, latitude, longitude),
+                ),
+                providerCurrentTemp = realtime.temperature,
+                providerCurrentCondition = realtime.condition,
+                providerCurrentObservedAt = realtime.observedAt,
+            )
+        }
+    }
 
     /**
      * Open-Meteo forecast plus the historical-actuals backfill. Open-Meteo additionally needs
@@ -567,7 +597,7 @@ class DesktopWeatherService(
         when (weatherSource) {
             "NWS" -> fetchNwsObservationsOnly(recentOnly)
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
-            WeatherSource.TOMORROW_IO.id,
+            WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
             WeatherSource.WEATHER_API.id,
             WeatherSource.VISUAL_CROSSING.id,
             WeatherSource.SILURIAN.id,
@@ -577,6 +607,16 @@ class DesktopWeatherService(
             }
             else -> RawFetch()
         }
+
+    private suspend fun fetchTomorrowIoObservationsOnly(): RawFetch {
+        val realtime = tomorrowIo.getRealtime(latitude, longitude) ?: return RawFetch()
+        return RawFetch(
+            rawObservations = listOf(TomorrowIoActuals.toObservation(realtime, latitude, longitude)),
+            providerCurrentTemp = realtime.temperature,
+            providerCurrentCondition = realtime.condition,
+            providerCurrentObservedAt = realtime.observedAt,
+        )
+    }
 
     private suspend fun fetchNwsObservationsOnly(recentOnly: Boolean): RawFetch = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)

@@ -2,19 +2,16 @@ package com.weatherwidget.data.remote
 
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
-import com.weatherwidget.widget.WidgetStateManager
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
@@ -24,10 +21,6 @@ class TomorrowIoApiTest {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
-    }
-
-    private val widgetStateManager = mockk<WidgetStateManager>(relaxed = true).apply {
-        every { getApiKey(WeatherSource.TOMORROW_IO) } returns "test-key"
     }
 
     private fun createMockClient(hourlyJson: String, dailyJson: String): HttpClient {
@@ -102,8 +95,9 @@ class TomorrowIoApiTest {
         val result = api.getForecast(37.4220, -122.0841)
 
         assertNotNull(result)
-        assertEquals(65.5f, result.providerCurrentTemp!!, 0.1f)
-        assertEquals("Cloudy", result.providerCurrentCondition)
+        assertNull(result.providerCurrentTemp)
+        assertNull(result.providerCurrentCondition)
+        assertNull(result.providerCurrentObservedAt)
         
         assertEquals(1, result.hourly.size)
         assertEquals(65.5f, result.hourly[0].temperature, 0.1f)
@@ -144,7 +138,7 @@ class TomorrowIoApiTest {
     }
 
     @Test
-    fun `hourly request startTime stays within the 24h plan limit`() = runBlocking {
+    fun `hourly request asks for the bounded six-hour lookback`() = runBlocking {
         var capturedStartTime: String? = null
         val emptyTimeline = """{"data":{"timelines":[{"intervals":[]}]}}"""
         val engine = MockEngine { request ->
@@ -164,12 +158,44 @@ class TomorrowIoApiTest {
 
         api.getForecast(37.4220, -122.0841)
 
-        assertNotNull(capturedStartTime)
-        val start = java.time.OffsetDateTime.parse(capturedStartTime)
-        val hoursInPast = java.time.Duration.between(start, java.time.OffsetDateTime.now()).toMinutes() / 60.0
-        // Must be in the past but never beyond Tomorrow.io's 24h plan ceiling.
-        assertTrue("startTime should be in the past", hoursInPast > 0)
-        assertTrue("startTime must stay within 24h (was ${hoursInPast}h)", hoursInPast < 24.0)
+        assertEquals("nowMinus6h", capturedStartTime)
+    }
+
+    @Test
+    fun `getRealtime parses source-native current temperature cloud and timestamp`() = runBlocking {
+        var capturedPath: String? = null
+        val engine = MockEngine { request ->
+            capturedPath = request.url.encodedPath
+            respond(
+                content = """
+                    {
+                      "data": {
+                        "time": "2026-08-21T21:15:00Z",
+                        "values": {
+                          "temperature": 69.1,
+                          "weatherCode": 1101,
+                          "cloudCover": 56.4
+                        }
+                      }
+                    }
+                """.trimIndent(),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        val api = TomorrowIoApi(
+            HttpClient(engine) { install(ContentNegotiation) { json(json) } },
+            json,
+        ) { "test-key" }
+
+        val reading = api.getRealtime(37.4220, -122.0841)
+
+        assertNotNull(reading)
+        assertEquals("/v4/weather/realtime", capturedPath)
+        assertEquals(69.1f, reading!!.temperature, 0.01f)
+        assertEquals("Partly Cloudy", reading.condition)
+        assertEquals(56, reading.cloudCover)
+        assertEquals(1787346900000L, reading.observedAt)
     }
 
     @Test

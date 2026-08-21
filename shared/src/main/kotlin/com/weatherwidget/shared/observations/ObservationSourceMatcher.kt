@@ -2,6 +2,7 @@ package com.weatherwidget.shared.observations
 
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
 
 /**
  * Decides whether an observation row's [stationId] should be shown in the stations list for a given
@@ -68,6 +69,22 @@ object ObservationSourceMatcher {
                 stationId != "NWS_BLEND" &&
                     stationId != HistoricalActualsBackfill.syntheticStationId(WeatherSource.NWS.id) &&
                     sourcePrefixes.values.none { prefix -> stationId.startsWith(prefix) }
+            WeatherSource.TOMORROW_IO -> TomorrowIoActuals.isAllowedStation(stationId)
             else -> stationId.startsWith(sourcePrefixes[source] ?: return false)
         }
+
+    /** True when a row may drive the selected source's temperature/cloud actuals. */
+    fun matchesActualSource(
+        stationId: String,
+        api: String,
+        source: WeatherSource,
+        allowGenericGap: Boolean = true,
+    ): Boolean {
+        if (!source.supportsTemperatureActuals) return false
+        if (api == WeatherSource.GENERIC_GAP.id) {
+            return allowGenericGap && source != WeatherSource.TOMORROW_IO
+        }
+        if (api != source.id) return false
+        return source != WeatherSource.TOMORROW_IO || TomorrowIoActuals.isAllowedStation(stationId)
+    }
 }

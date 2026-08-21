@@ -9,6 +9,7 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.BlendObservationStats
 import com.weatherwidget.shared.actuals.DominantBlend
@@ -387,6 +388,9 @@ internal fun matchesObservationSource(
     observation: ObservationEntity,
     displaySource: WeatherSource,
 ): Boolean {
-    return displaySource.supportsTemperatureActuals &&
-        (observation.api == displaySource.id || observation.api == WeatherSource.GENERIC_GAP.id)
+    return ObservationSourceMatcher.matchesActualSource(
+        stationId = observation.stationId,
+        api = observation.api,
+        source = displaySource,
+    )
 }

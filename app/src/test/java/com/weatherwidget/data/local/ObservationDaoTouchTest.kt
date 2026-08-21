@@ -31,6 +31,7 @@ class ObservationDaoTouchTest {
         fetchedAt: Long,
         lat: Double = 37.42,
         lon: Double = -122.08,
+        api: String = "NWS",
     ) = ObservationEntity(
         stationId = stationId,
         stationName = "$stationId name",
@@ -40,7 +41,7 @@ class ObservationDaoTouchTest {
         locationLat = lat,
         locationLon = lon,
         fetchedAt = fetchedAt,
-        api = "NWS",
+        api = api,
     )
 
     @Before
@@ -100,6 +101,25 @@ class ObservationDaoTouchTest {
 
         assertEquals(3_500L, dao.getLatestForStation("KSJC", 37.42, -122.08)?.fetchedAt)
         assertEquals(1, dao.getRecentObservations(0L).size) // nothing inserted
+    }
+
+    @Test
+    fun tomorrowCleanup_keepsRecentHistoryAndRealtime_only() = runTest {
+        dao.insertAll(
+            listOf(
+                obs("TOMORROW_IO_MAIN", 1_000L, 1_000L, api = "TOMORROW_IO"),
+                obs("TOMORROW_IO_RECENT_HISTORY", 2_000L, 2_000L, api = "TOMORROW_IO"),
+                obs("TOMORROW_IO_REALTIME", 3_000L, 3_000L, api = "TOMORROW_IO"),
+                obs("KNUQ", 4_000L, 4_000L),
+            ),
+        )
+
+        assertEquals(1, dao.deleteLegacyTomorrowIoObservations())
+
+        assertEquals(
+            setOf("TOMORROW_IO_RECENT_HISTORY", "TOMORROW_IO_REALTIME", "KNUQ"),
+            dao.getRecentObservations(0L).map { it.stationId }.toSet(),
+        )
     }
 
     @Test

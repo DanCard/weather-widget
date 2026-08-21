@@ -108,6 +108,13 @@ interface ObservationDao {
     suspend fun deleteOldObservations(cutoffMs: Long)
 
     @Query(
+        "DELETE FROM observations " +
+            "WHERE api = 'TOMORROW_IO' " +
+            "AND stationId NOT IN ('TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME')",
+    )
+    suspend fun deleteLegacyTomorrowIoObservations(): Int
+
+    @Query(
         """
         SELECT * FROM observations
         WHERE stationId = :stationId

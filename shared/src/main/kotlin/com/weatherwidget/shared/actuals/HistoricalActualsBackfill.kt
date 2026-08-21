@@ -45,16 +45,30 @@ object HistoricalActualsBackfill {
         fetchedAt: Long = nowMs,
     ): List<ObservationReading> {
         val source = WeatherSource.fromId(sourceId)
-        if (!source.supportsTemperatureActuals) return emptyList()
+        if (!source.supportsTemperatureActuals || !source.supportsHistoricalActualsBackfill) {
+            return emptyList()
+        }
         val kind = source.historicalDataKind
         val keepHistoricalPrecip = kind.preservesHistoricalPrecipitation
         val keepCloud = source.supportsCloudActuals
+        val stationId =
+            if (source == WeatherSource.TOMORROW_IO) {
+                TomorrowIoActuals.RECENT_HISTORY_STATION_ID
+            } else {
+                syntheticStationId(sourceId)
+            }
+        val stationName =
+            if (source == WeatherSource.TOMORROW_IO) {
+                TomorrowIoActuals.RECENT_HISTORY_STATION_NAME
+            } else {
+                "$sourceId: History Backfill"
+            }
         return hourly
             .filter { it.dateTime <= nowMs }
             .map { hour ->
                 ObservationReading(
-                    stationId = syntheticStationId(sourceId),
-                    stationName = "$sourceId: History Backfill",
+                    stationId = stationId,
+                    stationName = stationName,
                     timestamp = hour.dateTime,
                     temperature = hour.temperature,
                     condition = hour.condition,

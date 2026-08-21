@@ -14,6 +14,8 @@ import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.StationDailyExtremes
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
+import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.history.ProviderHistoryDecision
 import com.weatherwidget.shared.history.ProviderHistoryFailureClass
 import com.weatherwidget.shared.history.ProviderHistoryPolicy
@@ -41,6 +43,15 @@ class DesktopWeatherRepository(
     private val personalStationWeight: Double = 1.0,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
 ) {
+    init {
+        weatherDao.cleanupLegacyTomorrowIoActuals()?.let { result ->
+            Log.i(
+                "DesktopWeatherRepository",
+                "Tomorrow.io actuals cleanup: observations=${result.observationsDeleted} daily=${result.dailyRowsDeleted}",
+            )
+        }
+    }
+
     /** Result of the current-temperature resolution: display temp, forecast delta, yesterday delta. */
     data class ResolvedCurrentTemp(
         val displayTemp: Float?,
@@ -184,9 +195,19 @@ class DesktopWeatherRepository(
         // correctly included for NWS and excluded for Open-Meteo/Silurian). Without this filter a
         // non-NWS view would show an NWS blend timestamp/condition.
         val displaySource = WeatherSource.fromDisplaySource(weatherSource)
-        val sourceObs = observations.filter {
-            displaySource.supportsTemperatureActuals && it.api == displaySource.id
+        val matchedSourceObs = observations.filter {
+            ObservationSourceMatcher.matchesActualSource(
+                stationId = it.stationId,
+                api = it.api,
+                source = displaySource,
+            )
         }
+        val sourceObs =
+            if (displaySource == WeatherSource.TOMORROW_IO) {
+                TomorrowIoActuals.preferRealtimeWithinHour(matchedSourceObs)
+            } else {
+                matchedSourceObs
+            }
 
         // Prefer the most-recent NWS_BLEND synthetic row — it represents the IDW-weighted truth
         // across all stations. Raw station rows can have newer timestamps (from historical fetches)
@@ -333,8 +354,11 @@ class DesktopWeatherRepository(
             // fills in as it runs), so we never seed Open-Meteo decimals into the past.
             val result = weatherService.fetchForecast()
 
-            // Persist
-            weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, result.hourly)
+            // Preserve the forecast that was actually shown for elapsed hours. Tomorrow's Timeline
+            // response also contains a revised six-hour lookback; that slice belongs only in
+            // observations and must not rewrite either live forecast storage or its snapshots.
+            val forecastHours = result.hourly.filter { it.dateTime >= now - 3_600_000L }
+            weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, forecastHours)
             weatherDao.upsertForecasts(latitude, longitude, weatherSource, result.daily)
 
             // NWS api actuals are NOT written here. The gridpoint maxTemperature/minTemperature
@@ -373,7 +397,13 @@ class DesktopWeatherRepository(
 
             // Snapshot for history (Tier 1 simplification: 4h buckets)
             val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
-            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, result.hourly)
+            weatherDao.upsertHourlyForecastHistory(
+                latitude,
+                longitude,
+                weatherSource,
+                timestampToGroupPredictions,
+                forecastHours,
+            )
 
             // The cloud graph's frozen forecast curve. Throttled to once an hour: the day-ago
             // prediction for an elapsed hour never changes, so refetching it on every refresh would

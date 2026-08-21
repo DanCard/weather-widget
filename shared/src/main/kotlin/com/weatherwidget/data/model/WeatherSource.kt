@@ -33,6 +33,8 @@ enum class WeatherSource(
     val supportsTemperatureActuals: Boolean = true,
     /** Whether this source exposes a documented observation/analysis cloud product. */
     val supportsCloudActuals: Boolean = historicalDataKind.preservesHistoricalCloud,
+    /** Whether elapsed forecast/history rows may be re-filed as observations. */
+    val supportsHistoricalActualsBackfill: Boolean = supportsTemperatureActuals,
 ) {
     NWS(
         id = "NWS",
@@ -84,9 +86,13 @@ enum class WeatherSource(
         id = "TOMORROW_IO",
         displayName = "Tomorrow.io",
         shortDisplayName = "Tmrw",
-        // Rolling <24h analysis window only. This remains safe only while TomorrowIoApi keeps its
-        // start time capped at 23 hours; do not widen that window without revisiting provenance.
+        // Provisionally treat the bounded six-hour Timeline lookback as recent analysis. It is
+        // stored under distinct provenance from /realtime so it can be compared and removed alone
+        // if later evidence shows the product is only revised forecast history.
         historicalDataKind = HistoricalDataKind.RECENT_ANALYSIS,
+        supportsTemperatureActuals = true,
+        supportsCloudActuals = true,
+        supportsHistoricalActualsBackfill = true,
     ),
     ;
 

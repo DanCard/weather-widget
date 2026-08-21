@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ObservationSourceMatcher
 
 /**
  * "Has the observation data actually changed since the last graph render?", as a single comparable
@@ -48,9 +49,15 @@ object ObservationWatermark {
      * rows the display selects from; if that filter changes, this must change with it.
      */
     fun of(rows: List<ObservationEntity>, displaySourceId: String): Long {
-        if (!WeatherSource.fromId(displaySourceId).supportsTemperatureActuals) return NONE
+        val displaySource = WeatherSource.fromId(displaySourceId)
         return rows.asSequence()
-            .filter { it.api == displaySourceId || it.api == WeatherSource.GENERIC_GAP.id }
+            .filter {
+                ObservationSourceMatcher.matchesActualSource(
+                    stationId = it.stationId,
+                    api = it.api,
+                    source = displaySource,
+                )
+            }
             .maxOfOrNull { it.timestamp }
             ?: NONE
     }

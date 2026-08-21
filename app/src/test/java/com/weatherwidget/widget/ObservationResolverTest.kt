@@ -148,10 +148,12 @@ class ObservationResolverTest {
     }
 
     @Test
-    fun `resolveObservedCurrentTemp correctly resolves Tomorrow-io observations`() {
+    fun `resolveObservedCurrentTemp accepts Tomorrow products and rejects legacy timeline rows`() {
         val nowMs = 1_000_000L
         val observations = listOf(
-            currentTempObservation(stationId = "TOMORROW_IO_MAIN", temperature = 72.5f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.TOMORROW_IO.id),
+            currentTempObservation(stationId = "TOMORROW_IO_MAIN", temperature = 99.5f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.TOMORROW_IO.id),
+            currentTempObservation(stationId = "TOMORROW_IO_RECENT_HISTORY", temperature = 71.5f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.TOMORROW_IO.id),
+            currentTempObservation(stationId = "TOMORROW_IO_REALTIME", temperature = 72.5f, fetchedAt = nowMs, timestamp = nowMs - 100, api = WeatherSource.TOMORROW_IO.id),
             currentTempObservation(stationId = "NWS_BLEND",        temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.NWS.id),
         )
 
@@ -160,6 +162,20 @@ class ObservationResolverTest {
         assertNotNull(resolved)
         assertEquals(WeatherSource.TOMORROW_IO.id, resolved!!.source)
         assertEquals(72.5f, resolved.temperature)
+    }
+
+    @Test
+    fun `resolveObservedCurrentTemp uses Tomorrow recent history before realtime accumulates`() {
+        val nowMs = 1_000_000L
+        val observations = listOf(
+            currentTempObservation(stationId = "TOMORROW_IO_RECENT_HISTORY", temperature = 71.5f, fetchedAt = nowMs, timestamp = nowMs - 200, api = WeatherSource.TOMORROW_IO.id),
+            currentTempObservation(stationId = "TOMORROW_IO_MAIN", temperature = 99.5f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.TOMORROW_IO.id),
+        )
+
+        val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.TOMORROW_IO)
+
+        assertNotNull(resolved)
+        assertEquals(71.5f, resolved!!.temperature)
     }
 
     @Test

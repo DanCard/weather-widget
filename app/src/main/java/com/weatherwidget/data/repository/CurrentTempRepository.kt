@@ -25,6 +25,7 @@ import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.shared.util.TemperatureInterpolator
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -126,6 +127,13 @@ class CurrentTempRepository
                     if (mutexWaitMs > 100) {
                         appLogDao.log("CURR_FETCH_MUTEX", "reason=$reason waitMs=$mutexWaitMs", "WARN")
                     }
+
+                    TomorrowIoLegacyActualsCleanup.runIfNeeded(
+                        context = context,
+                        observationDao = observationDao,
+                        dailyHistoryDao = dailyHistoryDao,
+                        appLogDao = appLogDao,
+                    )
 
                     val currentTime = System.currentTimeMillis()
                     // Location-scoped: a location handoff must not inherit the previous site's
@@ -372,59 +380,42 @@ class CurrentTempRepository
             ) { lat, lon -> weatherApi.getForecast(lat, lon) }
         }
 
-        private suspend fun fetchTomorrowIoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            val api = tomorrowIoApi ?: return@coroutineScope null
-            val pointsOfInterest = listOf(Triple(latitude, longitude, "Current"))
-            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
-                async {
-                    val result = try {
-                        api.getForecast(point.first, point.second)
-                    } catch (e: ApiAccessException) {
-                        throw e
-                    } catch (e: ClientRequestException) {
-                        checkAndRethrowFailure(WeatherSource.TOMORROW_IO, e)
-                        null
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        null
-                    }
-                    // currentTemp captured locally: it's a property from the :shared module, which
-                    // Kotlin cannot smart-cast across the module boundary.
-                    val currentTemp = result?.providerCurrentTemp
-                    if (result != null && currentTemp != null) {
-                        val stationId = if (point.third == "Current") "TOMORROW_IO_MAIN" else "TOMORROW_IO_$index"
-                        val condition = result.providerCurrentCondition ?: "Unknown"
-                        val obsEntity = ObservationEntity(
-                            stationId,
-                            "Tmrw: ${point.third}",
-                            result.providerCurrentObservedAt ?: System.currentTimeMillis(),
-                            currentTemp,
-                            condition,
-                            point.first,
-                            point.second,
-                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            "OFFICIAL",
-                            api = WeatherSource.TOMORROW_IO.id,
-                        )
-                        insertCurrentObservation(obsEntity)
-                    }
-                    result
-                }
-            }.map { it.await() }
+        private suspend fun fetchTomorrowIoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? {
+            val api = tomorrowIoApi ?: return null
+            val reading = try {
+                api.getRealtime(latitude, longitude)
+            } catch (e: ApiAccessException) {
+                throw e
+            } catch (e: ClientRequestException) {
+                checkAndRethrowFailure(WeatherSource.TOMORROW_IO, e)
+                null
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            } ?: return null
 
-            deferredReadings.firstNotNullOfOrNull { it }?.let { result ->
-                // Local capture: currentTemp is a :shared-module property (no cross-module smart-cast).
-                val currentTemp = result.providerCurrentTemp
-                if (currentTemp != null) {
-                    CurrentReadingPayload(
-                        WeatherSource.TOMORROW_IO,
-                        currentTemp,
-                        result.providerCurrentCondition,
-                        result.providerCurrentObservedAt
-                    )
-                } else null
-            }
+            insertCurrentObservation(
+                ObservationEntity(
+                    stationId = TomorrowIoActuals.REALTIME_STATION_ID,
+                    stationName = TomorrowIoActuals.REALTIME_STATION_NAME,
+                    timestamp = reading.observedAt,
+                    temperature = reading.temperature,
+                    condition = reading.condition,
+                    locationLat = latitude,
+                    locationLon = longitude,
+                    distanceKm = 0f,
+                    stationType = "OFFICIAL",
+                    api = WeatherSource.TOMORROW_IO.id,
+                    cloudCover = reading.cloudCover,
+                ),
+            )
+            return CurrentReadingPayload(
+                source = WeatherSource.TOMORROW_IO,
+                temperature = reading.temperature,
+                condition = reading.condition,
+                observedAt = reading.observedAt,
+            )
         }
 
         /**
