@@ -272,14 +272,45 @@ class HourlyObservationBackfillLocationTest {
         assertTrue(decision.reason.startsWith("coverage_ok"))
     }
 
+    /**
+     * Inverted 2026-08-21. This used to assert that web-fallback rows are ignored, on the stated
+     * grounds that "Synoptic fallback rows are temperature-only by policy". They are not: Synoptic
+     * returns the raw METAR and the parser ignored it. Excluding these rows meant a station that had
+     * degraded to web fallback left the cloud basis silently instead of being reported as broken —
+     * which is how KNUQ (3.8 km) went cloud-less while the check read healthy and the curve ran off
+     * a station 15.9 km away.
+     *
+     * Now that [com.weatherwidget.data.remote.SynopticApi] parses sky condition, a cloud-less
+     * official series is a real defect regardless of which path fetched it.
+     */
     @Test
-    fun `NWS cloud check ignores web-fallback rows`() {
-        // Synoptic fallback rows are temperature-only by policy; when the web path won a station,
-        // its rows must not count as "official station had a cloud opportunity this hour".
+    fun `NWS cloud check counts web-fallback rows and reports them when cloud-less`() {
         val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
         val now = LocalDateTime.of(2026, 7, 30, 7, 0)
         val observations = metarStationRows(
             graphStart, now, "OFFICIAL", cloudCoverLow = null, isWebFallback = true,
+        )
+
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = graphStart,
+                graphEnd = now.plusHours(11),
+                observations = observations,
+                now = now,
+            )
+
+        assertTrue(decision.shouldRequest)
+        assertTrue(decision.reason.startsWith("metar_cloud_sparse"))
+    }
+
+    /** The other half: web-fallback rows that DO carry cloud satisfy the check like any other. */
+    @Test
+    fun `NWS cloud check is satisfied by web-fallback rows carrying cloud`() {
+        val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
+        val now = LocalDateTime.of(2026, 7, 30, 7, 0)
+        val observations = metarStationRows(
+            graphStart, now, "OFFICIAL", cloudCoverLow = 75, isWebFallback = true,
         )
 
         val decision =

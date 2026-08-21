@@ -250,9 +250,13 @@ class NwsObservationBackfiller @Inject constructor(
                 webWindowMinutes = webWindowMinutes,
                 fallbackLogTag = fallbackLogTag,
             )
+            // A station past MAX_WEB_FALLBACK_STATIONS gets no web fallback, so a timeout here lands
+            // as a bare `rows=0` that reads exactly like a station with nothing to report (KSJC,
+            // 2026-08-21). The failure marker is the only thing separating the two on this line.
             appLogDao.log(
                 stationLogTag,
-                "station=${station.id} rows=${result.entities.size} web=${result.usedWebFallback}",
+                "station=${station.id} rows=${result.entities.size} web=${result.usedWebFallback}" +
+                    (result.apiFailure?.let { " apiFetchFailed=$it" } ?: ""),
                 "INFO",
             )
             if (result.entities.isNotEmpty()) observationDao.insertAll(result.entities)

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.shared.observations.MetarRawSkyParser
 import com.weatherwidget.shared.util.Log
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -56,6 +57,12 @@ class SynopticApi @Inject constructor(
                 val airTempArray = obsObj["air_temp_set_1"]?.jsonArray
                 val weatherSummaryArray = obsObj["weather_summary_set_1d"]?.jsonArray
                 val weatherCondArray = obsObj["weather_condition_set_1d"]?.jsonArray
+                // The raw report. Already present in the response this request has always made —
+                // Synoptic returns ~19 variables for an ASOS station and we were reading two of
+                // them, so every web-fallback row stored no sky condition. Sky condition rides here
+                // rather than in a dedicated field, and MetarRawSkyParser turns it into the same
+                // CloudLayer list the NWS API path produces.
+                val metarArray = obsObj["metar_set_1"]?.jsonArray
                 // Parallel to air_temp_set_1: null = passed QC, array of check IDs = flagged
                 // (e.g. [105] = SynopticLabs Spatial Value Check). Only present when the request
                 // asks for qc_flags; absent QC block means nothing was flagged.
@@ -81,6 +88,8 @@ class SynopticApi @Inject constructor(
                         ?: weatherCondArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
                         ?: "Unknown"
 
+                    val rawMetar = metarArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
+
                     observationList.add(
                         NwsApi.Observation(
                             timestamp = dateTimeStr,
@@ -91,6 +100,12 @@ class SynopticApi @Inject constructor(
                             minTempLast24hCelsius = null,
                             precipLastHourMm = null,
                             qcFailed = qcFailed,
+                            cloudLayers = MetarRawSkyParser.layersFrom(rawMetar),
+                            // A row backed by a raw report IS a METAR — the same thing `rawMessage`
+                            // signals on the NWS path. Mesonet stations return no metar_set_1 and
+                            // stay false, which is what MetarCloudBlender's METAR-over-ASOS
+                            // preference needs to be told honestly.
+                            isMetar = !rawMetar.isNullOrBlank(),
                         )
                     )
                 }

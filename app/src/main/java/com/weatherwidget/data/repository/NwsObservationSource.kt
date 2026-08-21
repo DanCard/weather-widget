@@ -28,11 +28,17 @@ internal data class LatestStationObservation(
      * won [LatestObservationMerge.preferNewest] on temperature freshness.
      *
      * The merge is a TEMPERATURE decision, but it swaps the whole row: Synoptic republishes 20-60
-     * minutes ahead of the API yet carries no sky condition, no 24h extremes, and no precipitation
-     * (see `SynopticApi` — all three are null/empty). A plain swap therefore discards everything
-     * the API row knew. Measured 2026-08-21: KNUQ (Moffett, 3.8 km, the nearest official station)
-     * stored 23 consecutive cloud-less rows while its own METARs read `OVC 400` throughout, leaving
-     * the entire cloud blend to KSJC 15.9 km away.
+     * minutes ahead of the API yet carries no 24h extremes and no precipitation (see `SynopticApi` —
+     * both are null). A plain swap therefore discards what the API row knew. Measured 2026-08-21:
+     * KNUQ (Moffett, 3.8 km, the nearest official station) stored 23 consecutive cloud-less rows
+     * while its own METARs read `OVC 400` throughout, leaving the entire cloud blend to KSJC 15.9 km
+     * away.
+     *
+     * Sky condition used to be on that list of things Synoptic "carries none of". It was never true
+     * — Synoptic returns the raw report in `metar_set_1` and the parser simply ignored it, which is
+     * the other half of the same KNUQ measurement. `SynopticApi` now parses it, so a web row carries
+     * its own cloud. This row still earns its place for the extremes and precipitation, and as the
+     * API's independent account of the same hour.
      *
      * This is a real observation row, not a cloud-only stub, deliberately: it keeps the API row's
      * own timestamp (the cloud value must bucket to the API observation hour, not the web row's
@@ -54,6 +60,12 @@ internal data class LatestStationObservation(
 internal data class HistoricalStationObservations(
     val entities: List<ObservationEntity>,
     val usedWebFallback: Boolean,
+    /**
+     * Simple name of the exception the NWS API call threw, or null when it answered. Carried out so
+     * the per-station log line can say "we never got an answer" instead of implying an empty
+     * station — the two are indistinguishable from [entities] alone.
+     */
+    val apiFailure: String? = null,
 )
 
 @Singleton
@@ -257,11 +269,16 @@ class NwsObservationSource(
         webWindowMinutes: Long,
         fallbackLogTag: String,
     ): HistoricalStationObservations {
+        // Held alongside the list because the catch below flattens a failure into an empty result:
+        // downstream, "the request died" and "the station reported nothing" look identical, and the
+        // fallback reason used to assert the second one for both.
+        var apiFailure: String? = null
         val nwsObservations = try {
             nwsApi.getObservations(stationInfo.id, startTime, endTime)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
+            apiFailure = e::class.simpleName ?: "Exception"
             appLogDao.log(
                 "NWS_HISTORY_FETCH_FAIL",
                 "station=${stationInfo.id} error=${e::class.simpleName}:${e.message}",
@@ -281,11 +298,16 @@ class NwsObservationSource(
             return HistoricalStationObservations(
                 nwsObservations.map { toEntity(it, stationInfo, latitude, longitude) },
                 usedWebFallback = false,
+                apiFailure = apiFailure,
             )
         }
 
-        val reason = ObservationFallbackPolicy.fallbackReason(nwsObservations.size)
-        appLogDao.log(fallbackLogTag, "station=${stationInfo.id} reason=$reason", "INFO")
+        val reason = ObservationFallbackPolicy.fallbackReason(
+            nwsObservations.size,
+            apiFetchFailed = apiFailure != null,
+        )
+        val reasonDetail = apiFailure?.let { "$reason:$it" } ?: reason
+        appLogDao.log(fallbackLogTag, "station=${stationInfo.id} reason=$reasonDetail", "INFO")
         val webOutcome = synopticApi.fetchSynopticObservations(
             stationInfo.id,
             webWindowMinutes,
@@ -298,11 +320,13 @@ class NwsObservationSource(
                     toEntity(it, stationInfo, latitude, longitude, isWebFallback = true)
                 },
                 usedWebFallback = true,
+                apiFailure = apiFailure,
             )
         } else {
             HistoricalStationObservations(
                 nwsObservations.map { toEntity(it, stationInfo, latitude, longitude) },
                 usedWebFallback = false,
+                apiFailure = apiFailure,
             )
         }
     }

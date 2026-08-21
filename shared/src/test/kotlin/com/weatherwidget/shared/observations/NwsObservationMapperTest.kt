@@ -57,6 +57,30 @@ class NwsObservationMapperTest {
         assertEquals(MetarSkyCover.lowPercent(layers), reading.cloudCoverLow)
     }
 
+    /**
+     * A web-fallback reading carries sky condition like any other. The mapper never treated it
+     * differently — the belief that it could not (`isWebFallback` rows are "temperature-only by
+     * policy") lived in comments and in the cloud-health check, and it was wrong. This is the
+     * assertion whose absence let that belief stand.
+     */
+    @Test
+    fun `a web-fallback reading maps its cloud layers like any other`() {
+        val layers = MetarRawSkyParser.layersFrom(
+            "KNUQ 211435Z AUTO 35003KT 10SM OVC012 16/13 A3005 RMK AO2",
+        )
+        val reading = NwsObservationMapper.toReading(
+            observation(cloudLayers = layers),
+            station,
+            37.4,
+            -122.08,
+            isWebFallback = true,
+        )
+
+        assertTrue(reading.isWebFallback)
+        assertEquals(100, reading.cloudCoverLow)
+        assertNull(reading.cloudCover)
+    }
+
     @Test
     fun `timestamp offset without a colon still parses`() {
         val reading = NwsObservationMapper.toReading(

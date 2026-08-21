@@ -202,20 +202,31 @@ internal fun evaluateHourlyBackfillNeed(
  * and the existing 72h re-fetch repairs it — REPLACE re-parses the same bytes with `cloudLayers`,
  * no new HTTP calls. The ordinary cooldown bounds how often a genuinely cloudless location retries.
  *
- * OFFICIAL-only basis: PERSONAL stations report `cloudLayers: []` on every report (no ceilometer)
- * and Synoptic web-fallback rows are temperature-only by policy, so neither can ever satisfy the
- * check and must not keep it firing. Buckets use the blender's round-to-nearest-hour rule.
+ * OFFICIAL-only basis: PERSONAL stations have no ceilometer and report `cloudLayers: []` on every
+ * report, so they can never satisfy the check and must not keep it firing. Buckets use the blender's
+ * round-to-nearest-hour rule.
+ *
+ * Web-fallback rows ARE counted. They were excluded until 2026-08-21 on the stated grounds that
+ * Synoptic rows are "temperature-only by policy" — untrue: Synoptic returns the raw METAR and the
+ * parser simply ignored it, so the exclusion was resting on a fact that was never checked.
+ *
+ * Note what counting them does and does not buy. The measure is **bucket-level**: a bucket counts as
+ * covered when *any* official station reported cloud in that hour, so one healthy station masks every
+ * other. Measured on the emulator right after this change, admitting KNUQ's and KPAO's rows moved the
+ * ratio from 42/66 to 44/72 — still healthy — because KSJC covers nearly every bucket by itself. This
+ * check therefore detects a broken *series*, never a single station that has stopped contributing;
+ * that gap is real and is not what this function is for.
  */
 @androidx.annotation.VisibleForTesting
 internal fun metarCloudGapReason(sourceObservations: List<ObservationEntity>): String? {
-    val officialApiRows = sourceObservations
-        .filter { it.stationType == "OFFICIAL" && !it.qcFailed && !it.isWebFallback }
-    if (officialApiRows.isEmpty()) return null
+    val officialRows = sourceObservations
+        .filter { it.stationType == "OFFICIAL" && !it.qcFailed }
+    if (officialRows.isEmpty()) return null
     // The blender's shared round-to-nearest-hour rule — the buckets this check counts must be the
     // same buckets the blend emits, or "cloud sparse here" says nothing about the curve.
     fun bucketOf(ts: Long) = com.weatherwidget.shared.observations.CloudHourBucket.indexOf(ts)
-    val officialBuckets = officialApiRows.map { bucketOf(it.timestamp) }.distinct().size
-    val cloudBuckets = officialApiRows
+    val officialBuckets = officialRows.map { bucketOf(it.timestamp) }.distinct().size
+    val cloudBuckets = officialRows
         .filter { (it.cloudCoverLow ?: it.cloudCover) != null }
         .map { bucketOf(it.timestamp) }
         .distinct()

@@ -132,6 +132,61 @@ class FetchOutcomeTest {
         assertFalse((outcome as FetchOutcome.Success).value.single().qcFailed)
     }
 
+    // --- Synoptic sky condition ---
+
+    /**
+     * The regression this file's neighbours could not catch: Synoptic returns the raw report in
+     * `metar_set_1` and the parser read only `air_temp_set_1`, so every web-fallback row stored no
+     * sky condition. KNUQ (3.8 km) went cloud-less on 2026-08-21 while the curve ran off KSJC at
+     * 15.9 km.
+     */
+    @Test
+    fun `synoptic rows carry sky condition from the raw METAR`() {
+        val response = """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [{"NAME": "Moffett",
+            "OBSERVATIONS": {
+                "date_time": ["2026-08-21T14:35:00Z"],
+                "air_temp_set_1": [16.0],
+                "metar_set_1": ["KNUQ 211435Z AUTO 35003KT 10SM OVC012 16/13 A3005 RMK AO2"]
+            }}]}"""
+        val outcome = SynopticApi.parseSynopticTimeseries(json, response, "KNUQ", "Moffett")
+        assertTrue(outcome is FetchOutcome.Success)
+        val observation = (outcome as FetchOutcome.Success).value.single()
+        assertEquals(listOf("OVC"), observation.cloudLayers.map { it.amount })
+        assertEquals(365.76, observation.cloudLayers.single().baseMeters!!, 0.01)
+        assertTrue("a row backed by a raw report is a METAR", observation.isMetar)
+    }
+
+    @Test
+    fun `a synoptic station without a raw METAR still yields temperature`() {
+        // Mesonet stations (AW020, LOAC1) report no METAR. They must parse normally and stay
+        // honestly non-METAR rather than being dropped or claiming sky condition.
+        val response = """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [{"NAME": "Mesonet",
+            "OBSERVATIONS": {"date_time": ["2026-08-21T14:35:00Z"], "air_temp_set_1": [16.0]}}]}"""
+        val outcome = SynopticApi.parseSynopticTimeseries(json, response, "AW020", "Mesonet")
+        assertTrue(outcome is FetchOutcome.Success)
+        val observation = (outcome as FetchOutcome.Success).value.single()
+        assertEquals(16.0f, observation.temperatureCelsius)
+        assertTrue(observation.cloudLayers.isEmpty())
+        assertFalse(observation.isMetar)
+    }
+
+    @Test
+    fun `a null METAR entry alongside good ones does not break the series`() {
+        val response = """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [{"NAME": "Moffett",
+            "OBSERVATIONS": {
+                "date_time": ["2026-08-21T14:35:00Z", "2026-08-21T14:55:00Z"],
+                "air_temp_set_1": [16.0, 16.5],
+                "metar_set_1": [null, "KNUQ 211455Z AUTO 01005KT 10SM BKN013 16/13 A3005"]
+            }}]}"""
+        val outcome = SynopticApi.parseSynopticTimeseries(json, response, "KNUQ", "Moffett")
+        val readings = (outcome as FetchOutcome.Success).value
+        assertEquals(2, readings.size)
+        assertTrue(readings[0].cloudLayers.isEmpty())
+        assertFalse(readings[0].isMetar)
+        assertEquals(listOf("BKN"), readings[1].cloudLayers.map { it.amount })
+        assertTrue(readings[1].isMetar)
+    }
+
     // --- fetchedAt touch decision table ---
 
     @Test

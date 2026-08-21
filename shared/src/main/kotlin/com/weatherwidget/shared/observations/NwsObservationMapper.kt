@@ -44,7 +44,9 @@ object NwsObservationMapper {
         minTempLast24h = observation.minTempLast24hCelsius?.let { celsiusToFahrenheit(it) },
         isWebFallback = isWebFallback,
         qcFailed = observation.qcFailed,
-        // Synoptic web-fallback readings are never METARs; NwsApi sets this from rawMessage.
+        // Set by whoever built the Observation: NwsApi from `rawMessage`, SynopticApi from
+        // `metar_set_1`. Web-fallback readings ARE often METARs — the earlier claim that they never
+        // are was wrong, and it cost the cloud curve its nearest station (2026-08-21).
         isMetar = observation.isMetar,
         // METAR sky condition is a below-~12,000 ft measurement, so it is filed as the LOW layer
         // and the total column stays null — same rule on both platforms (§3 of the METAR plan).

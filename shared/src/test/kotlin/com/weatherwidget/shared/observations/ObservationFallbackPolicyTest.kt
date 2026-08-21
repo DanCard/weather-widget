@@ -53,8 +53,36 @@ class ObservationFallbackPolicyTest {
 
     @Test
     fun `fallback reason distinguishes a silent station from a lagging one`() {
-        assertEquals("empty", ObservationFallbackPolicy.fallbackReason(0))
-        assertEquals("stale", ObservationFallbackPolicy.fallbackReason(12))
+        assertEquals("empty", ObservationFallbackPolicy.fallbackReason(0, apiFetchFailed = false))
+        assertEquals("stale", ObservationFallbackPolicy.fallbackReason(12, apiFetchFailed = false))
+    }
+
+    /**
+     * KNUQ 2026-08-21: a 30 s timeout was caught, flattened to an empty list, and logged as
+     * `reason=empty` — which reads as "this station has no history" for a station that had 196
+     * observations. A failed request must never be reported as a data condition.
+     */
+    @Test
+    fun `a failed fetch is never reported as an empty station`() {
+        assertEquals("fetch_failed", ObservationFallbackPolicy.fallbackReason(0, apiFetchFailed = true))
+    }
+
+    @Test
+    fun `a failure outranks a partial result`() {
+        // Ktor can throw after some rows were already read; "we do not trust this answer" is the
+        // more important fact than the row count.
+        assertEquals("fetch_failed", ObservationFallbackPolicy.fallbackReason(7, apiFetchFailed = true))
+    }
+
+    /**
+     * Pins that the reason string is diagnostics only. A failed fetch leaves newestObservationMs
+     * null, which already reads as stale, so the fallback fires exactly as it did before.
+     */
+    @Test
+    fun `labelling a failure does not change whether the fallback fires`() {
+        val now = 1_787_331_599_000L
+        assertTrue(ObservationFallbackPolicy.shouldUseWebFallback(0, null, now))
+        assertTrue(ObservationFallbackPolicy.isStale(null, now))
     }
 
     /**

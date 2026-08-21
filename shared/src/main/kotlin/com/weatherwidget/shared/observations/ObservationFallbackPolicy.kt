@@ -114,7 +114,20 @@ object ObservationFallbackPolicy {
             .coerceIn(WEB_FALLBACK_WINDOW_MARGIN_MINUTES, MAX_WEB_FALLBACK_WINDOW_MINUTES)
     }
 
-    /** Reason recorded on the fallback log line, so "station went silent" stays distinct from "station lagged". */
-    fun fallbackReason(apiObservationCount: Int): String =
-        if (apiObservationCount == 0) "empty" else "stale"
+    /**
+     * Reason recorded on the fallback log line, so "station went silent" stays distinct from
+     * "station lagged" — and both stay distinct from "we never got an answer".
+     *
+     * [apiFetchFailed] is the one that costs real debugging time when it is missing. The API call
+     * site catches its exception and returns an empty list, so a timeout arrives here looking
+     * exactly like a station with no data. Measured 2026-08-21: KNUQ's 72h window timed out at 30 s
+     * on the emulator and logged `reason=empty`, which reads as "this station has no history" — it
+     * had 196 observations, fetched in 1.6 s from a host on the same network. An infrastructure
+     * failure must never be reported as a data condition.
+     */
+    fun fallbackReason(apiObservationCount: Int, apiFetchFailed: Boolean): String = when {
+        apiFetchFailed -> "fetch_failed"
+        apiObservationCount == 0 -> "empty"
+        else -> "stale"
+    }
 }
