@@ -12,7 +12,6 @@ import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.actuals.BlendContribution
 import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
-import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.shared.history.ProviderHistoryDecision
@@ -350,23 +349,13 @@ class DesktopWeatherRepository(
 
             if (result.rawObservations.isNotEmpty()) {
                 // Permanent diagnostic: separates "the backfill produced no cloud" from "the write
-                // dropped it". Both failed silently once, because the columns are nullable. Under
-                // NWS the metar= stats add the station-side view: stationsWithLayers=0 means every
-                // fetched station is a PWS (or every report omitted sky condition), which must not
-                // look like a dropped write.
-                val metarStats = if (displaySource == WeatherSource.NWS) {
-                    val batchStart = result.rawObservations.minOf { it.timestamp }
-                    val batchEnd = result.rawObservations.maxOf { it.timestamp } + 1
-                    " " + MetarCloudBlender.blend(result.rawObservations, batchStart, batchEnd).stats.summary()
-                } else {
-                    ""
-                }
+                // dropped it". Both failed silently once, because the columns are nullable.
                 Log.i(
                     TAG,
                     "BACKFILL_CLOUD src=$weatherSource rows=${result.rawObservations.size} " +
                         "withLow=${result.rawObservations.count { it.cloudCoverLow != null }} " +
                         "hourlyWithLow=${result.hourly.count { it.cloudCoverLow != null }} " +
-                        "hourlyTotal=${result.hourly.size}$metarStats",
+                        "hourlyTotal=${result.hourly.size}",
                 )
                 weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
             }

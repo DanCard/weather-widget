@@ -227,6 +227,25 @@ internal fun metarCloudGapReason(sourceObservations: List<ObservationEntity>): S
     }
 }
 
+internal fun hourlyBackfillSourceKey(displaySource: WeatherSource): String =
+    "${displaySource.id}_HOURLY_HISTORY"
+
+/**
+ * Cheap pure-read pre-check for callers that would otherwise load a large observation window just
+ * to feed [maybeEnqueueHourlyObservationBackfill] (the CLOUD view probe). When the shared cooldown
+ * is active the full evaluation could only ever log a cooldown SKIP, so the caller can skip its
+ * expensive DB read too.
+ */
+internal suspend fun hourlyBackfillCoolingDown(
+    stateManager: WidgetStateManager,
+    appWidgetId: Int,
+    displaySource: WeatherSource,
+): Boolean = !stateManager.shouldRefreshMissingActuals(
+    appWidgetId,
+    hourlyBackfillSourceKey(displaySource),
+    HOURLY_BACKFILL_COOLDOWN_MS,
+)
+
 internal suspend fun maybeEnqueueHourlyObservationBackfill(
     context: Context,
     database: com.weatherwidget.data.local.WeatherDatabase,
@@ -286,7 +305,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
         return
     }
 
-    val sourceKey = "${displaySource.id}_HOURLY_HISTORY"
+    val sourceKey = hourlyBackfillSourceKey(displaySource)
     if (!stateManager.shouldRefreshMissingActuals(appWidgetId, sourceKey, HOURLY_BACKFILL_COOLDOWN_MS)) {
         database.appLogDao().log(
             "OBS_HOURLY_BACKFILL_SKIP",

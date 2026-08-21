@@ -475,8 +475,12 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             // temperature/daily views, but a widget parked in CLOUD view never renders those —
             // and the missing curve above is THIS view's data, so it must be able to heal itself.
             // NWS-only like the other probes; the shared decision/cooldown prevents
-            // double-fetching across views.
-            if (effectiveDisplaySource == WeatherSource.NWS && repository != null && siteLat != null && siteLon != null) {
+            // double-fetching across views. The cooldown is checked BEFORE the 72h observation
+            // read: while it is active the evaluation could only log a cooldown SKIP, so this
+            // render skips the expensive read too instead of paying it every paint.
+            if (effectiveDisplaySource == WeatherSource.NWS && repository != null && siteLat != null && siteLon != null &&
+                !hourlyBackfillCoolingDown(stateManager, appWidgetId, effectiveDisplaySource)
+            ) {
                 val backfillStart = now.minusHours(
                     com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,
                 )

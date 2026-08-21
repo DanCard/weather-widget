@@ -8,7 +8,11 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -109,7 +113,10 @@ class NwsApi
                 // METAR sky condition, the same layer list every official station reports. An empty
                 // list means "not reported", never "clear": personal stations return [] on every
                 // report and partial official reports omit sky condition entirely. See MetarSkyCover.
-                val cloudLayers = parseCloudLayers(props["cloudLayers"]?.jsonArray)
+                // Parsing is non-fatal by construction (safe casts only): a malformed or JSON-null
+                // cloudLayers degrades to "not reported" and must never drop the observation's
+                // temperature with it.
+                val cloudLayers = parseCloudLayers(props["cloudLayers"])
 
                 // NWS's own verdict on the value it just handed us. Marked (not dropped) so the
                 // stations list can show the failure, exactly as Synoptic-flagged readings are.
@@ -132,19 +139,26 @@ class NwsApi
 
             /**
              * Parses the METAR `cloudLayers` array into [CloudLayer]s with heights in metres. An absent
-             * array yields the empty list ("not reported"), which [com.weatherwidget.shared.observations.MetarSkyCover]
-             * maps to null rather than 0. `base` is only ever used to decide layer membership for the
-             * low-layer read; percent keys on `amount` alone. `wmoUnit:m` is all that has been observed;
-             * `ft` is handled defensively and anything else is logged once.
+             * or JSON-null array yields the empty list ("not reported"), which
+             * [com.weatherwidget.shared.observations.MetarSkyCover] maps to null rather than 0. `base`
+             * is only ever used to decide layer membership for the low-layer read; percent keys on
+             * `amount` alone. `wmoUnit:m` is all that has been observed; `ft` is handled defensively
+             * and anything else is logged once.
+             *
+             * Uses safe casts exclusively — no `jsonObject`/`jsonPrimitive` unchecked conversions — so
+             * any unexpected shape (a JSON null, a non-object layer, a missing amount) degrades to a
+             * skipped layer instead of throwing out of [parseObservationProperties] and dropping the
+             * whole observation, temperature included.
              */
-            private fun parseCloudLayers(node: kotlinx.serialization.json.JsonArray?): List<CloudLayer> {
-                if (node == null) return emptyList()
-                return node.mapNotNull { layerObj ->
-                    val obj = layerObj.jsonObject
-                    val amount = obj["amount"]?.jsonPrimitive?.content
-                    val base = obj["base"]?.jsonObject
-                    val rawValue = base?.get("value")?.jsonPrimitive?.content
-                    val unitCode = base?.get("unitCode")?.jsonPrimitive?.content
+            private fun parseCloudLayers(node: JsonElement?): List<CloudLayer> {
+                val array = node as? JsonArray ?: return emptyList()
+                return array.mapNotNull { layer ->
+                    val obj = layer as? JsonObject ?: return@mapNotNull null
+                    val amount = (obj["amount"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
+                        ?: return@mapNotNull null
+                    val base = obj["base"] as? JsonObject
+                    val rawValue = (base?.get("value") as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
+                    val unitCode = (base?.get("unitCode") as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
                     if (amount == null) return@mapNotNull null
                     val baseMeters = when (unitCode) {
                         null, "", "wmoUnit:m" -> rawValue?.toDoubleOrNull()

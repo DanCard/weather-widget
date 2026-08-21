@@ -125,6 +125,43 @@ class NwsApiCloudLayersParseTest {
     }
 
     @Test
+    fun `JSON-null cloudLayers degrades to not reported and keeps the temperature`() {
+        val obs = parseObservation(
+            """
+            {
+              "timestamp": "2026-08-20T22:05:00+00:00",
+              "temperature": {"unitCode": "wmoUnit:degC", "value": 19.4, "qualityControl": "Z"},
+              "textDescription": "",
+              "cloudLayers": null
+            }
+            """.trimIndent(),
+        ) ?: throw AssertionError("observation did not parse — a null cloudLayers must not drop it")
+
+        assertTrue(obs.cloudLayers.isEmpty())
+        assertEquals(19.4f, obs.temperatureCelsius)
+    }
+
+    @Test
+    fun `malformed layer entries are skipped without dropping the observation`() {
+        val obs = parseObservation(
+            """
+            {
+              "timestamp": "2026-08-20T22:05:00+00:00",
+              "temperature": {"unitCode": "wmoUnit:degC", "value": 19.4, "qualityControl": "Z"},
+              "textDescription": "",
+              "cloudLayers": [
+                "not-an-object",
+                {"amount": null},
+                {"base": null, "amount": "SCT"}
+              ]
+            }
+            """.trimIndent(),
+        ) ?: throw AssertionError("observation did not parse — malformed layers must not drop it")
+
+        assertEquals(listOf(NwsApi.CloudLayer(amount = "SCT", baseMeters = null)), obs.cloudLayers)
+    }
+
+    @Test
     fun `foot unit converts to metres`() {
         val obs = parseObservation(
             """
