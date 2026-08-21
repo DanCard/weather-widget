@@ -1,7 +1,7 @@
 # Prefer the official METAR over the ASOS 5-minute sample
 
 **Date:** 2026-08-21
-**Commit:** `c70a015f` (unpushed)
+**Commit:** `c3347274` (unpushed)
 **Files:** `NwsApi.kt`, `ForecastTypes.kt`, `MetarCloudBlender.kt`, `NwsObservationMapper.kt`
 (shared), `ObservationEntity.kt`, `WeatherDatabase.kt`, `NwsObservationSource.kt` (app),
 `DesktopEntities.kt`, `DesktopWeatherDao.kt`, `DesktopWeatherDatabase.kt` (desktop),
