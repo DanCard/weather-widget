@@ -12,15 +12,24 @@ object CloudCoverGraphStyle {
     // actual is the thing worth looking at and carries real pink.
     //
     // Saturation has to fight lightness here: at 94% lightness even 35% saturation is invisible,
-    // which is why the first attempt at a "slight pink tint" read as plain white. Showing the hue
-    // at all means coming down in lightness, so the actual sits at 85% and 65% saturation.
-    // The pair still separates by value (ratio 1.6) for where the curves overlap exactly.
-    private const val COLOR_CLOUD_CURVE = "#96A6A1"   // barely-mint grey (hsl 163, 8%)
-    private const val COLOR_CLOUD_ACTUAL = "#F2C0CE"  // clearly pink     (hsl 343, 65%)
+    // which is why an earlier attempt at a "slight pink tint" read as plain white. Showing the hue
+    // at all means coming down in lightness, so the actual sits at 85% lightness — which is what
+    // lets 32% saturation register as pink rather than disappear.
+    //
+    // Both are deliberately restrained: the hues identify the curves, they are not the subject.
+    // Value still carries the distinction (ratio 1.6) where the two curves lie exactly on top of
+    // each other, which is most of a clear or overcast day.
+    //
+    // Both sit high on the lightness scale, which costs hue perception — the gamut narrows toward
+    // white, so the pink reads as a warm cast rather than a colour. That is the intended balance
+    // here; if the tint ever needs to be more obvious, raise saturation rather than reaching for a
+    // different hue, and expect to give back some lightness to do it.
+    private const val COLOR_CLOUD_CURVE = "#B5BAB9"   // light neutral grey (hsl 163, 4%, 72%)
+    private const val COLOR_CLOUD_ACTUAL = "#F1E4E8"  // pale pink-white    (hsl 343, 32%, 92%)
 
     // Labels sit lighter than their curves so they stay readable on the dark plot, while keeping
     // enough of the hue to tie each number to the line it describes.
-    private const val COLOR_CLOUD_LABEL_FORECAST = "#DDE8E4" // barely-mint white
+    private const val COLOR_CLOUD_LABEL_FORECAST = "#E9ECEB" // pale neutral white
 
     internal data class PaintSet(
         val density: Float,
