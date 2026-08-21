@@ -22,6 +22,12 @@ interface WeatherApiClient {
     suspend fun fetchObservationHistory(historyDays: Long): List<ObservationReading>
 
     /**
+     * Day-ago cloud predictions for elapsed hours, backing the cloud graph's frozen forecast curve.
+     * Empty for sources with no previous-runs product — the curve then falls back to the live value.
+     */
+    suspend fun fetchPriorDayCloudForecast(pastDays: Int): Map<Long, Int> = emptyMap()
+
+    /**
      * Current-observations fetch. [recentOnly] narrows the station-history window to the last
      * [DesktopWeatherService.RECENT_OBSERVATION_WINDOW_MINUTES] rather than the multi-day one — the
      * current-temperature cycle needs every reading since the previous poll, not the whole series,

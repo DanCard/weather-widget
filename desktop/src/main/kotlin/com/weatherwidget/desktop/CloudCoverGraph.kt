@@ -23,9 +23,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.shared.graph.*
+import com.weatherwidget.shared.graph.CloudSeriesBuilder
 import kotlin.math.roundToInt
 
 private val COLOR_CLOUD_CURVE = Color(0xFFAAAAAA)
+// The actual curve must separate from the forecast in a monochrome view, so it separates by value
+// (near-white over mid-grey) rather than by hue. See the Android renderer for the matching pair.
+private val COLOR_CLOUD_ACTUAL = Color(0xFFE8EEF5)
+
+/** Minimum forecast-vs-actual gap worth a second label; matches CloudCoverGraphRenderer. */
+private const val ACTUAL_LABEL_MIN_DIVERGENCE = 8
 private val COLOR_CLOUD_FILL_START = Color(0xFF8E99A4).copy(alpha = 0.22f)
 private val COLOR_CLOUD_FILL_END = Color.Transparent
 
@@ -38,6 +45,12 @@ private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionR
 @Composable
 fun CloudCoverGraph(
     hourly: List<HourlyForecast>,
+    /**
+     * Day-ago cloud predictions by top-of-hour epoch ms. When present for an elapsed hour, the
+     * dashed curve shows that prediction and the solid curve shows what actually happened; when
+     * absent, both collapse to the live value and no accuracy claim is implied.
+     */
+    priorDayCloudForecast: Map<Long, Int> = emptyMap(),
     displaySourceId: String = "NWS",
     latitude: Double = 0.0,
     longitude: Double = 0.0,
@@ -85,7 +98,25 @@ fun CloudCoverGraph(
         val rawCloudValues = points.map { it.cloudCover?.toFloat() ?: 0f }
         val smoothedClouds = com.weatherwidget.shared.graph.SeriesSmoothing.smoothValuesPreservingAllExtrema(rawCloudValues, smoothIterations)
         
-        val visibleMax = smoothedClouds.maxOrNull()?.coerceIn(0f, 100f) ?: 0f
+        // Past hours: the live row has been retro-corrected by later runs and is the ACTUAL; the
+        // dashed forecast comes from the day-ago prediction. Hours with no prediction keep the live
+        // value on both curves, which draws as a single line — honest, since there is nothing to
+        // compare. The actual is deliberately NOT smoothed: smoothing a truth series invents values.
+        val series = CloudSeriesBuilder.build(points, priorDayCloudForecast, now)
+        val actualByTime = series.filter { it.actualCover != null }.associate { it.timeMs to it.actualCover!! }
+        val frozenByTime = series.filter { it.isFrozen }.associate { it.timeMs to it.forecastCover!! }
+        val hasFrozen = frozenByTime.isNotEmpty()
+
+        // The forecast curve swaps in the frozen prediction wherever one exists.
+        val forecastValues = points.mapIndexed { i, p ->
+            frozenByTime[p.dateTime]?.toFloat() ?: rawCloudValues[i]
+        }
+        val smoothedForecast = com.weatherwidget.shared.graph.SeriesSmoothing
+            .smoothValuesPreservingAllExtrema(forecastValues, smoothIterations)
+
+        // Scale must clear BOTH curves or the taller one draws off the top of the plot.
+        val visibleMax = (smoothedForecast + actualByTime.values.map { it.toFloat() })
+            .maxOrNull()?.coerceIn(0f, 100f) ?: 0f
         val topScale = (visibleMax + 12f).coerceIn(85f, 100f)
 
         // Plot bounds + x-axis mapping shared with the precip/temperature graphs.
@@ -103,7 +134,11 @@ fun CloudCoverGraph(
             return graphBottom - graphHeight * (clamped / topScale)
         }
 
-        val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(smoothedClouds[i])) }
+        val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(smoothedForecast[i])) }
+        // Straight segments through the real hourly values — no smoothing on the truth curve.
+        val actualCoords = points.mapIndexedNotNull { i, p ->
+            actualByTime[p.dateTime]?.let { Offset(xAt(i), yAt(it.toFloat())) }
+        }
 
         // Draw Fill Path
         val fillPath = Path().apply {
@@ -128,18 +163,43 @@ fun CloudCoverGraph(
             drawNowLine(markerX, graphTop, graphHeight, scale)
         }
 
-        // Draw Curve Line
+        // Draw Curve Line. Dashed only when there is a real frozen forecast to distinguish from the
+        // actual — with nothing to compare, a dashed line would imply an accuracy claim we cannot make.
         val curveStroke = if (totalSpanHours <= 8) 2.dp.toPx() * scale else 3.dp.toPx() * scale
         drawPath(
             path = buildCurve(coords),
             color = COLOR_CLOUD_CURVE,
-            style = Stroke(width = curveStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            style = Stroke(
+                width = curveStroke,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+                pathEffect = if (hasFrozen) {
+                    androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        floatArrayOf(6f * scale, 5f * scale),
+                    )
+                } else {
+                    null
+                },
+            )
         )
+
+        // The actual, on top: solid, brighter, unsmoothed.
+        if (actualCoords.size >= 2) {
+            val actualPath = Path().apply {
+                moveTo(actualCoords.first().x, actualCoords.first().y)
+                actualCoords.drop(1).forEach { lineTo(it.x, it.y) }
+            }
+            drawPath(
+                path = actualPath,
+                color = COLOR_CLOUD_ACTUAL,
+                style = Stroke(width = curveStroke, cap = StrokeCap.Round, join = StrokeJoin.Round),
+            )
+        }
 
         // Value (%) labels (peak / dip / start / end) via the shared ValueLabelEngine — the same
         // engine used by the precip graph and the Android renderers. Compose draws top-left anchored,
         // so we treat the measured box bottom as the baseline (ascent = -height, descent = 0).
-        val labelSignal = smoothedClouds.map { it.roundToInt().coerceIn(0, 100) }
+        val labelSignal = smoothedForecast.map { it.roundToInt().coerceIn(0, 100) }
         val labelStyle = TextStyle(fontSize = (11 * scale).sp, color = Color.White)
         val labelHeight = textMeasurer.measure("0%", labelStyle).size.height.toFloat()
         val placements = ValueLabelEngine.computePlacements(
@@ -157,6 +217,44 @@ fun CloudCoverGraph(
             val r = Rect(p.box.left, p.box.top, p.box.right, p.box.bottom)
             drawText(textMeasurer.measure(p.text, labelStyle), topLeft = r.topLeft)
             drawnLabels.add(r)
+        }
+
+        // Second pass for the actual curve. Without it the most informative number on the graph —
+        // the depth of the burn-off dip — is the one value nobody can read. The already-placed
+        // forecast boxes go in as obstacles so the two passes cannot overlap each other.
+        //
+        // Known gap: the engine takes one curve, so this pass avoids the actual curve and the
+        // forecast's LABELS, but not the forecast LINE itself. Acceptable while the frozen curve
+        // sits near the top of the plot and the actual's extrema sit well below it; revisit if the
+        // engine grows a multi-curve collision input.
+        if (actualCoords.size >= 2 && hasFrozen) {
+            val actualIndices = points.indices.filter { actualByTime.containsKey(points[it].dateTime) }
+            val actualSignal = actualIndices.map { actualByTime[points[it].dateTime]!!.coerceIn(0, 100) }
+            val actualPoints = actualIndices.map { i ->
+                ValueLabelEngine.GraphPoint(xAt(i), yAt(actualByTime[points[i].dateTime]!!.toFloat()))
+            }
+            val actualStyle = TextStyle(fontSize = (11 * scale).sp, color = COLOR_CLOUD_ACTUAL)
+            ValueLabelEngine.computePlacements(
+                labelSignal = actualSignal,
+                points = actualPoints,
+                geometry = ValueLabelEngine.Geometry(graphTop, graphBottom, graphHeight, w, h),
+                config = ValueLabelEngine.Config.cloud(),
+                measureText = { textMeasurer.measure(it, actualStyle).size.width.toFloat() },
+                textAscent = -labelHeight,
+                textDescent = 0f,
+                dpToPx = { it.dp.toPx() * scale },
+                drawnIconBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+            ).filter { p ->
+                // Same rule as the Android renderer: where the curves agree they overlap on screen,
+                // so a second label just prints the same number twice.
+                val hourIdx = actualIndices[p.index]
+                kotlin.math.abs(actualSignal[p.index] - smoothedForecast[hourIdx].roundToInt()) >=
+                    ACTUAL_LABEL_MIN_DIVERGENCE
+            }.forEach { p ->
+                val r = Rect(p.box.left, p.box.top, p.box.right, p.box.bottom)
+                drawText(textMeasurer.measure(p.text, actualStyle), topLeft = r.topLeft)
+                drawnLabels.add(r)
+            }
         }
 
         // Draw Cloud Watermark in emptiest region

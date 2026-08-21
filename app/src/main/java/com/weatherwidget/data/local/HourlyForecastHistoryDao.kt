@@ -120,6 +120,46 @@ interface HourlyForecastHistoryDao {
         lon: Double,
     ): List<HourlyForecastHistoryEntity>
 
+    /**
+     * Day-ago cloud predictions for the window, as top-of-hour epoch ms -> percent. Backs the cloud
+     * graph's frozen forecast curve.
+     *
+     * Scoped to [com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID], which is never a
+     * display source, so these rows cannot reach any forecast path that asks for a real source.
+     */
+    @Query(
+        """
+        SELECT * FROM hourly_forecast_history
+        WHERE source = :priorSource
+          AND dateTime >= :startDateTime
+          AND dateTime < :endDateTime
+          AND ${LocationMatch.ROOM_WHERE}
+        ORDER BY dateTime ASC, locationLat ASC, locationLon ASC
+    """,
+    )
+    suspend fun getPriorDayCloudCandidates(
+        startDateTime: Long,
+        endDateTime: Long,
+        lat: Double,
+        lon: Double,
+        priorSource: String = com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID,
+    ): List<HourlyForecastHistoryEntity>
+
+    /**
+     * Same-site collapse before the map is built: the coarse box can gather a jitter fragment or a
+     * neighbouring town, and two rows for one hour would otherwise resolve by map-insertion order.
+     */
+    suspend fun getPriorDayCloudForecast(
+        startDateTime: Long,
+        endDateTime: Long,
+        lat: Double,
+        lon: Double,
+    ): Map<Long, Int> =
+        getPriorDayCloudCandidates(startDateTime, endDateTime, lat, lon)
+            .filter { LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon) }
+            .mapNotNull { row -> row.cloudCover?.let { row.dateTime to it } }
+            .toMap()
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(history: List<HourlyForecastHistoryEntity>)
 

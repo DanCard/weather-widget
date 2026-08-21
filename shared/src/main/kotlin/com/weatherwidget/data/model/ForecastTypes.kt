@@ -114,6 +114,13 @@ data class ResolvedView(
 data class ForecastSnapshot(
     val raw: RawFetch,
     val resolved: ResolvedView,
+    /**
+     * Day-ago cloud-cover predictions by top-of-hour epoch ms, backing the cloud graph's frozen
+     * forecast curve (see `PriorDayCloudForecast`). Empty when the prior-run fetch has not run or
+     * failed — the curve then falls back to the live value and marks itself unfrozen, so an empty
+     * map degrades the display rather than breaking it.
+     */
+    val priorDayCloudForecast: Map<Long, Int> = emptyMap(),
 )
 
 sealed class DataStatus {

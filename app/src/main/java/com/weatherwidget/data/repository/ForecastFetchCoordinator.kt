@@ -44,7 +44,52 @@ internal class ForecastFetchCoordinator(
     private val weatherApiHistoryBackfiller: WeatherApiHistoryBackfiller,
     private val openMeteoPastDayActualsWriter: OpenMeteoPastDayActualsWriter,
     private val nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher?,
+    private val hourlyForecastHistoryDao: com.weatherwidget.data.local.HourlyForecastHistoryDao? = null,
 ) {
+    /**
+     * Fetches the day-ago cloud predictions backing the cloud graph's frozen forecast curve.
+     *
+     * Throttled to once an hour: the prediction made for an already-elapsed hour never changes, so
+     * refetching it every cycle would spend a call to rewrite identical rows. Best-effort — any
+     * failure leaves the graph drawing the live value on both curves, which is honest (it marks
+     * itself unfrozen) rather than broken.
+     */
+    private suspend fun fetchPriorDayCloudForecast(latitude: Double, longitude: Double) {
+        val dao = hourlyForecastHistoryDao ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastPriorCloudFetchMs < PRIOR_CLOUD_FETCH_INTERVAL_MS) return
+        lastPriorCloudFetchMs = now
+        try {
+            val byHour = openMeteoApi.getPriorDayCloudForecast(
+                latitude, longitude, PRIOR_CLOUD_PAST_DAYS, now,
+            )
+            if (byHour.isEmpty()) return
+            dao.insertAll(
+                byHour.map { (hourMs, cover) ->
+                    com.weatherwidget.data.local.HourlyForecastHistoryEntity(
+                        dateTime = hourMs,
+                        // Quantized so GPS jitter overwrites instead of fragmenting the site.
+                        locationLat = com.weatherwidget.data.local.LocationMatch.quantize(latitude),
+                        locationLon = com.weatherwidget.data.local.LocationMatch.quantize(longitude),
+                        // NOT NULL in the schema but meaningless here; only cloudCover is read back.
+                        temperature = 0f,
+                        condition = "prior-run cloud",
+                        source = com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID,
+                        timestampToGroupPredictions =
+                            com.weatherwidget.shared.graph.PriorDayCloudForecast.predictionBucketFor(hourMs),
+                        cloudCover = cover,
+                        fetchedAt = now,
+                    )
+                },
+            )
+            appLogDao.log("PRIOR_CLOUD", "stored hours=${byHour.size}")
+        } catch (e: Exception) {
+            appLogDao.log("PRIOR_CLOUD_FAIL", "cloud graph falls back to live values: ${e.javaClass.simpleName}")
+        }
+    }
+
+    private var lastPriorCloudFetchMs = 0L
+
     fun requiresNetworkFetch(
         forecasts: List<ForecastEntity>,
         fetchContext: ForecastFetchContext? = null,
@@ -153,6 +198,10 @@ internal class ForecastFetchCoordinator(
                             longitude,
                             historyDays = WeatherConfig.ACTUALS_HISTORY_DAYS,
                         )
+                    }.also {
+                        // Only Open-Meteo has a previous-runs product, and this rides its fetch so
+                        // the call is never spent when Open-Meteo is not being fetched at all.
+                        fetchPriorDayCloudForecast(latitude, longitude)
                     }
                 }
             }
@@ -447,6 +496,10 @@ internal class ForecastFetchCoordinator(
     }
 
     companion object {
+        private const val PRIOR_CLOUD_FETCH_INTERVAL_MS = 60 * 60 * 1000L
+        /** Covers the widget's 30-day pan; `_previous_day1` is populated across the whole span. */
+        private const val PRIOR_CLOUD_PAST_DAYS = 31
+
         private val SOURCES_TO_CHECK = listOf(
             WeatherSource.NWS,
             WeatherSource.VISUAL_CROSSING,

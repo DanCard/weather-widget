@@ -126,8 +126,15 @@ class OpenMeteoIntegrationTest {
         )
     }
 
+    /**
+     * Forecast-endpoint requests only. Scoped to `api.open-meteo.com` rather than any host
+     * containing "open-meteo" because the Previous Runs API
+     * (`previous-runs-api.open-meteo.com`) legitimately asks for `forecast_days=1` — it exists to
+     * read *past* hours, and requesting the 16-day horizon there would fetch a fortnight of data
+     * nothing reads. The horizon invariant below is about the forecast fetch, which is unchanged.
+     */
     private fun List<HttpRequestData>.meteoForecastDays(): List<String?> =
-        filter { it.url.host.contains("open-meteo") && it.url.parameters.contains("forecast_days") }
+        filter { it.url.host == "api.open-meteo.com" && it.url.parameters.contains("forecast_days") }
             .map { it.url.parameters["forecast_days"] }
 
     @Test

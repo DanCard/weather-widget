@@ -1208,6 +1208,7 @@ internal fun WidgetPopup(
                             if (config.viewMode == ViewMode.CLOUD_COVER) {
                                 CloudCoverGraph(
                                     hourly = snapshot.raw.hourly,
+                                    priorDayCloudForecast = snapshot.priorDayCloudForecast,
                                     displaySourceId = config.settings.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,

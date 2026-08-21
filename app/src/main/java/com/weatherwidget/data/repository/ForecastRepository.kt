@@ -115,6 +115,7 @@ class ForecastRepository
             weatherApiHistoryBackfiller = weatherApiHistoryBackfiller,
             openMeteoPastDayActualsWriter = openMeteoPastDayActualsWriter,
             nwsApiDailyActualsFetcher = nwsApiDailyActualsFetcher,
+            hourlyForecastHistoryDao = hourlyForecastHistoryDao,
         )
         private val retentionManager = WeatherRetentionManager(
             forecastDao = forecastDao,

@@ -23,6 +23,12 @@ object CloudCoverGraphRenderer {
     // the shared ValueLabelEngine.Config.cloud().
     private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 55
 
+    /**
+     * Minimum forecast-vs-actual gap, in percentage points, worth a second label. Below this the
+     * curves overlap on screen and the extra number is pure clutter.
+     */
+    private const val ACTUAL_LABEL_MIN_DIVERGENCE = 8
+
     private const val GRAPH_TOP_PADDING_DP = 38f
     private const val GRAPH_BOTTOM_PADDING_DP = 3f
     private const val TOP_SCALE_HEADROOM_PERCENT = 12f
@@ -49,7 +55,18 @@ object CloudCoverGraphRenderer {
 
     data class CloudHourData(
         val dateTime: LocalDateTime,
+        /**
+         * The FORECAST value: the day-ago prediction for past hours (when one is stored), the live
+         * value otherwise. Named without a suffix for source compatibility with the single-curve era.
+         */
         val cloudCover: Int, // 0-100
+        /**
+         * What actually happened, for past hours only: the live row after later runs retro-corrected
+         * it. Null for the current and future hours — nothing has happened yet.
+         */
+        val actualCloudCover: Int? = null,
+        /** False when no day-ago prediction existed and [cloudCover] fell back to the live value. */
+        val isFrozenForecast: Boolean = false,
         val label: String,
         val iconRes: Int? = null,
         val isNight: Boolean = false,
@@ -187,7 +204,12 @@ object CloudCoverGraphRenderer {
         val points = mutableListOf<Pair<Float, Float>>()
         val rawValues = hours.map { it.cloudCover.coerceIn(0, 100).toFloat() }
         val smoothedValues = SeriesSmoothing.smoothValuesPreservingAllExtrema(rawValues, iterations = smoothIterations)
-        val verticalScale = computeVerticalScale(smoothedValues)
+        // The actual curve is NOT smoothed: smoothing a truth series invents values it never had.
+        val actualValues = hours.map { it.actualCloudCover?.coerceIn(0, 100)?.toFloat() }
+        val hasActual = actualValues.count { it != null } >= 2
+        val hasFrozen = hours.any { it.isFrozenForecast }
+        // Scale over BOTH curves, or the taller one draws off the top of the plot.
+        val verticalScale = computeVerticalScale(smoothedValues + actualValues.filterNotNull())
         Log.d(
             TAG,
             "verticalScale: visibleMax=${verticalScale.visibleMax} topScale=${verticalScale.topScale} " +
@@ -234,7 +256,39 @@ object CloudCoverGraphRenderer {
         )
 
         canvas.drawPath(fillPath, paints.gradientPaint)
+        // Dash the forecast only when there is a real frozen prediction to distinguish it from the
+        // actual; with nothing to compare, a dashed line would imply a claim we cannot make.
+        val previousDashEffect = paints.curvePaint.pathEffect
+        if (hasFrozen && hasActual) {
+            paints.curvePaint.pathEffect = DashPathEffect(
+                floatArrayOf(dpToPx(context, 3f), dpToPx(context, 2.5f)), 0f,
+            )
+        }
         canvas.drawPath(curvePath, paints.curvePaint)
+        paints.curvePaint.pathEffect = previousDashEffect
+
+        // The actual, on top: solid, brighter, straight segments through the real hourly values.
+        val actualPoints = mutableListOf<Pair<Float, Float>>()
+        if (hasActual) {
+            hours.forEachIndexed { index, _ ->
+                val v = actualValues[index] ?: return@forEachIndexed
+                actualPoints.add(
+                    hourWidth * index to mapCloudCoverToY(
+                        cloudCover = v,
+                        graphBottom = graphBottom,
+                        graphHeight = graphHeight,
+                        topScale = verticalScale.topScale,
+                    ),
+                )
+            }
+            if (actualPoints.size >= 2) {
+                val actualPath = Path().apply {
+                    moveTo(actualPoints.first().first, actualPoints.first().second)
+                    actualPoints.drop(1).forEach { lineTo(it.first, it.second) }
+                }
+                canvas.drawPath(actualPath, paints.actualCurvePaint)
+            }
+        }
 
         // --- Hour labels and icons ---
         val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
@@ -407,6 +461,45 @@ object CloudCoverGraphRenderer {
                     candidateCenterIndex = placedCandidateIndex,
                 ),
             )
+        }
+
+
+        // Second pass: label the actual curve. Without it the most informative number on the graph —
+        // how far reality diverged from the forecast — is the one value nobody can read. The
+        // forecast's boxes go in as obstacles so the passes cannot collide with each other.
+        //
+        // Known gap (matches the desktop renderer): the engine takes one curve, so this avoids the
+        // actual curve and the forecast's LABELS, but not the forecast LINE.
+        if (actualPoints.size >= 2 && hasFrozen) {
+            val actualIndices = hours.indices.filter { actualValues[it] != null }
+            val actualSignal = actualIndices.map { actualValues[it]!!.roundToInt().coerceIn(0, 100) }
+            val actualGraphPoints = actualIndices.mapIndexed { position, _ ->
+                ValueLabelEngine.GraphPoint(actualPoints[position].first, actualPoints[position].second)
+            }
+            ValueLabelEngine.computePlacements(
+                labelSignal = actualSignal,
+                points = actualGraphPoints,
+                geometry = ValueLabelEngine.Geometry(graphTop, graphBottom, graphHeight, widthPx.toFloat(), heightPx.toFloat()),
+                config = ValueLabelEngine.Config.cloud(),
+                measureText = { paints.actualPercentLabelPaint.measureText(it) },
+                textAscent = cloudLabelAscent,
+                textDescent = cloudLabelDescent,
+                dpToPx = { dpToPx(context, it) },
+                drawnIconBounds = (drawnIconBounds + drawnLabelBounds).map {
+                    GraphRect(it.left, it.top, it.right, it.bottom)
+                },
+                numColumns = numColumns,
+            ).filter { p ->
+                // Where the two curves agree they are drawn on top of each other, so a second label
+                // is the same number twice — that is what put four "100%"s across the top of a flat
+                // morning. Label the actual only where it actually says something different.
+                val hourIdx = actualIndices[p.index]
+                val forecastValue = smoothedValues[hourIdx].roundToInt()
+                abs(actualSignal[p.index] - forecastValue) >= ACTUAL_LABEL_MIN_DIVERGENCE
+            }.forEach { p ->
+                canvas.drawText(p.text, p.centerX, p.baselineY, paints.actualPercentLabelPaint)
+                drawnLabelBounds.add(RectF(p.box.left, p.box.top, p.box.right, p.box.bottom))
+            }
         }
 
         if (missingHours > 0 && totalHours > 0) {

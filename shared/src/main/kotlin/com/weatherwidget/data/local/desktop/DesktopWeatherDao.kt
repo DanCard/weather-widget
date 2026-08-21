@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
+import com.weatherwidget.shared.graph.PriorDayCloudForecast
 import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.remote.NwsApi
@@ -19,6 +20,12 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
+
+    companion object {
+        /** Marker in the NOT NULL `condition` column of prior-run cloud rows; never displayed. */
+        private const val PRIOR_CLOUD_CONDITION = "prior-run cloud"
+    }
+
 
     fun upsertHourlyForecasts(locationLat: Double, locationLon: Double, source: String, hourly: List<HourlyForecast>) {
         db.getConnection().use { conn ->
@@ -57,6 +64,61 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
     }
+
+    /**
+     * Stores the day-ago cloud predictions backing the cloud graph's frozen forecast curve.
+     *
+     * Separate from [upsertHourlyForecastHistory] because each row needs its **own**
+     * `timestampToGroupPredictions` — the nominal time that hour's prediction was made — rather than
+     * one bucket for the whole batch. The bucket is derived, so refetching an hour REPLACEs in place.
+     *
+     * `temperature`/`condition` are NOT NULL in the schema but meaningless for this row; they are
+     * filled with a neutral marker and must never be read. Only `cloudCover` carries meaning here,
+     * and only [com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID] rows are ever read back.
+     */
+    fun upsertPriorDayCloudForecast(locationLat: Double, locationLon: Double, coverByHour: Map<Long, Int>) {
+        if (coverByHour.isEmpty()) return
+        db.getConnection().use { conn ->
+            conn.autoCommit = false
+            try {
+                val sql = """
+                    INSERT OR REPLACE INTO hourly_forecast_history
+                    (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, precipAmountMm, fetchedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """.trimIndent()
+                conn.prepareStatement(sql).use { stmt ->
+                    val now = System.currentTimeMillis()
+                    val keyLat = LocationMatch.quantize(locationLat)
+                    val keyLon = LocationMatch.quantize(locationLon)
+                    for ((hourMs, cover) in coverByHour) {
+                        stmt.setLong(1, hourMs)
+                        stmt.setDouble(2, keyLat)
+                        stmt.setDouble(3, keyLon)
+                        stmt.setFloat(4, 0f)
+                        stmt.setString(5, PRIOR_CLOUD_CONDITION)
+                        stmt.setString(6, PriorDayCloudForecast.SOURCE_ID)
+                        stmt.setLong(7, PriorDayCloudForecast.predictionBucketFor(hourMs))
+                        stmt.setNull(8, java.sql.Types.INTEGER)
+                        stmt.setInt(9, cover)
+                        stmt.setNull(10, java.sql.Types.REAL)
+                        stmt.setLong(11, now)
+                        stmt.addBatch()
+                    }
+                    stmt.executeBatch()
+                }
+                conn.commit()
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            }
+        }
+    }
+
+    /** Day-ago cloud predictions for the window, as hour -> percent. */
+    fun getPriorDayCloudForecast(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long): Map<Long, Int> =
+        getHourlyHistory(locationLat, locationLon, PriorDayCloudForecast.SOURCE_ID, startMs, endMs)
+            .mapNotNull { row -> row.cloudCover?.let { row.dateTime to it } }
+            .toMap()
 
     fun upsertHourlyForecastHistory(locationLat: Double, locationLon: Double, source: String, timestampToGroupPredictions: Long, hourly: List<HourlyForecast>) {
         db.getConnection().use { conn ->

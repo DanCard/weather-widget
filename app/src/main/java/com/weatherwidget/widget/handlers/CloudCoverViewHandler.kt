@@ -397,7 +397,38 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             views.setViewVisibility(R.id.graph_interaction_container, View.VISIBLE)
 
             val buildHoursStartMs = SystemClock.elapsedRealtime()
-            val hours = buildCloudHourDataList(hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom)
+            // Day-ago predictions for the visible window: the forecast curve's frozen half. Scoped
+            // to the same site the rows being drawn came from, and empty for every source without a
+            // previous-runs product — which collapses both curves onto the live value.
+            val priorCloud = if (effectiveDisplaySource == WeatherSource.OPEN_METEO) {
+                val zoneId = ZoneId.systemDefault()
+                val windowKeys = windowHourKeys
+                val siteLat = hourlyForecasts.firstOrNull()?.locationLat
+                val siteLon = hourlyForecasts.firstOrNull()?.locationLon
+                if (siteLat != null && siteLon != null && windowKeys.isNotEmpty()) {
+                    runCatching {
+                        WeatherDatabase.getDatabase(context).hourlyForecastHistoryDao()
+                            .getPriorDayCloudForecast(
+                                startDateTime = windowKeys.min(),
+                                endDateTime = windowKeys.max() + 1,
+                                lat = siteLat,
+                                lon = siteLon,
+                            )
+                    }.getOrElse {
+                        Log.w(TAG, "prior-day cloud read failed; falling back to live values", it)
+                        emptyMap()
+                    }
+                } else {
+                    emptyMap()
+                }
+            } else {
+                emptyMap()
+            }
+
+            val hours = buildCloudHourDataList(
+                hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom,
+                priorDayCloudForecast = priorCloud,
+            )
             buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
 
             val totalWindowHours = windowHourKeys.size
@@ -549,6 +580,9 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         numColumns: Int,
         displaySource: WeatherSource,
         zoom: com.weatherwidget.widget.ZoomWindow = com.weatherwidget.widget.ZoomStage.WIDE.window(),
+        // Day-ago predictions by top-of-hour epoch ms. Empty for every source without a
+        // previous-runs product, which collapses both curves onto the live value.
+        priorDayCloudForecast: Map<Long, Int> = emptyMap(),
     ): List<CloudCoverGraphRenderer.CloudHourData> {
         val hours = mutableListOf<CloudCoverGraphRenderer.CloudHourData>()
         val now = LocalDateTime.now()
@@ -602,6 +636,10 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val forecast = forecastsByTime[hourMs]
 
             if (forecast?.cloudCover != null) {
+                // Past hours: the stored row has been retro-corrected by later runs, so it is the
+                // ACTUAL; the forecast curve takes the day-ago prediction where one exists.
+                val isPast = currentHour.isBefore(now.truncatedTo(java.time.temporal.ChronoUnit.HOURS))
+                val frozen = if (isPast) priorDayCloudForecast[hourMs] else null
                 val p = HourlyGraphViewCommon.resolveHourPresentation(
                     currentHour, forecast, now, lat, lon, labelInterval, hourIndex,
                     hourMs = hourMs, dateMode = dateMode, dateLabelMillis = dateLabelMillis,
@@ -609,7 +647,9 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 hours.add(
                     CloudCoverGraphRenderer.CloudHourData(
                         dateTime = currentHour,
-                        cloudCover = forecast.cloudCover,
+                        cloudCover = frozen ?: forecast.cloudCover,
+                        actualCloudCover = if (isPast) forecast.cloudCover else null,
+                        isFrozenForecast = frozen != null,
                         label = p.label,
                         iconRes = p.iconRes,
                         isNight = p.isNight,

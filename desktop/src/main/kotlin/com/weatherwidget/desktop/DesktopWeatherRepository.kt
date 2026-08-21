@@ -164,6 +164,10 @@ class DesktopWeatherRepository(
         val stitchedStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
         val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, stitchedStart, now + (168 * 3600 * 1000L), maxAgeMs)
         val daily = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
+        // Same window as the hourly read so the frozen forecast curve reaches as far back as the
+        // curve it annotates; empty for every source but Open-Meteo, which is the only one with a
+        // previous-runs product.
+        val priorCloud = weatherDao.getPriorDayCloudForecast(latitude, longitude, stitchedStart, now)
         
         // Cover the widest zoom-out (6 days back) so the actual line spans the whole window,
         // matching the hourly read above. Observations exist ~7-14 days back (NWS HISTORY_DAYS=7,
@@ -212,6 +216,7 @@ class DesktopWeatherRepository(
                 appliedDelta = resolved.appliedDelta,
                 deltaFromYesterday = resolved.deltaFromYesterday,
             ),
+            priorDayCloudForecast = priorCloud,
         )
     }
 
@@ -283,6 +288,27 @@ class DesktopWeatherRepository(
         }
     }
 
+    /** Guards the once-an-hour cadence for [maybeFetchPriorDayCloudForecast]. */
+    private var lastPriorCloudFetchMs = 0L
+
+    private suspend fun maybeFetchPriorDayCloudForecast(now: Long) {
+        if (now - lastPriorCloudFetchMs < PRIOR_CLOUD_FETCH_INTERVAL_MS) return
+        try {
+            val pastDays = (DesktopGraphUtils.MAX_BACK_HOURS / 24) + 1
+            val byHour = weatherService.fetchPriorDayCloudForecast(pastDays)
+            if (byHour.isNotEmpty()) {
+                weatherDao.upsertPriorDayCloudForecast(latitude, longitude, byHour)
+                Log.i(TAG, "PRIOR_CLOUD stored hours=${byHour.size} pastDays=$pastDays")
+            }
+            // Mark the attempt, not just the success: a source with no previous-runs product
+            // returns empty every time, and retrying it each refresh is pure noise.
+            lastPriorCloudFetchMs = now
+        } catch (e: Exception) {
+            Log.w(TAG, "PRIOR_CLOUD fetch failed, cloud graph falls back to live values: $e")
+            lastPriorCloudFetchMs = now
+        }
+    }
+
     suspend fun refresh(
         now: Long = currentTimeMillis(),
     ): ForecastSnapshot = withContext(Dispatchers.IO) {
@@ -334,6 +360,12 @@ class DesktopWeatherRepository(
             // Snapshot for history (Tier 1 simplification: 4h buckets)
             val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
             weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, result.hourly)
+
+            // The cloud graph's frozen forecast curve. Throttled to once an hour: the day-ago
+            // prediction for an elapsed hour never changes, so refetching it on every refresh would
+            // buy nothing. Best-effort and non-fatal — the service returns empty for any source
+            // without a previous-runs product, and for any failure.
+            maybeFetchPriorDayCloudForecast(now)
 
             // Best-effort: ensure climate normals are cached for the future-day fallback. One network
             // fetch per location, then served from cache; never fails the main refresh.
@@ -950,6 +982,7 @@ class DesktopWeatherRepository(
         private const val BASELINE_HISTORY_DAYS = 7
         private const val MAX_HISTORY_DAYS = 547
         private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 547L
+        private const val PRIOR_CLOUD_FETCH_INTERVAL_MS = 60 * 60 * 1000L
         private const val DB_RETENTION_DAYS = 547L // 18 months (~547 days)
         private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
         private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = "FROZEN_DISPLAY_BACKFILL_DONE"

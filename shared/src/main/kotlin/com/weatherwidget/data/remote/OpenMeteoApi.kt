@@ -13,6 +13,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -29,6 +31,39 @@ class OpenMeteoApi
         companion object {
             private const val BASE_URL = "https://api.open-meteo.com/v1"
             private const val ARCHIVE_URL = "https://archive-api.open-meteo.com/v1"
+            private const val PREVIOUS_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1"
+
+            /** Verified: `past_days=31` returns the full span with `_previous_day1` fully populated. */
+            const val MAX_PREVIOUS_RUNS_PAST_DAYS = 31
+
+                /**
+                 * Pure seam: the whole of this endpoint's parsing, reachable without an HTTP engine.
+                 */
+                internal fun parsePriorDayCloudForecast(response: String, nowMs: Long): Map<Long, Int> {
+                val jsonObj = Json.parseToJsonElement(response).jsonObject
+                val hourly = jsonObj["hourly"]?.jsonObject ?: return emptyMap()
+                val times = hourly["time"]?.jsonArray ?: return emptyMap()
+                val covers = hourly["cloud_cover_previous_day1"]?.jsonArray ?: return emptyMap()
+                // The response carries its own timezone; parse in it rather than the device default so
+                // a phone travelling across zones keeps filing hours under the same keys.
+                val zone = jsonObj["timezone"]?.jsonPrimitive?.contentOrNull
+                    ?.let { runCatching { java.time.ZoneId.of(it) }.getOrNull() }
+                    ?: java.time.ZoneId.systemDefault()
+
+                val out = LinkedHashMap<Long, Int>()
+                times.forEachIndexed { index, timeElement ->
+                    val cover = covers.getOrNull(index)?.jsonPrimitive?.intOrNull
+                        ?: return@forEachIndexed
+                    val ms = runCatching {
+                        java.time.LocalDateTime.parse(timeElement.jsonPrimitive.content)
+                            .atZone(zone).toInstant().toEpochMilli()
+                    }.getOrNull() ?: return@forEachIndexed
+                    if (ms >= nowMs) return@forEachIndexed
+                    out[ms] = cover.coerceIn(0, 100)
+                }
+                Log.d(TAG, "getPriorDayCloudForecast: hours=${times.size} kept=${out.size} zone=$zone")
+                return out
+            }
         }
 
         suspend fun getForecast(
@@ -211,6 +246,41 @@ hourly = hourlyForecasts,
                     null
                 }
             }
+        }
+
+        /**
+         * What Open-Meteo predicted for each past hour roughly 24 hours beforehand, from the
+         * Previous Runs API (`cloud_cover_previous_day1`). Backs the cloud graph's frozen forecast
+         * curve — see [com.weatherwidget.shared.graph.PriorDayCloudForecast] for why the live rows
+         * cannot serve that role.
+         *
+         * Returns one entry per hour that has a value, as `dateTime` (epoch ms) to cover percent.
+         * Hours the API reports as null are **omitted, not zeroed**: a missing prediction must stay
+         * missing so the render can fall back honestly instead of drawing a clear sky.
+         *
+         * @param pastDays how far back to ask, capped at [MAX_PREVIOUS_RUNS_PAST_DAYS]. Note the
+         *   `_previous_dayN` suffix caps at 7, but that is a limit on forecast *lead time*, not on
+         *   lookback: `_day1` is populated across the full past-days span.
+         * @param nowMs hours at or after this are dropped — only elapsed hours have a settled
+         *   day-ago prediction worth freezing.
+         */
+        suspend fun getPriorDayCloudForecast(
+            lat: Double,
+            lon: Double,
+            pastDays: Int,
+            nowMs: Long,
+        ): Map<Long, Int> {
+            val response: String =
+                httpClient.get("$PREVIOUS_RUNS_URL/forecast") {
+                    parameter("latitude", lat)
+                    parameter("longitude", lon)
+                    parameter("hourly", "cloud_cover_previous_day1")
+                    parameter("past_days", pastDays.coerceIn(1, MAX_PREVIOUS_RUNS_PAST_DAYS))
+                    parameter("forecast_days", 1)
+                    parameter("timezone", "auto")
+                }.body()
+
+            return Companion.parsePriorDayCloudForecast(response, nowMs)
         }
 
         /**

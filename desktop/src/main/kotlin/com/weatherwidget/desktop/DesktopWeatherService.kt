@@ -182,6 +182,21 @@ class DesktopWeatherService(
             weatherSource,
         )
 
+    /**
+     * Open-Meteo's Previous Runs API: what each elapsed hour was forecast to be ~24h beforehand.
+     *
+     * Only meaningful under Open-Meteo, so it is gated on the display source rather than fetched
+     * unconditionally — a call spent on a graph nobody is looking at is a call wasted, and every
+     * other source would get an empty map anyway. Best-effort: any failure returns empty and the
+     * cloud graph falls back to the live value with `isFrozen = false`.
+     */
+    override suspend fun fetchPriorDayCloudForecast(pastDays: Int): Map<Long, Int> {
+        if (weatherSource != WeatherSource.OPEN_METEO.id) return emptyMap()
+        return bestEffort("prior-day cloud forecast") {
+            openMeteo.getPriorDayCloudForecast(latitude, longitude, pastDays, System.currentTimeMillis())
+        } ?: emptyMap()
+    }
+
     override suspend fun fetchHistory(historyDays: Int): RawFetch {
         return openMeteo.getForecast(latitude, longitude, days = 1, historyDays = historyDays)
     }

@@ -1,6 +1,7 @@
 package com.weatherwidget.data.model
 
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.shared.graph.PriorDayCloudForecast
 
 /**
  * Merges the live hourly rows (`hourly_forecasts`, latest-only, REPLACE-overwritten) with the
@@ -24,6 +25,22 @@ import com.weatherwidget.data.local.LocationMatch
  * across devices.
  */
 object HourlyForecastStitcher {
+    /**
+     * Rows the merge must never consider, whatever the caller passed.
+     *
+     * [PriorDayCloudForecast.SOURCE_ID] rows live in `hourly_forecast_history` beside the app's own
+     * snapshots, but they describe a *deliberately stale* prediction (~24h before the hour) while
+     * carrying a fresh `fetchedAt`. Freshest-wins would therefore promote one to "the latest
+     * forecast" for any hour the live table has dropped — changing the temperature and precipitation
+     * lines, which read this same stitched list.
+     *
+     * Every production caller happens to scope its history query to one real source today, so this
+     * is belt-and-braces. It is here rather than in the callers because the failure is silent and
+     * the next caller to add an all-sources read would not know to look.
+     */
+    private fun List<HourlyForecast>.withoutSyntheticSources(): List<HourlyForecast> =
+        filter { it.source != PriorDayCloudForecast.SOURCE_ID }
+
     fun stitch(
         current: List<HourlyForecast>,
         history: List<HourlyForecast>,
@@ -31,6 +48,8 @@ object HourlyForecastStitcher {
         centerLat: Double,
         centerLon: Double,
     ): List<HourlyForecast> {
+        @Suppress("NAME_SHADOWING") val current = current.withoutSyntheticSources()
+        @Suppress("NAME_SHADOWING") val history = history.withoutSyntheticSources()
         if (current.isEmpty() && history.isEmpty()) return emptyList()
 
         // Freshest same-site row per hour on both sides — the latest forecast, regardless of past/future.
@@ -67,6 +86,8 @@ object HourlyForecastStitcher {
         centerLat: Double,
         centerLon: Double,
     ): List<HourlyForecast> {
+        @Suppress("NAME_SHADOWING") val current = current.withoutSyntheticSources()
+        @Suppress("NAME_SHADOWING") val history = history.withoutSyntheticSources()
         if (current.isEmpty() && history.isEmpty()) return emptyList()
         val currentBySource = current.groupBy { it.source }
         val historyBySource = history.groupBy { it.source }
