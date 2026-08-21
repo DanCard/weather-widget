@@ -4,6 +4,9 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+import com.weatherwidget.shared.actuals.MetarCloudBlender
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -81,13 +84,17 @@ interface ObservationDao {
         )
 
     /**
-     * Cloud actuals for the window, as top-of-hour epoch ms to low-layer percent.
+     * Cloud actuals for the window, as top-of-hour epoch ms -> visible-layer percent
+     * (`cloudCoverLow ?: cloudCover`, the same expression the forecast curve draws).
      *
-     * Scoped to the synthetic backfill station rather than the whole site: those rows are the only
-     * ones carrying a cloud percent today (a real METAR station reports a layer list, not a number),
-     * and pinning the id here means a future real-station cloud source cannot silently join this
-     * series without a deliberate change. Site collapse still applies — the coarse box can gather a
-     * jitter fragment or a neighbouring town.
+     * Two source-aware branches over one site-collapsed read (the coarse box can gather a jitter
+     * fragment or a neighbouring town):
+     *  - NWS blends its real METAR stations' own rows at read time ([MetarCloudBlender]); nothing is
+     *    ever written to a synthetic NWS station, so a `distanceKm=0` synthetic row cannot hijack the
+     *    blend.
+     *  - every other source files its cloud on the [HistoricalActualsBackfill] synthetic row, which
+     *    stays pinned here: a future real-station cloud source cannot silently join this series
+     *    without a deliberate change.
      */
     suspend fun getCloudActuals(
         startTs: Long,
@@ -95,14 +102,17 @@ interface ObservationDao {
         lat: Double,
         lon: Double,
         sourceId: String,
-    ): Map<Long, Int> {
-        val station = com.weatherwidget.shared.actuals.HistoricalActualsBackfill
-            .syntheticStationId(sourceId)
-        return getObservationsInRange(startTs, endTs, lat, lon)
-            .asSequence()
+    ): MetarCloudBlender.Result {
+        val rows = getObservationsInRange(startTs, endTs, lat, lon)
+        if (sourceId == WeatherSource.NWS.id) {
+            return MetarCloudBlender.blend(rows.map { it.toReading() }, startTs, endTs)
+        }
+        val station = HistoricalActualsBackfill.syntheticStationId(sourceId)
+        val hours = rows.asSequence()
             .filter { it.stationId == station }
-            .mapNotNull { row -> row.cloudCoverLow?.let { row.timestamp to it } }
+            .mapNotNull { row -> (row.cloudCoverLow ?: row.cloudCover)?.let { row.timestamp to it } }
             .toMap()
+        return MetarCloudBlender.synthetic(hours)
     }
 
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")

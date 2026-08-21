@@ -21,6 +21,7 @@ import com.weatherwidget.widget.CloudCoverGraphRenderer
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -44,6 +45,15 @@ import java.util.Locale
 object CloudCoverViewHandler {
     private const val TAG = "CloudCoverViewHandler"
     private const val CELL_HEIGHT_DP = 90
+
+    /**
+     * Whether this source has an actual cloud curve at all. Open-Meteo files settled actuals via the
+     * historical backfill; NWS derives them at read time from METAR sky condition
+     * (`ObservationDao.getCloudActuals`). Every other source has neither, so its cloud graph stays
+     * forecast-only.
+     */
+    private fun cloudActualsSupported(source: WeatherSource): Boolean =
+        source == WeatherSource.OPEN_METEO || source == WeatherSource.NWS
 
     @androidx.annotation.VisibleForTesting
     internal fun smoothingIterationsFor(zoom: com.weatherwidget.widget.ZoomWindow): Int =
@@ -402,11 +412,15 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             // previous-runs product — which collapses both curves onto the live value.
             val siteLat = hourlyForecasts.firstOrNull()?.locationLat
             val siteLon = hourlyForecasts.firstOrNull()?.locationLon
-            val cloudSeriesAvailable = effectiveDisplaySource == WeatherSource.OPEN_METEO &&
-                siteLat != null && siteLon != null && windowHourKeys.isNotEmpty()
-            // Both synthetic series share the window and the site, so they are read together: a
-            // mismatch between them would misalign the two curves hour-for-hour.
-            val cloudHistoryDao = if (cloudSeriesAvailable) {
+            val siteResolved = siteLat != null && siteLon != null && windowHourKeys.isNotEmpty()
+            // The actual curve exists wherever a cloud product exists: Open-Meteo's synthetic
+            // backfill row or NWS's read-time METAR station blend. The frozen forecast curve stays
+            // Open-Meteo-only — it is the one source with a previous-runs product, so under NWS the
+            // forecast falls back to the live value with isFrozen = false, which the builder and
+            // renderer already handle.
+            val cloudSeriesAvailable = siteResolved && cloudActualsSupported(effectiveDisplaySource)
+            val priorCloudAvailable = siteResolved && effectiveDisplaySource == WeatherSource.OPEN_METEO
+            val cloudHistoryDao = if (priorCloudAvailable) {
                 WeatherDatabase.getDatabase(context).hourlyForecastHistoryDao()
             } else {
                 null
@@ -439,26 +453,58 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     )
                 }.getOrElse {
                     Log.w(TAG, "cloud actual read failed; graph shows forecast only", it)
-                    emptyMap()
+                    MetarCloudBlender.empty(isMetarBlend = false)
                 }
             } else {
-                emptyMap()
+                MetarCloudBlender.empty(isMetarBlend = false)
             }
 
             // Permanent diagnostic: the cloud actual has now failed silently twice — once because the
             // write dropped it, once because nothing was stored at all — and both looked identical
-            // on screen (a single solid curve). This pins which leg is empty without a DB pull.
+            // on screen (a single solid curve). This pins which leg is empty without a DB pull, and
+            // the METAR blend stats separate "every station is a PWS" from a thin-but-alive blend.
+            val metarStats = if (retroActual.isMetarBlend) " ${retroActual.stats.summary()}" else ""
             Log.i(
                 TAG,
                 "CLOUD_SERIES src=${effectiveDisplaySource.id} site=$siteLat,$siteLon " +
-                    "window=${windowStart}..${windowEnd} prior=${priorCloud.size} actual=${retroActual.size} " +
-                    "inWindow=${retroActual.keys.count { it in windowStart until windowEnd }}",
+                    "window=${windowStart}..${windowEnd} prior=${priorCloud.size} actual=${retroActual.hours.size} " +
+                    "inWindow=${retroActual.hours.keys.count { it in windowStart until windowEnd }}$metarStats",
             )
+
+            // Repair probe for the actual cloud series. The coverage decision lives in the
+            // temperature/daily views, but a widget parked in CLOUD view never renders those —
+            // and the missing curve above is THIS view's data, so it must be able to heal itself.
+            // NWS-only like the other probes; the shared decision/cooldown prevents
+            // double-fetching across views.
+            if (effectiveDisplaySource == WeatherSource.NWS && repository != null && siteLat != null && siteLon != null) {
+                val backfillStart = now.minusHours(
+                    com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,
+                )
+                val observations = repository.getObservationsInRange(
+                    backfillStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    siteLat,
+                    siteLon,
+                )
+                maybeEnqueueHourlyObservationBackfill(
+                    context = context,
+                    database = WeatherDatabase.getDatabase(context),
+                    stateManager = stateManager,
+                    appWidgetId = appWidgetId,
+                    displaySource = effectiveDisplaySource,
+                    graphStart = backfillStart,
+                    graphEnd = now,
+                    observations = observations,
+                    repositoryPresent = true,
+                    observationsLat = siteLat,
+                    observationsLon = siteLon,
+                )
+            }
 
             val hours = buildCloudHourDataList(
                 hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom,
                 priorDayCloudForecast = priorCloud,
-                retroCloudActual = retroActual,
+                retroCloudActual = retroActual.hours,
             )
             buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
 

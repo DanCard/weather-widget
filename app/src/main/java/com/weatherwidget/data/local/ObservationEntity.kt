@@ -89,4 +89,6 @@ fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationRead
     precipAmountMm = precipAmountMm,
     isWebFallback = isWebFallback,
     qcFailed = qcFailed,
+    cloudCover = cloudCover,
+    cloudCoverLow = cloudCoverLow,
 )

@@ -9,8 +9,11 @@ import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.shared.graph.PriorDayCloudForecast
 import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.orNullIfImplausibleTempF
+import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.shared.util.Log
 import java.sql.Connection
@@ -131,19 +134,26 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     }
 
     /**
-     * Cloud actuals for the window, as timestamp -> low-layer percent.
+     * Cloud actuals for the window, as timestamp -> visible-layer percent
+     * (`cloudCoverLow ?: cloudCover`, the same expression the forecast curve draws).
      *
-     * Scoped to the synthetic backfill station: those rows are the only ones carrying a cloud
-     * percent today, and pinning the id means a future real-station cloud source cannot silently
-     * join this series. Mirrors Android's `ObservationDao.getCloudActuals`.
+     * Two source-aware branches over one site-collapsed read: NWS blends its real METAR stations' own
+     * rows at read time ([MetarCloudBlender]) — nothing is ever written to a synthetic NWS station,
+     * so a `distanceKm=0` synthetic row cannot hijack the blend — while every other source files its
+     * cloud on the [HistoricalActualsBackfill] synthetic row, which stays pinned here. Mirrors
+     * Android's `ObservationDao.getCloudActuals`.
      */
-    fun getCloudActuals(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long, sourceId: String): Map<Long, Int> {
-        val station = com.weatherwidget.shared.actuals.HistoricalActualsBackfill.syntheticStationId(sourceId)
-        return getObservationsInRange(startMs, endMs, locationLat, locationLon)
-            .asSequence()
+    fun getCloudActuals(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long, sourceId: String): MetarCloudBlender.Result {
+        val rows = getObservationsInRange(startMs, endMs, locationLat, locationLon)
+        if (sourceId == WeatherSource.NWS.id) {
+            return MetarCloudBlender.blend(rows.map { it.toReading() }, startMs, endMs)
+        }
+        val station = HistoricalActualsBackfill.syntheticStationId(sourceId)
+        val hours = rows.asSequence()
             .filter { it.stationId == station }
-            .mapNotNull { row -> row.cloudCoverLow?.let { row.timestamp to it } }
+            .mapNotNull { row -> (row.cloudCoverLow ?: row.cloudCover)?.let { row.timestamp to it } }
             .toMap()
+        return MetarCloudBlender.synthetic(hours)
     }
 
     /** Day-ago cloud predictions for the window, as hour -> percent. */

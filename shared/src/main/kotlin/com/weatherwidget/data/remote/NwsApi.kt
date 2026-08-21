@@ -106,6 +106,11 @@ class NwsApi
                 val precipLastHourObj = props["precipitationLastHour"]?.jsonObject
                 val precipLastHourMm = precipLastHourObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
 
+                // METAR sky condition, the same layer list every official station reports. An empty
+                // list means "not reported", never "clear": personal stations return [] on every
+                // report and partial official reports omit sky condition entirely. See MetarSkyCover.
+                val cloudLayers = parseCloudLayers(props["cloudLayers"]?.jsonArray)
+
                 // NWS's own verdict on the value it just handed us. Marked (not dropped) so the
                 // stations list can show the failure, exactly as Synoptic-flagged readings are.
                 val qualityControl = tempObj.get("qualityControl")?.jsonPrimitive?.contentOrNull
@@ -119,7 +124,40 @@ class NwsApi
                     minTempLast24hCelsius = minTempValue,
                     precipLastHourMm = precipLastHourMm,
                     qcFailed = NwsQualityControl.isFailed(qualityControl),
+                    cloudLayers = cloudLayers,
                 )
+            }
+
+            private val warnedBaseUnits = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+            /**
+             * Parses the METAR `cloudLayers` array into [CloudLayer]s with heights in metres. An absent
+             * array yields the empty list ("not reported"), which [com.weatherwidget.shared.observations.MetarSkyCover]
+             * maps to null rather than 0. `base` is only ever used to decide layer membership for the
+             * low-layer read; percent keys on `amount` alone. `wmoUnit:m` is all that has been observed;
+             * `ft` is handled defensively and anything else is logged once.
+             */
+            private fun parseCloudLayers(node: kotlinx.serialization.json.JsonArray?): List<CloudLayer> {
+                if (node == null) return emptyList()
+                return node.mapNotNull { layerObj ->
+                    val obj = layerObj.jsonObject
+                    val amount = obj["amount"]?.jsonPrimitive?.content
+                    val base = obj["base"]?.jsonObject
+                    val rawValue = base?.get("value")?.jsonPrimitive?.content
+                    val unitCode = base?.get("unitCode")?.jsonPrimitive?.content
+                    if (amount == null) return@mapNotNull null
+                    val baseMeters = when (unitCode) {
+                        null, "", "wmoUnit:m" -> rawValue?.toDoubleOrNull()
+                        "wmoUnit:ft" -> rawValue?.toDoubleOrNull()?.times(0.3048)
+                        else -> {
+                            if (warnedBaseUnits.add(unitCode)) {
+                                Log.w(TAG, "parseCloudLayers: unexpected base unitCode=$unitCode raw=$rawValue; height treated as unknown")
+                            }
+                            null
+                        }
+                    }
+                    CloudLayer(amount = amount, baseMeters = baseMeters)
+                }
             }
 
             /**
@@ -615,6 +653,14 @@ class NwsApi
             // Upstream quality control rejected this reading (e.g. Synoptic check 105, spatial
             // value vs neighbors). Kept for the stations UI; must never enter temperature math.
             val qcFailed: Boolean = false,
+            // METAR sky condition. Empty = "not reported"; personal stations always return empty.
+            val cloudLayers: List<CloudLayer> = emptyList(),
+        )
+
+        /** One METAR sky-condition layer. Percent is derived from [amount] alone (see MetarSkyCover). */
+        data class CloudLayer(
+            val amount: String,
+            val baseMeters: Double?,
         )
 
         data class HourlyForecastPeriod(

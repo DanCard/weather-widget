@@ -187,7 +187,43 @@ internal fun evaluateHourlyBackfillNeed(
         maxGapMin > 75L ->
             HourlyBackfillDecision(true, "max_gap_min=$maxGapMin")
         else ->
-            HourlyBackfillDecision(false, "coverage_ok latest_gap_min=$latestGapMin max_gap_min=$maxGapMin")
+            metarCloudGapReason(sourceObservations)?.let { HourlyBackfillDecision(true, it) }
+                ?: HourlyBackfillDecision(false, "coverage_ok latest_gap_min=$latestGapMin max_gap_min=$maxGapMin")
+    }
+}
+
+/**
+ * Detects a broken METAR actual-cloud series under otherwise-healthy temperature coverage.
+ *
+ * Sky condition rides the SAME `/observations` payload as temperature, so a temperature-only
+ * "coverage_ok" cannot see it: rows stored before cloud parsing existed carry `cloudCoverLow=NULL`
+ * forever, and no later event re-parses them. When fewer than half of the hour-buckets an official
+ * station reports into carry any cloud value, the series is broken (pre-feature rows, a dead feed)
+ * and the existing 72h re-fetch repairs it — REPLACE re-parses the same bytes with `cloudLayers`,
+ * no new HTTP calls. The ordinary cooldown bounds how often a genuinely cloudless location retries.
+ *
+ * OFFICIAL-only basis: PERSONAL stations report `cloudLayers: []` on every report (no ceilometer)
+ * and Synoptic web-fallback rows are temperature-only by policy, so neither can ever satisfy the
+ * check and must not keep it firing. Buckets use the blender's round-to-nearest-hour rule.
+ */
+@androidx.annotation.VisibleForTesting
+internal fun metarCloudGapReason(sourceObservations: List<ObservationEntity>): String? {
+    val officialApiRows = sourceObservations
+        .filter { it.stationType == "OFFICIAL" && !it.qcFailed && !it.isWebFallback }
+    if (officialApiRows.isEmpty()) return null
+    fun bucketOf(ts: Long) = Math.round(ts / 3_600_000.0).toLong()
+    val officialBuckets = officialApiRows.map { bucketOf(it.timestamp) }.distinct().size
+    val cloudBuckets = officialApiRows
+        .filter { (it.cloudCoverLow ?: it.cloudCover) != null }
+        .map { bucketOf(it.timestamp) }
+        .distinct()
+        .size
+    // ~25-30% of individual reports omit sky condition, but with several reports per bucket an
+    // empty bucket is a few percent; half the official buckets empty means the series is broken.
+    return if (cloudBuckets * 2 < officialBuckets) {
+        "metar_cloud_sparse cloudBuckets=$cloudBuckets officialBuckets=$officialBuckets"
+    } else {
+        null
     }
 }
 

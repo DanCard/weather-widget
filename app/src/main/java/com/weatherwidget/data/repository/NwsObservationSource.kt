@@ -303,6 +303,11 @@ class NwsObservationSource(
             precipAmountMm = observation.precipLastHourMm,
             isWebFallback = isWebFallback,
             qcFailed = observation.qcFailed,
+            // METAR sky condition is a below-~12,000 ft measurement, so it is filed as the LOW
+            // layer and the total column stays null — populating cloudCover from it would file a
+            // 12,000-ft-limited measurement as a total column (§3).
+            cloudCover = null,
+            cloudCoverLow = com.weatherwidget.shared.observations.MetarSkyCover.lowPercent(observation.cloudLayers),
         )
     }
 

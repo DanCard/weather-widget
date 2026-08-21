@@ -576,6 +576,10 @@ class DesktopWeatherService(
         minTempLast24h = minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
         isWebFallback = isWebFallback,
         qcFailed = qcFailed,
+        // METAR sky condition is a below-~12,000 ft measurement, so it is filed as the LOW layer
+        // and the total column stays null — same rule as NwsObservationSource.toEntity (§3).
+        cloudCover = null,
+        cloudCoverLow = com.weatherwidget.shared.observations.MetarSkyCover.lowPercent(cloudLayers),
     )
 
     private fun NwsApi.HourlyForecastPeriod.toHourlyForecast() = HourlyForecast(

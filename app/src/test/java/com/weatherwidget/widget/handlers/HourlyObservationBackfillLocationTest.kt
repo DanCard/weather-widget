@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -181,6 +182,117 @@ class HourlyObservationBackfillLocationTest {
 
         assertEquals(false, decision.shouldRequest)
         assertEquals("coverage_ok latest_gap_min=0 max_gap_min=15", decision.reason)
+    }
+
+    // ---- METAR cloud coverage (plan 260820) ----
+    //
+    // Sky condition rides the same /observations payload as temperature, so a temperature-only
+    // "coverage_ok" verdict cannot see a missing actual cloud curve. These lock the cloud-aware
+    // branch of the same repair decision.
+
+    private fun metarStationRows(
+        graphStart: LocalDateTime,
+        now: LocalDateTime,
+        stationType: String,
+        cloudCoverLow: Int?,
+        isWebFallback: Boolean = false,
+    ): List<ObservationEntity> {
+        val zone = ZoneId.systemDefault()
+        return generateSequence(graphStart) { it.plusMinutes(15) }
+            .takeWhile { !it.isAfter(now) }
+            .map {
+                nwsObservationAt(it.atZone(zone).toInstant().toEpochMilli()).copy(
+                    stationType = stationType,
+                    cloudCoverLow = cloudCoverLow,
+                    isWebFallback = isWebFallback,
+                )
+            }
+            .toList()
+    }
+
+    @Test
+    fun `NWS requests repair when temperature is covered but official stations carry no cloud`() {
+        // The upgrade-window failure: every stored row predates cloud parsing, so cloudCoverLow is
+        // null everywhere while temperature coverage looks fine. The same 72h re-fetch re-parses
+        // the same payload and fills the curve.
+        val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
+        val now = LocalDateTime.of(2026, 7, 30, 7, 0)
+        val observations = metarStationRows(graphStart, now, "OFFICIAL", cloudCoverLow = null)
+
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = graphStart,
+                graphEnd = now.plusHours(11),
+                observations = observations,
+                now = now,
+            )
+
+        assertTrue(decision.shouldRequest)
+        assertTrue(decision.reason.startsWith("metar_cloud_sparse"))
+    }
+
+    @Test
+    fun `NWS does not request cloud repair when only personal stations exist`() {
+        // PWS stations have no ceilometer and report cloudLayers: [] forever — they can never
+        // satisfy the check, so they must not keep it (and its 30-minute re-fetch) firing.
+        val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
+        val now = LocalDateTime.of(2026, 7, 30, 7, 0)
+        val observations = metarStationRows(graphStart, now, "PERSONAL", cloudCoverLow = null)
+
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = graphStart,
+                graphEnd = now.plusHours(11),
+                observations = observations,
+                now = now,
+            )
+
+        assertFalse(decision.shouldRequest)
+        assertTrue(decision.reason.startsWith("coverage_ok"))
+    }
+
+    @Test
+    fun `NWS does not request cloud repair when official buckets carry cloud`() {
+        val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
+        val now = LocalDateTime.of(2026, 7, 30, 7, 0)
+        val observations = metarStationRows(graphStart, now, "OFFICIAL", cloudCoverLow = 75)
+
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = graphStart,
+                graphEnd = now.plusHours(11),
+                observations = observations,
+                now = now,
+            )
+
+        assertFalse(decision.shouldRequest)
+        assertTrue(decision.reason.startsWith("coverage_ok"))
+    }
+
+    @Test
+    fun `NWS cloud check ignores web-fallback rows`() {
+        // Synoptic fallback rows are temperature-only by policy; when the web path won a station,
+        // its rows must not count as "official station had a cloud opportunity this hour".
+        val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
+        val now = LocalDateTime.of(2026, 7, 30, 7, 0)
+        val observations = metarStationRows(
+            graphStart, now, "OFFICIAL", cloudCoverLow = null, isWebFallback = true,
+        )
+
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = graphStart,
+                graphEnd = now.plusHours(11),
+                observations = observations,
+                now = now,
+            )
+
+        assertFalse(decision.shouldRequest)
+        assertTrue(decision.reason.startsWith("coverage_ok"))
     }
 
     @Test
