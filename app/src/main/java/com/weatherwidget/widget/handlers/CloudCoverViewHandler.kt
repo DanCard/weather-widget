@@ -640,6 +640,12 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 // ACTUAL; the forecast curve takes the day-ago prediction where one exists.
                 val isPast = currentHour.isBefore(now.truncatedTo(java.time.temporal.ChronoUnit.HOURS))
                 val frozen = if (isPast) priorDayCloudForecast[hourMs] else null
+                // A row written before its own hour ended is still a prediction, whatever the clock
+                // says now. Drawing it as the actual puts a forecast on the truth curve — which is
+                // exactly what a device that has not refetched since the morning would show.
+                val isActual = isPast &&
+                    com.weatherwidget.shared.graph.CloudSeriesBuilder
+                        .isRetroCorrected(hourMs, forecast.fetchedAt)
                 val p = HourlyGraphViewCommon.resolveHourPresentation(
                     currentHour, forecast, now, lat, lon, labelInterval, hourIndex,
                     hourMs = hourMs, dateMode = dateMode, dateLabelMillis = dateLabelMillis,
@@ -648,7 +654,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     CloudCoverGraphRenderer.CloudHourData(
                         dateTime = currentHour,
                         cloudCover = frozen ?: forecast.cloudCover,
-                        actualCloudCover = if (isPast) forecast.cloudCover else null,
+                        actualCloudCover = if (isActual) forecast.cloudCover else null,
                         isFrozenForecast = frozen != null,
                         label = p.label,
                         iconRes = p.iconRes,

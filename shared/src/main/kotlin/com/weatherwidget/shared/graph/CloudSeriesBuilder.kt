@@ -37,6 +37,7 @@ object CloudSeriesBuilder {
 
     /**
      * @param liveHours the source's hourly rows for the visible window, site-collapsed, one per hour.
+     *   Each row's `fetchedAt` is load-bearing here — see [isRetroCorrected].
      * @param priorForecast day-ago predictions keyed by the same top-of-hour epoch ms.
      * @param nowMs "now"; hours strictly before the hour containing it are treated as past.
      */
@@ -70,12 +71,31 @@ object CloudSeriesBuilder {
                     // No day-ago prediction for this hour: fall back to the live value so the curve
                     // stays continuous, but say so. Never present a hindcast as a frozen forecast.
                     forecastCover = frozen ?: live,
-                    actualCover = live,
+                    // Only a row written AFTER its hour ended has been retro-corrected. A row that
+                    // predates its own hour is still a prediction, and drawing it as the actual
+                    // would put a forecast on the truth curve.
+                    actualCover = if (isRetroCorrected(hour.dateTime, hour.fetchedAt)) live else null,
                     isFrozen = frozen != null,
                 )
             }
             .toList()
     }
+
+    /**
+     * True when [fetchedAt] postdates the end of the hour starting at [hourStartMs] — the only
+     * condition under which the stored value has been revised in light of what happened.
+     *
+     * This is what separates a device that has refetched since an hour elapsed from one that has
+     * not. Measured on a Samsung Fold whose last Open-Meteo fetch predated the whole afternoon:
+     * every row on its "actual" curve was written before its own hour ended, so the curve was
+     * drawing forecasts and calling them actuals, while the desktop -- refetched at 17:52 -- drew
+     * the corrected values. The two devices disagreed by up to 65 points for that reason alone.
+     *
+     * `fetchedAt <= 0` means the caller did not populate it; treated as not corrected, because a
+     * missing actual is honest and a fabricated one is not.
+     */
+    fun isRetroCorrected(hourStartMs: Long, fetchedAt: Long): Boolean =
+        fetchedAt > 0L && fetchedAt >= hourStartMs + 3_600_000L
 
     /**
      * Fraction of past points whose forecast is genuinely frozen, for the render-time diagnostic.
