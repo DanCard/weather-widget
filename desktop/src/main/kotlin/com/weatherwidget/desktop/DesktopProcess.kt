@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.shared.util.Log
 import java.nio.file.Files
@@ -51,12 +52,19 @@ fun notifyDataUpdated() {
 fun notifyRefreshRequested() = touchTrigger(REFRESH_REQUESTED_TRIGGER)
 
 const val FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000L
-// A launch must re-pull the forecast once the cached forecast is older than this. Aligns with the
-// AC active-source forecast interval (DesktopFetchStrategy.AC_ACTIVE_FORECAST_MINUTES). Without this,
-// a daemon that restarts more often than the periodic forecast loop's first delay (which waits a full
+// A launch must re-pull the forecast once the cached forecast is older than this. Without it, a
+// daemon that restarts more often than the periodic forecast loop's first delay (which waits a full
 // interval before its first fetch) would refresh observations forever but never re-pull the forecast,
 // freezing the multi-day daily columns at whatever coverage the last full fetch had.
-const val FORECAST_FRESHNESS_THRESHOLD_MS = 60 * 60 * 1000L
+//
+// This is the WHILE-VIEWING threshold, not the background fetch cadence. Every caller of
+// runLaunchRefresh is a moment the user is demonstrably present — app startup, resume from sleep,
+// network restored, and (via startFetchLoops) switching the displayed source. It used to be 60 min
+// to "align with the AC active-source forecast interval", which is the wrong reference: that number
+// describes how often to fetch when NOBODY is looking. Measured 2026-08-21 11:30:58, switching the
+// display to Open-Meteo logged `action=NONE forecastAgeMs=2740065` — the source the user had just
+// asked to look at was 45.7 minutes stale and the switch refreshed nothing, because 45.7 < 60.
+const val FORECAST_FRESHNESS_THRESHOLD_MS = CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS
 // UI-process safety-net cache reload. The `.data-updated` trigger is the primary (interrupt-driven)
 // update path; this slow poll only exists so a missed watch event or a dead watcher loop degrades
 // to "up to 10 minutes stale" instead of "stale forever".

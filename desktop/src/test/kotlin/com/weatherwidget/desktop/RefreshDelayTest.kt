@@ -107,11 +107,47 @@ class RefreshDelayTest {
         val action = determineLaunchRefreshAction(
             cachePresent = true,
             lastObservationFetchMs = 9_900_000L, // 100s old: fresh
-            lastForecastFetchMs = 1_000_000L,    // ~2.5h old: stale (> 60 min)
+            lastForecastFetchMs = 1_000_000L,    // ~2.5h old: stale
             nowMs = 10_000_000L,
         )
 
         assertEquals(LaunchRefreshAction.FULL_FORECAST, action)
+    }
+
+    /**
+     * The measured regression: switching the displayed source restarts the fetch loops, which run
+     * the launch refresh — and at 2026-08-21 11:30:58 that logged
+     * `action=NONE forecastAgeMs=2740065` for Open-Meteo. The user had just asked to look at a
+     * source whose forecast was 45.7 minutes old, and the switch fetched nothing, because the bar
+     * was the 60-minute BACKGROUND cadence. Every caller of runLaunchRefresh is a user-present
+     * moment, so the bar is the while-viewing threshold.
+     */
+    @Test
+    fun `launch refresh pulls a forecast stale by the while-viewing threshold, not the background one`() {
+        val fortyFiveMinutes = 45 * 60 * 1000L
+        val now = 100_000_000L
+
+        assertEquals(
+            "45 min beats the 15-min viewing bar even though it is under the old 60-min one",
+            LaunchRefreshAction.FULL_FORECAST,
+            determineLaunchRefreshAction(
+                cachePresent = true,
+                lastObservationFetchMs = now - 1_000L, // fresh: cannot be what triggers this
+                lastForecastFetchMs = now - fortyFiveMinutes,
+                nowMs = now,
+            ),
+        )
+
+        assertEquals(
+            "but a forecast inside the viewing threshold is still left alone",
+            LaunchRefreshAction.NONE,
+            determineLaunchRefreshAction(
+                cachePresent = true,
+                lastObservationFetchMs = now - 1_000L,
+                lastForecastFetchMs = now - (10 * 60 * 1000L),
+                nowMs = now,
+            ),
+        )
     }
 
     @Test
