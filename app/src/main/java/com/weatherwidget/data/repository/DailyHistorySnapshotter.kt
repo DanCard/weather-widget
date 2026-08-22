@@ -42,6 +42,95 @@ internal class DailyHistorySnapshotter(
         SharedPreferencesUtil.getPrefs(context, "weather_prefs")
     }
 
+    /**
+     * Creates forecast-only `daily_history` rows (DailyHistoryWriter.FORECAST_ONLY_ROW) for past
+     * (date, source) pairs that have a complete forecast batch but no row at all — Open-Meteo
+     * (no actuals product), Tomorrow.io before its actuals tracking started, or any source whose
+     * actuals write never landed. Without these rows the daily widget/desktop history columns
+     * lose their high/low labels and depend on the forecasts table's rolling retention.
+     *
+     * computedHighTemp/computedLowTemp stay NULL (no fabricated actuals — see
+     * ForecastOnlyHistoryPlanner); a later real-actuals write fills them in. Idempotent: existing
+     * (date, source) rows are skipped, so this runs on every sync like the freeze pass and covers
+     * both the one-time backfill and each day rollover. Runs over the past [FORECAST_ONLY_LOOKBACK_DAYS]
+     * days; the planner keeps only days strictly before today.
+     */
+    suspend fun ensureForecastOnlyHistoryRows(
+        latitude: Double,
+        longitude: Double,
+    ) {
+        val zoneId = ZoneId.systemDefault()
+        val today = LocalDate.now(zoneId)
+        val startMs = today.minusDays(FORECAST_ONLY_LOOKBACK_DAYS)
+            .toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+
+        val forecastRows = forecastDao.getForecastsInRange(
+            startMs,
+            endMs + WidgetConstants.MS_IN_A_DAY,
+            latitude,
+            longitude,
+        )
+        if (forecastRows.isEmpty()) return
+
+        val existing = dailyHistoryDao.getExtremesInRange(
+            startMs,
+            endMs,
+            latitude,
+            longitude,
+        ).map { it.date to it.source }.toSet()
+
+        val todayMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val planned = com.weatherwidget.shared.actuals.ForecastOnlyHistoryPlanner.plan(
+            candidates = forecastRows.map { row ->
+                com.weatherwidget.shared.actuals.ForecastOnlyHistoryPlanner.Candidate(
+                    dateMs = row.targetDate,
+                    source = row.source,
+                    locationLat = row.locationLat,
+                    locationLon = row.locationLon,
+                    highTemp = row.highTemp,
+                    lowTemp = row.lowTemp,
+                    precipAmountMm = row.precipAmountMm,
+                    condition = row.condition,
+                    fetchedAt = row.fetchedAt,
+                    isClimateNormal = row.isClimateNormal,
+                )
+            },
+            existing = existing,
+            todayMs = todayMs,
+            genericGapSourceId = WeatherSource.GENERIC_GAP.id,
+        )
+        if (planned.isEmpty()) return
+
+        val nowMs = System.currentTimeMillis()
+        val entities = planned.map { row ->
+            DailyHistoryEntity(
+                date = row.dateMs,
+                source = row.source,
+                locationLat = row.locationLat,
+                locationLon = row.locationLon,
+                // No fabricated actuals: NULL computed* is the "no actuals" marker that keeps this
+                // row out of accuracy baselines (see DailyHistoryWriter.FORECAST_ONLY_ROW).
+                computedHighTemp = null,
+                computedLowTemp = null,
+                condition = row.condition,
+                updatedAt = nowMs,
+                forecastHighTemp = row.forecastHighTemp,
+                forecastLowTemp = row.forecastLowTemp,
+                forecastPrecipAmountMm = row.forecastPrecipAmountMm,
+                lastWriter = DailyHistoryWriter.FORECAST_ONLY_ROW.storedValue,
+            )
+        }
+        dailyHistoryDao.insertAll(entities)
+        Log.i(TAG, "ensureForecastOnlyHistoryRows: created ${entities.size} rows " +
+            "sources=${entities.map { it.source }.distinct()} dates=${entities.minOf { it.date }}..${entities.maxOf { it.date }}")
+        appLogDao.log(
+            "FORECAST_ONLY_HISTORY",
+            "created=${entities.size} sources=${entities.map { it.source }.distinct()} " +
+                "first=${entities.minOf { it.date }} last=${entities.maxOf { it.date }}",
+        )
+    }
+
     suspend fun snapshotDisplayedRainChance(
         latitude: Double,
         longitude: Double,
@@ -456,5 +545,7 @@ internal class DailyHistorySnapshotter(
         private const val PREF_FROZEN_DISPLAY_BACKFILL_DONE =
             "frozen_display_backfill_done"
         private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 30L
+        /** Lookback for [ensureForecastOnlyHistoryRows]: matches the widget's 30-day history nav. */
+        private const val FORECAST_ONLY_LOOKBACK_DAYS = 31L
     }
 }

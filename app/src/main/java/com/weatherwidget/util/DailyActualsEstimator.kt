@@ -81,7 +81,7 @@ object DailyActualsEstimator {
         val solidLineLowSource =
             when {
                 actual?.computedLowTemp != null && currentTemp != null ->
-                    if (actual.computedLowTemp <= currentTemp) "daily_actual_low" else "current_temp"
+                    if (actual.computedLowTemp!! <= currentTemp) "daily_actual_low" else "current_temp"
                 actual?.computedLowTemp != null -> "daily_actual_low"
                 currentTemp != null -> "current_temp"
                 else -> "none"

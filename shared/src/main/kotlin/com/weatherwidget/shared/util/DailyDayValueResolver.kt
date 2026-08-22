@@ -31,6 +31,53 @@ object DailyDayValueResolver {
         val ghostHigh: Float?,
     )
 
+    data class PastLineValues(
+        /** The observed high (the bar+headline label), or the forecast high when no actual exists. */
+        val solidHigh: Float?,
+        /** The observed low, or the forecast low when no actual exists. */
+        val solidLow: Float?,
+        /** The forecast comparison high (dashed overlay). */
+        val forecastHigh: Float?,
+        /** The forecast comparison low (dashed overlay). */
+        val forecastLow: Float?,
+        /**
+         * True when no observed actual existed and the solid values were promoted from the
+         * forecast. Renderers use this to style the column as a forecast (white) rather than an
+         * observed actual (red) — a forecast-only history row is not an observation.
+         */
+        val solidIsForecastFallback: Boolean,
+    )
+
+    /**
+     * Resolves a past day's solid (observed) and dashed (forecast) line values.
+     *
+     * Normally the solid values come from the observed actual frozen into daily_history and the
+     * dashed values from the forecast. But a past day may legitimately have NO actual row:
+     * forecast-only sources (Open-Meteo) never write one, and observation-tracking sources
+     * (Tomorrow.io) only started writing daily_history recently, so days prior to that tracking
+     * have snapshots but no actual. Without a fallback these columns drew their bars and icons
+     * but no high/low labels at all. In that case the forecast values double as the solid values
+     * so history still displays its forecasted high/low instead of rendering unlabeled bars.
+     *
+     * When an actual exists the values pass through unchanged and the forecast remains purely a
+     * comparison overlay.
+     */
+    fun resolvePastLineValues(
+        actualHigh: Float?,
+        actualLow: Float?,
+        forecastHigh: Float?,
+        forecastLow: Float?,
+    ): PastLineValues {
+        val noActual = actualHigh == null && actualLow == null
+        return PastLineValues(
+            solidHigh = if (noActual) forecastHigh else actualHigh,
+            solidLow = if (noActual) forecastLow else actualLow,
+            forecastHigh = forecastHigh,
+            forecastLow = forecastLow,
+            solidIsForecastFallback = noActual && (forecastHigh != null || forecastLow != null),
+        )
+    }
+
     /**
      * Resolves today's solid (observed) and dashed (forecast) line values.
      *

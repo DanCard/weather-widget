@@ -219,10 +219,22 @@ object DailyViewLogic {
             var isTodayForecastFallback = false
 
             if (isPast) {
-                val obsHigh = dailyActuals[date]?.computedHighTemp
-                val obsLow = dailyActuals[date]?.computedLowTemp
-                highLabel = formatTemp(obsHigh)
-                lowLabel = formatTemp(obsLow)
+                val row = dailyActuals[date]
+                val obsHigh = row?.computedHighTemp
+                val obsLow = row?.computedLowTemp
+                // No actual on the row (forecast-only sources like Open-Meteo, or pre-tracking days
+                // for Tomorrow.io): fall back to the forecast frozen INTO the row (survives the
+                // forecasts table's retention), then to the latest past-day snapshot as last resort.
+                val pastForecast =
+                    if (obsHigh == null && obsLow == null && (row?.forecastHighTemp == null || row.forecastLowTemp == null)) {
+                        forecastSnapshots?.get(date)
+                            ?.filter { it.source == displaySource.id && !it.isClimateNormal && it.highTemp != null && it.lowTemp != null }
+                            ?.maxByOrNull { it.fetchedAt }
+                    } else {
+                        null
+                    }
+                highLabel = formatTemp(obsHigh ?: row?.forecastHighTemp ?: pastForecast?.highTemp)
+                lowLabel = formatTemp(obsLow ?: row?.forecastLowTemp ?: pastForecast?.lowTemp)
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
                 val resolvedCurrentTemp = currentTemp ?: com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(
                     currentTemps, displaySource
@@ -446,16 +458,29 @@ object DailyViewLogic {
             var isTodayForecastFallback = false
             var trueActualHigh: Float? = null
             var bottomStackLow: Float? = null
+            var solidIsForecastFallback = false
 
             if (isPastDate) {
-                finalHigh = actual?.computedHighTemp
-                finalLow = actual?.computedLowTemp
-
                 if (showComparison) {
                     val (overlayHigh, overlayLow) = resolvePastDayOverlay(actual, forecasts, displaySource, date)
                     fHigh = overlayHigh
                     fLow = overlayLow
                 }
+                // A past day may have no daily_history actual row (forecast-only sources like
+                // Open-Meteo, or sources whose actuals tracking started recently, like
+                // Tomorrow.io). Fall back to the forecast values so the column still labels its
+                // high/low (see DailyDayValueResolver.resolvePastLineValues).
+                val pastValues = com.weatherwidget.shared.util.DailyDayValueResolver.resolvePastLineValues(
+                    actualHigh = actual?.computedHighTemp,
+                    actualLow = actual?.computedLowTemp,
+                    forecastHigh = fHigh,
+                    forecastLow = fLow,
+                )
+                finalHigh = pastValues.solidHigh
+                finalLow = pastValues.solidLow
+                fHigh = pastValues.forecastHigh
+                fLow = pastValues.forecastLow
+                solidIsForecastFallback = pastValues.solidIsForecastFallback
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
                 val snapshotCandidates = forecasts
                     .filter { it.source == displaySource.id }
@@ -645,6 +670,7 @@ object DailyViewLogic {
                         isPast = isPastDate,
                         isClimateNormal = isClimateOverlay,
                         isSourceGapFallback = weather?.source == WeatherSource.GENERIC_GAP.id,
+                        solidIsForecastFallback = solidIsForecastFallback,
                         dashedLineHigh = fHigh,
                         dashedLineLow = fLow,
                         rainData = DailyForecastGraphRenderer.RainLabelData(

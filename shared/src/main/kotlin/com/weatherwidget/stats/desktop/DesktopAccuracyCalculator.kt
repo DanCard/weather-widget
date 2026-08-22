@@ -59,18 +59,21 @@ class DesktopAccuracyCalculator(
             val baselineSource = ActualsBaselineResolver.resolveBaselineSource(
                 gradedSource = gradedSource,
                 orderedVisibleSources = orderedVisibleSources,
-                hasRowForDate = { candidate -> rowsForDate.any { it.source == candidate.id } },
+                // Forecast-only rows (null computed*) carry no observations — they must never
+                // serve as an accuracy baseline.
+                hasRowForDate = { candidate -> rowsForDate.any { it.source == candidate.id && it.hasActuals } },
             ) ?: continue
 
             val baselineRow = rowsForDate
                 .filter { it.source == baselineSource.id }
                 .minByOrNull { TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon) }
                 ?: continue
+            if (!baselineRow.hasActuals) continue
 
             val temps = resolveBaselineTemps(
                 field = baselineField,
-                computedHigh = baselineRow.computedHighTemp,
-                computedLow = baselineRow.computedLowTemp,
+                computedHigh = baselineRow.computedHighTemp!!,
+                computedLow = baselineRow.computedLowTemp!!,
                 apiHigh = baselineRow.apiHighTemp,
                 apiLow = baselineRow.apiLowTemp,
             )

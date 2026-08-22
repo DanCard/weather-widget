@@ -169,6 +169,8 @@ object DailyForecastGraphRenderer {
         val isPast: Boolean = false,
         val isClimateNormal: Boolean = false,
         val isSourceGapFallback: Boolean = false,
+        /** True when this past day's solid line is a promoted forecast (no actuals) — render as forecast. */
+        val solidIsForecastFallback: Boolean = false,
         val dashedLineHigh: Float? = null,
         val dashedLineLow: Float? = null,
         val rainData: RainLabelData = RainLabelData(),

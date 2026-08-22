@@ -54,6 +54,8 @@ data class DesktopDailyDay(
     val iconName: String,
     val isToday: Boolean,
     val isPast: Boolean,
+    /** True when this past day's solid line is a promoted forecast (no actuals) — render as forecast. */
+    val solidIsForecastFallback: Boolean,
     val cloudCoverRatio: Float?,
     /** Daytime rain label drawn on top of the bar (observed amount, forecast amount, or prob%). */
     val dailyRainLabelText: String?,
@@ -285,11 +287,10 @@ object DesktopDailyForecastModel {
         val forecastLow: Float?
         // Ghost (high-water mark) is a today-only affordance, matching Android.
         var ghostHigh: Float? = null
+        var solidIsForecastFallback = false
 
         when {
             isPast -> {
-                solidHigh = actual?.computedHighTemp
-                solidLow = actual?.computedLowTemp
                 // Prefer the overlay frozen into daily_history while the day was live (see
                 // DailyHistoryFreeze) — it survives the forecasts table's retention and can't
                 // hindcast-drift. High/low are written as a unit, so checking both guards against
@@ -302,6 +303,19 @@ object DesktopDailyForecastModel {
                     forecastHigh = snapshot?.highTemp ?: forecast?.highTemp
                     forecastLow = snapshot?.lowTemp ?: forecast?.lowTemp
                 }
+                // A past day may have no daily_history actual row (forecast-only sources like
+                // Open-Meteo, or pre-tracking days for Tomorrow.io). Fall back to the forecast
+                // values so the column still labels its high/low (parity with Android; see
+                // DailyDayValueResolver.resolvePastLineValues).
+                val pastValues = com.weatherwidget.shared.util.DailyDayValueResolver.resolvePastLineValues(
+                    actualHigh = actual?.computedHighTemp,
+                    actualLow = actual?.computedLowTemp,
+                    forecastHigh = forecastHigh,
+                    forecastLow = forecastLow,
+                )
+                solidHigh = pastValues.solidHigh
+                solidLow = pastValues.solidLow
+                solidIsForecastFallback = pastValues.solidIsForecastFallback
             }
             isToday -> {
                 val todayValues = com.weatherwidget.shared.util.DailyDayValueResolver.resolveTodayLineValues(
@@ -409,6 +423,7 @@ object DesktopDailyForecastModel {
             iconName = gatedIconName,
             isToday = isToday,
             isPast = isPast,
+            solidIsForecastFallback = solidIsForecastFallback,
             cloudCoverRatio = noonCloudPercentForBar / 100f,
             dailyRainLabelText = dailyRainLabelText,
             nightRainLabelText = nightRainLabelText,

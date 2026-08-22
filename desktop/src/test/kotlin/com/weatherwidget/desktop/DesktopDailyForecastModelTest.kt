@@ -109,6 +109,69 @@ settings = DesktopSettings(weatherSource = "NWS"),
     }
 
     @Test
+    fun `past day with forecast-only row labels the frozen forecast from the row alone`() {
+        // Desktop regression guard for plans/260822-daily-history-forecast-only-rows.md: no
+        // actuals on the row (Open-Meteo), snapshots aged out — the frozen values still become
+        // the labeled solid high/low.
+        val now = LocalDateTime.parse("2026-06-03T07:00:00")
+        val state = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = snapshot(
+                currentTemp = 72.4f,
+                currentCondition = "Sunny",
+                daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+                dailyActuals = mapOf(
+                    "2026-06-01" to extreme("2026-06-01", 0f, 0f, "Fair").copy(
+                        computedHighTemp = null,
+                        computedLowTemp = null,
+                        forecastHighTemp = 73.6f,
+                        forecastLowTemp = 58.3f,
+                    ),
+                ),
+                dailySnapshots = emptyMap(),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        )
+
+        val jun1 = state.days.find { it.date == LocalDate.parse("2026-06-01") }!!
+        assertEquals(73.6f, jun1.solidHigh)
+        assertEquals(58.3f, jun1.solidLow)
+        assertEquals(73.6f, jun1.forecastHigh)
+        assertEquals(58.3f, jun1.forecastLow)
+        assertTrue("Forecast-only past day must be flagged to render as forecast", jun1.solidIsForecastFallback)
+    }
+
+    @Test
+    fun `past day with real actuals keeps the actual as the label`() {
+        val now = LocalDateTime.parse("2026-06-03T07:00:00")
+        val state = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = snapshot(
+                currentTemp = 72.4f,
+                currentCondition = "Sunny",
+                daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+                dailyActuals = mapOf(
+                    "2026-06-01" to extreme("2026-06-01", 77f, 56f, "Fair").copy(
+                        forecastHighTemp = 74f,
+                        forecastLowTemp = 52f,
+                    ),
+                ),
+                dailySnapshots = emptyMap(),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        )
+
+        val jun1 = state.days.find { it.date == LocalDate.parse("2026-06-01") }!!
+        assertEquals(77f, jun1.solidHigh)
+        assertEquals(56f, jun1.solidLow)
+        assertEquals(74f, jun1.forecastHigh)
+        assertEquals(52f, jun1.forecastLow)
+        assertTrue(!jun1.solidIsForecastFallback)
+    }
+
+    @Test
     fun `past day prefers frozen overlay and noon cloud from daily_history over snapshots`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
         val state = DesktopDailyForecastModel.build(

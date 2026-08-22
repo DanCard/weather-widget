@@ -229,5 +229,11 @@ object NwsDailyExtremesFetch {
             personalStationWeight = personalStationWeight,
         )
             .firstOrNull { it.source == "NWS" && it.date == dateEpochDayMs }
-            ?.let { it.computedHighTemp to it.computedLowTemp }
+            ?.let { row ->
+                // A forecast-only aggregation row (no observations) has null extremes — that is
+                // not an actual, so yield no pair rather than a null-poisoned one.
+                val high = row.computedHighTemp
+                val low = row.computedLowTemp
+                if (high != null && low != null) high to low else null
+            }
 }

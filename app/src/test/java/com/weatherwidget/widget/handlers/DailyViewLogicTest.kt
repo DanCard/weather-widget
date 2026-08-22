@@ -1791,6 +1791,191 @@ class DailyViewLogicTest {
         assertEquals("Nighttime rain label should be 50%", "50%", tomorrowData.rainData.nightRainLabelText)
     }
 
+    /**
+     * A forecast-only daily_history row (DailyHistoryWriter.FORECAST_ONLY_ROW): no actuals
+     * (null computed*), the day's final forecast frozen into the overlay columns.
+     */
+    private fun forecastOnlyExtreme(
+        date: LocalDate,
+        high: Float,
+        low: Float,
+        source: String,
+    ) = extreme(date, high, low, source = source).copy(
+        computedHighTemp = null,
+        computedLowTemp = null,
+        forecastHighTemp = high,
+        forecastLowTemp = low,
+        lastWriter = "forecast_only_row",
+    )
+
+    @Test
+    fun `past day with forecast-only history row labels the frozen forecast high and low`() {
+        // THE Samsung regression (2026-08-22): after Open-Meteo became forecast-only its
+        // daily_history rows disappeared and past-day columns lost their high/low labels even
+        // though bars and icons still drew. A forecast-only row must make the column label the
+        // forecasted high/low — from the row alone (no forecast snapshots present here).
+        val now = LocalDateTime.of(2026, 5, 9, 12, 0)
+        val today = now.toLocalDate()
+        val pastWed = today.minusDays(3)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+        )
+        val dailyActuals = mapOf(
+            pastWed to forecastOnlyExtreme(pastWed, 73.6f, 58.3f, WeatherSource.OPEN_METEO.id),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.OPEN_METEO,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val past = result.find { it.date == pastWed }
+        assertNotNull("Past day should be present in result", past)
+        assertEquals("Solid labeled high must be the frozen forecast high", 73.6f, past!!.solidLineHigh)
+        assertEquals("Solid labeled low must be the frozen forecast low", 58.3f, past.solidLineLow)
+        assertEquals("The forecast overlay still carries the same frozen values", 73.6f, past.dashedLineHigh)
+        assertEquals(58.3f, past.dashedLineLow)
+        assertTrue("Forecast-only past days must be flagged so they render as forecast, not observed", past.solidIsForecastFallback)
+    }
+
+    @Test
+    fun `past day with forecast-only row labels from the row even when snapshots are gone`() {
+        // Retention robustness: the forecasts snapshots for this date have aged out (forecastSnapshots
+        // has no entry at all). The frozen row alone must still produce labeled values.
+        val now = LocalDateTime.of(2026, 5, 9, 12, 0)
+        val today = now.toLocalDate()
+        val pastWed = today.minusDays(3)
+        val dailyActuals = mapOf(
+            pastWed to forecastOnlyExtreme(pastWed, 80.1f, 61.2f, WeatherSource.TOMORROW_IO.id),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = mapOf(today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE))),
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.TOMORROW_IO,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val past = result.find { it.date == pastWed }!!
+        assertEquals(80.1f, past.solidLineHigh)
+        assertEquals(61.2f, past.solidLineLow)
+    }
+
+    @Test
+    fun `past day with real actuals row labels the actual, not the frozen forecast`() {
+        // Lock in normal behavior: when the row has observed extremes, the labeled values are the
+        // actuals and the frozen forecast remains purely the comparison overlay.
+        val now = LocalDateTime.of(2026, 5, 9, 12, 0)
+        val today = now.toLocalDate()
+        val pastWed = today.minusDays(3)
+        val pastWedStr = pastWed.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val dailyActuals = mapOf(
+            pastWed to extreme(pastWed, 71f, 55f).copy(forecastHighTemp = 69f, forecastLowTemp = 52f),
+        )
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastWed to createWeather(pastWedStr, highTemp = 72.9f, lowTemp = 56.5f),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val past = result.find { it.date == pastWed }!!
+        assertEquals(71f, past.solidLineHigh)
+        assertEquals(55f, past.solidLineLow)
+        assertEquals(69f, past.dashedLineHigh)
+        assertEquals(52f, past.dashedLineLow)
+        assertFalse("A real-actuals past day must NOT be flagged as forecast fallback", past.solidIsForecastFallback)
+    }
+
+    @Test
+    fun `text mode past day with forecast-only row shows the frozen forecast labels`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val past = today.minusDays(1)
+        val dailyActuals = mapOf(
+            past to forecastOnlyExtreme(past, 73.6f, 58.3f, WeatherSource.OPEN_METEO.id),
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = past,
+            today = today,
+            weatherByDate = mapOf(today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE))),
+            hourlyForecasts = emptyList(),
+            numColumns = 7,
+            displaySource = WeatherSource.OPEN_METEO,
+            dailyActuals = dailyActuals,
+        )
+
+        val day = result.find { it.date == past }!!
+        assertEquals(com.weatherwidget.util.TempUtils.formatTemp(73.6f, false), day.highLabel)
+        assertEquals(com.weatherwidget.util.TempUtils.formatTemp(58.3f, false), day.lowLabel)
+    }
+
+    @Test
+    fun `text mode past day with no row at all falls back to the forecast snapshot`() {
+        // Transitional last resort: a past day with no daily_history row (e.g. just after install,
+        // before ensureForecastOnlyHistoryRows has run) still labels from the latest snapshot.
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val past = today.minusDays(1)
+        val snapshot = createWeather(
+            date = past.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            source = WeatherSource.OPEN_METEO.id,
+            highTemp = 71f,
+            lowTemp = 54f,
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = past,
+            today = today,
+            weatherByDate = mapOf(today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE))),
+            forecastSnapshots = mapOf(past to listOf(snapshot)),
+            hourlyForecasts = emptyList(),
+            numColumns = 7,
+            displaySource = WeatherSource.OPEN_METEO,
+            dailyActuals = emptyMap(),
+        )
+
+        val day = result.find { it.date == past }!!
+        assertEquals(com.weatherwidget.util.TempUtils.formatTemp(71f, false), day.highLabel)
+        assertEquals(com.weatherwidget.util.TempUtils.formatTemp(54f, false), day.lowLabel)
+    }
+
     private fun createWeather(
         date: String,
         source: String = WeatherSource.NWS.id,

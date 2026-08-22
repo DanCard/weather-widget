@@ -457,4 +457,57 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    /**
+     * v65 drops the NOT NULL constraint on daily_history.computedHighTemp/computedLowTemp so
+     * forecast-only rows (DailyHistoryWriter.FORECAST_ONLY_ROW) can exist. Everything else —
+     * row data, PK, index — must survive the table rebuild, and a NULL-computed row must insert
+     * cleanly afterwards.
+     */
+    @Test
+    fun migrate64To65_nullableComputedPreservesRowsAndAcceptsForecastOnlyRow() {
+        val date = 20183L * 86_400_000L
+        helper.createDatabase(testDb, 64).apply {
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, " +
+                    "computedHighTemp, computedLowTemp, condition, updatedAt, actualsSource, lastWriter) " +
+                    "VALUES ($date, 'NWS', 37.4168, -122.0890, 75.0, 60.7, 'Clear', 1000, " +
+                    "'nws_station_pull', 'forecast_freeze')",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 65, true, WeatherDatabase.MIGRATION_64_65)
+
+        // Existing row survives the rebuild untouched.
+        db.query(
+            "SELECT computedHighTemp, computedLowTemp, actualsSource, lastWriter, forecastHighTemp " +
+                "FROM daily_history WHERE source = 'NWS'",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(75.0, c.getDouble(0), 0.001)
+            assertEquals(60.7, c.getDouble(1), 0.001)
+            assertEquals("nws_station_pull", c.getString(2))
+            assertEquals("forecast_freeze", c.getString(3))
+            assertTrue(c.isNull(4))
+        }
+        // A forecast-only row (NULL computed) inserts cleanly — the whole point of the migration.
+        db.execSQL(
+            "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, " +
+                "computedLowTemp, condition, updatedAt, forecastHighTemp, forecastLowTemp, lastWriter) " +
+                "VALUES ($date, 'OPEN_METEO', 37.4168, -122.0890, NULL, NULL, 'Clear', 2000, " +
+                "73.6, 58.3, 'forecast_only_row')",
+        )
+        db.query(
+            "SELECT computedHighTemp, forecastHighTemp, forecastLowTemp, lastWriter " +
+                "FROM daily_history WHERE source = 'OPEN_METEO'",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertTrue(c.isNull(0))
+            assertEquals(73.6, c.getDouble(1), 0.001)
+            assertEquals(58.3, c.getDouble(2), 0.001)
+            assertEquals("forecast_only_row", c.getString(3))
+        }
+        db.close()
+    }
 }

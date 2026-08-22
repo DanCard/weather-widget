@@ -328,7 +328,7 @@ class WidgetIntentRouterRobolectricTest {
             assertEquals(
                 "SET_VIEW daily actuals must ignore persisted daily_history for today",
                 82.56303f,
-                actual!!.computedHighTemp,
+                actual!!.computedHighTemp!!,
                 0.001f,
             )
         } finally {

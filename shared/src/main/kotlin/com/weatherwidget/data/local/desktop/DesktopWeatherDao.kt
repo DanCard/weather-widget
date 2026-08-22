@@ -56,10 +56,11 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             "AND stationId NOT IN ('TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME')",
                     )
                 }
-                // The actual columns are non-null, so contaminated debug-only rows are removed as
-                // a unit. Current/future forecast state lives in the forecast tables.
+                // Contaminated debug-only rows are removed as a unit; computed-null rows are
+                // FORECAST_ONLY_ROWs from the newer writer (display surface, not legacy actuals)
+                // and are kept. Current/future forecast state lives in the forecast tables.
                 val dailyRowsDeleted = conn.createStatement().use { stmt ->
-                    stmt.executeUpdate("DELETE FROM daily_history WHERE source = 'TOMORROW_IO'")
+                    stmt.executeUpdate("DELETE FROM daily_history WHERE source = 'TOMORROW_IO' AND computedHighTemp IS NOT NULL")
                 }
                 conn.prepareStatement(
                     "INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, 'INFO', 'TMRW_ACTUALS_CLEANUP_V2', ?)",
@@ -93,8 +94,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 val observationsDeleted = conn.createStatement().use { stmt ->
                     stmt.executeUpdate("DELETE FROM observations WHERE api = 'OPEN_METEO'")
                 }
+                // computed-null rows are FORECAST_ONLY_ROWs written by the newer writer — they are
+                // the display surface for Meteo history, not legacy model actuals; keep them.
                 val dailyRowsDeleted = conn.createStatement().use { stmt ->
-                    stmt.executeUpdate("DELETE FROM daily_history WHERE source = 'OPEN_METEO'")
+                    stmt.executeUpdate("DELETE FROM daily_history WHERE source = 'OPEN_METEO' AND computedHighTemp IS NOT NULL")
                 }
                 conn.prepareStatement(
                     "INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, 'INFO', 'METEO_ACTUALS_CLEANUP_V1', ?)",
@@ -442,8 +445,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setString(2, ex.source)
                         stmt.setDouble(3, ex.locationLat)
                         stmt.setDouble(4, ex.locationLon)
-                    stmt.setFloat(5, ex.computedHighTemp)
-                    stmt.setFloat(6, ex.computedLowTemp)
+                    stmt.setNullableFloat(5, ex.computedHighTemp)
+                    stmt.setNullableFloat(6, ex.computedLowTemp)
                         stmt.setString(7, ex.condition)
                         stmt.setLong(8, ex.updatedAt)
                         stmt.setNullableFloat(9, ex.precipAmountMm)
@@ -1223,8 +1226,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         source = rs.getString("source"),
                         locationLat = rs.getDouble("locationLat"),
                         locationLon = rs.getDouble("locationLon"),
-                        computedHighTemp = rs.getFloat("computedHighTemp"),
-                        computedLowTemp = rs.getFloat("computedLowTemp"),
+                        computedHighTemp = rs.getNullableFloat("computedHighTemp"),
+                        computedLowTemp = rs.getNullableFloat("computedLowTemp"),
                         condition = rs.getString("condition"),
                         updatedAt = rs.getLong("updatedAt"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
@@ -1259,7 +1262,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<DesktopForecastRow>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt FROM forecasts
+                SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt,
+                    condition, precipAmountMm, isClimateNormal FROM forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate >= ? AND targetDate <= ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -1277,6 +1281,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         highTemp = rs.getNullableFloat("highTemp").orNullIfImplausibleTempF(),
                         lowTemp = rs.getNullableFloat("lowTemp").orNullIfImplausibleTempF(),
                         fetchedAt = rs.getLong("fetchedAt"),
+                        condition = rs.getString("condition"),
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        isClimateNormal = rs.getInt("isClimateNormal") == 1,
                     ))
                 }
             }

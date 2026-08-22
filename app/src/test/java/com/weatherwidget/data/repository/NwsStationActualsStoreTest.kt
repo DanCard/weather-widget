@@ -162,7 +162,7 @@ class NwsStationActualsStoreTest {
         val row = nwsRows().single()
         assertNull("the sparse stored pool must not become an actual", row.apiHighTemp)
         assertNull(row.apiStationId)
-        assertTrue("the blend itself is still computed", row.computedHighTemp > 0f)
+        assertTrue("the blend itself is still computed", row.computedHighTemp!! > 0f)
     }
 
     @Test

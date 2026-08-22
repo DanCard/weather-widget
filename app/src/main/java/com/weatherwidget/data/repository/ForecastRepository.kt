@@ -257,6 +257,16 @@ class ForecastRepository
             )
         }
 
+        internal suspend fun ensureForecastOnlyHistoryRows(
+            latitude: Double,
+            longitude: Double,
+        ) {
+            dailyHistorySnapshotter.ensureForecastOnlyHistoryRows(
+                latitude,
+                longitude,
+            )
+        }
+
         internal suspend fun repairFrozenRainChanceIfNeeded(
             latitude: Double,
             longitude: Double,

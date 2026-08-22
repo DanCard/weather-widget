@@ -97,6 +97,11 @@ data class DesktopForecastRow(
     val highTemp: Float?,
     val lowTemp: Float?,
     val fetchedAt: Long,
+    // Display payloads — only populated by reads that need them (forecast-only-row writer);
+    // accuracy/evolution consumers leave the defaults.
+    val condition: String = "",
+    val precipAmountMm: Float? = null,
+    val isClimateNormal: Boolean = false,
 )
 
 data class DesktopStationCacheEntity(

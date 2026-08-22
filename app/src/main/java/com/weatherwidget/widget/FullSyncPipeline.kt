@@ -200,6 +200,7 @@ internal class FullSyncPipeline(
                     val afterActualsMs = SystemClock.elapsedRealtime()
 
                     if (!input.uiOnlyRefresh) {
+                        weatherRepository.ensureForecastOnlyHistoryRows(location.first, location.second)
                         weatherRepository.snapshotDisplayedRainChance(location.first, location.second)
                         weatherRepository.backfillForecastChanceSnapshotsIfNeeded(location.first, location.second)
                         weatherRepository.backfillFrozenDisplayColumnsIfNeeded(location.first, location.second)

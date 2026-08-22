@@ -96,7 +96,8 @@ internal object DailyColumnRenderer {
                 val tempPaint =
                     when {
                         day.isToday -> paints.todayTempTextPaint
-                        day.isPast -> paints.pastTempTextPaint
+                        // A forecast-promoted past day reads as a forecast, not an observed actual.
+                        day.isPast && !day.solidIsForecastFallback -> paints.pastTempTextPaint
                         else -> paints.tempTextPaint
                     }
                 val todayLowSettled =

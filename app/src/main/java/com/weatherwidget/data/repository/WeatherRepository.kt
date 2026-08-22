@@ -166,6 +166,9 @@ class WeatherRepository
         suspend fun snapshotDisplayedRainChance(latitude: Double, longitude: Double) =
             forecastRepository.snapshotDisplayedRainChance(latitude, longitude)
 
+        suspend fun ensureForecastOnlyHistoryRows(latitude: Double, longitude: Double) =
+            forecastRepository.ensureForecastOnlyHistoryRows(latitude, longitude)
+
         suspend fun backfillForecastChanceSnapshotsIfNeeded(latitude: Double, longitude: Double) =
             forecastRepository.backfillForecastChanceSnapshotsIfNeeded(latitude, longitude)
 

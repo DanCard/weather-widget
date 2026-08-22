@@ -11,6 +11,7 @@ import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.actuals.BlendContribution
 import com.weatherwidget.shared.actuals.DailyActualsSource
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.StationDailyExtremes
@@ -403,6 +404,7 @@ class DesktopWeatherRepository(
             // forecast-accuracy comparisons are measured against.
             val extremesCount = recomputeDailyExtremes(now)
             fillNwsStationActualsIfNeeded(now)
+            ensureForecastOnlyHistoryRows(now)
             snapshotDisplayedRainChance(now)
             backfillForecastChanceSnapshotsIfNeeded(now)
             backfillFrozenDisplayColumnsIfNeeded(now)
@@ -617,6 +619,7 @@ class DesktopWeatherRepository(
             }
 
             val extremesCount = recomputeDailyExtremes(now)
+            ensureForecastOnlyHistoryRows(now)
             snapshotDisplayedRainChance(now)
             backfillForecastChanceSnapshotsIfNeeded(now)
             backfillFrozenDisplayColumnsIfNeeded(now)
@@ -741,6 +744,71 @@ class DesktopWeatherRepository(
      * every fetch and the merge only accepts complete batches, the surviving overlay equals "most
      * recent complete forecast of the day" — what the snapshot-table reader would have selected.
      */
+    /**
+     * Creates forecast-only `daily_history` rows (DailyHistoryWriter.FORECAST_ONLY_ROW) for past
+     * days of the display source that have a usable forecast snapshot but no row at all — the
+     * desktop twin of Android's DailyHistorySnapshotter.ensureForecastOnlyHistoryRows, see that
+     * doc + ForecastOnlyHistoryPlanner for the rules. computed* stays NULL (no fabricated
+     * actuals; keeps the row out of accuracy baselines). Idempotent, so it runs after every fetch.
+     */
+    internal fun ensureForecastOnlyHistoryRows(now: Long) {
+        val zoneId = ZoneId.systemDefault()
+        val today = Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate()
+        val startMs = today.minusDays(31).toEpochDay() * 86_400_000L
+        val todayMs = today.toEpochDay() * 86_400_000L
+
+        // getForecastsInRangeBySource includes the newest batch (the past-day reader's snapshot
+        // function deliberately skips it — NOT suitable here: the freeze wants the most recent
+        // complete forecast of the day).
+        val forecastRows = weatherDao.getForecastsInRangeBySource(startMs, todayMs, latitude, longitude, weatherSource)
+        if (forecastRows.isEmpty()) return
+        val existing = weatherDao.getExtremesInRange(startMs, todayMs, latitude, longitude)
+            .map { it.date to it.source }
+            .toSet()
+
+        val candidates = forecastRows.map { row ->
+            com.weatherwidget.shared.actuals.ForecastOnlyHistoryPlanner.Candidate(
+                dateMs = row.targetDate,
+                source = row.source,
+                locationLat = latitude,
+                locationLon = longitude,
+                highTemp = row.highTemp,
+                lowTemp = row.lowTemp,
+                precipAmountMm = row.precipAmountMm,
+                condition = row.condition,
+                fetchedAt = row.fetchedAt,
+                isClimateNormal = row.isClimateNormal,
+            )
+        }
+        val planned = com.weatherwidget.shared.actuals.ForecastOnlyHistoryPlanner.plan(
+            candidates = candidates,
+            existing = existing,
+            todayMs = todayMs,
+            genericGapSourceId = WeatherSource.GENERIC_GAP.id,
+        )
+        if (planned.isEmpty()) return
+
+        val rows = planned.map { row ->
+            DailyHistory(
+                date = row.dateMs,
+                source = row.source,
+                locationLat = row.locationLat,
+                locationLon = row.locationLon,
+                computedHighTemp = null,
+                computedLowTemp = null,
+                condition = row.condition,
+                updatedAt = now,
+                forecastHighTemp = row.forecastHighTemp,
+                forecastLowTemp = row.forecastLowTemp,
+                forecastPrecipAmountMm = row.forecastPrecipAmountMm,
+                lastWriter = com.weatherwidget.shared.actuals.DailyHistoryWriter.FORECAST_ONLY_ROW.storedValue,
+            )
+        }
+        weatherDao.upsertDailyHistory(rows)
+        weatherDao.log("INFO", "FORECAST_ONLY_HISTORY", "created=${rows.size} src=$weatherSource")
+        Log.i("DesktopWeatherRepository", "ensureForecastOnlyHistoryRows: created ${rows.size} rows src=$weatherSource")
+    }
+
     internal fun snapshotDisplayedRainChance(now: Long) {
         val zoneId = ZoneId.systemDefault()
         val today = Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate()

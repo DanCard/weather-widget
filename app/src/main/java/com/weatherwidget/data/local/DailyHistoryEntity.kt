@@ -21,8 +21,11 @@ data class DailyHistoryEntity(
     val source: String,         // WeatherSource.id (NWS, OPEN_METEO, etc.)
     val locationLat: Double,
     val locationLon: Double,
-    val computedHighTemp: Float, // °F — blended extreme from IDW observation pipeline ("Location actual")
-    val computedLowTemp: Float,  // °F — blended extreme
+    // Blended extreme from the IDW observation pipeline ("Location actual"). Null for forecast-only
+    // rows (DailyHistoryWriter.FORECAST_ONLY_ROW): sources with no actuals product never fabricate
+    // observations, so the null IS the "no actuals" marker and accuracy/scoring code must skip them.
+    val computedHighTemp: Float?, // °F
+    val computedLowTemp: Float?,  // °F
     val condition: String,
     val updatedAt: Long,        // epoch ms, used for cleanup
     val precipAmountMm: Float? = null, // Daily observed precipitation amount in mm (total)

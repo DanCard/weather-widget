@@ -385,7 +385,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
         repository.recomputeDailyExtremes(System.currentTimeMillis())
 
         val stored = dao.getExtremesInRange(todayStart, todayStart, lat, lon).first { it.source == source }
-        assertEquals("Recompute should have changed the high temp", 70f, stored.computedHighTemp, 0.1f)
+        assertEquals("Recompute should have changed the high temp", 70f, stored.computedHighTemp!!, 0.1f)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 2, stored.forecastDayPrecipChance)
         assertEquals("Chance snapshot must survive the actuals REPLACE", 14, stored.forecastNightPrecipChance)
         assertEquals("Frozen overlay must survive the actuals REPLACE", 75f, stored.forecastHighTemp!!, 0.01f)

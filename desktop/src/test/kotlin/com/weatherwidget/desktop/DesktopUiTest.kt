@@ -872,6 +872,7 @@ currentCondition = "Sunny"),
         dailyRainLabelText = null, nightRainLabelText = null,
         dayPrecipProbability = null, nightPrecipProbability = null, daysFromToday = 0,
         isClimateNormal = false,
+        solidIsForecastFallback = false,
     )
 
     @Test

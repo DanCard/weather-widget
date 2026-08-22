@@ -129,8 +129,11 @@ class DailyGapFallbackGraphIntegrationTest {
         )
 
         val yesterdayDay = days.single { it.date == yesterday }
-        assertEquals(null, yesterdayDay.solidLineHigh)
-        assertEquals(null, yesterdayDay.solidLineLow)
+        // Policy change (plans/260822-daily-history-forecast-only-rows.md): a past day with no
+        // actuals now LABELS its forecast values instead of leaving the column unlabeled. The
+        // forecast double-duties as the solid (labeled) line; the overlay keeps the same values.
+        assertEquals(68f, yesterdayDay.solidLineHigh)
+        assertEquals(54f, yesterdayDay.solidLineLow)
         assertEquals(68f, yesterdayDay.dashedLineHigh)
         assertEquals(54f, yesterdayDay.dashedLineLow)
 
@@ -151,9 +154,71 @@ class DailyGapFallbackGraphIntegrationTest {
             "Expected forecast-history bar to render for yesterday when extremes are missing",
             drawnBars.any { it.date == yesterday && it.barType == "FORECAST_OVERLAY" },
         )
-        assertFalse(
-            "Expected no actual-history bar when extremes are missing",
+        assertTrue(
+            "The forecast fallback now draws a labeled history bar instead of nothing",
             drawnBars.any { it.date == yesterday && it.barType == "HISTORY" },
+        )
+        val historyBar = drawnBars.single { it.date == yesterday && it.barType == "HISTORY" }
+        assertEquals(
+            "Forecast-promoted past day must render as a forecast (amber), not observed red",
+            WeatherConditionColors.FORECAST_SUNNY,
+            historyBar.color,
+        )
+    }
+
+    @Test
+    fun `renderGraph keeps observed red bar for past day with real actuals`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val actual = com.weatherwidget.data.model.DailyHistory(
+            date = yesterday.toEpochDay() * 86_400_000L,
+            source = WeatherSource.NWS.id,
+            locationLat = 37.7749,
+            locationLon = -122.4194,
+            computedHighTemp = 71f,
+            computedLowTemp = 55f,
+            condition = "Clear",
+            updatedAt = System.currentTimeMillis(),
+            forecastHighTemp = 68f,
+            forecastLowTemp = 54f,
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = mapOf(today to forecast(today.format(DateTimeFormatter.ISO_LOCAL_DATE), 70f, 55f, WeatherSource.NWS)),
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = mapOf(yesterday to actual),
+        )
+
+        val drawnBars = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 600,
+                heightPx = 300,
+                bitmapScale = 1f,
+                numColumns = days.size,
+                onBarDrawn = drawnBars::add, useCelsius = false,
+            )
+        }
+
+        val historyBar = drawnBars.single { it.date == yesterday && it.barType == "HISTORY" }
+        assertEquals(
+            "A real-actuals past day must render as observed red, not a forecast",
+            WeatherConditionColors.OBSERVED,
+            historyBar.color,
         )
     }
 

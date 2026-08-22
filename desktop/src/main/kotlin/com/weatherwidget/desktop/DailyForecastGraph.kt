@@ -278,7 +278,8 @@ fun DailyForecastGraph(
                         ?: (bottom - graphHeight * 0.25f)).coerceAtMost(bottom)
             } else if (day.isPast) {
                 // Forecast overlay carries the cloud/rain split (matches Android's past-day overlay);
-                // the observed actual bar stays solid.
+                // the observed actual bar stays solid. A forecast-promoted past day (no actuals) has
+                // no observation to paint red — its solid line reads as a forecast instead.
                 drawAdaptiveBar(
                     centerX = centerX + tripleOffset,
                     high = day.forecastHigh,
@@ -289,7 +290,8 @@ fun DailyForecastGraph(
                     cloudCoverRatio = day.cloudCoverRatio,
                     iconCondition = day.iconCondition,
                 )
-                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, barWidth * 0.72f)
+                val solidBarColor = if (day.solidIsForecastFallback) forecastColor(day) else COLOR_OBSERVED
+                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, solidBarColor, barWidth * 0.72f)
             } else {
                 val high = day.solidHigh
                 val low = day.solidLow
@@ -442,7 +444,7 @@ fun DailyForecastGraph(
                     val highColor = when {
                         todayHighSettled -> COLOR_OBSERVED
                         day.isToday -> Color.Yellow
-                        day.isPast -> COLOR_OBSERVED
+                        day.isPast && !day.solidIsForecastFallback -> COLOR_OBSERVED
                         else -> Color.White
                     }
                     val highText = textMeasurer.measure(
@@ -477,7 +479,7 @@ fun DailyForecastGraph(
                     solidLow = day.solidLow,
                     nowHour = day.nowHour,
                 )
-                val lowColor = if (day.isPast || todayLowSettled) COLOR_OBSERVED else Color.White.copy(alpha = 0.78f)
+                val lowColor = if ((day.isPast && !day.solidIsForecastFallback) || todayLowSettled) COLOR_OBSERVED else Color.White.copy(alpha = 0.78f)
                 val lowText = textMeasurer.measure(
                     lowLabelText,
                     TextStyle(fontSize = lowSize.sp, color = lowColor)

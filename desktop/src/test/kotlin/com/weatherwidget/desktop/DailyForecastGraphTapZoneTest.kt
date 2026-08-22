@@ -48,6 +48,7 @@ class DailyForecastGraphTapZoneTest {
         nightPrecipProbability = null,
         daysFromToday = 1,
         isClimateNormal = false,
+        solidIsForecastFallback = false,
     )
 
     private fun layout(

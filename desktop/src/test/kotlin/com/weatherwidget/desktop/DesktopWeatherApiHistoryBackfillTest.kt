@@ -84,8 +84,8 @@ class DesktopWeatherApiHistoryBackfillTest {
 
         assertEquals(24, observations.size)
         assertNotNull(actual)
-        assertEquals(78f, actual!!.computedHighTemp, 0.001f)
-        assertEquals(55f, actual.computedLowTemp, 0.001f)
+        assertEquals(78f, actual!!.computedHighTemp!!, 0.001f)
+        assertEquals(55f, actual.computedLowTemp!!, 0.001f)
         coVerify(exactly = 1) { service.fetchWeatherApiHistory(yesterday) }
     }
 

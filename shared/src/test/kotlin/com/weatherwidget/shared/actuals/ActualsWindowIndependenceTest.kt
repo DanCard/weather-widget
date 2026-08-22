@@ -95,12 +95,12 @@ class ActualsWindowIndependenceTest {
         // above the 0.05° equality tolerance, so a reverted widen (aggregate -> isolated) is caught.
         assertTrue(
             "scenario must be window-dependent (isolated=$isolatedLow wide=$wideLow)",
-            abs(isolatedLow - wideLow) > 0.3f,
+            abs(isolatedLow - wideLow!!) > 0.3f,
         )
-        assertEquals("daily aggregate low must match the wide-window (graph) low", wideLow, aggregateLow, 0.05f)
+        assertEquals("daily aggregate low must match the wide-window (graph) low", wideLow, aggregateLow!!, 0.05f)
         assertTrue(
             "daily aggregate low ($aggregateLow) must NOT regress to the day-isolated low ($isolatedLow)",
-            abs(aggregateLow - isolatedLow) > 0.3f,
+            abs(aggregateLow - isolatedLow!!) > 0.3f,
         )
     }
 
@@ -136,8 +136,8 @@ class ActualsWindowIndependenceTest {
             .filter { it.isActual && it.actualTemp != null && onDayD(it) }
             .map { it.actualTemp!! }
         assertTrue("graph must render day-D actuals", graphActuals.isNotEmpty())
-        assertEquals("daily low must equal hourly graph min", daily.computedLowTemp, graphActuals.min(), 0.1f)
-        assertEquals("daily high must equal hourly graph max", daily.computedHighTemp, graphActuals.max(), 0.1f)
+        assertEquals("daily low must equal hourly graph min", daily.computedLowTemp!!, graphActuals.min(), 0.1f)
+        assertEquals("daily high must equal hourly graph max", daily.computedHighTemp!!, graphActuals.max(), 0.1f)
     }
 
     private fun blendedDayLow(

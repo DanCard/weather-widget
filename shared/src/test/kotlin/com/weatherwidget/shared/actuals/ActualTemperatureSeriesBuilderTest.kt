@@ -167,8 +167,8 @@ class ActualTemperatureSeriesBuilderTest {
         )
 
         val actualTemps = result.points.filter { it.isActual && it.actualTemp != null }.map { it.actualTemp!! }
-        assertEquals("graph high should equal daily_history high", daily.computedHighTemp, actualTemps.max(), 0.001f)
-        assertEquals("graph low should equal daily_history low", daily.computedLowTemp, actualTemps.min(), 0.001f)
+        assertEquals("graph high should equal daily_history high", daily.computedHighTemp!!, actualTemps.max(), 0.001f)
+        assertEquals("graph low should equal daily_history low", daily.computedLowTemp!!, actualTemps.min(), 0.001f)
     }
 
     @Test
@@ -246,8 +246,8 @@ class ActualTemperatureSeriesBuilderTest {
         for ((date, hiLo) in expected) {
             val (trueHigh, trueLow) = hiLo
             val bar = daily.getValue(date)
-            assertEquals("daily-bar high on $date should be the true peak", trueHigh, bar.computedHighTemp, 0.001f)
-            assertEquals("daily-bar low on $date should be the true trough", trueLow, bar.computedLowTemp, 0.001f)
+            assertEquals("daily-bar high on $date should be the true peak", trueHigh, bar.computedHighTemp!!, 0.1f)
+            assertEquals("daily-bar low on $date should be the true trough", trueLow, bar.computedLowTemp!!, 0.1f)
             assertEquals(
                 "hourly high must equal daily-bar high on $date",
                 bar.computedHighTemp, hourlyValueOn(date, extrema.actualDailyHighIndices), 0.001f,

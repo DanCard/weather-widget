@@ -61,15 +61,24 @@ class DailyActualsStore @Inject constructor(
     ): DailyActualsBySource {
         val activeSources = activeSourceList
             .map(WeatherSource::fromId)
-            .filter { it.supportsTemperatureActuals }
             .map { it.id }
             .toSet()
         if (activeSources.isEmpty()) return emptyMap()
+        // Today's live blend mixes stored OBSERVATIONS, so it stays capability-gated: a source
+        // with no actuals product (Open-Meteo, Silurian) must never contribute a "current actual".
+        val actualsCapableSources = activeSourceList
+            .map(WeatherSource::fromId)
+            .filter { it.supportsTemperatureActuals }
+            .map { it.id }
+            .toSet()
 
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
         val startDate = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endDate = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        // Past rows are included for every active source: forecast-only rows (null computed*)
+        // carry the frozen forecast the history columns label. Readers must use
+        // computedTemp ?: forecastTemp, never assume computed* is non-null.
         val pastExtremes = dailyHistoryDao
             .getExtremesInRange(startDate, endDate, latitude, longitude)
             .filter { it.source in activeSources }
@@ -84,8 +93,8 @@ class DailyActualsStore @Inject constructor(
                 latitude,
                 longitude,
             )
-            .filter { it.stationId != "NWS_BLEND" && it.api in activeSources }
-        val activeHourly = hourlyForecasts.filter { it.source in activeSources }
+            .filter { it.stationId != "NWS_BLEND" && it.api in actualsCapableSources }
+        val activeHourly = hourlyForecasts.filter { it.source in actualsCapableSources }
         val todayObs = contextObs.filter { it.timestamp in todayStartMs until tomorrowMs }
 
         val todayBlendedActuals = ObservationResolver.aggregateObservationsToDailyBySource(

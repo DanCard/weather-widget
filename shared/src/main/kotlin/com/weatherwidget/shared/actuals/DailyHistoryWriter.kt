@@ -24,6 +24,16 @@ enum class DailyHistoryWriter(val storedValue: String) {
 
     /** `DailyHistorySnapshotter` — frozen forecast overlay, rain chance, noon cloud. */
     FORECAST_FREEZE("forecast_freeze"),
+
+    /**
+     * `ForecastOnlyHistoryWriter` — rows for sources with no actuals product
+     * (`WeatherSource.supportsTemperatureActuals == false`, e.g. Open-Meteo, Silurian) or for
+     * days a real-actuals source never resolved (e.g. Tomorrow.io before tracking started).
+     * The row freezes `forecastHighTemp`/`forecastLowTemp` so daily history renders from the
+     * row alone; `computedHighTemp`/`computedLowTemp` stay NULL, marking the absence of
+     * observations and keeping the row out of accuracy/scoring paths.
+     */
+    FORECAST_ONLY_ROW("forecast_only_row"),
     ;
 
     companion object {

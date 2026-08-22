@@ -12,8 +12,12 @@ data class DailyHistory(
     val source: String,         // WeatherSource.id (NWS, OPEN_METEO, etc.)
     val locationLat: Double,
     val locationLon: Double,
-    val computedHighTemp: Float, // °F — blended extreme from IDW observation pipeline ("Location actual")
-    val computedLowTemp: Float,  // °F — blended extreme
+    // Blended extreme from the IDW observation pipeline ("Location actual"). Null when the row is
+    // a forecast-only row (DailyHistoryWriter.FORECAST_ONLY_ROW): sources with
+    // WeatherSource.supportsTemperatureActuals == false never fabricate observations, so the null
+    // IS the "no actuals" marker and accuracy/scoring code must skip these rows.
+    val computedHighTemp: Float?, // °F
+    val computedLowTemp: Float?,  // °F
     val condition: String,
     val updatedAt: Long,        // epoch ms, used for cleanup
     val precipAmountMm: Float? = null, // Daily observed precipitation amount in mm (total)
@@ -46,12 +50,30 @@ data class DailyHistory(
     fun toLocalDate(): LocalDate =
         LocalDate.ofEpochDay(date / 86_400_000L)
 
-    fun toDailyActual() = DailyActual(
-        date = toLocalDate().toString(),
-        computedHighTemp = computedHighTemp,
-        computedLowTemp = computedLowTemp,
-        condition = condition,
-        apiHighTemp = apiHighTemp,
-        apiLowTemp = apiLowTemp,
-    )
+    /**
+     * Accuracy-type view of this row. Null for forecast-only rows (null [computedHighTemp] /
+     * [computedLowTemp]): without an observed extreme there is nothing to score against, so
+     * callers skip the day entirely.
+     */
+    fun toDailyActual(): DailyActual? {
+        val high = computedHighTemp ?: return null
+        val low = computedLowTemp ?: return null
+        return DailyActual(
+            date = toLocalDate().toString(),
+            computedHighTemp = high,
+            computedLowTemp = low,
+            condition = condition,
+            apiHighTemp = apiHighTemp,
+            apiLowTemp = apiLowTemp,
+        )
+    }
+
+    /** Label-facing extreme: actual when present, else the frozen forecast (forecast-only rows). */
+    val displayHighTemp: Float? get() = computedHighTemp ?: forecastHighTemp
+
+    /** Label-facing extreme: actual when present, else the frozen forecast (forecast-only rows). */
+    val displayLowTemp: Float? get() = computedLowTemp ?: forecastLowTemp
+
+    /** True when this row carries observed extremes (i.e. it may serve as an accuracy baseline). */
+    val hasActuals: Boolean get() = computedHighTemp != null && computedLowTemp != null
 }

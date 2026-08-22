@@ -118,6 +118,36 @@ class AccuracyCalculatorIntegrationTest {
     // ── tests ────────────────────────────────────────────────────────────────
 
     @Test
+    fun `forecast-only daily_history rows never serve as an accuracy baseline`() = runTest {
+        // plans/260822-daily-history-forecast-only-rows.md: a FORECAST_ONLY_ROW row carries the
+        // forecast itself in the overlay columns with NULL computed*. Scoring a source's forecast
+        // against that row would be a 0° self-comparison — the day must be excluded entirely.
+        val target = dateStr(1)
+        val forecastMade = dateStr(2)
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = dateEpoch(target),
+                    source = WeatherSource.OPEN_METEO.id,
+                    locationLat = lat,
+                    locationLon = lon,
+                    computedHighTemp = null,
+                    computedLowTemp = null,
+                    condition = "Clear",
+                    updatedAt = System.currentTimeMillis(),
+                    forecastHighTemp = 68f,
+                    forecastLowTemp = 48f,
+                    lastWriter = "forecast_only_row",
+                ),
+            ),
+        )
+        insertForecastSnapshot(target, forecastMade, WeatherSource.OPEN_METEO, highTemp = 68f, lowTemp = 48f)
+
+        val result = calculator.getDailyAccuracyBreakdown(WeatherSource.OPEN_METEO, lat, lon, 30)
+        assertTrue("Forecast-only rows must be skipped, not scored 0° error", result.isEmpty())
+    }
+
+    @Test
     fun `getDailyAccuracyBreakdown returns empty when no data`() = runTest {
         val result = calculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
         assertTrue("Expected empty list when DB is empty", result.isEmpty())

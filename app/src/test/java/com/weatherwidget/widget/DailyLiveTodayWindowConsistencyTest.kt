@@ -120,18 +120,18 @@ class DailyLiveTodayWindowConsistencyTest {
         // Reference blends over the same observations, computed directly through the shared engine.
         val readings = obs.map { it.toReadingForTest() }
         val fc = forecasts.map { it.toForecastForTest() }
-        val wideLow = ActualsAggregator.aggregate(readings, fc, lat, lon, zone).single { it.source == source.id && it.toLocalDate() == today }.computedLowTemp
+        val wideLow = ActualsAggregator.aggregate(readings, fc, lat, lon, zone).single { it.source == source.id && it.toLocalDate() == today }.computedLowTemp!!
         val todayOnly = readings.filter { it.timestamp >= today.atStartOfDay(zone).toInstant().toEpochMilli() }
-        val todayOnlyLow = ActualsAggregator.aggregate(todayOnly, fc, lat, lon, zone).single { it.source == source.id && it.toLocalDate() == today }.computedLowTemp
+        val todayOnlyLow = ActualsAggregator.aggregate(todayOnly, fc, lat, lon, zone).single { it.source == source.id && it.toLocalDate() == today }.computedLowTemp!!
 
         assertTrue(
             "scenario must be window-dependent (todayOnly=$todayOnlyLow wide=$wideLow) or the guard proves nothing",
-            Math.abs(todayOnlyLow - wideLow) > 0.3f,
+            Math.abs(todayOnlyLow - wideLow!!) > 0.3f,
         )
-        assertEquals("displayed live-today low must equal the cross-midnight (wide) blend", wideLow, displayLow, 0.1f)
+        assertEquals("displayed live-today low must equal the cross-midnight (wide) blend", wideLow, displayLow!!, 0.1f)
         assertTrue(
             "displayed low ($displayLow) must NOT regress to the today-only blend ($todayOnlyLow)",
-            Math.abs(displayLow - todayOnlyLow) > 0.3f,
+            Math.abs(displayLow!! - todayOnlyLow!!) > 0.3f,
         )
     }
 

@@ -118,18 +118,24 @@ class AccuracyCalculator
                 val baselineSource = ActualsBaselineResolver.resolveBaselineSource(
                     gradedSource = source,
                     orderedVisibleSources = orderedSources,
-                    hasRowForDate = { candidate -> rowsForDate.any { it.source == candidate.id } },
+                    // Forecast-only rows (null computed*) carry no observations — they must never
+                    // serve as an accuracy baseline.
+                    hasRowForDate = { candidate ->
+                        rowsForDate.any { it.source == candidate.id && it.computedHighTemp != null && it.computedLowTemp != null }
+                    },
                 ) ?: continue // no trustworthy actual for this day — exclude it rather than guess
 
                 val baselineRow = rowsForDate
                     .filter { it.source == baselineSource.id }
                     .minByOrNull { TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon) }
                     ?: continue
+                val baselineHigh = baselineRow.computedHighTemp ?: continue
+                val baselineLow = baselineRow.computedLowTemp ?: continue
 
                 val temps = resolveBaselineTemps(
                     field = baselineField,
-                    computedHigh = baselineRow.computedHighTemp,
-                    computedLow = baselineRow.computedLowTemp,
+                    computedHigh = baselineHigh,
+                    computedLow = baselineLow,
                     apiHigh = baselineRow.apiHighTemp,
                     apiLow = baselineRow.apiLowTemp,
                 )

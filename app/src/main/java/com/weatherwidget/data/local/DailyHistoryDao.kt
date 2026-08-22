@@ -40,8 +40,8 @@ interface DailyHistoryDao {
         source: String,
         locationLat: Double,
         locationLon: Double,
-        computedHighTemp: Float,
-        computedLowTemp: Float,
+        computedHighTemp: Float?,
+        computedLowTemp: Float?,
         condition: String,
         precipAmountMm: Float?,
         precipDayMm: Float?,
@@ -70,9 +70,11 @@ interface DailyHistoryDao {
     @Query("DELETE FROM daily_history WHERE updatedAt < :cutoffMs")
     suspend fun deleteOldExtremes(cutoffMs: Long)
 
-    @Query("DELETE FROM daily_history WHERE source = 'TOMORROW_IO'")
+    // The computed-null guard keeps FORECAST_ONLY_ROW rows (the display surface for these sources'
+    // history, not legacy actuals) alive if a one-time cleanup ever runs after the writer.
+    @Query("DELETE FROM daily_history WHERE source = 'TOMORROW_IO' AND computedHighTemp IS NOT NULL")
     suspend fun deleteTomorrowIoHistory(): Int
 
-    @Query("DELETE FROM daily_history WHERE source = 'OPEN_METEO'")
+    @Query("DELETE FROM daily_history WHERE source = 'OPEN_METEO' AND computedHighTemp IS NOT NULL")
     suspend fun deleteOpenMeteoHistory(): Int
 }

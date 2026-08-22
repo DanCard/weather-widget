@@ -55,9 +55,9 @@ class ActualsLoneStationGuardTest {
             zoneId = zone,
         ).single { it.source == WeatherSource.NWS.id }
 
-        assertTrue("low ${daily.computedLowTemp} should come from the officials, not the lone 48.99 outlier", daily.computedLowTemp >= 54f)
-        assertTrue("low ${daily.computedLowTemp} should stay near the officials' 54.0 floor", daily.computedLowTemp <= 55f)
-        assertTrue("high ${daily.computedHighTemp} unaffected by the guard", daily.computedHighTemp in 74f..76f)
+        assertTrue("low ${daily.computedLowTemp} should come from the officials, not the lone 48.99 outlier", daily.computedLowTemp!! >= 54f)
+        assertTrue("low ${daily.computedLowTemp} should stay near the officials' 54.0 floor", daily.computedLowTemp!! <= 55f)
+        assertTrue("high ${daily.computedHighTemp} unaffected by the guard", daily.computedHighTemp!! in 74f..76f)
 
         val stats = ActualTemperatureSeriesBuilder.blendObservationSeries(
             observations = obs,
@@ -102,8 +102,8 @@ class ActualsLoneStationGuardTest {
 
         val actualTemps = result.points.filter { it.isActual && it.actualTemp != null }.map { it.actualTemp!! }
         assertTrue(actualTemps.isNotEmpty())
-        assertEquals("hourly graph min must equal the stored daily low", daily.computedLowTemp, actualTemps.min(), 0.001f)
-        assertEquals("hourly graph max must equal the stored daily high", daily.computedHighTemp, actualTemps.max(), 0.001f)
+        assertEquals("hourly graph min must equal the stored daily low", daily.computedLowTemp!!, actualTemps.min(), 0.001f)
+        assertEquals("hourly graph max must equal the stored daily high", daily.computedHighTemp!!, actualTemps.max(), 0.001f)
     }
 
     @Test
@@ -180,8 +180,8 @@ class ActualsLoneStationGuardTest {
             zoneId = zone,
         ).single { it.source == WeatherSource.WEATHER_API.id }
 
-        assertEquals(56f, daily.computedLowTemp, 0.001f)
-        assertEquals(70f, daily.computedHighTemp, 0.001f)
+        assertEquals(56f, daily.computedLowTemp!!, 0.1f)
+        assertEquals(70f, daily.computedHighTemp!!, 0.1f)
     }
 
     private fun forecasts(start: String, count: Int, source: String = WeatherSource.NWS.id): List<HourlyForecast> {

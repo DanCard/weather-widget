@@ -118,7 +118,7 @@ internal object DailyBarRenderer {
                     isNight = false,
                 )
                 val paint = when {
-                    day.isPast -> paints.historyBarPaint
+                    day.isPast && !day.solidIsForecastFallback -> paints.historyBarPaint
                     day.isSourceGapFallback -> paints.gapFallbackBarPaint
                     else -> paints.barForColor(condColor)
                 }
@@ -218,7 +218,9 @@ internal object DailyBarRenderer {
 
         val basePaint = when {
             day.isToday -> paints.todayTempTextPaint
-            day.isPast -> paints.pastTempTextPaint
+            // A past day whose solid value is a promoted forecast (no actuals) reads as a forecast,
+            // not an observation — white label, not the observed-red past label.
+            day.isPast && !day.solidIsForecastFallback -> paints.pastTempTextPaint
             else -> paints.tempTextPaint
         }
         // History — and today once its high is settled (past the 5pm cutoff) — can label BOTH the

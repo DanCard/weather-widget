@@ -125,34 +125,9 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 // resolved forecast rain-chance % snapshotted while each day was current, and
                 // (from v7) the frozen forecast overlay + noon cloud % (DailyHistoryFreeze) so the
                 // daily bar view can render past days from this table alone.
-                stmt.execute("""
-                    CREATE TABLE IF NOT EXISTS daily_history (
-                        date INTEGER NOT NULL,
-                        source TEXT NOT NULL,
-                        locationLat REAL NOT NULL,
-                        locationLon REAL NOT NULL,
-                        computedHighTemp REAL NOT NULL,
-                        computedLowTemp REAL NOT NULL,
-                        condition TEXT NOT NULL,
-                        updatedAt INTEGER NOT NULL,
-                        precipAmountMm REAL,
-                        precipDayMm REAL,
-                        precipNightMm REAL,
-                        forecastDayPrecipChance INTEGER,
-                        forecastNightPrecipChance INTEGER,
-                        forecastHighTemp REAL,
-                        forecastLowTemp REAL,
-                        forecastPrecipAmountMm REAL,
-                        noonCloudPercent INTEGER,
-                        apiHighTemp REAL,
-                        apiLowTemp REAL,
-                        apiStationId TEXT,
-                        apiStationDistanceKm REAL,
-                        actualsSource TEXT,
-                        lastWriter TEXT,
-                        PRIMARY KEY (date, source, locationLat, locationLon)
-                    )
-                """.trimIndent())
+                // Single source of truth for the DDL so fresh installs and the v19 rebuild can
+                // never drift (see companion).
+                stmt.execute(Companion.DAILY_HISTORY_NULLABLE_COMPUTED_DDL.trimIndent())
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_daily_history_lookup ON daily_history(date, locationLat, locationLon)")
 
                 // App log — persistent, queryable record of pipeline health (mirrors the Android
@@ -435,6 +410,15 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 18) {
                 addColumnIfMissing(stmt, "observations", "isMetar", "INTEGER NOT NULL DEFAULT 0")
             }
+            // v19: computedHighTemp/computedLowTemp become nullable, making room for forecast-only
+            // rows (DailyHistoryWriter.FORECAST_ONLY_ROW): a source with no actuals product freezes
+            // its final forecast into the overlay columns so daily history renders from the row
+            // alone, while NULL computed* marks the absence of observations and keeps the row out
+            // of accuracy baselines. Moves with the Room MIGRATION_64_65. NOT NULL removal in
+            // SQLite is a table rebuild.
+            if (from < 19) {
+                rebuildDailyHistoryNullableComputed(stmt)
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -480,6 +464,49 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 18
+        private const val SCHEMA_VERSION = 19
+
+        /**
+         * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by
+         * the Android Room MIGRATION_64_65 rebuild) so the two schemas can never drift apart.
+         */
+        const val DAILY_HISTORY_NULLABLE_COMPUTED_DDL = """
+            CREATE TABLE IF NOT EXISTS daily_history (
+                date INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                locationLat REAL NOT NULL,
+                locationLon REAL NOT NULL,
+                computedHighTemp REAL,
+                computedLowTemp REAL,
+                condition TEXT NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                precipAmountMm REAL,
+                precipDayMm REAL,
+                precipNightMm REAL,
+                forecastDayPrecipChance INTEGER,
+                forecastNightPrecipChance INTEGER,
+                forecastHighTemp REAL,
+                forecastLowTemp REAL,
+                forecastPrecipAmountMm REAL,
+                noonCloudPercent INTEGER,
+                apiHighTemp REAL,
+                apiLowTemp REAL,
+                apiStationId TEXT,
+                apiStationDistanceKm REAL,
+                actualsSource TEXT,
+                lastWriter TEXT,
+                PRIMARY KEY (date, source, locationLat, locationLon)
+            )
+        """
+    }
+
+    /** Rebuild `daily_history` dropping the NOT NULL constraint on computedHighTemp/LowTemp. */
+    private fun rebuildDailyHistoryNullableComputed(stmt: java.sql.Statement) {
+        stmt.execute("ALTER TABLE daily_history RENAME TO daily_history_old")
+        stmt.execute(Companion.DAILY_HISTORY_NULLABLE_COMPUTED_DDL.trimIndent())
+        stmt.execute("INSERT INTO daily_history SELECT * FROM daily_history_old")
+        stmt.execute("DROP TABLE daily_history_old")
+        stmt.execute("DROP INDEX IF EXISTS idx_daily_history_lookup")
+        stmt.execute("CREATE INDEX idx_daily_history_lookup ON daily_history(date, locationLat, locationLon)")
     }
 }

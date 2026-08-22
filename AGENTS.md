@@ -23,6 +23,14 @@ When a settings section is added, removed, or reordered in the Android layout
 (`app/src/main/res/layout/activity_settings.xml`), mirror the same change in the desktop settings
 window (`desktop/src/main/kotlin/com/weatherwidget/desktop/SettingsWindow.kt`), and vice versa.
 
+## Review Fixes Before Implementing (Memory)
+
+**Before implementing any fix or non-trivial change, first present the root-cause analysis and the
+proposed fix plan, and wait for the user's approval before editing code.** (Evidence-gathering —
+screenshots, logs, DB queries — comes first as usual; the gate applies to code edits.) After
+approval, proceed through implementation, tests, build, and on-device verification without further
+check-ins unless the plan needs to change.
+
 ## Technology Stack
 
 | Component | Technology |

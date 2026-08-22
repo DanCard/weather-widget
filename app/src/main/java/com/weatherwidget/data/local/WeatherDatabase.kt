@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 64,
+    version = 65,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -482,6 +482,51 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * `daily_history.computedHighTemp`/`computedLowTemp` become nullable, making room for
+         * forecast-only rows (DailyHistoryWriter.FORECAST_ONLY_ROW): a source with no actuals
+         * product (Open-Meteo, Silurian) or a day a real-actuals source never resolved (Tomorrow.io
+         * before its tracking started) freezes its final forecast into the existing
+         * forecastHighTemp/forecastLowTemp overlay columns, so daily history renders from the row
+         * alone — no dependency on the forecasts table's retention. NULL computed* marks the
+         * absence of observations and keeps the row out of accuracy baselines. Desktop moves with
+         * this (its v19 uses the same DDL constant).
+         *
+         * Dropping NOT NULL in SQLite is a table rebuild. The DDL constant is shared with the
+         * desktop schema so the two cannot drift.
+         */
+        val MIGRATION_64_65 = object : Migration(64, 65) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Guard: a partially-applied earlier attempt must be re-runnable.
+                val computedIsNullable = run {
+                    val cursor = db.query("PRAGMA table_info(daily_history)")
+                    var nullable = false
+                    while (cursor.moveToNext()) {
+                        if (cursor.getString(cursor.getColumnIndexOrThrow("name")) == "computedHighTemp" &&
+                            cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) == 0
+                        ) {
+                            nullable = true
+                        }
+                    }
+                    cursor.close()
+                    nullable
+                }
+                if (computedIsNullable) return
+
+                db.execSQL("ALTER TABLE daily_history RENAME TO daily_history_old")
+                db.execSQL(
+                    com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
+                        .DAILY_HISTORY_NULLABLE_COMPUTED_DDL.trimIndent(),
+                )
+                db.execSQL("INSERT INTO daily_history SELECT * FROM daily_history_old")
+                db.execSQL("DROP TABLE daily_history_old")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_daily_history_date_locationLat_locationLon` " +
+                        "ON `daily_history` (`date`, `locationLat`, `locationLon`)",
+                )
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -544,7 +589,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance
