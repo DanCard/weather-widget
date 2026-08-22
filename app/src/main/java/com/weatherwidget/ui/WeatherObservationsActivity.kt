@@ -1,5 +1,6 @@
 package com.weatherwidget.ui
 
+import android.content.Context
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.graphics.Color
@@ -29,6 +30,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogEntity
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
@@ -43,6 +45,8 @@ import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.observations.StaleObservationFallback
 import com.weatherwidget.util.StationHistoryUrl
+import com.weatherwidget.widget.GpsResampler
+import com.weatherwidget.widget.StaleDisplayRefreshPolicy
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import dagger.hilt.android.AndroidEntryPoint
@@ -67,6 +71,30 @@ class WeatherObservationsActivity : AppCompatActivity() {
      * Can be overridden in tests to provide synchronous execution.
      */
     internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
+
+    /**
+     * Passive GPS resample seam (test override point). Production wiring is the injected
+     * [GpsResampler] — a cached-fix read, never an active GPS request.
+     */
+    internal var resampleLocation: suspend (Context, String) -> Unit = { ctx, trigger ->
+        gpsResampler.resample(ctx, trigger)
+    }
+
+    /**
+     * Force-refresh seam for the automatic stale-display repair (test override point). Production
+     * wiring is the same call the manual refresh button makes, under a distinct reason token.
+     */
+    internal var forceRefreshDisplayedSource: suspend (Double, Double) -> Unit = { latitude, longitude ->
+        weatherRepository.refreshCurrentTemperature(
+            latitude,
+            longitude,
+            "Stale Observations Screen",
+            source = currentSource,
+            reason = "stale_observations_screen",
+            forceRefresh = true,
+        )
+    }
+
     
     @Inject
     lateinit var weatherRepository: WeatherRepository
@@ -88,6 +116,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     @Inject
     lateinit var hourlyForecastDao: com.weatherwidget.data.local.HourlyForecastDao
+
+    @Inject
+    lateinit var gpsResampler: GpsResampler
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ObservationAdapter
@@ -665,6 +696,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     } else {
                         subtitleView.text = getString(R.string.obs_subtitle_latest_reading, currentSource.displayName)
                     }
+
+                    maybeAutoRefreshStaleDisplay(location, observations)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading observations", e)
@@ -689,6 +722,68 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading fetch logs", e)
+            }
+        }
+    }
+
+    /**
+     * Phase C of plans/260821-observations-stale-site-autorefresh.md: when what this screen is
+     * showing is stale, repair it now instead of waiting for a periodic loop to happen to write
+     * our key (the 2026-08-21 incident: 78 minutes of "Fetched 7:17 PM" while plugged in).
+     *
+     * Runs on every load's Main-thread render, but [StaleDisplayRefreshPolicy]'s debounce keeps
+     * the actual resample+fetch to at most one per [StaleDisplayRefreshPolicy.TRIGGER_DEBOUNCE_MS]
+     * even though the insert-flow observer reloads on every DB change.
+     */
+    private fun maybeAutoRefreshStaleDisplay(
+        location: Pair<Double, Double>?,
+        observations: List<ObservationEntity>,
+    ) {
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(this, PREFS_NAME)
+        val decision = StaleDisplayRefreshPolicy.evaluate(
+            nowMs = System.currentTimeMillis(),
+            newestFetchedMs = observations.maxOfOrNull { it.fetchedAt },
+            newestReportedMs = observations.maxOfOrNull { it.timestamp },
+            lastTriggerMs = prefs.getLong(KEY_LAST_STALE_AUTO_REFRESH_MS, 0L),
+        )
+        // SKIP_FRESH is the common case and RECENT_TRIGGER is derivable from the preceding `fired`
+        // row's timestamp — persisting either would make this the noisiest tag in app_logs.
+        if (decision != StaleDisplayRefreshPolicy.Decision.SKIP_FRESH &&
+            decision != StaleDisplayRefreshPolicy.Decision.RECENT_TRIGGER
+        ) {
+            Log.d(TAG, "stale display auto-refresh decision=${decision.name} rows=${observations.size}")
+            lifecycleScope.launch(ioDispatcher) {
+                appLogDao.log(
+                    OBS_STALE_AUTO_REFRESH_TAG,
+                    "source=${currentSource.id} outcome=${decision.outcomeToken}",
+                )
+            }
+        }
+        if (decision != StaleDisplayRefreshPolicy.Decision.FIRE || location == null) return
+
+        prefs.edit().putLong(KEY_LAST_STALE_AUTO_REFRESH_MS, System.currentTimeMillis()).apply()
+        lifecycleScope.launch {
+            try {
+                withContext(ioDispatcher) {
+                    resampleLocation(applicationContext, TRIGGER_SOURCE)
+                    // Re-resolve after the resample: if it detected a move, the anchor may have
+                    // just changed, and fetching under the abandoned coordinate would write
+                    // another orphan fragment.
+                    val refreshedLocation = resolveLocation() ?: location
+                    forceRefreshDisplayedSource(refreshedLocation.first, refreshedLocation.second)
+                }
+                widgetContentChanged = true
+                loadObservations()
+                loadFetchLogs()
+            } catch (e: Exception) {
+                Log.e(TAG, "Stale-display auto refresh failed", e)
+                withContext(ioDispatcher) {
+                    appLogDao.log(
+                        OBS_STALE_AUTO_REFRESH_TAG,
+                        "source=${currentSource.id} outcome=failed error=${e.message ?: e::class.java.simpleName}",
+                        "WARN",
+                    )
+                }
             }
         }
     }
@@ -934,6 +1029,13 @@ class WeatherObservationsActivity : AppCompatActivity() {
         private const val STATE_WIDGET_CONTENT_CHANGED = "widget_content_changed"
         private const val PREF_KEY_LAST_TAB = "last_selected_obs_tab"
         private const val PREFS_NAME = "weather_widget_prefs"
+
+        @VisibleForTesting
+        internal const val KEY_LAST_STALE_AUTO_REFRESH_MS = "last_stale_obs_auto_refresh_ms"
+
+        /** GpsResampler trigger name and app_logs outcome prefix live on this token. */
+        internal const val TRIGGER_SOURCE = "observations_screen"
+        private const val OBS_STALE_AUTO_REFRESH_TAG = "OBS_STALE_AUTO_REFRESH"
 
         /**
          * The Blend tab shows only the CURRENT blended point — the tab answers "why does the dot read

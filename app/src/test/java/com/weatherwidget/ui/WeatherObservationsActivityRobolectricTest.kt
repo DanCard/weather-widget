@@ -50,6 +50,12 @@ class WeatherObservationsActivityRobolectricTest {
     private val lat = 37.416885
     private val lon = -122.088776
     private var now = 0L
+
+    // Recording seams installed on every launched activity (see launchActivity). The insert-flow
+    // observer can fire a load at ANY moment after rows change, so the seams must already be safe
+    // (no network) before test data changes — not just before manual loadObservations() calls.
+    private val resampleTriggers = mutableListOf<String>()
+    private val refreshedLocations = mutableListOf<Pair<Double, Double>>()
     
     // Test dispatcher for synchronous execution
     private val testDispatcher = UnconfinedTestDispatcher()
@@ -68,6 +74,8 @@ class WeatherObservationsActivityRobolectricTest {
         clearTestPrefs("weather_prefs")
 
         now = System.currentTimeMillis()
+        resampleTriggers.clear()
+        refreshedLocations.clear()
 
         stateManager = WidgetStateManager(context)
         WeatherObservationsActivity.autoRefreshDebounceMs = 0L
@@ -719,6 +727,104 @@ class WeatherObservationsActivityRobolectricTest {
         }
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Phase C: automatic stale-display repair
+    // (plans/260821-observations-stale-site-autorefresh.md — the 2026-08-21 incident where the screen
+    // sat on "Fetched 7:17 PM" for 78 minutes while plugged in because nothing fetched on staleness.)
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `a stale displayed fetch triggers an automatic resample and repair`() {
+        val scenario = launchActivity()
+        val staleMs = now - 20 * 60 * 1000L
+
+        runBlocking {
+            // The list keeps the newest row per station, so the setUp seeds (fetched moments ago)
+            // would keep every displayed station fresh. Clear them so what is displayed is stale
+            // across the board — the incident shape. The insert itself fires a flow-driven load,
+            // which is exactly the load that must trigger the repair.
+            database.observationDao().deleteOldObservations(now + 60_000L)
+            database.observationDao().insertAll(
+                listOf(
+                    observation("AW020", "AE6EO MOUNTAIN VIEW", staleMs, 71.0f, 2.9f, stationType = "PERSONAL"),
+                    observation("KNUQ", "Mountain View, Moffett Field", staleMs, 68.0f, 3.7f, stationType = "OFFICIAL"),
+                ),
+            )
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(
+            "The passive resample must run under the observations_screen trigger",
+            listOf(WeatherObservationsActivity.TRIGGER_SOURCE),
+            resampleTriggers,
+        )
+        assertEquals("The repair must fetch once, under the widget's location", 1, refreshedLocations.size)
+        assertEquals(lat.toDouble(), refreshedLocations[0].first, 1e-4)
+        assertEquals(lon.toDouble(), refreshedLocations[0].second, 1e-4)
+
+        val firedRows = runBlocking {
+            database.appLogDao().getLogsByTag("OBS_STALE_AUTO_REFRESH", 10)
+                .filter { it.message.contains("outcome=fired") }
+        }
+        assertEquals(1, firedRows.size)
+        assertTrue(firedRows[0].message.startsWith("source=NWS "))
+
+        val prefs = SharedPreferencesUtil.getPrefs(context, "weather_widget_prefs")
+        assertTrue(
+            "The trigger must record its timestamp for the debounce window",
+            prefs.getLong(WeatherObservationsActivity.KEY_LAST_STALE_AUTO_REFRESH_MS, 0L) > 0L,
+        )
+    }
+
+    @Test
+    fun `fresh rows do not trigger an automatic repair`() {
+        val scenario = launchActivity()
+        scenario.onActivity { activity ->
+            activity.loadObservations()
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+
+        assertTrue(resampleTriggers.isEmpty())
+        assertTrue(refreshedLocations.isEmpty())
+        val logRows = runBlocking { database.appLogDao().getLogsByTag("OBS_STALE_AUTO_REFRESH", 10) }
+        assertTrue(logRows.isEmpty())
+    }
+
+    @Test
+    fun `the debounce window suppresses repeated automatic repairs`() {
+        val scenario = launchActivity()
+        val staleMs = now - 20 * 60 * 1000L
+
+        runBlocking {
+            database.observationDao().deleteOldObservations(now + 60_000L)
+            database.observationDao().insertAll(
+                listOf(
+                    observation("AW020", "AE6EO MOUNTAIN VIEW", staleMs, 71.0f, 2.9f, stationType = "PERSONAL"),
+                    observation("KNUQ", "Mountain View, Moffett Field", staleMs, 68.0f, 3.7f, stationType = "OFFICIAL"),
+                ),
+            )
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(
+            "The first stale load (the flow-driven reload on insert) repairs once",
+            1,
+            refreshedLocations.size,
+        )
+
+        scenario.onActivity { activity ->
+            activity.loadObservations()
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+
+        assertEquals(
+            "Reloads inside the debounce window must not repair again",
+            1,
+            refreshedLocations.size,
+        )
+        assertEquals(1, resampleTriggers.count { it == WeatherObservationsActivity.TRIGGER_SOURCE })
+    }
+
     private fun adapterOf(activity: WeatherObservationsActivity) =
         activity.findViewById<RecyclerView>(R.id.observations_list).adapter
             as WeatherObservationsActivity.ObservationAdapter
@@ -748,6 +854,10 @@ class WeatherObservationsActivityRobolectricTest {
         val scenario = ActivityScenario.launch<WeatherObservationsActivity>(intent)
         scenario.onActivity {
             it.ioDispatcher = testDispatcher
+            it.resampleLocation = { _, trigger -> resampleTriggers.add(trigger) }
+            it.forceRefreshDisplayedSource = { latitude, longitude ->
+                refreshedLocations.add(latitude to longitude)
+            }
             it.loadObservations()
             it.loadFetchLogs()
         }
