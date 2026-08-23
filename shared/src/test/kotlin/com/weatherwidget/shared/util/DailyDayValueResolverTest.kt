@@ -154,9 +154,19 @@ class DailyDayValueResolverTest {
     fun todayLowAfterCutoffTracksActualNotForecast() {
         // 10am: overnight low is settled. Forecast under-predicted (45) but actual low was 48 → 48.
         val low = DailyDayValueResolver.effectiveLowForLabel(
-            isToday = true, solidLow = 48f, forecastLow = 45f, nowHour = 10,
+            isToday = true, solidLow = 48f, forecastLow = 45f, nowHour = 10, actualLow = 48f,
         )
         assertEquals(48f, low)
+    }
+
+    @Test
+    fun todayLowAfterCutoffWithoutActualLowKeepsForecastBlend() {
+        // 10am but the source never writes actuals (Open-Meteo): a forecast stand-in
+        // solidLow must NOT count as a settled actual — the blend (forecast low) stays.
+        val low = DailyDayValueResolver.effectiveLowForLabel(
+            isToday = true, solidLow = 57.5f, forecastLow = 57.5f, nowHour = 10, actualLow = null,
+        )
+        assertEquals(57.5f, low)
     }
 
     @Test
@@ -203,5 +213,76 @@ class DailyDayValueResolverTest {
     @Test
     fun iconAnchorAllNullReturnsNull() {
         assertNull(DailyDayValueResolver.iconAnchorLow(solidLow = null, forecastLow = null, snapshotLow = null))
+    }
+
+    // ── isLowTrackingActual (drives the thermostat-color recolor) ───────────
+
+    @Test
+    fun lowTrackingActualTrueAfterCutoffWithActual() {
+        // 10am with a genuinely observed low → settled actual, red thermostat color is correct.
+        assertEquals(
+            true,
+            DailyDayValueResolver.isLowTrackingActual(
+                isToday = true, solidLow = 48f, nowHour = 10, actualLow = 48f,
+            ),
+        )
+    }
+
+    @Test
+    fun lowTrackingActualFalseWithoutActualEvenAfterCutoff() {
+        // Regression: Open-Meteo has no daily_history row, so solidLow was just the current
+        // temp standing in — that painted the low label red as a "settled actual".
+        assertEquals(
+            false,
+            DailyDayValueResolver.isLowTrackingActual(
+                isToday = true, solidLow = 72.3f, nowHour = 16, actualLow = null,
+            ),
+        )
+    }
+
+    @Test
+    fun lowTrackingActualFalseBeforeCutoff() {
+        assertEquals(
+            false,
+            DailyDayValueResolver.isLowTrackingActual(
+                isToday = true, solidLow = 48f, nowHour = 7, actualLow = 48f,
+            ),
+        )
+    }
+
+    @Test
+    fun lowTrackingActualFalseForNonToday() {
+        assertEquals(
+            false,
+            DailyDayValueResolver.isLowTrackingActual(
+                isToday = false, solidLow = 48f, nowHour = 10, actualLow = 48f,
+            ),
+        )
+    }
+
+    // ── resolveTodayLineValues (solidLow = actual low ?: forecast low) ──────
+
+    @Test
+    fun todayLineValuesNoActualLowUsesForecastLowNotCurrentTemp() {
+        // Regression: Open-Meteo-style day — currentTemp must never masquerade as the
+        // observed low; the forecast low stands in so the thermostat spans the day range.
+        val values = DailyDayValueResolver.resolveTodayLineValues(
+            actualHigh = null, actualLow = null,
+            forecastHigh = 73f, forecastLow = 57.5f,
+            currentTemp = 72.3f,
+        )
+        assertEquals(72.3f, values.solidHigh)
+        assertEquals(57.5f, values.solidLow)
+    }
+
+    @Test
+    fun todayLineValuesWithActualLowEqualsActualExactly() {
+        val values = DailyDayValueResolver.resolveTodayLineValues(
+            actualHigh = 75f, actualLow = 52f,
+            forecastHigh = 73f, forecastLow = 57.5f,
+            currentTemp = 68f,
+        )
+        assertEquals(52f, values.solidLow)
+        assertEquals(57.5f, values.forecastLow)
     }
 }

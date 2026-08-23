@@ -24,6 +24,12 @@ object DailyActualsEstimator {
         val solidLineLow: Float?,
         val dashedLineHigh: Float?,
         val dashedLineLow: Float?,
+        /**
+         * True when [solidLineLow] is a genuinely observed low from daily history.
+         * False means it is a forecast stand-in — renderers must not style it as an
+         * observed actual (red thermostat color).
+         */
+        val hasActualLow: Boolean = false,
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
         val ghostLineHigh: Float? = null,
@@ -70,8 +76,19 @@ object DailyActualsEstimator {
         // ghostLineHigh represents the faint high-water mark peak reached so far today.
         val ghostLineHigh = actual?.computedHighTemp
 
-        // solidLineLow should be the minimum of the stored daily low and the current reading.
-        val solidLineLow = listOfNotNull(actual?.computedLowTemp, currentTemp).minOrNull()
+        // 2. Full-day prediction (including both past and future hours)
+        val hourlyMax = todayHourly.maxOfOrNull { it.temperature }
+        val hourlyMin = todayHourly.minOfOrNull { it.temperature }
+
+        // Prefer the official daily high/low from the API for the dashed line.
+        val dashedLineHigh = fallbackWeather?.highTemp ?: hourlyMax
+        val dashedLineLow = fallbackWeather?.lowTemp ?: hourlyMin
+
+        // solidLineLow equals the observed low when one exists; otherwise it stands in
+        // with the forecast low so the thermostat always shows a day range. currentTemp
+        // alone must never masquerade as an observed low (it colored the label red as a
+        // "settled actual" on forecast-only sources like Open-Meteo).
+        val solidLineLow = actual?.computedLowTemp ?: dashedLineLow
         val solidLineHighSource =
             when {
                 currentTemp != null -> "current_temp"
@@ -80,20 +97,10 @@ object DailyActualsEstimator {
             }
         val solidLineLowSource =
             when {
-                actual?.computedLowTemp != null && currentTemp != null ->
-                    if (actual.computedLowTemp!! <= currentTemp) "daily_actual_low" else "current_temp"
                 actual?.computedLowTemp != null -> "daily_actual_low"
-                currentTemp != null -> "current_temp"
+                dashedLineLow != null -> "forecast_low"
                 else -> "none"
             }
-
-        // 2. Full-day prediction (including both past and future hours)
-        val hourlyMax = todayHourly.maxOfOrNull { it.temperature }
-        val hourlyMin = todayHourly.minOfOrNull { it.temperature }
-
-        // Prefer the official daily high/low from the API for the dashed line.
-        val dashedLineHigh = fallbackWeather?.highTemp ?: hourlyMax
-        val dashedLineLow = fallbackWeather?.lowTemp ?: hourlyMin
 
         Log.d("DailyEstimator", "today: actual.high=${actual?.computedHighTemp} actual.low=${actual?.computedLowTemp} currentTemp=$currentTemp " +
             "solidLineHigh=$solidLineHigh solidLineHighSource=$solidLineHighSource " +
@@ -107,6 +114,7 @@ object DailyActualsEstimator {
             solidLineLow = solidLineLow,
             dashedLineHigh = dashedLineHigh,
             dashedLineLow = dashedLineLow,
+            hasActualLow = actual?.computedLowTemp != null,
             snapshotHigh = snapshotHigh,
             snapshotLow = snapshotLow,
             ghostLineHigh = ghostLineHigh,

@@ -249,9 +249,12 @@ object DailyViewLogic {
                 val visibleLow = tripleValues.solidLineLow ?: tripleValues.dashedLineLow
                 highLabel = formatTemp(visibleHigh)
                 lowLabel = formatTemp(visibleLow)
+                // "Fallback" = nothing observed at all: no current temp and no actual low
+                // (the forecast low stands in for solidLineLow, so it can no longer signal
+                // observedness by being null).
                 isTodayForecastFallback =
                     tripleValues.solidLineHigh == null &&
-                        tripleValues.solidLineLow == null &&
+                        !tripleValues.hasActualLow &&
                         (visibleHigh != null || visibleLow != null)
             } else {
                 // Future day: fill a PARTIAL row's missing bound from climate normals. Requires
@@ -459,6 +462,7 @@ object DailyViewLogic {
             var trueActualHigh: Float? = null
             var bottomStackLow: Float? = null
             var solidIsForecastFallback = false
+            var todayHasActualLow = false
 
             if (isPastDate) {
                 if (showComparison) {
@@ -519,14 +523,19 @@ object DailyViewLogic {
                     solidLow = tripleValues.solidLineLow,
                     forecastLow = tripleValues.dashedLineLow,
                     nowHour = now.hour,
+                    actualLow = actual?.computedLowTemp,
                 )
                 snapshotHigh = tripleValues.snapshotHigh
                 snapshotLow = tripleValues.snapshotLow
                 snapshotIconRes = tripleValues.snapshotIconRes
                 trueActualHigh = tripleValues.ghostLineHigh
+                todayHasActualLow = tripleValues.hasActualLow
+                // "Fallback" = nothing observed at all: no current temp and no actual low
+                // (the forecast low stands in for solidLineLow, so it can no longer signal
+                // observedness by being null).
                 isTodayForecastFallback =
                     tripleValues.solidLineHigh == null &&
-                        tripleValues.solidLineLow == null &&
+                        !tripleValues.hasActualLow &&
                         (finalHigh != null || finalLow != null)
             } else {
                 // Future day: fill a PARTIAL row's missing bound from climate normals (e.g. an NWS
@@ -694,6 +703,7 @@ object DailyViewLogic {
                         ),
                         columnIndex = days.size,
                         isTodayForecastFallback = isTodayForecastFallback,
+                        todayHasActualLow = todayHasActualLow,
                         snapshotHigh = snapshotHigh,
                         snapshotLow = snapshotLow,
                         snapshotIconRes = snapshotIconRes,

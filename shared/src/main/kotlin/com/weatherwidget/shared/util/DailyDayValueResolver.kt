@@ -81,9 +81,12 @@ object DailyDayValueResolver {
     /**
      * Resolves today's solid (observed) and dashed (forecast) line values.
      *
-     * Correct formula (from Android DailyActualsEstimator):
+     * Formula (mirrors Android DailyActualsEstimator):
      * - solidHigh = currentTemp ?: actualHigh — shows real-time temp, falls back to peak
-     * - solidLow = min(actualLow, currentTemp) — if current dropped below stored low, reflect that
+     * - solidLow = actualLow ?: forecastLow — the observed low when one exists, otherwise
+     *   the forecast low stands in so the thermostat always spans a day range. currentTemp
+     *   alone must never masquerade as an observed low (it colored the label red as a
+     *   "settled actual" on forecast-only sources like Open-Meteo).
      * - ghostHigh = actualHigh — the high-water mark the ghost line reaches up to
      *
      * @param actualHigh Observed daily high so far (from DailyHistory)
@@ -100,7 +103,7 @@ object DailyDayValueResolver {
         currentTemp: Float?,
     ): TodayLineValues {
         val solidHigh = currentTemp ?: actualHigh
-        val solidLow = listOfNotNull(actualLow, currentTemp).minOrNull()
+        val solidLow = actualLow ?: forecastLow
         return TodayLineValues(
             solidHigh = solidHigh,
             solidLow = solidLow,
@@ -178,6 +181,10 @@ object DailyDayValueResolver {
      *
      * Only used for today — non-today rows use their observed low directly.
      *
+     * Settled (post-cutoff, observed-low branch) additionally requires [actualLow] to be
+     * non-null: without a genuine observation the low keeps the forecast-inclusive blend,
+     * since a forecast stand-in `solidLow` is not a settled actual.
+     *
      * @param nowHour Local hour-of-day (0–23); null disables the cutoff (legacy behavior).
      */
     fun effectiveLowForLabel(
@@ -185,21 +192,25 @@ object DailyDayValueResolver {
         solidLow: Float?,
         forecastLow: Float?,
         nowHour: Int? = null,
+        actualLow: Float? = null,
     ): Float? {
         if (!isToday) return solidLow
-        val lowSettled = nowHour != null && nowHour >= ACTUAL_LOW_CUTOFF_HOUR
+        val lowSettled = nowHour != null && nowHour >= ACTUAL_LOW_CUTOFF_HOUR && actualLow != null
         return if (lowSettled && solidLow != null) solidLow
         else listOfNotNull(solidLow, forecastLow).minOrNull()
     }
 
     /**
      * Whether today's headline low is currently tracking the **observed actual** rather than the
-     * forecast-inclusive blend — i.e. the exact case where [effectiveLowForLabel] returns the
-     * observed low and drops the forecast. Mirror of [isHighTrackingActual].
+     * forecast-inclusive blend — i.e. the exact case where [effectiveLowForLabel] returns
+     * the observed low and drops the forecast. Mirror of [isHighTrackingActual].
      *
-     * True only for today, once the local time is past [ACTUAL_LOW_CUTOFF_HOUR] (9am) AND an
-     * observed low exists. Callers use this to recolor the low label to the thermostat (observed)
-     * color, signaling the number is now a settled actual instead of a prediction.
+     * True only for today, once the local time is past [ACTUAL_LOW_CUTOFF_HOUR] (9am) AND a
+     * genuine observed low exists ([actualLow] non-null). A [solidLow] that is merely a
+     * forecast stand-in (forecast-only sources like Open-Meteo) or a bare current-temp
+     * reading must not count as "settled" — callers use this to recolor the low label to
+     * the thermostat (observed) color, which would wrongly paint a prediction red.
+     * Mirrors the branch in [effectiveLowForLabel] so the color and the value never disagree.
      *
      * @param nowHour Local hour-of-day (0–23); null disables the cutoff (legacy behavior).
      */
@@ -207,8 +218,10 @@ object DailyDayValueResolver {
         isToday: Boolean,
         solidLow: Float?,
         nowHour: Int? = null,
+        actualLow: Float? = null,
     ): Boolean {
         if (!isToday) return false
+        if (actualLow == null) return false
         val lowSettled = nowHour != null && nowHour >= ACTUAL_LOW_CUTOFF_HOUR
         return lowSettled && solidLow != null
     }

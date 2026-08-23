@@ -198,6 +198,7 @@ fun DailyForecastGraph(
                 solidLow = d.solidLow,
                 forecastLow = listOfNotNull(d.forecastLow, d.snapshotLow).minOrNull(),
                 nowHour = d.nowHour,
+                actualLow = d.actual?.computedLowTemp,
             ) ?: return null
 
             val lowLabelText = formatTemp(lowVal)
@@ -313,6 +314,7 @@ fun DailyForecastGraph(
                 solidLow = day.solidLow,
                 forecastLow = listOfNotNull(day.forecastLow, day.snapshotLow).minOrNull(),
                 nowHour = day.nowHour,
+                actualLow = day.actual?.computedLowTemp,
             )
 
             // History — and today once its high is settled (past the 5pm cutoff) — label BOTH the
@@ -478,6 +480,9 @@ fun DailyForecastGraph(
                     isToday = day.isToday,
                     solidLow = day.solidLow,
                     nowHour = day.nowHour,
+                    // A forecast stand-in low (forecast-only sources) must never read as a
+                    // settled actual — keep the label white unless an actual low exists.
+                    actualLow = day.actual?.computedLowTemp,
                 )
                 val lowColor = if ((day.isPast && !day.solidIsForecastFallback) || todayLowSettled) COLOR_OBSERVED else Color.White.copy(alpha = 0.78f)
                 val lowText = textMeasurer.measure(
@@ -1023,6 +1028,7 @@ internal fun computeDailyGraphTapLayout(
             solidLow = day.solidLow,
             forecastLow = listOfNotNull(day.forecastLow, day.snapshotLow).minOrNull(),
             nowHour = day.nowHour,
+            actualLow = day.actual?.computedLowTemp,
         ) ?: return@map null
         val lowLabelText = formatTemp(lowForLabel, useCelsius)
         val lowTextHeight = measureLowLabelHeight(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)

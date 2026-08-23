@@ -372,10 +372,12 @@ class DailyViewHandlerTest {
         assertEquals(62f, todayData.snapshotLow!!, 0.1f)
         // Observed High should include currentTemp (75) even if dailyActuals is empty
         assertEquals(75f, todayData.solidLineHigh!!, 0.1f)
-        assertEquals(75f, todayData.solidLineLow!!, 0.1f)
+        // No actual row → the forecast low (60) stands in; currentTemp must never
+        // masquerade as the observed low.
+        assertEquals(60f, todayData.solidLineLow!!, 0.1f)
         assertEquals(80f, todayData.dashedLineHigh!!, 0.1f)
         assertEquals(60f, todayData.dashedLineLow!!, 0.1f)
-        assertEquals(75f, todayData.bottomStackLow!!, 0.1f)
+        assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
     }
 
     @Test

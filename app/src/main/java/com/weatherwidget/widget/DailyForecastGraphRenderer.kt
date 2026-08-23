@@ -176,6 +176,13 @@ object DailyForecastGraphRenderer {
         val rainData: RainLabelData = RainLabelData(),
         val columnIndex: Int? = null,
         val isTodayForecastFallback: Boolean = false,
+        /**
+         * True when today's [solidLineLow] is a genuinely observed low from daily history.
+         * False means it is a forecast stand-in (forecast-only sources like Open-Meteo) —
+         * renderers must not style the low label as an observed actual (red thermostat
+         * color). See DailyActualsEstimator.TodayTripleLineValues.hasActualLow.
+         */
+        val todayHasActualLow: Boolean = false,
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
         val snapshotIconRes: Int? = null,

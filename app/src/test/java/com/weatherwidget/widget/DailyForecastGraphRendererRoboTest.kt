@@ -258,6 +258,74 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun today_thermostat_spansDownToForecastLow_whenNoActualLowObserved() {
+        // Regression (Open-Meteo): with no daily_history row the low used to collapse to
+        // the current temp, leaving the thermostat a zero-length dot and painting the
+        // label red as a fake "settled actual". The forecast low now stands in, so the
+        // TODAY bar must span from the mercury level down to the forecast low.
+        val today = LocalDate.of(2026, 2, 2)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Today",
+                isToday = true,
+                solidLineHigh = 72.3f,
+                solidLineLow = 57.5f, // forecast stand-in (dashed low is also 57.5)
+                dashedLineHigh = 73f,
+                dashedLineLow = 57.5f,
+                todayHasActualLow = false,
+                nowHour = 16,
+            ),
+        )
+
+        val bars = render(days).filter { it.date == today }
+        val thermostat = bars.single { it.barType == "TODAY" }
+        val forecast = bars.single { it.barType == "TODAY_FORECAST" }
+
+        assertTrue(
+            "Thermostat must graphically span downward (highY=${thermostat.highY}, lowY=${thermostat.lowY})",
+            thermostat.lowY > thermostat.highY + 10f,
+        )
+        assertEquals(
+            "Thermostat bottom must sit at the forecast-low Y (same temp as forecast bar bottom)",
+            forecast.lowY,
+            thermostat.lowY,
+            0.5f,
+        )
+    }
+
+    @Test
+    fun today_thermostat_bottomReachesDeeperThanForecastBar_whenActualLowIsColder() {
+        // When a genuine observed low exists and is colder than the forecast low, the
+        // thermostat bottom must extend past the forecast comparison bar's bottom.
+        val today = LocalDate.of(2026, 2, 2)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Today",
+                isToday = true,
+                solidLineHigh = 72.3f,
+                solidLineLow = 50f, // observed actual low, colder than forecast 57.5
+                dashedLineHigh = 73f,
+                dashedLineLow = 57.5f,
+                todayHasActualLow = true,
+                nowHour = 16,
+            ),
+        )
+
+        val bars = render(days).filter { it.date == today }
+        val thermostat = bars.single { it.barType == "TODAY" }
+        val forecast = bars.single { it.barType == "TODAY_FORECAST" }
+
+        assertTrue(
+            "Actual low is colder → thermostat bottom below forecast bar bottom " +
+                "(thermostat.lowY=${thermostat.lowY}, forecast.lowY=${forecast.lowY})",
+            thermostat.lowY > forecast.lowY + 1f,
+        )
+    }
+
+
+    @Test
     fun renderGraph_historyShowsBarTypeHISTORY() {
         val feb01 = LocalDate.of(2026, 2, 1)
         val days = listOf(

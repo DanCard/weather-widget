@@ -65,7 +65,8 @@ class DailyActualsEstimatorTest {
         )
 
         assertEquals(62f, result.solidLineHigh) // currentTemp wins over peak-so-far (60)
-        assertEquals(40f, result.solidLineLow)      // min(actualLow 40, current 62)
+        assertEquals(40f, result.solidLineLow)      // observed actual low, exact
+        assertEquals(true, result.hasActualLow)
         assertEquals(60f, result.ghostLineHigh) // peak-so-far
         assertEquals(68f, result.dashedLineHigh) // full-day peak
         assertEquals(38f, result.dashedLineLow)  // full-day low
@@ -88,9 +89,32 @@ class DailyActualsEstimatorTest {
         )
 
         assertEquals(null, result.solidLineHigh)
-        assertEquals(null, result.solidLineLow)
+        // No actual row → the forecast low stands in for solidLineLow so the thermostat
+        // spans the day range; currentTemp alone must never masquerade as a low.
+        assertEquals(38f, result.solidLineLow)
+        assertEquals(false, result.hasActualLow)
         assertEquals(68f, result.dashedLineHigh) // fallbackWeather high
         assertEquals(38f, result.dashedLineLow)  // fallbackWeather low
+    }
+
+    @Test
+    fun calculateTodayTripleLineValues_noActualsWithCurrentTemp_solidLowIsForecastLow() {
+        // Regression: Open-Meteo-style day. Previously solidLineLow collapsed to
+        // currentTemp, which painted the low label red as a "settled actual" and left
+        // the thermostat with zero length.
+        val result = DailyActualsEstimator.calculateTodayTripleLineValues(
+            hourlyForecasts = emptyList(),
+            today = today,
+            now = now,
+            displaySource = displaySource,
+            fallbackWeather = fallbackWeather,
+            dailyActuals = emptyMap(),
+            currentTemp = 62f
+        )
+
+        assertEquals(62f, result.solidLineHigh)
+        assertEquals(38f, result.solidLineLow) // forecast low stand-in, not currentTemp
+        assertEquals(false, result.hasActualLow)
     }
 
     @Test
@@ -134,7 +158,7 @@ class DailyActualsEstimatorTest {
     }
 
     @Test
-    fun calculateTodayTripleLineValues_currentTempBelowActualLow_updatesSolidLow() {
+    fun calculateTodayTripleLineValues_currentTempBelowActualLow_solidLowStaysActual() {
         val sourceActuals = mapOf(
             today to extreme(today, 60f, 50f)
         )
@@ -150,7 +174,9 @@ class DailyActualsEstimatorTest {
         )
 
         assertEquals(45f, result.solidLineHigh) // mercury level drops to current
-        assertEquals(45f, result.solidLineLow) // current (45) is lower than low-so-far (50)
+        // solidLineLow equals the observed actual low exactly — no min-with-current blend.
+        assertEquals(50f, result.solidLineLow)
+        assertEquals(true, result.hasActualLow)
     }
 
     @Test

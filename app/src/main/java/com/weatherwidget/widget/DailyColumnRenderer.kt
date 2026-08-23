@@ -105,6 +105,10 @@ internal object DailyColumnRenderer {
                         isToday = day.isToday,
                         solidLow = day.solidLineLow,
                         nowHour = day.nowHour,
+                        // A forecast stand-in low (forecast-only sources) must never read
+                        // as a settled actual — keep the label white unless an actual low
+                        // was genuinely observed.
+                        actualLow = if (day.todayHasActualLow) day.solidLineLow else null,
                     )
                 val lowColorOverride =
                     if (todayLowSettled) DailyBarRenderer.COLOR_OBSERVED_RED else null
