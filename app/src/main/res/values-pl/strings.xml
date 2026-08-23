@@ -48,6 +48,7 @@
     <string name="api_sources_title">Źródła danych pogodowych</string>
     <string name="api_sources_description">Włączaj/wyłączaj i zmieniaj kolejność źródeł. Wyłączone źródła są pomijane w przełączaniu widżetu i pobieraniu w tle, dopóki nie zostaną ponownie włączone.</string>
     <string name="must_keep_one_source">Co najmniej jedno źródło musi pozostać włączone</string>
+    <string name="api_key_required_to_enable">%1$s wymaga klucza API przed włączeniem</string>
     <string name="personal_stations_title">Prywatne stacje pogodowe</string>
     <string name="personal_stations_description" formatted="false">Prywatne (przydomowe) stacje często zawyżają odczyty w słońcu. Określ, jak bardzo obniżyć ich udział w zmierzonej temperaturze. 0% = bez obniżki: stacje prywatne liczą się jak oficjalne. 100% = stacje prywatne są ignorowane.</string>
     <string name="personal_stations_no_discount" formatted="false">0% · bez obniżki</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — wyświetlane jako VisCr (zasięg globalny)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — wyświetlane jako Meteo (zasięg globalny)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — wyświetlane jako WAPI (zasięg globalny)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — wyświetlane jako OWM (zasięg globalny)</string>
     <string name="statistics">Statystyki</string>
     <string name="view_detailed_statistics">Szczegółowe statystyki</string>
     <string name="forecast_accuracy_summary_title">Trafność prognoz (ostatnie 30 dni)</string>

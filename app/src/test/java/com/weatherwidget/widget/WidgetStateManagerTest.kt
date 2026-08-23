@@ -525,17 +525,15 @@ class WidgetStateManagerTest {
     @Test
     fun `getVisibleSourcesOrder migrates existing order to append silurian and remove deprecated sources`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val migrationPrefs = context.getSharedPreferences("migration_test_prefs_1", Context.MODE_PRIVATE)
+        val migrationPrefs = context.getSharedPreferences("migration_test_prefs", Context.MODE_PRIVATE)
         migrationPrefs.edit().clear().apply()
-        WidgetStateManager.setPrefsNameOverrideForTesting("migration_test_prefs_1")
+        WidgetStateManager.setPrefsNameOverrideForTesting("migration_test_prefs")
         val migrationManager = WidgetStateManager(context)
 
         migrationPrefs.edit()
             .putBoolean("api_pref_migrated", true)
             .putBoolean("silurian_migration_done_v2", false)
-            .putBoolean("hide_open_weather_map_migration_done_v4", false)
-            .putBoolean("visual_crossing_migration_done_v5", false)
-            .putString("visible_sources_order", "NWS,VISUAL_CROSSING,WEATHER_API,OPEN_METEO")
+            .putString("visible_sources_order", "NWS,OPEN_METEO")
             .apply()
 
         val sources = migrationManager.getVisibleSourcesOrder()
@@ -543,7 +541,6 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 WeatherSource.NWS,
-                WeatherSource.WEATHER_API,
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,
             ),
@@ -553,7 +550,7 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getVisibleSourcesOrder strips open weather map and visual crossing`() {
+    fun `getVisibleSourcesOrder strips visual crossing`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val migrationPrefs = context.getSharedPreferences("migration_test_prefs_2", Context.MODE_PRIVATE)
         migrationPrefs.edit().clear().apply()
@@ -563,9 +560,8 @@ class WidgetStateManagerTest {
         migrationPrefs.edit()
             .putBoolean("api_pref_migrated", true)
             .putBoolean("silurian_migration_done_v2", true)
-            .putBoolean("hide_open_weather_map_migration_done_v4", false)
-            .putBoolean("visual_crossing_migration_done_v5", false)
-            .putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,VISUAL_CROSSING,OPEN_METEO,SILURIAN")
+            .putBoolean("hide_deprecated_sources_migration_done_v6", false)
+            .putString("visible_sources_order", "NWS,VISUAL_CROSSING,OPEN_METEO,SILURIAN")
             .apply()
 
         val sources = migrationManager.getVisibleSourcesOrder()
@@ -590,7 +586,7 @@ class WidgetStateManagerTest {
         val migrationManager = WidgetStateManager(context)
         migrationPrefs.edit()
             .putBoolean("api_pref_migrated", true)
-            .putString("visible_sources_order", "VISUAL_CROSSING,OPEN_WEATHER_MAP")
+            .putString("visible_sources_order", "VISUAL_CROSSING")
             .commit()
 
         assertEquals(

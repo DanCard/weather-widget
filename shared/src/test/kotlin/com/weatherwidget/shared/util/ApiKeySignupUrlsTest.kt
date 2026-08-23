@@ -32,10 +32,21 @@ class ApiKeySignupUrlsTest {
         // Every configurable source that needs a key must be listed here, and vice versa.
         val expected = setOf(
             WeatherSource.TOMORROW_IO,
+            WeatherSource.OPEN_WEATHER_MAP,
             WeatherSource.SILURIAN,
             WeatherSource.WEATHER_API,
         )
         assertEquals(expected, ApiKeySignupUrls.sourcesRequiringKeys.toSet())
+    }
+
+    @Test
+    fun requiresUserKeyIdentifiesSourcesNeedingUserKeys() {
+        assertTrue(ApiKeySignupUrls.requiresUserKey(WeatherSource.OPEN_WEATHER_MAP))
+        assertTrue(ApiKeySignupUrls.requiresUserKey(WeatherSource.WEATHER_API))
+        assertTrue(ApiKeySignupUrls.requiresUserKey(WeatherSource.TOMORROW_IO))
+        assertFalse(ApiKeySignupUrls.requiresUserKey(WeatherSource.SILURIAN))
+        assertFalse(ApiKeySignupUrls.requiresUserKey(WeatherSource.NWS))
+        assertFalse(ApiKeySignupUrls.requiresUserKey(WeatherSource.OPEN_METEO))
     }
 
     @Test

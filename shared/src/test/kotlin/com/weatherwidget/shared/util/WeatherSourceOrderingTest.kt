@@ -27,6 +27,7 @@ class WeatherSourceOrderingTest {
         // Every source the user can toggle must be present.
         listOf(
             WeatherSource.NWS,
+            WeatherSource.OPEN_WEATHER_MAP,
             WeatherSource.OPEN_METEO,
             WeatherSource.SILURIAN,
             WeatherSource.TOMORROW_IO,
@@ -35,7 +36,7 @@ class WeatherSourceOrderingTest {
             assertTrue("$it must be configurable", it in WeatherSourceOrdering.ALL_CONFIGURABLE)
         }
         assertTrue(WeatherSource.VISUAL_CROSSING !in WeatherSourceOrdering.ALL_CONFIGURABLE)
-        assertTrue(WeatherSource.OPEN_WEATHER_MAP !in WeatherSourceOrdering.ALL_CONFIGURABLE)
+        assertTrue(WeatherSource.OPEN_WEATHER_MAP in WeatherSourceOrdering.ALL_CONFIGURABLE)
     }
 
     @Test
@@ -52,6 +53,7 @@ class WeatherSourceOrderingTest {
                 WeatherSource.TOMORROW_IO,
                 WeatherSource.SILURIAN,
                 WeatherSource.WEATHER_API,
+                WeatherSource.OPEN_WEATHER_MAP,
             ),
             result,
         )
@@ -69,6 +71,7 @@ class WeatherSourceOrderingTest {
                 WeatherSource.TOMORROW_IO,
                 WeatherSource.SILURIAN,
                 WeatherSource.WEATHER_API,
+                WeatherSource.OPEN_WEATHER_MAP,
             ),
             result,
         )
@@ -83,6 +86,7 @@ class WeatherSourceOrderingTest {
                 WeatherSource.SILURIAN,
                 WeatherSource.TOMORROW_IO,
                 WeatherSource.WEATHER_API,
+                WeatherSource.OPEN_WEATHER_MAP,
             ),
             WeatherSourceOrdering.ordered(emptyList()),
         )
@@ -196,14 +200,14 @@ class WeatherSourceOrderingTest {
             ),
         )
 
-        assertEquals(listOf("NWS", "OPEN_METEO"), result)
+        assertEquals(listOf("NWS", "OPEN_WEATHER_MAP", "OPEN_METEO"), result)
     }
 
     @Test
     fun sanitizeVisibleFallsBackToCanonicalDefaultsWhenNothingSurvives() {
         assertEquals(
             WeatherSourceOrdering.DEFAULT_VISIBLE_IDS,
-            WeatherSourceOrdering.sanitizeVisibleIds(listOf("VISUAL_CROSSING", "OPEN_WEATHER_MAP")),
+            WeatherSourceOrdering.sanitizeVisibleIds(listOf("VISUAL_CROSSING", "MADE_UP_SOURCE")),
         )
     }
 

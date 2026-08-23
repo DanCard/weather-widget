@@ -21,7 +21,7 @@ object WeatherSourceDescriptions {
         WeatherSource.VISUAL_CROSSING -> "Visual Crossing — shown as VisCr (global coverage)"
         WeatherSource.OPEN_METEO -> "Open-Meteo — shown as Meteo (global coverage)"
         WeatherSource.WEATHER_API -> "WeatherAPI — shown as WAPI (global coverage)"
-        WeatherSource.OPEN_WEATHER_MAP -> "OpenWeatherMap (deprecated)"
+        WeatherSource.OPEN_WEATHER_MAP -> "OpenWeatherMap — shown as OWM (global coverage)"
         WeatherSource.GENERIC_GAP -> "Synthetic climate-normal fallback (never user-selectable)"
     }
 }

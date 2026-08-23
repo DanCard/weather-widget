@@ -48,6 +48,7 @@
     <string name="api_sources_title">แหล่งข้อมูลสภาพอากาศ</string>
     <string name="api_sources_description">เปิด/ปิดและจัดลำดับแหล่งข้อมูล แหล่งข้อมูลที่ปิดจะถูกยกเว้นจากการสลับบนวิดเจ็ตและการดึงข้อมูลเบื้องหลังจนกว่าจะเปิดอีกครั้ง</string>
     <string name="must_keep_one_source">ต้องเปิดใช้งานอย่างน้อยหนึ่งแหล่งข้อมูล</string>
+    <string name="api_key_required_to_enable">%1$s ต้องใช้คีย์ API ก่อนเปิดใช้งาน</string>
     <string name="personal_stations_title">สถานีตรวจอากาศส่วนบุคคล</string>
     <string name="personal_stations_description" formatted="false">สถานีส่วนบุคคล (หลังบ้าน) มักวัดค่าสูงเกินเมื่อโดนแดด กำหนดว่าจะลดน้ำหนักของสถานีเหล่านี้ในอุณหภูมิที่วัดได้เท่าใด 0% = ไม่ลด: สถานีส่วนบุคคลนับเท่ากับสถานีทางการ 100% = ไม่นับสถานีส่วนบุคคล</string>
     <string name="personal_stations_no_discount" formatted="false">0% · ไม่ลด</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — แสดงเป็น VisCr (ครอบคลุมทั่วโลก)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — แสดงเป็น Meteo (ครอบคลุมทั่วโลก)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — แสดงเป็น WAPI (ครอบคลุมทั่วโลก)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — แสดงเป็น OWM (ครอบคลุมทั่วโลก)</string>
     <string name="statistics">สถิติ</string>
     <string name="view_detailed_statistics">สถิติโดยละเอียด</string>
     <string name="forecast_accuracy_summary_title">ความแม่นยำของพยากรณ์ (30 วันล่าสุด)</string>

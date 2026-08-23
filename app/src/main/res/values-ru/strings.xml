@@ -48,6 +48,7 @@
     <string name="api_sources_title">Источники данных о погоде</string>
     <string name="api_sources_description">Включайте/отключайте и переупорядочивайте источники. Отключённые источники исключаются из переключения в виджете и фоновых загрузок, пока их снова не включат.</string>
     <string name="must_keep_one_source">Хотя бы один источник должен оставаться включённым</string>
+    <string name="api_key_required_to_enable">Для включения %1$s требуется ключ API</string>
     <string name="personal_stations_title">Личные метеостанции</string>
     <string name="personal_stations_description" formatted="false">Личные (дворовые) станции часто завышают показания на солнце. Задайте, насколько снижать их вклад в измеренную температуру. 0% = без снижения: личные станции учитываются как официальные. 100% = личные станции игнорируются.</string>
     <string name="personal_stations_no_discount" formatted="false">0% · без снижения</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — отображается как VisCr (глобальное покрытие)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — отображается как Meteo (глобальное покрытие)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — отображается как WAPI (глобальное покрытие)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — отображается как OWM (глобальное покрытие)</string>
     <string name="statistics">Статистика</string>
     <string name="view_detailed_statistics">Подробная статистика</string>
     <string name="forecast_accuracy_summary_title">Точность прогнозов (последние 30 дней)</string>

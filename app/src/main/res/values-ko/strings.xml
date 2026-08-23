@@ -48,6 +48,7 @@
     <string name="api_sources_title">날씨 데이터 소스</string>
     <string name="api_sources_description">소스를 사용/사용 안 함으로 설정하고 순서를 바꿉니다. 사용 중지된 소스는 다시 사용하도록 설정할 때까지 위젯 전환과 백그라운드 가져오기에서 제외됩니다.</string>
     <string name="must_keep_one_source">최소 한 개의 소스는 사용 설정 상태여야 합니다</string>
+    <string name="api_key_required_to_enable">%1$s을(를) 활성화하려면 API 키가 필요합니다</string>
     <string name="personal_stations_title">개인 기상 관측소</string>
     <string name="personal_stations_description" formatted="false">개인(마당) 관측소는 햇빛에서 온도를 높게 측정하는 경우가 많습니다. 측정 온도에 반영되는 비중을 얼마나 낮출지 설정하세요. 0% = 감산 없음: 개인 관측소를 공식 관측소와 동일하게 취급합니다. 100% = 개인 관측소를 무시합니다.</string>
     <string name="personal_stations_no_discount" formatted="false">0% · 감산 없음</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr로 표시 (전 세계 지원)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — Meteo로 표시 (전 세계 지원)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — WAPI로 표시 (전 세계 지원)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM로 표시 (전 세계 지원)</string>
     <string name="statistics">통계</string>
     <string name="view_detailed_statistics">상세 통계</string>
     <string name="forecast_accuracy_summary_title">예보 정확도 (최근 30일)</string>

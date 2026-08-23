@@ -20,6 +20,7 @@ object ApiKeySignupUrls {
             WeatherSource.TOMORROW_IO,
             WeatherSource.SILURIAN,
             WeatherSource.WEATHER_API,
+            WeatherSource.OPEN_WEATHER_MAP,
         )
 
     fun signupUrl(source: WeatherSource): String = when (source) {
@@ -28,8 +29,18 @@ object ApiKeySignupUrls {
         // the marketing root silurian.ai has no signup or key path.
         WeatherSource.SILURIAN -> "https://earth.weather.silurian.ai"
         WeatherSource.WEATHER_API -> "https://www.weatherapi.com/signup.aspx"
-        WeatherSource.VISUAL_CROSSING -> "https://www.visualcrossing.com/sign-up"
         WeatherSource.OPEN_WEATHER_MAP -> "https://home.openweathermap.org/users/sign_up"
         else -> "https://open-meteo.com"
+    }
+
+    fun requiresUserKey(source: WeatherSource): Boolean = when (source) {
+        WeatherSource.OPEN_WEATHER_MAP,
+        WeatherSource.WEATHER_API,
+        WeatherSource.TOMORROW_IO,
+        WeatherSource.VISUAL_CROSSING -> true
+        WeatherSource.SILURIAN,
+        WeatherSource.NWS,
+        WeatherSource.OPEN_METEO,
+        WeatherSource.GENERIC_GAP -> false
     }
 }

@@ -48,6 +48,7 @@
     <string name="api_sources_title">Wetterdatenquellen</string>
     <string name="api_sources_description">Quellen aktivieren/deaktivieren und neu anordnen. Deaktivierte Quellen sind von Widget-Umschaltungen und Hintergrundabrufen ausgeschlossen, bis sie wieder aktiviert werden.</string>
     <string name="must_keep_one_source">Mindestens eine Quelle muss aktiviert bleiben</string>
+    <string name="api_key_required_to_enable">%1$s erfordert vor der Aktivierung einen API-Schlüssel</string>
     <string name="personal_stations_title">Private Wetterstationen</string>
     <string name="personal_stations_description" formatted="false">Private Stationen (im Garten) zeigen in der Sonne oft zu viel an. Lege fest, wie stark sie bei der gemessenen Temperatur abgewertet werden. 0% = keine Abwertung: private Stationen zählen wie offizielle Stationen. 100% = private Stationen werden ignoriert.</string>
     <string name="personal_stations_no_discount" formatted="false">0% · keine Abwertung</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — angezeigt als VisCr (weltweite Abdeckung)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — angezeigt als Meteo (weltweite Abdeckung)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — angezeigt als WAPI (weltweite Abdeckung)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — angezeigt als OWM (weltweite Abdeckung)</string>
     <string name="statistics">Statistiken</string>
     <string name="view_detailed_statistics">Detaillierte Statistiken</string>
     <string name="forecast_accuracy_summary_title">Vorhersagegenauigkeit (letzte 30 Tage)</string>

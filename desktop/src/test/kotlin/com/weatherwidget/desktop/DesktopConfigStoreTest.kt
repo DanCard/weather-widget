@@ -81,7 +81,7 @@ class DesktopConfigStoreTest {
               "lon": -122.08,
               "label": "Test",
               "weatherSource": "VISUAL_CROSSING",
-              "visibleSources": ["VISUAL_CROSSING", "OPEN_WEATHER_MAP", "OPEN_METEO"]
+              "visibleSources": ["VISUAL_CROSSING", "MADE_UP_SOURCE", "OPEN_METEO"]
             }
             """.trimIndent(),
         )
@@ -93,7 +93,7 @@ class DesktopConfigStoreTest {
         assertEquals("OPEN_METEO", loaded.settings.weatherSource)
         val normalizedJson = configPath.readText()
         assertEquals(false, normalizedJson.contains("VISUAL_CROSSING"))
-        assertEquals(false, normalizedJson.contains("OPEN_WEATHER_MAP"))
+        assertEquals(false, normalizedJson.contains("MADE_UP_SOURCE"))
     }
 
     @Test

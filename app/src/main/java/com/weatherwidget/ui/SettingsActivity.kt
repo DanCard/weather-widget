@@ -16,6 +16,7 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -317,6 +318,7 @@ class SettingsActivity : AppCompatActivity() {
         WeatherSource.VISUAL_CROSSING -> getString(R.string.api_source_visualcrossing_desc)
         WeatherSource.OPEN_METEO -> getString(R.string.api_source_openmeteo_desc)
         WeatherSource.WEATHER_API -> getString(R.string.api_source_weatherapi_desc)
+        WeatherSource.OPEN_WEATHER_MAP -> getString(R.string.api_source_openweathermap_desc)
         else -> ""
     }
 
@@ -366,6 +368,25 @@ class SettingsActivity : AppCompatActivity() {
             downButton.visibility = if (isVisible && visibleSources.indexOf(source) < visibleSources.size - 1) View.VISIBLE else View.INVISIBLE
 
             checkbox.setOnCheckedChangeListener { _, isChecked ->
+                if (isChecked && ApiKeySignupUrls.requiresUserKey(source)) {
+                    val key = widgetStateManager.getApiKey(source)?.trim()
+                    if (key.isNullOrBlank()) {
+                        checkbox.isChecked = false
+                        Toast.makeText(
+                            this,
+                            getString(R.string.api_key_required_to_enable, source.displayName),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                        val scrollView = findViewById<ScrollView>(R.id.settings_scroll_view)
+                        val keysContainer = findViewById<View>(R.id.api_keys_container)
+                        scrollView?.post {
+                            if (keysContainer != null) {
+                                scrollView.smoothScrollTo(0, keysContainer.top)
+                            }
+                        }
+                        return@setOnCheckedChangeListener
+                    }
+                }
                 val currentIds = widgetStateManager.getVisibleSourcesOrder().map { it.id }
                 val updatedIds = WeatherSourceOrdering.toggle(currentIds, source, isChecked)
                 if (updatedIds == null) {

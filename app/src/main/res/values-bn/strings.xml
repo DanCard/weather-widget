@@ -48,6 +48,7 @@
     <string name="api_sources_title">আবহাওয়া ডেটা উৎসসমূহ</string>
     <string name="api_sources_description">উৎস চালু/বন্ধ করুন এবং ক্রম বদলান। বন্ধ করা উৎস আবার চালু না করা পর্যন্ত উইজেট টগল ও ব্যাকগ্রাউন্ড আনা থেকে বাদ থাকে।</string>
     <string name="must_keep_one_source">কমপক্ষে একটি উৎস চালু থাকতে হবে</string>
+    <string name="api_key_required_to_enable">%1$s সক্ষম করার আগে একটি API কী প্রয়োজন</string>
     <string name="personal_stations_title">ব্যক্তিগত আবহাওয়া স্টেশন</string>
     <string name="personal_stations_description" formatted="false">ব্যক্তিগত (বাড়ির) স্টেশন রোদে প্রায়ই বেশি তাপমাত্রা দেখায়। পরিমাপকৃত তাপমাত্রায় এদের অবদান কতটা কমাবেন তা নির্ধারণ করুন। 0% = কোনো ছাড় নয়: ব্যক্তিগত স্টেশন সরকারি স্টেশনের সমান গণ্য হয়। 100% = ব্যক্তিগত স্টেশন উপেক্ষা করা হয়।</string>
     <string name="personal_stations_no_discount" formatted="false">0% · কোনো ছাড় নয়</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — Meteo হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — WAPI হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
     <string name="statistics">পরিসংখ্যান</string>
     <string name="view_detailed_statistics">বিস্তারিত পরিসংখ্যান</string>
     <string name="forecast_accuracy_summary_title">পূর্বাভাসের নির্ভুলতা (শেষ ৩০ দিন)</string>

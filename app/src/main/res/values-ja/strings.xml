@@ -48,6 +48,7 @@
     <string name="api_sources_title">気象データソース</string>
     <string name="api_sources_description">ソースの有効/無効と並べ替えができます。無効にしたソースは、再度有効にするまでウィジェットの切り替えとバックグラウンド取得から除外されます。</string>
     <string name="must_keep_one_source">少なくとも 1 つのソースを有効にしておく必要があります</string>
+    <string name="api_key_required_to_enable">%1$sを有効にするにはAPIキーが必要です</string>
     <string name="personal_stations_title">個人気象観測所</string>
     <string name="personal_stations_description" formatted="false">個人（庭先）の観測所は日なたで高めに出がちです。実測気温への寄与をどれだけ割り引くかを設定します。0% = 割引なし：個人観測所を公式観測所と同等に扱います。100% = 個人観測所を無視します。</string>
     <string name="personal_stations_no_discount" formatted="false">0% · 割引なし</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr と表示（全世界対応）</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — Meteo と表示（全世界対応）</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — WAPI と表示（全世界対応）</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM と表示（全世界対応）</string>
     <string name="statistics">統計</string>
     <string name="view_detailed_statistics">詳細な統計</string>
     <string name="forecast_accuracy_summary_title">予報精度（過去 30 日間）</string>

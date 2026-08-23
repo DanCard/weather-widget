@@ -48,6 +48,7 @@
     <string name="api_sources_title">Nguồn dữ liệu thời tiết</string>
     <string name="api_sources_description">Bật/tắt và sắp xếp lại các nguồn. Nguồn bị tắt sẽ bị loại khỏi việc chuyển đổi trên tiện ích và tải nền cho đến khi được bật lại.</string>
     <string name="must_keep_one_source">Phải giữ ít nhất một nguồn được bật</string>
+    <string name="api_key_required_to_enable">%1$s yêu cầu khóa API trước khi bật</string>
     <string name="personal_stations_title">Trạm thời tiết cá nhân</string>
     <string name="personal_stations_description" formatted="false">Trạm cá nhân (sân vườn) thường đo cao hơn khi có nắng. Giảm mức đóng góp của chúng vào nhiệt độ đo được. 0% = không giảm: trạm cá nhân được tính như trạm chính thức. 100% = bỏ qua trạm cá nhân.</string>
     <string name="personal_stations_no_discount" formatted="false">0% · không giảm</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — hiển thị là VisCr (phủ sóng toàn cầu)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — hiển thị là Meteo (phủ sóng toàn cầu)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — hiển thị là WAPI (phủ sóng toàn cầu)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — hiển thị là OWM (phủ sóng toàn cầu)</string>
     <string name="statistics">Thống kê</string>
     <string name="view_detailed_statistics">Thống kê chi tiết</string>
     <string name="forecast_accuracy_summary_title">Độ chính xác dự báo (30 ngày qua)</string>

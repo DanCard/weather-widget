@@ -24,7 +24,7 @@ import kotlin.io.path.writeText
 @Serializable
 data class DesktopSettings(
     val weatherSource: String = "NWS",
-    val visibleSources: List<String> = listOf("NWS", "OPEN_METEO", "SILURIAN"),
+    val visibleSources: List<String> = WeatherSourceOrdering.DEFAULT_VISIBLE_IDS,
     val apiKeys: Map<String, String> = emptyMap(),
     // Span (4..8h) of the tight NARROW zoom stage, matching Android's Settings → "Hourly Zoom".
     val narrowZoomSpanHours: Int = HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS,

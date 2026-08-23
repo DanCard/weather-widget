@@ -31,6 +31,7 @@ object WeatherSourceOrdering {
         WeatherSource.OPEN_METEO,
         WeatherSource.SILURIAN,
         WeatherSource.WEATHER_API,
+        WeatherSource.OPEN_WEATHER_MAP,
     )
 
     /** The default visible-source list on a fresh install (mirrors both platforms' defaults). */

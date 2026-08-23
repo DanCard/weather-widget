@@ -48,6 +48,7 @@
     <string name="api_sources_title">موسمی ڈیٹا کے مآخذ</string>
     <string name="api_sources_description">مآخذ فعال/غیر فعال کریں اور ترتیب بدلیں۔ غیر فعال مآخذ دوبارہ فعال ہونے تک ویجٹ ٹوگل اور پس منظر ڈاؤن لوڈ سے خارج رہتے ہیں۔</string>
     <string name="must_keep_one_source">کم از کم ایک ماخذ فعال رہنا چاہیے</string>
+    <string name="api_key_required_to_enable">%1$s کو فعال کرنے سے پہلے ایک API کلید درکار ہے</string>
     <string name="personal_stations_title">ذاتی موسمی اسٹیشن</string>
     <string name="personal_stations_description" formatted="false">ذاتی (گھریلو) اسٹیشن دھوپ میں اکثر زیادہ درجہ حرارت دکھاتے ہیں۔ ماپے گئے درجہ حرارت میں ان کے حصے میں کتنی کمی ہو، طے کریں۔ 0% = کوئی کمی نہیں: ذاتی اسٹیشن سرکاری اسٹیشنوں کے برابر شمار ہوتے ہیں۔ 100% = ذاتی اسٹیشن نظر انداز کیے جاتے ہیں۔</string>
     <string name="personal_stations_no_discount" formatted="false">0% · کوئی کمی نہیں</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr کے نام سے دکھتا ہے (عالمی کوریج)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — Meteo کے نام سے دکھتا ہے (عالمی کوریج)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — WAPI کے نام سے دکھتا ہے (عالمی کوریج)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM کے نام سے دکھتا ہے (عالمی کوریج)</string>
     <string name="statistics">اعداد و شمار</string>
     <string name="view_detailed_statistics">تفصیلی اعداد و شمار</string>
     <string name="forecast_accuracy_summary_title">پیشن گوئی کی درستگی (آخری 30 دن)</string>

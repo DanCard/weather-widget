@@ -48,6 +48,7 @@
     <string name="api_sources_title">Fontes de dados meteorológicos</string>
     <string name="api_sources_description">Ative/desative e reordene as fontes. Fontes desativadas ficam excluídas dos widgets e das buscas em segundo plano até serem reativadas.</string>
     <string name="must_keep_one_source">Pelo menos uma fonte deve permanecer ativada</string>
+    <string name="api_key_required_to_enable">%1$s requer uma chave de API antes de ativar</string>
     <string name="personal_stations_title">Estações meteorológicas pessoais</string>
     <string name="personal_stations_description" formatted="false">Estações pessoais (de quintal) costumam marcar a mais no sol. Desconte quanto elas contam para a temperatura medida. 0% = sem desconto: estações pessoais contam igual às oficiais. 100% = estações pessoais são ignoradas.</string>
     <string name="personal_stations_no_discount" formatted="false">0% · sem desconto</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — exibido como VisCr (cobertura global)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — exibido como Meteo (cobertura global)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — exibido como WAPI (cobertura global)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — exibido como OWM (cobertura global)</string>
     <string name="statistics">Estatísticas</string>
     <string name="view_detailed_statistics">Estatísticas detalhadas</string>
     <string name="forecast_accuracy_summary_title">Precisão da previsão (últimos 30 dias)</string>

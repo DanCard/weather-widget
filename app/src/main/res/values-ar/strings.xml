@@ -48,6 +48,7 @@
     <string name="api_sources_title">مصادر بيانات الطقس</string>
     <string name="api_sources_description">فعّل/عطّل المصادر وأعد ترتيبها. تُستبعد المصادر المعطّلة من تبديل الأداة والجلب في الخلفية حتى يُعاد تفعيلها.</string>
     <string name="must_keep_one_source">يجب أن يبقى مصدر واحد على الأقل مفعّلًا</string>
+    <string name="api_key_required_to_enable">يتطلب %1$s مفتاح API قبل التمكين</string>
     <string name="personal_stations_title">محطات الطقس الشخصية</string>
     <string name="personal_stations_description" formatted="false">المحطات الشخصية (المنزلية) غالبًا ما تعطي قراءات مرتفعة في الشمس. حدد مقدار خصم مساهمتها في درجة الحرارة المقاسة. 0% = بلا خصم: تُحسب المحطات الشخصية مثل الرسمية. 100% = تُتجاهل المحطات الشخصية.</string>
     <string name="personal_stations_no_discount" formatted="false">0% · بلا خصم</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — يظهر باسم VisCr (تغطية عالمية)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — يظهر باسم Meteo (تغطية عالمية)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — يظهر باسم WAPI (تغطية عالمية)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — يظهر باسم OWM (تغطية عالمية)</string>
     <string name="statistics">الإحصاءات</string>
     <string name="view_detailed_statistics">إحصاءات مفصّلة</string>
     <string name="forecast_accuracy_summary_title">دقة التوقعات (آخر 30 يومًا)</string>

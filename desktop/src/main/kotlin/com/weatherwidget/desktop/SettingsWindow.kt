@@ -274,6 +274,7 @@ internal fun SettingsWindow(
                         SettingsCard(title = "Weather Data Sources") {
                             ApiSourcesList(
                                 visibleSources = currentConfig.settings.visibleSources,
+                                apiKeys = currentConfig.settings.apiKeys,
                                 onChanged = { newSources ->
                                     updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(visibleSources = newSources)))
                                 },
@@ -283,6 +284,13 @@ internal fun SettingsWindow(
                                     scope.launch {
                                         snackbarHostState.showSnackbar(
                                             "At least one source must remain enabled.",
+                                        )
+                                    }
+                                },
+                                onRequiresApiKey = { source ->
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            "${source.displayName} requires an API key before enabling.",
                                         )
                                     }
                                 },
@@ -598,8 +606,10 @@ private fun PersonalStationDiscount(
 @Composable
 private fun ApiSourcesList(
     visibleSources: List<String>,
+    apiKeys: Map<String, String> = emptyMap(),
     onChanged: (List<String>) -> Unit,
     onMustKeepOne: () -> Unit,
+    onRequiresApiKey: (WeatherSource) -> Unit = {},
 ) {
     val orderedSources = remember(visibleSources) {
         WeatherSourceOrdering.ordered(visibleSources)
@@ -618,6 +628,10 @@ private fun ApiSourcesList(
                 Checkbox(
                     checked = isVisible,
                     onCheckedChange = { checked ->
+                        if (checked && ApiKeySignupUrls.requiresUserKey(source) && apiKeys[source.id].isNullOrBlank()) {
+                            onRequiresApiKey(source)
+                            return@Checkbox
+                        }
                         val newList = WeatherSourceOrdering.toggle(visibleSources, source, makeVisible = checked)
                         if (newList == null) {
                             // Toggle refused: it would empty the list. Tell the user, and reassert
@@ -634,7 +648,12 @@ private fun ApiSourcesList(
                         .weight(1f)
                         .clickable {
                             // Mirrors Android: tapping the source name toggles the checkbox.
-                            val newList = WeatherSourceOrdering.toggle(visibleSources, source, makeVisible = !isVisible)
+                            val targetState = !isVisible
+                            if (targetState && ApiKeySignupUrls.requiresUserKey(source) && apiKeys[source.id].isNullOrBlank()) {
+                                onRequiresApiKey(source)
+                                return@clickable
+                            }
+                            val newList = WeatherSourceOrdering.toggle(visibleSources, source, makeVisible = targetState)
                             if (newList == null) {
                                 onMustKeepOne()
                             } else {

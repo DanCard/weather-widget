@@ -48,6 +48,7 @@
     <string name="api_sources_title">Hava durumu veri kaynakları</string>
     <string name="api_sources_description">Kaynakları etkinleştirin/devre dışı bırakın ve yeniden sıralayın. Devre dışı kaynaklar yeniden etkinleştirilene kadar widget geçişlerinden ve arka plan indirmelerinden hariç tutulur.</string>
     <string name="must_keep_one_source">En az bir kaynak etkin kalmalı</string>
+    <string name="api_key_required_to_enable">%1$s etkinleştirilmeden önce bir API anahtarı gerektirir</string>
     <string name="personal_stations_title">Kişisel hava istasyonları</string>
     <string name="personal_stations_description" formatted="false">Kişisel (bahçe) istasyonları güneşte genellikle yüksek ölçer. Ölçülen sıcaklığa katkılarının ne kadar azaltılacağını belirleyin. 0% = indirim yok: kişisel istasyonlar resmi istasyonlarla aynı sayılır. 100% = kişisel istasyonlar yok sayılır.</string>
     <string name="personal_stations_no_discount" formatted="false">0% · indirim yok</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr olarak gösterilir (küresel kapsama)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — Meteo olarak gösterilir (küresel kapsama)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — WAPI olarak gösterilir (küresel kapsama)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM olarak gösterilir (küresel kapsama)</string>
     <string name="statistics">İstatistikler</string>
     <string name="view_detailed_statistics">Ayrıntılı istatistikler</string>
     <string name="forecast_accuracy_summary_title">Tahmin doğruluğu (son 30 gün)</string>

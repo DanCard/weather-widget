@@ -48,6 +48,7 @@
     <string name="api_sources_title">Sumber data cuaca</string>
     <string name="api_sources_description">Aktifkan/nonaktifkan dan urutkan ulang sumber. Sumber yang dinonaktifkan dikecualikan dari pergantian di widget dan pengambilan latar belakang sampai diaktifkan kembali.</string>
     <string name="must_keep_one_source">Setidaknya satu sumber harus tetap aktif</string>
+    <string name="api_key_required_to_enable">%1$s memerlukan kunci API sebelum diaktifkan</string>
     <string name="personal_stations_title">Stasiun cuaca pribadi</string>
     <string name="personal_stations_description" formatted="false">Stasiun pribadi (halaman rumah) sering membaca terlalu tinggi saat terkena matahari. Atur seberapa besar kontribusinya terhadap suhu terukur dikurangi. 0% = tanpa pengurangan: stasiun pribadi dihitung sama dengan stasiun resmi. 100% = stasiun pribadi diabaikan.</string>
     <string name="personal_stations_no_discount" formatted="false">0% · tanpa pengurangan</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — ditampilkan sebagai VisCr (cakupan global)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — ditampilkan sebagai Meteo (cakupan global)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — ditampilkan sebagai WAPI (cakupan global)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — ditampilkan sebagai OWM (cakupan global)</string>
     <string name="statistics">Statistik</string>
     <string name="view_detailed_statistics">Statistik terperinci</string>
     <string name="forecast_accuracy_summary_title">Akurasi prakiraan (30 hari terakhir)</string>

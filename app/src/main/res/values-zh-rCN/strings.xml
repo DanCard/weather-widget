@@ -48,6 +48,7 @@
     <string name="api_sources_title">天气数据源</string>
     <string name="api_sources_description">启用/停用数据源并调整顺序。停用的数据源将从小部件切换和后台获取中排除，直到重新启用。</string>
     <string name="must_keep_one_source">至少须保留一个已启用的数据源</string>
+    <string name="api_key_required_to_enable">启用 %1$s 前需要 API 密钥</string>
     <string name="personal_stations_title">个人气象站</string>
     <string name="personal_stations_description" formatted="false">个人（庭院）气象站在阳光下常常读数偏高。设置它们在实测温度中的折减程度。0% = 不折减：个人气象站与官方气象站同等计算。100% = 忽略个人气象站。</string>
     <string name="personal_stations_no_discount" formatted="false">0% · 不折减</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — 显示为 VisCr（全球覆盖）</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — 显示为 Meteo（全球覆盖）</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — 显示为 WAPI（全球覆盖）</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — 显示为 OWM（全球覆盖）</string>
     <string name="statistics">统计</string>
     <string name="view_detailed_statistics">详细统计</string>
     <string name="forecast_accuracy_summary_title">预报准确度（最近 30 天）</string>

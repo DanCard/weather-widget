@@ -48,6 +48,7 @@
     <string name="api_sources_title">मौसम डेटा स्रोत</string>
     <string name="api_sources_description">स्रोतों को सक्षम/अक्षम करें और क्रम बदलें। अक्षम स्रोत दोबारा सक्षम होने तक विजेट टॉगल और बैकग्राउंड फ़ेच से बाहर रहते हैं।</string>
     <string name="must_keep_one_source">कम से कम एक स्रोत सक्षम रहना चाहिए</string>
+    <string name="api_key_required_to_enable">%1$s को सक्षम करने से पहले एक API कुंजी की आवश्यकता है</string>
     <string name="personal_stations_title">निजी मौसम स्टेशन</string>
     <string name="personal_stations_description" formatted="false">निजी (आँगन के) स्टेशन धूप में अक्सर अधिक तापमान दिखाते हैं। मापे गए तापमान में उनके योगदान में कितनी कटौती हो, यह तय करें। 0% = कोई कटौती नहीं: निजी स्टेशन आधिकारिक स्टेशनों के बराबर गिने जाते हैं। 100% = निजी स्टेशन अनदेखे किए जाते हैं।</string>
     <string name="personal_stations_no_discount" formatted="false">0% · कोई कटौती नहीं</string>
@@ -58,6 +59,7 @@
     <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr के रूप में दिखता है (वैश्विक कवरेज)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — Meteo के रूप में दिखता है (वैश्विक कवरेज)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — WAPI के रूप में दिखता है (वैश्विक कवरेज)</string>
+    <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM के रूप में दिखता है (वैश्विक कवरेज)</string>
     <string name="statistics">आँकड़े</string>
     <string name="view_detailed_statistics">विस्तृत आँकड़े</string>
     <string name="forecast_accuracy_summary_title">पूर्वानुमान सटीकता (पिछले 30 दिन)</string>
