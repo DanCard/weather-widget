@@ -115,6 +115,11 @@ data class ObservationReading(
      */
     val cloudCover: Int? = null,
     val cloudCoverLow: Int? = null,
+    /**
+     * The original raw METAR report string (e.g. `KSJC 231653Z ... RMK ...`), preserved for
+     * diagnostics, inspection, and re-parsing. Null when observation did not originate from a METAR.
+     */
+    val rawMetar: String? = null,
 )
 
 data class RawFetch(

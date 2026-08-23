@@ -122,11 +122,8 @@ class NwsApi
                 // stations list can show the failure, exactly as Synoptic-flagged readings are.
                 val qualityControl = tempObj.get("qualityControl")?.jsonPrimitive?.contentOrNull
 
-                // A populated rawMessage is the ONLY reliable way to tell an actual METAR from the
-                // ASOS 5-minute rows this endpoint interleaves. Minute-of-hour cannot do it: KSJC
-                // and KPAO report at :53/:47, but KNUQ's METARs land on :15/:35/:55 — all multiples
-                // of five, indistinguishable from 5-minute rows by timestamp alone.
-                val isMetar = !props["rawMessage"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()
+                val rawMessage = props["rawMessage"]?.jsonPrimitive?.contentOrNull
+                val isMetar = !rawMessage.isNullOrBlank()
 
                 return Observation(
                     timestamp = timestamp,
@@ -139,6 +136,7 @@ class NwsApi
                     qcFailed = NwsQualityControl.isFailed(qualityControl),
                     cloudLayers = cloudLayers,
                     isMetar = isMetar,
+                    rawMessage = rawMessage,
                 )
             }
 
@@ -650,6 +648,7 @@ class NwsApi
              * condition is a 30-minute assessment; see MetarCloudBlender for why that matters.
              */
             val isMetar: Boolean = false,
+            val rawMessage: String? = null,
         )
 
         /** One METAR sky-condition layer. Percent is derived from [amount] alone (see MetarSkyCover). */

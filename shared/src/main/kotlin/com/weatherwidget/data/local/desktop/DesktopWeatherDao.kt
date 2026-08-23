@@ -353,8 +353,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO observations 
-                    (stationId, stationName, timestamp, temperature, condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, maxTempLast24h, minTempLast24h, api, precipAmountMm, isWebFallback, qcFailed, cloudCover, cloudCoverLow, isMetar)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (stationId, stationName, timestamp, temperature, condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, maxTempLast24h, minTempLast24h, api, precipAmountMm, isWebFallback, qcFailed, cloudCover, cloudCoverLow, isMetar, rawMetar)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     for (obs in observations) {
@@ -377,6 +377,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableInt(17, obs.cloudCover)
                         stmt.setNullableInt(18, obs.cloudCoverLow)
                         stmt.setInt(19, if (obs.isMetar) 1 else 0)
+                        stmt.setString(20, obs.rawMetar)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -423,6 +424,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCover = rs.getNullableInt("cloudCover"),
                         cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
                         isMetar = rs.getInt("isMetar") == 1,
+                        rawMetar = rs.getString("rawMetar"),
                     )
                 }
             }
@@ -1156,6 +1158,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             cloudCover = rs.getNullableInt("cloudCover"),
                             cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
                             isMetar = rs.getInt("isMetar") == 1,
+                            rawMetar = rs.getString("rawMetar"),
                         )
                     )
                 }
@@ -1199,6 +1202,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCover = rs.getNullableInt("cloudCover"),
                         cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
                         isMetar = rs.getInt("isMetar") == 1,
+                        rawMetar = rs.getString("rawMetar"),
                     ))
                 }
             }

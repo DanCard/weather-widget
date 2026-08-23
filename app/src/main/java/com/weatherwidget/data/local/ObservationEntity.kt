@@ -40,6 +40,7 @@ data class ObservationEntity(
     // The cloud blend prefers METARs; see MetarCloudBlender. Pre-migration rows read false and keep
     // resolving by nearest-to-the-hour, exactly as they did before the column existed.
     val isMetar: Boolean = false,
+    val rawMetar: String? = null,
 )
 
 /**
@@ -96,4 +97,5 @@ fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationRead
     cloudCover = cloudCover,
     cloudCoverLow = cloudCoverLow,
     isMetar = isMetar,
+    rawMetar = rawMetar,
 )

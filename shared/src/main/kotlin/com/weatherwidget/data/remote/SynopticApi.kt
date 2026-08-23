@@ -106,6 +106,7 @@ class SynopticApi @Inject constructor(
                             // stay false, which is what MetarCloudBlender's METAR-over-ASOS
                             // preference needs to be told honestly.
                             isMetar = !rawMetar.isNullOrBlank(),
+                            rawMessage = rawMetar,
                         )
                     )
                 }

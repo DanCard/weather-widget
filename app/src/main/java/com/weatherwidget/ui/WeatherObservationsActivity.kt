@@ -951,6 +951,13 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 holder.temperature.setTextColor(obsTempToColor(item.temperature))
             }
             holder.condition.text = item.condition
+
+            if (!item.rawMetar.isNullOrBlank()) {
+                holder.rawMetar.text = item.rawMetar
+                holder.rawMetar.visibility = View.VISIBLE
+            } else {
+                holder.rawMetar.visibility = View.GONE
+            }
         }
 
         override fun getItemCount() = items.size
@@ -981,6 +988,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             val observationFetchTimes: TextView = view.findViewById(R.id.observation_fetch_times)
             val temperature: TextView = view.findViewById(R.id.temperature)
             val condition: TextView = view.findViewById(R.id.condition)
+            val rawMetar: TextView = view.findViewById(R.id.raw_metar)
         }
 
         companion object {

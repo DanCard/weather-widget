@@ -77,4 +77,16 @@
         android:textColor="#AAAAAA"
         android:textSize="14sp" />
 
+    <TextView
+        android:id="@+id/raw_metar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:typeface="monospace"
+        android:textColor="#888888"
+        android:textSize="11sp"
+        android:visibility="gone"
+        tools:visibility="visible"
+        tools:text="METAR KSJC 231653Z 00000KT 10SM SCT080 BKN100 20/14 A2996 RMK AO2 SLP144 T02000144" />
+
 </LinearLayout>

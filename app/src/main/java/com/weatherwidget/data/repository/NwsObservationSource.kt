@@ -363,6 +363,7 @@ class NwsObservationSource(
             cloudCover = reading.cloudCover,
             cloudCoverLow = reading.cloudCoverLow,
             isMetar = reading.isMetar,
+            rawMetar = reading.rawMetar,
         )
     }
 

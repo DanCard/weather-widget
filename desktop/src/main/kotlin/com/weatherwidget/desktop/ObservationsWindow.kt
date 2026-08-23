@@ -559,6 +559,16 @@ private fun ObservationList(
                         },
                         fontSize = 18.sp
                     )
+                    val rawMetar = obs.rawMetar
+                    if (!rawMetar.isNullOrBlank()) {
+                        Text(
+                            rawMetar,
+                            fontSize = 13.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = ObsStyle.textSecondary,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
                 }
             }
         }

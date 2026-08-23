@@ -114,6 +114,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         cloudCover INTEGER,
                         cloudCoverLow INTEGER,
                         isMetar INTEGER NOT NULL DEFAULT 0,
+                        rawMetar TEXT,
                         PRIMARY KEY (stationId, timestamp)
                     )
                 """.trimIndent())
@@ -419,6 +420,11 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 19) {
                 rebuildDailyHistoryNullableComputed(stmt)
             }
+            // v20: rawMetar on observations, storing the original raw METAR string for
+            // inspection and diagnostics. Moves with the Room MIGRATION_65_66.
+            if (from < 20) {
+                addColumnIfMissing(stmt, "observations", "rawMetar", "TEXT")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -464,7 +470,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 19
+        private const val SCHEMA_VERSION = 20
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by
