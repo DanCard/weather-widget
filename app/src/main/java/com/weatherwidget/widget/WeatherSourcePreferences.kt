@@ -113,6 +113,7 @@ internal class WeatherSourcePreferences(
         migrateApiPreferenceIfNeeded()
         migrateDeprecatedSourcesIfNeeded()
         migrateSilurianIfNeeded()
+        migrateOpenWeatherMapPositionIfNeeded()
 
         val fallback = defaultVisibleSources.map { it.id }
         val raw = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
@@ -221,6 +222,24 @@ internal class WeatherSourcePreferences(
         eventLogger(TAG, "Removed deprecated sources from visible order: $sanitized")
     }
 
+    private fun migrateOpenWeatherMapPositionIfNeeded() {
+        if (prefs.getBoolean(KEY_OPEN_WEATHER_MAP_POSITION_MIGRATION_DONE, false)) return
+        val current = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
+        val editor = prefs.edit().putBoolean(KEY_OPEN_WEATHER_MAP_POSITION_MIGRATION_DONE, true)
+        if (current != null) {
+            val sources = current.split(",")
+                .map(String::trim)
+                .filter { it.isNotEmpty() }
+            if (WeatherSource.OPEN_WEATHER_MAP.id in sources && sources.last() != WeatherSource.OPEN_WEATHER_MAP.id) {
+                val reordered = sources.filter { it != WeatherSource.OPEN_WEATHER_MAP.id } + WeatherSource.OPEN_WEATHER_MAP.id
+                editor.putString(KEY_VISIBLE_SOURCES_ORDER, reordered.joinToString(","))
+                Log.d(TAG, "Migrated OPEN_WEATHER_MAP to bottom of visible sources: $reordered")
+                eventLogger(TAG, "Migrated OPEN_WEATHER_MAP to bottom of visible sources: $reordered")
+            }
+        }
+        editor.apply()
+    }
+
     private fun activeWidgetIds(): IntArray {
         val manager = AppWidgetManager.getInstance(context)
         return manager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
@@ -238,6 +257,7 @@ internal class WeatherSourcePreferences(
         const val KEY_API_PREFERENCE_MIGRATION_DONE = "api_pref_migrated"
         const val KEY_SILURIAN_MIGRATION_DONE = "silurian_migration_done_v2"
         const val KEY_DEPRECATED_SOURCE_MIGRATION_DONE = "hide_deprecated_sources_migration_done_v6"
+        const val KEY_OPEN_WEATHER_MAP_POSITION_MIGRATION_DONE = "owm_position_bottom_migration_done_v1"
         const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
         const val KEY_API_KEY_PREFIX = "api_key_"
     }

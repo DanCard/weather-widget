@@ -278,18 +278,19 @@ fun TemperatureGraph(
             }
 
         val lastActualPoint = actualSeries.points.lastOrNull { it.isActual && it.actualTemp != null }
-        val appliedDelta = if (lastActualPoint != null) {
+        val rawDelta = if (lastActualPoint != null && lastActualPoint.actualTemp != null && !lastActualPoint.forecastTemp.isNaN()) {
             lastActualPoint.actualTemp!! - lastActualPoint.forecastTemp
         } else {
             0f
         }
+        val appliedDelta = if (rawDelta.isNaN()) 0f else rawDelta
 
-        val expectedTemps = forecastTemps.map { it + appliedDelta }
-        val allTemps = forecastTemps + actualLinePoints.mapNotNull { it.actualTemp } + expectedTemps
+        val expectedTemps = forecastTemps.map { it + appliedDelta }.filter { !it.isNaN() }
+        val allTemps = (forecastTemps + actualLinePoints.mapNotNull { it.actualTemp } + expectedTemps).filter { !it.isNaN() }
         val rawMin = allTemps.minOrNull() ?: 0f
         val rawMax = allTemps.maxOrNull() ?: 100f
-        val fMin = forecastTemps.minOrNull() ?: 0f
-        val fMax = forecastTemps.maxOrNull() ?: 100f
+        val fMin = forecastTemps.filter { !it.isNaN() }.minOrNull() ?: 0f
+        val fMax = forecastTemps.filter { !it.isNaN() }.maxOrNull() ?: 100f
         val rawRange = (rawMax - rawMin).coerceAtLeast(1f)
         val topBuffer = (rawRange * 0.1f).coerceAtLeast(3f)
         val bottomBuffer = (rawRange * 0.03f).coerceAtLeast(2.5f)

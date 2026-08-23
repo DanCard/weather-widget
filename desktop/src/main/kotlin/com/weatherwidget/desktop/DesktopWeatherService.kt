@@ -108,7 +108,7 @@ class DesktopWeatherService(
             WeatherSource.WEATHER_API.id -> withHistoricalActuals(weatherApi.getForecast(latitude, longitude), WeatherSource.WEATHER_API.id)
             WeatherSource.VISUAL_CROSSING.id -> withHistoricalActuals(visualCrossing.getForecast(latitude, longitude), WeatherSource.VISUAL_CROSSING.id)
             WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
-            WeatherSource.OPEN_WEATHER_MAP.id -> withHistoricalActuals(openWeatherMap.getForecast(latitude, longitude), WeatherSource.OPEN_WEATHER_MAP.id)
+            WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapForecastWithCurrent()
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoForecast()
             else -> throw IllegalArgumentException("Unsupported weather source: $weatherSource")
         }
@@ -194,6 +194,29 @@ class DesktopWeatherService(
                 providerCurrentTemp = realtime.temperature,
                 providerCurrentCondition = realtime.condition,
                 providerCurrentObservedAt = realtime.observedAt,
+            )
+        }
+    }
+
+    private suspend fun fetchOpenWeatherMapForecastWithCurrent(): RawFetch {
+        val forecast = openWeatherMap.getForecast(latitude, longitude)
+        val withHistory = withHistoricalActuals(forecast, WeatherSource.OPEN_WEATHER_MAP.id)
+        val currentTemp = forecast.providerCurrentTemp
+        return if (currentTemp == null) {
+            withHistory
+        } else {
+            val observation = ObservationReading(
+                stationId = "OPEN_WEATHER_MAP_MAIN",
+                stationName = "OWM: Current",
+                timestamp = forecast.providerCurrentObservedAt ?: System.currentTimeMillis(),
+                temperature = currentTemp,
+                condition = forecast.providerCurrentCondition ?: "Unknown",
+                locationLat = latitude,
+                locationLon = longitude,
+                api = WeatherSource.OPEN_WEATHER_MAP.id,
+            )
+            withHistory.copy(
+                rawObservations = withHistory.rawObservations + listOf(observation),
             )
         }
     }
@@ -587,11 +610,11 @@ class DesktopWeatherService(
         when (weatherSource) {
             "NWS" -> fetchNwsObservationsOnly(recentOnly)
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
+            WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
             WeatherSource.OPEN_METEO.id,
             WeatherSource.WEATHER_API.id,
             WeatherSource.VISUAL_CROSSING.id,
-            WeatherSource.SILURIAN.id,
-            WeatherSource.OPEN_WEATHER_MAP.id -> {
+            WeatherSource.SILURIAN.id -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
                 RawFetch()
             }
@@ -605,6 +628,27 @@ class DesktopWeatherService(
             providerCurrentTemp = realtime.temperature,
             providerCurrentCondition = realtime.condition,
             providerCurrentObservedAt = realtime.observedAt,
+        )
+    }
+
+    private suspend fun fetchOpenWeatherMapObservationsOnly(): RawFetch {
+        val forecast = openWeatherMap.getForecast(latitude, longitude)
+        val currentTemp = forecast.providerCurrentTemp ?: return RawFetch()
+        val observation = ObservationReading(
+            stationId = "OPEN_WEATHER_MAP_MAIN",
+            stationName = "OWM: Current",
+            timestamp = forecast.providerCurrentObservedAt ?: System.currentTimeMillis(),
+            temperature = currentTemp,
+            condition = forecast.providerCurrentCondition ?: "Unknown",
+            locationLat = latitude,
+            locationLon = longitude,
+            api = WeatherSource.OPEN_WEATHER_MAP.id,
+        )
+        return RawFetch(
+            rawObservations = listOf(observation),
+            providerCurrentTemp = currentTemp,
+            providerCurrentCondition = forecast.providerCurrentCondition,
+            providerCurrentObservedAt = forecast.providerCurrentObservedAt,
         )
     }
 

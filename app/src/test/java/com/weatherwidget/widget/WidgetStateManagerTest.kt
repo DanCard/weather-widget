@@ -578,6 +578,36 @@ class WidgetStateManagerTest {
     }
 
     @Test
+    fun `getVisibleSourcesOrder migrates existing order to move open weather map to the bottom`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val migrationPrefs = context.getSharedPreferences("owm_bottom_test_prefs", Context.MODE_PRIVATE)
+        migrationPrefs.edit().clear().apply()
+        WidgetStateManager.setPrefsNameOverrideForTesting("owm_bottom_test_prefs")
+        val migrationManager = WidgetStateManager(context)
+
+        migrationPrefs.edit()
+            .putBoolean("api_pref_migrated", true)
+            .putBoolean("silurian_migration_done_v2", true)
+            .putBoolean("hide_deprecated_sources_migration_done_v6", true)
+            .putBoolean("owm_position_bottom_migration_done_v1", false)
+            .putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN")
+            .apply()
+
+        val sources = migrationManager.getVisibleSourcesOrder()
+
+        assertEquals(
+            listOf(
+                WeatherSource.NWS,
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
+                WeatherSource.OPEN_WEATHER_MAP,
+            ),
+            sources
+        )
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+    }
+
+    @Test
     fun `getVisibleSourcesOrder repairs deprecated-only order to debug defaults`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val migrationPrefs = context.getSharedPreferences("deprecated_only_test_prefs", Context.MODE_PRIVATE)

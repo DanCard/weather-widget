@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.WeatherSourceOrdering
@@ -225,7 +226,10 @@ class DesktopConfigStore(
             } else {
                 decodedRaw.copy(settings = decodedRaw.settings.copy(useCelsius = missingUnitDefault()))
             }
-            val normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(decoded.settings.visibleSources)
+            var normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(decoded.settings.visibleSources)
+            if (WeatherSource.OPEN_WEATHER_MAP.id in normalizedVisible && normalizedVisible.last() != WeatherSource.OPEN_WEATHER_MAP.id) {
+                normalizedVisible = normalizedVisible.filter { it != WeatherSource.OPEN_WEATHER_MAP.id } + WeatherSource.OPEN_WEATHER_MAP.id
+            }
             val normalizedSource = decoded.settings.weatherSource.takeIf { it in normalizedVisible }
                 ?: normalizedVisible.first()
             var normalized = decoded.copy(
@@ -245,7 +249,10 @@ class DesktopConfigStore(
     }
 
     fun save(config: DesktopConfig) {
-        val normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(config.settings.visibleSources)
+        var normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(config.settings.visibleSources)
+        if (WeatherSource.OPEN_WEATHER_MAP.id in normalizedVisible && normalizedVisible.last() != WeatherSource.OPEN_WEATHER_MAP.id) {
+            normalizedVisible = normalizedVisible.filter { it != WeatherSource.OPEN_WEATHER_MAP.id } + WeatherSource.OPEN_WEATHER_MAP.id
+        }
         val normalized = config.copy(
             settings = config.settings.copy(
                 weatherSource = config.settings.weatherSource.takeIf { it in normalizedVisible }

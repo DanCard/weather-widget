@@ -839,8 +839,12 @@ object ActualTemperatureSeriesBuilder {
         return if (prev != null && next != null) {
             val prevT = prev.forecastTemp
             val nextT = next.forecastTemp
-            if (prevT.isNaN() || nextT.isNaN()) {
+            if (prevT.isNaN() && nextT.isNaN()) {
                 Float.NaN
+            } else if (prevT.isNaN()) {
+                nextT
+            } else if (nextT.isNaN()) {
+                prevT
             } else {
                 val totalMs = next.timeMs - prev.timeMs
                 val fraction = (timeMs - prev.timeMs).toFloat() / totalMs.toFloat()

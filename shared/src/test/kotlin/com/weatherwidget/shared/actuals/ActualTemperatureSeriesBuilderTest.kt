@@ -379,6 +379,52 @@ class ActualTemperatureSeriesBuilderTest {
         ).observations.single().temperature
     }
 
+    @Test
+    fun `build gracefully interpolates forecastTemp when past hours have missing forecasts`() {
+        val forecasts = listOf(
+            HourlyForecast(
+                dateTime = epoch("2026-06-03T14:00:00"),
+                temperature = 80f,
+                condition = "Clouds",
+                source = WeatherSource.OPEN_WEATHER_MAP.id,
+            ),
+            HourlyForecast(
+                dateTime = epoch("2026-06-03T15:00:00"),
+                temperature = 82f,
+                condition = "Clouds",
+                source = WeatherSource.OPEN_WEATHER_MAP.id,
+            ),
+        )
+        val observations = listOf(
+            observation(
+                stationId = "OPEN_WEATHER_MAP_MAIN",
+                time = "2026-06-03T13:05:00",
+                temperature = 79f,
+                api = WeatherSource.OPEN_WEATHER_MAP.id,
+                distanceKm = 0f,
+            ),
+        )
+
+        val result = ActualTemperatureSeriesBuilder.build(
+            hourlyForecasts = forecasts,
+            observations = observations,
+            centerTime = LocalDateTime.parse("2026-06-03T13:00:00"),
+            displaySourceId = WeatherSource.OPEN_WEATHER_MAP.id,
+            userLat = LAT,
+            userLon = LON,
+            backHours = 4,
+            forwardHours = 4,
+            contextLookbackHours = 12,
+            contextLookaheadHours = 12,
+            now = LocalDateTime.parse("2026-06-03T13:10:00"),
+            zoneId = zone,
+        )
+
+        val obsPoint = result.points.firstOrNull { it.timeMs == epoch("2026-06-03T13:05:00") }
+        assertFalse("Observation point forecastTemp should not be NaN", obsPoint?.forecastTemp?.isNaN() == true)
+        assertEquals(80f, obsPoint?.forecastTemp ?: Float.NaN, 0.01f)
+    }
+
     private fun forecasts(start: String, count: Int, source: String = WeatherSource.NWS.id): List<HourlyForecast> {
         val startTime = LocalDateTime.parse(start)
         return (0..count).map { index ->

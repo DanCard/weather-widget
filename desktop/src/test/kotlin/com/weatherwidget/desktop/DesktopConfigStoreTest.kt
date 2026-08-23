@@ -115,4 +115,30 @@ label = "Test",
         requireNotNull(reloaded)
         assertEquals(TAB_FETCH_LOGS, reloaded.obsSelectedTab)
     }
+
+    @Test
+    fun `load moves open weather map to the bottom of visibleSources`() {
+        val configPath = Files.createTempDirectory("desktop-config-owm-bottom").resolve("config.json")
+        configPath.writeText(
+            """
+            {
+              "lat": 37.42,
+              "lon": -122.08,
+              "label": "Test",
+              "settings": {
+                "weatherSource": "NWS",
+                "visibleSources": ["NWS", "OPEN_WEATHER_MAP", "OPEN_METEO", "SILURIAN"]
+              }
+            }
+            """.trimIndent(),
+        )
+
+        val loaded = DesktopConfigStore(configPath).load()
+
+        requireNotNull(loaded)
+        assertEquals(
+            listOf("NWS", "OPEN_METEO", "SILURIAN", "OPEN_WEATHER_MAP"),
+            loaded.settings.visibleSources,
+        )
+    }
 }
