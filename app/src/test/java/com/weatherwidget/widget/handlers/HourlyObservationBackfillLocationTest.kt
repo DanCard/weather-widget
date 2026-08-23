@@ -402,4 +402,100 @@ class HourlyObservationBackfillLocationTest {
             backfillSiteMismatchReason(anchored(37.417, -122.089), 37.417, Double.NaN),
         )
     }
+
+    // --- day_start_uncovered: the truncated-START blind spot -------------------------------------
+    //
+    // Gap density cannot see a window that simply began late. Samsung 2026-08-22 logged
+    // `coverage_ok latest_gap_min=19 max_gap_min=10` for hours while today's low was missing.
+
+    private fun nwsObsAt(timestampMs: Long, temp: Float, station: String = "KNUQ") =
+        ObservationEntity(
+            stationId = station,
+            stationName = "Moffett Field",
+            timestamp = timestampMs,
+            temperature = temp,
+            condition = "Clear",
+            locationLat = 37.417,
+            locationLon = -122.089,
+            stationType = "OFFICIAL",
+            // Cloud present so metarCloudGapReason stays quiet and these cases isolate the
+            // day-start check rather than tripping an unrelated repair reason.
+            cloudCoverLow = 10,
+            api = com.weatherwidget.data.model.WeatherSource.NWS.id,
+        )
+
+    /** Evenly spaced NWS rows, two stations so the singleton check stays quiet. */
+    private fun evenlySpacedFrom(now: LocalDateTime, firstHour: Int): List<ObservationEntity> {
+        val zone = ZoneId.systemDefault()
+        val dayStart = now.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+        val rows = mutableListOf<ObservationEntity>()
+        var hour = firstHour
+        while (hour <= now.hour) {
+            val ts = dayStart + hour * 3_600_000L
+            rows += nwsObsAt(ts, 60f + hour, "KNUQ")
+            rows += nwsObsAt(ts + 300_000L, 60f + hour, "KPAO")
+            hour++
+        }
+        return rows
+    }
+
+    @Test
+    fun `a noon-onward window requests repair despite having no gaps`() {
+        val now = LocalDateTime.of(2026, 8, 22, 19, 0)
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = now.minusHours(72),
+                graphEnd = now,
+                observations = evenlySpacedFrom(now, firstHour = 12),
+                now = now,
+            )
+        assertTrue("expected repair, got ${decision.reason}", decision.shouldRequest)
+        assertTrue(
+            "reason should name the truncated start, was ${decision.reason}",
+            decision.reason.startsWith("day_start_uncovered"),
+        )
+    }
+
+    @Test
+    fun `a window covering the whole day does not request repair`() {
+        val now = LocalDateTime.of(2026, 8, 22, 19, 0)
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = now.minusHours(72),
+                graphEnd = now,
+                observations = evenlySpacedFrom(now, firstHour = 0),
+                now = now,
+            )
+        assertFalse("expected no repair, got ${decision.reason}", decision.shouldRequest)
+    }
+
+    @Test
+    fun `browsing history does not trigger repair when today was never loaded`() {
+        // The window sits entirely in the past, so today's rows are absent by construction. Their
+        // absence says nothing about coverage and must not be read as a truncated start.
+        val now = LocalDateTime.of(2026, 8, 22, 19, 0)
+        val zone = ZoneId.systemDefault()
+        val pastDay = now.toLocalDate().minusDays(5)
+        val pastStart = pastDay.atStartOfDay(zone).toInstant().toEpochMilli()
+        val rows = (0 until 24).flatMap { h ->
+            listOf(
+                nwsObsAt(pastStart + h * 3_600_000L, 60f + h, "KNUQ"),
+                nwsObsAt(pastStart + h * 3_600_000L + 300_000L, 60f + h, "KPAO"),
+            )
+        }
+        val decision =
+            evaluateHourlyBackfillNeed(
+                displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+                graphStart = pastDay.atStartOfDay(),
+                graphEnd = pastDay.plusDays(1).atStartOfDay(),
+                observations = rows,
+                now = now,
+            )
+        assertFalse(
+            "a past-only window must not be judged on today's coverage, got ${decision.reason}",
+            decision.reason.startsWith("day_start_uncovered"),
+        )
+    }
 }

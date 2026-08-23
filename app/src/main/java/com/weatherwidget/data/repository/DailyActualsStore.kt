@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toHourlyForecast
@@ -17,6 +18,7 @@ import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
+import com.weatherwidget.shared.actuals.TodayActualsCoverage
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetConstants
@@ -135,9 +137,40 @@ class DailyActualsStore @Inject constructor(
                 "todayObsRows=${todayObs.size} span=$obsSpanSummary live=[$liveSummary]",
         )
 
+        // A day's minimum is only the day's LOW if the day was watched from its start. When today's
+        // rows for a source begin late — a promoted GPS site, a fresh install, a newly enabled
+        // source, a move — the surviving minimum is "lowest since we started watching" and must not
+        // render as a settled observed low. Nulling computedLowTemp here is the whole wiring:
+        // DailyViewLogic passes it as `actualLow`, and DailyDayValueResolver already falls back to
+        // the forecast low and drops the observed-red label (`isLowTrackingActual`).
+        //
+        // Samsung 2026-08-22: an excursion site's rows began at 12:00, so today's low rendered as
+        // 66.52° (the noon reading) instead of 57.03°. The gap-based self-heal could not see it —
+        // a noon-onward window has no gaps. See TodayActualsCoverage.
+        val todayGatedActuals = todayBlendedActuals.mapValues { (source, actualsByDate) ->
+            val todayActual = actualsByDate[today]
+            if (todayActual?.computedLowTemp == null) return@mapValues actualsByDate
+            val sourceTimestamps = todayObs.filter { it.api == source }.map { it.timestamp }
+            if (!TodayActualsCoverage.dayStartUncovered(sourceTimestamps, today, zone)) {
+                return@mapValues actualsByDate
+            }
+            Log.d(
+                TAG,
+                "TODAY_LOW_UNCOVERED source=$source span=$obsSpanSummary " +
+                    "suppressedLow=${todayActual.computedLowTemp} lat=$latitude lon=$longitude",
+            )
+            appLogDao.log(
+                "TODAY_LOW_UNCOVERED",
+                "source=$source span=$obsSpanSummary suppressedLow=${todayActual.computedLowTemp} " +
+                    "rows=${sourceTimestamps.size} at=$latitude,$longitude",
+                "DEBUG",
+            )
+            actualsByDate + (today to todayActual.copy(computedLowTemp = null))
+        }
+
         return ObservationResolver.mergeDailyActualsBySource(
             primary = pastActuals,
-            secondary = todayBlendedActuals,
+            secondary = todayGatedActuals,
         )
     }
 
@@ -284,7 +317,20 @@ class DailyActualsStore @Inject constructor(
             .groupBy { it.source }
         val toInsert = mutableListOf<DailyHistoryEntity>()
         newExtremes.forEach { new ->
+            // Collapse the box result to the anchor site before writing. `new` was computed from an
+            // observation pool that ObservationDao already collapsed via selectNearestSite, so it
+            // describes ONE site; getExtremesInRange applies only the coarse ±0.1° ROOM_WHERE box
+            // (~7 mi) and happily returns fragments for sites the device visited hours ago. Writing
+            // an anchored blend onto all of them mixes sites.
+            //
+            // Samsung 2026-08-22: a GPS excursion promoted 37.424,-122.088, whose observations for
+            // the day began at 12:00. The recompute anchored there wrote its truncated low onto the
+            // home row 800 m away — `DAILY_HISTORY_OVERWRITE date=2026-08-22 src=TOMORROW_IO
+            // at=37.41682… low=57.03->66.52` at 18:41:58 — destroying a correct value built from 40
+            // rows spanning the whole day, and taking yesterday's row with it. Same shape as the
+            // cross-site repair bug: filter an uncollapsed pool by `source` but not by site.
             val fragments = existingHistory[new.source].orEmpty()
+                .filter { LocationMatch.sameSite(it.locationLat, it.locationLon, latitude, longitude) }
             if (fragments.isEmpty()) {
                 toInsert.add(new.copy(lastWriter = DailyHistoryWriter.BLEND_RECOMPUTE.storedValue))
                 return@forEach

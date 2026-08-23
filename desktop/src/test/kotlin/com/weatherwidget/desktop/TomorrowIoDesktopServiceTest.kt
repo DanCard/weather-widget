@@ -53,7 +53,9 @@ class TomorrowIoDesktopServiceTest {
         try {
             val result = service.fetchForecast()
 
-            assertEquals(listOf("nowMinus6h"), capturedStarts)
+            // Covers the whole elapsed local day so a first-time fetch at a new site still gets
+            // today's overnight minimum — see TomorrowIoApi's startTime comment.
+            assertEquals(listOf("nowMinus23h"), capturedStarts)
             assertEquals(
                 setOf(
                     TomorrowIoActuals.RECENT_HISTORY_STATION_ID,

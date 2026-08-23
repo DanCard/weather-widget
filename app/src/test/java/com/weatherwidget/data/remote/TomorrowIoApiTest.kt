@@ -138,7 +138,7 @@ class TomorrowIoApiTest {
     }
 
     @Test
-    fun `hourly request asks for the bounded six-hour lookback`() = runBlocking {
+    fun `hourly request asks for a lookback covering the whole elapsed local day`() = runBlocking {
         var capturedStartTime: String? = null
         val emptyTimeline = """{"data":{"timelines":[{"intervals":[]}]}}"""
         val engine = MockEngine { request ->
@@ -158,7 +158,11 @@ class TomorrowIoApiTest {
 
         api.getForecast(37.4220, -122.0841)
 
-        assertEquals("nowMinus6h", capturedStartTime)
+        // 23 h, not 6: a site fetched for the FIRST time must still receive today's overnight
+        // minimum, otherwise its "daily low" is just the earliest hour since it was promoted
+        // (Samsung 2026-08-22 — a noon-onward window reported the noon reading as the day's low).
+        // 23 rather than 24 because the plan rejects startTime more than 24 h back (403/403003).
+        assertEquals("nowMinus23h", capturedStartTime)
     }
 
     @Test

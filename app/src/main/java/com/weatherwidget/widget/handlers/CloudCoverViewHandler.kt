@@ -483,7 +483,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             // read: while it is active the evaluation could only log a cooldown SKIP, so this
             // render skips the expensive read too instead of paying it every paint.
             if (effectiveDisplaySource == WeatherSource.NWS && repository != null && siteLat != null && siteLon != null &&
-                !hourlyBackfillCoolingDown(stateManager, appWidgetId, effectiveDisplaySource)
+                !hourlyBackfillCoolingDown(stateManager, appWidgetId, effectiveDisplaySource, siteLat, siteLon)
             ) {
                 val backfillStart = now.minusHours(
                     com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,

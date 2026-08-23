@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.TodayActualsCoverage
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.WidgetWorkScheduler
@@ -179,6 +180,25 @@ internal fun evaluateHourlyBackfillNeed(
             .filterValues { rows -> rows.size <= 1 }
             .keys
 
+    // Gap density is blind to a truncated START. A window that begins at noon is perfectly dense
+    // over the half-day it covers, so every gap check above passes while today's observed low is
+    // simply absent — and the minimum that survives is the earliest afternoon reading wearing the
+    // day-low label. Samsung 2026-08-22: `coverage_ok latest_gap_min=19 max_gap_min=10` logged
+    // repeatedly while the today column showed 66.52° (noon) instead of 57.03°.
+    //
+    // Only meaningful when the loaded window actually reaches back to midnight; while the user
+    // browses history the rows for today may never have been loaded, and their absence says nothing
+    // about coverage.
+    val zone = ZoneId.systemDefault()
+    val todayDate = now.toLocalDate()
+    val startOfToday = todayDate.atStartOfDay()
+    val windowReachesDayStart = !graphStart.isAfter(startOfToday) && graphEnd.isAfter(startOfToday)
+    val todayStartUncovered = windowReachesDayStart &&
+        TodayActualsCoverage.dayStartUncovered(sortedTimestamps, todayDate, zone)
+    val firstTodayMs = sortedTimestamps.firstOrNull {
+        it >= startOfToday.atZone(zone).toInstant().toEpochMilli()
+    }
+
     return when {
         singletonStations.isNotEmpty() ->
             HourlyBackfillDecision(true, "singleton_stations=${singletonStations.sorted().joinToString(",")}")
@@ -186,6 +206,12 @@ internal fun evaluateHourlyBackfillNeed(
             HourlyBackfillDecision(true, "latest_gap_min=$latestGapMin")
         maxGapMin > 75L ->
             HourlyBackfillDecision(true, "max_gap_min=$maxGapMin")
+        todayStartUncovered ->
+            HourlyBackfillDecision(
+                true,
+                "day_start_uncovered firstToday=" +
+                    (firstTodayMs?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalTime().toString() } ?: "none"),
+            )
         else ->
             metarCloudGapReason(sourceObservations)?.let { HourlyBackfillDecision(true, it) }
                 ?: HourlyBackfillDecision(false, "coverage_ok latest_gap_min=$latestGapMin max_gap_min=$maxGapMin")
@@ -240,8 +266,26 @@ internal fun metarCloudGapReason(sourceObservations: List<ObservationEntity>): S
     }
 }
 
-internal fun hourlyBackfillSourceKey(displaySource: WeatherSource): String =
-    "${displaySource.id}_HOURLY_HISTORY"
+/**
+ * Cooldown key for the hourly-observation backfill, scoped to **source and site**.
+ *
+ * The site component is why this is not just the source id. A move is exactly when a backfill is
+ * most needed — the new site has no history at all — and it was exactly when the cooldown blocked
+ * it: a heal at the old site suppressed the new site's for 30 minutes, because both hashed to
+ * `NWS_HOURLY_HISTORY`. Samsung 2026-08-22 is the case in point; a GPS excursion created a site
+ * whose day began at noon, and nothing was allowed to repair it.
+ *
+ * Coordinates are quantized to [LocationMatch.WRITE_QUANTIZE_DECIMALS] (~110 m), matching how the
+ * coordinate-keyed tables are written. That is deliberate in both directions: GPS jitter around one
+ * spot keeps sharing a bucket, so the cooldown still bounds retries and a wobbling fix cannot
+ * hammer the API; a genuinely different site gets its own bucket and its own chance to heal.
+ */
+internal fun hourlyBackfillSourceKey(
+    displaySource: WeatherSource,
+    lat: Double,
+    lon: Double,
+): String =
+    "${displaySource.id}_HOURLY_HISTORY_${LocationMatch.quantize(lat)}_${LocationMatch.quantize(lon)}"
 
 /**
  * Cheap pure-read pre-check for callers that would otherwise load a large observation window just
@@ -253,9 +297,11 @@ internal suspend fun hourlyBackfillCoolingDown(
     stateManager: WidgetStateManager,
     appWidgetId: Int,
     displaySource: WeatherSource,
+    lat: Double,
+    lon: Double,
 ): Boolean = !stateManager.shouldRefreshMissingActuals(
     appWidgetId,
-    hourlyBackfillSourceKey(displaySource),
+    hourlyBackfillSourceKey(displaySource, lat, lon),
     HOURLY_BACKFILL_COOLDOWN_MS,
 )
 
@@ -318,7 +364,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
         return
     }
 
-    val sourceKey = hourlyBackfillSourceKey(displaySource)
+    val sourceKey = hourlyBackfillSourceKey(displaySource, lat, lon)
     if (!stateManager.shouldRefreshMissingActuals(appWidgetId, sourceKey, HOURLY_BACKFILL_COOLDOWN_MS)) {
         database.appLogDao().log(
             "OBS_HOURLY_BACKFILL_SKIP",

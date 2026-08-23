@@ -40,9 +40,25 @@ class TomorrowIoApi(
             parameter("timesteps", "1h")
             parameter("units", "imperial")
             parameter("apikey", apiKey)
-            // Core temperature/cloud fields are available six hours into the past on the free
-            // plan. Callers persist the elapsed slice with distinct RECENT_HISTORY provenance.
-            parameter("startTime", "nowMinus6h")
+            // Reaches back far enough to cover the elapsed part of the local day, so a site being
+            // fetched for the FIRST time still gets today's overnight minimum rather than only the
+            // hours since it was promoted. Callers persist the elapsed slice with distinct
+            // RECENT_HISTORY provenance.
+            //
+            // This was `nowMinus6h`, annotated "core temperature/cloud fields are available six
+            // hours into the past on the free plan". That claim does not hold. Probed 2026-08-22
+            // at 37.4168,-122.0890 with this exact field list: `nowMinus23h` returned HTTP 200 and
+            // all five fields — temperature, cloudCover, weatherCode, precipitationProbability,
+            // precipitationAccumulation — were non-null in all 24 elapsed intervals, earliest
+            // 21:00 the previous day. The 6 h window returned nothing before 14:00 local.
+            //
+            // 6 h was survivable only because a stationary device accumulates coverage across ~12
+            // fetches a day; it collapsed the moment a GPS excursion created a fresh site, whose
+            // day then began at noon and whose "low" was the noon reading (Samsung 2026-08-22).
+            //
+            // 23 h, not 24: the plan rejects startTime more than 24 h in the past (403, code
+            // 403003).
+            parameter("startTime", "nowMinus23h")
         }
         if (hourlyHttpResponse.status.value !in 200..299) {
             val errorBody = runCatching { hourlyHttpResponse.bodyAsText() }.getOrDefault("No error body")
