@@ -78,6 +78,10 @@ class DailyActualsStore @Inject constructor(
             .map { it.id }
             .toSet()
 
+        /** The `observations.api` values that can feed [actualsCapableSources], borrowing included. */
+        val actualsObservationApis = actualsCapableSources +
+            actualsCapableSources.map { ActualsProviderResolver.providerIdFor(WeatherSource.fromId(it)) }
+
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
         val startDate = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
@@ -99,7 +103,13 @@ class DailyActualsStore @Inject constructor(
                 latitude,
                 longitude,
             )
-            .filter { it.stationId != "NWS_BLEND" && it.api in actualsCapableSources }
+            // Observations are filtered by PROVIDER api, not by source id. A borrowing source's
+            // actuals arrive under its provider's api (METAR), and METAR is not an active display
+            // source, so filtering on `actualsCapableSources` alone dropped exactly the rows the
+            // borrowing source needs before the aggregator ever saw them.
+            .filter { it.stationId != "NWS_BLEND" && it.api in actualsObservationApis }
+        // Hourly stays keyed on the SOURCE: the borrowed actuals are compared against the borrowing
+        // source's own forecast, which is the whole point — Open-Meteo's forecast, METAR's truth.
         val activeHourly = hourlyForecasts.filter { it.source in actualsCapableSources }
         val todayObs = contextObs.filter { it.timestamp in todayStartMs until tomorrowMs }
 
