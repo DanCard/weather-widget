@@ -328,4 +328,5 @@
     <string name="notify_dominant_temp_title">主导站点读数已变化</string>
     <string name="notify_dominant_temp_body_format">%1$s %2$s，此前 %3$s</string>
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s，此前 %3$s %4$s</string>
+    <string name="obs_actuals_source_label">实测数据来源</string>
 </resources>

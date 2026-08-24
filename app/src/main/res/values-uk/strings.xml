@@ -313,4 +313,5 @@
     <string name="notify_dominant_temp_title">Показання домінуючої станції змінилися</string>
     <string name="notify_dominant_temp_body_format">%1$s %2$s, було %3$s</string>
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, було %3$s %4$s</string>
+    <string name="obs_actuals_source_label">Джерело вимірювань</string>
 </resources>

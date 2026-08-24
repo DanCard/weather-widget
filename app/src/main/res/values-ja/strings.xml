@@ -328,4 +328,5 @@
     <string name="notify_dominant_temp_title">主力観測所の値が変わりました</string>
     <string name="notify_dominant_temp_body_format">%1$s %2$s（前回 %3$s）</string>
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s（前回 %3$s %4$s）</string>
+    <string name="obs_actuals_source_label">実測値のソース</string>
 </resources>

@@ -181,6 +181,47 @@
             android:orientation="vertical"
             android:visibility="gone">
 
+            <!--
+                Which feed supplies the displayed source's actuals. Shown only for a forecast-only
+                source, which has none of its own and borrows one; hidden for sources that ship
+                their own observations, since borrowing is a remedy for absence and the resolver
+                refuses to override them. Sitting directly above the station list makes it the
+                provenance disclosure as well as the control: the reader sees the chosen feed and
+                the stations it produced in one glance.
+            -->
+            <LinearLayout
+                android:id="@+id/actuals_source_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/rounded_button_navy"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:minHeight="36dp"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/obs_actuals_source_label"
+                    android:textColor="#AAAAAA"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/actuals_source_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    tools:text="METAR"
+                    android:textColor="#4FC3F7"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/subtitle"
                 android:layout_width="wrap_content"

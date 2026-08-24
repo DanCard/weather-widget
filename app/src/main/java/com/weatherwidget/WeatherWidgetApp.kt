@@ -35,6 +35,13 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
         // diagnostics from :shared (e.g. TemperatureLabelResolver's label-placement breadcrumbs) are
         // visible on-device. Without this they sink into java.util.logging and never reach logcat.
         com.weatherwidget.shared.util.Log.install(AndroidLogSink)
+        // Same shape as the log sink above: a shared-module seam that only the platform can fill.
+        // Nine call sites across the blend ask "which feed supplies this source's actuals?", and
+        // this hands them the user's stored per-source choice without threading a settings lookup
+        // through pure code. SharedPreferences only — no database access at this point.
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { source ->
+            com.weatherwidget.widget.WidgetStateManager(this).getActualsProvider(source)
+        }
         installCrashLogger()
         processStartElapsedRealtime = SystemClock.elapsedRealtime()
         // Cold-start trace anchor. This line's logcat timestamp is process birth (wall-clock); the

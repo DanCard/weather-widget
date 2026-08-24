@@ -181,6 +181,14 @@ class WidgetStateManager internal constructor(
 
     fun getApiKey(source: WeatherSource): String? = sourcePreferences.apiKey(source)
 
+    /** Which feed supplies [source]'s actuals, or null for the default. See ActualsProviderResolver. */
+    fun getActualsProvider(source: WeatherSource): WeatherSource? =
+        sourcePreferences.actualsProvider(source)
+
+    fun setActualsProvider(source: WeatherSource, provider: WeatherSource?) {
+        sourcePreferences.setActualsProvider(source, provider)
+    }
+
     fun setApiKey(source: WeatherSource, apiKey: String?) {
         sourcePreferences.setApiKey(source, apiKey)
     }

@@ -32,6 +32,34 @@ object ActualsProviderResolver {
     /** Used when a borrowing source has no explicit preference. Worldwide, keyless, measured. */
     val DEFAULT_PROVIDER: WeatherSource = WeatherSource.METAR
 
+    /**
+     * The platform's stored per-source preference, installed once at startup.
+     *
+     * Nine call sites across both platforms ask "which api supplies this source's actuals?", several
+     * of them deep inside pure blend code. Threading a lookup through all of them would push a
+     * settings concern into functions whose whole value is that they take only data. This follows
+     * the precedent already set by the shared `Log` sink, which Android installs in `onCreate`:
+     * configuration supplied once by the platform, read-only thereafter.
+     *
+     * Defaults to "no preference", so anything that never installs one — tests, the desktop app
+     * before its own settings land — behaves exactly as it did before the seam existed.
+     */
+    @Volatile
+    private var installedPreference: (WeatherSource) -> WeatherSource? = { null }
+
+    /** Install the platform's preference lookup. Call once, early. */
+    fun installPreferenceSource(lookup: (WeatherSource) -> WeatherSource?) {
+        installedPreference = lookup
+    }
+
+    /** Restore the no-preference default. For tests, which must not leak state into each other. */
+    fun resetPreferenceSource() {
+        installedPreference = { null }
+    }
+
+    /** The currently installed lookup, for callers that need to pass it on explicitly. */
+    fun preferenceSource(): (WeatherSource) -> WeatherSource? = installedPreference
+
     /** True when [source] has no observation product of its own and must borrow one. */
     fun borrows(source: WeatherSource): Boolean =
         source != WeatherSource.METAR && !source.supportsTemperatureActuals
@@ -109,7 +137,7 @@ object ActualsProviderResolver {
      */
     fun providerIdFor(
         source: WeatherSource,
-        preference: (WeatherSource) -> WeatherSource? = { null },
+        preference: (WeatherSource) -> WeatherSource? = installedPreference,
     ): String {
         if (!borrows(source)) return source.id
         // Same rule as the picker: a preference naming a source that cannot legitimately provide

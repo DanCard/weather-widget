@@ -12,6 +12,54 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class ActualsProviderResolverTest {
 
+    @org.junit.After
+    fun tearDown() = ActualsProviderResolver.resetPreferenceSource()
+
+    // ---- the installed preference seam (what the Settings picker writes through) ----
+
+    /**
+     * Nine call sites read the resolver without passing a lookup, several inside pure blend code.
+     * They pick up the platform's stored choice through this installed default. If it did not take
+     * effect, the picker would appear to work and change nothing.
+     */
+    @Test
+    fun `an installed preference is honoured by callers that pass no lookup`() {
+        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
+        ActualsProviderResolver.installPreferenceSource { src ->
+            WeatherSource.NWS.takeIf { src == WeatherSource.OPEN_METEO }
+        }
+        assertEquals("NWS", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
+        // Only the source the lookup names is redirected.
+        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN))
+    }
+
+    /** The blend predicate must follow the installed preference too, not just providerIdFor. */
+    @Test
+    fun `the shared matcher follows the installed preference`() {
+        ActualsProviderResolver.installPreferenceSource { WeatherSource.NWS }
+        assertTrue(
+            ObservationSourceMatcher.matchesActualSource("KNUQ", "NWS", WeatherSource.OPEN_METEO),
+        )
+        assertFalse(
+            "METAR rows must stop feeding Open-Meteo once NWS is chosen",
+            ObservationSourceMatcher.matchesActualSource("KNUQ", "METAR", WeatherSource.OPEN_METEO),
+        )
+    }
+
+    @Test
+    fun `resetting restores the default`() {
+        ActualsProviderResolver.installPreferenceSource { WeatherSource.NWS }
+        ActualsProviderResolver.resetPreferenceSource()
+        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
+    }
+
+    /** An installed preference still cannot override a source that has its own actuals. */
+    @Test
+    fun `installed preference cannot redirect a non-borrowing source`() {
+        ActualsProviderResolver.installPreferenceSource { WeatherSource.SYNOPTIC }
+        assertEquals("NWS", ActualsProviderResolver.providerIdFor(WeatherSource.NWS))
+    }
+
     @Test
     fun `forecast-only sources borrow, sources with their own actuals do not`() {
         assertTrue(ActualsProviderResolver.borrows(WeatherSource.OPEN_METEO))

@@ -342,4 +342,5 @@
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Failed to start sharing intent</string>
     <string name="bug_report_email_subject">Weather widget bug report</string>
+    <string name="obs_actuals_source_label">Actuals source</string>
 </resources>

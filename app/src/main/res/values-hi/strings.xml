@@ -328,4 +328,5 @@
     <string name="notify_dominant_temp_title">प्रमुख स्टेशन की रीडिंग बदली</string>
     <string name="notify_dominant_temp_body_format">%1$s %2$s, पहले %3$s</string>
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, पहले %3$s %4$s</string>
+    <string name="obs_actuals_source_label">वास्तविक डेटा स्रोत</string>
 </resources>

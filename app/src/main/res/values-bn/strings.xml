@@ -328,4 +328,5 @@
     <string name="notify_dominant_temp_title">প্রভাবশালী স্টেশনের রিডিং বদলেছে</string>
     <string name="notify_dominant_temp_body_format">%1$s %2$s, আগে ছিল %3$s</string>
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, আগে ছিল %3$s %4$s</string>
+    <string name="obs_actuals_source_label">প্রকৃত তথ্যের উৎস</string>
 </resources>

@@ -328,4 +328,5 @@
     <string name="notify_dominant_temp_title">غالب اسٹیشن کی ریڈنگ بدل گئی</string>
     <string name="notify_dominant_temp_body_format">%1$s %2$s، پہلے %3$s</string>
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s، پہلے %3$s %4$s</string>
+    <string name="obs_actuals_source_label">اصل ڈیٹا کا ذریعہ</string>
 </resources>

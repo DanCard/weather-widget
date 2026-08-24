@@ -95,7 +95,7 @@ object ObservationSourceMatcher {
         api: String,
         source: WeatherSource,
         allowGenericGap: Boolean = true,
-        actualsPreference: (WeatherSource) -> WeatherSource? = { null },
+        actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
     ): Boolean {
         if (api == WeatherSource.GENERIC_GAP.id) {
             return allowGenericGap && source != WeatherSource.TOMORROW_IO

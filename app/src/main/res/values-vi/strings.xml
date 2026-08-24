@@ -328,4 +328,5 @@
     <string name="notify_dominant_temp_title">Số đo của trạm chủ đạo đã thay đổi</string>
     <string name="notify_dominant_temp_body_format">%1$s %2$s, trước đó %3$s</string>
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, trước đó %3$s %4$s</string>
+    <string name="obs_actuals_source_label">Nguồn dữ liệu thực tế</string>
 </resources>

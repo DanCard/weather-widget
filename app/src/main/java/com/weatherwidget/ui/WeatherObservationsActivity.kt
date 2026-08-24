@@ -47,6 +47,7 @@ import com.weatherwidget.shared.observations.StaleObservationFallback
 import com.weatherwidget.util.StationHistoryUrl
 import com.weatherwidget.widget.GpsResampler
 import com.weatherwidget.widget.StaleDisplayRefreshPolicy
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import dagger.hilt.android.AndroidEntryPoint
@@ -392,6 +393,65 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     private fun updateApiButton() {
         findViewById<TextView>(R.id.api_source_button).text = currentSource.shortDisplayName
+        updateActualsSourceRow()
+    }
+
+    /**
+     * Shows which feed supplies the displayed source's actuals, and lets the user change it.
+     *
+     * Only forecast-only sources get the control. A source that ships its own observations is not
+     * offered a choice, because `ActualsProviderResolver` will not override one — borrowing exists
+     * to fill an absence, and quietly regrading NWS against someone else's thermometers would be a
+     * different and much larger decision.
+     */
+    private fun updateActualsSourceRow() {
+        val row = findViewById<android.view.View>(R.id.actuals_source_row) ?: return
+        if (!ActualsProviderResolver.borrows(currentSource)) {
+            row.visibility = android.view.View.GONE
+            return
+        }
+        row.visibility = android.view.View.VISIBLE
+        val activeId = ActualsProviderResolver.providerIdFor(currentSource)
+        findViewById<TextView>(R.id.actuals_source_value).text =
+            WeatherSource.fromId(activeId).displayName
+        row.setOnClickListener { showActualsSourceChooser(activeId) }
+    }
+
+    private fun showActualsSourceChooser(activeId: String) {
+        val candidates = ActualsProviderResolver.candidates()
+        if (candidates.isEmpty()) return
+        // Tier is shown inline rather than as section headers: an AlertDialog list has no grouping,
+        // and presenting Tomorrow.io's six-hour analysis window as equivalent to a thermometer would
+        // be the one thing this picker must not do.
+        val labels = candidates.map { candidate ->
+            val tier = when (ActualsProviderResolver.tierOf(candidate)) {
+                ActualsProviderResolver.Tier.MEASURED -> "measured"
+                ActualsProviderResolver.Tier.DERIVED -> "derived"
+                null -> ""
+            }
+            val marks = buildList {
+                if (candidate == ActualsProviderResolver.DEFAULT_PROVIDER) add("default")
+                if (tier.isNotEmpty()) add(tier)
+            }
+            "${candidate.displayName}  (${marks.joinToString(", ")})"
+        }.toTypedArray()
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.obs_actuals_source_label)
+            .setSingleChoiceItems(labels, candidates.indexOfFirst { it.id == activeId }) { dialog, which ->
+                val chosen = candidates[which]
+                // Store null for the default so the preference stays absent unless the user has
+                // actively diverged — a stored default would silently pin them if the default moves.
+                widgetStateManager.setActualsProvider(
+                    currentSource,
+                    chosen.takeIf { it != ActualsProviderResolver.DEFAULT_PROVIDER },
+                )
+                dialog.dismiss()
+                updateActualsSourceRow()
+                loadObservations()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun cycleSource() {

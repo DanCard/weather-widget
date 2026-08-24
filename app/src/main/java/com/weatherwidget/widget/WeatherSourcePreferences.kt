@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 
 /**
@@ -107,6 +108,27 @@ internal class WeatherSourcePreferences(
             editor.putString("$KEY_API_KEY_PREFIX${source.name}", apiKey)
         }
         editor.apply()
+    }
+
+    /**
+     * Which feed supplies [source]'s actuals, when the user has chosen one.
+     *
+     * Only meaningful for a forecast-only source, which has no observations of its own and borrows
+     * (see `ActualsProviderResolver`). Null means "no choice stored" and resolves to the default.
+     * A stored id that no longer names a usable provider is dropped here rather than returned, so a
+     * source removed from the app cannot leave a borrower pointing at nothing.
+     */
+    fun actualsProvider(source: WeatherSource): WeatherSource? =
+        prefs.getString("$KEY_ACTUALS_PROVIDER_PREFIX${source.name}", null)
+            ?.let { stored -> WeatherSource.entries.firstOrNull { it.id == stored } }
+            ?.takeIf { ActualsProviderResolver.canProvide(it) }
+
+    /** Passing null clears the choice, restoring the default. */
+    fun setActualsProvider(source: WeatherSource, provider: WeatherSource?) {
+        val key = "$KEY_ACTUALS_PROVIDER_PREFIX${source.name}"
+        prefs.edit().apply {
+            if (provider == null) remove(key) else putString(key, provider.id)
+        }.apply()
     }
 
     private fun storedVisibleIds(): List<String> {
@@ -260,5 +282,6 @@ internal class WeatherSourcePreferences(
         const val KEY_OPEN_WEATHER_MAP_POSITION_MIGRATION_DONE = "owm_position_bottom_migration_done_v1"
         const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
         const val KEY_API_KEY_PREFIX = "api_key_"
+        const val KEY_ACTUALS_PROVIDER_PREFIX = "actuals_provider_"
     }
 }
