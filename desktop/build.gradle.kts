@@ -26,13 +26,16 @@ run {
     val publicBuild = providers.gradleProperty("publicBuild").isPresent
     fun keyFor(name: String): String =
         if (publicBuild) "" else localProps.getProperty(name) ?: System.getenv(name) ?: ""
-    // Map of WeatherSource.id -> local.properties / env var name.
+    // Map of WeatherSource.id (plus "SYNOPTIC", a transport) -> local.properties / env var name.
     val keySpecs = listOf(
         "WEATHER_API" to "WEATHER_API_KEY",
         "SILURIAN" to "SILURIAN_API_KEY",
         "OPEN_WEATHER_MAP" to "OPEN_WEATHER_MAP_API_KEY",
         "VISUAL_CROSSING" to "VISUAL_CROSSING_API_KEY",
         "TOMORROW_IO" to "TOMORROW_IO_API_KEY",
+        // Not a WeatherSource id: Synoptic is the NWS web-fallback transport, and this is a TOKEN
+        // minted from its API key rather than a key. It shares this map only for the plumbing.
+        "SYNOPTIC" to "SYNOPTIC_API_TOKEN",
     )
     val generatedDir = layout.buildDirectory.dir("generated/apikeys/kotlin")
     val generateApiKeys = tasks.register("generateDesktopApiKeys") {

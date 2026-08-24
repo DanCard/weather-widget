@@ -354,6 +354,20 @@ object AppModule {
         credentialProvider.get()
     }
 
+    /**
+     * Synoptic takes a TOKEN minted from the API key, not the key itself — the data endpoints reject
+     * a raw key. Blank is a valid state: [SynopticApi.isConfigured] is false and the NWS web
+     * fallback is skipped rather than issuing requests guaranteed to be rejected.
+     */
+    @Provides
+    @Singleton
+    fun provideSynopticApi(
+        httpClient: HttpClient,
+        json: Json,
+    ): SynopticApi = SynopticApi(httpClient, json) {
+        com.weatherwidget.BuildConfig.SYNOPTIC_API_TOKEN
+    }
+
     @Provides
     @Singleton
     fun provideSilurianApi(

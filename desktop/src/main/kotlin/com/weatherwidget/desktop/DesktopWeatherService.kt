@@ -87,7 +87,10 @@ class DesktopWeatherService(
     private val visualCrossing = VisualCrossingApi(httpClient, json) { effectiveKeys[WeatherSource.VISUAL_CROSSING.id] }
     private val silurian = SilurianApi(httpClient, json) { effectiveKeys[WeatherSource.SILURIAN.id] }
     private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { effectiveKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
-    private val synopticApi = injectedSynopticApi ?: SynopticApi(httpClient, json)
+    // "SYNOPTIC" is not a WeatherSource id — it is the NWS web-fallback transport, keyed by a token
+    // minted from the API key. It rides the same baked-keys map purely for the plumbing.
+    private val synopticApi = injectedSynopticApi
+        ?: SynopticApi(httpClient, json) { effectiveKeys["SYNOPTIC"] }
 
     constructor(config: DesktopConfig) : this(
         latitude = config.lat,

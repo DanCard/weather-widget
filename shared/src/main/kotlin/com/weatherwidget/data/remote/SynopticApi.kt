@@ -6,12 +6,31 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import kotlinx.serialization.json.*
-import javax.inject.Inject
 
-class SynopticApi @Inject constructor(
+/**
+ * Synoptic Data / MesoWest observations, used as the NWS web fallback.
+ *
+ * [token] is a Synoptic **token**, not an API key — the data endpoints reject a raw key outright
+ * ("Be sure to use a token generated from your API Key, and not the key itself"). Tokens are minted
+ * from the key at `https://api.synopticdata.com/v2/auth?apikey=<KEY>` and carry no expiry, so the
+ * app stores the token and never holds the key. That also means a leaked build exposes a revocable
+ * token rather than the account credential.
+ *
+ * It used to be a hardcoded literal here — a token scraped from
+ * weather.gov's own public station viewer (value recorded in
+ * `plans/260628-nws-stale-station-synoptic-fallback.md`). That was never this project's credential:
+ * it rode NOAA's quota, and NOAA could rotate it at any time and silently kill the fallback. Blank
+ * is now a first-class state — [isConfigured] is false and callers skip the fallback rather than
+ * issuing a request that is guaranteed to be rejected.
+ */
+class SynopticApi(
     private val httpClient: HttpClient,
     private val json: Json,
+    private val tokenProvider: () -> String?,
 ) {
+    /** False when no token was baked in or entered; callers must skip Synoptic entirely. */
+    val isConfigured: Boolean get() = !tokenProvider().isNullOrBlank()
+
     companion object {
         private const val TAG = "SynopticApi"
 
@@ -132,8 +151,9 @@ class SynopticApi @Inject constructor(
         recentMinutes: Long,
         stationNameFallback: String = ""
     ): FetchOutcome<List<NwsApi.Observation>> {
+        val token = tokenProvider()?.takeIf { it.isNotBlank() }
+            ?: return FetchOutcome.Failed("synoptic: no token configured")
         val response: String = try {
-            val token = "7c76618b66c74aee913bdbae4b448bdd"
             val url = "https://api.synopticdata.com/v2/stations/timeseries"
 
             httpClient.get(url) {

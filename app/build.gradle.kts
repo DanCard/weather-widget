@@ -44,6 +44,15 @@ val silurianApiKey =
             ?: System.getenv("SILURIAN_API_KEY")
             ?: ""
     )
+// A Synoptic TOKEN, not an API key: the data endpoints reject the raw key. Mint one at
+// https://api.synopticdata.com/v2/auth?apikey=<KEY>. Blank is fine — the NWS web fallback is
+// simply skipped rather than issuing requests that are guaranteed to be rejected.
+val synopticApiToken =
+    (
+        localProperties.getProperty("SYNOPTIC_API_TOKEN")
+            ?: System.getenv("SYNOPTIC_API_TOKEN")
+            ?: ""
+    )
 val openWeatherMapApiKey =
     (
         localProperties.getProperty("OPEN_WEATHER_MAP_API_KEY")
@@ -128,6 +137,7 @@ android {
         buildConfigField("String", "OPEN_WEATHER_MAP_API_KEY", "\"$openWeatherMapApiKey\"")
         buildConfigField("String", "VISUAL_CROSSING_API_KEY", "\"$visualCrossingApiKey\"")
         buildConfigField("String", "TOMORROW_IO_API_KEY", "\"$tomorrowIoApiKey\"")
+        buildConfigField("String", "SYNOPTIC_API_TOKEN", "\"$synopticApiToken\"")
     }
 
     buildFeatures {
