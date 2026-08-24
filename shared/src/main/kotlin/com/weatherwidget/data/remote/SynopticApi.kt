@@ -34,6 +34,125 @@ class SynopticApi(
     companion object {
         private const val TAG = "SynopticApi"
 
+        /**
+         * One `STATION` entry's observations. Extracted so the single-station web fallback and the
+         * multi-station radius feed cannot drift on QC handling, the METAR sky parse, or the
+         * missing-temperature rule — three things that were each a bug on this path before.
+         */
+        internal fun parseStationObservations(
+            station: JsonObject,
+            stationNameFallback: String,
+        ): List<NwsApi.Observation> {
+            val obsObj = station["OBSERVATIONS"]?.jsonObject ?: return emptyList()
+            val dateTimeArray = obsObj["date_time"]?.jsonArray ?: return emptyList()
+            val airTempArray = obsObj["air_temp_set_1"]?.jsonArray
+            val weatherSummaryArray = obsObj["weather_summary_set_1d"]?.jsonArray
+            val weatherCondArray = obsObj["weather_condition_set_1d"]?.jsonArray
+            val metarArray = obsObj["metar_set_1"]?.jsonArray
+            // Parallel to air_temp_set_1: null = passed QC, array of check IDs = flagged
+            // (e.g. [105] = SynopticLabs Spatial Value Check).
+            val airTempQcArray = station["QC"]?.jsonObject?.get("air_temp_set_1")?.jsonArray
+            val stationName = station["NAME"]?.jsonPrimitive?.contentOrNull ?: stationNameFallback
+
+            val out = mutableListOf<NwsApi.Observation>()
+            for (i in 0 until dateTimeArray.size) {
+                val dateTimeStr = parseTimestampToIsoString(dateTimeArray[i].jsonPrimitive.content)
+                // Skip rather than default: a station reporting only humidity is not a temperature
+                // observation, and storing 0 C would poison the blend far worse than a missing row.
+                val tempC = airTempArray?.getOrNull(i)?.jsonPrimitive?.doubleOrNull?.toFloat() ?: continue
+
+                val qcChecks = airTempQcArray?.getOrNull(i) as? JsonArray
+                val summary = weatherSummaryArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
+                    ?: weatherCondArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
+                    ?: "Unknown"
+                val rawMetar = metarArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
+
+                out.add(
+                    NwsApi.Observation(
+                        timestamp = dateTimeStr,
+                        temperatureCelsius = tempC,
+                        textDescription = summary,
+                        stationName = stationName,
+                        maxTempLast24hCelsius = null,
+                        minTempLast24hCelsius = null,
+                        precipLastHourMm = null,
+                        qcFailed = !qcChecks.isNullOrEmpty(),
+                        cloudLayers = MetarRawSkyParser.layersFrom(rawMetar),
+                        // A row backed by a raw report IS a METAR — the same thing `rawMessage`
+                        // signals on the NWS path. Mesonet stations return no metar_set_1 and stay
+                        // false, which is what MetarCloudBlender's METAR-over-ASOS preference needs
+                        // to be told honestly.
+                        isMetar = !rawMetar.isNullOrBlank(),
+                        rawMessage = rawMetar,
+                    ),
+                )
+            }
+            return out
+        }
+
+        /** One station of a radius query: its identity plus the readings parsed from it. */
+        data class RadiusStation(
+            val info: NwsApi.StationInfo,
+            val distanceKm: Double,
+            val elevationMeters: Double?,
+            val observations: List<NwsApi.Observation>,
+        )
+
+        private const val MILES_TO_KM = 1.609344
+        private const val FEET_TO_METERS = 0.3048
+
+        /**
+         * Pure parse of a multi-station `stations/timeseries?radius=` response.
+         *
+         * `DISTANCE` comes back in miles and `ELEVATION` in feet, which is why both are converted
+         * here rather than at the call site — the rest of the app is metric internally and a raw
+         * mile value silently mis-ranks every station in the IDW blend.
+         */
+        internal fun parseRadiusTimeseries(
+            json: Json,
+            response: String,
+        ): FetchOutcome<List<RadiusStation>> = try {
+            val root = json.parseToJsonElement(response).jsonObject
+            val summaryObj = root["SUMMARY"]?.jsonObject
+            val responseCode = summaryObj?.get("RESPONSE_CODE")?.jsonPrimitive?.intOrNull
+            if (responseCode != 1) {
+                FetchOutcome.Failed("synoptic: ${summaryObj?.get("RESPONSE_MESSAGE")?.jsonPrimitive?.contentOrNull}")
+            } else {
+                val stations = (root["STATION"]?.jsonArray).orEmpty().mapNotNull { element ->
+                    val o = element as? JsonObject ?: return@mapNotNull null
+                    val stid = o["STID"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+                    val lat = o["LATITUDE"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()
+                        ?: return@mapNotNull null
+                    val lon = o["LONGITUDE"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()
+                        ?: return@mapNotNull null
+                    val observations = parseStationObservations(o, stid)
+                    if (observations.isEmpty()) return@mapNotNull null
+                    RadiusStation(
+                        info = NwsApi.StationInfo(
+                            id = stid,
+                            name = o["NAME"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: stid,
+                            lat = lat,
+                            lon = lon,
+                            // Mesonet 1 and 2 are the NWS/FAA networks; everything else in this feed
+                            // is a cooperative or personal station, which the blend discounts.
+                            type = when (o["MNET_ID"]?.jsonPrimitive?.contentOrNull) {
+                                "1", "2" -> NwsApi.StationType.OFFICIAL
+                                else -> NwsApi.StationType.PERSONAL
+                            },
+                        ),
+                        distanceKm = (o["DISTANCE"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: 0.0) * MILES_TO_KM,
+                        elevationMeters = o["ELEVATION"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()
+                            ?.times(FEET_TO_METERS),
+                        observations = observations,
+                    )
+                }
+                if (stations.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(stations)
+            }
+        } catch (e: Exception) {
+            FetchOutcome.failed(e)
+        }
+
         fun parseTimestampToIsoString(ts: String): String {
             if (ts.endsWith("Z") || ts.endsWith("z")) return ts
             val lastPlus = ts.lastIndexOf('+')
@@ -68,70 +187,9 @@ class SynopticApi(
 
                 // A successful response without station/observation structures is Synoptic's way of
                 // saying the station has nothing in the window — definitive NoData, not a failure.
-                val stationArray = root["STATION"]?.jsonArray
-                val firstStation = stationArray?.firstOrNull()?.jsonObject ?: return FetchOutcome.NoData
-                val obsObj = firstStation["OBSERVATIONS"]?.jsonObject ?: return FetchOutcome.NoData
-
-                val dateTimeArray = obsObj["date_time"]?.jsonArray ?: return FetchOutcome.NoData
-                val airTempArray = obsObj["air_temp_set_1"]?.jsonArray
-                val weatherSummaryArray = obsObj["weather_summary_set_1d"]?.jsonArray
-                val weatherCondArray = obsObj["weather_condition_set_1d"]?.jsonArray
-                // The raw report. Already present in the response this request has always made —
-                // Synoptic returns ~19 variables for an ASOS station and we were reading two of
-                // them, so every web-fallback row stored no sky condition. Sky condition rides here
-                // rather than in a dedicated field, and MetarRawSkyParser turns it into the same
-                // CloudLayer list the NWS API path produces.
-                val metarArray = obsObj["metar_set_1"]?.jsonArray
-                // Parallel to air_temp_set_1: null = passed QC, array of check IDs = flagged
-                // (e.g. [105] = SynopticLabs Spatial Value Check). Only present when the request
-                // asks for qc_flags; absent QC block means nothing was flagged.
-                val airTempQcArray = firstStation["QC"]?.jsonObject?.get("air_temp_set_1")?.jsonArray
-
-                val stationName = firstStation["NAME"]?.jsonPrimitive?.content ?: stationNameFallback
-                val observationList = mutableListOf<NwsApi.Observation>()
-                val qcDropped = mutableListOf<String>()
-
-                for (i in 0 until dateTimeArray.size) {
-                    val rawDateTimeStr = dateTimeArray[i].jsonPrimitive.content
-                    val dateTimeStr = parseTimestampToIsoString(rawDateTimeStr)
-                    val tempC = airTempArray?.getOrNull(i)?.jsonPrimitive?.doubleOrNull?.toFloat()
-                        ?: continue // Skip observation if temperature is missing
-
-                    val qcChecks = airTempQcArray?.getOrNull(i) as? JsonArray
-                    val qcFailed = !qcChecks.isNullOrEmpty()
-                    if (qcFailed) {
-                        qcDropped.add("$dateTimeStr temp=$tempC checks=${qcChecks.joinToString(",") { it.jsonPrimitive.content }}")
-                    }
-
-                    val summary = weatherSummaryArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
-                        ?: weatherCondArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
-                        ?: "Unknown"
-
-                    val rawMetar = metarArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
-
-                    observationList.add(
-                        NwsApi.Observation(
-                            timestamp = dateTimeStr,
-                            temperatureCelsius = tempC,
-                            textDescription = summary,
-                            stationName = stationName,
-                            maxTempLast24hCelsius = null,
-                            minTempLast24hCelsius = null,
-                            precipLastHourMm = null,
-                            qcFailed = qcFailed,
-                            cloudLayers = MetarRawSkyParser.layersFrom(rawMetar),
-                            // A row backed by a raw report IS a METAR — the same thing `rawMessage`
-                            // signals on the NWS path. Mesonet stations return no metar_set_1 and
-                            // stay false, which is what MetarCloudBlender's METAR-over-ASOS
-                            // preference needs to be told honestly.
-                            isMetar = !rawMetar.isNullOrBlank(),
-                            rawMessage = rawMetar,
-                        )
-                    )
-                }
-                if (qcDropped.isNotEmpty()) {
-                    Log.w(TAG, "Synoptic $stationId: ${qcDropped.size} QC-flagged reading(s) marked unusable: $qcDropped")
-                }
+                val firstStation = root["STATION"]?.jsonArray?.firstOrNull()?.jsonObject
+                    ?: return FetchOutcome.NoData
+                val observationList = parseStationObservations(firstStation, stationNameFallback)
                 if (observationList.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(observationList)
             } catch (e: Exception) {
                 Log.w(TAG, "Synoptic parse for $stationId failed: $e")

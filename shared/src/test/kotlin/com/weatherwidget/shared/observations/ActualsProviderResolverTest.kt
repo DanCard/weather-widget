@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -81,6 +82,56 @@ class ActualsProviderResolverTest {
         assertFalse(WeatherSource.GENERIC_GAP in candidates)
         assertFalse("a borrowing source cannot be a provider", WeatherSource.OPEN_METEO in candidates)
         assertTrue(WeatherSource.NWS in candidates)
+    }
+
+    /**
+     * The bug this guards: `supportsTemperatureActuals` defaults to TRUE, so filtering on it offered
+     * OpenWeatherMap and Visual Crossing. Their observation rows are `<SOURCE>_MAIN` at
+     * distanceKm = 0 plus the `_1..4` POI grid — model output re-filed, verified on device
+     * 2026-08-23. Borrowing those reintroduces circular actuals with an extra hop.
+     */
+    @Test
+    fun `sources whose observations are their own forecast are never offered`() {
+        val candidates = ActualsProviderResolver.candidates()
+        assertFalse("OpenWeatherMap files its own model output", WeatherSource.OPEN_WEATHER_MAP in candidates)
+        assertFalse("Visual Crossing has no historical product", WeatherSource.VISUAL_CROSSING in candidates)
+        assertFalse(ActualsProviderResolver.canProvide(WeatherSource.OPEN_WEATHER_MAP))
+        assertNull(ActualsProviderResolver.tierOf(WeatherSource.OPEN_WEATHER_MAP))
+    }
+
+    @Test
+    fun `measured feeds are offered ahead of derived ones`() {
+        val candidates = ActualsProviderResolver.candidates()
+        assertEquals(
+            listOf(WeatherSource.METAR, WeatherSource.NWS, WeatherSource.SYNOPTIC),
+            candidates.filter { ActualsProviderResolver.tierOf(it) == ActualsProviderResolver.Tier.MEASURED },
+        )
+        val derived = candidates.filter { ActualsProviderResolver.tierOf(it) == ActualsProviderResolver.Tier.DERIVED }
+        assertEquals(setOf(WeatherSource.WEATHER_API, WeatherSource.TOMORROW_IO), derived.toSet())
+        assertTrue(
+            "every measured option precedes every derived one",
+            candidates.indexOf(WeatherSource.SYNOPTIC) < candidates.indexOf(derived.first()),
+        )
+    }
+
+    @Test
+    fun `a preference naming a forecast-derived-only source falls back to the default`() {
+        assertEquals(
+            "METAR",
+            ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.OPEN_WEATHER_MAP },
+        )
+    }
+
+    @Test
+    fun `NWS and Synoptic are both selectable`() {
+        assertEquals(
+            "NWS",
+            ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.NWS },
+        )
+        assertEquals(
+            "SYNOPTIC",
+            ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.SYNOPTIC },
+        )
     }
 
     // ---- the shared predicate ----

@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.HistoricalDataKind
 import com.weatherwidget.data.model.WeatherSource
 
 /**
@@ -36,19 +37,50 @@ object ActualsProviderResolver {
         source != WeatherSource.METAR && !source.supportsTemperatureActuals
 
     /**
-     * Feeds a user could reasonably pick as a borrowing source's actuals provider: every source that
-     * ships real station observations or analysis, plus METAR.
+     * How trustworthy a candidate's "actuals" really are. The picker should show these as separate
+     * groups: borrowing exists to escape circular actuals, so quietly offering a source whose
+     * observations ARE its own forecast would defeat the point.
+     */
+    enum class Tier { MEASURED, DERIVED }
+
+    /**
+     * Keyed on [WeatherSource.historicalDataKind], NOT on `supportsTemperatureActuals`.
      *
-     * Exposed for the future Settings picker so the option list cannot drift from what the resolver
-     * will actually accept.
+     * That flag defaults to `true`, so filtering on it offered OpenWeatherMap and Visual Crossing —
+     * both `HistoricalDataKind.NONE`. Their observation rows are `<SOURCE>_MAIN` at `distanceKm = 0`
+     * plus the `_1..4` POI offset grid: model output re-filed, not measurement (verified on device
+     * 2026-08-23). Borrowing those would reintroduce the circular actuals this whole mechanism
+     * exists to replace, with an extra hop to disguise it.
+     */
+    fun tierOf(source: WeatherSource): Tier? = when (source.historicalDataKind) {
+        HistoricalDataKind.STATION_OBSERVATION -> Tier.MEASURED
+        HistoricalDataKind.REANALYSIS_ARCHIVE,
+        HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
+        HistoricalDataKind.RECENT_ANALYSIS,
+        -> Tier.DERIVED
+        HistoricalDataKind.NONE -> null
+    }
+
+    /** True when [source] can legitimately supply another source's actuals. */
+    fun canProvide(source: WeatherSource): Boolean =
+        source != WeatherSource.GENERIC_GAP && !borrows(source) && tierOf(source) != null
+
+    /**
+     * Feeds a user could pick as a borrowing source's actuals provider, measured ones first and the
+     * default at the head.
+     *
+     * Exposed for the picker so the option list cannot drift from what the resolver accepts.
      */
     fun candidates(): List<WeatherSource> =
-        listOf(DEFAULT_PROVIDER) +
-            WeatherSource.entries.filter {
-                it != DEFAULT_PROVIDER &&
-                    it != WeatherSource.GENERIC_GAP &&
-                    it.supportsTemperatureActuals
-            }
+        WeatherSource.entries
+            .filter(::canProvide)
+            .sortedWith(
+                compareBy(
+                    { if (it == DEFAULT_PROVIDER) 0 else 1 },
+                    { if (tierOf(it) == Tier.MEASURED) 0 else 1 },
+                    { it.id },
+                ),
+            )
 
     /**
      * The `observations.api` value that supplies [source]'s actuals.
@@ -62,9 +94,10 @@ object ActualsProviderResolver {
         preference: (WeatherSource) -> WeatherSource? = { null },
     ): String {
         if (!borrows(source)) return source.id
-        val chosen = preference(source)
-            ?.takeIf { it == DEFAULT_PROVIDER || it.supportsTemperatureActuals }
-            ?.takeIf { it != source }
+        // Same rule as the picker: a preference naming a source that cannot legitimately provide
+        // actuals (OpenWeatherMap, Visual Crossing) degrades to the default rather than silently
+        // handing the borrower someone else's forecast.
+        val chosen = preference(source)?.takeIf { canProvide(it) && it != source }
         return (chosen ?: DEFAULT_PROVIDER).id
     }
 }
