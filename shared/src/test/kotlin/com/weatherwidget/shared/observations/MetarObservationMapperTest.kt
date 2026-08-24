@@ -123,6 +123,21 @@ class MetarObservationMapperTest {
         assertNull(reading.cloudCover)
     }
 
+    /**
+     * The endpoint serves METARs and SPECIs only — there is no ASOS 5-minute interleave here, which
+     * is the one thing `isMetar` exists to separate. MetarCloudBlender prefers METAR rows for cloud,
+     * so the default `false` would quietly deny these rows that preference.
+     */
+    @Test
+    fun `every row is flagged as a METAR, SPECI included`() {
+        val metar = MetarObservationMapper.toReading(row(), station("KSJC"), 37.4, -122.1)!!
+        assertTrue(metar.isMetar)
+        val speci = MetarObservationMapper.toReading(
+            row().copy(isSpeci = true), station("KSJC"), 37.4, -122.1,
+        )!!
+        assertTrue("a SPECI is a real report too", speci.isMetar)
+    }
+
     @Test
     fun `stations are OFFICIAL and never flagged as a web fallback`() {
         val reading = MetarObservationMapper.toReading(row(), station("KSJC"), 37.4, -122.1)!!

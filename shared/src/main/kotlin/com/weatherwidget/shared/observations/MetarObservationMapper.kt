@@ -67,6 +67,11 @@ object MetarObservationMapper {
             minTempLast24h = null,
             // Not a web fallback: this is a first-class transport, not a scrape standing in for one.
             isWebFallback = false,
+            // Every row from this feed is a real report — the endpoint serves METARs and SPECIs and
+            // nothing else. There is no ASOS 5-minute interleave here, which is the ONLY thing
+            // `isMetar` exists to separate out on the NWS path. MetarCloudBlender prefers these
+            // rows for cloud, so leaving the default `false` would quietly deny them that.
+            isMetar = true,
             // The feed carries a `qcField` but its scale is undocumented; marking rows on a guess
             // would silently drop them from the blend. Left false until the encoding is confirmed.
             qcFailed = false,

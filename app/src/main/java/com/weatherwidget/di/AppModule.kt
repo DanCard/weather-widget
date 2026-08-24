@@ -17,6 +17,7 @@ import com.weatherwidget.data.repository.ForecastRepository
 import com.weatherwidget.data.repository.NwsForecastMapper
 import com.weatherwidget.data.repository.NwsCurrentObservationUpdater
 import com.weatherwidget.data.repository.NwsObservationBackfiller
+import com.weatherwidget.data.repository.MetarObservationSource
 import com.weatherwidget.data.repository.NwsObservationSource
 import com.weatherwidget.data.repository.ObservationRepository
 import com.weatherwidget.data.repository.PersonalStationWeightProvider
@@ -32,6 +33,7 @@ import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.data.remote.NominatimApi
 import com.weatherwidget.data.remote.IpGeolocationApi
+import com.weatherwidget.data.remote.AviationWeatherApi
 import com.weatherwidget.data.remote.SynopticApi
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.shared.util.TemperatureInterpolator
@@ -215,6 +217,19 @@ object AppModule {
         nwsApi: NwsApi,
         synopticApi: SynopticApi,
     ): NwsObservationSource = NwsObservationSource(context, nwsApi, appLogDao, synopticApi)
+
+    /**
+     * Raw airport METARs from aviationweather.gov — the app's only station-observation source
+     * outside the United States, and one request for every nearby station instead of one each.
+     * See plans/260823-aviationweather-metar-transport.md.
+     */
+    @Provides
+    @Singleton
+    fun provideMetarObservationSource(
+        @ApplicationContext context: Context,
+        appLogDao: AppLogDao,
+        aviationWeatherApi: AviationWeatherApi,
+    ): MetarObservationSource = MetarObservationSource(context, aviationWeatherApi, appLogDao)
 
     @Provides
     @Singleton
