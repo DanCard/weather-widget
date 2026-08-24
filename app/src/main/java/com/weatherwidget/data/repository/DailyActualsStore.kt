@@ -29,6 +29,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 
 private const val TAG = "DailyActualsStore"
 private const val DAYTIME_COVERAGE_HOUR = 14
@@ -66,11 +67,14 @@ class DailyActualsStore @Inject constructor(
             .map { it.id }
             .toSet()
         if (activeSources.isEmpty()) return emptyMap()
-        // Today's live blend mixes stored OBSERVATIONS, so it stays capability-gated: a source
-        // with no actuals product (Open-Meteo, Silurian) must never contribute a "current actual".
+        // Today's live blend mixes stored OBSERVATIONS, so it stays gated on having a real feed —
+        // a source must never fabricate a "current actual" from its own forecast. A forecast-only
+        // source now qualifies by BORROWING one ([ActualsProviderResolver]), which is what gives
+        // Open-Meteo and Silurian a current actual for the first time; a source with neither its
+        // own observations nor a resolvable provider is still excluded.
         val actualsCapableSources = activeSourceList
             .map(WeatherSource::fromId)
-            .filter { it.supportsTemperatureActuals }
+            .filter { it.supportsTemperatureActuals || ActualsProviderResolver.borrows(it) }
             .map { it.id }
             .toSet()
 

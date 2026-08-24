@@ -53,21 +53,41 @@ internal class MetarObservationRefresher(
      * source has already fetched by the time this runs and must still paint, so a failure in the
      * supplementary feed is logged and swallowed.
      */
+    companion object {
+        /**
+         * Freshness pull for the frequent current-temp loops: just enough to carry "now".
+         */
+        const val SHALLOW_HOURS = 2
+
+        /**
+         * Deep pull for the full sync, which runs on the battery-aware 60–480 minute cadence.
+         *
+         * A daily high/low is a max/min over the whole day, so a 2-hour window yields an afternoon
+         * reading mislabelled as the day's low — measured 2026-08-23, Open-Meteo's borrowed low read
+         * 72.4 °F against NWS's 58.9 °F, purely because METAR coverage started at 16:47. The NWS
+         * path solves this with `backfillNwsObservationsIfNeeded`; this is the equivalent. Rows
+         * REPLACE on their primary key, so re-pulling the same day is idempotent and also self-heals
+         * gaps left by cycles that were skipped or offline.
+         */
+        const val DEEP_HOURS = 24
+    }
+
     suspend fun refreshIfDue(
         acceptTiers: Set<MetarFetchPolicy.Tier>,
         latitude: Double,
         longitude: Double,
         reason: String,
+        hours: Int = SHALLOW_HOURS,
     ) {
         val tier = currentTier()
         if (tier !in acceptTiers) return
         try {
-            val rows = source.fetchObservations(latitude, longitude)
+            val rows = source.fetchObservations(latitude, longitude, hours = hours)
             if (rows.isEmpty()) return
             WeatherDatabase.getDatabase(context).observationDao().insertAll(rows)
             appLogDao.log(
                 "METAR_OBS_STORED",
-                "reason=$reason tier=${tier.name} rows=${rows.size} " +
+                "reason=$reason tier=${tier.name} hours=$hours rows=${rows.size} " +
                     "stations=${rows.map { it.stationId }.distinct().joinToString("|")}",
                 "INFO",
             )

@@ -168,6 +168,11 @@ class CurrentTempRepository
                         // This loop is specifically for observations that may correct the header.
                         // Forecast-only providers (Open-Meteo and Silurian) are refreshed by the
                         // normal forecast cycle and must never drive an observation correction.
+                        // NOT relaxed for borrowing sources. This gate governs which sources may
+                        // WRITE observations, and a forecast-only source must never file its own
+                        // model current as one — that is the circular actuals problem borrowing
+                        // exists to replace, guarded by WeatherRepositoryTest. Borrowing happens
+                        // purely on the READ side, via ObservationSourceMatcher.matchesActualSource.
                         .filter { it.supportsTemperatureActuals }
                         .distinct()
 

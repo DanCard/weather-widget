@@ -75,18 +75,39 @@ object ObservationSourceMatcher {
         }
     }
 
-    /** True when a row may drive the selected source's temperature/cloud actuals. */
+    /**
+     * True when a row may drive the selected source's temperature/cloud actuals.
+     *
+     * This is THE shared predicate for that question: the daily blend, the hourly actual curve and
+     * the cloud series all reach it through
+     * `ActualTemperatureSeriesBuilder.matchesObservationSource`.
+     *
+     * It used to reject every source with `supportsTemperatureActuals == false` outright, which is
+     * why Open-Meteo and Silurian had no actual curve and an accuracy score computed against
+     * nothing. They now **borrow** a real feed — see [ActualsProviderResolver] — so the question is
+     * no longer "does this source have actuals?" but "which api supplies them?".
+     *
+     * @param actualsPreference per-source override for the borrowed feed, for the future Settings
+     *   picker. Defaults to none, which resolves to [ActualsProviderResolver.DEFAULT_PROVIDER].
+     */
     fun matchesActualSource(
         stationId: String,
         api: String,
         source: WeatherSource,
         allowGenericGap: Boolean = true,
+        actualsPreference: (WeatherSource) -> WeatherSource? = { null },
     ): Boolean {
-        if (!source.supportsTemperatureActuals) return false
         if (api == WeatherSource.GENERIC_GAP.id) {
             return allowGenericGap && source != WeatherSource.TOMORROW_IO
         }
-        if (api != source.id) return false
+        val providerId = ActualsProviderResolver.providerIdFor(source, actualsPreference)
+        if (api != providerId) return false
+
+        // A borrowed feed contributes every real station it has. The per-source station rules below
+        // exist to filter a source's OWN synthetic rows, and a borrowed provider has none of those
+        // to filter — its rows are measurements by definition.
+        if (providerId != source.id) return true
+
         return source != WeatherSource.TOMORROW_IO || TomorrowIoActuals.isAllowedStation(stationId)
     }
 }

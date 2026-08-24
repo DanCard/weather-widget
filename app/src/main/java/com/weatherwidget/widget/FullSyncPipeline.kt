@@ -156,6 +156,8 @@ internal class FullSyncPipeline(
                             location.first,
                             location.second,
                             reason = "full_sync",
+                            // Deep pull: daily extremes need the whole day, not the last two hours.
+                            hours = MetarObservationRefresher.DEEP_HOURS,
                         )
                     }
 

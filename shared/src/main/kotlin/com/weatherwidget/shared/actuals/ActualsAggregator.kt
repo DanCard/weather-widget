@@ -4,6 +4,8 @@ import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.WeatherSourceOrdering
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -213,9 +215,31 @@ object ActualsAggregator {
     ): List<DailyHistory> {
         val today = LocalDate.now(zoneId)
 
-        return observations
+        val byApi = observations
             .filter { it.stationId != "NWS_BLEND" }
             .groupBy { it.api }
+
+        // A forecast-only provider has no observations of its own, so grouping by `api` alone leaves
+        // it with no daily history at all — measured 2026-08-23, OPEN_METEO had zero observation
+        // rows on a live device. It BORROWS a real feed instead ([ActualsProviderResolver]), so an
+        // extra group is synthesised under the borrowing source's id from the provider's rows.
+        // Its own hourly forecast is still what those actuals get compared against, because
+        // `sourceHourly` below keys on the group id: Open-Meteo's forecast, METAR's measurements.
+        val borrowedGroups = WeatherSourceOrdering.ALL_CONFIGURABLE
+            .filter(ActualsProviderResolver::borrows)
+            .mapNotNull { borrower ->
+                val providerId = ActualsProviderResolver.providerIdFor(borrower)
+                byApi[providerId]?.takeIf { it.isNotEmpty() }?.let { borrower.id to it }
+            }
+
+        // Provider-only feeds are dropped from the OUTPUT. METAR is not a display source, so a
+        // daily-history row filed under it would never be read — only written, retained a month and
+        // recomputed. The rows still do their work through `borrowedGroups`.
+        val groups = byApi.entries
+            .filter { (api, _) -> api != ActualsProviderResolver.DEFAULT_PROVIDER.id }
+            .map { it.key to it.value } + borrowedGroups
+
+        return groups
             .flatMap { (sourceId, obsList) ->
                 val sourceHourly = hourlyForecasts.filter { it.source == sourceId || it.source == "GENERIC_GAP" }
                 obsList
