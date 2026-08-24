@@ -86,9 +86,11 @@ class ActualsProviderResolverTest {
 
     /**
      * The bug this guards: `supportsTemperatureActuals` defaults to TRUE, so filtering on it offered
-     * OpenWeatherMap and Visual Crossing. Their observation rows are `<SOURCE>_MAIN` at
-     * distanceKm = 0 plus the `_1..4` POI grid — model output re-filed, verified on device
-     * 2026-08-23. Borrowing those reintroduces circular actuals with an extra hop.
+     * OpenWeatherMap and Visual Crossing.
+     *
+     * OpenWeatherMap does have a live current-conditions endpoint, so the exclusion is not "no
+     * product" — it is that the product names a CITY rather than a station, carries no history, and
+     * is a blended analysis. See ActualsProviderResolver's KDoc for the evidence.
      */
     @Test
     fun `sources whose observations are their own forecast are never offered`() {

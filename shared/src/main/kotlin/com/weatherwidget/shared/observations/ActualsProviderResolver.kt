@@ -47,10 +47,28 @@ object ActualsProviderResolver {
      * Keyed on [WeatherSource.historicalDataKind], NOT on `supportsTemperatureActuals`.
      *
      * That flag defaults to `true`, so filtering on it offered OpenWeatherMap and Visual Crossing —
-     * both `HistoricalDataKind.NONE`. Their observation rows are `<SOURCE>_MAIN` at `distanceKm = 0`
-     * plus the `_1..4` POI offset grid: model output re-filed, not measurement (verified on device
-     * 2026-08-23). Borrowing those would reintroduce the circular actuals this whole mechanism
-     * exists to replace, with an extra hop to disguise it.
+     * both `HistoricalDataKind.NONE`.
+     *
+     * OpenWeatherMap is the interesting exclusion, because it is NOT simply "has no product". It
+     * serves `/data/2.5/weather`, which this app already calls, and its rows here are a mix: the
+     * `_1..4` POI offset samples come from that live endpoint, while `<SOURCE>_MAIN` is the
+     * historical-actuals backfill — the source's own forecast re-filed. It is excluded for three
+     * concrete reasons, verified against the live endpoint 2026-08-23:
+     *
+     *  - **No station identity.** The response names a CITY (`"name": "Los Altos"`, `id 5368335`)
+     *    for whatever coordinate you ask for. The `"base": "stations"` field looks like a claim to
+     *    the contrary, but OpenWeatherMap documents it as "Internal parameter".
+     *  - **No history.** A single point per call, no time series. A provider has to supply a series
+     *    for the daily blend and be able to fill in a past day; this can only accumulate forward.
+     *  - **Not a measurement.** A blended city-centroid analysis — which this codebase already says
+     *    of the POI grid itself: "also model-derived, not real thermometers"
+     *    (`ObservationSourceMatcher`).
+     *
+     * Its honest class would be [HistoricalDataKind.RECENT_ANALYSIS], the same bucket as
+     * Tomorrow.io's realtime product, which would make it a [Tier.DERIVED] candidate rather than no
+     * candidate at all. Reclassifying is a live option, deliberately not taken: `historicalDataKind`
+     * also drives `preservesHistoricalCloud` and the backfill gate, so the change reaches past this
+     * picker. Visual Crossing is a plainer case — no historical product in use at all.
      */
     fun tierOf(source: WeatherSource): Tier? = when (source.historicalDataKind) {
         HistoricalDataKind.STATION_OBSERVATION -> Tier.MEASURED
