@@ -196,6 +196,93 @@ vanishes exactly when the daily low forms is the case `extrapolateForward` and
 `DAILY_BLEND_CONTEXT_MS` exist to paper over. Worth its own look, independent of METAR; see
 `daily_low_lone_station_sticky_ratchet`.
 
+---
+
+## 2.6. Review of commit `2db70e74` (METAR Cluster A) and the fixes applied
+
+Gemini implemented Cluster A before Phase 0 finished. Reviewed 2026-08-23; **kept the valuable
+part, removed the two enrichments measurement had ruled out, pinned the one that was unlabelled.**
+
+### Kept
+
+`rawMetar` persistence and `MetarDecoder` itself — decision #1 of §6, correctly built: idempotent
+`addColumnIfMissing` migration, schema `66.json` exported, desktop SQLite v20 in step,
+`MetarRawSkyParser` reused rather than reimplemented. It also makes the §2.5 census repeatable from
+the app's own DB instead of a live API probe.
+
+### Removed — T-group temperature override
+
+```kotlin
+val tempCelsius = remarks?.preciseTempCelsius ?: observation.temperatureCelsius  // deleted
+```
+
+A no-op that added a parser-bug path onto the app's most load-bearing field. `api.weather.gov`
+already decodes the T-group (§2), and §2.5(ii) measured 0.0 % sub-degree rows at KNUQ and KPAO on
+both feeds. Inverted test `payload temperature wins over the remarks T-group` now fails if re-added.
+
+### Removed — 24-hour extreme backfill
+
+```kotlin
+val max24hCelsius = observation.maxTempLast24hCelsius ?: remarks?.max24HourTempCelsius  // deleted
+```
+
+A latent **off-by-one day**. `maxTemperatureLast24Hours` is a ROLLING extreme; METAR `4sTTTTsTTTT`
+is the LOCAL CALENDAR-DAY extreme for the day that just ended, emitted once daily near 01:00 local.
+Confirmed live — KSJC's only 4-group in 24 h:
+
+```
+METAR KSJC 230753Z ... RMK AO2 SLP147 T01720133 402610156     08:00Z = 01:00 PDT
+   -> max 26.1 C / min 15.6 C, for August 22
+```
+
+`ObservationResolver.officialExtremesToDailyEntities:163` groups by the observation's own local date
+and writes into `computedHighTemp`, so Aug 22's high would have surfaced as Aug 23's. It has no
+callers today; the removal keeps it correct when it gains one.
+
+**Kept:** the precip fallback. `Pxxxx` is "since the last hourly report" — the same window and units
+as `precipitationLastHour`, a legitimate gap-fill rather than a semantic swap.
+
+### Pinned — the raw-METAR sky fallback
+
+`observation.cloudLayers.ifEmpty { decodedMetar?.skyLayers }` is a genuine gap-fill but sits on the
+invariant this codebase has broken twice: **absent sky is "not reported", never "clear"**. Kept, and
+pinned by the new `NwsObservationMapperCloudTest` (7 cases). Mutation-checked: forcing
+`lowPercent(layers) ?: 0` fails 3 of them, so the pin is real.
+
+### Fixed — `rawMetar` stored `''` instead of NULL
+
+Found by the live re-verification, not by review. The 5-minute ASOS rows carry
+`"rawMessage": ""` — present but empty — and `contentOrNull` only nulls on JSON `null`, so the empty
+string was persisted. `rawMetar IS NOT NULL`, the obvious "is this a METAR" predicate, was true for
+every 5-minute row, against the column's own KDoc. Normalized with `takeIf { it.isNotBlank() }`.
+
+### Also
+
+Restored the deleted comment explaining why `rawMessage` is the only reliable METAR discriminator
+(KNUQ reports at :15/:35/:55, so minute-of-hour cannot separate METARs from 5-minute rows). Fixed
+the maintenance-flag regex: `\s\$\b` could never match a space-delimited ` $ ` because `\b` after a
+non-word character requires a following word character.
+
+### Live verification (emulator-5554, 2026-08-23 17:06)
+
+The original commit reported verifying against KNUQ and KPAO — the two stations that **cannot**
+exercise enrichment. Re-run after the fixes:
+
+| station | isMetar | rawMetar | tempF | low | max24 |
+|---|---:|---|---:|---:|---|
+| KNUQ | 1 | 54 chars | 78.8 (= 26.0 °C exact) | 0 | — |
+| KPAO | 1 | 41 chars | 80.6 (= 27.0 °C exact) | 0 | — |
+| KSJC | 0 | **NULL** | 86.0 | — | — |
+| LOAC1 / AW020 (PWS) | 0 | **NULL** | 91.99 / 83.0 | — | — |
+
+**The structural finding:** KSJC's row is a 5-minute ASOS sample, not the `:53` METAR. The app
+stores the *latest* observation, which for KSJC is a 5-minute row ~11 times in 12 — so the only
+nearby station that emits remarks almost never contributes one. Live census over every row written
+since the column shipped: **0 rows with a T-group, 0 with a 24-hour group.** The enrichment code
+could not have fired at this location even if it had been correct.
+
+3,456 unit tests pass (`./scripts/unit-tests.sh`).
+
 ## 3. Cluster A — mine the METARs already being fetched (zero new network)
 
 | # | Idea | Notes |

@@ -32,12 +32,37 @@ object NwsObservationMapper {
         val decodedMetar = if (observation.isMetar) MetarDecoder.decode(observation.rawMessage) else null
         val remarks = decodedMetar?.remarks
 
-        // T-group tenths precision eliminates ±0.9°F quantization noise from integer-rounded API payloads.
-        val tempCelsius = remarks?.preciseTempCelsius ?: observation.temperatureCelsius
-        val max24hCelsius = observation.maxTempLast24hCelsius ?: remarks?.max24HourTempCelsius
-        val min24hCelsius = observation.minTempLast24hCelsius ?: remarks?.min24HourTempCelsius
+        // DELIBERATELY NOT overridden from the T-group. `api.weather.gov` already decodes
+        // `Tsnnnsnnn` and serves the tenths itself — a KSJC :53 row arrives as 30.6, not 31 — so an
+        // override recomputes the number the payload already carried and buys nothing, while adding
+        // a parser-bug path onto the app's most load-bearing field. Measured 2026-08-23 (see
+        // plans/260823-metar-data-incorporation-brainstorm-opus.md §2.5): 0.0% of KNUQ and KPAO rows
+        // carry sub-degree precision on EITHER feed, because neither station emits a T-group at all;
+        // and cross-station disagreement averages 4.24°F, ~5x the 0.9°F quantization being chased.
+        // Whole-degree rows here are the interleaved 5-minute ASOS samples, which have no rawMessage
+        // and so could never have been enriched anyway.
+        val tempCelsius = observation.temperatureCelsius
+
+        // Also deliberately NOT backfilled from remarks. `maxTemperatureLast24Hours` is a ROLLING
+        // 24-hour extreme carried on many reports; the METAR `4sTTTTsTTTT` group is the LOCAL
+        // CALENDAR-DAY extreme, emitted once per day in the ~08:00Z (01:00 PDT) report and
+        // describing the day that just ENDED. Filing the latter into the former is an off-by-one
+        // day: ObservationResolver.officialExtremesToDailyEntities groups by the observation's own
+        // local date and writes straight into `computedHighTemp`, so KSJC's `402610156` at 01:00 PDT
+        // would surface Aug 22's high as Aug 23's. That function has no callers today; this stays
+        // unfilled so it is still correct when it gains one.
+        val max24hCelsius = observation.maxTempLast24hCelsius
+        val min24hCelsius = observation.minTempLast24hCelsius
+
+        // Precip DOES fall back: `Pxxxx` is "since the last hourly report", the same quantity
+        // `precipitationLastHour` reports. Same window, same units — a legitimate gap-fill.
         val precipMm = observation.precipLastHourMm ?: remarks?.hourlyPrecipMm
 
+        // Sky falls back to the raw report when the JSON array is absent, which is a real gap on
+        // paths that never populated `cloudLayers`. The "not reported" vs "clear" distinction still
+        // survives: MetarRawSkyParser returns an EMPTY list for a report carrying no sky group, and
+        // MetarSkyCover.lowPercent maps empty to null. Pinned by NwsObservationMapperCloudTest —
+        // see nws_latest_endpoint_drops_cloud / daily_grey_cloud_means_no_row for why it matters.
         val layers = observation.cloudLayers.ifEmpty { decodedMetar?.skyLayers ?: emptyList() }
 
         return ObservationReading(

@@ -122,7 +122,17 @@ class NwsApi
                 // stations list can show the failure, exactly as Synoptic-flagged readings are.
                 val qualityControl = tempObj.get("qualityControl")?.jsonPrimitive?.contentOrNull
 
-                val rawMessage = props["rawMessage"]?.jsonPrimitive?.contentOrNull
+                // A populated rawMessage is the ONLY reliable way to tell an actual METAR from the
+                // ASOS 5-minute rows this endpoint interleaves. Minute-of-hour cannot do it: KSJC
+                // and KPAO report at :53/:47, but KNUQ's METARs land on :15/:35/:55 — all multiples
+                // of five, indistinguishable from 5-minute rows by timestamp alone.
+                // Kept verbatim on the observation so the raw report can be re-decoded later
+                // (`ObservationEntity.rawMetar`); the 5-minute rows carry none.
+                // `takeIf` because the 5-minute rows carry `"rawMessage": ""` — a present but EMPTY
+                // string, which `contentOrNull` passes through (it only nulls on JSON null). Storing
+                // that verbatim made `rawMetar IS NOT NULL` — the obvious "is this a METAR" query —
+                // true for every 5-minute row, against the column's own documented contract.
+                val rawMessage = props["rawMessage"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
                 val isMetar = !rawMessage.isNullOrBlank()
 
                 return Observation(

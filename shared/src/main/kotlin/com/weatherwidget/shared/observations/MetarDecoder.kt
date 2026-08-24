@@ -71,6 +71,7 @@ object MetarDecoder {
     private val PRECIP_3_6H_REGEX = Regex("""\b6(\d{4})\b""")
     private val PRECIP_24H_REGEX = Regex("""\b7(\d{4})\b""")
     private val SLP_REGEX = Regex("""\bSLP(\d{3})\b""")
+    private val MAINTENANCE_REGEX = Regex("""(?:^|\s)\$(?=\s|$)""")
 
     /**
      * Decodes a raw METAR string into a structured [MetarReport].
@@ -140,7 +141,10 @@ object MetarDecoder {
         val isAuto2 = Regex("""\bAO2\b""").containsMatchIn(rmk)
         val isAuto = isAuto1 || isAuto2
         val hasPrecipDisc = isAuto2
-        val maintenance = rmk.endsWith("$") || Regex("""\s\$\b""").containsMatchIn(rmk)
+        // `\b` after `$` needs a following WORD character, so `\s\$\b` could never match a
+        // space-delimited " $ " — only the trailing-$ branch ever fired. Lookaround instead:
+        // the flag is its own token, at end-of-remarks or followed by whitespace.
+        val maintenance = MAINTENANCE_REGEX.containsMatchIn(rmk)
 
         // T-group: T[s][TTT][s][DDD]
         var preciseTemp: Float? = null
