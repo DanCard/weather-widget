@@ -93,6 +93,10 @@ class WeatherObservationsActivityRobolectricTest {
                     observation("SILURIAN_1", "Silurian: North", now - 1_000L, 68.2f, 0f),
                     observation("AW020", "AE6EO MOUNTAIN VIEW", now - 10_000L, 73.0f, 2.9f, stationType = "PERSONAL"),
                     observation("KNUQ", "Mountain View, Moffett Field", now - 20_000L, 68.0f, 3.7f, stationType = "OFFICIAL"),
+                    // Same airport, the OTHER feed. Both rows coexist since the observations primary
+                    // key gained `api`, so the NWS list must reject this one on provenance alone —
+                    // the station-ID rule cannot, KNUQ is a real ICAO id under either api.
+                    observation("KNUQ", "Mountain View, Moffett Field", now - 15_000L, 68.4f, 3.7f, stationType = "OFFICIAL", api = "METAR"),
                     observation("WEATHER_API_MAIN", "WAPI: Current", now - 30_000L, 68.5f, 0f),
                     observation("TOMORROW_IO_MAIN", "Tmrw: Current", now - 40_000L, 69.1f, 0f),
                 ),
@@ -547,8 +551,12 @@ class WeatherObservationsActivityRobolectricTest {
             val sourceButton = activity.findViewById<TextView>(R.id.api_source_button).text.toString()
 
             assertEquals("Silur", sourceButton)
-            assertTrue(stationIds.isEmpty())
-            assertEquals("No recent observations found for Silurian.", subtitle)
+            // Silurian is forecast-only, so it BORROWS a measured feed (METAR by default) and lists
+            // that feed's stations. What it must never list is its own model rows re-filed as
+            // observations — SILURIAN_MAIN/SILURIAN_1 are not thermometers.
+            assertEquals(listOf("KNUQ"), stationIds)
+            assertFalse("Silurian model rows must not appear as stations", stationIds.any { it.startsWith("SILURIAN") })
+            assertNotEquals("No recent observations found for Silurian.", subtitle)
             assertTrue(logs.contains("error error=timeout"))
         }
     }
@@ -871,6 +879,7 @@ class WeatherObservationsActivityRobolectricTest {
         temperature: Float,
         distanceKm: Float,
         stationType: String = "UNKNOWN",
+        api: String = apiForStationId(stationId),
     ): ObservationEntity {
         return ObservationEntity(
             stationId = stationId,
@@ -883,9 +892,21 @@ class WeatherObservationsActivityRobolectricTest {
             distanceKm = distanceKm,
             stationType = stationType,
             fetchedAt = timestamp,
-            api = "NWS",
+            api = api,
         )
     }
+
+    /**
+     * Production writes `api` and `stationId` together — `SILURIAN_MAIN` is always filed under
+     * `api = "SILURIAN"`. This fixture used to hardcode `api = "NWS"` for every row, which made the
+     * two columns disagree in a way no real writer produces, and hid every bug that came from
+     * confusing a display source's id with the api that actually supplies its actuals.
+     */
+    private fun apiForStationId(stationId: String): String =
+        WeatherSource.entries
+            .firstOrNull { stationId.startsWith("${it.id}_") }
+            ?.id
+            ?: WeatherSource.NWS.id
 
     private fun clearTestPrefs(name: String) {
         context.getSharedPreferences("${name}_test_default", Context.MODE_PRIVATE).edit().clear().commit()

@@ -208,6 +208,13 @@ enum class WeatherSource(
                 "SILURIAN" -> SILURIAN
                 "TOMORROW_IO" -> TOMORROW_IO
                 "Generic" -> GENERIC_GAP
+                METAR.id -> METAR
+                SYNOPTIC.id -> SYNOPTIC
+                // Deliberately last, and deliberately NWS: callers pass ids read back from the
+                // database, where an unrecognised value must still render something. It also means
+                // a missing entry above is invisible — adding METAR/SYNOPTIC to the enum without
+                // adding them here silently labelled the borrowed actuals feed "NWS" in the
+                // observations picker. Every new entry needs a line here.
                 else -> NWS
             }
 

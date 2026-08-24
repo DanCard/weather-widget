@@ -76,6 +76,42 @@ object ObservationSourceMatcher {
     }
 
     /**
+     * True when a row belongs in the **stations list** for display source [source].
+     *
+     * This is the screen-level question, and it is deliberately NOT the same as
+     * [matchesObservationSource]. A forecast-only source has `supportsTemperatureActuals == false`,
+     * so the station-ID rule rejects every row and the list comes back empty — correct while such a
+     * source had no actuals at all, and wrong the moment it started **borrowing** one. The Android
+     * observations screen puts an "Actuals source" picker directly above this list; filtering by the
+     * display source alone left that picker sitting on top of "No recent observations found".
+     *
+     * So: a borrowing source lists its borrowed provider's stations ([matchesActualSource]), and a
+     * source that ships its own observations keeps the station-ID rule, which is the only one that
+     * can strip its synthetic rows (`NWS_BLEND`, `<SOURCE>_MAIN`).
+     *
+     * `allowGenericGap` is false because GENERIC_GAP fills *forecast* coverage past the other
+     * providers' horizons; it is not an observation feed and has no station to name.
+     *
+     * The non-borrowing branch checks `api` **as well as** the station ID. [matchesObservationSource]
+     * documents that the two keys agree "because both are written together at insert time"; METAR is
+     * the writer that broke it, filing real ICAO ids (`KNUQ`) under `api = "METAR"`. The NWS branch's
+     * station rule is a set of exclusions, so it accepts those, and the list would show a METAR
+     * reading labelled as an NWS station. This was invisible until the observations primary key grew
+     * an `api` column — before that METAR simply overwrote the NWS row.
+     */
+    fun matchesStationsList(
+        stationId: String,
+        api: String,
+        source: WeatherSource,
+        actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
+    ): Boolean =
+        if (ActualsProviderResolver.borrows(source)) {
+            matchesActualSource(stationId, api, source, allowGenericGap = false, actualsPreference)
+        } else {
+            api == source.id && matchesObservationSource(stationId, source)
+        }
+
+    /**
      * True when a row may drive the selected source's temperature/cloud actuals.
      *
      * This is THE shared predicate for that question: the daily blend, the hourly actual curve and

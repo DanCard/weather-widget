@@ -159,12 +159,14 @@ internal fun visibleStationRows(
     source: WeatherSource,
 ): List<DesktopObservationEntity> =
     all.asSequence()
-        .filter { it.api == source.id }
-        // Hide synthetic rows (IDW blend + NWS history backfill) — the shared matcher is the same
-        // one the Android stations list uses. The stationType guard stays as a belt-and-suspenders
-        // catch for the desktop-only "BLENDED" marker.
+        // Hides synthetic rows (IDW blend + NWS history backfill) and matches the stored `api`
+        // against the feed that actually supplies this source's actuals — the same shared matcher
+        // the Android stations list uses. There used to be a separate `api == source.id` pre-filter
+        // here; that is exactly the comparison a borrowing source must NOT make, since Open-Meteo's
+        // actuals arrive filed under METAR or NWS. The stationType guard stays as a
+        // belt-and-suspenders catch for the desktop-only "BLENDED" marker.
         .filter {
-            ObservationSourceMatcher.matchesObservationSource(it.stationId, source) &&
+            ObservationSourceMatcher.matchesStationsList(it.stationId, it.api, source) &&
                 it.stationType != "BLENDED"
         }
         .groupBy { it.stationId }

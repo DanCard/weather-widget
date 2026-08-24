@@ -650,7 +650,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 val diagnostic = StringBuilder()
 
                 fun isForCurrentSource(row: ObservationEntity) =
-                    WeatherObservationsSupport.matchesObservationSource(row.stationId, currentSource)
+                    WeatherObservationsSupport.matchesStationsList(row.stationId, row.api, currentSource)
 
                 suspend fun stationsSince(sinceMs: Long): List<ObservationEntity> {
                     val rows = if (location != null) {
@@ -859,6 +859,12 @@ class WeatherObservationsActivity : AppCompatActivity() {
         // rows (NWS_BLEND, the NWS history backfill) identically. See ObservationSourceMatcher.
         fun matchesObservationSource(stationId: String, source: WeatherSource): Boolean =
             ObservationSourceMatcher.matchesObservationSource(stationId, source)
+
+        // The list filter proper. Split from the above because a forecast-only source shows its
+        // BORROWED provider's stations — the "Actuals source" row above the list names that feed,
+        // and filtering by display source alone left the picker sitting over an empty list.
+        fun matchesStationsList(stationId: String, api: String, source: WeatherSource): Boolean =
+            ObservationSourceMatcher.matchesStationsList(stationId, api, source)
 
         fun matchesFetchLog(log: AppLogEntity, source: WeatherSource): Boolean =
             when (log.tag) {
