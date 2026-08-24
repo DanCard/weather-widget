@@ -23,6 +23,9 @@ class WeatherSourceCloudActualsTest {
             // product MetarSkyCover already reads on the NWS path, both as a decoded `clouds[]`
             // array and in the raw report. Verified, not inferred.
             WeatherSource.METAR,
+            // Synoptic serves the raw report in `metar_set_1`, which MetarRawSkyParser already
+            // decodes on the web-fallback path — the same measured sky condition, verified.
+            WeatherSource.SYNOPTIC,
             WeatherSource.TOMORROW_IO,
         )
         assertEquals(expected, WeatherSource.entries.filter { it.supportsCloudActuals }.toSet())

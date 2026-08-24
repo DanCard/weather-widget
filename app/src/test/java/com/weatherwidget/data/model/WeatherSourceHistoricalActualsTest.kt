@@ -27,6 +27,8 @@ class WeatherSourceHistoricalActualsTest {
             // Raw airport METARs from aviationweather.gov are station observations in the same
             // sense NWS's are — measured at a real site, not a provider's model output.
             WeatherSource.METAR to HistoricalDataKind.STATION_OBSERVATION,
+            // Synoptic/MesoWest redistributes real station measurements, same class as NWS's.
+            WeatherSource.SYNOPTIC to HistoricalDataKind.STATION_OBSERVATION,
         )
         assertEquals(
             "A new source must make an explicit provider-history provenance choice.",

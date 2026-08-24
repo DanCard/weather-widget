@@ -43,6 +43,8 @@ object ApiKeySignupUrls {
         WeatherSource.OPEN_METEO,
         WeatherSource.GENERIC_GAP,
         // aviationweather.gov is a keyless US government feed, and METAR is not user-selectable.
-        WeatherSource.METAR -> false
+        WeatherSource.METAR,
+        // Token provisioned at build time, not entered by the user in Settings.
+        WeatherSource.SYNOPTIC -> false
     }
 }

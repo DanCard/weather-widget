@@ -204,7 +204,7 @@ object DailyForecastIconResolver {
             // Neither produces a daily forecast row, so neither ever reaches this resolver:
             // GENERIC_GAP carries no condition token, and METAR is an observation-only feed with
             // no forecast product at all.
-            WeatherSource.GENERIC_GAP, WeatherSource.METAR -> null
+            WeatherSource.GENERIC_GAP, WeatherSource.METAR, WeatherSource.SYNOPTIC -> null
         }
     }
 
