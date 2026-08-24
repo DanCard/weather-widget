@@ -210,6 +210,16 @@ private fun runApp() = application {
         val configStore = remember { DesktopConfigStore() }
         var config by remember { mutableStateOf(configStore.load()) }
 
+        // Publish settings to the ActualsProviderResolver seam on load and on every change, rather
+        // than having the blend re-read the config file nine times a paint.
+        DisposableEffect(Unit) {
+            DesktopActualsPreference.install()
+            onDispose { }
+        }
+        LaunchedEffect(config?.settings) {
+            DesktopActualsPreference.update(config?.settings)
+        }
+
         // Persistence layer
         val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
         val weatherDao = remember { DesktopWeatherDao(weatherDb) }

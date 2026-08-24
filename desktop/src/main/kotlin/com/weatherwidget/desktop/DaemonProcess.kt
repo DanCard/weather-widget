@@ -46,6 +46,10 @@ fun runDaemon() {
 
     val configStore = DesktopConfigStore()
     var currentConfig = configStore.load()
+    // Same shape as the Log sink: a :shared seam only the platform can fill. The daemon renders the
+    // panel markup, so it needs the user's per-source actuals choice just as much as the UI does.
+    DesktopActualsPreference.install()
+    DesktopActualsPreference.update(currentConfig?.settings)
 
     val weatherDb = DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() }
     val weatherDao = DesktopWeatherDao(weatherDb)

@@ -43,6 +43,12 @@ data class DesktopSettings(
     val todayOverlayDelta: Boolean = false,
     val todayOverlayDominantTemp: Boolean = false,
     val todayOverlayDominantAge: Boolean = false,
+    // Per-source override for the feed that supplies a forecast-only source's actuals, keyed by
+    // WeatherSource.id -> provider WeatherSource.id. Mirrors Android's `actuals_provider_<SOURCE>`
+    // SharedPreferences keys. An ABSENT entry means "use the default"
+    // (ActualsProviderResolver.DEFAULT_PROVIDER) and is deliberately not written as an explicit
+    // value: storing the default would silently pin the user if the default ever moves.
+    val actualsProviders: Map<String, String> = emptyMap(),
 ) {
     // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
     fun personalStationWeight(): Double = 1.0 - personalStationDiscount.coerceIn(0, 100) / 100.0
@@ -63,6 +69,7 @@ data class DesktopSettings(
         add("multiDayZoomEnabled", multiDayZoomEnabled, other.multiDayZoomEnabled)
         add("personalStationDiscount", personalStationDiscount, other.personalStationDiscount)
         add("useCelsius", useCelsius, other.useCelsius)
+        add("actualsProviders", actualsProviders, other.actualsProviders)
         add("todayOverlayDelta", todayOverlayDelta, other.todayOverlayDelta)
         add("todayOverlayDominantTemp", todayOverlayDominantTemp, other.todayOverlayDominantTemp)
         add("todayOverlayDominantAge", todayOverlayDominantAge, other.todayOverlayDominantAge)

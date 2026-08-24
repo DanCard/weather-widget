@@ -43,6 +43,7 @@ import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.BlendTable
 import com.weatherwidget.shared.actuals.BlendTableFormatter
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.util.StationHistoryUrl
@@ -425,7 +426,33 @@ internal fun ObservationsWindow(
                     Box(modifier = Modifier.weight(1f)) {
                         when (selectedTab) {
                             TAB_BLEND -> BlendTableView(blendTables, currentSource.id)
-                            TAB_OBSERVATIONS -> ObservationList(observations, config.settings.useCelsius, nowMs)
+                            TAB_OBSERVATIONS -> Column {
+                                // Only a forecast-only source gets the control. A source that ships
+                                // its own observations is not offered a choice, because borrowing
+                                // exists to fill an absence — regrading NWS against someone else's
+                                // thermometers would be a different and much larger decision.
+                                if (ActualsProviderResolver.borrows(currentSource)) {
+                                    ActualsSourceRow(
+                                        source = currentSource,
+                                        active = ActualsProviderResolver.providerIdFor(currentSource),
+                                        onChoose = { chosen ->
+                                            onConfigUpdate(
+                                                config.copy(
+                                                    settings = DesktopActualsPreference.withChoice(
+                                                        config.settings,
+                                                        currentSource,
+                                                        // Store nothing for the default so the
+                                                        // preference stays absent unless the user
+                                                        // actively diverges.
+                                                        chosen.takeIf { it != ActualsProviderResolver.DEFAULT_PROVIDER },
+                                                    ),
+                                                ),
+                                            )
+                                        },
+                                    )
+                                }
+                                ObservationList(observations, config.settings.useCelsius, nowMs)
+                            }
                             else -> LogList(logs)
                         }
                     }
@@ -459,6 +486,66 @@ internal fun ObservationRefreshButton(
             )
         } else {
             Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+        }
+    }
+}
+
+/**
+ * Names the feed supplying this forecast-only source's actuals, and lets the user change it.
+ *
+ * Mirrors the Android row in `WeatherObservationsActivity`. Tier is shown inline rather than as a
+ * section header: presenting Tomorrow.io's six-hour analysis window as equivalent to a thermometer
+ * is the one thing this picker must not do.
+ */
+@Composable
+private fun ActualsSourceRow(
+    source: WeatherSource,
+    active: String,
+    onChoose: (WeatherSource) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val candidates = remember { ActualsProviderResolver.candidates() }
+    if (candidates.isEmpty()) return
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Actuals source", fontSize = 13.sp, color = ObsStyle.textSecondary)
+        Spacer(Modifier.width(8.dp))
+        Box {
+            TextButton(onClick = { expanded = true }) {
+                Text(
+                    WeatherSource.fromId(active).displayName,
+                    fontSize = 13.sp,
+                    color = ObsStyle.accent,
+                )
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                candidates.forEach { candidate ->
+                    val marks = buildList {
+                        if (candidate == ActualsProviderResolver.DEFAULT_PROVIDER) add("default")
+                        when (ActualsProviderResolver.tierOf(candidate)) {
+                            ActualsProviderResolver.Tier.MEASURED -> add("measured")
+                            ActualsProviderResolver.Tier.DERIVED -> add("derived")
+                            null -> Unit
+                        }
+                    }
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "${candidate.displayName}  (${marks.joinToString(", ")})",
+                                fontSize = 13.sp,
+                                color = if (candidate.id == active) ObsStyle.accent else Color.White,
+                            )
+                        },
+                        onClick = {
+                            expanded = false
+                            onChoose(candidate)
+                        },
+                    )
+                }
+            }
         }
     }
 }
