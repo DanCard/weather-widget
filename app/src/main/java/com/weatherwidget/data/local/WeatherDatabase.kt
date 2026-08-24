@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 66,
+    version = 67,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -531,6 +531,81 @@ abstract class WeatherDatabase : RoomDatabase() {
          * Adds `observations.rawMetar` storing the original raw METAR message string for
          * diagnostics, inspection, and future re-parsing. Moves with Desktop SQLite v20.
          */
+        /**
+         * Adds `api` to the `observations` primary key.
+         *
+         * Two sources can observe the same physical station at the same instant, and those are two
+         * rows, not one. Before this, REPLACE let a METAR row overwrite the NWS row for the same
+         * station and timestamp and flip its `api`, removing that station from the NWS blend —
+         * KNUQ, the nearest official station, was reduced to a single surviving NWS row.
+         *
+         * Rows already overwritten cannot be recovered; they rebuild as each source fetches. The
+         * copy below is a plain INSERT SELECT because the surviving rows are, by definition, already
+         * unique under the WIDER key.
+         */
+        val MIGRATION_66_67 = object : Migration(66, 67) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `observations_new` (
+                        `stationId` TEXT NOT NULL,
+                        `stationName` TEXT NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        `temperature` REAL NOT NULL,
+                        `condition` TEXT NOT NULL,
+                        `locationLat` REAL NOT NULL,
+                        `locationLon` REAL NOT NULL,
+                        `distanceKm` REAL NOT NULL,
+                        `stationType` TEXT NOT NULL,
+                        `fetchedAt` INTEGER NOT NULL,
+                        `maxTempLast24h` REAL,
+                        `minTempLast24h` REAL,
+                        `api` TEXT NOT NULL,
+                        `precipAmountMm` REAL,
+                        `isWebFallback` INTEGER NOT NULL,
+                        `qcFailed` INTEGER NOT NULL,
+                        `cloudCover` INTEGER,
+                        `cloudCoverLow` INTEGER,
+                        `isMetar` INTEGER NOT NULL,
+                        `rawMetar` TEXT,
+                        PRIMARY KEY(`stationId`, `timestamp`, `locationLat`, `locationLon`, `api`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `observations_new` (
+                        `stationId`, `stationName`, `timestamp`, `temperature`, `condition`,
+                        `locationLat`, `locationLon`, `distanceKm`, `stationType`, `fetchedAt`,
+                        `maxTempLast24h`, `minTempLast24h`, `api`, `precipAmountMm`,
+                        `isWebFallback`, `qcFailed`, `cloudCover`, `cloudCoverLow`, `isMetar`,
+                        `rawMetar`
+                    )
+                    SELECT
+                        `stationId`, `stationName`, `timestamp`, `temperature`, `condition`,
+                        `locationLat`, `locationLon`, `distanceKm`, `stationType`, `fetchedAt`,
+                        `maxTempLast24h`, `minTempLast24h`, `api`, `precipAmountMm`,
+                        `isWebFallback`, `qcFailed`, `cloudCover`, `cloudCoverLow`, `isMetar`,
+                        `rawMetar`
+                    FROM `observations`
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE `observations`")
+                db.execSQL("ALTER TABLE `observations_new` RENAME TO `observations`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_observations_locationLat_locationLon` " +
+                        "ON `observations` (`locationLat`, `locationLon`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_observations_timestamp_locationLat_locationLon` " +
+                        "ON `observations` (`timestamp`, `locationLat`, `locationLon`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_observations_api` ON `observations` (`api`)",
+                )
+            }
+        }
+
         val MIGRATION_65_66 = object : Migration(65, 66) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 addColumnIfMissing(db, "observations", "rawMetar", "TEXT")
@@ -599,7 +674,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

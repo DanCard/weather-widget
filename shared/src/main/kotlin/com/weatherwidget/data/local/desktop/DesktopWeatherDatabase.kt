@@ -115,7 +115,13 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         cloudCoverLow INTEGER,
                         isMetar INTEGER NOT NULL DEFAULT 0,
                         rawMetar TEXT,
-                        PRIMARY KEY (stationId, timestamp)
+                        -- Location AND api are part of the identity. Two sources can observe the
+                        -- same station at the same instant (aviationweather and api.weather.gov both
+                        -- serve KNUQ), and one physical site can be observed from two fetch
+                        -- coordinates. Without them, an INSERT OR REPLACE silently destroys the other
+                        -- row and flips its provenance — measured on Android 2026-08-23, KNUQ was cut
+                        -- to 1 NWS row against 70 METAR rows. Matches Android's key exactly.
+                        PRIMARY KEY (stationId, timestamp, locationLat, locationLon, api)
                     )
                 """.trimIndent())
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_location ON observations(locationLat, locationLon)")
@@ -425,6 +431,53 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 20) {
                 addColumnIfMissing(stmt, "observations", "rawMetar", "TEXT")
             }
+            if (from < 21) {
+                // Widen the observations key to (stationId, timestamp, locationLat, locationLon, api),
+                // matching Android's v67. SQLite cannot alter a primary key, so recreate and copy.
+                // Rows already lost to the old key cannot be recovered; they rebuild on next fetch.
+                stmt.execute("ALTER TABLE observations RENAME TO observations_old_v20")
+                stmt.execute(
+                    """
+                    CREATE TABLE observations (
+                        stationId TEXT NOT NULL,
+                        stationName TEXT NOT NULL,
+                        timestamp INTEGER NOT NULL,
+                        temperature REAL NOT NULL,
+                        condition TEXT NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        distanceKm REAL NOT NULL DEFAULT 0,
+                        stationType TEXT NOT NULL DEFAULT 'UNKNOWN',
+                        fetchedAt INTEGER NOT NULL,
+                        maxTempLast24h REAL,
+                        minTempLast24h REAL,
+                        api TEXT NOT NULL,
+                        precipAmountMm REAL,
+                        isWebFallback INTEGER NOT NULL DEFAULT 0,
+                        qcFailed INTEGER NOT NULL DEFAULT 0,
+                        cloudCover INTEGER,
+                        cloudCoverLow INTEGER,
+                        isMetar INTEGER NOT NULL DEFAULT 0,
+                        rawMetar TEXT,
+                        PRIMARY KEY (stationId, timestamp, locationLat, locationLon, api)
+                    )
+                    """.trimIndent(),
+                )
+                stmt.execute(
+                    """
+                    INSERT INTO observations SELECT
+                        stationId, stationName, timestamp, temperature, condition,
+                        locationLat, locationLon, distanceKm, stationType, fetchedAt,
+                        maxTempLast24h, minTempLast24h, api, precipAmountMm,
+                        isWebFallback, qcFailed, cloudCover, cloudCoverLow, isMetar, rawMetar
+                    FROM observations_old_v20
+                    """.trimIndent(),
+                )
+                stmt.execute("DROP TABLE observations_old_v20")
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_location ON observations(locationLat, locationLon)")
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_time_loc ON observations(timestamp, locationLat, locationLon)")
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_api ON observations(api)")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -470,7 +523,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 20
+        private const val SCHEMA_VERSION = 21
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by

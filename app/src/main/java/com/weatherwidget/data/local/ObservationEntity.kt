@@ -10,7 +10,16 @@ import androidx.room.Index
  */
 @Entity(
     tableName = "observations",
-    primaryKeys = ["stationId", "timestamp", "locationLat", "locationLon"],
+    // `api` is part of the identity, not just a label. Two sources can observe the SAME physical
+    // station at the SAME instant — aviationweather and api.weather.gov both serve KNUQ's 20-minute
+    // reports — and those are two independent accounts of that moment, not one row. Without `api`
+    // here, OnConflictStrategy.REPLACE silently overwrote the NWS row with the METAR one and flipped
+    // its provenance, dropping the station out of the NWS blend entirely: measured 2026-08-23 on two
+    // devices, KNUQ was reduced to 1 surviving NWS row against 70 METAR rows, and the widget
+    // oscillated as each feed took the key in turn. The old key only ever worked because every other
+    // non-NWS source writes SYNTHETIC station ids (`OPEN_METEO_MAIN`, `TOMORROW_IO_REALTIME`) that
+    // cannot collide; METAR is the first to reuse real ones.
+    primaryKeys = ["stationId", "timestamp", "locationLat", "locationLon", "api"],
     indices = [
         Index(value = ["locationLat", "locationLon"]),
         Index(value = ["timestamp", "locationLat", "locationLon"]),
