@@ -1,7 +1,9 @@
 package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.HistoricalDataKind
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.CloudHourBucket
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.util.Log
@@ -109,18 +111,27 @@ object MetarCloudBlender {
         readSiteRows: suspend (start: Long, end: Long) -> List<ObservationReading>,
     ): Result {
         val source = WeatherSource.fromId(sourceId)
+        // Which feed supplies THIS source's cloud. For a source that ships its own it is itself; a
+        // forecast-only source borrows one, exactly as it already does for temperature.
+        val provider = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(source))
         // Gate before the database read so stale rows from an older build cannot resurrect an
-        // unsupported curve. In particular, Silurian's include_past payload is documented as
-        // forecast output, not observations or analysis.
-        if (!source.supportsCloudActuals) return empty(isMetarBlend = false)
+        // unsupported curve. Asked of the PROVIDER, not the display source: "does this source have
+        // cloud?" was the right question only while nothing could borrow one. Silurian's
+        // include_past payload is still documented as forecast output rather than observations, and
+        // is still excluded — as itself. It is excluded by never being an eligible provider.
+        if (!provider.supportsCloudActuals) return empty(isMetarBlend = false)
         val readings = readSiteRows(
             CloudHourBucket.readStartMs(startMs),
             CloudHourBucket.readEndMs(endMs),
         )
-        if (source == WeatherSource.NWS) {
-            return blend(readings, startMs, endMs)
+        // A station-observation feed is blended across its real stations at read time. Routing on
+        // the provider is what lets Open-Meteo draw a cloud curve at all: its own branch below reads
+        // the `<SOURCE>_MAIN` backfill row, whose cloud HistoricalActualsBackfill deliberately
+        // nulls, because that row is model output rather than a measurement.
+        if (provider.historicalDataKind == HistoricalDataKind.STATION_OBSERVATION) {
+            return blend(readings, startMs, endMs, providerApi = provider.id)
         }
-        if (source == WeatherSource.TOMORROW_IO) {
+        if (provider == WeatherSource.TOMORROW_IO) {
             val hours = readings.asSequence()
                 .filter {
                     ObservationSourceMatcher.matchesActualSource(
@@ -172,11 +183,19 @@ object MetarCloudBlender {
         readings: List<ObservationReading>,
         startMs: Long,
         endMs: Long,
+        /**
+         * Provenance of the rows to blend. Defaults to NWS, which is the only value that existed
+         * while NWS was the sole station-observation cloud feed. A forecast-only source that borrows
+         * a measured feed passes that feed's id here instead — METAR rows carry their own `api`, so
+         * blending them under NWS's would be the provenance collapse the observations primary key
+         * now exists to prevent.
+         */
+        providerApi: String = WeatherSource.NWS.id,
     ): Result {
         val real = readings.asSequence()
-            .filter { it.api == WeatherSource.NWS.id }
+            .filter { it.api == providerApi }
             .filter { it.stationId != "NWS_BLEND" }
-            .filter { !ObservationSourceMatcher.isSyntheticBackfillStation(it.stationId, WeatherSource.NWS.id) }
+            .filter { !ObservationSourceMatcher.isSyntheticBackfillStation(it.stationId, providerApi) }
             // TOTAL order, not `sortedBy { timestamp }` (a STABLE sort): same-timestamp rows must not
             // resolve differently based on the caller's query order. See ActualsRowOrderDeterminismTest.
             .sortedWith(

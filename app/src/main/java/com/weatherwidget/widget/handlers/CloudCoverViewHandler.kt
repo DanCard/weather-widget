@@ -42,6 +42,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 
 /**
  * Handler for the cloud cover view mode.
@@ -400,13 +401,20 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val siteLat = hourlyForecasts.firstOrNull()?.locationLat
             val siteLon = hourlyForecasts.firstOrNull()?.locationLon
             val siteResolved = siteLat != null && siteLon != null && windowHourKeys.isNotEmpty()
-            // The actual curve exists wherever a cloud product exists — the shared rule
-            // (WeatherSource.supportsCloudActuals): Open-Meteo and the other provider-history
-            // sources via the synthetic backfill row, NWS via the read-time METAR station blend.
+            // The actual curve exists wherever a cloud product exists, asked of the feed that
+            // actually SUPPLIES this source's cloud rather than of the source itself: a
+            // provider-history source via its synthetic backfill row, a station-observation feed via
+            // the read-time station blend, and a forecast-only source via whichever feed it borrows
+            // (ActualsProviderResolver — the same choice that supplies its temperature actuals).
+            // Must agree with MetarCloudBlender.fromSiteRows, which gates on the same provider; a
+            // curve declared available here and refused there paints an empty graph.
+            //
             // The frozen forecast curve stays Open-Meteo-only — it is the one source with a
             // previous-runs product, so under every other source the forecast falls back to the
             // live value with isFrozen = false, which the builder and renderer already handle.
-            val cloudSeriesAvailable = siteResolved && effectiveDisplaySource.supportsCloudActuals
+            val cloudProvider =
+                WeatherSource.fromId(ActualsProviderResolver.providerIdFor(effectiveDisplaySource))
+            val cloudSeriesAvailable = siteResolved && cloudProvider.supportsCloudActuals
             val priorCloudAvailable = siteResolved && effectiveDisplaySource == WeatherSource.OPEN_METEO
             val cloudHistoryDao = if (priorCloudAvailable) {
                 WeatherDatabase.getDatabase(context).hourlyForecastHistoryDao()

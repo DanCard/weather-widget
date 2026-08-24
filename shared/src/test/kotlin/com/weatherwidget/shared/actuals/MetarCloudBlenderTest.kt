@@ -428,15 +428,12 @@ class MetarCloudBlenderTest {
     }
 
     @Test
-    fun `fromSiteRows rejects cached silurian forecast rows without reading storage`() = runBlocking {
-        var readCalled = false
-
+    fun `fromSiteRows rejects cached silurian forecast rows`() = runBlocking {
         val result = MetarCloudBlender.fromSiteRows(
             hour,
             hour + 3_600_000L,
             WeatherSource.SILURIAN.id,
         ) { _, _ ->
-            readCalled = true
             listOf(
                 reading(
                     "SILURIAN_MAIN",
@@ -448,9 +445,27 @@ class MetarCloudBlenderTest {
             )
         }
 
+        // The claim that matters is unchanged: Silurian's include_past payload is forecast output,
+        // and it must never surface as a measured cloud curve. It is now excluded by never being an
+        // eligible PROVIDER rather than by the source being refused outright.
         assertTrue(result.hours.isEmpty())
-        assertFalse(result.isMetarBlend)
-        assertFalse(readCalled)
+    }
+
+    /**
+     * SUPERSEDED 2026-08-24. This used to also assert `readCalled == false` — the gate fired before
+     * touching storage, which was a free optimisation while a forecast-only source could not have
+     * cloud from anywhere. It now borrows a measured feed, so it MUST read storage to look for that
+     * feed's rows; refusing to read is refusing to have a curve. The row-level exclusion above is
+     * what keeps its own forecast output out.
+     */
+    @Test
+    fun `silurian reads storage now that it borrows a measured cloud feed`() = runBlocking {
+        var readCalled = false
+        MetarCloudBlender.fromSiteRows(hour, hour + 3_600_000L, WeatherSource.SILURIAN.id) { _, _ ->
+            readCalled = true
+            emptyList()
+        }
+        assertTrue("a borrowing source must look for its provider's rows", readCalled)
     }
 
     @Test
