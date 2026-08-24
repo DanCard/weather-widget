@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.work.*
 import androidx.work.ListenableWorker
 import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.shared.util.MetarFetchPolicy
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
@@ -34,6 +35,7 @@ internal class FullSyncPipeline(
     private val hourlyForecastLoader: HourlyForecastLoader,
     private val dataBundleLoader: WidgetDataBundleLoader,
     private val painter: WidgetPaintCoordinator,
+    private val metarRefresher: MetarObservationRefresher,
 ) {
     suspend fun run(input: WorkInput, device: DeviceContext, stopReason: Int): ListenableWorker.Result {
         try {
@@ -138,6 +140,25 @@ internal class FullSyncPipeline(
                         Log.d(TAG, "doWork: Triggering NWS backfill check")
                         weatherRepository.backfillNwsObservationsIfNeeded(location.first, location.second)
                     }
+                    // Gated on `!uiOnlyRefresh` for the same reason the NWS backfill above is: a
+                    // UI-only refresh exists precisely to repaint from cache WITHOUT touching the
+                    // network. Measured 2026-08-23 — ungated, a `uiOnly=true` run issued a live
+                    // METAR request, which is exactly the battery cost that flag exists to avoid.
+                    //
+                    // Placed before the actuals recompute below, not after: rows landing later
+                    // would sit unused until the next cycle. Accepts BOTH tiers because the full
+                    // sync is the battery-aware main fetch AND the path every user-initiated
+                    // refresh and source toggle takes (both log `SYNC_START force=true`), making it
+                    // the only place METAR reliably gets a turn.
+                    if (!input.uiOnlyRefresh) {
+                        metarRefresher.refreshIfDue(
+                            setOf(MetarFetchPolicy.Tier.PRIMARY, MetarFetchPolicy.Tier.NON_PRIMARY),
+                            location.first,
+                            location.second,
+                            reason = "full_sync",
+                        )
+                    }
+
                     val afterBackfillMs = SystemClock.elapsedRealtime()
                     logStage("backfill_done")
 

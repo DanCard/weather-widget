@@ -37,55 +37,11 @@ class WeatherWidgetWorker
             WidgetPaintCoordinator(context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader)
         }
         private val fullSyncPipeline by lazy {
-            FullSyncPipeline(context, weatherRepository, widgetStateManager, appLogDao, gpsResampler, hourlyForecastLoader, dataBundleLoader, painter)
+            FullSyncPipeline(context, weatherRepository, widgetStateManager, appLogDao, gpsResampler, hourlyForecastLoader, dataBundleLoader, painter, metarRefresher)
         }
 
-        /**
-         * Fetches raw airport METARs when — and only when — this run is the right cadence for them.
-         *
-         * METAR has no cadence of its own. [MetarFetchPolicy] resolves which tier it belongs to from
-         * what is visible and what is displayed, and each caller passes the tier IT represents, so
-         * the fetch rides the branch that already matches:
-         *
-         *  - the current-temp branch runs on `CurrentTempFetchPolicy` (10 / 16 min charging, 45 min
-         *    opportunistic above 65 %) and claims [MetarFetchPolicy.Tier.PRIMARY];
-         *  - the non-primary branch runs on [NonPrimaryObservationPolicy] (30 min, charging AND
-         *    screen-on only) and claims [MetarFetchPolicy.Tier.NON_PRIMARY].
-         *
-         * Both callers invoke this from INSIDE their own already-gated fetch block, so the charging,
-         * screen-state and battery rules are inherited rather than re-implemented — and no new
-         * WorkManager loop or wakeup is introduced.
-         */
-        private suspend fun fetchMetarIfDue(
-            runTier: MetarFetchPolicy.Tier,
-            latitude: Double,
-            longitude: Double,
-        ) {
-            val appWidgetIds = AppWidgetManager.getInstance(context)
-                .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
-            val activeSourceIds = appWidgetIds
-                .map { widgetStateManager.getCurrentDisplaySource(it).id }
-                .distinct()
-                .toSet()
-            val tier = MetarFetchPolicy.tierFor(widgetStateManager.getVisibleSourcesOrder(), activeSourceIds)
-            if (tier != runTier) return
-
-            try {
-                val rows = metarObservationSource.fetchObservations(latitude, longitude)
-                if (rows.isEmpty()) return
-                WeatherDatabase.getDatabase(context).observationDao().insertAll(rows)
-                appLogDao.log(
-                    "METAR_OBS_STORED",
-                    "tier=${tier.name} rows=${rows.size} stations=${rows.map { it.stationId }.distinct().size}",
-                    "INFO",
-                )
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // Never fail the run over the supplementary feed: the displayed source's own fetch
-                // has already happened by this point and must still paint.
-                appLogDao.logException("METAR_OBS_FAIL", "tier=${tier.name}", e)
-            }
+        private val metarRefresher by lazy {
+            MetarObservationRefresher(context, metarObservationSource, widgetStateManager, appLogDao)
         }
 
         // ---- orchestration ----
@@ -274,7 +230,10 @@ class WeatherWidgetWorker
                     fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
                     // Only fires when a no-actuals source is the DISPLAYED one, so the curve the
                     // user is looking at refreshes on the same schedule as the forecast beside it.
-                    fetchMetarIfDue(MetarFetchPolicy.Tier.PRIMARY, location.first, location.second)
+                    metarRefresher.refreshIfDue(
+                        setOf(MetarFetchPolicy.Tier.PRIMARY), location.first, location.second,
+                        reason = input.currentTempReason,
+                    )
                     refreshResult.fold(
                         onSuccess = { attempted ->
                             attemptedSourceCount = attempted
@@ -414,7 +373,12 @@ class WeatherWidgetWorker
                 if (MetarFetchPolicy.consumers(visibleSources).isNotEmpty()) {
                     ActiveLocationResolver.resolve(
                         context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao(),
-                    )?.let { (lat, lon) -> fetchMetarIfDue(MetarFetchPolicy.Tier.NON_PRIMARY, lat, lon) }
+                    )?.let { (lat, lon) ->
+                        metarRefresher.refreshIfDue(
+                            setOf(MetarFetchPolicy.Tier.NON_PRIMARY), lat, lon,
+                            reason = "nonprimary_${input.currentTempReason}",
+                        )
+                    }
                 }
 
                 val cacheRefreshStartMs = SystemClock.elapsedRealtime()
