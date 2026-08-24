@@ -234,12 +234,14 @@ class TodayColumnOverlayPlannerLayoutTest {
                 )
                 .associate { it.key to it.zone }
 
-        assertEquals(Zone.ABOVE, zones["delta"])
+        // The control's job is to show the old inset denies the stack its ABOVE fit. That is still
+        // exactly what it shows; the consequence is now "contiguous on the bars" rather than a split.
         assertEquals(
             "the fixture no longer reproduces the reported bug, so the test above proves nothing",
             Zone.ON_COLUMN,
             zones["dominant_temp_age"],
         )
+        assertEquals("the stack must stay contiguous; zones=$zones", zones["delta"], zones["dominant_temp_age"])
     }
 
     @Test
@@ -314,15 +316,19 @@ class TodayColumnOverlayPlannerLayoutTest {
 
     @Test
     fun `box packing is what rejected the Samsung stack`() {
-        // Same geometry with the leading unreported (the old box-packing behaviour) must still
-        // split, so the test above is proving the ink trim rather than some other slack.
+        // Same geometry with the leading unreported (the old box-packing behaviour) must still fail
+        // to fit ABOVE, so the test above is proving the ink trim rather than some other slack.
+        // What that failure now LOOKS like changed on 2026-08-24: it used to split the stack
+        // (delta ABOVE, temp/age on the bars); it now keeps the stack contiguous on the bars. The
+        // control still discriminates — the trimmed version above fits both blocks ABOVE, this one
+        // reaches ABOVE with neither.
         val zones =
             TodayColumnOverlayPlanner
                 .place(samsungLines.map { it.copy(topLeading = 0f, bottomLeading = 0f) }, samsungInput)
                 .associate { it.key to it.zone }
 
-        assertEquals(Zone.ABOVE, zones["delta"])
-        assertEquals(Zone.ON_COLUMN, zones["dominant_temp_age"])
+        assertEquals("the stack must stay contiguous; zones=$zones", zones["delta"], zones["dominant_temp_age"])
+        assertEquals(Zone.ON_COLUMN, zones["delta"])
     }
 
     @Test
@@ -407,16 +413,18 @@ class TodayColumnOverlayPlannerLayoutTest {
         )
 
     @Test
-    fun `measured header ceiling lifts the fold's delta off the bars`() {
+    fun `the fold's stack stays contiguous rather than splitting to reach ABOVE`() {
         val zones =
             TodayColumnOverlayPlanner.place(foldHeaderBandLines, foldHeaderBandInput)
                 .associate { it.key to it.zone }
 
         assertEquals("both blocks must be placed; got $zones", 2, zones.size)
-        assertEquals("delta stayed on the bars; zones=$zones", Zone.ABOVE, zones["delta"])
-        // The full stack is 81.9 px of ink against a 26.1 px run, so temp/age genuinely cannot
-        // follow it up there — one row above is the whole win.
-        assertEquals(Zone.ON_COLUMN, zones["dominant_temp_age"])
+        // SUPERSEDED 2026-08-24. This asserted delta:ABOVE + temp/age:ON_COLUMN — lifting one row
+        // off the bars and leaving the other behind. The measured ceiling still does its job (it is
+        // what makes the ABOVE run real at all), but splitting the stack to exploit it is no longer
+        // the preferred outcome: on the Samsung the two rows landed at opposite ends of the column
+        // and the station reading read as missing. Contiguity now outranks getting off the bars.
+        assertEquals("the stack must not split to reach ABOVE; zones=$zones", zones["delta"], zones["dominant_temp_age"])
     }
 
     @Test
@@ -441,9 +449,12 @@ class TodayColumnOverlayPlannerLayoutTest {
         // the stack onto it. Taken to the limit — no ceiling at all — the delta still keeps a quarter
         // of the run's spare room between itself and y=0, where the header text lives.
         val runEnd = 57.89468f // the 1% rain chip caps the ABOVE run
+        // A ONE-block stack, so the ABOVE zone is genuinely chosen and this test keeps measuring
+        // slack distribution rather than split policy. The two-block stack is 81.9 px of ink against
+        // a 26.1 px run and now stays contiguous on the bars, which says nothing about the bias.
         val delta =
             TodayColumnOverlayPlanner
-                .place(foldHeaderBandLines, foldHeaderBandInput.copy(aboveCeiling = 0f))
+                .place(foldHeaderBandLines.take(1), foldHeaderBandInput.copy(aboveCeiling = 0f))
                 .single { it.key == "delta" }
         val inkTop = delta.bounds.top + foldHeaderBandLines.first().topLeading
         val inkBottom = delta.bounds.bottom - foldHeaderBandLines.first().bottomLeading
@@ -471,8 +482,10 @@ class TodayColumnOverlayPlannerLayoutTest {
     fun `a ceiling tighter than the clearance spends every pixel it has`() {
         // The real fold ceiling leaves 7.6 px of slack against 9.09 px of padding, so ABOVE cannot
         // have its full clearance. It must use all of the slack rather than none of it.
+        // One block, for the same reason as the slack-fraction test above: the subject is where
+        // within the ABOVE run the stack sits, not whether a two-block stack reaches ABOVE at all.
         val delta =
-            TodayColumnOverlayPlanner.place(foldHeaderBandLines, foldHeaderBandInput)
+            TodayColumnOverlayPlanner.place(foldHeaderBandLines.take(1), foldHeaderBandInput)
                 .single { it.key == "delta" }
         val inkTop = delta.bounds.top + foldHeaderBandLines.first().topLeading
 
@@ -538,7 +551,7 @@ class TodayColumnOverlayPlannerLayoutTest {
     }
 
     @Test
-    fun `desktop geometry places all 3 rows split across ABOVE and ON_COLUMN`() {
+    fun `desktop geometry keeps all 3 rows contiguous rather than splitting them`() {
         val desktopInput = TodayColumnOverlayPlanner.Input(
             columnLeft = 255.47f,
             columnRight = 415.13f,
@@ -571,13 +584,16 @@ class TodayColumnOverlayPlannerLayoutTest {
 
         assertEquals(0, result.variantIndex)
         val zones = result.placements.associate { it.key to it.zone }
-        assertEquals(Zone.ABOVE, zones["delta"])
-        assertEquals(Zone.ON_COLUMN, zones["dominant_temp_age"])
+        // SUPERSEDED 2026-08-24: previously delta ABOVE + temp/age ON_COLUMN. No row is dropped
+        // (variantIndex is still 0) and nothing falls to the last resort — the stack simply stays
+        // together now instead of straddling two zones.
+        assertEquals("the stack must stay contiguous; zones=$zones", zones["delta"], zones["dominant_temp_age"])
+        assertEquals(Zone.ON_COLUMN, zones["delta"])
         assertFalse(result.fromLastResort)
     }
 
     @Test
-    fun `clean cross-zone split ABOVE and BELOW is preferred over split with bars`() {
+    fun `a contiguous stack on the bars beats an ABOVE and BELOW split`() {
         val lines = listOf(
             Line("delta", "+1.8", 40f, 25f),
             Line("dominant_temp_age", "65.4°", 40f, 20f),
@@ -596,8 +612,11 @@ class TodayColumnOverlayPlannerLayoutTest {
         )
         val placements = TodayColumnOverlayPlanner.place(lines, input)
         val zones = placements.associate { it.key to it.zone }
-        assertEquals(Zone.ABOVE, zones["delta"])
-        assertEquals(Zone.BELOW, zones["dominant_temp_age"])
+        // SUPERSEDED 2026-08-24: this named the ABOVE/BELOW split as preferred over the bars. It is
+        // now the other way round — ABOVE and BELOW are opposite ends of the column, and a reader
+        // does not connect two labels that far apart. A contiguous group over the bars wins.
+        assertEquals("the stack must stay contiguous; zones=$zones", zones["delta"], zones["dominant_temp_age"])
+        assertEquals(Zone.ON_COLUMN, zones["delta"])
     }
 
     @Test

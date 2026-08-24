@@ -24,11 +24,16 @@ import kotlin.math.min
  *
  *  1. fewest content rows dropped (per-variant ladder)
  *  2. clean single-zone
- *  3. clean split
- *  4. split with bars
- *  5. whole stack on bars
+ *  3. whole stack on bars
+ *  4. clean split
+ *  5. split with bars
  *  6. zone preference (ABOVE before BELOW)
  *  7. greatest clearance
+ *
+ * **Keeping the stack contiguous outranks keeping it off the bars** (3 above 4). The reverse order
+ * shipped first, and a three-pixel shortfall in the ABOVE run was enough to fling the station
+ * reading to the opposite end of the column from the delta row it belongs with — where it reads as
+ * unrelated, or simply as missing. A group drawn over the bars is still a group.
  *
  * Ranks 2-5 are supplied by candidate search order per variant; hysteresis still only overrides
  * the weak terms (zone preference and clearance).
@@ -215,27 +220,40 @@ object TodayColumnOverlayPlanner {
                         yield(Candidate(it, variant, groups = 2, onBars = false))
                     }
 
-                    // 2. Cross-zone clean split (ABOVE, BELOW)
+                }
+
+                // 2. Whole stack on the bars, still one contiguous group.
+                //
+                // Deliberately ahead of every cross-zone split below. Splitting used to rank higher,
+                // and a three-pixel shortfall was enough to trigger it: an ABOVE run of 58.8px
+                // against a 61.9px stack sent the delta row to y=30 and the station reading to
+                // y=347, at opposite ends of the column with the whole graph between them. The
+                // reading then reads as unrelated to the overlay it belongs to — or as missing,
+                // which is exactly how it was reported.
+                //
+                // Drawing the group over the bars keeps it legible AND keeps it a group, and the
+                // bars are the one region of the column guaranteed to be tall enough.
+                fitGroupInZone(lines, Zone.ON_COLUMN, input)?.let {
+                    yield(Candidate(it, variant, groups = 1, onBars = true))
+                }
+
+                if (lines.size >= 2) {
+                    // 3. Cross-zone clean split (ABOVE, BELOW)
                     fitSplitForZonePair(lines, Zone.ABOVE, Zone.BELOW, input)?.let {
                         yield(Candidate(it, variant, groups = 2, onBars = false))
                     }
 
-                    // 3. Cross-zone split (ABOVE, ON_COLUMN)
+                    // 4. Cross-zone split (ABOVE, ON_COLUMN)
                     fitSplitForZonePair(lines, Zone.ABOVE, Zone.ON_COLUMN, input)?.let {
                         yield(Candidate(it, variant, groups = 2, onBars = true))
                     }
 
-                    // 4. Cross-zone split (ON_COLUMN, BELOW)
+                    // 5. Cross-zone split (ON_COLUMN, BELOW)
                     fitSplitForZonePair(lines, Zone.ON_COLUMN, Zone.BELOW, input)?.let {
                         yield(Candidate(it, variant, groups = 2, onBars = true))
                     }
-                }
 
-                // 5. Same-zone ON_COLUMN, 1-group then 2-group
-                fitGroupInZone(lines, Zone.ON_COLUMN, input)?.let {
-                    yield(Candidate(it, variant, groups = 1, onBars = true))
-                }
-                if (lines.size >= 2) {
+                    // 6. Two groups within the bars.
                     fitSameZoneTwoGroups(lines, Zone.ON_COLUMN, input)?.let {
                         yield(Candidate(it, variant, groups = 2, onBars = true))
                     }

@@ -174,7 +174,10 @@ internal object TodayColumnOverlayRenderer {
         val placements = result.placements
         Log.v(
             TAG,
-            "layout variant=${result.variantIndex}/${variants.size} " +
+            // lastResort distinguishes "the ladder chose a split" from "no whole-stack candidate fit
+            // at all, so blocks were placed one by one" — indistinguishable on screen, and the
+            // difference between a ranking bug and a geometry bug.
+            "layout variant=${result.variantIndex}/${variants.size} lastResort=${result.fromLastResort} " +
                 "blocks=${activeSpecs.map(TextBlockSpec::key)} " +
                 "lines=${linesFor(activeSpecs, paints).map { "${it.key}:${it.width}x${it.height}" }} " +
                 "rowSpacing=$rowSpacing " +
