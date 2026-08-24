@@ -89,7 +89,9 @@ class DesktopSynopticFallbackTest {
         val mockHttpClient = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(json) }
         }
-        val mockSynopticApi = SynopticApi(mockHttpClient, json)
+        // Any non-blank token: this test exercises the fallback WORKING, so isConfigured must be
+        // true. The disabled path (blank token) is covered by SynopticApiTokenTest in :shared.
+        val mockSynopticApi = SynopticApi(mockHttpClient, json) { "test-token" }
 
         // 3. Constructor-inject the mocks (no reflection).
         val service = DesktopWeatherService(
