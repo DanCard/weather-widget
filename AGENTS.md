@@ -270,6 +270,7 @@ class TemperatureInterpolatorTest {
 - Prefer a plan for moderate and large changes.
 - User prefers verbose output.  Always keep the user informed about what is happening.
 - Always write or copy plan files directly to the `plans/` directory in the repository root.
+- When committing changes associated with plans, explicitly reference the plan file paths in the commit message.
 
 ## Widget Development
 
