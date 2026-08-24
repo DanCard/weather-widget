@@ -32,6 +32,9 @@ import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.math.*
+import com.weatherwidget.shared.observations.ActualsProviderResolver
+import com.weatherwidget.shared.observations.MetarObservationFetcher
+import com.weatherwidget.data.remote.AviationWeatherApi
 
 /**
  * Thin desktop-side orchestration over the shared API clients. Supports all major sources
@@ -91,6 +94,31 @@ class DesktopWeatherService(
     // minted from the API key. It rides the same baked-keys map purely for the plumbing.
     private val synopticApi = injectedSynopticApi
         ?: SynopticApi(httpClient, json) { effectiveKeys["SYNOPTIC"] }
+    private val aviationWeatherApi = AviationWeatherApi(httpClient, json)
+
+    /**
+     * METAR fetching, shared verbatim with Android.
+     *
+     * The station cache is per-process rather than persisted: desktop's only config file is JSON
+     * with known write races (`desktop_config_write_races`), and re-running one bbox discovery per
+     * process start is cheaper than adding another writer to it. Airports do not move, so the
+     * 24-hour TTL inside the fetcher still does the real work within a session.
+     */
+    private val metarStationCache = object : MetarObservationFetcher.StationCache {
+        private val entries = java.util.concurrent.ConcurrentHashMap<String, MetarObservationFetcher.StationCache.Entry>()
+        override fun read(key: String) = entries[key]
+        override fun write(key: String, encoded: String, savedAtMs: Long) {
+            entries[key] = MetarObservationFetcher.StationCache.Entry(encoded, savedAtMs)
+        }
+    }
+    private val metarFetcher = MetarObservationFetcher(aviationWeatherApi, metarStationCache) { tag, message, level ->
+        // Desktop has no app_logs DAO on this path; route to the same Log sink the rest of the
+        // service uses so METAR_FETCH/METAR_STATIONS stay greppable exactly as on Android.
+        when (level) {
+            "WARN" -> Log.w(TAG, "$tag $message")
+            else -> Log.i(TAG, "$tag $message")
+        }
+    }
 
     constructor(config: DesktopConfig) : this(
         latitude = config.lat,
@@ -615,14 +643,38 @@ class DesktopWeatherService(
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
             WeatherSource.OPEN_METEO.id,
+            WeatherSource.SILURIAN.id -> fetchBorrowedObservationsOnly()
             WeatherSource.WEATHER_API.id,
-            WeatherSource.VISUAL_CROSSING.id,
-            WeatherSource.SILURIAN.id -> {
+            WeatherSource.VISUAL_CROSSING.id -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
                 RawFetch()
             }
             else -> RawFetch()
         }
+
+    /**
+     * Actuals for a forecast-only source, from the feed it borrows.
+     *
+     * This branch used to return an empty [RawFetch] with "no current-only desktop path is defined",
+     * which was true when Open-Meteo and Silurian had no actuals at all. Once they began borrowing a
+     * measured feed it became the reason desktop drew no mercury line for them: Android fetches METAR
+     * from its worker regardless of the displayed source, desktop fetched nothing.
+     *
+     * Only METAR is wired here. NWS as a borrowed provider would mean running the full station-pull
+     * under a non-NWS display source, which is a larger change; a user who picks it gets whatever the
+     * NWS path already stored rather than a fresh pull, and never a silently substituted feed
+     * (`no_cross_source_fallback`).
+     */
+    private suspend fun fetchBorrowedObservationsOnly(): RawFetch {
+        val source = WeatherSource.fromId(weatherSource)
+        val provider = ActualsProviderResolver.providerIdFor(source)
+        if (provider != WeatherSource.METAR.id) {
+            Log.i(TAG, "Observations-only refresh for $weatherSource borrows $provider; no desktop fetch path for it")
+            return RawFetch()
+        }
+        val readings = metarFetcher.fetchObservations(latitude, longitude, hours = 2)
+        return RawFetch(rawObservations = readings)
+    }
 
     private suspend fun fetchTomorrowIoObservationsOnly(): RawFetch {
         val realtime = tomorrowIo.getRealtime(latitude, longitude) ?: return RawFetch()

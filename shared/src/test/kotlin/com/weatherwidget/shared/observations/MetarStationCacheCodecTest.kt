@@ -1,4 +1,4 @@
-package com.weatherwidget.data.repository
+package com.weatherwidget.shared.observations
 
 import com.weatherwidget.data.remote.AviationWeatherStationFilter
 import com.weatherwidget.data.remote.NwsApi

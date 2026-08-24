@@ -354,8 +354,21 @@ class RefreshDelayTest {
         assertFalse(isSuspendJump(HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS + 5_000L, SUSPEND_JUMP_SLACK_MS))
     }
 
+    /**
+     * A forecast-only source must not drive the header or produce forecast rows from an
+     * observations-only refresh.
+     *
+     * It used to assert `rawObservations.isEmpty()` too. That stopped being right when Open-Meteo and
+     * Silurian began borrowing a measured feed: the refresh now returns the borrowed provider's rows,
+     * which is the whole point — without them desktop drew no actual temperature curve at all. What
+     * must still hold is that borrowed rows keep the PROVIDER's provenance and never the borrower's.
+     *
+     * This one talks to the real network (no injected client), so it asserts a property that holds
+     * whether or not rows come back. DesktopBorrowedMetarObservationsTest pins the fetch itself
+     * against a MockEngine.
+     */
     @Test
-    fun `observations only refresh skips forecast-only sources`() = runTest {
+    fun `observations only refresh does not let a forecast-only source drive the header`() = runTest {
         listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN).forEach { source ->
             val service = DesktopWeatherService(
                 latitude = 37.4220,
@@ -369,7 +382,10 @@ class RefreshDelayTest {
                 assertNull("${source.id} must not update the header", result.providerCurrentTemp)
                 assertTrue(result.daily.isEmpty())
                 assertTrue(result.hourly.isEmpty())
-                assertTrue(result.rawObservations.isEmpty())
+                assertTrue(
+                    "${source.id} must never file borrowed rows under its own api",
+                    result.rawObservations.none { it.api == source.id },
+                )
             } finally {
                 service.close()
             }
