@@ -164,7 +164,13 @@ class DailyActualsStore @Inject constructor(
         val todayGatedActuals = todayBlendedActuals.mapValues { (source, actualsByDate) ->
             val todayActual = actualsByDate[today]
             if (todayActual?.computedLowTemp == null) return@mapValues actualsByDate
-            val sourceTimestamps = todayObs.filter { it.api == source }.map { it.timestamp }
+            // Coverage is judged against the PROVIDER's rows, not the source id. A borrowing
+            // source's observations arrive under its provider's api (METAR), so `it.api == source`
+            // matched nothing for Open-Meteo and Silurian, reported rows=0, and this gate then
+            // suppressed the very low the aggregator had just computed correctly from those rows.
+            // Non-borrowing sources are unaffected: providerIdFor returns their own id.
+            val providerId = ActualsProviderResolver.providerIdFor(WeatherSource.fromId(source))
+            val sourceTimestamps = todayObs.filter { it.api == providerId }.map { it.timestamp }
             if (!TodayActualsCoverage.dayStartUncovered(sourceTimestamps, today, zone)) {
                 return@mapValues actualsByDate
             }
