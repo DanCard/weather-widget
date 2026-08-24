@@ -23,5 +23,6 @@ object WeatherSourceDescriptions {
         WeatherSource.WEATHER_API -> "WeatherAPI — shown as WAPI (global coverage)"
         WeatherSource.OPEN_WEATHER_MAP -> "OpenWeatherMap — shown as OWM (global coverage)"
         WeatherSource.GENERIC_GAP -> "Synthetic climate-normal fallback (never user-selectable)"
+        WeatherSource.METAR -> "Airport METAR observations (actuals only, never user-selectable)"
     }
 }

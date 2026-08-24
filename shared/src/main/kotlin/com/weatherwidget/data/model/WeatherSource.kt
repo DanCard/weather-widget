@@ -70,6 +70,31 @@ enum class WeatherSource(
         shortDisplayName = "WAPI",
         historicalDataKind = HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
     ),
+    /**
+     * Raw METAR observations from `aviationweather.gov`. An **actuals feed, not a forecast
+     * provider** — it has no forecast product at all, so it is deliberately absent from
+     * [com.weatherwidget.shared.util.WeatherSourceOrdering.ALL_CONFIGURABLE] and can never be
+     * selected as a display source.
+     *
+     * Its rows exist to supply actuals to the real providers that ship none of their own —
+     * `ALL_CONFIGURABLE.filter { !it.supportsTemperatureActuals }`, currently OPEN_METEO and
+     * SILURIAN. That set deliberately excludes GENERIC_GAP, which is not a provider: it synthesizes
+     * climate normals for future dates beyond real forecast coverage and never needs actuals.
+     *
+     * Also the app's only station-observation source outside the United States, where NWS
+     * discovery fails outright. See plans/260823-aviationweather-metar-transport.md.
+     */
+    METAR(
+        id = "METAR",
+        displayName = "METAR",
+        shortDisplayName = "MTR",
+        supportsHourly = false,
+        historicalDataKind = HistoricalDataKind.STATION_OBSERVATION,
+        supportsTemperatureActuals = true,
+        // Never re-file a forecast as an observation for this source: it HAS no forecast, and the
+        // whole point of the feed is that its actuals are independently measured.
+        supportsHistoricalActualsBackfill = false,
+    ),
     GENERIC_GAP(
         id = "Generic",
         displayName = "Climate Avg",
@@ -109,7 +134,8 @@ enum class WeatherSource(
     val requiresApiKey: Boolean
         get() = when (this) {
             VISUAL_CROSSING, OPEN_WEATHER_MAP, WEATHER_API, SILURIAN, TOMORROW_IO -> true
-            NWS, OPEN_METEO, GENERIC_GAP -> false
+            // METAR is aviationweather.gov: free, keyless, and not user-selectable at all.
+            NWS, OPEN_METEO, GENERIC_GAP, METAR -> false
         }
 
     companion object {
@@ -126,6 +152,7 @@ enum class WeatherSource(
                 "WeatherAPI", "WEATHER_API" -> WEATHER_API
                 "Silurian", "SILURIAN" -> SILURIAN
                 "Tomorrow.io", "TOMORROW_IO" -> TOMORROW_IO
+                "METAR" -> METAR
                 else -> null
             }
 

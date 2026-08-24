@@ -19,6 +19,10 @@ class WeatherSourceCloudActualsTest {
         val expected = setOf(
             WeatherSource.NWS,
             WeatherSource.WEATHER_API,
+            // aviationweather.gov serves the METAR sky-condition group itself — the same measured
+            // product MetarSkyCover already reads on the NWS path, both as a decoded `clouds[]`
+            // array and in the raw report. Verified, not inferred.
+            WeatherSource.METAR,
             WeatherSource.TOMORROW_IO,
         )
         assertEquals(expected, WeatherSource.entries.filter { it.supportsCloudActuals }.toSet())

@@ -24,6 +24,9 @@ class WeatherSourceHistoricalActualsTest {
             WeatherSource.VISUAL_CROSSING to HistoricalDataKind.NONE,
             WeatherSource.OPEN_WEATHER_MAP to HistoricalDataKind.NONE,
             WeatherSource.GENERIC_GAP to HistoricalDataKind.NONE,
+            // Raw airport METARs from aviationweather.gov are station observations in the same
+            // sense NWS's are — measured at a real site, not a provider's model output.
+            WeatherSource.METAR to HistoricalDataKind.STATION_OBSERVATION,
         )
         assertEquals(
             "A new source must make an explicit provider-history provenance choice.",

@@ -41,6 +41,8 @@ object ApiKeySignupUrls {
         WeatherSource.SILURIAN,
         WeatherSource.NWS,
         WeatherSource.OPEN_METEO,
-        WeatherSource.GENERIC_GAP -> false
+        WeatherSource.GENERIC_GAP,
+        // aviationweather.gov is a keyless US government feed, and METAR is not user-selectable.
+        WeatherSource.METAR -> false
     }
 }
