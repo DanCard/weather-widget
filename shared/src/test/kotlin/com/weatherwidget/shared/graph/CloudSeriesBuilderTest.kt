@@ -165,6 +165,35 @@ class CloudSeriesBuilderTest {
     }
 
     @Test
+    fun `a natively-timestamped actual resolves to the nearest hour within 30 minutes`() {
+        // The blend goes binless (plans/260824-subhourly-metar-cloud-blend.md): KPAO's :47 report
+        // keys the series at :47, not :00. The per-hour actual must still resolve it — same value
+        // the old bucket lookup would have filed under that hour.
+        val target = now - 5 * hour
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(live(-5, 50)),
+            priorForecast = emptyMap(),
+            retroActual = mapOf(target + 47 * 60_000L to 44, target + 20 * 60_000L to 90),
+            nowMs = now,
+        )
+        // Nearest key to the hour mark is :20, 20 minutes away — wins over :47 (47 away).
+        assertEquals(90, points[0].actualCover)
+    }
+
+    @Test
+    fun `an actual farther than 30 minutes from the hour resolves to none`() {
+        // The tolerance must have an edge or yesterday's reading would masquerade as this hour's.
+        val target = now - 5 * hour
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(live(-5, 50)),
+            priorForecast = emptyMap(),
+            retroActual = mapOf(target + 45 * 60_000L to 44),
+            nowMs = now,
+        )
+        assertNull(points[0].actualCover)
+    }
+
+    @Test
     fun `out-of-range stored values are clamped`() {
         val target = now - 2 * hour
         val points = CloudSeriesBuilder.build(

@@ -2,8 +2,10 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.local.desktop.toEntity
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.MediumDuration
 import io.mockk.*
@@ -87,10 +89,104 @@ class DesktopBackfillIntegrationTest {
                 HourlyForecast(baseHour + 3_600_000L, 70f, "Clear", source = WeatherSource.OPEN_METEO.id),
             ),
         )
+        coEvery { weatherService.fetchObservationsOnly(recentOnly = false) } returns RawFetch()
 
         val result = meteoRepository.refresh(now)
 
         assertEquals(65f, result.resolved.currentTemp!!, 0.01f)
+    }
+
+    @Test
+    fun `Open-Meteo full refresh persists bounded borrowed METAR recovery`() = runTest {
+        val now = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
+        val recoveryTime = now - 6 * 3_600_000L
+        val meteoRepository = DesktopWeatherRepository(
+            weatherService,
+            dao,
+            lat,
+            lon,
+            WeatherSource.OPEN_METEO.id,
+            currentTimeMillis = { now },
+        )
+        coEvery { weatherService.fetchForecast() } returns RawFetch(
+            hourly = listOf(
+                HourlyForecast(now, 70f, "Clear", source = WeatherSource.OPEN_METEO.id),
+            ),
+        )
+        coEvery { weatherService.fetchObservationsOnly(recentOnly = false) } returns RawFetch(
+            rawObservations = listOf(
+                ObservationReading(
+                    stationId = "KNUQ",
+                    stationName = "Moffett Federal Airfield",
+                    timestamp = recoveryTime,
+                    temperature = 61f,
+                    condition = "Overcast",
+                    locationLat = lat,
+                    locationLon = lon,
+                    distanceKm = 4f,
+                    api = WeatherSource.METAR.id,
+                    cloudCoverLow = 100,
+                    isMetar = true,
+                ),
+            ),
+        )
+
+        meteoRepository.refresh(now)
+
+        coVerify(exactly = 1) { weatherService.fetchObservationsOnly(recentOnly = false) }
+        val stored = dao.getObservationsInRange(
+            recoveryTime - 1,
+            recoveryTime + 1,
+            lat,
+            lon,
+        )
+        assertEquals(1, stored.size)
+        assertEquals(WeatherSource.METAR.id, stored.single().api)
+        assertEquals(100, stored.single().cloudCoverLow)
+    }
+
+    @Test
+    fun `failed borrowed METAR recovery preserves cached observations`() = runTest {
+        val now = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
+        val cachedTime = now - 6 * 3_600_000L
+        dao.upsertObservations(
+            listOf(
+                ObservationReading(
+                    stationId = "KNUQ",
+                    stationName = "Moffett Federal Airfield",
+                    timestamp = cachedTime,
+                    temperature = 61f,
+                    condition = "Overcast",
+                    locationLat = lat,
+                    locationLon = lon,
+                    distanceKm = 4f,
+                    api = WeatherSource.METAR.id,
+                    cloudCoverLow = 100,
+                    isMetar = true,
+                ).toEntity(now),
+            ),
+        )
+        val meteoRepository = DesktopWeatherRepository(
+            weatherService,
+            dao,
+            lat,
+            lon,
+            WeatherSource.OPEN_METEO.id,
+            currentTimeMillis = { now },
+        )
+        coEvery { weatherService.fetchForecast() } returns RawFetch(
+            hourly = listOf(
+                HourlyForecast(now, 70f, "Clear", source = WeatherSource.OPEN_METEO.id),
+            ),
+        )
+        coEvery { weatherService.fetchObservationsOnly(recentOnly = false) } throws
+            IllegalStateException("upstream unavailable")
+
+        meteoRepository.refresh(now)
+
+        val stored = dao.getObservationsInRange(cachedTime - 1, cachedTime + 1, lat, lon)
+        assertEquals(1, stored.size)
+        assertEquals("KNUQ", stored.single().stationId)
     }
 
     @Test

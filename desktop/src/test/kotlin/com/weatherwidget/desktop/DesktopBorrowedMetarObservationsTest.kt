@@ -24,8 +24,11 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class DesktopBorrowedMetarObservationsTest {
 
-    private fun engine() = MockEngine { request ->
+    private fun engine(requestedHours: MutableList<Int> = mutableListOf()) = MockEngine { request ->
         val path = request.url.encodedPath
+        if (path.endsWith("/metar")) {
+            request.url.parameters["hours"]?.toIntOrNull()?.let(requestedHours::add)
+        }
         val content = when {
             path.endsWith("/stationinfo") -> stationInfoJson()
             path.endsWith("/metar") -> metarJson()
@@ -40,11 +43,12 @@ class DesktopBorrowedMetarObservationsTest {
 
     @Test
     fun `open-meteo observations-only refresh returns borrowed METAR readings`() = runTest {
+        val requestedHours = mutableListOf<Int>()
         val service = DesktopWeatherService(
             latitude = 37.42,
             longitude = -122.08,
             weatherSource = WeatherSource.OPEN_METEO.id,
-            injectedHttpClient = HttpClient(engine()),
+            injectedHttpClient = HttpClient(engine(requestedHours)),
         )
         try {
             val result = service.fetchObservationsOnly(recentOnly = true)
@@ -60,6 +64,27 @@ class DesktopBorrowedMetarObservationsTest {
                 WeatherSource.METAR.id,
                 knuq.api,
             )
+            assertEquals(listOf(DesktopWeatherService.RECENT_BORROWED_METAR_HOURS), requestedHours)
+        } finally {
+            service.close()
+        }
+    }
+
+    @Test
+    fun `full refresh mode requests bounded borrowed METAR recovery history`() = runTest {
+        val requestedHours = mutableListOf<Int>()
+        val service = DesktopWeatherService(
+            latitude = 37.42,
+            longitude = -122.08,
+            weatherSource = WeatherSource.OPEN_METEO.id,
+            injectedHttpClient = HttpClient(engine(requestedHours)),
+        )
+        try {
+            val result = service.fetchObservationsOnly(recentOnly = false)
+
+            assertTrue(result.rawObservations.isNotEmpty())
+            assertEquals(listOf(DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS), requestedHours)
+            assertTrue(result.rawObservations.all { it.api == WeatherSource.METAR.id })
         } finally {
             service.close()
         }

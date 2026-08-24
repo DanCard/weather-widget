@@ -17,6 +17,7 @@ import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.history.ProviderHistoryDecision
 import com.weatherwidget.shared.history.ProviderHistoryFailureClass
 import com.weatherwidget.shared.history.ProviderHistoryPolicy
@@ -24,6 +25,9 @@ import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -355,6 +359,26 @@ class DesktopWeatherRepository(
         }
     }
 
+    /**
+     * A forecast-only source's solid actual curve borrows a measured feed. The frequent
+     * observations loop fetches only two hours; a full refresh also pulls a bounded 24-hour METAR
+     * window so a suspend/restart gap does not stay permanently visible after the upstream reports
+     * are available again. Failures are best-effort and leave the cached gap intact.
+     */
+    private suspend fun fetchBorrowedMetarRecovery(displaySource: WeatherSource): RawFetch {
+        val borrowsMetar = ActualsProviderResolver.borrows(displaySource) &&
+            ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.METAR.id
+        if (!borrowsMetar) return RawFetch()
+        return try {
+            weatherService.fetchObservationsOnly(recentOnly = false)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "BORROWED_METAR_RECOVERY failed source=${displaySource.id}: $e")
+            RawFetch()
+        }
+    }
+
     suspend fun refresh(
         now: Long = currentTimeMillis(),
     ): ForecastSnapshot = withContext(Dispatchers.IO) {
@@ -372,7 +396,18 @@ class DesktopWeatherRepository(
             // NOTE: no Open-Meteo history backfill here. GENERIC_GAP is future-only; past forecast history
             // must come only from real accumulated NWS snapshots (a fresh install simply starts sparse and
             // fills in as it runs), so we never seed Open-Meteo decimals into the past.
-            val result = weatherService.fetchForecast()
+            val (forecastResult, borrowedRecovery) = coroutineScope {
+                val forecast = async { weatherService.fetchForecast() }
+                val recovery = async { fetchBorrowedMetarRecovery(displaySource) }
+                forecast.await() to recovery.await()
+            }
+            val result = if (borrowedRecovery.rawObservations.isEmpty()) {
+                forecastResult
+            } else {
+                forecastResult.copy(
+                    rawObservations = forecastResult.rawObservations + borrowedRecovery.rawObservations,
+                )
+            }
 
             // Preserve the forecast that was actually shown for elapsed hours. Tomorrow's Timeline
             // response also contains a revised six-hour lookback; that slice belongs only in
@@ -397,6 +432,19 @@ class DesktopWeatherRepository(
                         "hourlyTotal=${result.hourly.size}",
                 )
                 weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
+            }
+            if (ActualsProviderResolver.borrows(displaySource) &&
+                ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.METAR.id
+            ) {
+                weatherDao.log(
+                    tag = "BORROWED_METAR_RECOVERY",
+                    message = "source=${displaySource.id} " +
+                        "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " +
+                        "rows=${borrowedRecovery.rawObservations.size} " +
+                        "stored=${borrowedRecovery.rawObservations.size} " +
+                        "stations=${borrowedRecovery.rawObservations.map { it.stationId }.distinct().size}",
+                    level = "INFO",
+                )
             }
             val historyObsCount = backfillWeatherApiHistoryIfNeeded(now)
 

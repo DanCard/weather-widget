@@ -13,6 +13,11 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class MetarCloudBlenderTest {
 
+    /**
+     * The blend is BINLESS (plans/260824-subhourly-metar-cloud-blend.md): points land on the
+     * stations' native report timestamps, not on hour marks. `hour` anchors the arithmetic; every
+     * expectation key below is a real report time like `hour + 5 * min`.
+     */
     private val hour = 1_800_000_000_000L // exactly hour-aligned (divides by 3_600_000)
     private val min = 60_000L
 
@@ -62,11 +67,17 @@ class MetarCloudBlenderTest {
 
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
 
-        // IDW with 1/d^2 weights: (0 * 1/4 + 100 * 1/16) / (1/4 + 1/16) = 20.
-        assertEquals(mapOf(hour to 20), result.hours)
+        // Two carriers -> two points, each IDW-blending both stations (their reports are minutes
+        // apart, well inside the 30-minute anchor tolerance). IDW 1/d^2:
+        // (0 * 1/4 + 100 * 1/16) / (1/4 + 1/16) = 20.
+        assertEquals(
+            mapOf((hour + 3 * min) to 20, (hour + 5 * min) to 20),
+            result.hours,
+        )
         assertEquals(2, result.stats.stationsWithLayers)
         assertEquals(3, result.stats.stationsSkipped)
-        assertEquals(2, result.stats.blendWidthByHour[hour])
+        assertEquals(2, result.stats.blendWidthByHour[hour + 3 * min])
+        assertEquals(2, result.stats.blendWidthByHour[hour + 5 * min])
     }
 
     @Test
@@ -76,58 +87,129 @@ class MetarCloudBlenderTest {
             reading("AW020", hour + 5 * min, cloudLow = null, distanceKm = 0.5f),
         )
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
-        assertEquals(mapOf(hour to 44), result.hours)
-        assertEquals(1, result.stats.blendWidthByHour[hour])
+        assertEquals(mapOf((hour + 5 * min) to 44), result.hours)
+        assertEquals(1, result.stats.blendWidthByHour[hour + 5 * min])
     }
 
     @Test
-    fun `an hour with no contributor stays absent - gaps are not interpolated`() {
+    fun `stretches with no reports stay absent - gaps are not interpolated`() {
         val readings = listOf(reading("KNUQ", hour + 3 * min, cloudLow = 0, distanceKm = 2f))
         val result = MetarCloudBlender.blend(readings, hour, hour + 3 * 3_600_000L)
-        assertEquals(setOf(hour), result.hours.keys)
+        assertEquals(setOf(hour + 3 * min), result.hours.keys)
         assertFalse(result.hours.containsKey(hour + 3_600_000L))
         assertFalse(result.hours.containsKey(hour + 2 * 3_600_000L))
     }
 
     @Test
-    fun `a station reporting at 47 past rounds into the following hour`() {
-        // KPAO reports at :47. Flooring to the hour would drop it almost entirely (measured: 29
-        // hours become 1); round-to-nearest is the physically correct rule for an instantaneous
-        // reading. 13 minutes before the next hour mark -> that hour.
-        val readings = listOf(reading("KPAO", hour - 13 * min, cloudLow = 44, distanceKm = 6f))
-        val result = MetarCloudBlender.blend(readings, hour - 3_600_000L, hour + 3_600_000L)
-        assertEquals(mapOf(hour to 44), result.hours)
+    fun `mixed station cadences yield sub-hourly points with per-point IDW`() {
+        // Measured shape at this app's own site (2026-08-24): KNUQ at :15/:35/:55, KSJC at :53.
+        // Four points in the hour; stations anchor across offsets while their reports are within
+        // 30 minutes of the point.
+        val readings = listOf(
+            reading("KNUQ", hour + 15 * min, cloudLow = 20, distanceKm = 2f, isMetar = true),
+            reading("KNUQ", hour + 35 * min, cloudLow = 44, distanceKm = 2f, isMetar = true),
+            reading("KNUQ", hour + 55 * min, cloudLow = 0, distanceKm = 2f, isMetar = true),
+            reading("KSJC", hour + 53 * min, cloudLow = 75, distanceKm = 16f, isMetar = true),
+        )
+
+        val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
+
+        assertEquals(
+            mapOf(
+                // KSJC's :53 report is 38 minutes away — past the anchor tolerance, so this point
+                // is KNUQ alone.
+                (hour + 15 * min) to 20,
+                // :35 — KNUQ fresh (44, d=2) + KSJC anchored 18 min (75, d=16):
+                // (44 * 1/4 + 75 * 1/256) / (1/4 + 1/256) = 44.
+                (hour + 35 * min) to 44,
+                // :53 — KSJC fresh (75, d=16) + KNUQ's :55 anchored 2 min (0, d=2):
+                // (0 * 1/4 + 75 * 1/256) / (1/4 + 1/256) = 1.
+                (hour + 53 * min) to 1,
+                // :55 — KNUQ fresh (0, d=2) + KSJC anchored 2 min (75, d=16): -> 1.
+                (hour + 55 * min) to 1,
+            ),
+            result.hours,
+        )
+        assertEquals(1, result.stats.blendWidthByHour[hour + 15 * min])
+        assertEquals(2, result.stats.blendWidthByHour[hour + 35 * min])
+        assertEquals(2, result.stats.blendWidthByHour[hour + 53 * min])
+        assertEquals(2, result.stats.blendWidthByHour[hour + 55 * min])
     }
 
     @Test
-    fun `each station contributes one value per hour - the reading nearest the hour mark`() {
+    fun `a station past the anchor tolerance is absent, one inside it blends`() {
+        // Three candidates; KPAO's only carrier sits 29 minutes from the first point (anchors it)
+        // and 32 from the last (outside the ±30-minute rule: absent there).
+        val readings = listOf(
+            reading("KNUQ", hour, cloudLow = 50, distanceKm = 2f),
+            reading("KPAO", hour + 29 * min, cloudLow = 100, distanceKm = 4f),
+            reading("KNUQ", hour + 61 * min, cloudLow = 50, distanceKm = 2f),
+        )
+
+        val result = MetarCloudBlender.blend(readings, hour, hour + 2 * 3_600_000L)
+
+        // :00 — KPAO anchored 29 min: (50 * 1/4 + 100 * 1/16) / (1/4 + 1/16) = 60.
+        // :29 — KPAO fresh + KNUQ's :00 anchored 29 min: (50 * 1/4 + 100 * 1/16) / (1/4 + 1/16) = 60.
+        // 01:01 — KNUQ fresh; KPAO's :29 report is 32 minutes stale, past tolerance: KNUQ alone.
+        assertEquals(
+            mapOf(
+                hour to 60,
+                (hour + 29 * min) to 60,
+                (hour + 61 * min) to 50,
+            ),
+            result.hours,
+        )
+        assertEquals(2, result.stats.blendWidthByHour[hour])
+        assertEquals(1, result.stats.blendWidthByHour[hour + 61 * min])
+    }
+
+    @Test
+    fun `a station reporting at 47 past emits at its own report time`() {
+        // KPAO reports at :47. The binless blend never moves the point to a mark: 13 minutes
+        // before the next hour lands a point exactly 13 minutes before the next hour.
+        val readings = listOf(reading("KPAO", hour - 13 * min, cloudLow = 44, distanceKm = 6f))
+        val result = MetarCloudBlender.blend(readings, hour - 3_600_000L, hour + 3_600_000L)
+        assertEquals(mapOf((hour - 13 * min) to 44), result.hours)
+    }
+
+    @Test
+    fun `sub-hourly reports all emit at their own times`() {
         val readings = listOf(
             reading("KNUQ", hour + 5 * min, cloudLow = 10, distanceKm = 2f),
             reading("KNUQ", hour + 50 * min, cloudLow = 90, distanceKm = 2f),
         )
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
-        assertEquals(mapOf(hour to 10), result.hours)
+        assertEquals(
+            mapOf((hour + 5 * min) to 10, (hour + 50 * min) to 90),
+            result.hours,
+        )
     }
 
     @Test
-    fun `a partial report nearest the hour yields to a cloud-carrying report in the same bucket`() {
-        // The 06:00-hour bucket held a 06:00 partial METAR (cloud omitted) and a 06:20 full report:
-        // nearest-to-the-hour alone would drop the station's hour even though the station DID
-        // report sky condition. ~25-30% of official reports omit cloudLayers, so this is the normal
-        // case, not an edge — fall back to the nearest carrier inside the same ±30-minute bucket.
+    fun `a partial report nearest a point yields to a nearby cloud-carrying report`() {
+        // The 06:18 partial METAR (cloud omitted) does not kill the 06:19 point another station
+        // made: ~25-30% of official reports omit sky condition, so KNUQ's anchor falls back to
+        // the nearest report within tolerance that DID carry one — and because the partial sits
+        // nearest that point's timestamp (1 minute vs the carrier's 1 minute; the older first in
+        // the total order), the rescue is counted as shadowed.
         val readings = listOf(
-            reading("KNUQ", hour + 2 * min, cloudLow = null, distanceKm = 2f),
+            reading("KNUQ", hour + 18 * min, cloudLow = null, distanceKm = 2f),
             reading("KNUQ", hour + 20 * min, cloudLow = 44, distanceKm = 2f),
+            reading("KPAO", hour + 19 * min, cloudLow = 100, distanceKm = 4f),
         )
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
-        assertEquals(mapOf(hour to 44), result.hours)
+        // Both points blend both stations: (44 * 1/4 + 100 * 1/16) / (1/4 + 1/16) = 55.
+        assertEquals(
+            mapOf((hour + 19 * min) to 55, (hour + 20 * min) to 55),
+            result.hours,
+        )
         assertEquals(1, result.stats.shadowedBuckets)
     }
 
     @Test
-    fun `a bucket where every report omits sky condition emits nothing`() {
-        // "Not reported" stays "not reported" — the preference rescues hours where a carrier
-        // exists, never invents one.
+    fun `a stretch where every report omits sky condition emits nothing`() {
+        // "Not reported" stays "not reported" — the carrier fallback rescues points where a
+        // carrier exists nearby, never invents one.
         val readings = listOf(
             reading("KNUQ", hour + 2 * min, cloudLow = null, distanceKm = 2f),
             reading("KNUQ", hour + 20 * min, cloudLow = null, distanceKm = 2f),
@@ -138,83 +220,108 @@ class MetarCloudBlenderTest {
     }
 
     @Test
-    fun `carrier preference stays per-station and still blends the rescued station`() {
-        // KNUQ's nearest report is partial but its 06:20 report carries 0; KPAO carries 100
-        // directly. The blend sees both stations, exactly one value each.
+    fun `carrier fallback stays per-station and still blends the rescued station`() {
+        // KNUQ's report nearest the 06:05 point is partial but its 06:20 report carries 0; KPAO
+        // carries 100 directly. Both points see both stations, one anchored value each.
         val readings = listOf(
             reading("KNUQ", hour + 2 * min, cloudLow = null, distanceKm = 2f),
             reading("KNUQ", hour + 20 * min, cloudLow = 0, distanceKm = 2f),
             reading("KPAO", hour + 5 * min, cloudLow = 100, distanceKm = 4f),
         )
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
-        // IDW 1/d^2: (0 * 1/4 + 100 * 1/16) / (1/4 + 1/16) = 20.
-        assertEquals(mapOf(hour to 20), result.hours)
-        assertEquals(2, result.stats.blendWidthByHour[hour])
+        // IDW 1/d^2 at each point: (0 * 1/4 + 100 * 1/16) / (1/4 + 1/16) = 20.
+        assertEquals(
+            mapOf((hour + 5 * min) to 20, (hour + 20 * min) to 20),
+            result.hours,
+        )
+        assertEquals(2, result.stats.blendWidthByHour[hour + 5 * min])
+        assertEquals(2, result.stats.blendWidthByHour[hour + 20 * min])
+        // Only the 06:05 point is rescued from the partial; 06:20's own report carries.
         assertEquals(1, result.stats.shadowedBuckets)
     }
 
     @Test
-    fun `the official METAR beats a 5-minute sample sitting exactly on the hour mark`() {
+    fun `the official METAR beats the 5-minute samples at every point it anchors`() {
         // The real shape at KSJC: `/stations/{id}/observations` interleaves the METAR (:53) with
-        // ASOS 5-minute rows, one of which lands EXACTLY on the hour mark. Nearest-to-mark alone
-        // hands the hour to the 5-minute row every time — distance 0 vs 7 minutes — so the
-        // station's own 30-minute assessment could never be selected.
+        // ASOS 5-minute rows, one of which lands EXACTLY on the hour mark. Nearest-to-time alone
+        // hands the on-the-mark point to the 5-minute row — distance 0 vs 7 minutes — so the
+        // station's own 30-minute assessment would lose at its own report's point.
         val readings = listOf(
             reading("KSJC", hour, cloudLow = 0, distanceKm = 16f),                       // 5-min, on the mark
             reading("KSJC", hour - 7 * min, cloudLow = 44, distanceKm = 16f, isMetar = true), // the METAR
         )
 
-        val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
+        // Window starts 30 minutes early so the :53 METAR (11:53 relative to the 12:00 mark) is
+        // inside it — pre-window reports can anchor but never emit points of their own.
+        val result = MetarCloudBlender.blend(readings, hour - 30 * min, hour + 3_600_000L)
 
-        assertEquals(mapOf(hour to 44), result.hours)
-        assertEquals(1, result.stats.metarPreferredBuckets)
+        // The METAR anchors BOTH points: its own (:53) and the 5-minute row's (:00, 7 minutes
+        // away, inside the 30-minute tolerance).
+        assertEquals(
+            mapOf((hour - 7 * min) to 44, hour to 44),
+            result.hours,
+        )
+        assertEquals(2, result.stats.metarPreferredBuckets)
     }
 
     @Test
-    fun `nearest-to-the-hour still decides among several METARs`() {
-        // The preference selects a CLASS, not a row. Within the METARs, the existing rule stands.
+    fun `the freshest METAR wins among several at each point`() {
+        // The preference selects a CLASS, not a row. Within the METARs, freshest-to-the-point
+        // stands.
         val readings = listOf(
             reading("KSJC", hour - 25 * min, cloudLow = 19, distanceKm = 16f, isMetar = true),
             reading("KSJC", hour - 7 * min, cloudLow = 75, distanceKm = 16f, isMetar = true),
             reading("KSJC", hour, cloudLow = 0, distanceKm = 16f),
         )
 
-        val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
+        val result = MetarCloudBlender.blend(readings, hour - 30 * min, hour + 3_600_000L)
 
-        assertEquals(mapOf(hour to 75), result.hours)
+        assertEquals(
+            mapOf(
+                (hour - 25 * min) to 19, // its own report, freshest METAR here
+                (hour - 7 * min) to 75,  // its own report
+                hour to 75,              // the :53 METAR (7 min) outranks the on-the-mark 5-min row
+            ),
+            result.hours,
+        )
     }
 
     @Test
-    fun `a station with no METAR in the bucket still contributes its 5-minute sample`() {
-        // Gaps stay gaps, but a station is never dropped merely for lacking a METAR this hour —
-        // and every row written before the isMetar column existed reads false, so this is also the
+    fun `a station with no METAR still contributes its 5-minute sample`() {
+        // Gaps stay gaps, but a station is never dropped merely for lacking a METAR — and every
+        // row written before the isMetar column existed reads false, so this is also the
         // pre-migration path.
         val readings = listOf(reading("KSJC", hour + 2 * min, cloudLow = 100, distanceKm = 16f))
 
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
 
-        assertEquals(mapOf(hour to 100), result.hours)
+        assertEquals(mapOf((hour + 2 * min) to 100), result.hours)
         assertEquals(0, result.stats.metarPreferredBuckets)
     }
 
     @Test
     fun `the METAR preference is per-station, not global`() {
-        // One station having a METAR must not suppress another station that only has 5-minute rows;
-        // the blend width has to stay 2.
+        // One station having a METAR must not suppress another station that only has 5-minute
+        // rows; the blend width has to stay 2 at every point.
         val readings = listOf(
             reading("KNUQ", hour - 5 * min, cloudLow = 100, distanceKm = 4f, isMetar = true),
             reading("KNUQ", hour, cloudLow = 0, distanceKm = 4f),
             reading("KSJC", hour, cloudLow = 100, distanceKm = 16f),
         )
 
-        val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
+        // Window starts 30 minutes early so KNUQ's :55 METAR emits its own point.
+        val result = MetarCloudBlender.blend(readings, hour - 30 * min, hour + 3_600_000L)
 
-        assertEquals(mapOf(hour to 100), result.hours)
+        assertEquals(
+            mapOf((hour - 5 * min) to 100, hour to 100),
+            result.hours,
+        )
+        assertEquals(2, result.stats.blendWidthByHour[hour - 5 * min])
         assertEquals(2, result.stats.blendWidthByHour[hour])
     }
 
     @Test
-    fun `a partial METAR yields to a cloud-carrying 5-minute row rather than blanking the hour`() {
+    fun `a partial METAR yields to a cloud-carrying 5-minute row rather than blanking the point`() {
         // A METAR that omitted sky condition carries nothing to prefer. The carrier filter runs
         // first, so the station still contributes instead of dropping out of the blend.
         val readings = listOf(
@@ -224,7 +331,7 @@ class MetarCloudBlenderTest {
 
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
 
-        assertEquals(mapOf(hour to 100), result.hours)
+        assertEquals(mapOf((hour + 3 * min) to 100), result.hours)
         assertEquals(0, result.stats.metarPreferredBuckets)
     }
 
@@ -235,8 +342,8 @@ class MetarCloudBlenderTest {
             reading("KPAO", hour + 5 * min, cloudLow = 100, distanceKm = 4f),
         )
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
-        assertEquals(mapOf(hour to 100), result.hours)
-        assertEquals(1, result.stats.blendWidthByHour[hour])
+        assertEquals(mapOf((hour + 5 * min) to 100), result.hours)
+        assertEquals(1, result.stats.blendWidthByHour[hour + 5 * min])
     }
 
     @Test
@@ -273,13 +380,20 @@ class MetarCloudBlenderTest {
     }
 
     @Test
-    fun `readings outside the requested window are dropped`() {
+    fun `reports outside the window emit no points but can still anchor inside it`() {
+        // The pre-window report (hour-1h+3min) produces no point — points sit on real report
+        // times and that one is outside the window. But the in-window point CAN anchor a
+        // pre-window report: that is what the padded read exists to hand over. The 11-minute-old
+        // KPAO report from just before the window joins the first in-window point's blend.
         val readings = listOf(
             reading("KNUQ", hour - 3_600_000L + 3 * min, cloudLow = 0, distanceKm = 2f),
+            reading("KPAO", hour - 11 * min, cloudLow = 80, distanceKm = 4f),
             reading("KNUQ", hour + 3 * min, cloudLow = 100, distanceKm = 2f),
         )
         val result = MetarCloudBlender.blend(readings, hour, hour + 3_600_000L)
-        assertEquals(mapOf(hour to 100), result.hours)
+        // IDW at 00:03: (100 * 1/4 + 80 * 1/16) / (1/4 + 1/16) = 96.
+        assertEquals(mapOf((hour + 3 * min) to 96), result.hours)
+        assertEquals(2, result.stats.blendWidthByHour[hour + 3 * min])
     }
 
     /**
@@ -298,19 +412,23 @@ class MetarCloudBlenderTest {
     }
 
     @Test
-    fun `a report in the half-hour before the window still fills the first visible hour`() = runBlocking {
-        // The Samsung regression, end to end. The 1a-5a cloud graph's actual curve began at 2a
-        // because KSJC's 00:30 METAR — which rounds INTO 01:00, the first visible hour — fell
-        // outside a bare `timestamp >= 01:00` read. The blend was always willing to bucket it; the
-        // READ had to hand it over, which is why fromSiteRows now owns the range. Drive it through
-        // a range-filtering reader so shrinking that range back to the bare window fails here.
+    fun `the padded read lets a pre-window report anchor the first visible points`() = runBlocking {
+        // The Samsung regression's binless form. The 1a-5a cloud graph's actual curve began at 2a
+        // because KSJC's 00:30 METAR fell outside a bare `timestamp >= 01:00` read and nothing
+        // else reported until 01:53. Points now sit on real report times, so a pre-window report
+        // draws no point of its own — but the blend can still ANCHOR it at the first in-window
+        // point, which is why the ±30-minute pad survives: it is exactly the anchor tolerance,
+        // and dropping the pad would silently de-blend the leading edge. Drive it through a
+        // range-filtering reader so shrinking that range back to the bare window fails here.
         val windowStart = hour
         val windowEnd = hour + 4 * 3_600_000L
         val reader = FakeSiteReader(
             listOf(
-                reading("KSJC", windowStart - 30 * min, cloudLow = 75, distanceKm = 16f),
-                reading("KSJC", windowStart + 65 * min, cloudLow = 100, distanceKm = 16f),
-                reading("KSJC", windowStart + 130 * min, cloudLow = 100, distanceKm = 16f),
+                // KPAO's 00:47 report is 5 minutes before the window and 8 from the first
+                // in-window point: inside the anchor tolerance only because the pad read it.
+                reading("KPAO", windowStart - 13 * min, cloudLow = 80, distanceKm = 4f),
+                reading("KNUQ", windowStart + 5 * min, cloudLow = 100, distanceKm = 2f),
+                reading("KNUQ", windowStart + 65 * min, cloudLow = 100, distanceKm = 2f),
             ),
         )
 
@@ -318,15 +436,17 @@ class MetarCloudBlenderTest {
             windowStart, windowEnd, WeatherSource.NWS.id, reader::read,
         )
 
+        // First point (00:05) blends BOTH stations — KPAO aged 18 minutes — IDW 1/d^2:
+        // (100 * 1/4 + 80 * 1/16) / (1/4 + 1/16) = 96. The second (01:05) is KNUQ-only: KPAO's
+        // report is 78 minutes stale by then, past the 30-minute anchor tolerance.
         assertEquals(
             mapOf(
-                windowStart to 75,
-                (windowStart + 3_600_000L) to 100,
-                (windowStart + 2 * 3_600_000L) to 100,
+                (windowStart + 5 * min) to 96,
+                (windowStart + 65 * min) to 100,
             ),
             result.hours,
         )
-        // The pad is the bucketing tolerance, no wider: a full hour would drag whole extra hour
+        // The pad is the anchor tolerance, no wider: a full hour would drag whole extra hour
         // marks — and the synthetic rows sitting on them — into the read.
         assertEquals(windowStart - 30 * min, reader.requestedStart)
         assertEquals(windowEnd + 30 * min, reader.requestedEnd)
@@ -367,8 +487,13 @@ class MetarCloudBlenderTest {
             hour, hour + 3_600_000L, WeatherSource.NWS.id, FakeSiteReader(readings)::read,
         )
 
-        // (40 * 1/4 + 80 * 1/16) / (1/4 + 1/16) = 48 — the blend, not a synthetic pin.
-        assertEquals(mapOf(hour to 48), result.hours)
+        // (40 * 1/4 + 80 * 1/16) / (1/4 + 1/16) = 48 — the blend, not a synthetic pin — at each
+        // report's own time (the two reports are 2 minutes apart, so both points blend both
+        // stations).
+        assertEquals(
+            mapOf((hour + 3 * min) to 48, (hour + 5 * min) to 48),
+            result.hours,
+        )
         assertTrue(result.isMetarBlend)
     }
 

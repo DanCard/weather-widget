@@ -76,7 +76,9 @@ class NwsCloudActualsRoundTripTest {
     @Test
     fun `pws and foreign-source rows contribute nothing and the blend width matches reporters`() = runBlocking {
         val dao = db.observationDao()
-        // 21:53 and 21:55 both round into the 22:00 bucket; every station is at the same fetch site.
+        // 21:53 and 21:55 each emit their own point at their native report time (the blend is
+        // binless since plans/260824-subhourly-metar-cloud-blend.md); every station is at the
+        // same fetch site.
         val entities = listOf(
             // KNUQ (~3.8 km): OVC at 300 m -> low 100.
             source.toEntity(
@@ -129,12 +131,20 @@ class NwsCloudActualsRoundTripTest {
         )
 
         assertTrue(result.isMetarBlend)
-        // KNUQ (100, ~3.8 km) and KPAO (75, ~6 km): the IDW blend must land strictly between the
-        // two station values — a hijacked 88 or 100/75 single-station value would fail this.
-        val hourValue = result.hours[1_787_263_200_000L] // 22:00Z
-        assertNotNull(hourValue)
-        assertTrue("blend $hourValue not within (75, 100)", hourValue!! in 76..99)
-        assertEquals(2, result.stats.blendWidthByHour[1_787_263_200_000L])
+        // KNUQ (100, ~3.8 km) and KPAO (75, ~6 km): the IDW blend at each report's own timestamp
+        // must land strictly between the two station values — a hijacked 88 or 100/75
+        // single-station value would fail this. Their reports are 2 minutes apart, so both points
+        // anchor both stations.
+        val knuqPoint = 1_787_263_200_000L - 7 * 60_000L   // 21:53Z
+        val kpaoPoint = 1_787_263_200_000L - 5 * 60_000L   // 21:55Z
+        assertEquals("one point per native report time, no hour-mark key", 2, result.hours.size)
+        for (point in listOf(knuqPoint, kpaoPoint)) {
+            val value = result.hours[point]
+            assertNotNull("point at $point missing", value)
+            assertTrue("blend $value not within (75, 100)", value!! in 76..99)
+            assertEquals(2, result.stats.blendWidthByHour[point])
+        }
+        assertNull("no point may be manufactured on the hour mark", result.hours[1_787_263_200_000L])
         assertEquals(2, result.stats.stationsWithLayers)
         assertEquals(1, result.stats.stationsSkipped)
     }
@@ -192,25 +202,32 @@ class NwsCloudActualsRoundTripTest {
     }
 
     @Test
-    fun `a report in the half-hour before the window still fills the first visible hour`() = runBlocking {
+    fun `the padded read lets a pre-window report anchor the first visible point`() = runBlocking {
         val dao = db.observationDao()
-        // The Samsung fold, 2026-08-21: the 1a-5a cloud graph drew its actual curve from 2a. KSJC
-        // reported at 00:30, which ROUNDS INTO the 01:00 bucket — the window's first visible hour —
-        // but the row read was `timestamp >= 01:00`, so the blend never saw it. Proving this
-        // through Room, not just the blender, is the point: the blender always bucketed the report
-        // correctly; it was the query range that dropped it.
+        // The Samsung fold regression's binless form: the 1a-5a cloud graph's actual curve began
+        // an hour late because the row read was the bare window. Points now sit on real report
+        // times, so KSJC's 21:40 report draws no point of its own (it is pre-window) — but it can
+        // still ANCHOR KNUQ's 22:05 point, 25 minutes later and inside the ±30-minute tolerance.
+        // Proving this through Room, not just the blender, is the point: if the DAO's read range
+        // shrank back to the bare window, the blend width at that first point drops to 1.
         val windowStart = 1_787_263_200_000L // 22:00Z, hour-aligned
         val windowEnd = windowStart + 4 * 3_600_000L
+        val firstPoint = windowStart + 5 * 60_000L
+        val latePoint = windowStart + 3_900_000L // 23:05Z
         dao.insertAll(
             listOf(
-                // 21:30Z: half an hour BEFORE the window, buckets into its first hour.
+                // 21:40Z: 20 minutes BEFORE the window, 25 from KNUQ's first in-window report.
                 source.toEntity(
-                    observation("2026-08-20T21:30:00+00:00", listOf(NwsApi.CloudLayer("BKN", 500.0))),
+                    observation("2026-08-20T21:40:00+00:00", listOf(NwsApi.CloudLayer("BKN", 500.0))),
                     station("KSJC", 37.36, -121.93, official = true),
                     userLat, userLon,
                 ),
-                // 23:05Z: comfortably inside the window, so a truncated read still returns this one
-                // and the failure is specifically a missing FIRST hour, not an empty series.
+                source.toEntity(
+                    observation("2026-08-20T22:05:00+00:00", listOf(NwsApi.CloudLayer("OVC", 300.0))),
+                    station("KNUQ", 37.41, -122.05, official = true),
+                    userLat, userLon,
+                ),
+                // 23:05Z: KSJC fresh; KNUQ's 22:05 report is an hour stale by then — single station.
                 source.toEntity(
                     observation("2026-08-20T23:05:00+00:00", listOf(NwsApi.CloudLayer("OVC", 300.0))),
                     station("KSJC", 37.36, -121.93, official = true),
@@ -227,8 +244,14 @@ class NwsCloudActualsRoundTripTest {
             sourceId = WeatherSource.NWS.id,
         )
 
-        assertEquals(75, result.hours[windowStart])
-        assertEquals(100, result.hours[windowStart + 3_600_000L])
+        // KNUQ (~3.8 km, 100) + KSJC (~13 km, 75, anchored): strictly between, strongly KNUQ.
+        val first = result.hours[firstPoint]
+        assertNotNull(first)
+        assertTrue("first point $first not the anchored blend", first!! in 76..99)
+        assertEquals(2, result.stats.blendWidthByHour[firstPoint])
+        assertEquals(100, result.hours[latePoint])
+        assertEquals(1, result.stats.blendWidthByHour[latePoint])
+        assertNull("a pre-window report emits no point", result.hours[windowStart - 20 * 60_000L])
     }
 
     @Test

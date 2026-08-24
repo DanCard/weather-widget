@@ -1,12 +1,15 @@
 package com.weatherwidget.shared.observations
 
 /**
- * The one round-to-nearest-hour bucketing rule for observation timestamps, shared by the METAR
- * cloud blend, its diagnostics, and the Android self-heal gap check.
+ * The one round-to-nearest-hour bucketing rule for observation timestamps, shared by the hourly
+ * observation paths (Tomorrow.io actuals, the NWS realtime filter, `HourlyObservationBackfill`)
+ * and the Android self-heal gap check. The METAR cloud blend is BINLESS since
+ * plans/260824-subhourly-metar-cloud-blend.md — it emits points at native report timestamps and
+ * uses only this object's ±30-minute read pad, which happens to equal its anchor tolerance.
  *
- * Round-to-nearest (not floor) is load-bearing: a 13:47 METAR is an instantaneous reading 13
- * minutes from 14:00 and 47 from 13:00, and the graph plots instantaneous values at hour marks.
- * Flooring instead dropped KPAO — which reports at :47 — almost entirely from the blend.
+ * Round-to-nearest (not floor) is load-bearing for the hourly paths: a 13:47 METAR is an
+ * instantaneous reading 13 minutes from 14:00 and 47 from 13:00, and hourly series plot values at
+ * hour marks. Flooring instead dropped KPAO — which reports at :47 — almost entirely.
  */
 object CloudHourBucket {
     private const val HOUR_MS = 3_600_000L

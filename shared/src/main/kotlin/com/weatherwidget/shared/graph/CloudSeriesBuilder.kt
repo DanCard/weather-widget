@@ -44,10 +44,13 @@ object CloudSeriesBuilder {
      * @param liveHours the source's hourly rows for the visible window, site-collapsed, one per hour.
      * @param priorForecast day-ago predictions keyed by top-of-hour epoch ms, from
      *   [PriorDayCloudForecast].
-     * @param retroActual low-cloud actuals keyed by their native observation timestamps, read from
-     *   `observations`. Renderers draw this map independently from the hourly [CloudPoint] list.
-     *   Authoritative and ungated: an hour draws an actual if and only if it appears here. Nothing
-     *   is inferred from `fetchedAt` any more.
+     * @param retroActual low-cloud actuals keyed by their native report timestamps, read from
+     *   `observations`. Renderers draw this map independently from the hourly [CloudPoint] list;
+     *   since the blend went binless (plans/260824-subhourly-metar-cloud-blend.md) keys land on
+     *   real report times (:15/:35/:53), not hour marks — the per-hour [CloudPoint.actualCover]
+     *   below is resolved by the nearest key within ±30 min, which is exactly the old bucket
+     *   lookup for hourly-keyed maps. Authoritative and ungated otherwise: an hour draws an actual
+     *   if and only if the series covers it. Nothing is inferred from `fetchedAt` any more.
      * @param nowMs "now". Used **only** to decide which hours get the frozen day-ago forecast; it
      *   has no say over the actual curve.
      */
@@ -68,6 +71,10 @@ object CloudSeriesBuilder {
         // measurement that already happened. Future hours need no gate either: observations cannot
         // exist for them, and both platforms' read windows stop at `now`.
         val currentHourStart = nowMs - Math.floorMod(nowMs, 3_600_000L)
+        // Bit-mask-free nearest lookup: the map is a few thousand keys at most and this property
+        // exists only for the hourly-aligned fallback render and the frozenCoverage diagnostic —
+        // O(hours × keys) is paid nowhere hot.
+        val actualByHour = retroActual.entries.sortedBy { it.key }
 
         return liveHours
             .asSequence()
@@ -81,12 +88,27 @@ object CloudSeriesBuilder {
                     // No day-ago prediction for this hour: fall back to the live value so the curve
                     // stays continuous, but say so. Never present a hindcast as a frozen forecast.
                     forecastCover = frozen ?: live,
-                    actualCover = retroActual[hour.dateTime]?.coerceIn(0, 100),
+                    actualCover = nearestWithin(actualByHour, hour.dateTime)?.coerceIn(0, 100),
                     isFrozen = frozen != null,
                 )
             }
             .toList()
     }
+
+    /**
+     * The value whose key is nearest [hourMs] within ±[TOLERANCE_MS], or null when the series has
+     * nothing that close. For an exactly hour-keyed map this is precisely the old direct lookup.
+     */
+    private fun nearestWithin(
+        sortedEntries: List<Map.Entry<Long, Int>>,
+        hourMs: Long,
+    ): Int? {
+        val nearest = sortedEntries.minByOrNull { kotlin.math.abs(it.key - hourMs) } ?: return null
+        return if (kotlin.math.abs(nearest.key - hourMs) <= TOLERANCE_MS) nearest.value else null
+    }
+
+    /** Same ±30-minute reach the blend's anchor tolerance grants (see MetarCloudBlender). */
+    private const val TOLERANCE_MS = 30 * 60_000L
 
     /**
      * What the graph draws for an hour: the **low** layer where the row has it, else the total.

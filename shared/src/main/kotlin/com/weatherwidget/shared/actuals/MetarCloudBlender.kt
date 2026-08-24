@@ -12,20 +12,34 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Blends per-station METAR sky-cover values into an hour-keyed actual cloud series for NWS.
+ * Blends per-station METAR sky-cover values into an actual cloud series whose points sit on the
+ * stations' NATIVE report timestamps (~20-minute cadence at KNUQ, hourly at KSJC) — no time
+ * bins, mirroring [ActualTemperatureSeriesBuilder]'s "blend once per distinct observation
+ * timestamp" rule. See plans/260824-subhourly-metar-cloud-blend.md.
  *
- * Deliberately separate from [ActualTemperatureSeriesBuilder]: that machine carries forecast-driven
- * carry-forward, per-day dominance and the personal-station discount, none of which apply to a
- * quantity no station can extrapolate — a 13:47 METAR is an *instantaneous* reading of the sky, and
- * a station with no reading this hour cannot contribute one.
+ * Deliberately separate from the temperature builder otherwise: that machine carries
+ * forecast-driven carry-forward, per-day dominance and the personal-station discount, none of
+ * which apply to a quantity no station can extrapolate — a 13:47 METAR is an *instantaneous*
+ * reading of the sky, and a station with no reading near a point cannot contribute one.
  *
- * The value at each hour is the IDW blend (1/d², near-zero snap) of the five (or fewer) nearest
- * stations' reports, using the same [SpatialInterpolator] arithmetic the temperature blend uses.
- * Stations that reported no sky condition are simply absent from an hour; the blend proceeds with
- * however many remain, down to one, and never reaches past the fetched station set to make up the
- * shortfall.
+ * Each emitted point marks a real observation's timestamp; the value is the IDW blend (1/d²,
+ * near-zero snap) of the five (or fewer) nearest stations' reports, using the same
+ * [SpatialInterpolator] arithmetic the temperature blend uses. Stations whose sky-condition
+ * reporting is silent within [ANCHOR_TOLERANCE_MS] of the point are simply absent; the blend
+ * proceeds with however many remain, down to one, and never reaches past the fetched station set
+ * to make up the shortfall.
  */
 object MetarCloudBlender {
+
+    /**
+     * How far a station's cloud-carrying report can sit from a candidate point and still anchor
+     * that station's contribution there. Same 30-minute reach the hour bucket granted its reports
+     * (CloudHourBucket.TOLERANCE_MS), so the binless blend sees exactly the readings the bucketed
+     * one did — just placed at their true times instead of snapped to a mark. It is also why
+     * [fromSiteRows]' ±30-minute read pad is unchanged: a candidate at the window start can still
+     * anchor a report up to half an hour before it.
+     */
+    const val ANCHOR_TOLERANCE_MS = 30 * 60_000L
 
     private const val TAG = "MetarCloudBlender"
 
@@ -35,20 +49,26 @@ object MetarCloudBlender {
         val stationsWithLayers: Int,
         /** Real stations present in the window that never carried a sky-condition report. */
         val stationsSkipped: Int,
-        /** Number of stations behind each emitted hour, hour-start epoch ms -> width. */
+        /**
+         * Number of stations behind each emitted point, point timestamp -> width.
+         *
+         * Legacy name: keys are native report timestamps since the blend went binless
+         * (plans/260824-subhourly-metar-cloud-blend.md), not hour starts.
+         */
         val blendWidthByHour: Map<Long, Int>,
         /**
-         * Buckets saved by the cloud-carrier preference: the station's report nearest the hour
-         * omitted sky condition, but another of its reports in the bucket carried one. A rising
-         * value is normal (partial METARs); a value ~equal to emitted hours points at a station
-         * whose sky-condition reporting has mostly died.
+         * Anchored points saved by the cloud-carrier preference: the station's report nearest the
+         * point's timestamp omitted sky condition, but another of its reports within the anchor
+         * tolerance carried one. A rising value is normal (partial METARs); a value ~equal to
+         * emitted points times station count points at a station whose sky-condition reporting
+         * has mostly died.
          */
         val shadowedBuckets: Int = 0,
         /**
-         * Station-hours where an actual METAR was available and preferred over the ASOS 5-minute
-         * sample that would otherwise have won on nearest-to-the-hour. A value near zero at an
-         * airport station means `rawMessage` is not arriving (or the rows predate the column) and
-         * the curve has quietly reverted to instantaneous ceilometer samples.
+         * Station-points where an actual METAR was available and preferred over the ASOS 5-minute
+         * samples that were nearer. A value near zero at an airport station means `rawMessage` is
+         * not arriving (or the rows predate the column) and the curve has quietly reverted to
+         * instantaneous ceilometer samples.
          */
         val metarPreferredBuckets: Int = 0,
     ) {
@@ -60,7 +80,7 @@ object MetarCloudBlender {
         fun summary(): String {
             val widthHistogram = blendWidthByHour.values.groupingBy { it }.eachCount()
                 .toSortedMap()
-                .entries.joinToString(" ") { "w${it.key}=${it.value}h" }
+                .entries.joinToString(" ") { "w${it.key}=${it.value}" }
             return "stationsWithLayers=$stationsWithLayers stationsSkipped=$stationsSkipped" +
                 (if (shadowedBuckets == 0) "" else " shadowed=$shadowedBuckets") +
                 (if (metarPreferredBuckets == 0) "" else " metarPreferred=$metarPreferredBuckets") +
@@ -69,6 +89,12 @@ object MetarCloudBlender {
     }
 
     data class Result(
+        /**
+         * Point timestamp -> blended percent. For the station-observation blend ([isMetarBlend]
+         * true) keys are NATIVE report timestamps — the series is binless, mirroring
+         * ActualTemperatureSeriesBuilder's "no time-bucket thinning". The synthetic-provider
+         * branches are hourly model history, so their keys stay hour marks.
+         */
         val hours: Map<Long, Int>,
         val stats: Stats,
         /** False for non-NWS sources: their cloud actuals come from the synthetic backfill row. */
@@ -92,17 +118,17 @@ object MetarCloudBlender {
      *    to that station: a future real-station cloud source cannot silently join the series
      *    without a deliberate change here.
      *
-     * Owns the READ RANGE as well as the branch, because the two are one decision. Bucketing rounds
-     * to the nearest hour, so a report in the half-hour before [startMs] belongs to the first
-     * visible hour; reading the bare window drops it and the actual curve begins an hour late. That
-     * shipped — the Samsung fold's 1a-5a cloud graph started its actual at 2a because KSJC's 00:30
-     * METAR, which buckets to 01:00, was never fetched. Leaving the pad in the DAOs would re-open
-     * exactly the Android/desktop divergence this function exists to close, so the pad lives here
-     * and the DAOs supply only [readSiteRows].
+     * Owns the READ RANGE as well as the branch, because the two are one decision. The blend's
+     * anchor tolerance reaches 30 minutes both ways, so a report just before [startMs] can still
+     * anchor the first visible points; reading the bare window starves the leading edge of the
+     * curve. That shape of bug shipped once — the Samsung fold's 1a-5a cloud graph started its
+     * actual an hour late because KSJC's 00:30 METAR, which anchored the 01:00 point, was never
+     * fetched. Leaving the pad in the DAOs would re-open exactly the Android/desktop divergence
+     * this function exists to close, so the pad lives here and the DAOs supply only [readSiteRows].
      *
      * @param readSiteRows reads ONE physical site's observations for a raw-timestamp range,
      *   `start` inclusive to `end` exclusive (the DAO collapses the location box first). Called
-     *   with the padded range; the emitted hours stay bounded by the unpadded [startMs]/[endMs].
+     *   with the padded range; the emitted points stay bounded by the unpadded [startMs]/[endMs].
      */
     suspend fun fromSiteRows(
         startMs: Long,
@@ -176,8 +202,8 @@ object MetarCloudBlender {
      * @param readings already site- and source-scoped real NWS station rows (the DAO collapses the
      *   location box to one physical site first). Synthetic `NWS_BLEND` and `<SOURCE>_MAIN` rows are
      *   excluded here too, so a blended or backfilled row can never masquerade as a station.
-     * @return hour-start epoch ms -> blended percent, or an empty map when no station reported sky
-     *   condition. Gaps stay gaps: no interpolation across empty hours.
+     * @return native report timestamp -> blended percent, or an empty map when no station reported
+     *   sky condition. Gaps stay gaps: no interpolation across silent stretches.
      */
     fun blend(
         readings: List<ObservationReading>,
@@ -219,87 +245,116 @@ object MetarCloudBlender {
         // QC-failed readings are stored for the stations UI but are never blend inputs, matching the
         // temperature blend's rule.
         val usable = real.filter { !it.qcFailed }
+        val byStation = usable.groupBy { it.stationId }
+        // Carrier lists stay in the total order `usable` arrived in, so binary search and
+        // deterministic ties hold.
+        val carriersByStation = byStation.mapValues { (_, rows) ->
+            rows.filter { (it.cloudCoverLow ?: it.cloudCover) != null }
+        }
 
-        // Bucket by round-to-nearest hour (§2.5): a 13:47 METAR is an instantaneous reading 13 minutes
-        // from 14:00 and 47 from 13:00, and the graph plots instantaneous values at hour marks.
-        // Flooring to the hour instead dropped KPAO (which reports at :47) almost entirely.
-        val byBucket = usable
-            .groupBy { CloudHourBucket.startMsOf(it.timestamp) }
-            .filterKeys { it in startMs until endMs }
+        // One candidate point per distinct cloud-carrying report timestamp: every emitted point
+        // has at least one FRESH observation at its own time. Timestamps that carried no sky
+        // condition (partial METARs) add no cloud information, so they are not candidates — the
+        // temperature-side equivalent of "no time-bucket thinning".
+        val candidateTimes = carriersByStation.values.asSequence()
+            .flatten()
+            .map { it.timestamp }
+            .distinct()
+            .filter { it in startMs until endMs }
+            .sorted()
+            .toList()
 
-        val hourValues = LinkedHashMap<Long, Int>()
-        val widthByHour = mutableMapOf<Long, Int>()
-        var shadowedBuckets = 0
-        var metarPreferredBuckets = 0
-        for ((hourMs, bucketReadings) in byBucket) {
-            val byStation = bucketReadings.groupBy { it.stationId }
-            // Each station contributes ONE value: the reading nearest the top of the hour. The bucket
-            // input is already total-ordered, so a tie resolves deterministically to the first row.
-            // When the nearest report omitted sky condition (a partial METAR, or a row stored before
-            // cloud parsing existed), fall back to the nearest report in the bucket that DID carry
-            // one instead of dropping the station's hour — the fallback stays inside the same
-            // ±30-minute bucketing tolerance the round-to-hour rule already accepts.
-            val contributions = byStation.mapNotNull { (_, rows) ->
-                val carriers = rows.filter { (it.cloudCoverLow ?: it.cloudCover) != null }
+        val pointValues = LinkedHashMap<Long, Int>()
+        val widthByPoint = mutableMapOf<Long, Int>()
+        var shadowedAnchors = 0
+        var metarPreferredAnchors = 0
+        for (ts in candidateTimes) {
+            val contributions = byStation.mapNotNull { (id, rows) ->
+                val carriers = carriersByStation.getValue(id)
                 if (carriers.isEmpty()) return@mapNotNull null
+                val inRange = carriersWithin(carriers, ts)
+                if (inRange.isEmpty()) return@mapNotNull null
                 // METAR first. `/stations/{id}/observations` interleaves the official METAR with
-                // ASOS 5-minute rows, and the 5-minute feed publishes EXACTLY on the hour mark
-                // while the METAR sits at :53 — so a pure nearest-to-mark pick can never select the
-                // METAR at a station that publishes both. That is backwards: the 5-minute row is an
-                // instantaneous single-point sample that flips CLR<->SCT as the beam passes in and
-                // out of scattered cloud, while the METAR is a 30-minute assessment. Measured at
-                // KSJC 2026-08-21 00:00-05:05, 60 of 66 samples read OVC and the isolated BKN dips
-                // at 00:30 and 03:50 were the values the graph drew as real hourly dips.
-                val metars = carriers.filter { it.isMetar }
-                if (metars.isNotEmpty()) metarPreferredBuckets++
-                // Nearest-to-mark still decides WITHIN the preferred class, and the bucket input is
-                // total-ordered, so a tie resolves deterministically to the first row.
-                val preferred = (if (metars.isNotEmpty()) metars else carriers)
-                    .minByOrNull { abs(it.timestamp - hourMs) } ?: return@mapNotNull null
-                // Shadowing is now measured against the row this station would otherwise have
-                // contributed: the nearest report overall omitted sky condition, and a different
-                // report in the bucket rescued the station's hour.
-                val nearestOverall = rows.minByOrNull { abs(it.timestamp - hourMs) }
+                // ASOS 5-minute rows, and the 5-minute rows are instantaneous single-point samples
+                // that flip CLR<->SCT as the beam passes in and out of scattered cloud, while the
+                // METAR's sky condition is a 30-minute assessment. Measured at KSJC 2026-08-21
+                // 00:00-05:05, 60 of 66 5-minute samples read OVC and the isolated BKN dips at
+                // 00:30 and 03:50 were the values the graph drew as real dips. The preference is a
+                // CLASS, not a row: among several in-range METARs the freshest wins.
+                val metars = inRange.filter { it.isMetar }
+                if (metars.isNotEmpty()) metarPreferredAnchors++
+                val anchor = (if (metars.isNotEmpty()) metars else inRange)
+                    .minByOrNull { abs(it.timestamp - ts) } ?: return@mapNotNull null
+                // Shadowing is measured against the report this station would have anchored a
+                // naive nearest-to-time pick on: when that one omitted sky condition and an older
+                // carrier rescued the point, count it.
+                val nearestOverall = rows.minByOrNull { abs(it.timestamp - ts) }
                 if (nearestOverall != null && (nearestOverall.cloudCoverLow ?: nearestOverall.cloudCover) == null) {
-                    shadowedBuckets++
+                    shadowedAnchors++
                 }
-                preferred to (preferred.cloudCoverLow ?: preferred.cloudCover)
+                anchor to (anchor.cloudCoverLow ?: anchor.cloudCover)
             }
             val valueByDistance = contributions.mapNotNull { (reading, cloud) ->
                 cloud?.let { reading.distanceKm.toFloat() to it.toFloat() }
             }
             if (valueByDistance.isEmpty()) continue
             val blended = SpatialInterpolator.interpolateIDWValues(valueByDistance) ?: continue
-            hourValues[hourMs] = blended.roundToInt().coerceIn(0, 100)
-            widthByHour[hourMs] = valueByDistance.size
+            pointValues[ts] = blended.roundToInt().coerceIn(0, 100)
+            widthByPoint[ts] = valueByDistance.size
         }
 
-        if (hourValues.isEmpty() && stationsWithLayers > 0) {
-            // Pathological state: cloud-carrying readings entered the blend but every bucket came
-            // out empty. This failed silently on-device once already (stationsWithLayers=1,
-            // actual=0, no curve), so dump the decisive facts — which rows carried cloud, where
-            // they bucketed, and what each bucket selected — instead of leaving it indistinguishable
-            // from "all stations are PWS". Fires only in this state, so a healthy blend never pays.
-            logDroppedBlend(real, usable, byBucket, startMs, endMs)
+        if (pointValues.isEmpty() && stationsWithLayers > 0) {
+            // Pathological state: cloud-carrying readings entered the blend but every candidate
+            // came out empty. This failed silently on-device once already (stationsWithLayers=1,
+            // actual=0, no curve), so dump the decisive facts — which rows carried cloud, which
+            // candidates they made, and what each station would anchor — instead of leaving it
+            // indistinguishable from "all stations are PWS". Fires only in this state, so a
+            // healthy blend never pays.
+            logDroppedBlend(real, usable, carriersByStation, candidateTimes, startMs, endMs)
         }
 
         return Result(
-            hours = hourValues,
+            hours = pointValues,
             stats = Stats(
                 stationsWithLayers,
                 stationsSkipped,
-                widthByHour,
-                shadowedBuckets,
-                metarPreferredBuckets,
+                widthByPoint,
+                shadowedAnchors,
+                metarPreferredAnchors,
             ),
             isMetarBlend = true,
         )
     }
 
+    /**
+     * The station's cloud-carrying reports within [ANCHOR_TOLERANCE_MS] of [ts], for anchoring.
+     * [carriers] must be timestamp-sorted (it is — built from the totally-ordered `usable`).
+     */
+    private fun carriersWithin(
+        carriers: List<ObservationReading>,
+        ts: Long,
+    ): List<ObservationReading> {
+        var idx = carriers.binarySearch { it.timestamp.compareTo(ts) }
+        if (idx < 0) idx = -idx - 1
+        val out = ArrayList<ObservationReading>(8)
+        var i = idx
+        while (i < carriers.size && carriers[i].timestamp - ts <= ANCHOR_TOLERANCE_MS) {
+            out.add(carriers[i])
+            i++
+        }
+        i = idx - 1
+        while (i >= 0 && ts - carriers[i].timestamp <= ANCHOR_TOLERANCE_MS) {
+            out.add(carriers[i])
+            i--
+        }
+        return out
+    }
+
     private fun logDroppedBlend(
         real: List<ObservationReading>,
         usable: List<ObservationReading>,
-        byBucket: Map<Long, List<ObservationReading>>,
+        carriersByStation: Map<String, List<ObservationReading>>,
+        candidateTimes: List<Long>,
         startMs: Long,
         endMs: Long,
     ) {
@@ -311,22 +366,21 @@ object MetarCloudBlender {
         val cloudRows = real.filter { (it.cloudCoverLow ?: it.cloudCover) != null }
             .take(6)
             .joinToString(" ") {
-                val bucket = CloudHourBucket.startMsOf(it.timestamp)
-                "${it.stationId}@${it.timestamp}->bucket=$bucket" +
-                    "(inWindow=${bucket in startMs until endMs},qc=${it.qcFailed},d=${it.distanceKm})"
+                "${it.stationId}@${it.timestamp}" +
+                    "(inWindow=${it.timestamp in startMs until endMs},qc=${it.qcFailed},d=${it.distanceKm})"
             }
-        val bucketDetail = byBucket.entries.take(6).joinToString(" ") { (hourMs, rows) ->
-            val picks = rows.groupBy { it.stationId }
-                .entries.joinToString(",") { (id, stationRows) ->
-                    val chosen = stationRows.minByOrNull { abs(it.timestamp - hourMs) }
-                    "$id:${stationRows.size}rows->pick@${chosen?.timestamp} cloud=${chosen?.cloudCoverLow ?: chosen?.cloudCover}"
-                }
-            "$hourMs{$picks}"
+        val candidateDetail = candidateTimes.take(6).joinToString(" ") { ts ->
+            val anchors = carriersByStation.entries.joinToString(",") { (id, carriers) ->
+                val nearest = carriers.minByOrNull { abs(it.timestamp - ts) }
+                val age = nearest?.let { abs(it.timestamp - ts) }
+                "$id->anchor@${nearest?.timestamp}(age=${age},within=${age != null && age <= ANCHOR_TOLERANCE_MS})"
+            }
+            "$ts{$anchors}"
         }
         Log.w(
             TAG,
             "METAR_BLEND_DROPPED window=$startMs..$endMs real=${real.size} usable=${usable.size} " +
-                "buckets=${byBucket.size} stations=[$perStation] cloudRows=[$cloudRows] buckets=[$bucketDetail]",
+                "candidates=${candidateTimes.size} stations=[$perStation] cloudRows=[$cloudRows] anchors=[$candidateDetail]",
         )
     }
 }

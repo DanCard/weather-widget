@@ -643,7 +643,7 @@ class DesktopWeatherService(
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
             WeatherSource.OPEN_METEO.id,
-            WeatherSource.SILURIAN.id -> fetchBorrowedObservationsOnly()
+            WeatherSource.SILURIAN.id -> fetchBorrowedObservationsOnly(recentOnly)
             WeatherSource.WEATHER_API.id,
             WeatherSource.VISUAL_CROSSING.id -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
@@ -665,14 +665,24 @@ class DesktopWeatherService(
      * NWS path already stored rather than a fresh pull, and never a silently substituted feed
      * (`no_cross_source_fallback`).
      */
-    private suspend fun fetchBorrowedObservationsOnly(): RawFetch {
+    private suspend fun fetchBorrowedObservationsOnly(recentOnly: Boolean): RawFetch {
         val source = WeatherSource.fromId(weatherSource)
         val provider = ActualsProviderResolver.providerIdFor(source)
         if (provider != WeatherSource.METAR.id) {
             Log.i(TAG, "Observations-only refresh for $weatherSource borrows $provider; no desktop fetch path for it")
             return RawFetch()
         }
-        val readings = metarFetcher.fetchObservations(latitude, longitude, hours = 2)
+        // The frequent current-observation loop stays narrow. A full repository refresh passes
+        // recentOnly=false to repair polling holes that have already fallen outside that window;
+        // 24 hours is enough for the graph's current incident and stays comfortably under the
+        // AviationWeather 400-row cap at the observed five-station site (164 rows on 2026-08-24).
+        val hours = if (recentOnly) RECENT_BORROWED_METAR_HOURS else RECOVERY_BORROWED_METAR_HOURS
+        val readings = metarFetcher.fetchObservations(latitude, longitude, hours = hours)
+        Log.i(
+            TAG,
+            "BORROWED_METAR_FETCH source=$weatherSource hours=$hours rows=${readings.size} " +
+                "stations=${readings.map { it.stationId }.distinct().size}",
+        )
         return RawFetch(rawObservations = readings)
     }
 
@@ -784,6 +794,8 @@ class DesktopWeatherService(
         // ~90 rows/cycle, against ~2500 for the 7-day window — the reduction from 2befc157 survives
         // without discarding readings.
         internal const val RECENT_OBSERVATION_WINDOW_MINUTES = 90L
+        internal const val RECENT_BORROWED_METAR_HOURS = 2
+        internal const val RECOVERY_BORROWED_METAR_HOURS = 24
 
         private const val TAG = "DesktopWeatherService"
         private const val MAX_OBSERVATION_STATIONS = 5
