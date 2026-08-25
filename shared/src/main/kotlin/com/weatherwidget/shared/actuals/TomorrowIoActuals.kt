@@ -11,10 +11,10 @@ object TomorrowIoActuals {
     const val RECENT_HISTORY_STATION_NAME = "Tmrw: Recent History"
     const val REALTIME_STATION_ID = "TOMORROW_IO_REALTIME"
     const val REALTIME_STATION_NAME = "Tmrw: Realtime"
-    // This id is in-memory only and is surfaced by the graph's dominant-station label.
-    // Keep it user-facing; persisted rows retain the two explicit provenance ids above.
-    private const val MERGED_SERIES_STATION_ID = "Tmrw"
-    private const val MERGED_SERIES_STATION_NAME = "Tmrw: Actuals"
+    // This id is in-memory only for the normalized single-feed temperature series.
+    // Persisted rows retain the two explicit provenance ids above.
+    const val MERGED_SERIES_STATION_ID = "Tmrw"
+    const val MERGED_SERIES_STATION_NAME = "Tmrw: Actuals"
 
     fun isAllowedStation(stationId: String): Boolean =
         stationId == RECENT_HISTORY_STATION_ID || stationId == REALTIME_STATION_ID

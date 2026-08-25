@@ -151,6 +151,14 @@ class DominantStationLabelTest {
                 zoneId = zone,
             ),
         )
+        // Tomorrow.io normalized station id is also synthetic and gets no label.
+        assertNull(
+            DominantStationLabel.format(
+                contribution(stationId = "Tmrw", rawTemp = 73.9f, isSynthetic = true),
+                useCelsius = false,
+                zoneId = zone,
+            ),
+        )
         // Same row, flag off: proves the suppression is the flag's doing and not some other field.
         assertNotNull(
             DominantStationLabel.format(

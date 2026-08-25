@@ -138,6 +138,32 @@ class ActualsSyntheticBackfillPriorityTest {
     }
 
     @Test
+    fun `dominant contribution is flagged synthetic for tomorrow io actuals`() {
+        val at = epoch("2026-08-02T18:00:00")
+        val obs = listOf(
+            observation(
+                TomorrowIoActuals.REALTIME_STATION_ID,
+                "2026-08-02T18:00:00",
+                73.9f,
+                api = WeatherSource.TOMORROW_IO.id,
+                distanceKm = 0f,
+            ),
+        )
+        val dominant =
+            blend(
+                obs,
+                WeatherSource.TOMORROW_IO.id,
+                forecastSource = WeatherSource.TOMORROW_IO.id,
+                captureLatestDominantAtOrBeforeMs = at,
+            ).latestDominantContribution!!
+
+        assertEquals(TomorrowIoActuals.MERGED_SERIES_STATION_ID, dominant.contribution.stationId)
+        assertTrue("tomorrow.io actuals must be flagged synthetic", dominant.contribution.isSynthetic)
+        assertEquals("OFFICIAL", dominant.contribution.stationType)
+        assertEquals("observed", dominant.contribution.sourceKind)
+    }
+
+    @Test
     fun `dominant contribution is not flagged synthetic when a real station wins`() {
         val at = epoch("2026-08-02T18:00:00")
         val dominant =

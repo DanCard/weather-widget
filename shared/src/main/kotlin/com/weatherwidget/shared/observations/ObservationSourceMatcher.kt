@@ -38,7 +38,9 @@ object ObservationSourceMatcher {
      * near-zero override.
      */
     fun isSyntheticBackfillStation(stationId: String, sourceId: String): Boolean =
-        stationId == HistoricalActualsBackfill.syntheticStationId(sourceId)
+        stationId == HistoricalActualsBackfill.syntheticStationId(sourceId) ||
+            (sourceId == WeatherSource.TOMORROW_IO.id &&
+                (TomorrowIoActuals.isAllowedStation(stationId) || stationId == TomorrowIoActuals.MERGED_SERIES_STATION_ID))
 
     private val sourcePrefixes: Map<WeatherSource, String> =
         listOf(

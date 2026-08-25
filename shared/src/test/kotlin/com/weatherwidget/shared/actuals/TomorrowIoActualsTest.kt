@@ -60,4 +60,16 @@ class TomorrowIoActualsTest {
         assertEquals(listOf(60f, 64f), result.map { it.temperature })
         assertEquals(1, result.map { it.stationId }.distinct().size)
     }
+
+    @Test
+    fun `isSyntheticBackfillStation recognises all tomorrow io actuals ids`() {
+        val matcher = com.weatherwidget.shared.observations.ObservationSourceMatcher
+        val sourceId = WeatherSource.TOMORROW_IO.id
+
+        org.junit.Assert.assertTrue(matcher.isSyntheticBackfillStation(TomorrowIoActuals.REALTIME_STATION_ID, sourceId))
+        org.junit.Assert.assertTrue(matcher.isSyntheticBackfillStation(TomorrowIoActuals.RECENT_HISTORY_STATION_ID, sourceId))
+        org.junit.Assert.assertTrue(matcher.isSyntheticBackfillStation(TomorrowIoActuals.MERGED_SERIES_STATION_ID, sourceId))
+        org.junit.Assert.assertTrue(matcher.isSyntheticBackfillStation("TOMORROW_IO_MAIN", sourceId))
+        org.junit.Assert.assertFalse(matcher.isSyntheticBackfillStation("KNUQ", sourceId))
+    }
 }
