@@ -143,12 +143,11 @@ object DominantStationLabel {
     }
 
     /**
-     * Formats the actuals source API label for borrowed cloud cover (e.g. `Actual cloud cover data from Synoptic`).
-     * Returns null if [sourceName] is null or blank.
+     * Wraps already-localized plain annotation text for renderers that consume [LabelText].
+     * User-facing prose belongs at the Android/desktop boundary, not in this shared graph helper.
      */
-    fun formatCloudSourceLabelText(sourceName: String?): LabelText? {
-        val name = sourceName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        val text = "Actual cloud cover data from $name"
+    fun plainLabelText(localizedText: String?): LabelText? {
+        val text = localizedText?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         return LabelText(
             fullText = text,
             segments = listOf(Segment(text, Part.STATION)),

@@ -25,6 +25,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.graph.CloudActualSeries
 import com.weatherwidget.shared.graph.CloudSeriesBuilder
+import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
@@ -50,6 +51,17 @@ import com.weatherwidget.shared.observations.ActualsProviderResolver
 object CloudCoverViewHandler {
     private const val TAG = "CloudCoverViewHandler"
     private const val CELL_HEIGHT_DP = 90
+
+    @androidx.annotation.VisibleForTesting
+    internal fun localizedActualsSourceLabel(
+        context: Context,
+        sourceName: String?,
+    ): DominantStationLabel.LabelText? {
+        val name = sourceName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return DominantStationLabel.plainLabelText(
+            context.getString(R.string.actual_cloud_cover_data_from, name),
+        )
+    }
 
     /**
      * Look up the most likely upstream reason for missing cloud cover data by checking
@@ -572,9 +584,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
             val dominantStationLabel = if (com.weatherwidget.shared.observations.ActualsProviderResolver.borrows(effectiveDisplaySource)) {
                 val provider = WeatherSource.fromId(com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(effectiveDisplaySource))
-                com.weatherwidget.shared.graph.DominantStationLabel.formatCloudSourceLabelText(
-                    sourceName = provider.displayName,
-                )
+                localizedActualsSourceLabel(context, provider.displayName)
             } else {
                 null
             }

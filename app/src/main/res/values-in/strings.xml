@@ -329,4 +329,5 @@
     <string name="notify_dominant_temp_body_format">%1$s %2$s, sebelumnya %3$s</string>
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, sebelumnya %3$s %4$s</string>
     <string name="obs_actuals_source_label">Sumber data aktual</string>
+    <string name="actual_cloud_cover_data_from">Data tutupan awan aktual dari %1$s</string>
 </resources>

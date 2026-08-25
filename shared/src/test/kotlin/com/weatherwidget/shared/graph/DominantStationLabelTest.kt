@@ -222,23 +222,23 @@ class DominantStationLabelTest {
     }
 
     @Test
-    fun formatCloudSourceLabelTextBuildsExpectedText() {
+    fun plainLabelTextPreservesLocalizedText() {
         val label = requireNotNull(
-            DominantStationLabel.formatCloudSourceLabelText("Synoptic"),
+            DominantStationLabel.plainLabelText("Tatsächliche Bewölkungsdaten von Synoptic"),
         )
-        assertEquals("Actual cloud cover data from Synoptic", label.fullText)
+        assertEquals("Tatsächliche Bewölkungsdaten von Synoptic", label.fullText)
         assertEquals(
             listOf(
-                DominantStationLabel.Segment("Actual cloud cover data from Synoptic", DominantStationLabel.Part.STATION),
+                DominantStationLabel.Segment("Tatsächliche Bewölkungsdaten von Synoptic", DominantStationLabel.Part.STATION),
             ),
             label.segments,
         )
     }
 
     @Test
-    fun formatCloudSourceLabelTextReturnsNullForBlankOrNull() {
-        assertNull(DominantStationLabel.formatCloudSourceLabelText(null))
-        assertNull(DominantStationLabel.formatCloudSourceLabelText("   "))
+    fun plainLabelTextReturnsNullForBlankOrNull() {
+        assertNull(DominantStationLabel.plainLabelText(null))
+        assertNull(DominantStationLabel.plainLabelText("   "))
     }
 
     @Test

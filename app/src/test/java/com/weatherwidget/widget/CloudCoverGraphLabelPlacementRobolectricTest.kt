@@ -134,7 +134,9 @@ class CloudCoverGraphLabelPlacementRobolectricTest {
             )
         }
         var dominantPlacement: com.weatherwidget.shared.graph.DominantStationLabel.Placement? = null
-        val label = com.weatherwidget.shared.graph.DominantStationLabel.formatCloudSourceLabelText("Synoptic")
+        val label = com.weatherwidget.shared.graph.DominantStationLabel.plainLabelText(
+            "Actual cloud cover data from Synoptic",
+        )
 
         CloudCoverGraphRenderer.renderGraph(
             context = context,

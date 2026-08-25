@@ -329,4 +329,5 @@
     <string name="notify_dominant_temp_body_format">%1$s %2$s, 이전 %3$s</string>
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, 이전 %3$s %4$s</string>
     <string name="obs_actuals_source_label">실측 데이터 출처</string>
+    <string name="actual_cloud_cover_data_from">%1$s의 실제 운량 데이터</string>
 </resources>

@@ -299,8 +299,8 @@ fun CloudCoverGraph(
         val dominantSpanHours = (windowEnd - windowStart) / 3_600_000L
         val dominantLabel = if (borrowsActuals) {
             val provider = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(displaySource))
-            DominantStationLabel.formatCloudSourceLabelText(
-                sourceName = provider.displayName,
+            DominantStationLabel.plainLabelText(
+                localizedText = "Actual cloud cover data from ${provider.displayName}",
             )
         } else {
             null
