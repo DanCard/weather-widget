@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
+import com.weatherwidget.R
 import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.graph.GhostLineLabel
 import com.weatherwidget.shared.graph.GraphEmptySpaceFinder
@@ -322,7 +323,8 @@ internal object TemperatureGraphAnnotationRenderer {
         if (hours.size < 2) return
         val spanHours = Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
         val paint = input.paints.stalenessTextPaint
-        val text = ForecastDeltaLabel.format(delta, input.useCelsius)
+        val suffix = " " + input.context.getString(R.string.forecast_delta_suffix)
+        val text = ForecastDeltaLabel.format(delta, input.useCelsius, suffix)
         val ghostVisible = ghostLineVisible(input, hours)
         val placement =
             ForecastDeltaLabel.place(
@@ -340,6 +342,7 @@ internal object TemperatureGraphAnnotationRenderer {
                     ),
                 padPx = TemperatureGraphStyle.dpToPx(input.context, FORECAST_DELTA_LABEL_PAD_DP),
                 useCelsius = input.useCelsius,
+                suffix = suffix,
                 vetoBounds = input.labelVetoBounds(),
             ) ?: return
         val labelPaint =

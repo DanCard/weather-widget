@@ -336,6 +336,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s، كانت %3$s %4$s</string>
     <string name="obs_actuals_source_label">مصدر القياسات</string>
     <string name="actual_cloud_cover_data_from">بيانات الغطاء السحابي الفعلية من %1$s</string>
+    <string name="forecast_delta_suffix">مقارنة بالتوقعات</string>
     <string name="updates_failing">فشل التحديثات</string>
     <string name="watermark_http_400">400 طلب غير صالح</string>
     <string name="watermark_http_401">401 غير مصرح</string>

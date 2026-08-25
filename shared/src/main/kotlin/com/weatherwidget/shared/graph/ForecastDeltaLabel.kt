@@ -45,8 +45,8 @@ object ForecastDeltaLabel {
     /** Vertical search resolution: candidate top positions stepped through the plot band. */
     const val VERTICAL_STEPS = GraphEmptySpaceFinder.VERTICAL_STEPS
 
-    fun format(delta: Float, useCelsius: Boolean): String {
-        return formatValue(delta, useCelsius) + SUFFIX
+    fun format(delta: Float, useCelsius: Boolean, suffix: String = SUFFIX): String {
+        return formatValue(delta, useCelsius) + suffix
     }
 
     /**
@@ -105,6 +105,7 @@ object ForecastDeltaLabel {
         metrics: Metrics,
         padPx: Float,
         useCelsius: Boolean,
+        suffix: String = SUFFIX,
         maxSpanHours: Long = DELTA_LABEL_MAX_HOURS_SPAN,
         vetoBounds: List<GraphRect> = emptyList(),
     ): Placement? {
@@ -124,7 +125,7 @@ object ForecastDeltaLabel {
             ) ?: return null
 
         return Placement(
-            text = format(delta, useCelsius),
+            text = format(delta, useCelsius, suffix),
             centerX = slot.centerX,
             baselineY = slot.baselineY,
             box = slot.box,

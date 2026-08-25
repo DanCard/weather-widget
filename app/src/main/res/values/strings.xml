@@ -350,6 +350,7 @@
     <string name="bug_report_email_subject">Weather widget bug report</string>
     <string name="obs_actuals_source_label">Actuals source</string>
     <string name="actual_cloud_cover_data_from">Actual cloud cover data from %1$s</string>
+    <string name="forecast_delta_suffix">from forecast</string>
     <string name="updates_failing">UPDATES FAILING</string>
     <string name="watermark_http_400">400 Bad Request</string>
     <string name="watermark_http_401">401 Unauthorized</string>

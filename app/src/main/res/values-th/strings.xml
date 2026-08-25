@@ -336,6 +336,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, ก่อนหน้า %3$s %4$s</string>
     <string name="obs_actuals_source_label">แหล่งข้อมูลจริง</string>
     <string name="actual_cloud_cover_data_from">ข้อมูลปริมาณเมฆจริงจาก %1$s</string>
+    <string name="forecast_delta_suffix">เทียบกับพยากรณ์</string>
     <string name="updates_failing">อัปเดตล้มเหลว</string>
     <string name="watermark_http_400">400 คำขอไม่ถูกต้อง</string>
     <string name="watermark_http_401">401 ไม่ได้รับอนุญาต</string>

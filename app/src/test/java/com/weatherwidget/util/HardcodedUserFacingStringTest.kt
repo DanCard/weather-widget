@@ -85,7 +85,7 @@ class HardcodedUserFacingStringTest {
                 "value: R = real reading   E = extrapolated from forecast" to
                     "BlendTableFormatter legend",
                 "No blended points in range." to "BlendTableFormatter.renderText empty state",
-                " from forecast" to "ForecastDeltaLabel.SUFFIX — widget delta suffix",
+                " from forecast" to "ForecastDeltaLabel default suffix (desktop); Android passes a localized suffix",
                 "Tmrw: Recent History" to "TomorrowIoActuals station name",
                 "synoptic: no token configured" to "SynopticObservationFetcher error reason (diagnostic)",
             )

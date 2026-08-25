@@ -336,6 +336,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, sebelumnya %3$s %4$s</string>
     <string name="obs_actuals_source_label">Sumber data aktual</string>
     <string name="actual_cloud_cover_data_from">Data tutupan awan aktual dari %1$s</string>
+    <string name="forecast_delta_suffix">dari prakiraan</string>
     <string name="updates_failing">PEMBARUAN GAGAL</string>
     <string name="watermark_http_400">400 Permintaan tidak valid</string>
     <string name="watermark_http_401">401 Tidak sah</string>

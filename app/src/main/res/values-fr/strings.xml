@@ -321,6 +321,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, avant %3$s %4$s</string>
     <string name="obs_actuals_source_label">Source des relevés</string>
     <string name="actual_cloud_cover_data_from">Données réelles de couverture nuageuse de %1$s</string>
+    <string name="forecast_delta_suffix">par rapport aux prévisions</string>
     <string name="updates_failing">ÉCHEC DES MISES À JOUR</string>
     <string name="watermark_http_400">400 Requête incorrecte</string>
     <string name="watermark_http_401">401 Non autorisé</string>

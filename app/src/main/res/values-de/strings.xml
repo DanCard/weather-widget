@@ -336,6 +336,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, vorher %3$s %4$s</string>
     <string name="obs_actuals_source_label">Messdatenquelle</string>
     <string name="actual_cloud_cover_data_from">Tatsächliche Bewölkungsdaten von %1$s</string>
+    <string name="forecast_delta_suffix">gegenüber der Prognose</string>
     <string name="updates_failing">AKTUALISIERUNGEN FEHLGESCHLAGEN</string>
     <string name="watermark_http_400">400 Ungültige Anfrage</string>
     <string name="watermark_http_401">401 Nicht autorisiert</string>
