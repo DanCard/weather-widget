@@ -3,6 +3,7 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -98,31 +99,43 @@ class ActualTemperatureSeriesBuilderTest {
     }
 
     @Test
-    fun `non NWS source selects the station with best coverage before building actuals`() {
-        val forecasts = forecasts("2026-06-03T08:00:00", 8, source = WeatherSource.WEATHER_API.id)
-        val observations = listOf(
-            observation("ONE", "2026-06-03T10:00:00", 60f, api = WeatherSource.WEATHER_API.id, distanceKm = 1f),
-            observation("TWO", "2026-06-03T10:00:00", 80f, api = WeatherSource.WEATHER_API.id, distanceKm = 2f),
-            observation("TWO", "2026-06-03T11:00:00", 82f, api = WeatherSource.WEATHER_API.id, distanceKm = 2f),
-        )
+    fun `borrowed actuals source blends multiple stations with IDW and captures dominant station`() {
+        ActualsProviderResolver.installPreferenceSource { WeatherSource.SYNOPTIC }
+        try {
+            val forecasts = forecasts("2026-06-03T08:00:00", 8, source = WeatherSource.SILURIAN.id)
+            val observations = listOf(
+                observation("CWOP1", "2026-06-03T10:00:00", 80f, api = WeatherSource.SYNOPTIC.id, distanceKm = 1.5f, stationType = "PERSONAL"),
+                observation("KNUQ", "2026-06-03T10:00:00", 72f, api = WeatherSource.SYNOPTIC.id, distanceKm = 3.8f, stationType = "OFFICIAL"),
+            )
 
-        val result = ActualTemperatureSeriesBuilder.build(
-            hourlyForecasts = forecasts,
-            observations = observations,
-            centerTime = center,
-            displaySourceId = WeatherSource.WEATHER_API.id,
-            userLat = LAT,
-            userLon = LON,
-            backHours = 4,
-            forwardHours = 4,
-            contextLookbackHours = 72,
-            contextLookaheadHours = 60,
-            now = LocalDateTime.parse("2026-06-03T12:30:00"),
-            zoneId = zone,
-        )
+            val result = ActualTemperatureSeriesBuilder.build(
+                hourlyForecasts = forecasts,
+                observations = observations,
+                centerTime = center,
+                displaySourceId = WeatherSource.SILURIAN.id,
+                userLat = LAT,
+                userLon = LON,
+                backHours = 4,
+                forwardHours = 4,
+                contextLookbackHours = 72,
+                contextLookaheadHours = 60,
+                now = LocalDateTime.parse("2026-06-03T12:30:00"),
+                zoneId = zone,
+                personalStationWeight = 0.05, // 95% discount on personal station
+                captureLatestDominantAtOrBeforeMs = epoch("2026-06-03T10:00:00"),
+            )
 
-        assertEquals("TWO", result.selectedStationId)
-        assertEquals(80f, result.points.single { it.timeMs == epoch("2026-06-03T10:00:00") }.actualTemp!!, 0.001f)
+            assertNull(result.selectedStationId)
+            // With 95% discount on CWOP1, KNUQ (official) dominates the blend
+            assertEquals("KNUQ", result.latestDominantContribution?.contribution?.stationId)
+            val actualPoint = result.points.single { it.timeMs == epoch("2026-06-03T10:00:00") }
+            assertTrue(actualPoint.isActual)
+            // KNUQ weight = 1.0 / 3.8^2 = 0.06925; CWOP1 weight = 0.05 / 1.5^2 = 0.02222
+            // Temp = (0.06925 * 72 + 0.02222 * 80) / (0.06925 + 0.02222) = 73.94
+            assertEquals(73.94f, actualPoint.actualTemp!!, 0.1f)
+        } finally {
+            ActualsProviderResolver.installPreferenceSource { null }
+        }
     }
 
     @Test

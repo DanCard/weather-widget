@@ -27,8 +27,8 @@ internal data class FailureWatermarkLayout(
 internal object GraphFailureWatermarkRenderer {
     private const val MAIN_TEXT_SIZE_DP = 15f
     private const val MAIN_MIN_TEXT_SIZE_DP = 9f
-    private const val DETAIL_TEXT_SIZE_DP = 13f
-    private const val DETAIL_MIN_TEXT_SIZE_DP = 8f
+    private const val DETAIL_TEXT_SIZE_DP = 15f
+    private const val DETAIL_MIN_TEXT_SIZE_DP = 11f
     private const val HORIZONTAL_PADDING_DP = 12f
     private const val VERTICAL_PADDING_DP = 6f
     private const val DETAIL_GAP_DP = 2f
@@ -77,7 +77,7 @@ internal object GraphFailureWatermarkRenderer {
         ) ?: return
 
         val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#8C1A0E0E")
+            color = Color.parseColor("#E61A0E0E")
         }
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -358,7 +358,7 @@ internal object GraphFailureWatermarkRenderer {
 
     private fun createDetailPaint(): Paint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#B2FF5A5A")
+            color = Color.parseColor("#E6FF5A5A")
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         }

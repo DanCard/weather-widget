@@ -47,14 +47,6 @@ internal fun computeSmoothedForecasts(
     )
 }
 
-internal data class SelectedObservationSeries(
-    val stationId: String?,
-    val stationName: String?,
-    val stationType: String?,
-    val observations: List<ObservationEntity>,
-    val rejectedGroupCount: Int,
-)
-
 internal class BlendDebugCollector(
     private val throttleMs: Long = BLEND_DEBUG_THROTTLE_MS,
     private val clockMs: () -> Long = { SystemClock.elapsedRealtime() },
@@ -217,17 +209,10 @@ internal fun buildHourDataResult(
         // blend runs either way; this only asks it to keep the top-weight row for the newest point.
         captureLatestDominantAtOrBeforeMs = now.atZone(zoneId).toInstant().toEpochMilli(),
     )
-    val selectedStationId = actualSeries.selectedStationId
-    val blendInputActuals =
-        if (selectedStationId != null) {
-            sourceActuals.filter { it.stationId == selectedStationId }
-        } else {
-            sourceActuals
-        }
-    val stationCount = blendInputActuals.map { it.stationId }.toSet().size
-    if (blendInputActuals.isNotEmpty()) {
+    val stationCount = sourceActuals.map { it.stationId }.toSet().size
+    if (sourceActuals.isNotEmpty()) {
         onBlendDebug?.invoke {
-            val stationBreakdown = blendInputActuals
+            val stationBreakdown = sourceActuals
                 .groupBy { it.stationId }
                 .entries
                 .sortedBy { it.key }
@@ -242,7 +227,7 @@ internal fun buildHourDataResult(
                         .format(DateTimeFormatter.ofPattern("HH:mm"))
                     "$stationId rows=${rows.size} span=$minTime-$maxTime"
                 }
-            "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=${blendInputActuals.size} stations=$stationCount breakdown=[$stationBreakdown]"
+            "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=${sourceActuals.size} stations=$stationCount breakdown=[$stationBreakdown]"
         }
     } else {
         onBlendDebug?.invoke { "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=0 stations=0" }
@@ -250,8 +235,7 @@ internal fun buildHourDataResult(
     Log.d(
         TAG,
         "buildHourDataList: source=${displaySource.id}, sourceRows=${sourceActuals.size}, " +
-            "sourceSpan=$sourceSpanSummary, selectedStation=${selectedStationId ?: "ALL"}, " +
-            "blendInputRows=${blendInputActuals.size}, stations=$stationCount, " +
+            "sourceSpan=$sourceSpanSummary, stations=$stationCount, " +
             "blendedPoints=${actualSeries.blendStats?.emittedPointCount ?: 0}, visualWindow=${startHour.format(DateTimeFormatter.ISO_LOCAL_TIME)} to ${endHour.format(DateTimeFormatter.ISO_LOCAL_TIME)}"
     )
 
@@ -352,28 +336,6 @@ internal fun buildHourDataResult(
         hours = finalHours,
         blendStats = actualSeries.blendStats,
         dominantStation = actualSeries.latestDominantContribution,
-    )
-}
-
-@androidx.annotation.VisibleForTesting
-internal fun selectObservationSeries(
-    observations: List<ObservationEntity>,
-    displaySource: WeatherSource,
-    startHour: LocalDateTime,
-    endHour: LocalDateTime,
-): SelectedObservationSeries {
-    val selected = ActualTemperatureSeriesBuilder.selectObservationSeries(
-        observations = observations.map { it.toReading() },
-        displaySourceId = displaySource.id,
-        startHour = startHour,
-        endHour = endHour,
-    )
-    return SelectedObservationSeries(
-        stationId = selected.stationId,
-        stationName = selected.stationName,
-        stationType = selected.stationType,
-        observations = observations.filter { obs -> selected.observations.any { it.stationId == obs.stationId && it.timestamp == obs.timestamp } },
-        rejectedGroupCount = selected.rejectedGroupCount,
     )
 }
 

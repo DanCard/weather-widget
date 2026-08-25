@@ -21,14 +21,6 @@ data class ActualTemperaturePoint(
     val isObservedActual: Boolean,
 )
 
-data class SelectedObservationSeries(
-    val stationId: String?,
-    val stationName: String?,
-    val stationType: String?,
-    val observations: List<ObservationReading>,
-    val rejectedGroupCount: Int,
-)
-
 data class BlendObservationStats(
     val rawObservationCount: Int,
     val filteredObservationCount: Int,
@@ -171,30 +163,8 @@ object ActualTemperatureSeriesBuilder {
         val contextEndMs = alignedCenter.plusHours(contextLookaheadHours).atZone(zoneId).toInstant().toEpochMilli()
 
         val sourceActuals = observations.filter { matchesObservationSource(it, displaySourceId) }
-        val selectedStationId =
-            if (
-                displaySourceId != WeatherSource.NWS.id &&
-                displaySourceId != WeatherSource.TOMORROW_IO.id
-            ) {
-                selectObservationSeries(
-                    observations = sourceActuals,
-                    displaySourceId = displaySourceId,
-                    startHour = alignedCenter.minusHours(contextLookbackHours),
-                    endHour = alignedCenter.plusHours(contextLookaheadHours),
-                    zoneId = zoneId,
-                ).stationId
-            } else {
-                null
-            }
-        val blendInputActuals =
-            if (selectedStationId != null) {
-                sourceActuals.filter { it.stationId == selectedStationId }
-            } else {
-                sourceActuals
-            }
-
         val blendedActualsResult = blendObservationSeries(
-            observations = blendInputActuals,
+            observations = sourceActuals,
             hourlyForecasts = hourlyForecasts,
             displaySourceId = displaySourceId,
             userLat = userLat,
@@ -288,9 +258,9 @@ object ActualTemperatureSeriesBuilder {
         return ActualTemperatureSeriesResult(
             points = carried,
             blendStats = blendedActualsResult.stats,
-            selectedStationId = selectedStationId,
+            selectedStationId = null,
             sourceObservationCount = sourceActuals.size,
-            blendInputCount = blendInputActuals.size,
+            blendInputCount = sourceActuals.size,
             latestDominantContribution = blendedActualsResult.latestDominantContribution,
         )
     }
@@ -624,43 +594,6 @@ object ActualTemperatureSeriesBuilder {
                     ),
                 ).key
             }
-
-    fun selectObservationSeries(
-        observations: List<ObservationReading>,
-        displaySourceId: String,
-        startHour: LocalDateTime,
-        endHour: LocalDateTime,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-    ): SelectedObservationSeries {
-        val sourceObservations = observations.filter { matchesObservationSource(it, displaySourceId) }
-        if (sourceObservations.isEmpty()) {
-            return SelectedObservationSeries(null, null, null, emptyList(), 0)
-        }
-
-        val grouped = sourceObservations.groupBy { it.stationId }
-        val selectedEntry = grouped.entries.maxWithOrNull(
-            compareBy<Map.Entry<String, List<ObservationReading>>>(
-                { entry -> entry.value.map { observationHour(it, zoneId) }.toSet().size },
-                { entry -> entry.value.size },
-                { entry -> -entry.value.minOfOrNull { it.distanceKm }!! },
-                { entry -> entry.value.maxOf { it.timestamp } },
-                { entry -> -entry.key.hashCode() },
-            ),
-        )
-
-        val chosen = selectedEntry?.value.orEmpty().sortedBy { it.timestamp }
-        val metadata = chosen.firstOrNull()
-        return SelectedObservationSeries(
-            stationId = selectedEntry?.key,
-            stationName = metadata?.stationName,
-            stationType = metadata?.stationType,
-            observations = chosen.filter { obs ->
-                val obsTime = Instant.ofEpochMilli(obs.timestamp).atZone(zoneId).toLocalDateTime()
-                !obsTime.isBefore(startHour) && !obsTime.isAfter(endHour)
-            },
-            rejectedGroupCount = (grouped.size - 1).coerceAtLeast(0),
-        )
-    }
 
     private data class DecayBlendInput(
         val distanceKm: Float,
