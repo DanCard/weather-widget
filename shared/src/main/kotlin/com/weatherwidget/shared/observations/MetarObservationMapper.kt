@@ -9,8 +9,9 @@ import com.weatherwidget.data.remote.AviationWeatherStationFilter
  * `aviationweather.gov` METAR row → [ObservationReading], the one shape the observation pipeline
  * consumes on both platforms.
  *
- * Parallel to [NwsObservationMapper], and deliberately NOT merged with it: the two feeds disagree on
- * where the authoritative value lives. NWS hands over a decoded payload whose temperature already
+ * Parallel to [NwsObservationMapper]. Standalone rows retain `api=METAR`; the NWS current
+ * fetch-both path may additionally create an `api=NWS` web-origin presentation copy when the same
+ * station's Aviation Weather METAR is strictly newer. NWS hands over a decoded payload whose temperature already
  * carries T-group tenths where the station emits them, so that path trusts the payload
  * (`4bc4a298`). This feed's `temp` is likewise pre-decoded, but the raw report travels with every
  * row, so remarks that the payload does not surface can still be recovered later from `rawMetar`.
@@ -65,7 +66,7 @@ object MetarObservationMapper {
             // a different quantity, and filing it here is an off-by-one day. See NwsObservationMapper.
             maxTempLast24h = null,
             minTempLast24h = null,
-            // Not a web fallback: this is a first-class transport, not a scrape standing in for one.
+            // Standalone provenance: the optional NWS presentation copy is created by its caller.
             isWebFallback = false,
             // Every row from this feed is a real report — the endpoint serves METARs and SPECIs and
             // nothing else. There is no ASOS 5-minute interleave here, which is the ONLY thing

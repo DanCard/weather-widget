@@ -2,7 +2,7 @@ package com.weatherwidget.shared.observations
 
 /**
  * Prefer-newest resolution for the latest-observation path (plan 260721). Given the API's latest
- * reading and the web (Synoptic) readings for a single station, chooses the reading that should
+ * reading and the parallel web-transport readings for a single station, chooses the reading that should
  * anchor the station's current temperature: the **newest non-QC-flagged** reading across both
  * sources, with ties going to the API (official) value. It also surfaces the two newest timestamps
  * so the caller can log the web-vs-API freshness metric.

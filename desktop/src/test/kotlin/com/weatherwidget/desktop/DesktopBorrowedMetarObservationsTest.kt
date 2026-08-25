@@ -1,6 +1,8 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.FetchOutcome
+import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -9,6 +11,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
+import io.mockk.coEvery
+import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -105,36 +109,59 @@ class DesktopBorrowedMetarObservationsTest {
         }
     }
 
-    /**
-     * NWS ships its own observations, so it must keep the station-pull path — a borrowing detour
-     * here would quietly regrade NWS against someone else's thermometers.
-     *
-     * Asserted by watching the wire rather than the return value: the NWS path needs a full
-     * gridpoint fixture to get anywhere, and what matters is only that it never reaches
-     * aviationweather.gov.
-     */
     @Test
-    fun `NWS does not take the borrowed path`() = runTest {
+    fun `NWS runs Aviation Weather in parallel and uses its newer matching METAR`() = runTest {
         val hits = mutableListOf<String>()
+        val nowSeconds = System.currentTimeMillis() / 1000L
         val recording = MockEngine { request ->
             hits += request.url.host + request.url.encodedPath
+            val content = when {
+                request.url.encodedPath.endsWith("/stationinfo") -> stationInfoJson()
+                request.url.encodedPath.endsWith("/metar") -> """
+                    [
+                      {"icaoId":"KNUQ","obsTime":$nowSeconds,"temp":19.0,"dewp":15.0,
+                       "wdir":360,"wspd":5,"visib":"10+","lat":37.4161,"lon":-122.0492,
+                       "rawOb":"METAR KNUQ FRESH AUTO 36005KT 10SM CLR 19/15 A2992 RMK AO2"}
+                    ]
+                """.trimIndent()
+                else -> "[]"
+            }
             respond(
-                content = "[]",
+                content = content,
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, "application/json"),
             )
         }
+        val nws = mockk<NwsApi>()
+        val station = NwsApi.StationInfo(
+            "KNUQ", "Moffett Field", 37.4161, -122.0492, NwsApi.StationType.OFFICIAL,
+        )
+        val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
+        val old = NwsApi.Observation(
+            timestamp = java.time.Instant.ofEpochSecond(nowSeconds - 2 * 3600).toString(),
+            temperatureCelsius = 17f,
+            textDescription = "Cloudy",
+        )
+        coEvery { nws.getGridPoint(any(), any()) } returns grid
+        coEvery { nws.getObservationStations(any()) } returns listOf(station)
+        coEvery { nws.getObservations(any(), any(), any()) } returns listOf(old)
+        coEvery { nws.getLatestObservationDetailedResult(any(), any()) } returns FetchOutcome.Success(old)
         val service = DesktopWeatherService(
             latitude = 37.42,
             longitude = -122.08,
             weatherSource = WeatherSource.NWS.id,
             injectedHttpClient = HttpClient(recording),
+            injectedNwsApi = nws,
         )
         try {
-            runCatching { service.fetchObservationsOnly(recentOnly = true) }
+            val result = service.fetchObservationsOnly(recentOnly = true)
+            val knuq = result.rawObservations.first { it.stationId == "KNUQ" && it.api == "NWS" }
+            assertEquals(nowSeconds * 1000L, knuq.timestamp)
+            assertTrue(knuq.isWebFallback)
+            assertEquals((19f * 1.8f) + 32f, result.providerCurrentTemp!!, 0.01f)
             assertTrue(
-                "NWS must not fetch METAR; hit $hits",
-                hits.none { it.contains("aviationweather") },
+                "NWS fetch-both must reach Aviation Weather; hit $hits",
+                hits.any { it.contains("aviationweather") && it.endsWith("/metar") },
             )
         } finally {
             service.close()

@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.remote.AviationWeatherApi
 import com.weatherwidget.data.remote.AviationWeatherStationFilter
+import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.shared.observations.MetarObservationFetcher
 import com.weatherwidget.shared.observations.METAR_STATION_CACHE_MAX_AGE_MS
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -59,6 +60,18 @@ class MetarObservationSource(
         limit: Int = AviationWeatherStationFilter.DEFAULT_LIMIT,
     ): List<ObservationEntity> =
         fetcher.fetchObservations(latitude, longitude, hours, limit).map { it.toEntity() }
+
+    suspend fun fetchObservationsResult(
+        latitude: Double,
+        longitude: Double,
+        hours: Int = 2,
+        limit: Int = AviationWeatherStationFilter.DEFAULT_LIMIT,
+    ): FetchOutcome<List<ObservationEntity>> =
+        when (val outcome = fetcher.fetchObservationsResult(latitude, longitude, hours, limit)) {
+            is FetchOutcome.Success -> FetchOutcome.Success(outcome.value.map { it.toEntity() })
+            is FetchOutcome.NoData -> FetchOutcome.NoData
+            is FetchOutcome.Failed -> outcome
+        }
 
     private fun com.weatherwidget.data.model.ObservationReading.toEntity() = ObservationEntity(
         stationId = stationId,

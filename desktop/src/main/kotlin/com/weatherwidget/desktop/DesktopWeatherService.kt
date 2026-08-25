@@ -34,6 +34,7 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.*
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.MetarObservationFetcher
+import com.weatherwidget.shared.observations.MetarRawSkyParser
 import com.weatherwidget.data.remote.AviationWeatherApi
 
 /**
@@ -485,6 +486,23 @@ class DesktopWeatherService(
         } else {
             end.minus(historyDays, ChronoUnit.DAYS)
         }
+
+        // Production uses one token-free Aviation Weather batch as the current freshness leg. It
+        // starts before the NWS station jobs, so both transports overlap. An explicitly injected
+        // Synoptic test double keeps the legacy test seam without putting Synoptic back in the
+        // production path.
+        val parallelMetarDeferred = if (injectedSynopticApi == null) {
+            async {
+                metarFetcher.fetchObservationsResult(
+                    latitude,
+                    longitude,
+                    hours = RECENT_BORROWED_METAR_HOURS,
+                    limit = MAX_OBSERVATION_STATIONS,
+                )
+            }
+        } else {
+            null
+        }
         
         val deferreds = stations.take(MAX_OBSERVATION_STATIONS).mapIndexed { index, station ->
             async {
@@ -533,7 +551,27 @@ class DesktopWeatherService(
                     } else {
                         ObservationFallbackPolicy.METRICS_WINDOW_MINUTES
                     }
-                    synopticOutcome = synopticApi.fetchSynopticObservations(station.id, windowMinutes, station.name)
+                    val transport: String
+                    synopticOutcome = if (parallelMetarDeferred != null) {
+                        transport = "aviation_weather"
+                        when (val batch = parallelMetarDeferred.await()) {
+                            is FetchOutcome.Success -> {
+                                val stationRows = batch.value
+                                    .filter { it.stationId == station.id }
+                                    .filter {
+                                        it.timestamp <= System.currentTimeMillis() +
+                                            ObservationFallbackPolicy.MAX_WEB_FUTURE_SKEW_MS
+                                    }
+                                    .map { it.toNwsObservation() }
+                                if (stationRows.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(stationRows)
+                            }
+                            is FetchOutcome.NoData -> FetchOutcome.NoData
+                            is FetchOutcome.Failed -> batch
+                        }
+                    } else {
+                        transport = "synoptic_test"
+                        synopticApi.fetchSynopticObservations(station.id, windowMinutes, station.name)
+                    }
                     webReadings = synopticOutcome.valueOrNull().orEmpty()
                     val merge = LatestObservationMerge.preferNewest(
                         apiLatest = latest,
@@ -548,9 +586,15 @@ class DesktopWeatherService(
                     val webMs = merge.webNewestMs
                     val deltaMin = if (apiMs != null && webMs != null) (webMs - apiMs) / 60_000L else null
                     val webUsableLatest = webReadings.lastOrNull { !it.qcFailed }
+                    val webOutcomeLabel = when (val outcome = requireNotNull(synopticOutcome)) {
+                        is FetchOutcome.Success -> "success"
+                        is FetchOutcome.NoData -> "no_data"
+                        is FetchOutcome.Failed -> "failed:${outcome.reason}"
+                    }
                     weatherDao?.log(
                         "OBS_WEB_API_DELTA",
                         "station=${station.id} index=$index tier=${if (fetchWebForUse) "use" else "metrics"} " +
+                            "transport=$transport outcome=$webOutcomeLabel " +
                             "apiNewestMs=${merge.apiNewestMs} webNewestMs=${merge.webNewestMs} deltaMin=$deltaMin " +
                             "apiTempC=${latest?.temperatureCelsius} webTempC=${webUsableLatest?.temperatureCelsius} " +
                             "webQcFailed=${webReadings.any { it.qcFailed }} chosen=${if (merge.chosenIsWeb) "web" else "api"}",
@@ -626,6 +670,19 @@ class DesktopWeatherService(
         com.weatherwidget.shared.observations.NwsObservationMapper.toReading(
             this, station, latitude, longitude, isWebFallback,
         )
+
+    /** Presentation copy for the NWS fetch-both merge; standalone METAR rows keep `api=METAR`. */
+    private fun ObservationReading.toNwsObservation() = NwsApi.Observation(
+        timestamp = Instant.ofEpochMilli(timestamp).toString(),
+        temperatureCelsius = (temperature - 32f) / 1.8f,
+        textDescription = condition,
+        stationName = stationName,
+        precipLastHourMm = precipAmountMm,
+        qcFailed = qcFailed,
+        cloudLayers = MetarRawSkyParser.layersFrom(rawMetar),
+        isMetar = isMetar,
+        rawMessage = rawMetar,
+    )
 
     private fun NwsApi.HourlyForecastPeriod.toHourlyForecast() = HourlyForecast(
         dateTime = startTime,

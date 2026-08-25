@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
@@ -54,7 +55,7 @@ internal data class LatestStationObservation(
     val cloudCarrier: ObservationEntity?,
     val shouldTouchFetchedAt: Boolean,
     val nwsFailureReason: String?,
-    val synopticFailureReason: String?,
+    val secondaryFailureReason: String?,
 )
 
 internal data class HistoricalStationObservations(
@@ -156,6 +157,7 @@ class NwsObservationSource(
         latitude: Double,
         longitude: Double,
         stationIndex: Int,
+        parallelWebOutcome: (suspend () -> FetchOutcome<ObservationEntity>)? = null,
     ): LatestStationObservation {
         val nwsOutcome = nwsApi.getLatestObservationDetailedResult(stationInfo.id)
         val apiObservation = nwsOutcome.valueOrNull()
@@ -163,6 +165,70 @@ class NwsObservationSource(
         val apiObservedAtMs = apiObservation.observedAtMillis()
         val fetchWebForUse = ObservationFallbackPolicy.shouldFetchWeb(stationIndex)
         val logWebMetrics = ObservationFallbackPolicy.shouldLogWebMetrics(stationIndex)
+
+        // Production supplies one already-started Aviation Weather batch through this seam. Await
+        // it only after the station's NWS request has completed, so both transports overlap while
+        // retaining the existing per-station retry and persistence behavior. Tests and historical
+        // callers that omit it keep the legacy Synoptic path below.
+        if (parallelWebOutcome != null && (fetchWebForUse || logWebMetrics)) {
+            val webOutcome = parallelWebOutcome()
+            val webEntity = webOutcome.valueOrNull()
+            val apiEntity = apiObservation?.let {
+                toEntity(it, stationInfo, latitude, longitude, isWebFallback = false)
+            }
+            val merge = LatestObservationMerge.preferNewest(
+                apiLatest = apiEntity,
+                apiNewestMs = apiObservedAtMs,
+                webReadings = listOfNotNull(webEntity),
+                isQcFailed = { it.qcFailed },
+                observedAtMillis = { it.timestamp },
+            )
+            val useWeb = fetchWebForUse && merge.chosenIsWeb
+            val chosen = if (useWeb) {
+                merge.chosen?.copy(
+                    api = WeatherSource.NWS.id,
+                    isWebFallback = true,
+                    stationName = stationInfo.name,
+                    stationType = stationInfo.type.name,
+                )
+            } else {
+                apiEntity
+            }
+            val mergedApiMs = merge.apiNewestMs
+            val mergedWebMs = merge.webNewestMs
+            val deltaMinutes = if (mergedApiMs != null && mergedWebMs != null) {
+                (mergedWebMs - mergedApiMs) / 60_000L
+            } else {
+                null
+            }
+            val outcomeLabel = when (webOutcome) {
+                is FetchOutcome.Success -> "success"
+                is FetchOutcome.NoData -> "no_data"
+                is FetchOutcome.Failed -> "failed:${webOutcome.reason}"
+            }
+            appLogDao.log(
+                "OBS_WEB_API_DELTA",
+                "station=${stationInfo.id} index=$stationIndex " +
+                    "tier=${if (fetchWebForUse) "use" else "metrics"} transport=aviation_weather " +
+                    "outcome=$outcomeLabel apiNewestMs=$mergedApiMs " +
+                    "webNewestMs=$mergedWebMs deltaMin=$deltaMinutes " +
+                    "apiTempC=${apiObservation?.temperatureCelsius} webTempF=${webEntity?.temperature} " +
+                    "webQcFailed=${webEntity?.qcFailed == true} chosen=${if (useWeb) "web" else "api"}",
+                "INFO",
+            )
+            val cloudCarrier = if (useWeb && apiEntity?.cloudCoverLow != null) apiEntity else null
+            return LatestStationObservation(
+                chosen = chosen,
+                qcFlagged = listOfNotNull(webEntity?.takeIf { it.qcFailed }?.copy(
+                    api = WeatherSource.NWS.id,
+                    isWebFallback = true,
+                )),
+                cloudCarrier = cloudCarrier,
+                shouldTouchFetchedAt = chosen == null && shouldTouchObservationFetchedAt(nwsOutcome, webOutcome),
+                nwsFailureReason = (nwsOutcome as? FetchOutcome.Failed)?.reason,
+                secondaryFailureReason = (webOutcome as? FetchOutcome.Failed)?.reason,
+            )
+        }
 
         var chosenIsWeb = false
         var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
@@ -240,7 +306,7 @@ class NwsObservationSource(
                 synopticOutcome,
             ),
             nwsFailureReason = (nwsOutcome as? FetchOutcome.Failed)?.reason,
-            synopticFailureReason = (synopticOutcome as? FetchOutcome.Failed)?.reason,
+            secondaryFailureReason = (synopticOutcome as? FetchOutcome.Failed)?.reason,
         )
     }
 

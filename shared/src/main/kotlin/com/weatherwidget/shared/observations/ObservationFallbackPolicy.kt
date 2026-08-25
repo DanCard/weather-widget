@@ -1,11 +1,10 @@
 package com.weatherwidget.shared.observations
 
 /**
- * When the NWS API's newest observation for a station is missing or stale, the station is re-fetched
- * from the Synoptic (web) source instead. Android and desktop each used to carry their own copy of
- * this rule with different station limits (3 vs 2), so a station at index 2 — KPAO, for this
- * location — got the web fallback on Android but never on desktop, leaving desktop pinned to the
- * stale API value. One policy, one limit, both platforms.
+ * Shared policy for the NWS current-observation secondary leg and the older historical Synoptic
+ * substitution. Current fetch-both uses token-free Aviation Weather METARs; historical repair can
+ * still consult Synoptic when configured. One station limit and one validity boundary keep Android
+ * and desktop from drifting.
  */
 object ObservationFallbackPolicy {
 
@@ -42,6 +41,9 @@ object ObservationFallbackPolicy {
      * [webFallbackWindowMinutes]). 90 min covers one missed cycle at negligible cost.
      */
     const val METRICS_WINDOW_MINUTES = 90L
+
+    /** Tolerate small upstream/device clock skew, but never let a future report win freshness. */
+    const val MAX_WEB_FUTURE_SKEW_MS = 5 * 60 * 1000L
 
     /** The nearest [WEB_FETCH_STATIONS] fetch both sources unconditionally (no staleness gate). */
     fun shouldFetchWeb(stationIndex: Int): Boolean =

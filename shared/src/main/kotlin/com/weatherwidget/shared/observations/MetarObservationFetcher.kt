@@ -25,9 +25,9 @@ const val METAR_STATION_CACHE_MAX_AGE_MS = 86_400_000L
  * - **One request covers every station.** `?ids=A,B,C,D,E` returns all of them with history; the
  *   NWS path issues one request per station per cycle.
  *
- * Rows are stored under their own provenance and never merged into NWS's — see
- * `plans/260823-aviationweather-metar-transport.md` D0/D5. Nothing falls back across sources
- * (`no_cross_source_fallback`).
+ * Rows are stored under their own provenance. The NWS current fetch-both path may additionally
+ * re-file a strictly newer station-matched row as an NWS web-origin presentation copy; historical
+ * NWS-only products never consume it.
  *
  * Lives in `:shared` because METAR is the **default borrowed actuals provider**
  * ([ActualsProviderResolver.DEFAULT_PROVIDER]), so a platform that cannot fetch it draws no actual
@@ -134,9 +134,22 @@ class MetarObservationFetcher(
         longitude: Double,
         hours: Int = 2,
         limit: Int = AviationWeatherStationFilter.DEFAULT_LIMIT,
-    ): List<ObservationReading> {
+    ): List<ObservationReading> =
+        fetchObservationsResult(latitude, longitude, hours, limit).valueOrNull().orEmpty()
+
+    /**
+     * Tri-state form of [fetchObservations]. Current-observation fetch-both callers need to retain
+     * the difference between a completed request with no usable METAR and a transport failure; a
+     * flattened empty list makes both look like `webNewestMs=null` and hides a dead secondary leg.
+     */
+    suspend fun fetchObservationsResult(
+        latitude: Double,
+        longitude: Double,
+        hours: Int = 2,
+        limit: Int = AviationWeatherStationFilter.DEFAULT_LIMIT,
+    ): FetchOutcome<List<ObservationReading>> {
         val stations = stationsForLocation(latitude, longitude, limit)
-        if (stations.isEmpty()) return emptyList()
+        if (stations.isEmpty()) return FetchOutcome.NoData
 
         val byId = stations.associateBy { it.info.id }
         return when (val outcome = api.fetchMetars(stations.map { it.info.id }, hours)) {
@@ -153,7 +166,7 @@ class MetarObservationFetcher(
                         "rows=${outcome.value.size} stored=${readings.size}",
                     "INFO",
                 )
-                readings
+                if (readings.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(readings)
             }
             is FetchOutcome.NoData -> {
                 log(
@@ -161,12 +174,12 @@ class MetarObservationFetcher(
                     "lat=$latitude lon=$longitude ids=${stations.joinToString(",") { it.info.id }}",
                     "INFO",
                 )
-                emptyList()
+                FetchOutcome.NoData
             }
             is FetchOutcome.Failed -> {
                 Log.w(TAG, "METAR fetch failed: ${outcome.reason}")
                 log("METAR_FETCH_FAIL", "lat=$latitude lon=$longitude error=${outcome.reason}", "WARN")
-                emptyList()
+                outcome
             }
         }
     }

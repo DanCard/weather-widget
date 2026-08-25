@@ -2,10 +2,12 @@ package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.AppLogEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
 import com.weatherwidget.shared.observations.MetarRawSkyParser
+import com.weatherwidget.shared.observations.NwsObservationMapper
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.SharedPreferencesUtil
 import io.mockk.coEvery
@@ -182,5 +184,79 @@ class NwsObservationSourceTest {
         coEvery { nwsApi.getObservationStations(url) } throws IOException("offline")
 
         assertEquals(listOf(station), source.stationsFromUrl(url))
+    }
+
+    @Test
+    fun `newer parallel Aviation Weather METAR wins the NWS presentation row`() = runTest {
+        val station = NwsApi.StationInfo(
+            id = "KNUQ",
+            name = "Mountain View, Moffett Field",
+            lat = 37.4161,
+            lon = -122.0492,
+            type = NwsApi.StationType.OFFICIAL,
+        )
+        val apiMs = 1_787_645_700_000L
+        val webMs = apiMs + 80 * 60_000L
+        coEvery { nwsApi.getLatestObservationDetailedResult("KNUQ", any()) } returns
+            FetchOutcome.Success(
+                NwsApi.Observation(
+                    timestamp = java.time.Instant.ofEpochMilli(apiMs).toString(),
+                    temperatureCelsius = 17f,
+                    textDescription = "Cloudy",
+                    stationName = station.name,
+                    isMetar = true,
+                    rawMessage = "KNUQ API",
+                ),
+            )
+        val web = ObservationEntity(
+            stationId = "KNUQ",
+            stationName = station.name,
+            timestamp = webMs,
+            temperature = 62.6f,
+            condition = "",
+            locationLat = 37.417,
+            locationLon = -122.089,
+            distanceKm = 2.4f,
+            stationType = "OFFICIAL",
+            api = "METAR",
+            isMetar = true,
+            rawMetar = "METAR KNUQ WEB",
+        )
+
+        val result = source.fetchLatest(station, 37.417, -122.089, stationIndex = 1) {
+            FetchOutcome.Success(web)
+        }
+
+        assertEquals(webMs, result.chosen?.timestamp)
+        assertEquals("NWS", result.chosen?.api)
+        assertTrue(result.chosen?.isWebFallback == true)
+        assertEquals("METAR KNUQ WEB", result.chosen?.rawMetar)
+    }
+
+    @Test
+    fun `parallel web failure stays distinct and keeps a usable NWS row`() = runTest {
+        val station = NwsApi.StationInfo(
+            id = "KNUQ",
+            name = "Mountain View, Moffett Field",
+            lat = 37.4161,
+            lon = -122.0492,
+            type = NwsApi.StationType.OFFICIAL,
+        )
+        coEvery { nwsApi.getLatestObservationDetailedResult("KNUQ", any()) } returns
+            FetchOutcome.Success(
+                NwsApi.Observation(
+                    timestamp = "2026-08-25T08:15:00Z",
+                    temperatureCelsius = 17f,
+                    textDescription = "Cloudy",
+                ),
+            )
+
+        val result = source.fetchLatest(station, 37.417, -122.089, stationIndex = 1) {
+            FetchOutcome.Failed("HTTP 503")
+        }
+
+        assertEquals(NwsObservationMapper.parseTimestamp("2026-08-25T08:15:00Z"), result.chosen?.timestamp)
+        assertFalse(result.chosen?.isWebFallback ?: true)
+        assertEquals("HTTP 503", result.secondaryFailureReason)
     }
 }

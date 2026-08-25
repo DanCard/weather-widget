@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.shared.util.SpatialInterpolator
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -25,12 +26,38 @@ internal const val MAX_NWS_STATIONS = 5
 private val CLOSEST_STATION_RETRY_DELAYS_MS = listOf(10_000L, 30_000L)
 
 @Singleton
-class NwsCurrentObservationUpdater @Inject constructor(
+class NwsCurrentObservationUpdater private constructor(
     private val observationSource: NwsObservationSource,
     private val observationDao: ObservationDao,
     private val appLogDao: AppLogDao,
     private val dailyActualsStore: DailyActualsStore,
+    private val metarObservationSource: MetarObservationSource?,
+    @Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
 ) {
+    @Inject
+    constructor(
+        observationSource: NwsObservationSource,
+        observationDao: ObservationDao,
+        appLogDao: AppLogDao,
+        dailyActualsStore: DailyActualsStore,
+        metarObservationSource: MetarObservationSource,
+    ) : this(
+        observationSource,
+        observationDao,
+        appLogDao,
+        dailyActualsStore,
+        metarObservationSource,
+        Unit,
+    )
+
+    /** Compatibility seam for repository tests that exercise only the NWS/Synoptic source. */
+    internal constructor(
+        observationSource: NwsObservationSource,
+        observationDao: ObservationDao,
+        appLogDao: AppLogDao,
+        dailyActualsStore: DailyActualsStore,
+    ) : this(observationSource, observationDao, appLogDao, dailyActualsStore, null, Unit)
+
     internal suspend fun fetchNwsCurrent(
         latitude: Double,
         longitude: Double,
@@ -41,11 +68,44 @@ class NwsCurrentObservationUpdater @Inject constructor(
         if (stations.isEmpty()) return@coroutineScope null
 
         val fetchStartMs = System.currentTimeMillis()
+        // One token-free Aviation Weather batch starts before any station job. Each station awaits
+        // its own row only after api.weather.gov returns, so the transports overlap rather than the
+        // old per-station NWS-then-Synoptic sequence.
+        val parallelWebDeferred = metarObservationSource?.let { source ->
+            async {
+                source.fetchObservationsResult(
+                    latitude,
+                    longitude,
+                    hours = PARALLEL_WEB_HOURS,
+                    limit = MAX_NWS_STATIONS,
+                )
+            }
+        }
+        suspend fun webOutcomeFor(stationId: String): FetchOutcome<ObservationEntity>? =
+            when (val batch = parallelWebDeferred?.await() ?: return null) {
+                is FetchOutcome.Success -> batch.value
+                    .asSequence()
+                    .filter { it.stationId == stationId }
+                    .filterNot { it.qcFailed }
+                    .filter {
+                        it.timestamp <= System.currentTimeMillis() +
+                            com.weatherwidget.shared.observations.ObservationFallbackPolicy.MAX_WEB_FUTURE_SKEW_MS
+                    }
+                    .maxByOrNull { it.timestamp }
+                    ?.let { FetchOutcome.Success(it) }
+                    ?: FetchOutcome.NoData
+                is FetchOutcome.NoData -> FetchOutcome.NoData
+                is FetchOutcome.Failed -> batch
+            }
+
         // Only the CLOSEST station is retried (10s, then 30s); the other stations get a single
         // attempt each. The closest station dominates the IDW blend, so its freshness is worth the
         // extra latency; retrying all five would multiply the worst-case fetch time.
         val closestDeferred = async {
-            var entity = fetchAndStoreStation(stations.first(), latitude, longitude, attempt = 0, stationIndex = 0)
+            var entity = fetchAndStoreStation(
+                stations.first(), latitude, longitude, attempt = 0, stationIndex = 0,
+                parallelWebOutcome = parallelWebDeferred?.let { { webOutcomeFor(stations.first().id)!! } },
+            )
             for ((index, delayMs) in CLOSEST_STATION_RETRY_DELAYS_MS.withIndex()) {
                 if (entity != null) break
                 delay(delayMs)
@@ -55,6 +115,7 @@ class NwsCurrentObservationUpdater @Inject constructor(
                     longitude,
                     attempt = index + 1,
                     stationIndex = 0,
+                    parallelWebOutcome = parallelWebDeferred?.let { { webOutcomeFor(stations.first().id)!! } },
                 )
             }
             entity
@@ -66,6 +127,7 @@ class NwsCurrentObservationUpdater @Inject constructor(
                     latitude,
                     longitude,
                     stationIndex = index + 1,
+                    parallelWebOutcome = parallelWebDeferred?.let { { webOutcomeFor(station.id)!! } },
                 )
             }
         }
@@ -107,9 +169,16 @@ class NwsCurrentObservationUpdater @Inject constructor(
         longitude: Double,
         attempt: Int = 0,
         stationIndex: Int,
+        parallelWebOutcome: (suspend () -> FetchOutcome<ObservationEntity>)? = null,
     ): ObservationEntity? {
         val result = try {
-            observationSource.fetchLatest(station, latitude, longitude, stationIndex)
+            observationSource.fetchLatest(
+                station,
+                latitude,
+                longitude,
+                stationIndex,
+                parallelWebOutcome,
+            )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -140,7 +209,7 @@ class NwsCurrentObservationUpdater @Inject constructor(
             appLogDao.log(
                 "OBS_CLOUD_CARRIER",
                 "station=${station.id} timestamp=${carrier.timestamp} cloudLow=${carrier.cloudCoverLow} " +
-                    "reason=web_won_on_freshness_but_carries_no_sky",
+                    "reason=preserve_independent_api_observation",
                 "INFO",
             )
         }
@@ -164,7 +233,7 @@ class NwsCurrentObservationUpdater @Inject constructor(
                     "NWS_STATION_FAIL",
                     "station=${station.id} attempt=$attempt " +
                         "nws=${result.nwsFailureReason ?: "unknown"} " +
-                        "synoptic=${result.synopticFailureReason ?: "not_tried"}",
+                        "secondary=${result.secondaryFailureReason ?: "not_tried"}",
                     "WARN",
                 )
             }
@@ -209,5 +278,9 @@ class NwsCurrentObservationUpdater @Inject constructor(
                 "fetchAgeMin=${(nowMs - observation.fetchedAt) / 60_000L}",
             "INFO",
         )
+    }
+
+    private companion object {
+        const val PARALLEL_WEB_HOURS = 2
     }
 }
