@@ -1,10 +1,12 @@
 package com.weatherwidget.widget
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import com.weatherwidget.R
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -42,6 +44,8 @@ internal object GraphFailureWatermarkRenderer {
         sourceLabel: String? = null,
         errorCode: String? = null,
         failureTimeMs: Long? = null,
+        failingText: String,
+        errorCodeText: (String) -> String,
     ) {
         val mainPaint = createMainPaint()
         val detailPaint = createDetailPaint()
@@ -52,6 +56,8 @@ internal object GraphFailureWatermarkRenderer {
             sourceLabel = sourceLabel,
             errorCode = errorCode,
             failureTimeMs = failureTimeMs,
+            failingText = failingText,
+            errorCodeText = errorCodeText,
             measureMain = { text, textSize ->
                 mainPaint.textSize = textSize
                 mainPaint.measureText(text)
@@ -120,6 +126,8 @@ internal object GraphFailureWatermarkRenderer {
         nowMs: Long = System.currentTimeMillis(),
         locale: Locale = Locale.getDefault(),
         zoneId: ZoneId = ZoneId.systemDefault(),
+        failingText: String = "UPDATES FAILING",
+        errorCodeText: (String) -> String = ::humanReadableErrorCode,
         measureMain: (String, Float) -> Float,
         measureDetail: (String, Float) -> Float,
         mainMetrics: (Float) -> Pair<Float, Float>,
@@ -136,8 +144,8 @@ internal object GraphFailureWatermarkRenderer {
             sourceLabel
                 ?.takeIf { it.isNotBlank() }
                 ?.uppercase(locale)
-                ?.let { "$it UPDATES FAILING" }
-                ?: "UPDATES FAILING"
+                ?.let { "$it $failingText" }
+                ?: failingText
         val rawMainText = "⚠ $source"
         val detailText =
             buildDetailText(
@@ -146,6 +154,7 @@ internal object GraphFailureWatermarkRenderer {
                 nowMs = nowMs,
                 locale = locale,
                 zoneId = zoneId,
+                errorCodeText = errorCodeText,
             )
         val mainFit = fitLine(
             text = rawMainText,
@@ -232,6 +241,34 @@ internal object GraphFailureWatermarkRenderer {
                 }
         }
 
+    /** Localized error-code phrases for the watermark detail line (Android side). */
+    @androidx.annotation.VisibleForTesting
+    internal fun localizedErrorCodeText(context: Context, code: String): String =
+        when (code) {
+            "HTTP_400" -> context.getString(R.string.watermark_http_400)
+            "HTTP_401" -> context.getString(R.string.watermark_http_401)
+            "HTTP_403" -> context.getString(R.string.watermark_http_403)
+            "HTTP_404" -> context.getString(R.string.watermark_http_404)
+            "HTTP_422" -> context.getString(R.string.watermark_http_422)
+            "HTTP_429" -> context.getString(R.string.watermark_http_429)
+            "ACCESS_ERROR" -> context.getString(R.string.watermark_access_error)
+            "DNS_ERROR" -> context.getString(R.string.watermark_dns_error)
+            "CONN_REFUSED" -> context.getString(R.string.watermark_conn_refused)
+            "TIMEOUT" -> context.getString(R.string.watermark_timeout)
+            "SSL_ERROR" -> context.getString(R.string.watermark_ssl_error)
+            "SOCKET_ERROR" -> context.getString(R.string.watermark_socket_error)
+            else ->
+                when {
+                    code.startsWith("HTTP_5") ->
+                        context.getString(R.string.watermark_server_error, code.removePrefix("HTTP_"))
+
+                    code.startsWith("HTTP_") ->
+                        "HTTP ${code.removePrefix("HTTP_")}"
+
+                    else -> code
+                }
+        }
+
     @androidx.annotation.VisibleForTesting
     internal fun formatFailureTime(
         epochMs: Long,
@@ -296,8 +333,9 @@ internal object GraphFailureWatermarkRenderer {
         nowMs: Long,
         locale: Locale,
         zoneId: ZoneId,
+        errorCodeText: (String) -> String,
     ): String? {
-        val codeText = errorCode?.let(::humanReadableErrorCode)
+        val codeText = errorCode?.let(errorCodeText)
         val timeText =
             failureTimeMs?.let {
                 formatFailureTime(it, nowMs = nowMs, locale = locale, zoneId = zoneId)

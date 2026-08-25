@@ -597,7 +597,12 @@ object PrecipitationGraphRenderer {
             Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+                GraphFailureWatermarkRenderer.draw(
+                    canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs,
+                    failingText = context.getString(R.string.updates_failing),
+                    errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+                )
             }
             return bitmap
         }
@@ -776,7 +781,12 @@ object PrecipitationGraphRenderer {
         }
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+            GraphFailureWatermarkRenderer.draw(
+                canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                errorSourceLabel, errorCode, errorFailureTimeMs,
+                failingText = context.getString(R.string.updates_failing),
+                errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+            )
         }
         return bitmap
     }

@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import com.weatherwidget.R
 import android.graphics.RectF
 import android.util.Log
 import com.weatherwidget.shared.graph.DominantStationLabel
@@ -129,7 +130,12 @@ object TemperatureGraphRenderer {
             Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+                GraphFailureWatermarkRenderer.draw(
+                    canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs,
+                    failingText = context.getString(R.string.updates_failing),
+                    errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+                )
             }
             return bitmap
         }
@@ -335,7 +341,12 @@ object TemperatureGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+            GraphFailureWatermarkRenderer.draw(
+                canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                errorSourceLabel, errorCode, errorFailureTimeMs,
+                failingText = context.getString(R.string.updates_failing),
+                errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+            )
         }
 
         return bitmap

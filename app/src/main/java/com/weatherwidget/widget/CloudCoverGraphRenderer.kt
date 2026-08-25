@@ -165,7 +165,12 @@ object CloudCoverGraphRenderer {
             }
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+                GraphFailureWatermarkRenderer.draw(
+                    canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs,
+                    failingText = context.getString(R.string.updates_failing),
+                    errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+                )
             }
             return bitmap
         }
@@ -616,7 +621,12 @@ object CloudCoverGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+            GraphFailureWatermarkRenderer.draw(
+                canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                errorSourceLabel, errorCode, errorFailureTimeMs,
+                failingText = context.getString(R.string.updates_failing),
+                errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+            )
         }
 
         return bitmap

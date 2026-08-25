@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context
+import com.weatherwidget.R
 import android.graphics.*
 import android.util.Log
 import androidx.annotation.VisibleForTesting
@@ -222,7 +223,12 @@ object DailyForecastGraphRenderer {
             Log.w(TAG, "renderGraph: empty days list, returning blank bitmap (${widthPx}x${heightPx})")
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+                GraphFailureWatermarkRenderer.draw(
+                    canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs,
+                    failingText = context.getString(R.string.updates_failing),
+                    errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+                )
             }
             return DailyGraphRenderResult(bitmap, emptyList())
         }
@@ -387,7 +393,12 @@ object DailyForecastGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphFailureWatermarkRenderer.draw(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs)
+            GraphFailureWatermarkRenderer.draw(
+                canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                errorSourceLabel, errorCode, errorFailureTimeMs,
+                failingText = context.getString(R.string.updates_failing),
+                errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+            )
         }
 
         return DailyGraphRenderResult(
