@@ -542,7 +542,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
             return
         }
 
-        summary.text = "${table.timeLabel}  \u2192  ${table.blendedLabel}   ${table.stationCount} stations"
+        summary.text = "${table.timeLabel}  \u2192  ${table.blendedLabel}   " +
+            getString(R.string.blend_stations_count, table.stationCount)
         summary.setTextColor(BLEND_COLOR_PRIMARY)
 
         rows.addView(
@@ -796,7 +797,12 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     "[$time] ${WeatherObservationsSupport.formatFetchLog(log, currentSource)}"
                 }
                 withContext(Dispatchers.Main) {
-                    findViewById<TextView>(R.id.fetch_logs).text = if (logText.isEmpty()) "No current observation fetch logs found for ${currentSource.shortDisplayName}." else logText
+                    findViewById<TextView>(R.id.fetch_logs).text =
+                        if (logText.isEmpty()) {
+                            getString(R.string.obs_no_fetch_logs, currentSource.shortDisplayName)
+                        } else {
+                            logText
+                        }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading fetch logs", e)

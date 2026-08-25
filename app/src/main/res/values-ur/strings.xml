@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s، پہلے %3$s %4$s</string>
     <string name="obs_actuals_source_label">اصل ڈیٹا کا ذریعہ</string>
     <string name="actual_cloud_cover_data_from">%1$s سے بادلوں کی حقیقی مقدار کا ڈیٹا</string>
+    <string name="blend_stations_count">%1$d اسٹیشن</string>
+    <string name="obs_no_fetch_logs">%1$s کے لیے موجودہ مشاہدے حاصل کرنے کے لاگز نہیں ملے۔</string>
+    <string name="bug_report_no_logs">ڈیٹا بیس میں حالیہ لاگز نہیں ملے۔</string>
+    <string name="bug_report_logs_excluded">لاگز صارف کے ذریعے خارج کر دیے گئے۔</string>
     <string name="cloud_data_unavailable">بادل کا ڈیٹا دستیاب نہیں</string>
     <string name="cloud_data_missing_for_one">%2$d میں سے %1$d گھنٹے کا بادل ڈیٹا غائب</string>
     <string name="cloud_data_missing_for_many">%2$d میں سے %1$d گھنٹے کا بادل ڈیٹا غائب</string>

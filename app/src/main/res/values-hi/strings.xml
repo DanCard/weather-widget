@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, पहले %3$s %4$s</string>
     <string name="obs_actuals_source_label">वास्तविक डेटा स्रोत</string>
     <string name="actual_cloud_cover_data_from">%1$s से वास्तविक बादल आवरण डेटा</string>
+    <string name="blend_stations_count">%1$d स्टेशन</string>
+    <string name="obs_no_fetch_logs">%1$s के लिए वर्तमान अवलोकन प्राप्त करने के लॉग नहीं मिले।</string>
+    <string name="bug_report_no_logs">डेटाबेस में हाल के लॉग नहीं मिले।</string>
+    <string name="bug_report_logs_excluded">उपयोगकर्ता द्वारा लॉग बाहर रखे गए।</string>
     <string name="cloud_data_unavailable">बादल डेटा अनुपलब्ध</string>
     <string name="cloud_data_missing_for_one">%2$d में से %1$d घंटे का बादल डेटा गायब</string>
     <string name="cloud_data_missing_for_many">%2$d में से %1$d घंटे का बादल डेटा गायब</string>

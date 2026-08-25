@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, ก่อนหน้า %3$s %4$s</string>
     <string name="obs_actuals_source_label">แหล่งข้อมูลจริง</string>
     <string name="actual_cloud_cover_data_from">ข้อมูลปริมาณเมฆจริงจาก %1$s</string>
+    <string name="blend_stations_count">%1$d สถานี</string>
+    <string name="obs_no_fetch_logs">ไม่พบบันทึกการดึงข้อมูลการสังเกตปัจจุบันสำหรับ %1$s</string>
+    <string name="bug_report_no_logs">ไม่พบบันทึกล่าสุดในฐานข้อมูล</string>
+    <string name="bug_report_logs_excluded">ผู้ใช้ไม่รวมบันทึก</string>
     <string name="cloud_data_unavailable">ไม่มีข้อมูลเมฆ</string>
     <string name="cloud_data_missing_for_one">ข้อมูลเมฆหายไป %1$d จาก %2$d ชม.</string>
     <string name="cloud_data_missing_for_many">ข้อมูลเมฆหายไป %1$d จาก %2$d ชม.</string>

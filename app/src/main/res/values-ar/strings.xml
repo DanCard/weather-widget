@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s، كانت %3$s %4$s</string>
     <string name="obs_actuals_source_label">مصدر القياسات</string>
     <string name="actual_cloud_cover_data_from">بيانات الغطاء السحابي الفعلية من %1$s</string>
+    <string name="blend_stations_count">%1$d محطات</string>
+    <string name="obs_no_fetch_logs">لم يتم العثور على سجلات جلب الملاحظة الحالية لـ %1$s.</string>
+    <string name="bug_report_no_logs">لم يتم العثور على سجلات حديثة في قاعدة البيانات.</string>
+    <string name="bug_report_logs_excluded">السجلات مستبعدة بواسطة المستخدم.</string>
     <string name="cloud_data_unavailable">بيانات السحب غير متاحة</string>
     <string name="cloud_data_missing_for_one">بيانات السحب مفقودة لـ %1$d من %2$d ساعة</string>
     <string name="cloud_data_missing_for_many">بيانات السحب مفقودة لـ %1$d من %2$d ساعة</string>

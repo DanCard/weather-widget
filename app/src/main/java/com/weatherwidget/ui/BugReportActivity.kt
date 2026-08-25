@@ -206,7 +206,7 @@ class BugReportActivity : AppCompatActivity() {
             val logsText = if (includeLogsCheckbox.isChecked) {
                 val recentLogs = appLogDao.getRecentLogs(300)
                 if (recentLogs.isEmpty()) {
-                    "No recent logs found in database."
+                    getString(R.string.bug_report_no_logs)
                 } else {
                     val full = recentLogs.joinToString("\n") { log ->
                         "${log.getFormattedTime()} ${log.level}/${log.tag}: ${log.message}"
@@ -218,7 +218,7 @@ class BugReportActivity : AppCompatActivity() {
                     }
                 }
             } else {
-                "Logs excluded by user."
+                getString(R.string.bug_report_logs_excluded)
             }
 
             // Build full Markdown report

@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s（前回 %3$s %4$s）</string>
     <string name="obs_actuals_source_label">実測値のソース</string>
     <string name="actual_cloud_cover_data_from">%1$s による実際の雲量データ</string>
+    <string name="blend_stations_count">%1$d 地点</string>
+    <string name="obs_no_fetch_logs">%1$s の現在の観測取得ログが見つかりません。</string>
+    <string name="bug_report_no_logs">データベースに最近のログが見つかりません。</string>
+    <string name="bug_report_logs_excluded">ログはユーザーにより除外されました。</string>
     <string name="cloud_data_unavailable">雲データを利用できません</string>
     <string name="cloud_data_missing_for_one">%2$d 時間中 %1$d 時間の雲データがありません</string>
     <string name="cloud_data_missing_for_many">%2$d 時間中 %1$d 時間の雲データがありません</string>

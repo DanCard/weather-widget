@@ -321,6 +321,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, avant %3$s %4$s</string>
     <string name="obs_actuals_source_label">Source des relevés</string>
     <string name="actual_cloud_cover_data_from">Données réelles de couverture nuageuse de %1$s</string>
+    <string name="blend_stations_count">%1$d stations</string>
+    <string name="obs_no_fetch_logs">Aucun journal de récupération de l\'observation actuelle trouvé pour %1$s.</string>
+    <string name="bug_report_no_logs">Aucun journal récent trouvé dans la base de données.</string>
+    <string name="bug_report_logs_excluded">Journaux exclus par l\'utilisateur.</string>
     <string name="cloud_data_unavailable">Données de nuages indisponibles</string>
     <string name="cloud_data_missing_for_one">Données de nuages manquantes pour %1$d h sur %2$d</string>
     <string name="cloud_data_missing_for_many">Données de nuages manquantes pour %1$d h sur %2$d</string>

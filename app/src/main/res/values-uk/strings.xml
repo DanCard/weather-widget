@@ -321,6 +321,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, було %3$s %4$s</string>
     <string name="obs_actuals_source_label">Джерело вимірювань</string>
     <string name="actual_cloud_cover_data_from">Фактичні дані про хмарність від %1$s</string>
+    <string name="blend_stations_count">%1$d станцій</string>
+    <string name="obs_no_fetch_logs">Не знайдено журналів отримання поточних спостережень для %1$s.</string>
+    <string name="bug_report_no_logs">У базі даних не знайдено нещодавніх журналів.</string>
+    <string name="bug_report_logs_excluded">Журнали виключено користувачем.</string>
     <string name="cloud_data_unavailable">Дані про хмарність недоступні</string>
     <string name="cloud_data_missing_for_one">Немає даних про хмарність за %1$d із %2$d год</string>
     <string name="cloud_data_missing_for_many">Немає даних про хмарність за %1$d із %2$d год</string>

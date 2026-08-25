@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, 이전 %3$s %4$s</string>
     <string name="obs_actuals_source_label">실측 데이터 출처</string>
     <string name="actual_cloud_cover_data_from">%1$s의 실제 운량 데이터</string>
+    <string name="blend_stations_count">%1$d개소</string>
+    <string name="obs_no_fetch_logs">%1$s의 현재 관측 가져오기 로그를 찾을 수 없습니다.</string>
+    <string name="bug_report_no_logs">데이터베이스에서 최근 로그를 찾을 수 없습니다.</string>
+    <string name="bug_report_logs_excluded">사용자가 로그를 제외했습니다.</string>
     <string name="cloud_data_unavailable">구름 데이터를 사용할 수 없음</string>
     <string name="cloud_data_missing_for_one">%2$d시간 중 %1$d시간의 구름 데이터 없음</string>
     <string name="cloud_data_missing_for_many">%2$d시간 중 %1$d시간의 구름 데이터 없음</string>

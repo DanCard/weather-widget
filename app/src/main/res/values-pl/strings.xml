@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, poprzednio %3$s %4$s</string>
     <string name="obs_actuals_source_label">Źródło pomiarów</string>
     <string name="actual_cloud_cover_data_from">Rzeczywiste dane o zachmurzeniu z %1$s</string>
+    <string name="blend_stations_count">%1$d stacji</string>
+    <string name="obs_no_fetch_logs">Nie znaleziono dzienników pobierania bieżącej obserwacji dla %1$s.</string>
+    <string name="bug_report_no_logs">Nie znaleziono ostatnich dzienników w bazie danych.</string>
+    <string name="bug_report_logs_excluded">Dzienniki wykluczone przez użytkownika.</string>
     <string name="cloud_data_unavailable">Dane o chmurach niedostępne</string>
     <string name="cloud_data_missing_for_one">Brak danych o chmurach przez %1$d z %2$d godz.</string>
     <string name="cloud_data_missing_for_many">Brak danych o chmurach przez %1$d z %2$d godz.</string>

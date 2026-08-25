@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, trước đó %3$s %4$s</string>
     <string name="obs_actuals_source_label">Nguồn dữ liệu thực tế</string>
     <string name="actual_cloud_cover_data_from">Dữ liệu độ che phủ mây thực tế từ %1$s</string>
+    <string name="blend_stations_count">%1$d trạm</string>
+    <string name="obs_no_fetch_logs">Không tìm thấy nhật ký tải quan sát hiện tại cho %1$s.</string>
+    <string name="bug_report_no_logs">Không tìm thấy nhật ký gần đây trong cơ sở dữ liệu.</string>
+    <string name="bug_report_logs_excluded">Nhật ký bị người dùng loại trừ.</string>
     <string name="cloud_data_unavailable">Không có dữ liệu mây</string>
     <string name="cloud_data_missing_for_one">Thiếu dữ liệu mây %1$d trong %2$d giờ</string>
     <string name="cloud_data_missing_for_many">Thiếu dữ liệu mây %1$d trong %2$d giờ</string>

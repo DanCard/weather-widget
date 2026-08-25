@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, আগে ছিল %3$s %4$s</string>
     <string name="obs_actuals_source_label">প্রকৃত তথ্যের উৎস</string>
     <string name="actual_cloud_cover_data_from">%1$s থেকে প্রকৃত মেঘাচ্ছন্নতার তথ্য</string>
+    <string name="blend_stations_count">%1$d স্টেশন</string>
+    <string name="obs_no_fetch_logs">%1$s-এর জন্য বর্তমান পর্যবেক্ষণ আনার কোনো লগ পাওয়া যায়নি।</string>
+    <string name="bug_report_no_logs">ডেটাবেসে সাম্প্রতিক কোনো লগ পাওয়া যায়নি।</string>
+    <string name="bug_report_logs_excluded">ব্যবহারকারী লগ বাদ দিয়েছেন।</string>
     <string name="cloud_data_unavailable">মেঘের তথ্য উপলব্ধ নেই</string>
     <string name="cloud_data_missing_for_one">%2$dটির মধ্যে %1$d ঘণ্টার মেঘের তথ্য অনুপস্থিত</string>
     <string name="cloud_data_missing_for_many">%2$dটির মধ্যে %1$d ঘণ্টার মেঘের তথ্য অনুপস্থিত</string>

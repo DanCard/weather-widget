@@ -336,6 +336,10 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, vorher %3$s %4$s</string>
     <string name="obs_actuals_source_label">Messdatenquelle</string>
     <string name="actual_cloud_cover_data_from">Tatsächliche Bewölkungsdaten von %1$s</string>
+    <string name="blend_stations_count">%1$d Stationen</string>
+    <string name="obs_no_fetch_logs">Keine Abrufprotokolle der aktuellen Beobachtung für %1$s gefunden.</string>
+    <string name="bug_report_no_logs">Keine aktuellen Protokolle in der Datenbank gefunden.</string>
+    <string name="bug_report_logs_excluded">Protokolle vom Benutzer ausgeschlossen.</string>
     <string name="cloud_data_unavailable">Wolkendaten nicht verfügbar</string>
     <string name="cloud_data_missing_for_one">Wolkendaten fehlen für %1$d von %2$d Std.</string>
     <string name="cloud_data_missing_for_many">Wolkendaten fehlen für %1$d von %2$d Std.</string>
