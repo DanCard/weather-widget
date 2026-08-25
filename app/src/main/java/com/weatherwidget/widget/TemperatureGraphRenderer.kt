@@ -331,6 +331,7 @@ object TemperatureGraphRenderer {
             graphHeight = layout.graphHeight,
             currentTimePaint = paints.currentTimePaint,
             nowLabelTextPaint = paints.nowLabelTextPaint,
+            nowLabelText = context.getString(R.string.forecast_hourly_legend),
             drawnBounds = obstacles.bounds(),
             drawLine = false,
             dpToPx = { dpToPx(context, it) }

@@ -34,7 +34,6 @@ object PrecipitationGraphRenderer {
     // NARROW zoom shows per-hour labels for the first few columns; the rightmost column sits at the
     // clipped window edge, so cap at the first 4.
     private const val PER_HOUR_MAX_COLUMNS = 4
-    private const val NOW_LABEL_TEXT = "NOW"
 
     data class PrecipHourData(
         val dateTime: LocalDateTime,
@@ -195,6 +194,7 @@ object PrecipitationGraphRenderer {
         footerIconBounds: List<PrecipRect>? = null,
         textMeasurer: TextMeasurer,
         onDebugLog: ((String) -> Unit)? = null,
+        nowLabelText: String = "NOW",
     ): PrecipGraphLayout {
         val labelScale = bitmapScale.coerceAtMost(1f)
         val topPadding = textMeasurer.dpToPx(GRAPH_TOP_PADDING_DP * labelScale)
@@ -338,7 +338,7 @@ object PrecipitationGraphRenderer {
         val rainCollisionBounds = probabilityPlacements.map { it.bounds }.toMutableList()
 
         val nowLabelPlacement = if (nowX != null) {
-            val nowText = NOW_LABEL_TEXT
+            val nowText = nowLabelText
             val nowTextWidth = textMeasurer.measureNowText(nowText)
             val (nowTextAscent, nowTextDescent) = textMeasurer.getNowTextBounds(nowText)
             HourlyIndicatorRenderer.computeNowLabelBounds(
@@ -671,6 +671,7 @@ object PrecipitationGraphRenderer {
             },
         )
 
+        val nowLabelText = context.getString(R.string.forecast_hourly_legend)
         val layout = calculateLayout(
             hours = hours,
             widthPx = widthPx,
@@ -685,6 +686,7 @@ object PrecipitationGraphRenderer {
             footerIconBounds = footerIconBounds,
             textMeasurer = textMeasurer,
             onDebugLog = onDebugLog,
+            nowLabelText = nowLabelText,
         )
 
         paints.gradientPaint.shader = LinearGradient(
@@ -759,7 +761,7 @@ object PrecipitationGraphRenderer {
             )
         }
         layout.nowLabelPlacement?.let { placement ->
-            canvas.drawText(NOW_LABEL_TEXT, placement.x, placement.baselineY, paints.nowLabelTextPaint)
+            canvas.drawText(nowLabelText, placement.x, placement.baselineY, paints.nowLabelTextPaint)
             drawnLabelBounds.add(placement.bounds.toRectF())
         }
 

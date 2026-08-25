@@ -425,6 +425,7 @@ object CloudCoverGraphRenderer {
             graphHeight = graphHeight,
             currentTimePaint = paints.currentTimePaint,
             nowLabelTextPaint = paints.nowLabelTextPaint,
+            nowLabelText = context.getString(R.string.forecast_hourly_legend),
             dpToPx = { dpToPx(context, it) },
             drawLine = false,
         )

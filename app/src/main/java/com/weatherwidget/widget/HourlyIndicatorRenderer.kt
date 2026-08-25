@@ -11,7 +11,6 @@ import java.time.LocalDate
 /** NOW-line and endpoint day-label placement/drawing for Android hourly graphs. */
 internal object HourlyIndicatorRenderer {
     private const val TAG = "HourlyIndicator"
-    private const val NOW_TEXT = "NOW"
     private const val BOTTOM_FALLBACK_INSET_DP = 14f
 
     data class NowLabelResult(
@@ -78,6 +77,7 @@ internal object HourlyIndicatorRenderer {
         graphHeight: Float,
         currentTimePaint: Paint,
         nowLabelTextPaint: Paint,
+        nowLabelText: String,
         drawnBounds: List<RectF> = emptyList(),
         drawLine: Boolean = true,
         dpToPx: (Float) -> Float,
@@ -93,13 +93,13 @@ internal object HourlyIndicatorRenderer {
             nowX = nowX,
             graphTop = graphTop,
             graphHeight = graphHeight,
-            textWidth = nowLabelTextPaint.measureText(NOW_TEXT),
+            textWidth = nowLabelTextPaint.measureText(nowLabelText),
             fontAscent = ascent,
             fontDescent = descent,
             drawnBounds = drawnBounds,
             dpToPx = dpToPx,
         )?.let { result ->
-            canvas.drawText(NOW_TEXT, nowX, result.labelY, nowLabelTextPaint)
+            canvas.drawText(nowLabelText, nowX, result.labelY, nowLabelTextPaint)
         }
     }
 
