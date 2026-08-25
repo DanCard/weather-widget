@@ -350,4 +350,11 @@
     <string name="bug_report_email_subject">Weather widget bug report</string>
     <string name="obs_actuals_source_label">Actuals source</string>
     <string name="actual_cloud_cover_data_from">Actual cloud cover data from %1$s</string>
+    <string name="cloud_data_unavailable">Cloud data unavailable</string>
+    <string name="cloud_data_missing_for_one">Cloud data missing for %1$d of %2$d hr</string>
+    <string name="cloud_data_missing_for_many">Cloud data missing for %1$d of %2$d hrs</string>
+    <string name="cloud_data_missing_at">Cloud data missing at %1$s</string>
+    <string name="cloud_data_missing_range">Cloud data missing %1$s (%2$d of %3$d hrs)</string>
+    <string name="cloud_reason_gridpoints_failed">NWS gridpoints fetch failed</string>
+    <string name="cloud_reason_skycover_unavailable">NWS sky cover unavailable</string>
 </resources>

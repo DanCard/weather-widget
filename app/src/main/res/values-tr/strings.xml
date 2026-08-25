@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, önceki %3$s %4$s</string>
     <string name="obs_actuals_source_label">Gerçek veri kaynağı</string>
     <string name="actual_cloud_cover_data_from">%1$s kaynağından gerçek bulutluluk verileri</string>
+    <string name="cloud_data_unavailable">Bulut verileri kullanılamıyor</string>
+    <string name="cloud_data_missing_for_one">%2$d saatin %1$d\'inde bulut verisi eksik</string>
+    <string name="cloud_data_missing_for_many">%2$d saatin %1$d\'inde bulut verisi eksik</string>
+    <string name="cloud_data_missing_at">%1$s\'de bulut verisi eksik</string>
+    <string name="cloud_data_missing_range">Bulut verisi eksik %1$s (%3$d saatin %2$d\'i)</string>
+    <string name="cloud_reason_gridpoints_failed">NWS ızgara noktaları alınamadı</string>
+    <string name="cloud_reason_skycover_unavailable">NWS gökyüzü örtüsü kullanılamıyor</string>
 </resources>

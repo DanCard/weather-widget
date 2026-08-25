@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, antes %3$s %4$s</string>
     <string name="obs_actuals_source_label">Fonte dos dados reais</string>
     <string name="actual_cloud_cover_data_from">Dados reais de cobertura de nuvens de %1$s</string>
+    <string name="cloud_data_unavailable">Dados de nuvens indisponíveis</string>
+    <string name="cloud_data_missing_for_one">Faltam dados de nuvens em %1$d de %2$d h</string>
+    <string name="cloud_data_missing_for_many">Faltam dados de nuvens em %1$d de %2$d h</string>
+    <string name="cloud_data_missing_at">Faltam dados de nuvens em %1$s</string>
+    <string name="cloud_data_missing_range">Faltam dados de nuvens %1$s (%2$d de %3$d h)</string>
+    <string name="cloud_reason_gridpoints_failed">Falha ao buscar a grade do NWS</string>
+    <string name="cloud_reason_skycover_unavailable">Cobertura do céu do NWS indisponível</string>
 </resources>

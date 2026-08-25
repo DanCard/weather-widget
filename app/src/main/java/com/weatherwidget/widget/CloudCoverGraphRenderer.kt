@@ -640,7 +640,7 @@ object CloudCoverGraphRenderer {
         missingReason: String?,
         labelScale: Float,
     ) {
-        val mainText = buildMissingDiagnosticText(missingHours, totalHours, missingDescription)
+        val mainText = buildMissingDiagnosticText(context, missingHours, totalHours, missingDescription)
         val effectiveScale = labelScale.coerceAtLeast(MISSING_DIAG_MIN_LABEL_SCALE)
         val mainPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(COLOR_MISSING_DIAG_TEXT)
@@ -675,22 +675,27 @@ object CloudCoverGraphRenderer {
         }
     }
 
-    private fun buildMissingDiagnosticText(
+    @androidx.annotation.VisibleForTesting
+    internal fun buildMissingDiagnosticText(
+        context: Context,
         missingHours: Int,
         totalHours: Int,
         missingDescription: String?,
     ): String {
         if (missingHours >= totalHours) {
-            return "Cloud data unavailable"
+            return context.getString(R.string.cloud_data_unavailable)
         }
         if (missingDescription.isNullOrBlank()) {
-            val noun = if (missingHours == 1) "hr" else "hrs"
-            return "Cloud data missing for $missingHours of $totalHours $noun"
+            return if (missingHours == 1) {
+                context.getString(R.string.cloud_data_missing_for_one, missingHours, totalHours)
+            } else {
+                context.getString(R.string.cloud_data_missing_for_many, missingHours, totalHours)
+            }
         }
         return if (missingHours == 1) {
-            "Cloud data missing at $missingDescription"
+            context.getString(R.string.cloud_data_missing_at, missingDescription)
         } else {
-            "Cloud data missing $missingDescription ($missingHours of $totalHours hrs)"
+            context.getString(R.string.cloud_data_missing_range, missingDescription, missingHours, totalHours)
         }
     }
 

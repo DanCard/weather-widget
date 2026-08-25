@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s，此前 %3$s %4$s</string>
     <string name="obs_actuals_source_label">实测数据来源</string>
     <string name="actual_cloud_cover_data_from">来自 %1$s 的实际云量数据</string>
+    <string name="cloud_data_unavailable">云数据不可用</string>
+    <string name="cloud_data_missing_for_one">%2$d 小时中缺少 %1$d 小时的云数据</string>
+    <string name="cloud_data_missing_for_many">%2$d 小时中缺少 %1$d 小时的云数据</string>
+    <string name="cloud_data_missing_at">%1$s 缺少云数据</string>
+    <string name="cloud_data_missing_range">缺少云数据 %1$s（%3$d 小时中的 %2$d 小时）</string>
+    <string name="cloud_reason_gridpoints_failed">NWS 网格点获取失败</string>
+    <string name="cloud_reason_skycover_unavailable">NWS 云量不可用</string>
 </resources>

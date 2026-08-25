@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, 이전 %3$s %4$s</string>
     <string name="obs_actuals_source_label">실측 데이터 출처</string>
     <string name="actual_cloud_cover_data_from">%1$s의 실제 운량 데이터</string>
+    <string name="cloud_data_unavailable">구름 데이터를 사용할 수 없음</string>
+    <string name="cloud_data_missing_for_one">%2$d시간 중 %1$d시간의 구름 데이터 없음</string>
+    <string name="cloud_data_missing_for_many">%2$d시간 중 %1$d시간의 구름 데이터 없음</string>
+    <string name="cloud_data_missing_at">%1$s에 구름 데이터 없음</string>
+    <string name="cloud_data_missing_range">구름 데이터 없음 %1$s (%3$d시간 중 %2$d시간)</string>
+    <string name="cloud_reason_gridpoints_failed">NWS 격자점 가져오기 실패</string>
+    <string name="cloud_reason_skycover_unavailable">NWS 운량을 사용할 수 없음</string>
 </resources>

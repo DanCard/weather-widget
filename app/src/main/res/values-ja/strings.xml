@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s（前回 %3$s %4$s）</string>
     <string name="obs_actuals_source_label">実測値のソース</string>
     <string name="actual_cloud_cover_data_from">%1$s による実際の雲量データ</string>
+    <string name="cloud_data_unavailable">雲データを利用できません</string>
+    <string name="cloud_data_missing_for_one">%2$d 時間中 %1$d 時間の雲データがありません</string>
+    <string name="cloud_data_missing_for_many">%2$d 時間中 %1$d 時間の雲データがありません</string>
+    <string name="cloud_data_missing_at">%1$s の雲データがありません</string>
+    <string name="cloud_data_missing_range">雲データがありません %1$s（%3$d 時間中 %2$d 時間）</string>
+    <string name="cloud_reason_gridpoints_failed">NWS グリッドポイントの取得に失敗</string>
+    <string name="cloud_reason_skycover_unavailable">NWS の雲量を利用できません</string>
 </resources>

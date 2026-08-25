@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, trước đó %3$s %4$s</string>
     <string name="obs_actuals_source_label">Nguồn dữ liệu thực tế</string>
     <string name="actual_cloud_cover_data_from">Dữ liệu độ che phủ mây thực tế từ %1$s</string>
+    <string name="cloud_data_unavailable">Không có dữ liệu mây</string>
+    <string name="cloud_data_missing_for_one">Thiếu dữ liệu mây %1$d trong %2$d giờ</string>
+    <string name="cloud_data_missing_for_many">Thiếu dữ liệu mây %1$d trong %2$d giờ</string>
+    <string name="cloud_data_missing_at">Thiếu dữ liệu mây lúc %1$s</string>
+    <string name="cloud_data_missing_range">Thiếu dữ liệu mây %1$s (%2$d trong %3$d giờ)</string>
+    <string name="cloud_reason_gridpoints_failed">Không tải được lưới điểm NWS</string>
+    <string name="cloud_reason_skycover_unavailable">Không có dữ liệu mây NWS</string>
 </resources>

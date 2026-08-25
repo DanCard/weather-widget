@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, sebelumnya %3$s %4$s</string>
     <string name="obs_actuals_source_label">Sumber data aktual</string>
     <string name="actual_cloud_cover_data_from">Data tutupan awan aktual dari %1$s</string>
+    <string name="cloud_data_unavailable">Data awan tidak tersedia</string>
+    <string name="cloud_data_missing_for_one">Data awan hilang untuk %1$d dari %2$d jam</string>
+    <string name="cloud_data_missing_for_many">Data awan hilang untuk %1$d dari %2$d jam</string>
+    <string name="cloud_data_missing_at">Data awan hilang pada %1$s</string>
+    <string name="cloud_data_missing_range">Data awan hilang %1$s (%2$d dari %3$d jam)</string>
+    <string name="cloud_reason_gridpoints_failed">Gagal mengambil titik kisi NWS</string>
+    <string name="cloud_reason_skycover_unavailable">Tutupan langit NWS tidak tersedia</string>
 </resources>

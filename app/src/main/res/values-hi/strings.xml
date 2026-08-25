@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, पहले %3$s %4$s</string>
     <string name="obs_actuals_source_label">वास्तविक डेटा स्रोत</string>
     <string name="actual_cloud_cover_data_from">%1$s से वास्तविक बादल आवरण डेटा</string>
+    <string name="cloud_data_unavailable">बादल डेटा अनुपलब्ध</string>
+    <string name="cloud_data_missing_for_one">%2$d में से %1$d घंटे का बादल डेटा गायब</string>
+    <string name="cloud_data_missing_for_many">%2$d में से %1$d घंटे का बादल डेटा गायब</string>
+    <string name="cloud_data_missing_at">%1$s पर बादल डेटा गायब</string>
+    <string name="cloud_data_missing_range">बादल डेटा गायब %1$s (%3$d में से %2$d घंटे)</string>
+    <string name="cloud_reason_gridpoints_failed">NWS ग्रिडपॉइंट प्राप्त करने में विफल</string>
+    <string name="cloud_reason_skycover_unavailable">NWS आकाश कवरेज अनुपलब्ध</string>
 </resources>

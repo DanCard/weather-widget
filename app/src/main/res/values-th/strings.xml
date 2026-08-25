@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, ก่อนหน้า %3$s %4$s</string>
     <string name="obs_actuals_source_label">แหล่งข้อมูลจริง</string>
     <string name="actual_cloud_cover_data_from">ข้อมูลปริมาณเมฆจริงจาก %1$s</string>
+    <string name="cloud_data_unavailable">ไม่มีข้อมูลเมฆ</string>
+    <string name="cloud_data_missing_for_one">ข้อมูลเมฆหายไป %1$d จาก %2$d ชม.</string>
+    <string name="cloud_data_missing_for_many">ข้อมูลเมฆหายไป %1$d จาก %2$d ชม.</string>
+    <string name="cloud_data_missing_at">ข้อมูลเมฆหายไปที่ %1$s</string>
+    <string name="cloud_data_missing_range">ข้อมูลเมฆหายไป %1$s (%2$d จาก %3$d ชม.)</string>
+    <string name="cloud_reason_gridpoints_failed">ดึงข้อมูลกริด NWS ไม่สำเร็จ</string>
+    <string name="cloud_reason_skycover_unavailable">ข้อมูลเมฆ NWS ไม่พร้อมใช้งาน</string>
 </resources>

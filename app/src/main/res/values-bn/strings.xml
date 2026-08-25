@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, আগে ছিল %3$s %4$s</string>
     <string name="obs_actuals_source_label">প্রকৃত তথ্যের উৎস</string>
     <string name="actual_cloud_cover_data_from">%1$s থেকে প্রকৃত মেঘাচ্ছন্নতার তথ্য</string>
+    <string name="cloud_data_unavailable">মেঘের তথ্য উপলব্ধ নেই</string>
+    <string name="cloud_data_missing_for_one">%2$dটির মধ্যে %1$d ঘণ্টার মেঘের তথ্য অনুপস্থিত</string>
+    <string name="cloud_data_missing_for_many">%2$dটির মধ্যে %1$d ঘণ্টার মেঘের তথ্য অনুপস্থিত</string>
+    <string name="cloud_data_missing_at">%1$s-এ মেঘের তথ্য অনুপস্থিত</string>
+    <string name="cloud_data_missing_range">মেঘের তথ্য অনুপস্থিত %1$s (%3$dটির মধ্যে %2$d ঘণ্টা)</string>
+    <string name="cloud_reason_gridpoints_failed">NWS গ্রিডপয়েন্ট আনা ব্যর্থ হয়েছে</string>
+    <string name="cloud_reason_skycover_unavailable">NWS আকাশ আবরণ উপলব্ধ নেই</string>
 </resources>

@@ -336,4 +336,11 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, было %3$s %4$s</string>
     <string name="obs_actuals_source_label">Источник измерений</string>
     <string name="actual_cloud_cover_data_from">Фактические данные об облачности от %1$s</string>
+    <string name="cloud_data_unavailable">Данные об облачности недоступны</string>
+    <string name="cloud_data_missing_for_one">Нет данных об облачности за %1$d из %2$d ч</string>
+    <string name="cloud_data_missing_for_many">Нет данных об облачности за %1$d из %2$d ч</string>
+    <string name="cloud_data_missing_at">Нет данных об облачности в %1$s</string>
+    <string name="cloud_data_missing_range">Нет данных об облачности %1$s (%2$d из %3$d ч)</string>
+    <string name="cloud_reason_gridpoints_failed">Не удалось получить сетку NWS</string>
+    <string name="cloud_reason_skycover_unavailable">Облачность NWS недоступна</string>
 </resources>

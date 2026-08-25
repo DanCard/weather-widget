@@ -69,14 +69,19 @@ object CloudCoverViewHandler {
      * suitable for display in the graph diagnostic, or null if no recent matching event.
      */
     private suspend fun resolveMissingDataReason(
+        context: Context,
         appLogDao: com.weatherwidget.data.local.AppLogDao,
         lookbackMs: Long = 4 * 60 * 60 * 1000L,
     ): String? {
         val cutoff = System.currentTimeMillis() - lookbackMs
         val gridFail = appLogDao.getLogsByTag("NWS_GRIDPOINTS_FAIL", limit = 1).firstOrNull()
-        if (gridFail != null && gridFail.timestamp >= cutoff) return "NWS gridpoints fetch failed"
+        if (gridFail != null && gridFail.timestamp >= cutoff) {
+            return context.getString(R.string.cloud_reason_gridpoints_failed)
+        }
         val skyEmpty = appLogDao.getLogsByTag("NWS_SKYCOVER_EMPTY", limit = 1).firstOrNull()
-        if (skyEmpty != null && skyEmpty.timestamp >= cutoff) return "NWS sky cover unavailable"
+        if (skyEmpty != null && skyEmpty.timestamp >= cutoff) {
+            return context.getString(R.string.cloud_reason_skycover_unavailable)
+        }
         return null
     }
 
@@ -548,7 +553,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 .sorted()
                 .toList()
             val missingDescription = formatMissingHourRanges(missingHourTimes).takeIf { it.isNotEmpty() }
-            val missingReason = if (missingHours > 0) resolveMissingDataReason(appLogDao) else null
+            val missingReason = if (missingHours > 0) resolveMissingDataReason(context, appLogDao) else null
 
             if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
                 Log.w(TAG, "buildCloudHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
