@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">उच्चतम तापमान</string>
     <string name="forecast_history_low_temp_title">न्यूनतम तापमान</string>
     <string name="legend_location_actual">स्थान का वास्तविक</string>
+    <string name="evolution_api_actual_format">API वास्तविक: %1$s</string>
+    <string name="evolution_location_actual_format">स्थान का वास्तविक: %1$s</string>
+    <string name="evolution_single_high_title">एकल उच्च पूर्वानुमान</string>
+    <string name="evolution_single_low_title">एकल निम्न पूर्वानुमान</string>
+    <string name="evolution_diff_format">अंतर %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d दिन)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">ऊपर ले जाएँ</string>

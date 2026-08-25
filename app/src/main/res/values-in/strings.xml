@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">Suhu tertinggi</string>
     <string name="forecast_history_low_temp_title">Suhu terendah</string>
     <string name="legend_location_actual">Aktual lokasi</string>
+    <string name="evolution_api_actual_format">Aktual API: %1$s</string>
+    <string name="evolution_location_actual_format">Aktual lokasi: %1$s</string>
+    <string name="evolution_single_high_title">Prakiraan tinggi tunggal</string>
+    <string name="evolution_single_low_title">Prakiraan rendah tunggal</string>
+    <string name="evolution_diff_format">Selisih %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$dh)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">Pindah ke atas</string>

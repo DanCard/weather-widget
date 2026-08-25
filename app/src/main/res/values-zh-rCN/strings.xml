@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">最高温度</string>
     <string name="forecast_history_low_temp_title">最低温度</string>
     <string name="legend_location_actual">位置实测</string>
+    <string name="evolution_api_actual_format">API 实测：%1$s</string>
+    <string name="evolution_location_actual_format">位置实测：%1$s</string>
+    <string name="evolution_single_high_title">单一最高预报</string>
+    <string name="evolution_single_low_title">单一最低预报</string>
+    <string name="evolution_diff_format">差值 %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d天)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">上移</string>

@@ -334,6 +334,12 @@
     <string name="forecast_history_high_temp_title">High Temperature</string>
     <string name="forecast_history_low_temp_title">Low Temperature</string>
     <string name="legend_location_actual">Location actual</string>
+    <string name="evolution_api_actual_format">API actual: %1$s</string>
+    <string name="evolution_location_actual_format">Location actual: %1$s</string>
+    <string name="evolution_single_high_title">Single High Forecast</string>
+    <string name="evolution_single_low_title">Single Low Forecast</string>
+    <string name="evolution_diff_format">Diff %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$dd)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">Move up</string>

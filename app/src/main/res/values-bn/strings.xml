@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">সর্বোচ্চ তাপমাত্রা</string>
     <string name="forecast_history_low_temp_title">সর্বনিম্ন তাপমাত্রা</string>
     <string name="legend_location_actual">অবস্থানের প্রকৃত</string>
+    <string name="evolution_api_actual_format">API প্রকৃত: %1$s</string>
+    <string name="evolution_location_actual_format">অবস্থানের প্রকৃত: %1$s</string>
+    <string name="evolution_single_high_title">একক সর্বোচ্চ পূর্বাভাস</string>
+    <string name="evolution_single_low_title">একক সর্বনিম্ন পূর্বাভাস</string>
+    <string name="evolution_diff_format">পার্থক্য %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d দিন)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">উপরে সরান</string>

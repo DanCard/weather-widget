@@ -286,6 +286,12 @@
     <string name="forecast_history_high_temp_title">Temperatura máxima</string>
     <string name="forecast_history_low_temp_title">Temperatura mínima</string>
     <string name="legend_location_actual">Real de la ubicación</string>
+    <string name="evolution_api_actual_format">Real de la API: %1$s</string>
+    <string name="evolution_location_actual_format">Real de la ubicación: %1$s</string>
+    <string name="evolution_single_high_title">Pronóstico de máxima único</string>
+    <string name="evolution_single_low_title">Pronóstico de mínima único</string>
+    <string name="evolution_diff_format">Dif. %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$dd)</string>
 
     <string name="move_up">Subir</string>
     <string name="move_down">Bajar</string>

@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">Nhiệt độ cao nhất</string>
     <string name="forecast_history_low_temp_title">Nhiệt độ thấp nhất</string>
     <string name="legend_location_actual">Thực tế tại vị trí</string>
+    <string name="evolution_api_actual_format">Thực tế API: %1$s</string>
+    <string name="evolution_location_actual_format">Thực tế tại vị trí: %1$s</string>
+    <string name="evolution_single_high_title">Dự báo cao đơn lẻ</string>
+    <string name="evolution_single_low_title">Dự báo thấp đơn lẻ</string>
+    <string name="evolution_diff_format">Chênh lệch %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d ngày)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">Chuyển lên</string>

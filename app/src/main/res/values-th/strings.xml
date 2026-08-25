@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">อุณหภูมิสูงสุด</string>
     <string name="forecast_history_low_temp_title">อุณหภูมิต่ำสุด</string>
     <string name="legend_location_actual">ค่าจริงของตำแหน่ง</string>
+    <string name="evolution_api_actual_format">ค่าจริงจาก API: %1$s</string>
+    <string name="evolution_location_actual_format">ค่าจริงของตำแหน่ง: %1$s</string>
+    <string name="evolution_single_high_title">พยากรณ์สูงรายการเดียว</string>
+    <string name="evolution_single_low_title">พยากรณ์ต่ำรายการเดียว</string>
+    <string name="evolution_diff_format">ต่าง %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d วัน)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">เลื่อนขึ้น</string>

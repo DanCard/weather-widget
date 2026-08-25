@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">زیادہ سے زیادہ درجہ حرارت</string>
     <string name="forecast_history_low_temp_title">کم سے کم درجہ حرارت</string>
     <string name="legend_location_actual">مقام کا اصل</string>
+    <string name="evolution_api_actual_format">API اصل: %1$s</string>
+    <string name="evolution_location_actual_format">مقام کا اصل: %1$s</string>
+    <string name="evolution_single_high_title">واحد بلند پیشگوئی</string>
+    <string name="evolution_single_low_title">واحد کم پیشگوئی</string>
+    <string name="evolution_diff_format">فرق %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d دن)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">اوپر لے جائیں</string>

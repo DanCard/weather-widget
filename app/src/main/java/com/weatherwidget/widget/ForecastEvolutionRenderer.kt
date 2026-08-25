@@ -9,6 +9,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
 import android.util.TypedValue
+import com.weatherwidget.R
 import com.weatherwidget.shared.graph.AxisScale
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ErrorSample
@@ -119,8 +120,16 @@ object ForecastEvolutionRenderer {
 
         drawSeriesCurve(canvas, series, ::tempFor, axisScale, timeAxis, layout, paints.forecastCurve, paints.forecastPoint, dp)
 
-        drawActualLine(canvas, layout, axisScale, actualValue, paints.apiActualLine, "API actual: ${actualValue?.let { formatTempLabel(it, useCelsius) }}", paints.apiActualLabel, dp)
-        drawActualLine(canvas, layout, axisScale, appActualValue, paints.appActualLine, "Location actual: ${appActualValue?.let { formatTempLabel(it, useCelsius) }}", paints.appActualLabel, dp)
+        drawActualLine(
+            canvas, layout, axisScale, actualValue, paints.apiActualLine,
+            actualValue?.let { context.getString(R.string.evolution_api_actual_format, formatTempLabel(it, useCelsius)) },
+            paints.apiActualLabel, dp,
+        )
+        drawActualLine(
+            canvas, layout, axisScale, appActualValue, paints.appActualLine,
+            appActualValue?.let { context.getString(R.string.evolution_location_actual_format, formatTempLabel(it, useCelsius)) },
+            paints.appActualLabel, dp,
+        )
 
         return bitmap
     }
@@ -165,14 +174,14 @@ object ForecastEvolutionRenderer {
 
         val zeroY = axisScale.valueToY(0f, layout.graphTop, layout.graphHeight)
         canvas.drawLine(layout.graphLeft, zeroY, layout.graphRight, zeroY, paints.zeroLine)
-        canvas.drawText("Location actual", layout.graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), zeroY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), paints.zeroLabel)
+        canvas.drawText(context.getString(R.string.legend_location_actual), layout.graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), zeroY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), paints.zeroLabel)
 
         if (actualValue != null && appActualValue != null) {
             val apiBias = actualValue - appActualValue
             if (abs(apiBias) > 0.01f) {
                 val apiY = axisScale.valueToY(apiBias, layout.graphTop, layout.graphHeight)
                 canvas.drawLine(layout.graphLeft, apiY, layout.graphRight, apiY, paints.apiActualLine)
-                canvas.drawText("API actual", layout.graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), apiY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), paints.apiActualLabel)
+                canvas.drawText(context.getString(R.string.legend_actual), layout.graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), apiY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), paints.apiActualLabel)
             }
         }
 
@@ -251,7 +260,7 @@ object ForecastEvolutionRenderer {
                 textAlign = Paint.Align.LEFT
             }
             canvas.drawLine(graphLeft, apiActualY, graphRight, apiActualY, apiActualLinePaint)
-            canvas.drawText("API actual: ${formatTempLabel(actualValue, useCelsius)}", graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), apiActualY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), apiActualLabelPaint)
+            canvas.drawText(context.getString(R.string.evolution_api_actual_format, formatTempLabel(actualValue, useCelsius)), graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), apiActualY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), apiActualLabelPaint)
         }
 
         if (appActualValue != null) {
@@ -268,7 +277,7 @@ object ForecastEvolutionRenderer {
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             canvas.drawLine(graphLeft, appActualY, graphRight, appActualY, appActualLinePaint)
-            canvas.drawText("Location actual: ${formatTempLabel(appActualValue, useCelsius)}", graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), appActualY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), appActualLabelPaint)
+            canvas.drawText(context.getString(R.string.evolution_location_actual_format, formatTempLabel(appActualValue, useCelsius)), graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), appActualY + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), appActualLabelPaint)
         }
 
         val markerX = graphLeft + graphWidth / 2f
@@ -289,7 +298,7 @@ object ForecastEvolutionRenderer {
             textSize = dp(12f)
             textAlign = Paint.Align.CENTER
         }
-        val title = if (isHigh) "Single High Forecast" else "Single Low Forecast"
+        val title = context.getString(if (isHigh) R.string.evolution_single_high_title else R.string.evolution_single_low_title)
         canvas.drawText(title, widthPx / 2f, dp(16f), titlePaint)
 
         val forecastLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -302,10 +311,11 @@ object ForecastEvolutionRenderer {
         val baseline = appActualValue ?: actualValue
         val error = baseline?.let { it - sample.temp }
         val diffText = if (error != null) {
-            "  Diff ${formatErrorLabel(error, useCelsius)}"
+            "  " + context.getString(R.string.evolution_diff_format, formatErrorLabel(error, useCelsius))
         } else ""
         val tempLabel = formatTempLabel(sample.temp, useCelsius)
-        val forecastLabel = "$sourceLabel $tempLabel  (${sample.daysAhead}d)$diffText"
+        val forecastLabel = "$sourceLabel $tempLabel  " +
+            context.getString(R.string.evolution_days_ahead_format, sample.daysAhead) + diffText
         canvas.drawText(forecastLabel, markerX, forecastY - dp(10f), forecastLabelPaint)
 
         return bitmap
@@ -448,11 +458,11 @@ object ForecastEvolutionRenderer {
         axisScale: AxisScale,
         value: Float?,
         linePaint: Paint,
-        labelText: String,
+        labelText: String?,
         labelPaint: Paint,
         dp: (Float) -> Float,
     ) {
-        if (value == null) return
+        if (value == null || labelText == null) return
         val y = axisScale.valueToY(value, layout.graphTop, layout.graphHeight)
         canvas.drawLine(layout.graphLeft, y, layout.graphRight, y, linePaint)
         canvas.drawText(labelText, layout.graphRight + dp(EvolutionGraphStyle.LABEL_GAP_DP), y + dp(EvolutionGraphStyle.LABEL_VERTICAL_CENTER_DP), labelPaint)

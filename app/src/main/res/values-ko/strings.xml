@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">최고 기온</string>
     <string name="forecast_history_low_temp_title">최저 기온</string>
     <string name="legend_location_actual">위치 실측</string>
+    <string name="evolution_api_actual_format">API 실측: %1$s</string>
+    <string name="evolution_location_actual_format">위치 실측: %1$s</string>
+    <string name="evolution_single_high_title">단일 최고 예보</string>
+    <string name="evolution_single_low_title">단일 최저 예보</string>
+    <string name="evolution_diff_format">차이 %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d일)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">위로 이동</string>

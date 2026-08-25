@@ -71,10 +71,6 @@ class HardcodedUserFacingStringTest {
             mapOf(
                 "Dead zone tapped" to
                     "debug-only dead-zone toast (TemperatureTouchTargets); gated by BuildConfig.DEBUG",
-                "Location actual" to
-                    "ForecastEvolutionRenderer zero-line label; reuse R.string.legend_location_actual in Phase 2",
-                "API actual" to
-                    "ForecastEvolutionRenderer zero-line label; reuse R.string.legend_actual in Phase 2",
             )
 
         // ---- Check B allowlist: current :shared user-facing prose + why it still exists. ----

@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">درجة الحرارة العظمى</string>
     <string name="forecast_history_low_temp_title">درجة الحرارة الصغرى</string>
     <string name="legend_location_actual">فعلي الموقع</string>
+    <string name="evolution_api_actual_format">فعلي الواجهة: %1$s</string>
+    <string name="evolution_location_actual_format">فعلي الموقع: %1$s</string>
+    <string name="evolution_single_high_title">توقع أعلى واحد</string>
+    <string name="evolution_single_low_title">توقع أدنى واحد</string>
+    <string name="evolution_diff_format">الفرق %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d يوم)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">نقل لأعلى</string>

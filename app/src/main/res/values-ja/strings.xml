@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">最高気温</string>
     <string name="forecast_history_low_temp_title">最低気温</string>
     <string name="legend_location_actual">地点の実測</string>
+    <string name="evolution_api_actual_format">API 実測：%1$s</string>
+    <string name="evolution_location_actual_format">地点の実測：%1$s</string>
+    <string name="evolution_single_high_title">単一の最高予報</string>
+    <string name="evolution_single_low_title">単一の最低予報</string>
+    <string name="evolution_diff_format">差 %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d日)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">上へ移動</string>

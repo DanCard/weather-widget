@@ -286,6 +286,12 @@
     <string name="forecast_history_high_temp_title">Максимальна температура</string>
     <string name="forecast_history_low_temp_title">Мінімальна температура</string>
     <string name="legend_location_actual">Факт місця</string>
+    <string name="evolution_api_actual_format">Факт API: %1$s</string>
+    <string name="evolution_location_actual_format">Факт місця: %1$s</string>
+    <string name="evolution_single_high_title">Одиничний прогноз максимуму</string>
+    <string name="evolution_single_low_title">Одиничний прогноз мінімуму</string>
+    <string name="evolution_diff_format">Різниця %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$d дн)</string>
 
     <string name="move_up">Вгору</string>
     <string name="move_down">Вниз</string>

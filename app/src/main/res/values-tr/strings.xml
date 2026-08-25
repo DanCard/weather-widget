@@ -299,6 +299,12 @@
     <string name="forecast_history_high_temp_title">En yüksek sıcaklık</string>
     <string name="forecast_history_low_temp_title">En düşük sıcaklık</string>
     <string name="legend_location_actual">Konum gerçek</string>
+    <string name="evolution_api_actual_format">API gerçek: %1$s</string>
+    <string name="evolution_location_actual_format">Konum gerçek: %1$s</string>
+    <string name="evolution_single_high_title">Tek yüksek tahmin</string>
+    <string name="evolution_single_low_title">Tek düşük tahmin</string>
+    <string name="evolution_diff_format">Fark %1$s</string>
+    <string name="evolution_days_ahead_format">(%1$dg)</string>
 
     <!-- API source ordering list -->
     <string name="move_up">Yukarı taşı</string>
